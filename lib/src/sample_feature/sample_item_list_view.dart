@@ -42,34 +42,34 @@ class SampleItemListView extends StatelessWidget {
         ],
       ),
 
-      // To work with lists that may contain a large number of items, it’s best
-      // to use the ListView.builder constructor.
-      //
-      // In contrast to the default ListView constructor, which requires
-      // building all Widgets up front, the ListView.builder constructor lazily
-      // builds Widgets as they’re scrolled into view.
-      body: ListView.builder(
-        // Providing a restorationId allows the ListView to restore the
-        // scroll position when a user leaves and returns to the app after it
-        // has been killed while running in the background.
-        restorationId: 'sampleItemListView',
-        itemCount: controller.devices.length,
-        itemBuilder: (BuildContext context, int index) {
-          final item = controller.devices[index];
+      body: StreamBuilder(
+        stream: controller.deviceStream,
+        builder: (buildContext, data) {
+          return ListView.builder(
+            // Providing a restorationId allows the ListView to restore the
+            // scroll position when a user leaves and returns to the app after it
+            // has been killed while running in the background.
+            restorationId: 'sampleItemListView',
+            itemCount: data.data?.length ?? 0,
+            itemBuilder: (BuildContext context, int index) {
+              final item = controller.devices[index];
 
-          return ListTile(
-            title: Text('${item.name} : ${item.deviceId}'),
-            leading: const CircleAvatar(
-              // Display the Flutter Logo image asset.
-              foregroundImage: AssetImage('assets/images/flutter_logo.png'),
-            ),
-            onTap: () {
-              // Navigate to the details page. If the user leaves and returns to
-              // the app after it has been killed while running in the
-              // background, the navigation stack is restored.
-              Navigator.restorablePushNamed(
-                context,
-                SampleItemDetailsView.routeName,
+              return ListTile(
+                title: Text('${item.name} : ${item.deviceId}'),
+                leading: const CircleAvatar(
+                  // Display the Flutter Logo image asset.
+                  foregroundImage: AssetImage('assets/images/flutter_logo.png'),
+                ),
+                onTap: () {
+                  // Navigate to the details page. If the user leaves and returns to
+                  // the app after it has been killed while running in the
+                  // background, the navigation stack is restored.
+                  Navigator.restorablePushNamed(
+                    context,
+                    SampleItemDetailsView.routeName,
+                    arguments: item.deviceId,
+                  );
+                },
               );
             },
           );
