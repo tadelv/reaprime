@@ -1,0 +1,6 @@
+{
+  "appTitle": "reaprime",
+  "@appTitle": {
+    "description": "The title of the application"
+  }
+}
