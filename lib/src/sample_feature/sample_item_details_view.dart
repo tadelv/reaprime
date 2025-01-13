@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 
 /// Displays detailed information about a SampleItem.
@@ -22,35 +23,56 @@ class SampleItemDetailsView extends StatelessWidget {
           builder: (context, snapshot) {
             var diff = snapshot.data?.timestamp.difference(_lastDate) ?? 0;
             _lastDate = snapshot.data?.timestamp ?? DateTime.now();
-            return Column(
-              children: [
-                Text(
-                  "${snapshot.data?.state.state}: ${snapshot.data?.state.substate}",
-                ),
-                Text(
-                  "steam temp: ${snapshot.data?.steamTemperature.toStringAsFixed(2)}",
-                ),
-                Text(
-                  "group temp: ${snapshot.data?.groupTemperature.toStringAsFixed(2)}",
-                ),
-                Text("flow: ${snapshot.data?.flow.toStringAsFixed(2)}"),
-                Text("pressure: ${snapshot.data?.pressure.toStringAsFixed(2)}"),
-                Text(
-                  "target mix temp: ${snapshot.data?.targetMixTemperature.toStringAsFixed(2)}",
-                ),
-                Text(
-                  "target head temp: ${snapshot.data?.targetGroupTemperature.toStringAsFixed(2)}",
-                ),
-                Text(
-                  "target pressure: ${snapshot.data?.targetPressure.toStringAsFixed(2)}",
-                ),
-                Text("target flow: ${snapshot.data?.flow.toStringAsFixed(2)}"),
-                Text("update freq: ${diff}"),
-              ],
-            );
+            return Column(children: machineState(snapshot, diff));
           },
         ),
       ),
     );
+  }
+
+  List<Widget> machineState(
+    AsyncSnapshot<MachineSnapshot> snapshot,
+    Object diff,
+  ) {
+    return [
+      Text("${snapshot.data?.state.state}: ${snapshot.data?.state.substate}"),
+      Text("steam temp: ${snapshot.data?.steamTemperature.toStringAsFixed(2)}"),
+      Text("group temp: ${snapshot.data?.groupTemperature.toStringAsFixed(2)}"),
+      Text("flow: ${snapshot.data?.flow.toStringAsFixed(2)}"),
+      Text("pressure: ${snapshot.data?.pressure.toStringAsFixed(2)}"),
+      Text(
+        "target mix temp: ${snapshot.data?.targetMixTemperature.toStringAsFixed(2)}",
+      ),
+      Text(
+        "target head temp: ${snapshot.data?.targetGroupTemperature.toStringAsFixed(2)}",
+      ),
+      Text(
+        "target pressure: ${snapshot.data?.targetPressure.toStringAsFixed(2)}",
+      ),
+      Text("target flow: ${snapshot.data?.flow.toStringAsFixed(2)}"),
+      Text("update freq: ${diff}"),
+      _stateButton(snapshot),
+    ];
+  }
+
+  Widget _stateButton(AsyncSnapshot<MachineSnapshot> snapshot) {
+    if (snapshot.data != null) {
+      if (snapshot.data!.state.state == MachineState.sleeping) {
+        return OutlinedButton(
+          onPressed: () {
+            machine.requestState(MachineState.idle);
+          },
+          child: Text("Wake"),
+        );
+      } else {
+        return OutlinedButton(
+          onPressed: () {
+            machine.requestState(MachineState.sleeping);
+          },
+          child: Text("Sleep"),
+        );
+      }
+    }
+    return SizedBox();
   }
 }

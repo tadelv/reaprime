@@ -6,7 +6,7 @@ import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 
-class SimulatedDeviceService with ChangeNotifier implements DeviceService {
+class SimulatedDeviceService with ChangeNotifier implements DeviceDiscoveryService {
   final Map<String, Device> _devices = {};
 
 	final StreamController<List<Device>> _deviceStreamController = StreamController.broadcast();

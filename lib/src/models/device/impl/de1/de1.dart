@@ -10,19 +10,29 @@ import 'package:logging/logging.dart' as logging;
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 
 class De1 with ChangeNotifier implements Machine {
-  static Uuid advertisingUUID = Uuid.parse(
-    '0000FFFF-0000-1000-8000-00805F9B34FB',
-  );
+  static String advertisingUUID = '0000FFFF-0000-1000-8000-00805F9B34FB';
 
   final String _deviceId;
 
   final _ble = FlutterReactiveBle();
 
   StreamSubscription<ConnectionStateUpdate>? _connectionSubscription;
+  final List<StreamSubscription<dynamic>> _notificationSubscriptions = [];
 
   final _log = logging.Logger("DE1");
 
-  De1({required String deviceId}) : _deviceId = deviceId;
+  De1({required String deviceId}) : _deviceId = deviceId {
+    _snapshotStream.add(_currentSnapshot);
+  }
+
+  @override
+  void dispose() {
+    _connectionSubscription?.cancel();
+    for (StreamSubscription<dynamic> sub in _notificationSubscriptions) {
+      sub.cancel();
+    }
+    super.dispose();
+  }
 
   factory De1.fromId(String id) {
     return De1(deviceId: id);
@@ -75,14 +85,21 @@ class De1 with ChangeNotifier implements Machine {
     });
   }
 
+  @override
+  Future<void> requestState(MachineState newState) async {
+	Uint8List data = Uint8List(1);
+	data[0] = De1StateEnum.fromMachineState(newState).hexValue;
+    await _write(Endpoint.requestedState, data);
+  }
+
   Future<void> _onConnected() async {
     _log.info("Connected, subscribing to services");
     _snapshotStream.add(
       MachineSnapshot(
         flow: 0,
         state: MachineStateSnapshot(
-          state: MachineState.steam,
-          substate: MachineSubstate.pouring,
+          state: MachineState.sleeping,
+          substate: MachineSubstate.idle,
         ),
         steamTemperature: 0,
         profileFrame: 0,
@@ -99,7 +116,7 @@ class De1 with ChangeNotifier implements Machine {
 
     var status = await _read(Endpoint.stateInfo);
     final data = ByteData.sublistView(Uint8List.fromList(status));
-		_parseStatus(data);
+    _parseStatus(data);
 
     _subscribe(Endpoint.stateInfo, _parseStatus);
     _subscribe(Endpoint.shotSample, _parseShot);
@@ -118,6 +135,20 @@ class De1 with ChangeNotifier implements Machine {
     return data;
   }
 
+  Future<void> _write(Endpoint e, Uint8List data) async {
+    try {
+      final characteristic = QualifiedCharacteristic(
+        characteristicId: Uuid.parse(e.uuid),
+        serviceId: Uuid.parse(de1ServiceUUID),
+        deviceId: deviceId,
+      );
+
+      _ble.writeCharacteristicWithoutResponse(characteristic, value: data);
+    } catch (e, st) {
+      _log.severe("failed to write", e, st);
+    }
+  }
+
   void _subscribe(Endpoint e, Function(ByteData) callback) {
     _log.info('enableNotification for ${e.name}');
 
@@ -126,7 +157,7 @@ class De1 with ChangeNotifier implements Machine {
       characteristicId: Uuid.parse(e.uuid),
       deviceId: deviceId,
     );
-    _ble
+    var sub = _ble
         .subscribeToCharacteristic(characteristic)
         .listen(
           (data) {
@@ -146,6 +177,7 @@ class De1 with ChangeNotifier implements Machine {
             _log.severe("Error subscribing to ${e.name}", error);
           },
         );
+    _notificationSubscriptions.add(sub);
   }
 
   _parseStatus(ByteData data) {
@@ -163,7 +195,7 @@ class De1 with ChangeNotifier implements Machine {
   }
 
   _parseShot(ByteData data) {
-    final sampleTime = 100 * (data.getUint16(0)) / (50 * 2);
+    //final sampleTime = 100 * (data.getUint16(0)) / (50 * 2);
     final groupPressure = data.getUint16(2) / (1 << 12);
     final groupFlow = data.getUint16(4) / (1 << 12);
     final mixTemp = data.getUint16(6) / (1 << 8);

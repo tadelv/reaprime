@@ -3,7 +3,7 @@ import 'package:logging/logging.dart';
 import 'package:logging_appenders/logging_appenders.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/device.dart';
-import 'package:reaprime/src/services/ble_device_service.dart';
+import 'package:reaprime/src/services/ble_discovery_service.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
 
 import 'src/app.dart';
@@ -19,8 +19,8 @@ void main() async {
 
   final log = Logger("Main");
 
-  final List<DeviceService> services = [
-    BleDeviceService({De1.advertisingUUID: (id) => De1.fromId(id)}),
+  final List<DeviceDiscoveryService> services = [
+    BleDiscoveryService({De1.advertisingUUID: (id) => De1.fromId(id)}),
   ];
 
   if (const String.fromEnvironment("simulate") == "1") {

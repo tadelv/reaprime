@@ -6,10 +6,10 @@ import '../models/device/machine.dart';
 import '../models/device/scale.dart';
 import 'package:logging/logging.dart' as logging;
 
-class BleDeviceService extends DeviceService {
-  BleDeviceService(this.deviceMappings);
+class BleDiscoveryService extends DeviceDiscoveryService {
+  BleDiscoveryService(this.deviceMappings);
 
-  Map<Uuid, Device Function(String)> deviceMappings;
+  Map<String, Device Function(String)> deviceMappings;
 
   final Map<String, Device> _devices = {};
 
@@ -40,7 +40,7 @@ class BleDeviceService extends DeviceService {
   Future<void> scanForDevices() async {
     _subscription = _ble
         .scanForDevices(
-          withServices: deviceMappings.keys.toList(),
+          withServices: deviceMappings.keys.map((k) => Uuid.parse(k)).toList(),
           scanMode: ScanMode.lowLatency,
           //requireLocationServicesEnabled: false,
         )
@@ -75,10 +75,10 @@ class BleDeviceService extends DeviceService {
 
   _deviceScanned(DiscoveredDevice device) {
     for (Uuid uid in device.serviceUuids) {
-      var initializer = deviceMappings[uid];
-      if (initializer != null) {
+      var initializer = deviceMappings[uid.toString().toUpperCase()];
+      if (initializer != null && _devices.containsKey(device.id) == false) {
         _devices[device.id] = initializer(device.id);
-				_deviceStreamController.add(_devices.values.toList());
+        _deviceStreamController.add(_devices.values.toList());
         log.fine("found new device: ${device.name}");
         log.fine("devices: ${_devices.toString()}");
       }

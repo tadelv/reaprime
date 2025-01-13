@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:reaprime/src/models/device/device.dart';
 
-abstract class Machine extends Device with ChangeNotifier {
+abstract class Machine extends Device {
   Stream<MachineSnapshot> get currentSnapshot;
+
+	Future<void> requestState(MachineState newState);
 }
 
 class MachineSnapshot {

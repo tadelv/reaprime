@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 
@@ -13,7 +12,7 @@ abstract class Device {
   Future<void> onConnect();
 }
 
-abstract class DeviceService extends ChangeNotifier {
+abstract class DeviceDiscoveryService {
 
 	Stream<List<Device>> get devices;
 

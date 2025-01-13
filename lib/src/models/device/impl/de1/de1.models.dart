@@ -1,5 +1,8 @@
 // ignore_for_file: constant_identifier_names
 
+import 'package:flutter/material.dart';
+import 'package:reaprime/src/models/device/machine.dart';
+
 final String de1ServiceUUID = '0000A000-0000-1000-8000-00805F9B34FB';
 
 enum Endpoint {
@@ -71,6 +74,42 @@ enum De1StateEnum {
       (e) => e.hexValue == hex,
       orElse: () => De1StateEnum.unknown,
     );
+  }
+
+  static De1StateEnum fromMachineState(MachineState state) {
+    switch (state) {
+      case MachineState.idle:
+        return De1StateEnum.idle;
+      case MachineState.booting:
+        throw UnimplementedError();
+      case MachineState.sleeping:
+        return De1StateEnum.sleep;
+      case MachineState.heating:
+        throw UnimplementedError();
+      case MachineState.preheating:
+        throw UnimplementedError();
+      case MachineState.espresso:
+        return De1StateEnum.espresso;
+      case MachineState.hotWater:
+        return De1StateEnum.hotWater;
+      case MachineState.flush:
+        return De1StateEnum.hotWaterRinse;
+      case MachineState.steam:
+        return De1StateEnum.steam;
+      case MachineState.cleaning:
+        // TODO: Handle this case.
+        throw UnimplementedError();
+      case MachineState.descaling:
+        // TODO: Handle this case.
+        throw UnimplementedError();
+      case MachineState.transportMode:
+        // TODO: Handle this case.
+        throw UnimplementedError();
+      case MachineState.needsWater:
+        throw UnimplementedError();
+      case MachineState.error:
+        throw UnimplementedError();
+    }
   }
 }
 

@@ -43,6 +43,12 @@ class MockDe1 with ChangeNotifier implements Machine {
   String get name => "MockDe1";
 
   @override
+  Future<void> requestState(MachineState newState) {
+    // TODO: implement requestState
+    throw UnimplementedError();
+  }
+
+  @override
   Future<void> onConnect() async {
     _simulateState();
   }
@@ -76,4 +82,5 @@ class MockDe1 with ChangeNotifier implements Machine {
       _lastSnapshot = newSnapshot;
     });
   }
+
 }
