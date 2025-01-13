@@ -7,7 +7,7 @@ import 'package:reaprime/src/models/device/machine.dart';
 class DeviceController extends ChangeNotifier {
   final List<DeviceService> _services;
 
-  late Map<DeviceService, Map<String, Device>> _devices;
+  late Map<DeviceService, List<Device>> _devices;
 
   final StreamController<List<Device>> _deviceStream = StreamController();
 
@@ -15,7 +15,7 @@ class DeviceController extends ChangeNotifier {
 
   List<Device> get devices =>
       _devices.values.fold(List<Device>.empty(growable: true), (res, el) {
-        res.addAll(el.values);
+        res.addAll(el);
         return res;
       }).toList();
 
@@ -26,12 +26,12 @@ class DeviceController extends ChangeNotifier {
   Future<void> initialize() async {
     for (var service in _services) {
       await service.initialize();
-      service.addListener(() => _serviceUpdate(service, service.devices));
+      service.devices.listen((devices) => _serviceUpdate(service, devices));
       await service.scanForDevices();
     }
   }
 
-  _serviceUpdate(DeviceService service, Map<String, Device> devices) {
+  _serviceUpdate(DeviceService service, List<Device> devices) {
     _devices[service] = devices;
     _deviceStream.add(this.devices);
     notifyListeners();
@@ -40,7 +40,7 @@ class DeviceController extends ChangeNotifier {
   Future<Machine> connectMachine(Device device) async {
     DeviceService? service;
     _devices.forEach((s, v) {
-      if (v.containsKey(device.deviceId)) {
+      if (v.contains(device)) {
         service = s;
         return;
       }

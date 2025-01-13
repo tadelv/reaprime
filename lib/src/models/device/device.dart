@@ -14,7 +14,8 @@ abstract class Device {
 }
 
 abstract class DeviceService extends ChangeNotifier {
-  Map<String, Device> get devices;
+
+	Stream<List<Device>> get devices;
 
   Future<void> initialize() async {
     throw "Not implemented yet";
@@ -40,5 +41,3 @@ abstract class DeviceService extends ChangeNotifier {
   }
 }
 
-// TODO: device - connection map somehow
-// service needs to know, which device is which implementation

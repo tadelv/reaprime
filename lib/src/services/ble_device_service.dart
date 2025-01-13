@@ -16,8 +16,11 @@ class BleDeviceService extends DeviceService {
   late FlutterReactiveBle _ble;
   final log = logging.Logger("BleDeviceService");
 
+  final StreamController<List<Device>> _deviceStreamController =
+      StreamController.broadcast();
+
   @override
-  Map<String, Device> get devices => _devices;
+  Stream<List<Device>> get devices => _deviceStreamController.stream;
 
   StreamSubscription<DiscoveredDevice>? _subscription;
 
@@ -50,7 +53,7 @@ class BleDeviceService extends DeviceService {
 
     Future.delayed(Duration(seconds: 30), () {
       _subscription?.cancel();
-			log.info("stopping scan");
+      log.info("stopping scan");
     });
   }
 
@@ -75,10 +78,10 @@ class BleDeviceService extends DeviceService {
       var initializer = deviceMappings[uid];
       if (initializer != null) {
         _devices[device.id] = initializer(device.id);
+				_deviceStreamController.add(_devices.values.toList());
+        log.fine("found new device: ${device.name}");
+        log.fine("devices: ${_devices.toString()}");
       }
     }
-    log.fine("found new device: ${device.name}");
-		log.fine("devices: ${_devices.toString()}");
-    notifyListeners();
   }
 }
