@@ -1,18 +1,4 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-<uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
-<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
-<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="30" />
-    <permission
-        android:name="android.permission.BLUETOOTH"
-        android:label="REA"/>
-    <permission
-        android:name="android.permission.BLUETOOTH_ADMIN"/>
-    <permission
-        android:name="android.permission.ACCESS_FINE_LOCATION"/>
-    <permission
-        android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-
     <application
         android:label="reaprime"
         android:name="${applicationName}"
@@ -45,6 +31,14 @@
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
+		<uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!--<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />-->
+    <!--<uses-permission android:name="android.permission.WAKE_LOCK" />-->
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
          https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
@@ -56,4 +50,5 @@
             <data android:mimeType="text/plain"/>
         </intent>
     </queries>
+
 </manifest>
