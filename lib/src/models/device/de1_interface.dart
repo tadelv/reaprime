@@ -86,13 +86,3 @@ final class De1WaterLevels {
   });
 }
 
-// TODO: this belongs to impl
-final class De1WaterLevelData {
-  final int currentLevel;
-  final int currentLimit;
-
-  const De1WaterLevelData({
-    required this.currentLevel,
-    required this.currentLimit,
-  });
-}
