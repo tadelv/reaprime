@@ -19,6 +19,7 @@ dependencies:
   logging_appenders: ^1.3.1
   # flutter_foreground_task: ^4.0.0
   permission_handler: ^11.3.1
+  rxdart: ^0.28.0
   
 dev_dependencies:
   flutter_test:

@@ -31,6 +31,15 @@
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
+
+    <permission
+        android:name="android.permission.BLUETOOTH"
+        android:label="REA"/>
+     <permission
+         android:name="android.permission.BLUETOOTH_ADMIN"/>
+     <permission
+         android:name="android.permission.ACCESS_FINE_LOCATION"/>
+     <permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 		<uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />

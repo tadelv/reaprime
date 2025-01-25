@@ -10,6 +10,7 @@ import 'package:reaprime/src/models/device/impl/de1/de1.utils.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:logging/logging.dart' as logging;
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
+import 'package:rxdart/subjects.dart';
 
 part 'de1.subscriptions.dart';
 part 'de1.rw.dart';
@@ -63,10 +64,10 @@ class De1 implements De1Interface {
 
   final StreamController<MachineSnapshot> _snapshotStream =
       StreamController<MachineSnapshot>.broadcast();
-  final StreamController<De1ShotSettings> _shotSettingsController =
-      StreamController.broadcast();
-  final StreamController<De1WaterLevels> _waterLevelsController =
-      StreamController.broadcast();
+  final BehaviorSubject<De1ShotSettings> _shotSettingsController =
+      BehaviorSubject();
+  final BehaviorSubject<De1WaterLevels> _waterLevelsController =
+      BehaviorSubject();
 
   @override
   Stream<MachineSnapshot> get currentSnapshot => _snapshotStream.stream;
@@ -138,8 +139,7 @@ class De1 implements De1Interface {
   }
 
   @override
-  // TODO: implement shotSettings
-  Stream<De1ShotSettings> get shotSettings => throw UnimplementedError();
+  Stream<De1ShotSettings> get shotSettings => _shotSettingsController.stream.asBroadcastStream();
 
   @override
   Future<void> updateShotSettings(De1ShotSettings newSettings) {
@@ -148,6 +148,5 @@ class De1 implements De1Interface {
   }
 
   @override
-  // TODO: implement waterLevels
-  Stream<De1WaterLevels> get waterLevels => throw UnimplementedError();
+  Stream<De1WaterLevels> get waterLevels => _waterLevelsController.stream;
 }

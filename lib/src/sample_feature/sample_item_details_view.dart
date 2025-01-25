@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 
@@ -8,7 +9,7 @@ class SampleItemDetailsView extends StatelessWidget {
 
   static const routeName = '/sample_item';
 
-  final Machine machine;
+  final De1Interface machine;
 
   var _lastDate = DateTime.now();
 
@@ -18,13 +19,35 @@ class SampleItemDetailsView extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Item Details')),
       body: Center(
-        child: StreamBuilder(
-          stream: machine.currentSnapshot,
-          builder: (context, snapshot) {
-            var diff = snapshot.data?.timestamp.difference(_lastDate) ?? 0;
-            _lastDate = snapshot.data?.timestamp ?? DateTime.now();
-            return Column(children: machineState(snapshot, diff));
-          },
+        child: Padding(
+          padding: EdgeInsets.all(8),
+          child: Flex(
+            direction: Axis.horizontal,
+            children: [
+              Flexible(
+                flex: 2,
+                child: StreamBuilder(
+                  stream: machine.currentSnapshot,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.active) {
+                      var diff =
+                          snapshot.data?.timestamp.difference(_lastDate) ?? 0;
+                      _lastDate = snapshot.data?.timestamp ?? DateTime.now();
+                      return Column(children: machineState(snapshot, diff));
+                    } else if (snapshot.connectionState ==
+                        ConnectionState.waiting) {
+                      return Text("Connecting");
+                    }
+                    return Text(
+                      "Waiting for data: ${snapshot.connectionState}",
+                    );
+                  },
+                ),
+              ),
+              Flexible(flex: 1, child: _shotSettings(machine.shotSettings)),
+              Flexible(flex: 2, child: _waterLevels(machine.waterLevels)),
+            ],
+          ),
         ),
       ),
     );
@@ -74,5 +97,33 @@ class SampleItemDetailsView extends StatelessWidget {
       }
     }
     return SizedBox();
+  }
+
+  Widget _shotSettings(Stream<De1ShotSettings> shotSettings) {
+    return StreamBuilder(
+      stream: shotSettings,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.active) {
+          return Column(children: [Text("${snapshot.data!.steamSetting}")]);
+        }
+        return Text("Waiting for data ${snapshot.connectionState}");
+      },
+    );
+  }
+
+  Widget _waterLevels(Stream<De1WaterLevels> waterLevels) {
+    return StreamBuilder(
+      stream: waterLevels,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.active) {
+          return Column(
+            children: [
+              Text("water level: ${snapshot.data!.currentPercentage}%"),
+            ],
+          );
+        }
+        return Text("Waiting for data ${snapshot.connectionState}");
+      },
+    );
   }
 }

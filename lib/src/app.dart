@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 
 import 'sample_feature/sample_item_details_view.dart';
@@ -98,7 +99,7 @@ class MyApp extends StatelessWidget {
                                     e.deviceId ==
                                     (routeSettings.arguments as String),
                               )
-                              as Machine,
+                              as De1Interface,
                     );
                   case SampleItemListView.routeName:
                   default:
