@@ -28,4 +28,18 @@ extension De1ReadWrite on De1 {
       _log.severe("failed to write", e, st);
     }
   }
+
+  Future<void> _writeWithResponse(Endpoint e, Uint8List data) async {
+    try {
+      final characteristic = QualifiedCharacteristic(
+        characteristicId: Uuid.parse(e.uuid),
+        serviceId: Uuid.parse(de1ServiceUUID),
+        deviceId: deviceId,
+      );
+
+      _ble.writeCharacteristicWithResponse(characteristic, value: data);
+    } catch (e, st) {
+      _log.severe("failed to write", e, st);
+    }
+  }
 }

@@ -68,7 +68,22 @@ enum ExitType { pressure, flow }
 
 enum ExitCondition { over, under }
 
-class ProfileStep {
+class StepLimiter {
+  final double value;
+  final double range;
+
+  StepLimiter({required this.value, required this.range});
+
+  factory StepLimiter.fromJson(Map<String, dynamic> json) {
+    return StepLimiter(value: json["value"], range: json["range"]);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'value': value, 'range': range};
+  }
+}
+
+abstract class ProfileStep {
   final String name;
   final TransitionType transition;
   final StepExitCondition? exit;
@@ -77,6 +92,7 @@ class ProfileStep {
   final double? weight;
   final double temperature;
   final TemperatureSensor sensor;
+  final StepLimiter? limiter;
 
   ProfileStep({
     required this.name,
@@ -87,36 +103,24 @@ class ProfileStep {
     this.weight,
     required this.temperature,
     required this.sensor,
+    this.limiter,
   });
 
+  double getTarget(); // Abstract method for subclasses to implement
+
   factory ProfileStep.fromJson(Map<String, dynamic> json) {
-    return ProfileStep(
-      name: json['name'],
-      transition: TransitionType.values.byName(json['transition']),
-      exit:
-          json['exit'] != null
-              ? StepExitCondition.fromJson(json['exit'])
-              : null,
-      volume: json['volume'],
-      seconds: json['seconds'],
-      weight: json['weight'],
-      temperature: json['temperature'],
-      sensor: TemperatureSensor.values.byName(json['sensor']),
-    );
+    if (json.containsKey('pressure')) {
+      return ProfileStepPressure.fromJson(json);
+    } else if (json.containsKey('flow')) {
+      return ProfileStepFlow.fromJson(json);
+    } else {
+      throw Exception(
+        'Invalid step type. Must include either "pressure" or "flow".',
+      );
+    }
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'name': name,
-      'transition': transition.name,
-      'exit': exit?.toJson(),
-      'volume': volume,
-      'seconds': seconds,
-      'weight': weight,
-      'temperature': temperature,
-      'sensor': sensor.name,
-    };
-  }
+  Map<String, dynamic> toJson();
 }
 
 class ProfileStepPressure extends ProfileStep {
@@ -131,8 +135,12 @@ class ProfileStepPressure extends ProfileStep {
     super.weight,
     required super.temperature,
     required super.sensor,
+    super.limiter,
     required this.pressure,
   });
+
+  @override
+  double getTarget() => pressure;
 
   factory ProfileStepPressure.fromJson(Map<String, dynamic> json) {
     return ProfileStepPressure(
@@ -147,14 +155,28 @@ class ProfileStepPressure extends ProfileStep {
       weight: json['weight'],
       temperature: json['temperature'],
       sensor: TemperatureSensor.values.byName(json['sensor']),
+      limiter:
+          json['limiter'] != null
+              ? StepLimiter.fromJson(json['limiter'])
+              : null,
       pressure: json['pressure'],
     );
   }
 
   @override
   Map<String, dynamic> toJson() {
-    final data = super.toJson();
-    data['pressure'] = pressure;
+    final data = {
+      'name': name,
+      'transition': transition.name,
+      'exit': exit?.toJson(),
+      'volume': volume,
+      'seconds': seconds,
+      'weight': weight,
+      'temperature': temperature,
+      'sensor': sensor.name,
+      'pressure': pressure,
+      'limiter': limiter?.toJson(),
+    };
     return data;
   }
 }
@@ -171,8 +193,12 @@ class ProfileStepFlow extends ProfileStep {
     super.weight,
     required super.temperature,
     required super.sensor,
+    super.limiter,
     required this.flow,
   });
+
+  @override
+  double getTarget() => flow;
 
   factory ProfileStepFlow.fromJson(Map<String, dynamic> json) {
     return ProfileStepFlow(
@@ -187,14 +213,28 @@ class ProfileStepFlow extends ProfileStep {
       weight: json['weight'],
       temperature: json['temperature'],
       sensor: TemperatureSensor.values.byName(json['sensor']),
+      limiter:
+          json['limiter'] != null
+              ? StepLimiter.fromJson(json['limiter'])
+              : null,
       flow: json['flow'],
     );
   }
 
   @override
   Map<String, dynamic> toJson() {
-    final data = super.toJson();
-    data['flow'] = flow;
+    final data = {
+      'name': name,
+      'transition': transition.name,
+      'exit': exit?.toJson(),
+      'volume': volume,
+      'seconds': seconds,
+      'weight': weight,
+      'temperature': temperature,
+      'sensor': sensor.name,
+      'flow': flow,
+      'limiter': limiter?.toJson(),
+    };
     return data;
   }
 }

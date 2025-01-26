@@ -14,6 +14,7 @@ import 'package:rxdart/subjects.dart';
 
 part 'de1.subscriptions.dart';
 part 'de1.rw.dart';
+part 'de1.profile.dart';
 
 class De1 implements De1Interface {
   static String advertisingUUID = '0000FFFF-0000-1000-8000-00805F9B34FB';
@@ -127,9 +128,8 @@ class De1 implements De1Interface {
   }
 
   @override
-  Future<void> setProfile(Profile profile) {
-    // TODO: implement setProfile
-    throw UnimplementedError();
+  Future<void> setProfile(Profile profile) async {
+    await _sendProfile(profile);
   }
 
   @override
