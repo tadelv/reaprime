@@ -74,6 +74,8 @@ extension De1Profile on De1 {
       data[5] = 0;
       data[6] = 0;
       data[7] = 0;
+
+      _writeWithResponse(Endpoint.frameWrite, data);
     }
   }
 
@@ -176,7 +178,7 @@ class Helper {
       0x40; // Ignore minimum pressure and max flow settings
 
   static int convertProfileFlags(ProfileStep step) {
-		// TODO: maybe don't ignore this if we need to reach high flow values?
+    // TODO: maybe don't ignore this if we need to reach high flow values?
     int flag = ignoreLimit;
 
     if (step is ProfileStepFlow) flag |= ctrlF;

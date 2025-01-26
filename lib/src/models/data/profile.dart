@@ -1,3 +1,4 @@
+
 /// Trying to imitate the common v2 profile as close as reasonable
 class Profile {
   final String? version;
@@ -55,6 +56,33 @@ class Profile {
       'target_volume_count_start': targetVolumeCountStart,
       'tank_temperature': tankTemperature,
     };
+  }
+
+  Profile copyWith({
+    String? version,
+    String? title,
+    String? notes,
+    String? author,
+    BeverageType? beverageType,
+    List<ProfileStep>? steps,
+    double? targetVolume,
+    double? targetWeight,
+    int? targetVolumeCountStart,
+    double? tankTemperature,
+  }) {
+    return Profile(
+      version: version ?? this.version,
+      title: title ?? this.title,
+      notes: notes ?? this.notes,
+      author: author ?? this.author,
+      beverageType: beverageType ?? this.beverageType,
+      steps: steps ?? this.steps,
+      targetVolume: targetVolume ?? this.targetVolume,
+      targetWeight: targetWeight ?? this.targetWeight,
+      targetVolumeCountStart:
+          targetVolumeCountStart ?? this.targetVolumeCountStart,
+      tankTemperature: tankTemperature ?? this.tankTemperature,
+    );
   }
 }
 
