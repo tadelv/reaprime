@@ -66,6 +66,23 @@ class MachineSnapshot {
       steamTemperature: steamTemperature ?? this.steamTemperature,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'timestamp': timestamp.toIso8601String(),
+      'state': {'state': state.state.name, 'substate': state.substate.name},
+      'flow': flow,
+      'pressure': pressure,
+      'targetFlow': targetFlow,
+      'targetPressure': targetPressure,
+      'mixTemperature': mixTemperature,
+      'groupTemperature': groupTemperature,
+      'targetMixTemperature': targetMixTemperature,
+      'targetGroupTemperature': targetGroupTemperature,
+      'profileFrame': profileFrame,
+      'steamTemperature': steamTemperature,
+    };
+  }
 }
 
 enum MachineState {

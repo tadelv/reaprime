@@ -9,7 +9,7 @@ class DeviceController extends ChangeNotifier {
 
   late Map<DeviceDiscoveryService, List<Device>> _devices;
 
-  final StreamController<List<Device>> _deviceStream = StreamController();
+  final StreamController<List<Device>> _deviceStream = StreamController.broadcast();
 
   Stream<List<Device>> get deviceStream => _deviceStream.stream;
 

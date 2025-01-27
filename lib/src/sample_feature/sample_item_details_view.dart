@@ -15,7 +15,6 @@ class SampleItemDetailsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    machine.onConnect();
     return Scaffold(
       appBar: AppBar(title: const Text('Item Details')),
       body: Center(

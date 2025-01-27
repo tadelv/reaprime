@@ -1,4 +1,3 @@
-
 /// Trying to imitate the common v2 profile as close as reasonable
 class Profile {
   final String? version;
@@ -36,10 +35,10 @@ class Profile {
           (json['steps'] as List)
               .map((step) => ProfileStep.fromJson(step))
               .toList(),
-      targetVolume: json['target_volume'],
-      targetWeight: json['target_weight'],
-      targetVolumeCountStart: json['target_volume_count_start'],
-      tankTemperature: json['tank_temperature'],
+      targetVolume: double.parse(json['target_volume']),
+      targetWeight: double.parse(json['target_weight']),
+      targetVolumeCountStart: int.parse(json['target_volume_count_start']),
+      tankTemperature: double.parse(json['tank_temperature']),
     );
   }
 
@@ -103,7 +102,10 @@ class StepLimiter {
   StepLimiter({required this.value, required this.range});
 
   factory StepLimiter.fromJson(Map<String, dynamic> json) {
-    return StepLimiter(value: json["value"], range: json["range"]);
+    return StepLimiter(
+      value: double.parse(json["value"]),
+      range: double.parse(json["range"]),
+    );
   }
 
   Map<String, dynamic> toJson() {
@@ -178,16 +180,16 @@ class ProfileStepPressure extends ProfileStep {
           json['exit'] != null
               ? StepExitCondition.fromJson(json['exit'])
               : null,
-      volume: json['volume'],
-      seconds: json['seconds'],
-      weight: json['weight'],
-      temperature: json['temperature'],
+      volume: double.parse(json['volume']),
+      seconds: double.parse(json['seconds']),
+      weight: double.parse(json['weight']),
+      temperature: double.parse(json['temperature']),
       sensor: TemperatureSensor.values.byName(json['sensor']),
       limiter:
           json['limiter'] != null
               ? StepLimiter.fromJson(json['limiter'])
               : null,
-      pressure: json['pressure'],
+      pressure: double.parse(json['pressure']),
     );
   }
 
@@ -236,16 +238,16 @@ class ProfileStepFlow extends ProfileStep {
           json['exit'] != null
               ? StepExitCondition.fromJson(json['exit'])
               : null,
-      volume: json['volume'],
-      seconds: json['seconds'],
-      weight: json['weight'],
-      temperature: json['temperature'],
+      volume: double.parse(json['volume']),
+      seconds: double.parse(json['seconds']),
+      weight: double.parse(json['weight']),
+      temperature: double.parse(json['temperature']),
       sensor: TemperatureSensor.values.byName(json['sensor']),
       limiter:
           json['limiter'] != null
               ? StepLimiter.fromJson(json['limiter'])
               : null,
-      flow: json['flow'],
+      flow: double.parse(json['flow']),
     );
   }
 
@@ -282,7 +284,7 @@ class StepExitCondition {
     return StepExitCondition(
       type: ExitType.values.byName(json['type']),
       condition: ExitCondition.values.byName(json['condition']),
-      value: json['value'],
+      value: double.parse(json['value']),
     );
   }
 

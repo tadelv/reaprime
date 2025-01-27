@@ -2,9 +2,10 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
-import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/services/webserver_service.dart';
 
 import 'sample_feature/sample_item_details_view.dart';
 import 'sample_feature/sample_item_list_view.dart';
@@ -24,10 +25,12 @@ class MyApp extends StatelessWidget {
     super.key,
     required this.settingsController,
     required this.deviceController,
+		required this.de1Controller,
   });
 
   final SettingsController settingsController;
   final DeviceController deviceController;
+	final De1Controller de1Controller;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +45,7 @@ class MyApp extends StatelessWidget {
       Permission.bluetooth.request,
       Permission.locationWhenInUse.request,
       Permission.locationAlways.request,
+			deviceController.initialize
     ], (e) async => await waitForPermission(wait, e));
 
     return ListenableBuilder(
