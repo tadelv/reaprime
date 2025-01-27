@@ -4,14 +4,13 @@ import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 
 abstract class De1Interface extends Machine {
-
   Stream<De1ShotSettings> get shotSettings;
   Future<void> updateShotSettings(De1ShotSettings newSettings);
 
-	Stream<De1WaterLevels> get waterLevels;
+  Stream<De1WaterLevels> get waterLevels;
   Future<void> setWaterLevelWarning(int newThresholdPercentage);
 
-	Future<void> setProfile(Profile profile);
+  Future<void> setProfile(Profile profile);
   // TODO: also heater timeouts and others? (check mmr for options)
 
   //// Timeouts and Thresholds
@@ -40,7 +39,6 @@ abstract class De1Interface extends Machine {
   //Future<int> getSerialNumber();
   //Future<int> getGhcInfo();
   //Future<int> getGhcMode();
-
 }
 
 enum De1SteamSettingsValues {
@@ -74,6 +72,19 @@ final class De1ShotSettings {
     required this.targetShotVolume,
     required this.groupTemp,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'steamSetting': steamSetting,
+      'targetSteamTemp': targetSteamTemp,
+      'targetSteamDuration': targetSteamDuration,
+      'targetHotWaterTemp': targetHotWaterTemp,
+      'targetHotWaterVolume': targetHotWaterVolume,
+      'targetHotWaterDuration': targetHotWaterDuration,
+      'targetShotVolume': targetShotVolume,
+      'groupTemp': groupTemp,
+    };
+  }
 }
 
 final class De1WaterLevels {
@@ -85,4 +96,3 @@ final class De1WaterLevels {
     required this.warningThresholdPercentage,
   });
 }
-

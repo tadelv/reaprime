@@ -2,9 +2,7 @@ import 'dart:convert';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
-import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/machine.dart';
-import 'package:rxdart/rxdart.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as io;
 import 'package:shelf_router/shelf_router.dart' as route;
@@ -24,6 +22,10 @@ void startWebServer(De1Controller de1Controller) async {
         ..post('/api/profile', _profileHandler));
 
   router.put('/api/machine/state/<state>', _requestStateHandler);
+  router.get(
+    '/ws/machine/shotSettings',
+    sWs.webSocketHandler(_handleShotSettings),
+  );
 
   final handler = Pipeline()
       .addMiddleware(logRequests())
@@ -97,4 +99,22 @@ _handleSnapshot(WebSocketChannel socket) async {
     onError: (e, st) => sub.cancel(),
   );
   log.finest("websocket closed");
+}
+
+_handleShotSettings(WebSocketChannel socket) async {
+  log.fine('handling shot settings connection');
+  var de1 = await _controller.connectedDe1();
+  var sub = de1.shotSettings.listen((data) {
+    try {
+      var json = jsonEncode(data.toJson());
+      socket.sink.add(json);
+    } catch (e, st) {
+      log.severe("failed to send: ", e, st);
+    }
+  });
+  socket.stream.listen(
+    (e) {},
+    onDone: () => sub.cancel(),
+    onError: (e, st) => sub.cancel(),
+  );
 }
