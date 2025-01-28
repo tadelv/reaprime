@@ -85,6 +85,19 @@ final class De1ShotSettings {
       'groupTemp': groupTemp,
     };
   }
+
+  factory De1ShotSettings.fromJson(Map<String, dynamic> json) {
+    return De1ShotSettings(
+      steamSetting: int.parse(json['steamSetting']),
+      targetSteamTemp: int.parse(json['targetSteamTemp']),
+      targetSteamDuration: int.parse(json['targetSteamDuration']),
+      targetHotWaterTemp: int.parse(json['targetHotWaterTemp']),
+      targetHotWaterVolume: int.parse(json['targetHotWaterVolume']),
+      targetHotWaterDuration: int.parse(json['targetHotWaterDuration']),
+      targetShotVolume: int.parse(json['targetShotVolume']),
+      groupTemp: double.parse(json['groupTemp']),
+    );
+  }
 }
 
 final class De1WaterLevels {

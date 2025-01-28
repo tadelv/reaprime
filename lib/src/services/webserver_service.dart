@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
+import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as io;
@@ -22,6 +23,7 @@ void startWebServer(De1Controller de1Controller) async {
         ..post('/api/profile', _profileHandler));
 
   router.put('/api/machine/state/<state>', _requestStateHandler);
+  router.post('/api/machine/shotSettings', _shotSettingsHandler);
   router.get(
     '/ws/machine/shotSettings',
     sWs.webSocketHandler(_handleShotSettings),
@@ -78,6 +80,22 @@ Future<Response> _profileHandler(Request request) async {
     Profile profile = Profile.fromJson(json);
     var de1 = await _controller.connectedDe1();
     await de1.setProfile(profile);
+    return Response.ok("");
+  } catch (e, st) {
+    return Response.badRequest(
+      body: jsonEncode({'error': e.toString(), 'st': st.toString()}),
+    );
+  }
+}
+
+Future<Response> _shotSettingsHandler(Request request) async {
+  try {
+    final payload = await request.readAsString();
+
+    Map<String, dynamic> json = jsonDecode(payload);
+    De1ShotSettings settings = De1ShotSettings.fromJson(json);
+    var de1 = await _controller.connectedDe1();
+    await de1.updateShotSettings(settings);
     return Response.ok("");
   } catch (e, st) {
     return Response.badRequest(
