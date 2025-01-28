@@ -1,3 +1,4 @@
+import 'package:flutter_foreground_task/ui/with_foreground_task.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
@@ -25,12 +26,12 @@ class MyApp extends StatelessWidget {
     super.key,
     required this.settingsController,
     required this.deviceController,
-		required this.de1Controller,
+    required this.de1Controller,
   });
 
   final SettingsController settingsController;
   final DeviceController deviceController;
-	final De1Controller de1Controller;
+  final De1Controller de1Controller;
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +46,7 @@ class MyApp extends StatelessWidget {
       Permission.bluetooth.request,
       Permission.locationWhenInUse.request,
       Permission.locationAlways.request,
-			deviceController.initialize
+      deviceController.initialize,
     ], (e) async => await waitForPermission(wait, e));
 
     return ListenableBuilder(
@@ -107,7 +108,9 @@ class MyApp extends StatelessWidget {
                     );
                   case SampleItemListView.routeName:
                   default:
-                    return SampleItemListView(controller: deviceController);
+                    return WithForegroundTask(
+                      child: SampleItemListView(controller: deviceController),
+                    );
                 }
               },
             );

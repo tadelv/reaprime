@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:logging/logging.dart';
 import 'package:logging_appenders/logging_appenders.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
@@ -9,6 +10,7 @@ import 'package:reaprime/src/services/simulated_device_service.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
 
 import 'src/app.dart';
+import 'src/services/foreground_service.dart';
 import 'src/settings/settings_controller.dart';
 import 'src/settings/settings_service.dart';
 
@@ -45,6 +47,7 @@ void main() async {
   // SettingsController for changes, then passes it further down to the
   // SettingsView.
   WidgetsFlutterBinding.ensureInitialized();
+	ForegroundTaskService.init();
   runApp(
     MyApp(
       settingsController: settingsController,
