@@ -26,6 +26,10 @@ void startWebServer(De1Controller de1Controller) async {
     '/ws/machine/shotSettings',
     sWs.webSocketHandler(_handleShotSettings),
   );
+  router.get(
+    '/ws/machine/waterLevels',
+    sWs.webSocketHandler(_handleWaterLevels),
+  );
 
   final handler = Pipeline()
       .addMiddleware(logRequests())
@@ -110,6 +114,24 @@ _handleShotSettings(WebSocketChannel socket) async {
       socket.sink.add(json);
     } catch (e, st) {
       log.severe("failed to send: ", e, st);
+    }
+  });
+  socket.stream.listen(
+    (e) {},
+    onDone: () => sub.cancel(),
+    onError: (e, st) => sub.cancel(),
+  );
+}
+
+_handleWaterLevels(WebSocketChannel socket) async {
+  log.fine('handling water levels connection');
+  var de1 = await _controller.connectedDe1();
+  var sub = de1.waterLevels.listen((data) {
+    try {
+      var json = jsonEncode(data.toJson());
+      socket.sink.add(json);
+    } catch (e, st) {
+      log.severe("failed to send water levels", e, st);
     }
   });
   socket.stream.listen(

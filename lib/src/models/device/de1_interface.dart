@@ -95,4 +95,11 @@ final class De1WaterLevels {
     required this.currentPercentage,
     required this.warningThresholdPercentage,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'currentPercentage': currentPercentage,
+      'warningThresholdPercentage': warningThresholdPercentage,
+    };
+  }
 }
