@@ -27,8 +27,8 @@ abstract class De1Interface extends Machine {
   //Future<double> getFlowEstimation();
   //
   //// USB and Charger Settings
-  //Future<bool> getUsbChargerMode();
-  //Future<void> setUsbChargerMode(bool t);
+  Future<bool> getUsbChargerMode();
+  Future<void> setUsbChargerMode(bool t);
   //
   //// Steam Purge
   //Future<void> setSteamPurgeMode(int t);

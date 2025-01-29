@@ -32,6 +32,7 @@ void startWebServer(De1Controller de1Controller) async {
     '/ws/machine/waterLevels',
     sWs.webSocketHandler(_handleWaterLevels),
   );
+  router.get('/api/machine/usb/<state>', _usbChargerHandler);
 
   final handler = Pipeline()
       .addMiddleware(logRequests())
@@ -46,10 +47,12 @@ Future<Response> _stateHandler(Request request) async {
   try {
     var de1 = await _controller.connectedDe1();
     var snapshot = await de1.currentSnapshot.first;
+    var charger = await de1.getUsbChargerMode();
     return Response.ok(
       jsonEncode({
         'state': snapshot.state.state.name,
         'substate': snapshot.state.substate.name,
+        'usbChargerEnabled': charger,
       }),
     );
   } catch (e, st) {
@@ -100,6 +103,19 @@ Future<Response> _shotSettingsHandler(Request request) async {
   } catch (e, st) {
     return Response.badRequest(
       body: jsonEncode({'error': e.toString(), 'st': st.toString()}),
+    );
+  }
+}
+
+Future<Response> _usbChargerHandler(Request request, String state) async {
+  try {
+    var de1 = await _controller.connectedDe1();
+    await de1.setUsbChargerMode(state == "enable");
+    return Response.ok('');
+  } catch (e, st) {
+    log.severe('failed to set usbChargerEnabled', e, st);
+    return Response.internalServerError(
+      body: jsonEncode({'e': e.toString(), 'st': st.toString()}),
     );
   }
 }

@@ -29,30 +29,31 @@ void main() async {
 
   if (const String.fromEnvironment("simulate") == "1") {
     services.add(SimulatedDeviceService());
-		log.shout("adding Simulated Service");
+    log.shout("adding Simulated Service");
   }
 
   final settingsController = SettingsController(SettingsService());
   final deviceController = DeviceController(services);
-	final de1Controller = De1Controller(controller: deviceController);
-	startWebServer(de1Controller);
-
+  final de1Controller = De1Controller(controller: deviceController);
+  try {
+    startWebServer(de1Controller);
+  } catch (e, st) {
+    log.severe('failed to start web server', e, st);
+  }
   // Load the user's preferred theme while the splash screen is displayed.
   // This prevents a sudden theme change when the app is first displayed.
   await settingsController.loadSettings();
-
-
 
   // Run the app and pass in the SettingsController. The app listens to the
   // SettingsController for changes, then passes it further down to the
   // SettingsView.
   WidgetsFlutterBinding.ensureInitialized();
-	ForegroundTaskService.init();
+  ForegroundTaskService.init();
   runApp(
     MyApp(
       settingsController: settingsController,
       deviceController: deviceController,
-			de1Controller: de1Controller,
+      de1Controller: de1Controller,
     ),
   );
 }
