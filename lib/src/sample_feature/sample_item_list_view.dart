@@ -60,7 +60,7 @@ class SampleItemListView extends StatelessWidget {
               final item = controller.devices[index];
 
               return ListTile(
-                title: Text('${item.name} : ${item.deviceId}'),
+                title: Text('${item.type.name} ${item.name} : ${item.deviceId}'),
                 leading: const CircleAvatar(
                   // Display the Flutter Logo image asset.
                   foregroundImage: AssetImage('assets/images/flutter_logo.png'),

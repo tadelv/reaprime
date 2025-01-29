@@ -28,7 +28,7 @@ void main() async {
   final List<DeviceDiscoveryService> services = [
     BleDiscoveryService({
       De1.advertisingUUID: (id) => De1.fromId(id),
-      FelicitaArc.serviceUUID: (id) => FelicitaArc(deviceId: id),
+      FelicitaArc.serviceUUID.toUpperCase(): (id) => FelicitaArc(deviceId: id),
     }),
   ];
 

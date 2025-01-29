@@ -6,6 +6,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/sample_feature/scale_debug_view.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
 
 import 'sample_feature/sample_item_details_view.dart';
@@ -97,15 +99,24 @@ class MyApp extends StatelessWidget {
                   case SettingsView.routeName:
                     return SettingsView(controller: settingsController);
                   case SampleItemDetailsView.routeName:
-                    return SampleItemDetailsView(
-                      machine:
-                          deviceController.devices.firstWhere(
-                                (e) =>
-                                    e.deviceId ==
-                                    (routeSettings.arguments as String),
-                              )
-                              as De1Interface,
+                    var device = deviceController.devices.firstWhere(
+                      (e) => e.deviceId == routeSettings.arguments as String,
                     );
+                    if (device is De1Interface) {
+                      return SampleItemDetailsView(
+                        machine:
+                            deviceController.devices.firstWhere(
+                                  (e) =>
+                                      e.deviceId ==
+                                      (routeSettings.arguments as String),
+                                )
+                                as De1Interface,
+                      );
+                    }
+                    if (device is Scale) {
+                      return ScaleDebugView(scale: device);
+                    }
+                    return Text("No mapping for ${device.name}");
                   case SampleItemListView.routeName:
                   default:
                     return WithForegroundTask(
