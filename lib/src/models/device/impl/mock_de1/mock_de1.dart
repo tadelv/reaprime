@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/models/data/profile.dart';
+import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 
-class MockDe1 with ChangeNotifier implements Machine {
+class MockDe1 with ChangeNotifier implements De1Interface {
   MockDe1();
 
   StreamController<MachineSnapshot> _snapshotStream =
@@ -30,6 +32,8 @@ class MockDe1 with ChangeNotifier implements Machine {
     pressure: 0,
   );
 
+  MachineState _currentState = MachineState.booting;
+
   @override
   // TODO: implement currentSnapshot
   Stream<MachineSnapshot> get currentSnapshot => _snapshotStream.stream;
@@ -43,13 +47,13 @@ class MockDe1 with ChangeNotifier implements Machine {
   String get name => "MockDe1";
 
   @override
-  Future<void> requestState(MachineState newState) {
-    // TODO: implement requestState
-    throw UnimplementedError();
+  Future<void> requestState(MachineState newState) async {
+    _currentState = newState;
   }
 
   @override
   Future<void> onConnect() async {
+    _currentState = MachineState.idle;
     _simulateState();
   }
 
@@ -63,8 +67,8 @@ class MockDe1 with ChangeNotifier implements Machine {
       var newSnapshot = MachineSnapshot(
         timestamp: DateTime.now(),
         state: MachineStateSnapshot(
-          state: MachineState.heating,
-          substate: MachineSubstate.pouring,
+          state: _currentState,
+          substate: MachineSubstate.idle,
         ),
         flow: 0,
         pressure: 0,
@@ -83,4 +87,41 @@ class MockDe1 with ChangeNotifier implements Machine {
     });
   }
 
+  bool _chargerOn = false;
+
+  @override
+  Future<bool> getUsbChargerMode() async {
+    return _chargerOn;
+  }
+
+  @override
+  Future<void> setUsbChargerMode(bool t) async {
+    _chargerOn = t;
+  }
+
+  @override
+  Future<void> setProfile(Profile profile) async {}
+
+  @override
+  Future<void> setWaterLevelWarning(int newThresholdPercentage) async {}
+
+  final StreamController<De1ShotSettings> _shotSettingsController =
+      StreamController.broadcast();
+
+  @override
+  Stream<De1ShotSettings> get shotSettings => _shotSettingsController.stream;
+
+  @override
+  Future<void> updateShotSettings(De1ShotSettings newSettings) async {
+    _shotSettingsController.add(newSettings);
+  }
+
+  @override
+  Stream<De1WaterLevels> get waterLevels =>
+      Stream.periodic(Duration(seconds: 1), (_) {
+        return De1WaterLevels(
+          currentPercentage: 50,
+          warningThresholdPercentage: 5,
+        );
+      });
 }
