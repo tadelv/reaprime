@@ -35,15 +35,12 @@ class MockDe1 with ChangeNotifier implements De1Interface {
   MachineState _currentState = MachineState.booting;
 
   @override
-  // TODO: implement currentSnapshot
   Stream<MachineSnapshot> get currentSnapshot => _snapshotStream.stream;
 
   @override
-  // TODO: implement deviceId
   String get deviceId => "MockDe1";
 
   @override
-  // TODO: implement name
   String get name => "MockDe1";
 
   @override

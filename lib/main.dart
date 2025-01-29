@@ -6,6 +6,7 @@ import 'package:reaprime/src/controllers/battery_controller.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/impl/felicita/arc.dart';
 import 'package:reaprime/src/services/ble_discovery_service.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
@@ -25,7 +26,10 @@ void main() async {
   final log = Logger("Main");
 
   final List<DeviceDiscoveryService> services = [
-    BleDiscoveryService({De1.advertisingUUID: (id) => De1.fromId(id)}),
+    BleDiscoveryService({
+      De1.advertisingUUID: (id) => De1.fromId(id),
+      FelicitaArc.serviceUUID: (id) => FelicitaArc(deviceId: id),
+    }),
   ];
 
   if (const String.fromEnvironment("simulate") == "1") {
@@ -41,7 +45,7 @@ void main() async {
   } catch (e, st) {
     log.severe('failed to start web server', e, st);
   }
-	final batteryController = BatteryController(de1Controller);
+  final batteryController = BatteryController(de1Controller);
   // Load the user's preferred theme while the splash screen is displayed.
   // This prevents a sudden theme change when the app is first displayed.
   await settingsController.loadSettings();
