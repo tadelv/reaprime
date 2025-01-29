@@ -50,8 +50,7 @@ Future<Response> _stateHandler(Request request) async {
     var charger = await de1.getUsbChargerMode();
     return Response.ok(
       jsonEncode({
-        'state': snapshot.state.state.name,
-        'substate': snapshot.state.substate.name,
+        'snapshot': snapshot.toJson(),
         'usbChargerEnabled': charger,
       }),
     );
