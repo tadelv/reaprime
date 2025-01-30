@@ -6,6 +6,7 @@ import 'package:reaprime/src/controllers/battery_controller.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
 import 'package:reaprime/src/models/device/impl/felicita/arc.dart';
 import 'package:reaprime/src/services/ble_discovery_service.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
@@ -29,6 +30,7 @@ void main() async {
     BleDiscoveryService({
       De1.advertisingUUID: (id) => De1.fromId(id),
       FelicitaArc.serviceUUID.toUpperCase(): (id) => FelicitaArc(deviceId: id),
+			DecentScale.serviceUUID.toUpperCase(): (id) => DecentScale(deviceId: id),
     }),
   ];
 

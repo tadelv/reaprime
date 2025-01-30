@@ -10,6 +10,9 @@ abstract class Device {
 
   // discover and subscribe to services/characteristics
   Future<void> onConnect();
+
+	// tear down any connections
+	disconnect();
 }
 
 abstract class DeviceDiscoveryService {

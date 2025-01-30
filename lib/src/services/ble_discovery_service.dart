@@ -71,7 +71,10 @@ class BleDiscoveryService extends DeviceDiscoveryService {
 
   // disconnect (and dispose of?) device
   @override
-  Future<void> disconnect(Device device) async {}
+  Future<void> disconnect(Device device) async {
+    device.disconnect();
+    _devices.remove(device.deviceId);
+  }
 
   _deviceScanned(DiscoveredDevice device) {
     for (Uuid uid in device.serviceUuids) {
