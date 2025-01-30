@@ -41,6 +41,12 @@ class FelicitaArc implements Scale {
   }
 
   @override
+  disconnect() {
+    _notifications.cancel();
+    _connection.cancel();
+  }
+
+  @override
   DeviceType get type => DeviceType.scale;
 
   _registerNotifications() async {

@@ -55,6 +55,9 @@ class MockDe1 with ChangeNotifier implements De1Interface {
   }
 
   @override
+  disconnect() {}
+
+  @override
   DeviceType get type => DeviceType.machine;
 
   _simulateState() {

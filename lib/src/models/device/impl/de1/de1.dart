@@ -91,6 +91,14 @@ class De1 implements De1Interface {
   }
 
   @override
+  disconnect() {
+    for (var s in _notificationSubscriptions) {
+      s.cancel();
+    }
+    _connectionSubscription?.cancel();
+  }
+
+  @override
   Future<void> requestState(MachineState newState) async {
     Uint8List data = Uint8List(1);
     data[0] = De1StateEnum.fromMachineState(newState).hexValue;

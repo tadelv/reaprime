@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 
-class ScaleDebugView extends StatelessWidget {
+class ScaleDebugView extends StatefulWidget {
   final Scale scale;
-  var _lastDate = DateTime.now();
 
-  ScaleDebugView({super.key, required this.scale}) 
+  const ScaleDebugView({super.key, required this.scale});
+
+  @override
+  State<ScaleDebugView> createState() => _ScaleDebugViewState();
+}
+
+class _ScaleDebugViewState extends State<ScaleDebugView> {
+  var _lastDate = DateTime.now();
 
   @override
   Widget build(BuildContext context) {
@@ -15,13 +20,14 @@ class ScaleDebugView extends StatelessWidget {
       body: Center(
         child: Column(
           children: [
-            Text('${scale.name}, ${scale.deviceId}'),
+            Text('${widget.scale.name}, ${widget.scale.deviceId}'),
             StreamBuilder(
-              stream: scale.currentSnapshot,
+              stream: widget.scale.currentSnapshot,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.active) {
-                  var diff =
-                      snapshot.data?.timestamp.difference(_lastDate) ?? 0;
+                  Duration diff =
+                      snapshot.data?.timestamp.difference(_lastDate) ??
+                      Duration.zero;
                   _lastDate = snapshot.data?.timestamp ?? DateTime.now();
                   return Column(
                     children: [
@@ -30,7 +36,7 @@ class ScaleDebugView extends StatelessWidget {
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       Text('Battery: ${snapshot.data?.batteryLevel}%'),
-                      Text('last update: ${diff}s ago'),
+                      Text('last update: ${diff.inMilliseconds}ms ago'),
                     ],
                   );
                 } else if (snapshot.connectionState ==
