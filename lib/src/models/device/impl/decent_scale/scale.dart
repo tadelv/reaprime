@@ -9,6 +9,7 @@ import 'package:reaprime/src/models/device/scale.dart';
 class DecentScale implements Scale {
   static String serviceUUID = '0000fff0-0000-1000-8000-00805f9b34fb';
   static String dataUUID = '0000fff4-0000-1000-8000-00805f9b34fb';
+  static String writeUUID = '000036f5-0000-1000-8000-00805f9b34fb';
 
   final String _deviceId;
 
@@ -48,6 +49,21 @@ class DecentScale implements Scale {
 
   @override
   DeviceType get type => DeviceType.scale;
+
+  @override
+  Future<void> tare() async {
+    List<int> payload = [0x03, 0x0F, 0xFD];
+    var characteristic = QualifiedCharacteristic(
+      characteristicId: Uuid.parse(DecentScale.writeUUID),
+      serviceId: Uuid.parse(DecentScale.serviceUUID),
+      deviceId: _deviceId,
+    );
+
+    await _ble.writeCharacteristicWithResponse(
+      characteristic,
+      value: Uint8List.fromList(payload),
+    );
+  }
 
   _registerNotifications() async {
     var characteristic = QualifiedCharacteristic(

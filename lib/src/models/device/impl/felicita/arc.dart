@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/services.dart';
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 import 'package:collection/collection.dart';
 
@@ -48,6 +49,19 @@ class FelicitaArc implements Scale {
 
   @override
   DeviceType get type => DeviceType.scale;
+
+  @override
+  Future<void> tare() async {
+    var characteristic = QualifiedCharacteristic(
+      characteristicId: Uuid.parse(dataUUID),
+      serviceId: Uuid.parse(serviceUUID),
+      deviceId: _deviceId,
+    );
+    await _ble.writeCharacteristicWithResponse(
+      characteristic,
+      value: Uint8List.fromList([0x54]),
+    );
+  }
 
   _registerNotifications() async {
     var characteristic = QualifiedCharacteristic(

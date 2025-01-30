@@ -1,9 +1,10 @@
 import 'device.dart';
 
 abstract class Scale extends Device {
-Stream<ScaleSnapshot> get currentSnapshot;
+  Stream<ScaleSnapshot> get currentSnapshot;
 
-// TODO: commands
+  // TODO: commands
+  Future<void> tare();
 }
 
 class ScaleSnapshot {

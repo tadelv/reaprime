@@ -37,6 +37,12 @@ class _ScaleDebugViewState extends State<ScaleDebugView> {
                       ),
                       Text('Battery: ${snapshot.data?.batteryLevel}%'),
                       Text('last update: ${diff.inMilliseconds}ms ago'),
+                      FilledButton(
+                        onPressed: () async {
+                          await widget.scale.tare();
+                        },
+                        child: Text("Tare"),
+                      ),
                     ],
                   );
                 } else if (snapshot.connectionState ==
