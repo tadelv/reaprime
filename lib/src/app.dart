@@ -5,6 +5,7 @@ import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/sample_feature/scale_debug_view.dart';
@@ -29,11 +30,13 @@ class MyApp extends StatelessWidget {
     required this.settingsController,
     required this.deviceController,
     required this.de1Controller,
+    required this.scaleController,
   });
 
   final SettingsController settingsController;
   final DeviceController deviceController;
   final De1Controller de1Controller;
+  final ScaleController scaleController;
 
   @override
   Widget build(BuildContext context) {

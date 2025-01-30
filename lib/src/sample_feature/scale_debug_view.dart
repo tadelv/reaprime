@@ -15,6 +15,7 @@ class _ScaleDebugViewState extends State<ScaleDebugView> {
 
   @override
   Widget build(BuildContext context) {
+	widget.scale.onConnect();
     return Scaffold(
       appBar: AppBar(title: const Text('Scale debug')),
       body: Center(
@@ -56,5 +57,11 @@ class _ScaleDebugViewState extends State<ScaleDebugView> {
         ),
       ),
     );
+  }
+
+  @override
+  void deactivate() {
+    //widget.scale.disconnect();
+    super.deactivate();
   }
 }

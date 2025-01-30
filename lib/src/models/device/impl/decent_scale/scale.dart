@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
-
+import 'package:logging/logging.dart' as logging;
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 
@@ -17,8 +17,10 @@ class DecentScale implements Scale {
       StreamController.broadcast();
 
   final _ble = FlutterReactiveBle();
-  late StreamSubscription<ConnectionStateUpdate> _connection;
+  StreamSubscription<ConnectionStateUpdate>? _connection;
   late StreamSubscription<List<int>> _notifications;
+
+  final logging.Logger _log = logging.Logger("Decent scale");
 
   DecentScale({required String deviceId}) : _deviceId = deviceId;
 
@@ -31,7 +33,7 @@ class DecentScale implements Scale {
   @override
   disconnect() {
     _notifications.cancel();
-    _connection.cancel();
+    _connection?.cancel();
   }
 
   @override
@@ -39,12 +41,24 @@ class DecentScale implements Scale {
 
   @override
   Future<void> onConnect() async {
-    _connection = _ble.connectToDevice(id: _deviceId).listen((connectionState) {
-      if (connectionState.connectionState == DeviceConnectionState.connected) {
-        // register for notifications
-        _registerNotifications();
-      }
-    });
+    if (_connection != null) {
+      return;
+    }
+    _log.fine("connecting");
+    _connection = _ble
+        .connectToDevice(id: _deviceId)
+        .listen(
+          (connectionState) {
+            if (connectionState.connectionState ==
+                DeviceConnectionState.connected) {
+              // register for notifications
+              _registerNotifications();
+            }
+          },
+          onError: (e) {
+            _log.warning("failed to connect", e);
+          },
+        );
   }
 
   @override

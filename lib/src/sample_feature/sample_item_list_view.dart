@@ -40,7 +40,7 @@ class SampleItemListView extends StatelessWidget {
           ),
           IconButton(
             onPressed: () async {
-              //await controller.initialize();
+              await controller.initialize();
             },
             icon: const Icon(Icons.bluetooth),
           ),

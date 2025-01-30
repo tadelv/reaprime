@@ -5,6 +5,7 @@ import 'package:logging_appenders/logging_appenders.dart';
 import 'package:reaprime/src/controllers/battery_controller.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
 import 'package:reaprime/src/models/device/impl/felicita/arc.dart';
@@ -30,7 +31,7 @@ void main() async {
     BleDiscoveryService({
       De1.advertisingUUID: (id) => De1.fromId(id),
       FelicitaArc.serviceUUID.toUpperCase(): (id) => FelicitaArc(deviceId: id),
-			DecentScale.serviceUUID.toUpperCase(): (id) => DecentScale(deviceId: id),
+      DecentScale.serviceUUID.toUpperCase(): (id) => DecentScale(deviceId: id),
     }),
   ];
 
@@ -42,6 +43,7 @@ void main() async {
   final settingsController = SettingsController(SettingsService());
   final deviceController = DeviceController(services);
   final de1Controller = De1Controller(controller: deviceController);
+  final scaleController = ScaleController(controller: deviceController);
   try {
     startWebServer(de1Controller);
   } catch (e, st) {
@@ -62,6 +64,7 @@ void main() async {
       settingsController: settingsController,
       deviceController: deviceController,
       de1Controller: de1Controller,
+      scaleController: scaleController,
     ),
   );
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 import 'package:collection/collection.dart';
+import 'package:logging/logging.dart' as logging;
 
 import 'package:reaprime/src/models/device/device.dart';
 
@@ -17,7 +18,7 @@ class FelicitaArc implements Scale {
       StreamController.broadcast();
 
   final _ble = FlutterReactiveBle();
-  late StreamSubscription<ConnectionStateUpdate> _connection;
+  StreamSubscription<ConnectionStateUpdate>? _connection;
   late StreamSubscription<List<int>> _notifications;
 
   FelicitaArc({required String deviceId}) : _deviceId = deviceId;
@@ -33,18 +34,29 @@ class FelicitaArc implements Scale {
 
   @override
   Future<void> onConnect() async {
-    _connection = _ble.connectToDevice(id: _deviceId).listen((connectionState) {
-      if (connectionState.connectionState == DeviceConnectionState.connected) {
-        // register for notifications
-        _registerNotifications();
-      }
-    });
+    if (_connection != null) {
+      return;
+    }
+    _connection = _ble
+        .connectToDevice(id: _deviceId)
+        .listen(
+          (connectionState) {
+            if (connectionState.connectionState ==
+                DeviceConnectionState.connected) {
+              // register for notifications
+              _registerNotifications();
+            }
+          },
+          onError: (e) {
+            logging.Logger("Felicita").warning("failed to connect:", e);
+          },
+        );
   }
 
   @override
   disconnect() {
     _notifications.cancel();
-    _connection.cancel();
+    _connection?.cancel();
   }
 
   @override
@@ -81,9 +93,13 @@ class FelicitaArc implements Scale {
     if (data.length != 18) {
       return;
     }
+    var negative = data.slice(2).first - 45 == 0;
     var weight = int.parse(
       data.slice(3, 9).map((value) => value - 48).join(''),
     );
+    if (negative) {
+      weight *= -1;
+    }
     var battery =
         ((data[15] - minBattLevel) / (maxBattLevel - minBattLevel) * 100)
             .round();
