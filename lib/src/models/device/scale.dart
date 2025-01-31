@@ -17,4 +17,12 @@ class ScaleSnapshot {
     required this.weight,
     required this.batteryLevel,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'timestamp': timestamp,
+      'weight': weight,
+      'batteryLevel': batteryLevel,
+    };
+  }
 }

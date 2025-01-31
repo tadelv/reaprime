@@ -21,6 +21,7 @@ import 'src/settings/settings_service.dart';
 import 'src/models/device/impl/de1/de1.dart';
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   Logger.root.level = Level.FINE;
   Logger.root.clearListeners();
   PrintAppender(formatter: ColorFormatter()).attachToLogger(Logger.root);
@@ -45,7 +46,7 @@ void main() async {
   final de1Controller = De1Controller(controller: deviceController);
   final scaleController = ScaleController(controller: deviceController);
   try {
-    startWebServer(de1Controller);
+    await startWebServer(de1Controller, scaleController);
   } catch (e, st) {
     log.severe('failed to start web server', e, st);
   }
@@ -57,7 +58,6 @@ void main() async {
   // Run the app and pass in the SettingsController. The app listens to the
   // SettingsController for changes, then passes it further down to the
   // SettingsView.
-  WidgetsFlutterBinding.ensureInitialized();
   ForegroundTaskService.init();
   runApp(
     MyApp(
