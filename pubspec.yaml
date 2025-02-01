@@ -26,6 +26,7 @@ dependencies:
   battery_plus: ^6.2.1
   collection: ^1.19.0
   shelf_plus: ^1.10.0
+  shadcn_ui: ^0.18.5
   
 dev_dependencies:
   flutter_test:

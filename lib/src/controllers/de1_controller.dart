@@ -6,7 +6,7 @@ import 'package:rxdart/subjects.dart';
 class De1Controller {
   final DeviceController _deviceController;
 
-  late De1Interface? _de1;
+  De1Interface? _de1;
   final Logger _log = Logger("De1Controller");
 
 	final BehaviorSubject<De1Interface?> _de1Controller = BehaviorSubject.seeded(null);
@@ -18,7 +18,7 @@ class De1Controller {
     _log.info("checking ${_deviceController.devices}");
     _deviceController.deviceStream.listen((devices) async {
       var de1List = devices.whereType<De1Interface>().toList();
-      if (de1List.firstOrNull != null) {
+      if (de1List.firstOrNull != null && _de1 == null) {
         var de1 = de1List.first;
         _log.fine("found de1, connecting");
         await de1.onConnect();

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
@@ -74,12 +75,16 @@ class MockDe1 implements De1Interface {
         pressure: 0,
         targetFlow: 0,
         targetPressure: 0,
-        mixTemperature: _lastSnapshot.mixTemperature + 0.1,
-        groupTemperature: _lastSnapshot.mixTemperature + 0.1,
+        mixTemperature: _lastSnapshot.mixTemperature > 95
+            ? _lastSnapshot.mixTemperature - 0.1
+            : _lastSnapshot.mixTemperature + 0.1,
+        groupTemperature: _lastSnapshot.groupTemperature > 96
+            ? _lastSnapshot.groupTemperature - 0.1
+            : _lastSnapshot.groupTemperature + 0.1,
         targetMixTemperature: 100,
         targetGroupTemperature: 90,
         profileFrame: 0,
-        steamTemperature: _lastSnapshot.steamTemperature + 0.1,
+        steamTemperature: min(_lastSnapshot.steamTemperature + 0.1, 150),
       );
 
       _snapshotStream.add(newSnapshot);
@@ -106,7 +111,15 @@ class MockDe1 implements De1Interface {
   Future<void> setWaterLevelWarning(int newThresholdPercentage) async {}
 
   final StreamController<De1ShotSettings> _shotSettingsController =
-      StreamController.broadcast();
+      BehaviorSubject.seeded(De1ShotSettings(
+          steamSetting: 0,
+          targetSteamTemp: 150,
+          targetSteamDuration: 60,
+          targetHotWaterTemp: 85,
+          targetHotWaterVolume: 100,
+          targetHotWaterDuration: 35,
+          targetShotVolume: 36,
+          groupTemp: 94));
 
   @override
   Stream<De1ShotSettings> get shotSettings => _shotSettingsController.stream;

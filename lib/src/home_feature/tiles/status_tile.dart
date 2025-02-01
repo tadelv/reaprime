@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/sample_feature/sample_item_list_view.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 class StatusTile extends StatelessWidget {
   final De1Interface de1;
@@ -9,18 +11,13 @@ class StatusTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 4,
-      color: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Row(children: [
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            spacing: 5,
+            children: [
               Text(
                 "DE1",
                 style: TextStyle(
@@ -42,20 +39,60 @@ class StatusTile extends StatelessWidget {
                       Text(
                           "Steam: ${snapshot.steamTemperature.toStringAsFixed(1)}℃"),
                     ]);
+                  }),
+              StreamBuilder(
+                  stream: de1.waterLevels,
+                  builder: (context, waterSnapshot) {
+                    if (waterSnapshot.connectionState !=
+                        ConnectionState.active) {
+                      return Text("Waiting");
+                    }
+                    var snapshot = waterSnapshot.data!;
+                    return Row(children: [
+                      Text("Water: ${snapshot.currentPercentage}%"),
+                    ]);
                   })
             ]),
-            SizedBox(height: 8),
-            if (scale != null)
-              Text(
-                "Scale",
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.blueGrey,
-                ),
-              ),
-          ],
+        SizedBox(height: 8),
+        StreamBuilder(
+          stream: de1.shotSettings,
+          builder: (context, settingsSnapshot) {
+            if (settingsSnapshot.connectionState != ConnectionState.active) {
+              return Text("Waiting");
+            }
+            var settings = settingsSnapshot.data!;
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              spacing: 5,
+              children: [
+                Text("TG: ${settings.groupTemp}"),
+								Text("HW: ${settings.targetHotWaterTemp}℃"),
+                Text("HW: ${settings.targetHotWaterVolume}ml"),
+                Text("HW: ${settings.targetHotWaterDuration}s"),
+                Text("ST: ${settings.targetSteamTemp}℃"),
+                Text("SD: ${settings.targetSteamDuration}"),
+              ],
+            );
+          },
         ),
-      ),
+        SizedBox(height: 8),
+        if (scale != null)
+          Text(
+            "Scale",
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.blueGrey,
+            ),
+          ),
+        SizedBox(height: 8),
+        ShadButton(
+          onPressed: () {
+            Navigator.restorablePushNamed(
+                context, SampleItemListView.routeName);
+          },
+          child: Icon(LucideIcons.settings),
+        )
+      ],
     );
   }
 }

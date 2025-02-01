@@ -1,4 +1,5 @@
 import 'package:collection/collection.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/home_feature/tiles/status_tile.dart';
@@ -9,98 +10,106 @@ class HomeScreen extends StatelessWidget {
 
   final De1Controller de1controller;
 
+  final double _leftColumWidth = 450;
+
   @override
   Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
     return Scaffold(
-      body: Stack(
-        children: [
-          // Background
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.blueAccent, Colors.lightBlue],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+        appBar: AppBar(
+          title: Text('ReaPrime'),
+        ),
+        body: _home(context));
+  }
+
+  Widget _home(BuildContext context) {
+    return SingleChildScrollView(
+      child: Padding(
+          padding: EdgeInsets.only(top: 12, bottom: 12),
+          child: Row(
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              SizedBox(
+                width: 16,
               ),
-            ),
-          ),
-          // Dashboard Tiles
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: GridView.count(
-              crossAxisCount: 2,
-              childAspectRatio: 2.0,
-              mainAxisSpacing: 16.0,
-              crossAxisSpacing: 16.0,
-              children: [
-                DashboardTile(title: "Tile 1", value: "Data 1"),
-                DashboardTile(title: "Tile 2", value: "Data 2"),
-                _status(
-                  de1controller,
-                ),
-                DashboardTile(title: "Tile 4", value: "Data 4"),
-              ],
-            ),
-          ),
+              _leftColumn(context),
+              SizedBox(
+                width: 16,
+              ),
+              _rightColumn(context),
+              SizedBox(
+                width: 16,
+              ),
+            ],
+          )),
+    );
+  }
+
+  Widget _leftColumn(BuildContext context) {
+    return Column(
+      spacing: 12,
+      children: [
+        _historyCard(context),
+      ],
+    );
+  }
+
+  Widget _rightColumn(BuildContext context) {
+    return Expanded(
+      child: Column(
+        spacing: 12,
+        children: [
+          _statusCard(context),
         ],
       ),
     );
   }
 
-  Widget _status(De1Controller de1controller) {
-    return StreamBuilder(
-        stream: de1controller.de1,
-        builder: (context, de1Snapshot) {
-          switch (de1Snapshot.hasData) {
-            case true:
-              return StatusTile(
-                de1: de1Snapshot.data!,
-              );
-            case false:
-              return DashboardTile(
-                  title: "Waiting for connection", value: "to DE1");
-          }
-        });
+  Widget _statusCard(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return SizedBox(
+        width: double.infinity,
+        child: ShadCard(height: 200, child: _de1Status(context)));
   }
-}
 
-class DashboardTile extends StatelessWidget {
-  final String title;
-  final String value;
-
-  const DashboardTile({super.key, required this.title, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 4,
-      color: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.blueGrey,
-              ),
-            ),
-          ],
-        ),
-      ),
+  Widget _de1Status(BuildContext context) {
+    return StreamBuilder(
+      stream: de1controller.de1,
+      builder: (context, de1Available) {
+        if (de1Available.hasData) {
+          return SizedBox(child: StatusTile(de1: de1Available.data!));
+        } else {
+          return Text("Connecting to DE1");
+        }
+      },
     );
+  }
+
+  Widget _historyCard(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return ShadCard(
+        width: _leftColumWidth,
+        title: Text(
+          'Last shot',
+          style: theme.textTheme.h4,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('Name'),
+              const ShadInput(placeholder: Text('Name of your project')),
+              const SizedBox(height: 6),
+              const Text('Framework'),
+              ShadButton(
+                  onPressed: () {
+                    print("f");
+                  },
+                  child: Text("Press")),
+            ],
+          ),
+        ));
   }
 }
