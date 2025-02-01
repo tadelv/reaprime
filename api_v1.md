@@ -69,6 +69,9 @@ Triggers a Bluetooth device scan.
 
 - The scanning operation does not return discovered devices immediately, only triggers the scan process.
 
+
+Upon scanning, if a missing scale is detected, it will be connected automatically.
+
 **Response:**
 
 - **200 OK**: Returns an empty response body upon successful scan initiation.
