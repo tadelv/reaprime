@@ -20,7 +20,7 @@ class ScaleSnapshot {
 
   Map<String, dynamic> toJson() {
     return {
-      'timestamp': timestamp,
+      'timestamp': timestamp.toIso8601String(),
       'weight': weight,
       'batteryLevel': batteryLevel,
     };

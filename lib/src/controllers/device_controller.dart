@@ -41,6 +41,7 @@ class DeviceController {
         }
       }
     });
+    _deviceStream.add(devices);
     for (var service in _services) {
       await service.scanForDevices();
     }

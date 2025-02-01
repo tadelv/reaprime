@@ -19,6 +19,8 @@ class BleDiscoveryService extends DeviceDiscoveryService {
   final StreamController<List<Device>> _deviceStreamController =
       StreamController.broadcast();
 
+  final Map<String, StreamSubscription<ConnectionState>> _connections = {};
+
   @override
   Stream<List<Device>> get devices => _deviceStreamController.stream;
 
@@ -40,16 +42,16 @@ class BleDiscoveryService extends DeviceDiscoveryService {
   Future<void> scanForDevices() async {
     _subscription = _ble
         .scanForDevices(
-          withServices: deviceMappings.keys.map((k) => Uuid.parse(k)).toList(),
-          scanMode: ScanMode.lowLatency,
-          //requireLocationServicesEnabled: false,
-        )
+      withServices: deviceMappings.keys.map((k) => Uuid.parse(k)).toList(),
+      scanMode: ScanMode.lowLatency,
+      //requireLocationServicesEnabled: false,
+    )
         .listen(
-          (d) => _deviceScanned(d),
-          onError: (e) {
-            log.warning("failed: $e");
-          },
-        );
+      (d) => _deviceScanned(d),
+      onError: (e) {
+        log.warning("failed: $e");
+      },
+    );
 
     Future.delayed(Duration(seconds: 30), () {
       _subscription?.cancel();
@@ -74,6 +76,7 @@ class BleDiscoveryService extends DeviceDiscoveryService {
   Future<void> disconnect(Device device) async {
     device.disconnect();
     _devices.remove(device.deviceId);
+    _deviceStreamController.add(_devices.values.toList());
   }
 
   _deviceScanned(DiscoveredDevice device) {
@@ -84,6 +87,13 @@ class BleDiscoveryService extends DeviceDiscoveryService {
         _deviceStreamController.add(_devices.values.toList());
         log.fine("found new device: ${device.name}");
         log.fine("devices: ${_devices.toString()}");
+        _connections[device.id] =
+            _devices[device.id]!.connectionState.listen((connectionState) {
+          if (connectionState == ConnectionState.disconnected) {
+            _devices.remove(device.id);
+            _deviceStreamController.add(_devices.values.toList());
+          }
+        });
       }
     }
   }

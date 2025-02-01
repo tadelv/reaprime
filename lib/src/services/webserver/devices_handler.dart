@@ -15,6 +15,7 @@ class DevicesHandler {
         for (var device in devices) {
           var state = await device.connectionState.first;
           devMap.add({
+            'name': device.name,
             'id': device.deviceId,
             'state': state.name,
           });
