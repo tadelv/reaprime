@@ -1,12 +1,12 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:rxdart/subjects.dart';
 
-class MockDe1 with ChangeNotifier implements De1Interface {
+class MockDe1 implements De1Interface {
   MockDe1();
 
   StreamController<MachineSnapshot> _snapshotStream =
@@ -124,4 +124,8 @@ class MockDe1 with ChangeNotifier implements De1Interface {
           warningThresholdPercentage: 5,
         );
       });
+
+  @override
+  Stream<ConnectionState> get connectionState =>
+      BehaviorSubject.seeded(ConnectionState.connected);
 }

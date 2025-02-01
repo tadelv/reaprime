@@ -11,13 +11,21 @@ abstract class Device {
   // discover and subscribe to services/characteristics
   Future<void> onConnect();
 
-	// tear down any connections
-	disconnect();
+  // tear down any connections
+  disconnect();
+
+  Stream<ConnectionState> get connectionState;
+}
+
+enum ConnectionState {
+  connecting,
+  connected,
+  disconnecting,
+  disconnected,
 }
 
 abstract class DeviceDiscoveryService {
-
-	Stream<List<Device>> get devices;
+  Stream<List<Device>> get devices;
 
   Future<void> initialize() async {
     throw "Not implemented yet";
@@ -42,4 +50,3 @@ abstract class DeviceDiscoveryService {
     throw "Not implemented yet";
   }
 }
-

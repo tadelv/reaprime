@@ -1,4 +1,5 @@
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:shelf_plus/shelf_plus.dart';
@@ -12,20 +13,24 @@ import 'package:shelf_web_socket/shelf_web_socket.dart' as sws;
 
 part 'webserver/de1handler.dart';
 part 'webserver/scale_handler.dart';
+part 'webserver/devices_handler.dart';
 
 final log = Logger("Webservice");
 
 Future<void> startWebServer(
+  DeviceController deviceController,
   De1Controller de1Controller,
   ScaleController scaleController,
 ) async {
   log.info("starting webserver");
   final de1Handler = De1Handler(controller: de1Controller);
   final scaleHandler = ScaleHandler(controller: scaleController);
+  final deviceHandler = DevicesHandler(controller: deviceController);
 
   // Start server
   final server = await io.serve(
       _init(
+        deviceHandler,
         de1Handler,
         scaleHandler,
       ),
@@ -35,6 +40,7 @@ Future<void> startWebServer(
 }
 
 Handler _init(
+  DevicesHandler deviceHandler,
   De1Handler de1Handler,
   ScaleHandler scaleHandler,
 ) {
@@ -42,6 +48,7 @@ Handler _init(
   var app = Router().plus;
   app.use(typeByExtension('json'));
 
+  deviceHandler.addRoutes(app);
   de1Handler.addRoutes(app);
   scaleHandler.addRoutes(app);
 

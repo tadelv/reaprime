@@ -76,6 +76,13 @@ class De1 implements De1Interface {
   @override
   Stream<MachineSnapshot> get currentSnapshot => _snapshotStream.stream;
 
+  final StreamController<ConnectionState> _connectionStateController =
+      BehaviorSubject.seeded(ConnectionState.connecting);
+
+  @override
+  Stream<ConnectionState> get connectionState =>
+      _connectionStateController.stream;
+
   @override
   Future<void> onConnect() async {
     _snapshotStream.add(_currentSnapshot);
@@ -84,8 +91,17 @@ class De1 implements De1Interface {
       data,
     ) async {
       _log.info("connection update: ${data}");
-      if (data.connectionState == DeviceConnectionState.connected) {
-        await _onConnected();
+      switch (data.connectionState) {
+        case DeviceConnectionState.connecting:
+          _connectionStateController.add(ConnectionState.connecting);
+        case DeviceConnectionState.connected:
+          _connectionStateController.add(ConnectionState.connected);
+          await _onConnected();
+        case DeviceConnectionState.disconnecting:
+          _connectionStateController.add(ConnectionState.disconnecting);
+        case DeviceConnectionState.disconnected:
+          _connectionStateController.add(ConnectionState.disconnected);
+					disconnect(); // just in case we got disconnected unintentionally
       }
     });
   }
@@ -96,6 +112,7 @@ class De1 implements De1Interface {
       s.cancel();
     }
     _connectionSubscription?.cancel();
+    _connectionStateController.add(ConnectionState.disconnected);
   }
 
   @override

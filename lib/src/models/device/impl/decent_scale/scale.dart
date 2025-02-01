@@ -5,6 +5,7 @@ import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 import 'package:logging/logging.dart' as logging;
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:rxdart/subjects.dart';
 
 class DecentScale implements Scale {
   static String serviceUUID = '0000fff0-0000-1000-8000-00805f9b34fb';
@@ -18,7 +19,7 @@ class DecentScale implements Scale {
 
   final _ble = FlutterReactiveBle();
   StreamSubscription<ConnectionStateUpdate>? _connection;
-  late StreamSubscription<List<int>> _notifications;
+  StreamSubscription<List<int>>? _notifications;
 
   final logging.Logger _log = logging.Logger("Decent scale");
 
@@ -31,38 +32,51 @@ class DecentScale implements Scale {
   String get deviceId => _deviceId;
 
   @override
-  disconnect() {
-    _notifications.cancel();
-    _connection?.cancel();
-  }
+  DeviceType get type => DeviceType.scale;
 
   @override
   String get name => "Decent Scale";
+
+  final StreamController<ConnectionState> _connectionStateController =
+      BehaviorSubject.seeded(ConnectionState.connecting);
+
+  @override
+  Stream<ConnectionState> get connectionState =>
+      _connectionStateController.stream;
 
   @override
   Future<void> onConnect() async {
     if (_connection != null) {
       return;
     }
-    _log.fine("connecting");
-    _connection = _ble
-        .connectToDevice(id: _deviceId)
-        .listen(
-          (connectionState) {
-            if (connectionState.connectionState ==
-                DeviceConnectionState.connected) {
-              // register for notifications
-              _registerNotifications();
-            }
-          },
-          onError: (e) {
-            _log.warning("failed to connect", e);
-          },
-        );
+    _connection = _ble.connectToDevice(id: _deviceId).listen(
+      (data) {
+        switch (data.connectionState) {
+          case DeviceConnectionState.connecting:
+            _connectionStateController.add(ConnectionState.connecting);
+          case DeviceConnectionState.connected:
+            _connectionStateController.add(ConnectionState.connected);
+            _registerNotifications();
+          case DeviceConnectionState.disconnecting:
+            _connectionStateController.add(ConnectionState.disconnecting);
+          case DeviceConnectionState.disconnected:
+            _connectionStateController.add(ConnectionState.disconnected);
+            _notifications?.cancel();
+            _connection?.cancel();
+        }
+      },
+      onError: (e) {
+        _log.warning("failed to connect:", e);
+      },
+    );
   }
 
   @override
-  DeviceType get type => DeviceType.scale;
+  disconnect() {
+    _notifications?.cancel();
+    _connection?.cancel();
+    _connectionStateController.add(ConnectionState.disconnected);
+  }
 
   @override
   Future<void> tare() async {

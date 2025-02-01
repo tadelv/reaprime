@@ -1,15 +1,15 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 
-class DeviceController extends ChangeNotifier {
+class DeviceController {
   final List<DeviceDiscoveryService> _services;
 
   late Map<DeviceDiscoveryService, List<Device>> _devices;
 
-  final StreamController<List<Device>> _deviceStream = StreamController.broadcast();
+  final StreamController<List<Device>> _deviceStream =
+      StreamController.broadcast();
 
   Stream<List<Device>> get deviceStream => _deviceStream.stream;
 
@@ -27,6 +27,21 @@ class DeviceController extends ChangeNotifier {
     for (var service in _services) {
       await service.initialize();
       service.devices.listen((devices) => _serviceUpdate(service, devices));
+    }
+    await scanForDevices();
+  }
+
+  Future<void> scanForDevices() async {
+    // throw out all disconnected devices
+    _devices.forEach((_, devices) async {
+      for (var device in devices) {
+        var state = await device.connectionState.first;
+        if (state != ConnectionState.connected) {
+          devices.remove(device);
+        }
+      }
+    });
+    for (var service in _services) {
       await service.scanForDevices();
     }
   }
@@ -34,7 +49,6 @@ class DeviceController extends ChangeNotifier {
   _serviceUpdate(DeviceDiscoveryService service, List<Device> devices) {
     _devices[service] = devices;
     _deviceStream.add(this.devices);
-    notifyListeners();
   }
 
   Future<Machine> connectMachine(Device device) async {

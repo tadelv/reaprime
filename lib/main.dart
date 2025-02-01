@@ -46,7 +46,7 @@ void main() async {
   final de1Controller = De1Controller(controller: deviceController);
   final scaleController = ScaleController(controller: deviceController);
   try {
-    await startWebServer(de1Controller, scaleController);
+    await startWebServer(deviceController, de1Controller, scaleController);
   } catch (e, st) {
     log.severe('failed to start web server', e, st);
   }

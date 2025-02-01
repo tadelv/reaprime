@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 import 'package:collection/collection.dart';
 import 'package:logging/logging.dart' as logging;
+import 'package:rxdart/subjects.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
 
@@ -19,7 +20,7 @@ class FelicitaArc implements Scale {
 
   final _ble = FlutterReactiveBle();
   StreamSubscription<ConnectionStateUpdate>? _connection;
-  late StreamSubscription<List<int>> _notifications;
+  StreamSubscription<List<int>>? _notifications;
 
   FelicitaArc({required String deviceId}) : _deviceId = deviceId;
 
@@ -32,31 +33,45 @@ class FelicitaArc implements Scale {
   @override
   String get name => "Felicita Arc";
 
+  final StreamController<ConnectionState> _connectionStateController =
+      BehaviorSubject.seeded(ConnectionState.connecting);
+
+  @override
+  Stream<ConnectionState> get connectionState =>
+      _connectionStateController.stream;
+
   @override
   Future<void> onConnect() async {
     if (_connection != null) {
       return;
     }
-    _connection = _ble
-        .connectToDevice(id: _deviceId)
-        .listen(
-          (connectionState) {
-            if (connectionState.connectionState ==
-                DeviceConnectionState.connected) {
-              // register for notifications
-              _registerNotifications();
-            }
-          },
-          onError: (e) {
-            logging.Logger("Felicita").warning("failed to connect:", e);
-          },
-        );
+    _connection = _ble.connectToDevice(id: _deviceId).listen(
+      (data) {
+        switch (data.connectionState) {
+          case DeviceConnectionState.connecting:
+            _connectionStateController.add(ConnectionState.connecting);
+          case DeviceConnectionState.connected:
+            _connectionStateController.add(ConnectionState.connected);
+            _registerNotifications();
+          case DeviceConnectionState.disconnecting:
+            _connectionStateController.add(ConnectionState.disconnecting);
+          case DeviceConnectionState.disconnected:
+            _connectionStateController.add(ConnectionState.disconnected);
+						_notifications?.cancel();
+						_connection?.cancel();
+        }
+      },
+      onError: (e) {
+        logging.Logger("Felicita").warning("failed to connect:", e);
+      },
+    );
   }
 
   @override
   disconnect() {
-    _notifications.cancel();
+    _notifications?.cancel();
     _connection?.cancel();
+		_connectionStateController.add(ConnectionState.disconnected);
   }
 
   @override
