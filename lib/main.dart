@@ -60,11 +60,13 @@ void main() async {
   // SettingsView.
   ForegroundTaskService.init();
   runApp(
-    MyApp(
-      settingsController: settingsController,
-      deviceController: deviceController,
-      de1Controller: de1Controller,
-      scaleController: scaleController,
+    WithForegroundTask(
+      child: MyApp(
+        settingsController: settingsController,
+        deviceController: deviceController,
+        de1Controller: de1Controller,
+        scaleController: scaleController,
+      ),
     ),
   );
 }

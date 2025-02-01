@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 
 import '../settings/settings_view.dart';
@@ -12,16 +11,12 @@ class SampleItemListView extends StatelessWidget {
     required this.controller,
   });
 
-  static const routeName = '/';
+  static const routeName = '/debug';
 
   final DeviceController controller;
 
   @override
   Widget build(BuildContext context) {
-    FlutterForegroundTask.startService(
-      notificationTitle: "Reaprime talking to DE1",
-      notificationText: "Tap to return to Reaprime",
-    );
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sample Items'),

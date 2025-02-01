@@ -6,7 +6,7 @@ import 'package:reaprime/src/models/device/machine.dart';
 class De1DebugView extends StatefulWidget {
   const De1DebugView({super.key, required this.machine});
 
-  static const routeName = '/sample_item';
+  static const routeName = '/debug_details';
 
   final De1Interface machine;
 
