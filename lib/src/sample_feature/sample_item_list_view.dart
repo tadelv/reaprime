@@ -3,7 +3,6 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 
 import '../settings/settings_view.dart';
-import 'sample_item.dart';
 import 'sample_item_details_view.dart';
 
 /// Displays a list of SampleItems.
@@ -11,12 +10,10 @@ class SampleItemListView extends StatelessWidget {
   const SampleItemListView({
     super.key,
     required this.controller,
-    this.items = const [SampleItem(1), SampleItem(2), SampleItem(3)],
   });
 
   static const routeName = '/';
 
-  final List<SampleItem> items;
   final DeviceController controller;
 
   @override
@@ -40,9 +37,9 @@ class SampleItemListView extends StatelessWidget {
           ),
           IconButton(
             onPressed: () async {
-              await controller.initialize();
+              await controller.scanForDevices();
             },
-            icon: const Icon(Icons.bluetooth),
+            icon: const Icon(Icons.radar),
           ),
         ],
       ),
@@ -71,7 +68,7 @@ class SampleItemListView extends StatelessWidget {
                   // background, the navigation stack is restored.
                   Navigator.restorablePushNamed(
                     context,
-                    SampleItemDetailsView.routeName,
+                    De1DebugView.routeName,
                     arguments: item.deviceId,
                   );
                 },

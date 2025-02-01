@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
-import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 
 /// Displays detailed information about a SampleItem.
-class SampleItemDetailsView extends StatelessWidget {
-  SampleItemDetailsView({super.key, required this.machine});
+class De1DebugView extends StatefulWidget {
+  const De1DebugView({super.key, required this.machine});
 
   static const routeName = '/sample_item';
 
   final De1Interface machine;
 
+  @override
+  State<De1DebugView> createState() => _De1DebugViewState();
+}
+
+class _De1DebugViewState extends State<De1DebugView> {
   var _lastDate = DateTime.now();
 
   @override
@@ -23,28 +27,41 @@ class SampleItemDetailsView extends StatelessWidget {
           child: Flex(
             direction: Axis.horizontal,
             children: [
-              Flexible(
-                flex: 2,
-                child: StreamBuilder(
-                  stream: machine.currentSnapshot,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.active) {
-                      var diff =
-                          snapshot.data?.timestamp.difference(_lastDate) ?? 0;
-                      _lastDate = snapshot.data?.timestamp ?? DateTime.now();
-                      return Column(children: machineState(snapshot, diff));
-                    } else if (snapshot.connectionState ==
-                        ConnectionState.waiting) {
-                      return Text("Connecting");
-                    }
-                    return Text(
-                      "Waiting for data: ${snapshot.connectionState}",
-                    );
-                  },
+              Expanded(
+                child: Flexible(
+                  flex: 1,
+                  child: StreamBuilder(
+                    stream: widget.machine.currentSnapshot,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.active) {
+                        var diff =
+                            snapshot.data?.timestamp.difference(_lastDate) ?? 0;
+                        _lastDate = snapshot.data?.timestamp ?? DateTime.now();
+                        return Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: machineState(snapshot, diff));
+                      } else if (snapshot.connectionState ==
+                          ConnectionState.waiting) {
+                        return Text("Connecting");
+                      }
+                      return Text(
+                        "Waiting for data: ${snapshot.connectionState}",
+                      );
+                    },
+                  ),
                 ),
               ),
-              Flexible(flex: 1, child: _shotSettings(machine.shotSettings)),
-              Flexible(flex: 2, child: _waterLevels(machine.waterLevels)),
+              Flexible(
+                  flex: 1,
+                  child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: _shotSettings(widget.machine.shotSettings))),
+              Flexible(
+                  flex: 1,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: _waterLevels(widget.machine.waterLevels),
+                  )),
             ],
           ),
         ),
@@ -82,14 +99,14 @@ class SampleItemDetailsView extends StatelessWidget {
       if (snapshot.data!.state.state == MachineState.sleeping) {
         return OutlinedButton(
           onPressed: () {
-            machine.requestState(MachineState.idle);
+            widget.machine.requestState(MachineState.idle);
           },
           child: Text("Wake"),
         );
       } else {
         return OutlinedButton(
           onPressed: () {
-            machine.requestState(MachineState.sleeping);
+            widget.machine.requestState(MachineState.sleeping);
           },
           child: Text("Sleep"),
         );
@@ -103,7 +120,9 @@ class SampleItemDetailsView extends StatelessWidget {
       stream: shotSettings,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.active) {
-          return Column(children: [Text("${snapshot.data!.steamSetting}")]);
+          return Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [Text("${snapshot.data!.steamSetting}")]);
         }
         return Text("Waiting for data ${snapshot.connectionState}");
       },
@@ -116,6 +135,7 @@ class SampleItemDetailsView extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.active) {
           return Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text("water level: ${snapshot.data!.currentPercentage}%"),
             ],
