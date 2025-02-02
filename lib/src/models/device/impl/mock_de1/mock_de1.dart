@@ -141,4 +141,16 @@ class MockDe1 implements De1Interface {
   @override
   Stream<ConnectionState> get connectionState =>
       BehaviorSubject.seeded(ConnectionState.connected);
+
+  @override
+  Future<int> getFanThreshhold() {
+    // TODO: implement getFanThreshhold
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> setFanThreshhold(int temp) {
+    // TODO: implement setFanThreshhold
+    throw UnimplementedError();
+  }
 }

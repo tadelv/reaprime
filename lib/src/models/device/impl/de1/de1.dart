@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
@@ -101,7 +102,7 @@ class De1 implements De1Interface {
           _connectionStateController.add(ConnectionState.disconnecting);
         case DeviceConnectionState.disconnected:
           _connectionStateController.add(ConnectionState.disconnected);
-					disconnect(); // just in case we got disconnected unintentionally
+          disconnect(); // just in case we got disconnected unintentionally
       }
     });
   }
@@ -212,7 +213,7 @@ class De1 implements De1Interface {
     index++;
 
     await _writeWithResponse(Endpoint.shotSettings, data);
-		await _parseShotSettings(await _read(Endpoint.shotSettings));
+    await _parseShotSettings(await _read(Endpoint.shotSettings));
   }
 
   @override
@@ -227,5 +228,16 @@ class De1 implements De1Interface {
   @override
   Future<void> setUsbChargerMode(bool t) async {
     await _mmrWrite(MMRItem.allowUSBCharging, _packMMRInt(t ? 1 : 0));
+  }
+
+  @override
+  Future<int> getFanThreshhold() async {
+    var result = await _mmrRead(MMRItem.fanThreshold);
+    return _unpackMMRInt(result);
+  }
+
+  @override
+  Future<void> setFanThreshhold(int temp) async {
+    await _mmrWrite(MMRItem.fanThreshold, _packMMRInt(min(65, temp)));
   }
 }

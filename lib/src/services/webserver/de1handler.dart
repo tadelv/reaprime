@@ -12,6 +12,10 @@ class De1Handler {
     app.post('/api/v1/de1/profile', _profileHandler);
     app.post('/api/v1/de1/shotSettings', _shotSettingsHandler);
     app.put('/api/v1/de1/usb/<state>', _usbChargerHandler);
+    app.get('/api/v1/de1/fan', _readFanThreshold);
+    app.put('/api/v1/de1/fan', _setFanThreshold);
+
+    // Sockets
     app.get('/ws/v1/de1/snapshot', sws.webSocketHandler(_handleSnapshot));
     app.get(
         '/ws/v1/de1/shotSettings', sws.webSocketHandler(_handleShotSettings));
@@ -91,6 +95,33 @@ class De1Handler {
       return Response.ok('');
     } catch (e, st) {
       log.severe('failed to set usbChargerEnabled', e, st);
+      return Response.internalServerError(
+        body: jsonEncode({'e': e.toString(), 'st': st.toString()}),
+      );
+    }
+  }
+
+  Future<Response> _readFanThreshold() async {
+    try {
+      var de1 = await _controller.connectedDe1();
+      var threshold = await de1.getFanThreshhold();
+      return Response.ok(jsonEncode({'value': threshold}));
+    } catch (e, st) {
+      log.severe('failed to read fan threshold', e, st);
+      return Response.internalServerError(
+        body: jsonEncode({'e': e.toString(), 'st': st.toString()}),
+      );
+    }
+  }
+
+  Future<Response> _setFanThreshold(Request request) async {
+    try {
+      int temp = (await request.body.asJson)['value'];
+      var de1 = _controller.connectedDe1();
+      await de1.setFanThreshhold(temp);
+      return Response.ok(jsonEncode({'value': temp}));
+    } catch (e, st) {
+      log.severe('failed to set fan threshold', e, st);
       return Response.internalServerError(
         body: jsonEncode({'e': e.toString(), 'st': st.toString()}),
       );

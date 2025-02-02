@@ -15,8 +15,8 @@ abstract class De1Interface extends Machine {
 
   //// Timeouts and Thresholds
   //Future<void> setFlushTimeout(double newTimeout);
-  //Future<void> setFanThreshhold(int temp);
-  //Future<int> getFanThreshhold();
+  Future<void> setFanThreshhold(int temp);
+  Future<int> getFanThreshhold();
   //Future<int> getTankTempThreshold();
   //Future<void> setTankTempThreshold(int temp);
   //
