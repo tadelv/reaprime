@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter/material.dart';
@@ -132,10 +133,18 @@ class MyApp extends StatelessWidget {
                   case SampleItemListView.routeName:
                     return SampleItemListView(controller: deviceController);
                   case HomeScreen.routeName:
-                  default:
                     return HomeScreen(
                       de1controller: de1Controller,
                     );
+                  default:
+                    // TODO: dedicated server mode?
+                    if (kDebugMode) {
+                      return HomeScreen(
+                        de1controller: de1Controller,
+                      );
+                    } else {
+                      return SampleItemListView(controller: deviceController);
+                    }
                 }
               },
             );
