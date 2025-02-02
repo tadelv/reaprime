@@ -238,6 +238,6 @@ class De1 implements De1Interface {
 
   @override
   Future<void> setFanThreshhold(int temp) async {
-    await _mmrWrite(MMRItem.fanThreshold, _packMMRInt(min(65, temp)));
+    await _mmrWrite(MMRItem.fanThreshold, _packMMRInt(min(50, temp)));
   }
 }
