@@ -94,8 +94,14 @@ class MyApp extends StatelessWidget {
           // preferred ThemeMode (light, dark, or system default) from the
           // SettingsController to display the correct theme.
           theme: ShadThemeData(
-              colorScheme: ShadColorScheme.fromName('rose', brightness: Brightness.dark),
+              colorScheme: ShadColorScheme.fromName('rose',
+                  brightness: Brightness.light),
+              brightness: Brightness.light),
+          darkTheme: ShadThemeData(
+              colorScheme:
+                  ShadColorScheme.fromName('rose', brightness: Brightness.dark),
               brightness: Brightness.dark),
+          themeMode: settingsController.themeMode,
 
           // Define a function to handle named routes in order to support
           // Flutter web url navigation and deep linking.
