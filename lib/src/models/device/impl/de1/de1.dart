@@ -240,4 +240,64 @@ class De1 implements De1Interface {
   Future<void> setFanThreshhold(int temp) async {
     await _mmrWrite(MMRItem.fanThreshold, _packMMRInt(min(50, temp)));
   }
+
+  @override
+  Future<double> getSteamFlow() async {
+    var result = await _mmrRead(MMRItem.targetSteamFlow);
+    return _unpackMMRInt(result).toDouble() / 100;
+  }
+
+  @override
+  Future<void> setSteamFlow(double newFlow) async {
+    var value = _packMMRInt((newFlow * 100).toInt());
+    await _mmrWrite(MMRItem.targetSteamFlow, value);
+  }
+
+  @override
+  Future<double> getHotWaterFlow() async {
+    var result = await _mmrRead(MMRItem.hotWaterFlowRate);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<void> setHotWaterFlow(double newFlow) async {
+    var value = _packMMRInt((newFlow * 10).toInt());
+    await _mmrWrite(MMRItem.hotWaterFlowRate, value);
+  }
+
+  @override
+  Future<double> getFlushFlow() async {
+    var result = await _mmrRead(MMRItem.flushFlowRate);
+    return _unpackMMRInt(result).toDouble() / 100;
+  }
+
+  @override
+  Future<void> setFlushFlow(double newFlow) async {
+    var value = _packMMRInt((newFlow * 10).toInt());
+    await _mmrWrite(MMRItem.flushFlowRate, value);
+  }
+
+  @override
+  Future<double> getFlushTimeout() async {
+    var result = await _mmrRead(MMRItem.flushTimeout);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<void> setFlushTimeout(double newTimeout) async {
+    var value = _packMMRInt((newTimeout * 10).toInt());
+    await _mmrWrite(MMRItem.flushTimeout, value);
+  }
+
+  @override
+  Future<double> getFlushTemperature() async {
+    var result = await _mmrRead(MMRItem.flushTemp);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<void> setFlushTemperature(double newTemp) async {
+    var value = _packMMRInt((newTemp * 10).toInt());
+    await _mmrWrite(MMRItem.flushTemp, value);
+  }
 }

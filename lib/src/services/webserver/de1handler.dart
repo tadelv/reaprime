@@ -20,11 +20,44 @@ class De1Handler {
     app.get(
         '/ws/v1/de1/shotSettings', sws.webSocketHandler(_handleShotSettings));
     app.get('/ws/v1/de1/waterLevels', sws.webSocketHandler(_handleWaterLevels));
+
+    // MMR?
+    app.get('/api/v1/de1/settings/flushTemp', () async {
+      return withDe1(
+        (de1) async {
+          var temp = await de1.getFlushTemperature();
+          return Response.ok(jsonEncode({'value': temp}));
+        },
+      );
+    });
+    app.post('/api/v1/de1/settings/flushTemp', (Request r) async {
+      return withDe1(
+        (de1) async {
+          var data = await r.readAsString();
+          var json = jsonDecode(data);
+          if (json['value'] is double) {
+            await de1.setFlushTemperature(json['value']);
+            return Response.ok(jsonEncode({'value': json['value']}));
+          }
+          return Response.badRequest();
+        },
+      );
+    });
+  }
+
+  Future<Response> withDe1(Future<Response> Function(De1Interface) call) async {
+    try {
+      var de1 = _controller.connectedDe1();
+      return await call(de1);
+    } catch (e, st) {
+      return Response.internalServerError(
+        body: jsonEncode({'error': e.toString(), 'st': st.toString()}),
+      );
+    }
   }
 
   Future<Response> _stateHandler(Request request) async {
-    try {
-      var de1 = await _controller.connectedDe1();
+    return withDe1((De1Interface de1) async {
       var snapshot = await de1.currentSnapshot.first;
       var charger = await de1.getUsbChargerMode();
       return Response.ok(
@@ -33,104 +66,77 @@ class De1Handler {
           'usbChargerEnabled': charger,
         }),
       );
-    } catch (e, st) {
-      return Response.notFound(
-        jsonEncode({'error': e.toString(), 'st': st.toString()}),
-      );
-    }
+    });
   }
 
   Future<Response> _requestStateHandler(
     Request request,
     String newState,
   ) async {
-    try {
+    return withDe1((de1) async {
       var requestState = MachineState.values.byName(newState);
-      var de1 = await _controller.connectedDe1();
       await de1.requestState(requestState);
       return Response.ok("");
-    } catch (e, st) {
-      return Response.badRequest(
-        body: jsonEncode({'error': e.toString(), 'st': st.toString()}),
-      );
-    }
+    });
   }
 
   Future<Response> _profileHandler(Request request) async {
-    try {
-      final payload = await request.readAsString();
+    return withDe1(
+      (de1) async {
+        final payload = await request.readAsString();
 
-      Map<String, dynamic> json = jsonDecode(payload);
-      Profile profile = Profile.fromJson(json);
-      var de1 = await _controller.connectedDe1();
-      await de1.setProfile(profile);
-      return Response.ok("");
-    } catch (e, st) {
-      return Response.badRequest(
-        body: jsonEncode({'error': e.toString(), 'st': st.toString()}),
-      );
-    }
+        Map<String, dynamic> json = jsonDecode(payload);
+        Profile profile = Profile.fromJson(json);
+        await de1.setProfile(profile);
+        return Response.ok("");
+      },
+    );
   }
 
   Future<Response> _shotSettingsHandler(Request request) async {
-    try {
-      final payload = await request.readAsString();
+    return withDe1(
+      (de1) async {
+        final payload = await request.readAsString();
 
-      Map<String, dynamic> json = jsonDecode(payload);
-      De1ShotSettings settings = De1ShotSettings.fromJson(json);
-      var de1 = await _controller.connectedDe1();
-      await de1.updateShotSettings(settings);
-      return Response.ok("");
-    } catch (e, st) {
-      return Response.badRequest(
-        body: jsonEncode({'error': e.toString(), 'st': st.toString()}),
-      );
-    }
+        Map<String, dynamic> json = jsonDecode(payload);
+        De1ShotSettings settings = De1ShotSettings.fromJson(json);
+        await de1.updateShotSettings(settings);
+        return Response.ok("");
+      },
+    );
   }
 
   Future<Response> _usbChargerHandler(Request request, String state) async {
-    try {
-      var de1 = await _controller.connectedDe1();
-      await de1.setUsbChargerMode(state == "enable");
-      return Response.ok('');
-    } catch (e, st) {
-      log.severe('failed to set usbChargerEnabled', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'e': e.toString(), 'st': st.toString()}),
-      );
-    }
+    return withDe1(
+      (de1) async {
+        await de1.setUsbChargerMode(state == "enable");
+        return Response.ok('');
+      },
+    );
   }
 
   Future<Response> _readFanThreshold() async {
-    try {
-      var de1 = await _controller.connectedDe1();
-      var threshold = await de1.getFanThreshhold();
-      return Response.ok(jsonEncode({'value': threshold}));
-    } catch (e, st) {
-      log.severe('failed to read fan threshold', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'e': e.toString(), 'st': st.toString()}),
-      );
-    }
+    return withDe1(
+      (de1) async {
+        var threshold = await de1.getFanThreshhold();
+        return Response.ok(jsonEncode({'value': threshold}));
+      },
+    );
   }
 
   Future<Response> _setFanThreshold(Request request) async {
-    try {
-      int temp = (await request.body.asJson)['value'];
-      var de1 = _controller.connectedDe1();
-      await de1.setFanThreshhold(temp);
-      return Response.ok(jsonEncode({'value': temp}));
-    } catch (e, st) {
-      log.severe('failed to set fan threshold', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'e': e.toString(), 'st': st.toString()}),
-      );
-    }
+    return withDe1(
+      (de1) async {
+        int temp = (await request.body.asJson)['value'];
+        await de1.setFanThreshhold(temp);
+        return Response.ok(jsonEncode({'value': temp}));
+      },
+    );
   }
 
   _handleSnapshot(WebSocketChannel socket) async {
     log.fine("handling websocket connection");
-    var de1 = await _controller.connectedDe1();
+    var de1 = _controller.connectedDe1();
     var sub = de1.currentSnapshot.listen((snapshot) {
       try {
         var json = jsonEncode(snapshot.toJson());
@@ -148,7 +154,7 @@ class De1Handler {
 
   _handleShotSettings(WebSocketChannel socket) async {
     log.fine('handling shot settings connection');
-    var de1 = await _controller.connectedDe1();
+    var de1 = _controller.connectedDe1();
     var sub = de1.shotSettings.listen((data) {
       try {
         var json = jsonEncode(data.toJson());
@@ -166,7 +172,7 @@ class De1Handler {
 
   _handleWaterLevels(WebSocketChannel socket) async {
     log.fine('handling water levels connection');
-    var de1 = await _controller.connectedDe1();
+    var de1 = _controller.connectedDe1();
     var sub = de1.waterLevels.listen((data) {
       try {
         var json = jsonEncode(data.toJson());

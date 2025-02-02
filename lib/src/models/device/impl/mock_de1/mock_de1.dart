@@ -153,4 +153,64 @@ class MockDe1 implements De1Interface {
     // TODO: implement setFanThreshhold
     throw UnimplementedError();
   }
+
+  @override
+  Future<double> getSteamFlow() {
+    // TODO: implement getSteamFlow
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> setSteamFlow(double newFlow) {
+    // TODO: implement setSteamFlow
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<double> getHotWaterFlow() {
+    // TODO: implement getHotWaterFlow
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> setHotWaterFlow(double newFlow) {
+    // TODO: implement setHotWaterFlow
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<double> getFlushFlow() {
+    // TODO: implement getFlushFlow
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> setFlushFlow(double newFlow) {
+    // TODO: implement setFlushFlow
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> setFlushTimeout(double newTimeout) {
+    // TODO: implement setFlushTimeout
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<double> getFlushTimeout() {
+    // TODO: implement getFlushTimeout
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<double> getFlushTemperature() {
+    // TODO: implement getFlushTemperature
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> setFlushTemperature(double newTemp) {
+    // TODO: implement setFlushTemperature
+    throw UnimplementedError();
+  }
 }

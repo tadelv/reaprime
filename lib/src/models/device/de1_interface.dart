@@ -14,15 +14,24 @@ abstract class De1Interface extends Machine {
   // TODO: also heater timeouts and others? (check mmr for options)
 
   //// Timeouts and Thresholds
-  //Future<void> setFlushTimeout(double newTimeout);
   Future<void> setFanThreshhold(int temp);
   Future<int> getFanThreshhold();
   //Future<int> getTankTempThreshold();
   //Future<void> setTankTempThreshold(int temp);
   //
   //// Flow Control
-  //Future<void> setSteamFlow(double newFlow);
-  //Future<double> getSteamFlow();
+  Future<void> setSteamFlow(double newFlow);
+  Future<double> getSteamFlow();
+  Future<void> setHotWaterFlow(double newFlow);
+  Future<double> getHotWaterFlow();
+
+// Flush/Rinse control
+  Future<void> setFlushFlow(double newFlow);
+  Future<double> getFlushFlow();
+  Future<void> setFlushTimeout(double newTimeout);
+  Future<double> getFlushTimeout();
+  Future<double> getFlushTemperature();
+	Future<void> setFlushTemperature(double newTemp);
   //Future<void> setFlowEstimation(double newFlow);
   //Future<double> getFlowEstimation();
   //
