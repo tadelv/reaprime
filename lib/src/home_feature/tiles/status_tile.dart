@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
+import 'package:reaprime/src/home_feature/forms/steam_form.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
@@ -25,7 +27,9 @@ class StatusTile extends StatelessWidget {
             }
             var settings = settingsSnapshot.data!;
             return GestureDetector(
-						onTap: () { _showShotSettingsDialog(context, settings);},
+              onTap: () {
+                _showShotSettingsDialog(context, settings);
+              },
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 spacing: 5,
@@ -72,30 +76,14 @@ class StatusTile extends StatelessWidget {
     showShadDialog(
       context: context,
       builder: (context) => ShadDialog(
-        title: const Text('Edit settings'),
-        child: Container(
-          width: 400,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text('Steam temperature'),
-                  ),
-                  const SizedBox(
-                    width: 16,
-                  ),
-                  Expanded(
-                    flex: 3,
-                    child: ShadInput(initialValue: settings.targetSteamTemp.toString(),),
-                  )
-                ],
-              )
-            ],
-          ),
-        ),
-      ),
+          title: const Text('Edit settings'),
+          child: SteamForm(
+            shotSettings: settings,
+            apply: (settings) {
+              Logger("Home").info('steam settings: ${settings}');
+              Navigator.of(context).pop();
+            },
+          )),
     );
   }
 
