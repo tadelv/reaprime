@@ -211,7 +211,8 @@ class De1 implements De1Interface {
             .toInt();
     index++;
 
-    _writeWithResponse(Endpoint.shotSettings, data);
+    await _writeWithResponse(Endpoint.shotSettings, data);
+		await _parseShotSettings(await _read(Endpoint.shotSettings));
   }
 
   @override

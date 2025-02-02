@@ -41,6 +41,7 @@ abstract class De1Interface extends Machine {
   //Future<int> getGhcMode();
 }
 
+// This doesn't change anything
 enum De1SteamSettingsValues {
   none(0),
   fastStart(0x80),
@@ -88,14 +89,14 @@ final class De1ShotSettings {
 
   factory De1ShotSettings.fromJson(Map<String, dynamic> json) {
     return De1ShotSettings(
-      steamSetting: int.parse(json['steamSetting']),
-      targetSteamTemp: int.parse(json['targetSteamTemp']),
-      targetSteamDuration: int.parse(json['targetSteamDuration']),
-      targetHotWaterTemp: int.parse(json['targetHotWaterTemp']),
-      targetHotWaterVolume: int.parse(json['targetHotWaterVolume']),
-      targetHotWaterDuration: int.parse(json['targetHotWaterDuration']),
-      targetShotVolume: int.parse(json['targetShotVolume']),
-      groupTemp: double.parse(json['groupTemp']),
+      steamSetting: json['steamSetting'],
+      targetSteamTemp: json['targetSteamTemp'],
+      targetSteamDuration: json['targetSteamDuration'],
+      targetHotWaterTemp: json['targetHotWaterTemp'],
+      targetHotWaterVolume: json['targetHotWaterVolume'],
+      targetHotWaterDuration: json['targetHotWaterDuration'],
+      targetShotVolume: json['targetShotVolume'],
+      groupTemp: json['groupTemp'],
     );
   }
 

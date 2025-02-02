@@ -10,16 +10,16 @@ class HomeScreen extends StatelessWidget {
 
   final De1Controller de1controller;
 
-  final double _leftColumWidth = 450;
+  final double _leftColumWidth = 400;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     return Scaffold(
-        appBar: AppBar(
-          title: Text('ReaPrime'),
-        ),
-        body: _home(context));
+        //appBar: AppBar(
+        //  title: Text('ReaPrime'),
+        //),
+        body: SafeArea(child: _home(context)));
   }
 
   Widget _home(BuildContext context) {

@@ -5,6 +5,7 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/sample_feature/sample_item_list_view.dart';
+import 'package:rxdart/rxdart.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class StatusTile extends StatelessWidget {
@@ -45,6 +46,25 @@ class StatusTile extends StatelessWidget {
             );
           },
         ),
+        StreamBuilder(
+            stream: Rx.combineLatest2(
+                de1.shotSettings,
+                de1.waterLevels,
+                (shotSettings, waterLevels) =>
+                    {'sset': shotSettings, 'wl': waterLevels}),
+            builder: (context, data) {
+              if (data.connectionState != ConnectionState.active) {
+                return Text('Waiting');
+              }
+              var snap = data.data!;
+              var shotSettings = snap['sset'] as De1ShotSettings;
+              var waterLevels = snap['wl'] as De1WaterLevels;
+
+              return Row(children: [
+                Text('ho: ${shotSettings.targetSteamTemp}deg'),
+                Text('he ${waterLevels.currentPercentage}%'),
+              ]);
+            }),
         SizedBox(height: 8),
         if (scale != null)
           Text(
@@ -116,7 +136,7 @@ class StatusTile extends StatelessWidget {
   }
 
   Widget _firstRow() {
-    double boxWidth = 150;
+    double boxWidth = 100;
     return Row(spacing: 5, children: [
       Text(
         "DE1:",
@@ -133,7 +153,7 @@ class StatusTile extends StatelessWidget {
             }
             var snapshot = snapshotData.data!;
             return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                //mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 spacing: 50,
                 children: [
                   SizedBox(
