@@ -59,6 +59,7 @@ class MyApp extends StatelessWidget {
       notificationTitle: "Reaprime talking to DE1",
       notificationText: "Tap to return to Reaprime",
     );
+    final themeColor = 'green';
     return ListenableBuilder(
       listenable: settingsController,
       builder: (BuildContext context, Widget? child) {
@@ -94,12 +95,12 @@ class MyApp extends StatelessWidget {
           // preferred ThemeMode (light, dark, or system default) from the
           // SettingsController to display the correct theme.
           theme: ShadThemeData(
-              colorScheme: ShadColorScheme.fromName('rose',
+              colorScheme: ShadColorScheme.fromName(themeColor,
                   brightness: Brightness.light),
               brightness: Brightness.light),
           darkTheme: ShadThemeData(
-              colorScheme:
-                  ShadColorScheme.fromName('rose', brightness: Brightness.dark),
+              colorScheme: ShadColorScheme.fromName(themeColor,
+                  brightness: Brightness.dark),
               brightness: Brightness.dark),
           themeMode: settingsController.themeMode,
 

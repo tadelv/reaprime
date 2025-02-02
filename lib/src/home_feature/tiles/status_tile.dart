@@ -24,17 +24,20 @@ class StatusTile extends StatelessWidget {
               return Text("Waiting");
             }
             var settings = settingsSnapshot.data!;
-            return Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              spacing: 5,
-              children: [
-                Text("TG: ${settings.groupTemp}"),
-                Text("HW: ${settings.targetHotWaterTemp}℃"),
-                Text("HW: ${settings.targetHotWaterVolume}ml"),
-                Text("HW: ${settings.targetHotWaterDuration}s"),
-                Text("ST: ${settings.targetSteamTemp}℃"),
-                Text("SD: ${settings.targetSteamDuration}"),
-              ],
+            return GestureDetector(
+						onTap: () { _showShotSettingsDialog(context, settings);},
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                spacing: 5,
+                children: [
+                  Text("TG: ${settings.groupTemp}"),
+                  Text("HW: ${settings.targetHotWaterTemp}℃"),
+                  Text("HW: ${settings.targetHotWaterVolume}ml"),
+                  Text("HW: ${settings.targetHotWaterDuration}s"),
+                  Text("ST: ${settings.targetSteamTemp}℃"),
+                  Text("SD: ${settings.targetSteamDuration}"),
+                ],
+              ),
             );
           },
         ),
@@ -62,6 +65,37 @@ class StatusTile extends StatelessWidget {
           )
         ]),
       ],
+    );
+  }
+
+  _showShotSettingsDialog(BuildContext context, De1ShotSettings settings) {
+    showShadDialog(
+      context: context,
+      builder: (context) => ShadDialog(
+        title: const Text('Edit settings'),
+        child: Container(
+          width: 400,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text('Steam temperature'),
+                  ),
+                  const SizedBox(
+                    width: 16,
+                  ),
+                  Expanded(
+                    flex: 3,
+                    child: ShadInput(initialValue: settings.targetSteamTemp.toString(),),
+                  )
+                ],
+              )
+            ],
+          ),
+        ),
+      ),
     );
   }
 

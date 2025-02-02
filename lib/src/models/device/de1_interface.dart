@@ -98,6 +98,29 @@ final class De1ShotSettings {
       groupTemp: double.parse(json['groupTemp']),
     );
   }
+
+  De1ShotSettings copyWith({
+    int? steamSetting,
+    int? targetSteamTemp,
+    int? targetSteamDuration,
+    int? targetHotWaterTemp,
+    int? targetHotWaterVolume,
+    int? targetHotWaterDuration,
+    int? targetShotVolume,
+    double? groupTemp,
+  }) {
+    return De1ShotSettings(
+      steamSetting: steamSetting ?? this.steamSetting,
+      targetSteamTemp: targetSteamTemp ?? this.targetSteamTemp,
+      targetSteamDuration: targetSteamDuration ?? this.targetSteamDuration,
+      targetHotWaterTemp: targetHotWaterTemp ?? this.targetHotWaterTemp,
+      targetHotWaterVolume: targetHotWaterVolume ?? this.targetHotWaterVolume,
+      targetHotWaterDuration:
+          targetHotWaterDuration ?? this.targetHotWaterDuration,
+      targetShotVolume: targetShotVolume ?? this.targetShotVolume,
+      groupTemp: groupTemp ?? this.groupTemp,
+    );
+  }
 }
 
 final class De1WaterLevels {
