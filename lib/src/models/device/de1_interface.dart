@@ -32,6 +32,9 @@ abstract class De1Interface extends Machine {
   Future<double> getFlushTimeout();
   Future<double> getFlushTemperature();
 	Future<void> setFlushTemperature(double newTemp);
+
+
+	// Calibration
   //Future<void> setFlowEstimation(double newFlow);
   //Future<double> getFlowEstimation();
   //

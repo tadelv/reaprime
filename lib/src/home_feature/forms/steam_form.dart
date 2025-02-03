@@ -6,11 +6,10 @@ class SteamForm extends StatefulWidget {
   const SteamForm({
     super.key,
     required this.apply,
-		required this.shotSettings,
-  });
-
+		required this.steamSettings,
+  }) ;
   final Function(Map<Object, dynamic>) apply;
-	final De1ShotSettings shotSettings;
+	final SteamFormSettings steamSettings;
 
   @override
   State<SteamForm> createState() {
@@ -32,19 +31,8 @@ class _SteamFormState extends State<SteamForm> {
             mainAxisSize: MainAxisSize.min,
             spacing: 16,
             children: [
-              ShadSwitchFormField(
-                  id: 'enabled',
-                  label: const Text('Steam enabled'),
-                  initialValue: widget.shotSettings.targetSteamDuration > 0),
-              ShadInputFormField(
-                id: 'temperature',
-                label: const Text('Steam Temperature'),
-								initialValue: widget.shotSettings.targetSteamTemp.toString(),
-                validator: (v) => ((int.tryParse(v) ?? -1) >= 0 &&
-                        (int.tryParse(v) ?? 0) < 170)
-                    ? null
-                    : "Enter valid temperature for steam",
-              ),
+              ShadSlider(
+							),
               ShadButton(
                 child: const Text('Apply'),
                 onPressed: () {
@@ -64,7 +52,7 @@ class SteamFormSettings {
   int targetTemp;
   int targetDuration;
   double targetFlow;
-// TODO: purge mode and power mode
+// TODO: purge mode 
 
   SteamFormSettings({
     required this.steamEnabled,
