@@ -213,4 +213,16 @@ class MockDe1 implements De1Interface {
     // TODO: implement setFlushTemperature
     throw UnimplementedError();
   }
+
+  @override
+  Future<int> getTankTempThreshold() {
+    // TODO: implement getTankTempThreshold
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> setTankTempThreshold(int temp) {
+    // TODO: implement setTankTempThreshold
+    throw UnimplementedError();
+  }
 }

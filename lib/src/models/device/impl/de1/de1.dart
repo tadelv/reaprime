@@ -268,7 +268,7 @@ class De1 implements De1Interface {
   @override
   Future<double> getFlushFlow() async {
     var result = await _mmrRead(MMRItem.flushFlowRate);
-    return _unpackMMRInt(result).toDouble() / 100;
+    return _unpackMMRInt(result).toDouble() / 10;
   }
 
   @override
@@ -299,5 +299,17 @@ class De1 implements De1Interface {
   Future<void> setFlushTemperature(double newTemp) async {
     var value = _packMMRInt((newTemp * 10).toInt());
     await _mmrWrite(MMRItem.flushTemp, value);
+  }
+
+  @override
+  Future<int> getTankTempThreshold() async {
+    var result = await _mmrRead(MMRItem.tankTemp);
+    return _unpackMMRInt(result);
+  }
+
+  @override
+  Future<void> setTankTempThreshold(int temp) async {
+    var value = _packMMRInt(temp);
+    await _mmrWrite(MMRItem.tankTemp, value);
   }
 }

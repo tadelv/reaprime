@@ -11,9 +11,6 @@ class De1Handler {
     app.put('/api/v1/de1/state/<newState>', _requestStateHandler);
     app.post('/api/v1/de1/profile', _profileHandler);
     app.post('/api/v1/de1/shotSettings', _shotSettingsHandler);
-    app.put('/api/v1/de1/usb/<state>', _usbChargerHandler);
-    app.get('/api/v1/de1/fan', _readFanThreshold);
-    app.put('/api/v1/de1/fan', _setFanThreshold);
 
     // Sockets
     app.get('/ws/v1/de1/snapshot', sws.webSocketHandler(_handleSnapshot));
@@ -22,26 +19,50 @@ class De1Handler {
     app.get('/ws/v1/de1/waterLevels', sws.webSocketHandler(_handleWaterLevels));
 
     // MMR?
-    app.get('/api/v1/de1/settings/flushTemp', () async {
-      return withDe1(
-        (de1) async {
-          var temp = await de1.getFlushTemperature();
-          return Response.ok(jsonEncode({'value': temp}));
-        },
-      );
+
+    app.post('/api/v1/de1/settings', (Request r) async {
+      return withDe1((de1) async {
+        var json = jsonDecode(await r.readAsString());
+        if (json['usb'] != null) {
+          await de1.setUsbChargerMode(json['usb'] == 'enable');
+        }
+        if (json['fan'] != null) await de1.setFanThreshhold(json['fan']);
+        if (json['flushTemp'] != null) {
+          await de1.setFlushTemperature(json['flushTemp']);
+        }
+        if (json['flushFlow'] != null) {
+          await de1.setFlushFlow(json['flushFlow']);
+        }
+        if (json['flushTimeout'] != null) {
+          await de1.setFlushTimeout(json['flushTimeout']);
+        }
+        if (json['hotWaterFlow'] != null) {
+          await de1.setHotWaterFlow(json['hotWaterFlow']);
+        }
+        if (json['steamFlow'] != null) {
+          await de1.setSteamFlow(json['steamFlow']);
+        }
+        if (json['tankTemp'] != null) {
+          await de1.setTankTempThreshold(json['tankTemp']);
+        }
+
+        return Response(202);
+      });
     });
-    app.post('/api/v1/de1/settings/flushTemp', (Request r) async {
-      return withDe1(
-        (de1) async {
-          var data = await r.readAsString();
-          var json = jsonDecode(data);
-          if (json['value'] is double) {
-            await de1.setFlushTemperature(json['value']);
-            return Response.ok(jsonEncode({'value': json['value']}));
-          }
-          return Response.badRequest();
-        },
-      );
+
+    app.get('/api/v1/de1/settings', () async {
+      return withDe1((de1) async {
+        var json = <String, dynamic>{};
+        json['fan'] = await de1.getFanThreshhold();
+        json['usb'] = await de1.getUsbChargerMode();
+        json['flushTemp'] = await de1.getFlushTemperature();
+        json['flushTimeout'] = await de1.getFlushTimeout();
+        json['flushFlow'] = await de1.getFlushFlow();
+        json['hotWaterFlow'] = await de1.getHotWaterFlow();
+        json['steamFlow'] = await de1.getSteamFlow();
+        json['tankTemp'] = await de1.getTankTempThreshold();
+        return Response.ok(jsonEncode(json));
+      });
     });
   }
 
@@ -102,34 +123,6 @@ class De1Handler {
         De1ShotSettings settings = De1ShotSettings.fromJson(json);
         await de1.updateShotSettings(settings);
         return Response.ok("");
-      },
-    );
-  }
-
-  Future<Response> _usbChargerHandler(Request request, String state) async {
-    return withDe1(
-      (de1) async {
-        await de1.setUsbChargerMode(state == "enable");
-        return Response.ok('');
-      },
-    );
-  }
-
-  Future<Response> _readFanThreshold() async {
-    return withDe1(
-      (de1) async {
-        var threshold = await de1.getFanThreshhold();
-        return Response.ok(jsonEncode({'value': threshold}));
-      },
-    );
-  }
-
-  Future<Response> _setFanThreshold(Request request) async {
-    return withDe1(
-      (de1) async {
-        int temp = (await request.body.asJson)['value'];
-        await de1.setFanThreshhold(temp);
-        return Response.ok(jsonEncode({'value': temp}));
       },
     );
   }
