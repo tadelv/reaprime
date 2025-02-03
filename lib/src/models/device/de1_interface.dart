@@ -4,6 +4,9 @@ import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 
 abstract class De1Interface extends Machine {
+
+// TODO: onReady callback? something to signal de1 is ready for comms
+
   Stream<De1ShotSettings> get shotSettings;
   Future<void> updateShotSettings(De1ShotSettings newSettings);
 

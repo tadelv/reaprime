@@ -24,12 +24,15 @@ class StatusTile extends StatelessWidget {
         _firstRow(),
         SizedBox(height: 8),
         StreamBuilder(
-          stream: de1.shotSettings,
+          stream: Rx.combineLatest2(controller.steamData,
+              controller.hotWaterData, (steam, hotWater) => [steam, hotWater]),
           builder: (context, settingsSnapshot) {
             if (settingsSnapshot.connectionState != ConnectionState.active) {
               return Text("Waiting");
             }
             var settings = settingsSnapshot.data!;
+            var steamSettings = settings[0] as De1ControllerSteamSettings;
+            var hotWaterSettings = settings[1] as De1ControllerHotWaterData;
             return GestureDetector(
               onTap: () async {
                 await _showShotSettingsDialog(context, controller);
@@ -38,37 +41,22 @@ class StatusTile extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 spacing: 5,
                 children: [
-                  Text("TG: ${settings.groupTemp}"),
-                  Text("HW: ${settings.targetHotWaterTemp}℃"),
-                  Text("HW: ${settings.targetHotWaterVolume}ml"),
-                  Text("HW: ${settings.targetHotWaterDuration}s"),
-                  Text("ST: ${settings.targetSteamTemp}℃"),
-                  Text("SD: ${settings.targetSteamDuration}"),
+                  Column(children: [
+                    Text("HW: ${hotWaterSettings.targetTemperature}℃"),
+                    Text(
+                        "HW: ${hotWaterSettings.volume}ml | ${hotWaterSettings.duration}s"),
+                    Text("HF: ${hotWaterSettings.flow}ml/s")
+                  ]),
+                  Column(children: [
+                    Text("SF: ${steamSettings.flow.toStringAsFixed(1)}ml/s"),
+                    Text("ST: ${steamSettings.targetTemperature}℃"),
+                    Text("SD: ${steamSettings.duration}s"),
+                  ]),
                 ],
               ),
             );
           },
         ),
-        StreamBuilder(
-            stream: Rx.combineLatest2(
-                de1.shotSettings,
-                de1.waterLevels,
-                (shotSettings, waterLevels) =>
-                    {'sset': shotSettings, 'wl': waterLevels}),
-            builder: (context, data) {
-              if (data.connectionState != ConnectionState.active) {
-                return Text('Waiting');
-              }
-              var snap = data.data!;
-              var shotSettings = snap['sset'] as De1ShotSettings;
-              var waterLevels = snap['wl'] as De1WaterLevels;
-
-              return Row(children: [
-                Text('ho: ${shotSettings.targetSteamTemp}deg'),
-                Text('he ${waterLevels.currentPercentage}%'),
-              ]);
-            }),
-        SizedBox(height: 8),
         if (scale != null)
           Text(
             "Scale",
@@ -111,7 +99,7 @@ class StatusTile extends StatelessWidget {
             steamSettings: steamSettings,
             apply: (settings) {
               Navigator.of(context).pop();
-							controller.updateSteamSettings(settings);
+              controller.updateSteamSettings(settings);
             },
           )),
     );

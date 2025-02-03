@@ -27,10 +27,15 @@ class De1Controller {
   Stream<De1ControllerSteamSettings> get steamData =>
       _steamDataController.stream;
 
-  final BehaviorSubject<De1ControllerHotWaterData?> _hotWaterDataController =
-      BehaviorSubject.seeded(null);
+  final BehaviorSubject<De1ControllerHotWaterData> _hotWaterDataController =
+      BehaviorSubject.seeded(De1ControllerHotWaterData(
+    targetTemperature: 0,
+    flow: 0,
+    duration: 0,
+    volume: 0,
+  ));
 
-  Stream<De1ControllerHotWaterData?> get hotWaterData =>
+  Stream<De1ControllerHotWaterData> get hotWaterData =>
       _hotWaterDataController.stream;
 
   final List<StreamSubscription<dynamic>> _subscriptions = [];
@@ -47,16 +52,43 @@ class De1Controller {
         _de1 = de1;
         _de1Controller.add(_de1);
 
-        _subscriptions.add(_de1!.shotSettings.listen((data) async {
-          _steamDataController.first.then((steamData) {
-            _steamDataController.add(steamData.copyWith(
-              duration: data.targetSteamDuration,
-              targetTemperature: data.targetSteamTemp,
-            ));
-          });
-        }));
+				// FIXME: replace with listen to onReady
+        // Give de1 time to install characteristic notifications
+        Future.delayed(Duration(seconds: 15), () {
+          _initializeData();
+        });
       }
     });
+  }
+
+  _initializeData() async {
+    connectedDe1().shotSettings.first.then(_shotSettingsUpdate);
+    _subscriptions.add(
+      connectedDe1().shotSettings.listen(
+            _shotSettingsUpdate,
+          ),
+    );
+  }
+
+  _shotSettingsUpdate(De1ShotSettings data) async {
+    _log.info('received shot settings');
+    var steamFlow = await connectedDe1().getSteamFlow();
+    _steamDataController.add(
+      De1ControllerSteamSettings(
+        duration: data.targetSteamDuration,
+        targetTemperature: data.targetSteamTemp,
+        flow: steamFlow,
+      ),
+    );
+    var hwFlow = await connectedDe1().getHotWaterFlow();
+    _hotWaterDataController.add(
+      De1ControllerHotWaterData(
+        volume: data.targetHotWaterVolume,
+        flow: hwFlow,
+        targetTemperature: data.targetHotWaterTemp,
+        duration: data.targetHotWaterDuration,
+      ),
+    );
   }
 
   De1Interface connectedDe1() {
@@ -83,14 +115,14 @@ class De1Controller {
 
   Future<void> updateSteamSettings(SteamFormSettings settings) async {
     De1ShotSettings shotSettings = await connectedDe1().shotSettings.first;
+    await connectedDe1().setSteamFlow(settings.targetFlow);
     await connectedDe1().updateShotSettings(shotSettings.copyWith(
       targetSteamTemp: settings.targetTemp,
       targetSteamDuration: settings.targetDuration,
     ));
-    await connectedDe1().setSteamFlow(settings.targetFlow);
-		_steamDataController.first.then((d) {
-		_steamDataController.add(d.copyWith(flow: settings.targetFlow));
-		});
+    _steamDataController.first.then((d) {
+      _steamDataController.add(d.copyWith(flow: settings.targetFlow));
+    });
   }
 }
 
@@ -117,4 +149,15 @@ class De1ControllerSteamSettings {
   }
 }
 
-class De1ControllerHotWaterData {}
+class De1ControllerHotWaterData {
+  int targetTemperature;
+  int duration;
+  int volume;
+  double flow;
+
+  De1ControllerHotWaterData(
+      {required this.targetTemperature,
+      required this.duration,
+      required this.volume,
+      required this.flow});
+}
