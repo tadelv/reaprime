@@ -41,8 +41,8 @@ class De1Controller {
     if (_de1 == null) {
       throw "De1 not connected yet";
     }
-    De1ShotSettings shotSettings = await _de1!.shotSettings.first;
-    double flowRate = await _de1!.getSteamFlow();
+    De1ShotSettings shotSettings = await connectedDe1().shotSettings.first;
+    double flowRate = await connectedDe1().getSteamFlow();
 
     return SteamFormSettings(
       steamEnabled: false,
@@ -50,5 +50,14 @@ class De1Controller {
       targetDuration: shotSettings.targetSteamDuration,
       targetFlow: flowRate,
     );
+  }
+
+  Future<void> updateSteamSettings(SteamFormSettings settings) async {
+    De1ShotSettings shotSettings = await connectedDe1().shotSettings.first;
+    await connectedDe1().updateShotSettings(shotSettings.copyWith(
+      targetSteamTemp: settings.targetTemp,
+      targetSteamDuration: settings.targetDuration,
+    ));
+    await connectedDe1().setSteamFlow(settings.targetFlow);
   }
 }

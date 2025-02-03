@@ -3,13 +3,13 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class SteamForm extends StatefulWidget {
-  const SteamForm({
+  SteamForm({
     super.key,
     required this.apply,
-		required this.steamSettings,
-  }) ;
-  final Function(Map<Object, dynamic>) apply;
-	final SteamFormSettings steamSettings;
+    required this.steamSettings,
+  });
+  final Function(SteamFormSettings) apply;
+  SteamFormSettings steamSettings;
 
   @override
   State<SteamForm> createState() {
@@ -20,39 +20,76 @@ class SteamForm extends StatefulWidget {
 class _SteamFormState extends State<SteamForm> {
   final formKey = GlobalKey<ShadFormState>();
 
+  late SteamFormSettings steamSettings;
+
+  @override
+  void initState() {
+    steamSettings = widget.steamSettings;
+    super.initState();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ShadForm(
-        key: formKey,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 350),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            spacing: 16,
-            children: [
-              ShadSlider(
-							),
-              ShadButton(
-                child: const Text('Apply'),
-                onPressed: () {
-                  if (formKey.currentState!.saveAndValidate()) {
-                    widget.apply(formKey.currentState!.value);
-                  }
-                },
-              )
-            ],
+    return Dialog(
+      elevation: 0,
+      backgroundColor: Color.from(alpha: 0, red: 0, green: 0, blue: 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        spacing: 16,
+        children: [
+          Text("Steam temperature: ${steamSettings.targetTemp}℃"),
+          ShadSlider(
+            initialValue: steamSettings.targetTemp.toDouble(),
+            min: 135,
+            max: 160,
+            onChanged: (val) {
+              setState(() {
+                steamSettings.targetTemp = val.toInt();
+              });
+            },
           ),
-        ));
+          Text("Steam duration: ${steamSettings.targetDuration} seconds"),
+          ShadSlider(
+            initialValue: steamSettings.targetDuration.toDouble(),
+            min: 0,
+            max: 120,
+            onChanged: (val) {
+              setState(() {
+                steamSettings.targetDuration = val.toInt();
+              });
+            },
+          ),
+          Text(
+              "Steam flow: ${steamSettings.targetFlow.toStringAsFixed(1)} ml/s"),
+          ShadSlider(
+            initialValue: steamSettings.targetFlow.toDouble(),
+            min: 0.4,
+            max: 2.5,
+            onChanged: (val) {
+              setState(() {
+                steamSettings.targetFlow = val;
+              });
+            },
+          ),
+          ShadButton(
+            child: const Text('Apply'),
+            onPressed: () {
+              widget.apply(steamSettings);
+            },
+          )
+        ],
+      ),
+    );
   }
-} 
+}
 
 class SteamFormSettings {
   bool steamEnabled;
   int targetTemp;
   int targetDuration;
   double targetFlow;
-// TODO: purge mode 
+// TODO: purge mode
 
   SteamFormSettings({
     required this.steamEnabled,
@@ -60,20 +97,4 @@ class SteamFormSettings {
     required this.targetDuration,
     required this.targetFlow,
   });
-
-  factory SteamFormSettings.fromForm(Map<Object, dynamic> form) {
-    return SteamFormSettings(
-        steamEnabled: form['enabled'] == true,
-        targetTemp: int.tryParse(form['temperature']) ?? 0,
-        targetDuration: int.tryParse(form['duration']) ?? 0,
-        targetFlow: double.tryParse(form['flow']) ?? 0);
-  }
-
-  factory SteamFormSettings.fromShotSettings(De1ShotSettings shotSettings) {
-    return SteamFormSettings(
-        steamEnabled: shotSettings.targetSteamDuration > 0,
-        targetTemp: shotSettings.targetSteamTemp,
-        targetDuration: shotSettings.targetSteamDuration,
-        targetFlow: 0.5);
-  }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/home_feature/forms/steam_form.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
@@ -10,8 +11,10 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 class StatusTile extends StatelessWidget {
   final De1Interface de1;
+  final De1Controller controller;
   final Scale? scale;
-  const StatusTile({super.key, required this.de1, this.scale});
+  const StatusTile(
+      {super.key, required this.de1, required this.controller, this.scale});
 
   @override
   Widget build(BuildContext context) {
@@ -28,8 +31,8 @@ class StatusTile extends StatelessWidget {
             }
             var settings = settingsSnapshot.data!;
             return GestureDetector(
-              onTap: () {
-                _showShotSettingsDialog(context, settings);
+              onTap: () async {
+                await _showShotSettingsDialog(context, controller);
               },
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -92,16 +95,23 @@ class StatusTile extends StatelessWidget {
     );
   }
 
-  _showShotSettingsDialog(BuildContext context, De1ShotSettings settings) {
+  Future<void> _showShotSettingsDialog(
+    BuildContext context,
+    De1Controller controller,
+  ) async {
+    var steamSettings = await controller.steamSettings();
+    if (!context.mounted) {
+      return;
+    }
     showShadDialog(
       context: context,
       builder: (context) => ShadDialog(
-          title: const Text('Edit settings'),
+          title: const Text('Edit Steam settings'),
           child: SteamForm(
-            shotSettings: settings,
+            steamSettings: steamSettings,
             apply: (settings) {
-              Logger("Home").info('steam settings: ${settings}');
               Navigator.of(context).pop();
+							controller.updateSteamSettings(settings);
             },
           )),
     );

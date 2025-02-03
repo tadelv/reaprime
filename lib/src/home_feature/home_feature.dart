@@ -77,7 +77,7 @@ class HomeScreen extends StatelessWidget {
       stream: de1controller.de1,
       builder: (context, de1Available) {
         if (de1Available.hasData) {
-          return SizedBox(child: StatusTile(de1: de1Available.data!));
+          return SizedBox(child: StatusTile(de1: de1Available.data!, controller: de1controller,));
         } else {
           return Text("Connecting to DE1");
         }

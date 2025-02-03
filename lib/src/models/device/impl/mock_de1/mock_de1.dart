@@ -156,8 +156,9 @@ class MockDe1 implements De1Interface {
 
   @override
   Future<double> getSteamFlow() {
-    // TODO: implement getSteamFlow
-    throw UnimplementedError();
+    return Future(() {
+      return 1.0;
+    });
   }
 
   @override
