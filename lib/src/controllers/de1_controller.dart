@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/home_feature/forms/steam_form.dart';
@@ -15,6 +17,24 @@ class De1Controller {
 
   Stream<De1Interface?> get de1 => _de1Controller.stream;
 
+  final BehaviorSubject<De1ControllerSteamSettings> _steamDataController =
+      BehaviorSubject.seeded(De1ControllerSteamSettings(
+    targetTemperature: 0,
+    flow: 0,
+    duration: 0,
+  ));
+
+  Stream<De1ControllerSteamSettings> get steamData =>
+      _steamDataController.stream;
+
+  final BehaviorSubject<De1ControllerHotWaterData?> _hotWaterDataController =
+      BehaviorSubject.seeded(null);
+
+  Stream<De1ControllerHotWaterData?> get hotWaterData =>
+      _hotWaterDataController.stream;
+
+  final List<StreamSubscription<dynamic>> _subscriptions = [];
+
   De1Controller({required DeviceController controller})
       : _deviceController = controller {
     _log.info("checking ${_deviceController.devices}");
@@ -26,6 +46,15 @@ class De1Controller {
         await de1.onConnect();
         _de1 = de1;
         _de1Controller.add(_de1);
+
+        _subscriptions.add(_de1!.shotSettings.listen((data) async {
+          _steamDataController.first.then((steamData) {
+            _steamDataController.add(steamData.copyWith(
+              duration: data.targetSteamDuration,
+              targetTemperature: data.targetSteamTemp,
+            ));
+          });
+        }));
       }
     });
   }
@@ -59,5 +88,33 @@ class De1Controller {
       targetSteamDuration: settings.targetDuration,
     ));
     await connectedDe1().setSteamFlow(settings.targetFlow);
+		_steamDataController.first.then((d) {
+		_steamDataController.add(d.copyWith(flow: settings.targetFlow));
+		});
   }
 }
+
+class De1ControllerSteamSettings {
+  int targetTemperature;
+  int duration;
+  double flow;
+
+  De1ControllerSteamSettings({
+    required this.targetTemperature,
+    required this.duration,
+    required this.flow,
+  });
+
+  De1ControllerSteamSettings copyWith({
+    int? targetTemperature,
+    int? duration,
+    double? flow,
+  }) {
+    return De1ControllerSteamSettings(
+        targetTemperature: targetTemperature ?? this.targetTemperature,
+        duration: duration ?? this.duration,
+        flow: flow ?? this.flow);
+  }
+}
+
+class De1ControllerHotWaterData {}
