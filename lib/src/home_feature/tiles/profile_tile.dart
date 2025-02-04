@@ -67,7 +67,8 @@ class _ProfileState extends State<ProfileTile> {
     }
     var profile = loadedProfile!;
     var profileTime = profile.steps.fold(0.0, (d, s) => d + s.seconds);
-		var profileMaxVal = profile.steps.fold(0.0, (m, s) => max(m, s.getTarget()));
+    var profileMaxVal = profile.steps.fold(
+        0.0, (m, s) => max(m, max(s.getTarget(), s.limiter?.value ?? 0.0)));
     return [
       SizedBox(
         height: 250,
@@ -100,11 +101,11 @@ class _ProfileState extends State<ProfileTile> {
                       } else {
                         return Container(); // return an empty widget for non-tick values
                       }
-                    } else if (profileTime < 120) {
+                    } else if (profileTime <= 120) {
                       // For 60 seconds or more, display minutes and seconds.
                       final int minutes = seconds ~/ 60;
                       final int remainingSeconds = seconds % 60;
-                      if (seconds % 5 == 0) {
+                      if (seconds % 15 == 0) {
                         // Format the seconds with two digits.
                         text =
                             '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
@@ -141,24 +142,56 @@ class _ProfileState extends State<ProfileTile> {
   List<LineChartBarData> _profileChartData(Profile profile) {
     List<FlSpot> flowData = [];
     List<FlSpot> pressureData = [];
+    List<FlSpot> flowLimitData = [];
+    List<FlSpot> pressureLimitData = [];
     double seconds = 0;
-    for (var step in profile.steps) {
-      if (step is ProfileStepFlow) {
-        flowData.add(FlSpot(seconds, step.getTarget()));
-        pressureData.add(FlSpot(seconds, step.limiter?.value ?? 0));
-      } else {
-        pressureData.add(FlSpot(seconds, step.getTarget()));
-        flowData.add(FlSpot(seconds, step.limiter?.value ?? 0));
+    double previousTarget = 0.0;
+    bool previousFlow = false;
+    for (final (index, step) in profile.steps.indexed) {
+      final isFlow = step is ProfileStepFlow;
+      final isFast = step.transition == TransitionType.fast;
+      final flow = isFlow ? step.getTarget() : 0.0;
+      final pressure = isFlow ? 0.0 : step.getTarget();
+      final flowLimit = isFlow ? 0.0 : step.limiter?.value ?? 0.0;
+      final pressureLimit = isFlow ? step.limiter?.value ?? 0.0 : 0.0;
+      final isSwitched = (isFlow && !previousFlow) || (!isFlow && previousFlow);
+      if (isFast) {
+        previousTarget = isFlow ? flow : pressure;
       }
-      seconds += step.seconds;
+      if (isFlow && previousFlow) {
+        flowData.add(FlSpot(seconds, previousTarget));
+        pressureLimitData.add(FlSpot(seconds, pressureLimit));
+        previousTarget = flow;
+      } else if (isFlow) {
+        flowData.add(FlSpot(seconds, flow));
+        pressureLimitData.add(FlSpot(seconds, pressureLimit));
+        previousTarget = flow;
+      } else if (previousFlow) {
+        pressureData.add(FlSpot(seconds, pressure));
+        flowLimitData.add(FlSpot(seconds, flowLimit));
+        previousTarget = pressure;
+      } else {
+        pressureData.add(FlSpot(seconds, previousTarget));
+        flowLimitData.add(FlSpot(seconds, flowLimit));
+        previousTarget = pressure;
+      }
 
-      if (step is ProfileStepFlow) {
-        flowData.add(FlSpot(seconds, step.getTarget()));
-        pressureData.add(FlSpot(seconds, step.limiter?.value ?? 0));
+      seconds += step.seconds;
+      //seconds += step.seconds - 1;
+      //if (step.seconds < 2 || isSwitched) {
+      //  seconds++;
+      //}
+      if (isFlow) {
+        flowData.add(FlSpot(seconds, flow));
+        pressureLimitData.add(FlSpot(seconds, pressureLimit));
       } else {
-        pressureData.add(FlSpot(seconds, step.getTarget()));
-        flowData.add(FlSpot(seconds, step.limiter?.value ?? 0));
+        pressureData.add(FlSpot(seconds, pressure));
+        flowLimitData.add(FlSpot(seconds, flowLimit));
       }
+      //if (step.seconds > 2 && !isSwitched) {
+      //  seconds++;
+      //}
+      previousFlow = isFlow;
     }
     return [
       LineChartBarData(
@@ -169,6 +202,18 @@ class _ProfileState extends State<ProfileTile> {
       LineChartBarData(
         spots: pressureData,
         color: Colors.green,
+        dotData: FlDotData(show: false),
+      ),
+      LineChartBarData(
+        spots: flowLimitData,
+        color: Colors.lightBlue,
+        dashArray: [5, 5],
+        dotData: FlDotData(show: false),
+      ),
+      LineChartBarData(
+        spots: pressureLimitData,
+        color: Colors.green,
+        dashArray: [5, 5],
         dotData: FlDotData(show: false),
       ),
     ];

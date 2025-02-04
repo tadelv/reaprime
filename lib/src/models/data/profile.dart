@@ -31,14 +31,13 @@ class Profile {
       notes: json['notes'],
       author: json['author'],
       beverageType: BeverageType.values.byName(json['beverage_type']),
-      steps:
-          (json['steps'] as List)
-              .map((step) => ProfileStep.fromJson(step))
-              .toList(),
+      steps: (json['steps'] as List)
+          .map((step) => ProfileStep.fromJson(step))
+          .toList(),
       targetVolume: double.parse(json['target_volume']),
       targetWeight: double.parse(json['target_weight']),
       targetVolumeCountStart: int.tryParse(json['target_volume_count_start']) ??
-			double.parse(json['target_volume_count_start']).toInt(),
+          double.parse(json['target_volume_count_start']).toInt(),
       tankTemperature: double.parse(json['tank_temperature']),
     );
   }
@@ -140,9 +139,14 @@ abstract class ProfileStep {
   double getTarget(); // Abstract method for subclasses to implement
 
   factory ProfileStep.fromJson(Map<String, dynamic> json) {
-    if (json.containsKey('pressure')) {
+    if ((json.containsKey('pressure') &&
+            json['pressure'].toString().isEmpty == false &&
+            json['pressure'].toString() != "0") ||
+        (json.containsKey('pump') && json['pump'] == 'pressure')) {
       return ProfileStepPressure.fromJson(json);
-    } else if (json.containsKey('flow')) {
+    } else if (json.containsKey('flow') &&
+        json['flow'].toString().isEmpty == false &&
+        json['flow'].toString() != "0") {
       return ProfileStepFlow.fromJson(json);
     } else {
       throw Exception(
@@ -177,20 +181,19 @@ class ProfileStepPressure extends ProfileStep {
     return ProfileStepPressure(
       name: json['name'],
       transition: TransitionType.values.byName(json['transition']),
-      exit:
-          json['exit'] != null
-              ? StepExitCondition.fromJson(json['exit'])
-              : null,
+      exit: json['exit'] != null
+          ? StepExitCondition.fromJson(json['exit'])
+          : null,
       volume: double.parse(json['volume']),
       seconds: double.parse(json['seconds']),
       weight: double.parse(json['weight']),
       temperature: double.parse(json['temperature']),
       sensor: TemperatureSensor.values.byName(json['sensor']),
-      limiter:
-          json['limiter'] != null
-              ? StepLimiter.fromJson(json['limiter'])
-              : null,
-      pressure: double.parse(json['pressure']),
+      limiter: json['limiter'] != null
+          ? StepLimiter.fromJson(json['limiter'])
+          : null,
+      pressure: double.tryParse(json['pressure']) ??
+          int.parse(json['pressure']).toDouble(),
     );
   }
 
@@ -235,19 +238,17 @@ class ProfileStepFlow extends ProfileStep {
     return ProfileStepFlow(
       name: json['name'],
       transition: TransitionType.values.byName(json['transition']),
-      exit:
-          json['exit'] != null
-              ? StepExitCondition.fromJson(json['exit'])
-              : null,
+      exit: json['exit'] != null
+          ? StepExitCondition.fromJson(json['exit'])
+          : null,
       volume: double.parse(json['volume']),
       seconds: double.parse(json['seconds']),
       weight: double.parse(json['weight']),
       temperature: double.parse(json['temperature']),
       sensor: TemperatureSensor.values.byName(json['sensor']),
-      limiter:
-          json['limiter'] != null
-              ? StepLimiter.fromJson(json['limiter'])
-              : null,
+      limiter: json['limiter'] != null
+          ? StepLimiter.fromJson(json['limiter'])
+          : null,
       flow: double.parse(json['flow']),
     );
   }
