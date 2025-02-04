@@ -1,4 +1,5 @@
 import 'package:collection/collection.dart';
+import 'package:reaprime/src/home_feature/tiles/profile_tile.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
@@ -64,11 +65,9 @@ class HomeScreen extends StatelessWidget {
             width: double.infinity,
             child: ShadCard(
               title: Text("Next shot"),
-              child: Column(
-                children: [
-                  Text("Graph and stuff"),
-                ],
-              ),
+              child: ProfileTile(
+                de1controller: de1controller,
+              )
             ),
           ),
           _statusCard(context),

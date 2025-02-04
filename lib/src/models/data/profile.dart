@@ -37,7 +37,8 @@ class Profile {
               .toList(),
       targetVolume: double.parse(json['target_volume']),
       targetWeight: double.parse(json['target_weight']),
-      targetVolumeCountStart: int.parse(json['target_volume_count_start']),
+      targetVolumeCountStart: int.tryParse(json['target_volume_count_start']) ??
+			double.parse(json['target_volume_count_start']).toInt(),
       tankTemperature: double.parse(json['tank_temperature']),
     );
   }
