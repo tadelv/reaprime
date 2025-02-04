@@ -38,6 +38,12 @@ class De1Controller {
   Stream<De1ControllerHotWaterData> get hotWaterData =>
       _hotWaterDataController.stream;
 
+  final BehaviorSubject<De1ControllerRinseData> _rinseStream =
+      BehaviorSubject.seeded(
+          De1ControllerRinseData(duration: 0, targetTemperature: 0, flow: 0));
+
+  Stream<De1ControllerRinseData> get rinseData => _rinseStream.stream;
+
   final List<StreamSubscription<dynamic>> _subscriptions = [];
 
   De1Controller({required DeviceController controller})
@@ -89,6 +95,16 @@ class De1Controller {
         duration: data.targetHotWaterDuration,
       ),
     );
+    {
+      var flow = await connectedDe1().getFlushFlow();
+      var time = await connectedDe1().getFlushTimeout();
+      var temp = await connectedDe1().getFlushTemperature();
+      _rinseStream.add(De1ControllerRinseData(
+        flow: flow,
+        duration: time.toInt(),
+        targetTemperature: temp.toInt(),
+      ));
+    }
   }
 
   De1Interface connectedDe1() {
@@ -122,6 +138,23 @@ class De1Controller {
     ));
     _steamDataController.first.then((d) {
       _steamDataController.add(d.copyWith(flow: settings.targetFlow));
+    });
+  }
+
+  Future<void> updateFlushSettings(De1ControllerRinseData settings) async {
+    await connectedDe1().setFlushTimeout(settings.duration.toDouble());
+    await connectedDe1().setFlushFlow(settings.flow);
+    await connectedDe1()
+        .setFlushTemperature(settings.targetTemperature.toDouble());
+  }
+
+  Future updateHotWaterSettings(De1ControllerHotWaterData settings) async {
+    await connectedDe1().setHotWaterFlow(settings.flow);
+    return connectedDe1().shotSettings.first.then((s) async {
+      await connectedDe1().updateShotSettings(s.copyWith(
+          targetHotWaterTemp: settings.targetTemperature,
+          targetHotWaterVolume: settings.volume,
+          targetHotWaterDuration: settings.duration));
     });
   }
 }
@@ -160,4 +193,16 @@ class De1ControllerHotWaterData {
       required this.duration,
       required this.volume,
       required this.flow});
+}
+
+class De1ControllerRinseData {
+  int targetTemperature;
+  int duration;
+  double flow;
+
+  De1ControllerRinseData({
+    required this.targetTemperature,
+    required this.duration,
+    required this.flow,
+  });
 }

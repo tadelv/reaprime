@@ -27,6 +27,7 @@ class HomeScreen extends StatelessWidget {
       child: Padding(
           padding: EdgeInsets.only(top: 12, bottom: 12),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.max,
             children: [
               SizedBox(
@@ -59,6 +60,17 @@ class HomeScreen extends StatelessWidget {
       child: Column(
         spacing: 12,
         children: [
+          SizedBox(
+            width: double.infinity,
+            child: ShadCard(
+              title: Text("Next shot"),
+              child: Column(
+                children: [
+                  Text("Graph and stuff"),
+                ],
+              ),
+            ),
+          ),
           _statusCard(context),
         ],
       ),
@@ -68,8 +80,7 @@ class HomeScreen extends StatelessWidget {
   Widget _statusCard(BuildContext context) {
     final theme = ShadTheme.of(context);
     return SizedBox(
-        width: double.infinity,
-        child: ShadCard(height: 220, child: _de1Status(context)));
+        width: double.infinity, child: ShadCard(child: _de1Status(context)));
   }
 
   Widget _de1Status(BuildContext context) {
@@ -77,7 +88,11 @@ class HomeScreen extends StatelessWidget {
       stream: de1controller.de1,
       builder: (context, de1Available) {
         if (de1Available.hasData) {
-          return SizedBox(child: StatusTile(de1: de1Available.data!, controller: de1controller,));
+          return SizedBox(
+              child: StatusTile(
+            de1: de1Available.data!,
+            controller: de1controller,
+          ));
         } else {
           return Text("Connecting to DE1");
         }
