@@ -69,7 +69,7 @@ class HomeScreen extends StatelessWidget {
     final theme = ShadTheme.of(context);
     return SizedBox(
         width: double.infinity,
-        child: ShadCard(height: 200, child: _de1Status(context)));
+        child: ShadCard(height: 220, child: _de1Status(context)));
   }
 
   Widget _de1Status(BuildContext context) {

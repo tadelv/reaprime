@@ -18,7 +18,7 @@ class MachineSnapshot {
   final double targetMixTemperature;
   final double targetGroupTemperature;
   final int profileFrame;
-  final double steamTemperature;
+  final int steamTemperature;
 
   MachineSnapshot({
     required this.timestamp,
@@ -48,7 +48,7 @@ class MachineSnapshot {
     double? targetMixTemperature,
     double? targetGroupTemperature,
     int? profileFrame,
-    double? steamTemperature,
+    int? steamTemperature,
   }) {
     return MachineSnapshot(
       timestamp: timestamp ?? this.timestamp,

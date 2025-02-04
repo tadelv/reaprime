@@ -52,10 +52,10 @@ class De1Controller {
         _de1 = de1;
         _de1Controller.add(_de1);
 
-				// FIXME: replace with listen to onReady
-        // Give de1 time to install characteristic notifications
-        Future.delayed(Duration(seconds: 15), () {
-          _initializeData();
+        _de1!.ready.listen((ready) {
+          if (ready) {
+            _initializeData();
+          }
         });
       }
     });

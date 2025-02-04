@@ -166,7 +166,7 @@ class StatusTile extends StatelessWidget {
                   SizedBox(
                     width: boxWidth,
                     child: Text(
-                        "Steam: ${snapshot.steamTemperature.toStringAsFixed(1)}℃"),
+                        "Steam: ${snapshot.steamTemperature}℃"),
                   ),
                 ]);
           }),

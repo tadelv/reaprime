@@ -74,6 +74,11 @@ class De1 implements De1Interface {
   final StreamController<List<int>> _mmrController =
       StreamController.broadcast();
 
+  final BehaviorSubject<bool> _onReadyStream = BehaviorSubject.seeded(false);
+
+  @override
+  Stream<bool> get ready => _onReadyStream.stream;
+
   @override
   Stream<MachineSnapshot> get currentSnapshot => _snapshotStream.stream;
 
@@ -155,6 +160,8 @@ class De1 implements De1Interface {
     _subscribe(Endpoint.shotSettings, _parseShotSettings);
     _subscribe(Endpoint.waterLevels, _parseWaterLevels);
     _subscribe(Endpoint.readFromMMR, _mmrNotification);
+
+    _onReadyStream.add(true);
   }
 
   @override

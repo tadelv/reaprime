@@ -84,7 +84,7 @@ class MockDe1 implements De1Interface {
         targetMixTemperature: 100,
         targetGroupTemperature: 90,
         profileFrame: 0,
-        steamTemperature: min(_lastSnapshot.steamTemperature + 0.1, 150),
+        steamTemperature: min(_lastSnapshot.steamTemperature + 1, 150),
       );
 
       _snapshotStream.add(newSnapshot);
@@ -226,4 +226,7 @@ class MockDe1 implements De1Interface {
     // TODO: implement setTankTempThreshold
     throw UnimplementedError();
   }
+
+  @override
+  Stream<bool> get ready => Stream.value(true);
 }

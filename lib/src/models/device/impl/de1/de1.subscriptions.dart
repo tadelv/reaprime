@@ -74,7 +74,7 @@ extension De1Subscriptions on De1 {
       targetPressure: setGroupPressure,
       targetFlow: setGroupFlow,
       profileFrame: frameNumber,
-      steamTemperature: steamTemp.toDouble(),
+      steamTemperature: steamTemp,
     );
     _snapshotStream.add(_currentSnapshot);
   }

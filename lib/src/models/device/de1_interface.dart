@@ -1,11 +1,8 @@
-import 'package:flutter/services.dart';
 import 'package:reaprime/src/models/data/profile.dart';
-import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 
 abstract class De1Interface extends Machine {
-
-// TODO: onReady callback? something to signal de1 is ready for comms
+  Stream<bool> get ready;
 
   Stream<De1ShotSettings> get shotSettings;
   Future<void> updateShotSettings(De1ShotSettings newSettings);
@@ -34,10 +31,9 @@ abstract class De1Interface extends Machine {
   Future<void> setFlushTimeout(double newTimeout);
   Future<double> getFlushTimeout();
   Future<double> getFlushTemperature();
-	Future<void> setFlushTemperature(double newTemp);
+  Future<void> setFlushTemperature(double newTemp);
 
-
-	// Calibration
+  // Calibration
   //Future<void> setFlowEstimation(double newFlow);
   //Future<double> getFlowEstimation();
   //
