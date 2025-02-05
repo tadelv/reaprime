@@ -1,4 +1,3 @@
-import 'package:collection/collection.dart';
 import 'package:reaprime/src/home_feature/tiles/profile_tile.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter/material.dart';
@@ -15,7 +14,6 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
     return Scaffold(
         //appBar: AppBar(
         //  title: Text('ReaPrime'),

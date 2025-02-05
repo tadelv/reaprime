@@ -4,6 +4,8 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
@@ -17,6 +19,13 @@ import 'sample_feature/sample_item_details_view.dart';
 import 'sample_feature/sample_item_list_view.dart';
 import 'settings/settings_controller.dart';
 import 'settings/settings_view.dart';
+
+class NavigationService {
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
+
+  static BuildContext? get context => navigatorKey.currentContext;
+}
 
 Future<void> waitForPermission(bool wait, Future<void> Function() exec) async {
   await Future.doWhile(() => wait);
@@ -61,6 +70,23 @@ class MyApp extends StatelessWidget {
       notificationText: "Tap to return to Reaprime",
     );
     final themeColor = 'green';
+
+    de1Controller.de1.listen((event) {
+      if (event != null) {
+        event.currentSnapshot.listen((snapshot) {
+          BuildContext? context = NavigationService.context;
+          if (snapshot.state.state == MachineState.espresso &&
+              context != null &&
+              context.mounted) {
+            Navigator.pushNamed(
+              context,
+              RealtimeShotFeature.routeName,
+            );
+          }
+        });
+      }
+    });
+
     return ListenableBuilder(
       listenable: settingsController,
       builder: (BuildContext context, Widget? child) {
@@ -105,6 +131,7 @@ class MyApp extends StatelessWidget {
               brightness: Brightness.dark),
           themeMode: settingsController.themeMode,
 
+          navigatorKey: NavigationService.navigatorKey,
           // Define a function to handle named routes in order to support
           // Flutter web url navigation and deep linking.
           onGenerateRoute: (RouteSettings routeSettings) {
@@ -136,6 +163,8 @@ class MyApp extends StatelessWidget {
                     return HomeScreen(
                       de1controller: de1Controller,
                     );
+                  case RealtimeShotFeature.routeName:
+                    return RealtimeShotFeature();
                   default:
                     // TODO: dedicated server mode?
                     if (kDebugMode) {
