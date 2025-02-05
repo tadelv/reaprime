@@ -121,19 +121,22 @@ class MockDe1 implements De1Interface {
   }
 
   _simulateEspresso() {
-    MachineSubstate substate;
+    MachineSubstate substate = _lastSnapshot.state.substate;
     switch (_lastSnapshot.pressure) {
-      case 0:
+      case < 0.5:
         substate = MachineSubstate.preparingForShot;
         break;
-      case 1:
+      case > 1.0:
         substate = MachineSubstate.pouring;
-      case 9:
-      default:
+      case > 9:
         substate = MachineSubstate.pouringDone;
+
+      default:
+        break;
     }
     if (_lastSnapshot.pressure >= 9) {
       _simulationType = _SimulationType.idle;
+			_currentState = MachineState.idle;
     }
     return MachineSnapshot(
       timestamp: DateTime.now(),
@@ -141,9 +144,9 @@ class MockDe1 implements De1Interface {
         state: _currentState,
         substate: substate,
       ),
-      flow: 1.0,
-      pressure: min(_lastSnapshot.pressure + 0.1, 9.0),
-      targetFlow: min(_lastSnapshot.flow + 0.5, 4.0),
+      flow: min(_lastSnapshot.flow + 0.5, 4.0),
+      pressure: min(_lastSnapshot.pressure + 0.4, 9.0),
+      targetFlow: 4.5,
       targetPressure: 9.0,
       mixTemperature: _lastSnapshot.mixTemperature > 95
           ? _lastSnapshot.mixTemperature - 0.1

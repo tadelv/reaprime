@@ -33,6 +33,12 @@ class ShotController {
     }
   }
 
+  void dispose() {
+    _snapshotSubscription?.cancel();
+    _rawShotDataStream.close();
+    _shotDataStream.close();
+  }
+
   StreamSubscription<ShotSnapshot>? _snapshotSubscription;
 
   final StreamController<ShotSnapshot> _rawShotDataStream =
@@ -61,6 +67,10 @@ class ShotController {
     final MachineSnapshot machine = snapshot.machine;
     final ScaleSnapshot? scale = snapshot.scale;
 
+    _log.shout(
+        "recv: ${machine.state.substate.name}, ${machine.state.state.name}");
+
+    _log.shout("State in: ${_state.name}");
     switch (_state) {
       case ShotState.idle:
         if (machine.state.substate == MachineSubstate.preparingForShot) {
@@ -94,7 +104,8 @@ class ShotController {
             _state = ShotState.stopping;
           }
         }
-        if (machine.state.substate == MachineSubstate.pouringDone) {
+        if (machine.state.substate == MachineSubstate.pouringDone ||
+            machine.state.substate == MachineSubstate.idle) {
           _state = ShotState.stopping;
         }
         break;
@@ -109,8 +120,10 @@ class ShotController {
       case ShotState.finished:
         // Reset or prepare for next shot
         dataCollectionEnabled = false;
+				_snapshotSubscription?.cancel();
         break;
     }
+    _log.shout("State out: ${_state.name}");
   }
 }
 

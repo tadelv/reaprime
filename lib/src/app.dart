@@ -170,7 +170,10 @@ class MyApp extends StatelessWidget {
                       de1controller: de1Controller,
                     );
                   case RealtimeShotFeature.routeName:
-                    return RealtimeShotFeature();
+                    return RealtimeShotFeature(
+                      de1controller: de1Controller,
+                      scaleController: scaleController,
+                    );
                   default:
                     isRealtimeShotFeatureActive = false;
                     // TODO: dedicated server mode?
