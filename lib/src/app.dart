@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:logging/logging.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter/material.dart';
@@ -25,7 +26,10 @@ class NavigationService {
       GlobalKey<NavigatorState>();
 
   static BuildContext? get context => navigatorKey.currentContext;
+  static String? get currentRoute => ModalRoute.of(context!)?.settings.name;
 }
+
+bool isRealtimeShotFeatureActive = false;
 
 Future<void> waitForPermission(bool wait, Future<void> Function() exec) async {
   await Future.doWhile(() => wait);
@@ -75,9 +79,11 @@ class MyApp extends StatelessWidget {
       if (event != null) {
         event.currentSnapshot.listen((snapshot) {
           BuildContext? context = NavigationService.context;
-          if (snapshot.state.state == MachineState.espresso &&
+          if (!isRealtimeShotFeatureActive &&
+              snapshot.state.state == MachineState.espresso &&
               context != null &&
               context.mounted) {
+            isRealtimeShotFeatureActive = true;
             Navigator.pushNamed(
               context,
               RealtimeShotFeature.routeName,
@@ -166,6 +172,7 @@ class MyApp extends StatelessWidget {
                   case RealtimeShotFeature.routeName:
                     return RealtimeShotFeature();
                   default:
+                    isRealtimeShotFeatureActive = false;
                     // TODO: dedicated server mode?
                     if (kDebugMode) {
                       return HomeScreen(
