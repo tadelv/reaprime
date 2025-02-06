@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/shot_controller.dart';
+import 'package:reaprime/src/util/moving_average.dart';
 
 class RealtimeShotFeature extends StatefulWidget {
   static const routeName = '/shot';
@@ -79,18 +80,19 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
                       minY: 0,
                       maxY: 11,
                       titlesData: FlTitlesData(
-                        topTitles:
-                            AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        leftTitles:
-                            AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        topTitles: AxisTitles(
+                            sideTitles: SideTitles(showTitles: false)),
+                        leftTitles: AxisTitles(
+                            sideTitles: SideTitles(showTitles: false)),
                         bottomTitles: AxisTitles(
                             sideTitles: SideTitles(
                                 showTitles: true,
                                 //interval: 5,
-                                getTitlesWidget: (double value, TitleMeta meta) {
+                                getTitlesWidget:
+                                    (double value, TitleMeta meta) {
                                   final int seconds = (value / 1000).toInt();
                                   String text;
-                
+
                                   if (value / 1000 < 60) {
                                     // For less than 60 seconds, show ticks every 5 seconds with just seconds.
                                     if (value.toInt() % 1000 == 0) {
@@ -123,15 +125,16 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
                                     space: 8.0,
                                     child: Text(
                                       text,
-                                      style:
-                                          Theme.of(context).textTheme.labelMedium,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelMedium,
                                     ),
                                   );
                                 })),
                       ),
                     ),
-										duration: Duration(milliseconds: 0),
-										curve: Curves.easeInOutCubic,
+                    duration: Duration(milliseconds: 0),
+                    curve: Curves.easeInOutCubic,
                   ),
                 ),
               ),
@@ -160,53 +163,82 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
       ),
       LineChartBarData(
         dotData: FlDotData(show: false),
-				dashArray: [5, 5],
+        dashArray: [5, 5],
         spots: _shotSnapshots
-            .map((e) => FlSpot(_timestamp(e.machine.timestamp), e.machine.targetFlow))
+            .map((e) =>
+                FlSpot(_timestamp(e.machine.timestamp), e.machine.targetFlow))
             .toList(),
       ),
       LineChartBarData(
         color: Colors.green,
-				dashArray: [5, 5],
+        dashArray: [5, 5],
+        dotData: FlDotData(show: false),
+        spots: _shotSnapshots
+            .map((e) => FlSpot(
+                _timestamp(e.machine.timestamp), e.machine.targetPressure))
+            .toList(),
+      ),
+      LineChartBarData(
+        color: Colors.red,
+        dotData: FlDotData(show: false),
+        spots: _shotSnapshots
+            .map((e) => FlSpot(_timestamp(e.machine.timestamp),
+                e.machine.groupTemperature / 10.0))
+            .toList(),
+      ),
+      LineChartBarData(
+        color: Colors.orange,
+        dotData: FlDotData(show: false),
+        spots: _shotSnapshots
+            .map((e) => FlSpot(_timestamp(e.machine.timestamp),
+                e.machine.mixTemperature / 10.0))
+            .toList(),
+      ),
+      LineChartBarData(
+        color: Colors.red,
+        dashArray: [5, 5],
+        dotData: FlDotData(show: false),
+        spots: _shotSnapshots
+            .map((e) => FlSpot(_timestamp(e.machine.timestamp),
+                e.machine.targetGroupTemperature / 10.0))
+            .toList(),
+      ),
+      LineChartBarData(
+        color: Colors.orange,
+        dashArray: [5, 5],
+        dotData: FlDotData(show: false),
+        spots: _shotSnapshots
+            .map((e) => FlSpot(_timestamp(e.machine.timestamp),
+                e.machine.targetMixTemperature / 10.0))
+            .toList(),
+      ),
+      ..._scaleData(),
+    ];
+  }
+
+  List<LineChartBarData> _scaleData() {
+    if (_shotSnapshots.firstOrNull?.scale == null) {
+      return [];
+    }
+    final MovingAverage weightAverage = MovingAverage(10);
+    return [
+      LineChartBarData(
+        color: Colors.purpleAccent,
+        dashArray: [5, 5],
         dotData: FlDotData(show: false),
         spots: _shotSnapshots
             .map((e) =>
-                FlSpot(_timestamp(e.machine.timestamp), e.machine.targetPressure))
+                FlSpot(_timestamp(e.machine.timestamp), e.scale!.weight / 10.0))
             .toList(),
       ),
       LineChartBarData(
-        color: Colors.red,
+        color: Colors.purple,
         dotData: FlDotData(show: false),
-        spots: _shotSnapshots
-            .map((e) => FlSpot(
-                _timestamp(e.machine.timestamp), e.machine.groupTemperature / 10.0))
-            .toList(),
-      ),
-      LineChartBarData(
-        color: Colors.orange,
-        dotData: FlDotData(show: false),
-        spots: _shotSnapshots
-            .map((e) => FlSpot(
-                _timestamp(e.machine.timestamp), e.machine.mixTemperature / 10.0))
-            .toList(),
-      ),
-      LineChartBarData(
-        color: Colors.red,
-				dashArray: [5, 5],
-        dotData: FlDotData(show: false),
-        spots: _shotSnapshots
-            .map((e) => FlSpot(
-                _timestamp(e.machine.timestamp), e.machine.targetGroupTemperature / 10.0))
-            .toList(),
-      ),
-      LineChartBarData(
-        color: Colors.orange,
-				dashArray: [5, 5],
-        dotData: FlDotData(show: false),
-        spots: _shotSnapshots
-            .map((e) => FlSpot(
-                _timestamp(e.machine.timestamp), e.machine.targetMixTemperature / 10.0))
-            .toList(),
+        spots: _shotSnapshots.map((e) {
+          weightAverage.add(e.scale!.weight);
+          var weight = weightAverage.average;
+          return FlSpot(_timestamp(e.machine.timestamp), weight);
+        }).toList(),
       ),
     ];
   }

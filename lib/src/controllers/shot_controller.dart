@@ -119,7 +119,7 @@ class ShotController {
         break;
 
       case ShotState.stopping:
-        Future.delayed(Duration(seconds: 3), () {
+        Future.delayed(Duration(seconds: 4), () {
           _log.info("Recording finished.");
           _state = ShotState.finished;
         });
