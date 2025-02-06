@@ -38,11 +38,30 @@ class _SteamFormState extends State<SteamForm> {
         mainAxisSize: MainAxisSize.min,
         spacing: 16,
         children: [
+          Row(
+            children: [
+              Text("Steam enabled"),
+              Spacer(),
+              ShadSwitch(
+                  value: steamSettings.steamEnabled,
+                  onChanged: (val) {
+                    setState(() {
+                      if (val) {
+                        steamSettings.targetTemp = 135;
+                      }
+                      steamSettings.steamEnabled = val;
+                    });
+                  }),
+            ],
+          ),
           Text("Steam temperature: ${steamSettings.targetTemp}℃"),
           ShadSlider(
-            initialValue: steamSettings.targetTemp.toDouble(),
+            initialValue: steamSettings.steamEnabled
+                ? steamSettings.targetTemp.toDouble()
+                : 135,
             min: 135,
             max: 170,
+            enabled: steamSettings.steamEnabled,
             onChanged: (val) {
               setState(() {
                 steamSettings.targetTemp = val.toInt();
@@ -54,6 +73,7 @@ class _SteamFormState extends State<SteamForm> {
             initialValue: steamSettings.targetDuration.toDouble(),
             min: 0,
             max: 120,
+            enabled: steamSettings.steamEnabled,
             onChanged: (val) {
               setState(() {
                 steamSettings.targetDuration = val.toInt();
@@ -66,6 +86,7 @@ class _SteamFormState extends State<SteamForm> {
             initialValue: steamSettings.targetFlow.toDouble(),
             min: 0.4,
             max: 2.5,
+            enabled: steamSettings.steamEnabled,
             onChanged: (val) {
               setState(() {
                 steamSettings.targetFlow = val;

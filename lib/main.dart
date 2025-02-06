@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:logging/logging.dart';
 import 'package:logging_appenders/logging_appenders.dart';
@@ -23,6 +24,10 @@ import 'src/models/device/impl/de1/de1.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+	SystemChrome.setEnabledSystemUIMode(
+    SystemUiMode.manual,
+    overlays: [SystemUiOverlay.top], // Only keep the top bar
+  );
   Logger.root.level = Level.FINE;
   Logger.root.clearListeners();
   PrintAppender(formatter: ColorFormatter()).attachToLogger(Logger.root);

@@ -122,7 +122,7 @@ class De1Controller {
     double flowRate = await connectedDe1().getSteamFlow();
 
     return SteamFormSettings(
-      steamEnabled: false,
+      steamEnabled: shotSettings.targetSteamTemp >= 130 ,
       targetTemp: shotSettings.targetSteamTemp,
       targetDuration: shotSettings.targetSteamDuration,
       targetFlow: flowRate,
@@ -133,7 +133,7 @@ class De1Controller {
     De1ShotSettings shotSettings = await connectedDe1().shotSettings.first;
     await connectedDe1().setSteamFlow(settings.targetFlow);
     await connectedDe1().updateShotSettings(shotSettings.copyWith(
-      targetSteamTemp: settings.targetTemp,
+      targetSteamTemp: settings.steamEnabled ? settings.targetTemp : 0,
       targetSteamDuration: settings.targetDuration,
     ));
     _steamDataController.first.then((d) {
