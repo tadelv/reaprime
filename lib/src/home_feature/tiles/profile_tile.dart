@@ -39,6 +39,9 @@ class _ProfileState extends State<ProfileTile> {
                   var json = jsonDecode(await file.readAsString());
                   setState(() {
                     loadedProfile = Profile.fromJson(json);
+                    widget.de1controller
+                        .connectedDe1()
+                        .setProfile(loadedProfile!);
                   });
                 }
               },

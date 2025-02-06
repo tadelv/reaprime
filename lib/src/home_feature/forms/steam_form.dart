@@ -42,7 +42,7 @@ class _SteamFormState extends State<SteamForm> {
           ShadSlider(
             initialValue: steamSettings.targetTemp.toDouble(),
             min: 135,
-            max: 160,
+            max: 170,
             onChanged: (val) {
               setState(() {
                 steamSettings.targetTemp = val.toInt();

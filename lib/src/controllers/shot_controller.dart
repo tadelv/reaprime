@@ -50,6 +50,12 @@ class ShotController {
 
   Stream<ShotSnapshot> get shotData => _shotDataStream.stream;
 
+  final StreamController<bool> _resetCommand = StreamController.broadcast();
+  Stream<bool> get resetCommand => _resetCommand.stream;
+
+	DateTime _shotStartTime = DateTime.now();
+	DateTime get shotStartTime => _shotStartTime;
+
   TargetShotParameters? _targetShot;
   ShotState _state = ShotState.idle;
 
@@ -67,13 +73,15 @@ class ShotController {
     final MachineSnapshot machine = snapshot.machine;
     final ScaleSnapshot? scale = snapshot.scale;
 
-    _log.shout(
+    _log.finest(
         "recv: ${machine.state.substate.name}, ${machine.state.state.name}");
 
-    _log.shout("State in: ${_state.name}");
+    _log.finest("State in: ${_state.name}");
     switch (_state) {
       case ShotState.idle:
         if (machine.state.substate == MachineSubstate.preparingForShot) {
+          _resetCommand.add(true);
+					_shotStartTime = DateTime.now();
           if (scale != null) {
             _log.info("Machine getting ready. Taring scale...");
             scaleController.connectedScale().tare();
@@ -120,10 +128,10 @@ class ShotController {
       case ShotState.finished:
         // Reset or prepare for next shot
         dataCollectionEnabled = false;
-				_snapshotSubscription?.cancel();
+        _state = ShotState.idle;
         break;
     }
-    _log.shout("State out: ${_state.name}");
+    _log.finest("State out: ${_state.name}");
   }
 }
 

@@ -87,7 +87,7 @@ class MyApp extends StatelessWidget {
             Navigator.pushNamed(
               context,
               RealtimeShotFeature.routeName,
-            );
+            ).then((_) => isRealtimeShotFeatureActive = false);
           }
         });
       }
@@ -175,7 +175,6 @@ class MyApp extends StatelessWidget {
                       scaleController: scaleController,
                     );
                   default:
-                    isRealtimeShotFeatureActive = false;
                     // TODO: dedicated server mode?
                     if (kDebugMode) {
                       return HomeScreen(

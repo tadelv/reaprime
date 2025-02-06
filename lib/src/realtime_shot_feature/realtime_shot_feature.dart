@@ -24,6 +24,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
   late ShotController _shotController;
   final List<ShotSnapshot> _shotSnapshots = [];
   late StreamSubscription<ShotSnapshot> _shotSubscription;
+  late StreamSubscription<bool> _resetCommandSubscription;
   @override
   initState() {
     super.initState();
@@ -31,8 +32,12 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
       de1controller: widget.de1controller,
       scaleController: widget.scaleController,
     );
+    _resetCommandSubscription = _shotController.resetCommand.listen((event) {
+      setState(() {
+        _shotSnapshots.clear();
+      });
+    });
     _shotSubscription = _shotController.shotData.listen((event) {
-      print(event);
       setState(() {
         _shotSnapshots.add(event);
       });
@@ -42,7 +47,8 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
   @override
   void dispose() {
     _shotSubscription.cancel();
-		_shotController.dispose();
+    _resetCommandSubscription.cancel();
+    _shotController.dispose();
     super.dispose();
   }
 
@@ -63,11 +69,69 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
               ),
               Text(
                   "State: ${_shotSnapshots.lastOrNull?.machine.state.state.name}"),
-              SizedBox(
-                height: 500,
-                child: LineChart(
-                  LineChartData(
-                    lineBarsData: [...shotChartData()],
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: SizedBox(
+                  height: 500,
+                  child: LineChart(
+                    LineChartData(
+                      lineBarsData: [...shotChartData()],
+                      minY: 0,
+                      maxY: 11,
+                      titlesData: FlTitlesData(
+                        topTitles:
+                            AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        leftTitles:
+                            AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                                showTitles: true,
+                                //interval: 5,
+                                getTitlesWidget: (double value, TitleMeta meta) {
+                                  final int seconds = (value / 1000).toInt();
+                                  String text;
+                
+                                  if (value / 1000 < 60) {
+                                    // For less than 60 seconds, show ticks every 5 seconds with just seconds.
+                                    if (value.toInt() % 1000 == 0) {
+                                      text = '$seconds s';
+                                    } else {
+                                      return Container(); // return an empty widget for non-tick values
+                                    }
+                                  } else if (value / 1000 <= 120) {
+                                    // For 60 seconds or more, display minutes and seconds.
+                                    final int minutes = seconds ~/ 60;
+                                    final int remainingSeconds = seconds % 60;
+                                    if (seconds % 15 == 0) {
+                                      // Format the seconds with two digits.
+                                      text =
+                                          '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
+                                    } else {
+                                      return Container();
+                                    }
+                                  } else {
+                                    final int minutes = seconds ~/ 60;
+                                    if (seconds % 60 == 0) {
+                                      text = '$minutes:00';
+                                    } else {
+                                      return Container();
+                                    }
+                                  }
+                                  // Style the text as needed.
+                                  return SideTitleWidget(
+                                    meta: meta,
+                                    space: 8.0,
+                                    child: Text(
+                                      text,
+                                      style:
+                                          Theme.of(context).textTheme.labelMedium,
+                                    ),
+                                  );
+                                })),
+                      ),
+                    ),
+										duration: Duration(milliseconds: 0),
+										curve: Curves.easeInOutCubic,
                   ),
                 ),
               ),
@@ -83,18 +147,31 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
       LineChartBarData(
         dotData: FlDotData(show: false),
         spots: _shotSnapshots
-            .map((e) => FlSpot(
-                e.machine.timestamp.millisecondsSinceEpoch.toDouble(),
-                e.machine.flow))
+            .map((e) => FlSpot(_timestamp(e.machine.timestamp), e.machine.flow))
             .toList(),
       ),
       LineChartBarData(
         color: Colors.green,
         dotData: FlDotData(show: false),
         spots: _shotSnapshots
-            .map((e) => FlSpot(
-                e.machine.timestamp.millisecondsSinceEpoch.toDouble(),
-                e.machine.pressure))
+            .map((e) =>
+                FlSpot(_timestamp(e.machine.timestamp), e.machine.pressure))
+            .toList(),
+      ),
+      LineChartBarData(
+        dotData: FlDotData(show: false),
+				dashArray: [5, 5],
+        spots: _shotSnapshots
+            .map((e) => FlSpot(_timestamp(e.machine.timestamp), e.machine.targetFlow))
+            .toList(),
+      ),
+      LineChartBarData(
+        color: Colors.green,
+				dashArray: [5, 5],
+        dotData: FlDotData(show: false),
+        spots: _shotSnapshots
+            .map((e) =>
+                FlSpot(_timestamp(e.machine.timestamp), e.machine.targetPressure))
             .toList(),
       ),
       LineChartBarData(
@@ -102,20 +179,42 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
         dotData: FlDotData(show: false),
         spots: _shotSnapshots
             .map((e) => FlSpot(
-                e.machine.timestamp.millisecondsSinceEpoch.toDouble(),
-                e.machine.groupTemperature))
+                _timestamp(e.machine.timestamp), e.machine.groupTemperature / 10.0))
             .toList(),
       ),
       LineChartBarData(
         color: Colors.orange,
-        dashArray: [5, 5],
         dotData: FlDotData(show: false),
         spots: _shotSnapshots
             .map((e) => FlSpot(
-                e.machine.timestamp.millisecondsSinceEpoch.toDouble(),
-                e.machine.mixTemperature))
+                _timestamp(e.machine.timestamp), e.machine.mixTemperature / 10.0))
+            .toList(),
+      ),
+      LineChartBarData(
+        color: Colors.red,
+				dashArray: [5, 5],
+        dotData: FlDotData(show: false),
+        spots: _shotSnapshots
+            .map((e) => FlSpot(
+                _timestamp(e.machine.timestamp), e.machine.targetGroupTemperature / 10.0))
+            .toList(),
+      ),
+      LineChartBarData(
+        color: Colors.orange,
+				dashArray: [5, 5],
+        dotData: FlDotData(show: false),
+        spots: _shotSnapshots
+            .map((e) => FlSpot(
+                _timestamp(e.machine.timestamp), e.machine.targetMixTemperature / 10.0))
             .toList(),
       ),
     ];
+  }
+
+  double _timestamp(DateTime snapshot) {
+    return snapshot
+        .difference(_shotController.shotStartTime)
+        .inMilliseconds
+        .toDouble();
   }
 }
