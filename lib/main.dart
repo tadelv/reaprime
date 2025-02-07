@@ -7,6 +7,7 @@ import 'package:reaprime/src/controllers/battery_controller.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/bookoo/miniscale.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
@@ -24,7 +25,7 @@ import 'src/models/device/impl/de1/de1.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-	SystemChrome.setEnabledSystemUIMode(
+  SystemChrome.setEnabledSystemUIMode(
     SystemUiMode.manual,
     overlays: [SystemUiOverlay.top], // Only keep the top bar
   );
@@ -62,6 +63,8 @@ void main() async {
   // This prevents a sudden theme change when the app is first displayed.
   await settingsController.loadSettings();
 
+  final WorkflowController workflowController = WorkflowController();
+
   // Run the app and pass in the SettingsController. The app listens to the
   // SettingsController for changes, then passes it further down to the
   // SettingsView.
@@ -73,6 +76,7 @@ void main() async {
         deviceController: deviceController,
         de1Controller: de1Controller,
         scaleController: scaleController,
+        workflowController: workflowController,
       ),
     ),
   );

@@ -1,10 +1,10 @@
 import 'package:flutter/foundation.dart';
-import 'package:logging/logging.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -46,12 +46,14 @@ class MyApp extends StatelessWidget {
     required this.deviceController,
     required this.de1Controller,
     required this.scaleController,
+    required this.workflowController,
   });
 
   final SettingsController settingsController;
   final DeviceController deviceController;
   final De1Controller de1Controller;
   final ScaleController scaleController;
+  final WorkflowController workflowController;
 
   @override
   Widget build(BuildContext context) {
@@ -168,17 +170,20 @@ class MyApp extends StatelessWidget {
                   case HomeScreen.routeName:
                     return HomeScreen(
                       de1controller: de1Controller,
+                      workflowController: workflowController,
                     );
                   case RealtimeShotFeature.routeName:
                     return RealtimeShotFeature(
                       de1controller: de1Controller,
                       scaleController: scaleController,
+                      workflowController: workflowController,
                     );
                   default:
                     // TODO: dedicated server mode?
                     if (kDebugMode) {
                       return HomeScreen(
                         de1controller: de1Controller,
+                        workflowController: workflowController,
                       );
                     } else {
                       return SampleItemListView(controller: deviceController);

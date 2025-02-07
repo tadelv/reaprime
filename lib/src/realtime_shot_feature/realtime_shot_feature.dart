@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/shot_controller.dart';
+import 'package:reaprime/src/controllers/workflow_controller.dart';
+import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -13,9 +15,14 @@ class RealtimeShotFeature extends StatefulWidget {
 
   final De1Controller de1controller;
   final ScaleController scaleController;
+  final WorkflowController workflowController;
 
-  const RealtimeShotFeature(
-      {super.key, required this.de1controller, required this.scaleController});
+  const RealtimeShotFeature({
+    super.key,
+    required this.de1controller,
+    required this.scaleController,
+    required this.workflowController,
+  });
 
   @override
   State<StatefulWidget> createState() => _RealtimeShotFeatureState();
@@ -34,6 +41,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
     _shotController = ShotController(
       de1controller: widget.de1controller,
       scaleController: widget.scaleController,
+			targetShot: widget.workflowController.targetShotParameters,
     );
     _resetCommandSubscription = _shotController.resetCommand.listen((event) {
       setState(() {
@@ -83,16 +91,17 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
 
   Widget _shotStats(BuildContext context) {
     return DefaultTextStyle(
-      style: Theme.of(context).textTheme.titleLarge!,
+      style: Theme.of(context).textTheme.titleMedium!,
       child: Row(
         children: [
           Spacer(),
           Text(
               "Time: ${DateTime.now().difference(_shotController.shotStartTime).inSeconds}s"),
           Spacer(),
-          Text("State: ${_shotSnapshots.lastOrNull?.machine.state.state.name}"),
+          Text(
+              "Status: ${_shotSnapshots.lastOrNull?.machine.state.substate.name}"),
           Spacer(),
-          Text("Step: ${_shotSnapshots.lastOrNull?.machine.profileFrame}"),
+          Text("Step: ${_currentStep()}"),
           Spacer(),
           Text(
               "Flow: ${_shotSnapshots.lastOrNull?.machine.flow.toStringAsFixed(1)}"),
@@ -113,6 +122,16 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
         ],
       ),
     );
+  }
+
+  String _currentStep() {
+    if (widget.workflowController.loadedProfile == null ||
+        _shotSnapshots.lastOrNull == null) {
+      return "Unknown";
+    }
+    Profile profile = widget.workflowController.loadedProfile!;
+    int lastFrame = _shotSnapshots.lastOrNull!.machine.profileFrame;
+    return profile.steps[lastFrame].name;
   }
 
   Padding _shotChart(BuildContext context) {
@@ -295,12 +314,14 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
         ),
         Spacer(),
         ShadButton.destructive(
+          enabled: !backEnabled,
           onPressed: () {
             widget.de1controller.connectedDe1().requestState(MachineState.idle);
           },
           child: Text('Stop Shot'),
         ),
         ShadButton.secondary(
+          enabled: !backEnabled,
           onPressed: () {
             widget.de1controller
                 .connectedDe1()

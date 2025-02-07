@@ -5,14 +5,20 @@ import 'dart:math';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
+import 'package:reaprime/src/controllers/shot_controller.dart';
+import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class ProfileTile extends StatefulWidget {
   final De1Controller de1controller;
+  final WorkflowController workflowController;
 
-  const ProfileTile({super.key, required this.de1controller});
+  const ProfileTile(
+      {super.key,
+      required this.de1controller,
+      required this.workflowController});
 
   @override
   State<StatefulWidget> createState() => _ProfileState();
@@ -42,6 +48,7 @@ class _ProfileState extends State<ProfileTile> {
                     widget.de1controller
                         .connectedDe1()
                         .setProfile(loadedProfile!);
+                    widget.workflowController.loadedProfile = loadedProfile;
                   });
                 }
               },
@@ -50,6 +57,7 @@ class _ProfileState extends State<ProfileTile> {
           ],
         ),
         ..._profileChart(context),
+        ..._workflow(context),
       ],
     );
   }
@@ -219,6 +227,35 @@ class _ProfileState extends State<ProfileTile> {
         dashArray: [5, 5],
         dotData: FlDotData(show: false),
       ),
+    ];
+  }
+
+  List<Widget> _workflow(BuildContext context) {
+    return [
+      SizedBox(
+        height: 64,
+        child: Row(
+          children: [
+            ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: 100,
+              ),
+              child: ShadInput(
+                initialValue: widget
+                        .workflowController.targetShotParameters?.targetWeight
+                        .toStringAsFixed(0) ??
+                    "0.0",
+                placeholder: Text("Target weight"),
+                keyboardType: TextInputType.numberWithOptions(),
+                onSubmitted: (val) {
+                  widget.workflowController.targetShotParameters =
+                      TargetShotParameters(targetWeight: double.parse(val));
+                },
+              ),
+            ),
+          ],
+        ),
+      )
     ];
   }
 }

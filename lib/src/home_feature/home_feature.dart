@@ -1,3 +1,4 @@
+import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/home_feature/tiles/profile_tile.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter/material.dart';
@@ -6,9 +7,14 @@ import 'package:reaprime/src/home_feature/tiles/status_tile.dart';
 
 class HomeScreen extends StatelessWidget {
   static const routeName = '/home';
-  const HomeScreen({super.key, required this.de1controller});
+  const HomeScreen({
+    super.key,
+    required this.de1controller,
+    required this.workflowController,
+  });
 
   final De1Controller de1controller;
+  final WorkflowController workflowController;
 
   final double _leftColumWidth = 400;
 
@@ -62,11 +68,11 @@ class HomeScreen extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ShadCard(
-              title: Text("Next shot"),
-              child: ProfileTile(
-                de1controller: de1controller,
-              )
-            ),
+                title: Text("Next shot"),
+                child: ProfileTile(
+                  de1controller: de1controller,
+                  workflowController: workflowController,
+                )),
           ),
           _statusCard(context),
         ],
@@ -75,7 +81,6 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _statusCard(BuildContext context) {
-    final theme = ShadTheme.of(context);
     return SizedBox(
         width: double.infinity, child: ShadCard(child: _de1Status(context)));
   }

@@ -6,7 +6,6 @@ import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/util/moving_average.dart';
 import 'package:rxdart/rxdart.dart';
-import 'package:rxdart/transformers.dart';
 
 class ShotController {
   final De1Controller de1controller;
@@ -17,7 +16,11 @@ class ShotController {
   MovingAverage weightFlowAverage = MovingAverage(10);
   double _lastWeight = 0.0;
 
-  ShotController({required this.scaleController, required this.de1controller}) {
+  ShotController(
+      {required this.scaleController,
+      required this.de1controller,
+      TargetShotParameters? targetShot})
+      : _targetShot = targetShot {
     try {
       var combinedStream =
           de1controller.connectedDe1().currentSnapshot.withLatestFrom(
@@ -70,7 +73,7 @@ class ShotController {
   DateTime _shotStartTime = DateTime.now();
   DateTime get shotStartTime => _shotStartTime;
 
-  TargetShotParameters? _targetShot;
+  final TargetShotParameters? _targetShot;
   ShotState _state = ShotState.idle;
 
   _processSnapshot(ShotSnapshot snapshot) {
@@ -113,7 +116,7 @@ class ShotController {
             scaleController.connectedScale().tare();
           }
           _state = ShotState.pouring;
-    _stateStream.add(_state);
+          _stateStream.add(_state);
         }
         break;
 
@@ -126,14 +129,14 @@ class ShotController {
             de1controller.connectedDe1().requestState(
                 MachineState.idle); // Send stop command to machine
             _state = ShotState.stopping;
-    _stateStream.add(_state);
-		break;
+            _stateStream.add(_state);
+            break;
           }
         }
         if (machine.state.substate == MachineSubstate.pouringDone ||
             machine.state.substate == MachineSubstate.idle) {
           _state = ShotState.stopping;
-    _stateStream.add(_state);
+          _stateStream.add(_state);
         }
         break;
 
@@ -141,7 +144,7 @@ class ShotController {
         Future.delayed(Duration(seconds: 4), () {
           _log.info("Recording finished.");
           _state = ShotState.finished;
-    _stateStream.add(_state);
+          _stateStream.add(_state);
         });
         break;
 
@@ -149,7 +152,7 @@ class ShotController {
         // Reset or prepare for next shot
         dataCollectionEnabled = false;
         _state = ShotState.idle;
-    _stateStream.add(_state);
+        _stateStream.add(_state);
         _lastWeight = 0.0;
         weightFlowAverage = MovingAverage(10);
         break;
