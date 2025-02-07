@@ -221,6 +221,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
       return [];
     }
     final MovingAverage weightAverage = MovingAverage(10);
+    double previousWeight = 0.0;
     return [
       LineChartBarData(
         color: Colors.purpleAccent,
@@ -235,9 +236,11 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
         color: Colors.purple,
         dotData: FlDotData(show: false),
         spots: _shotSnapshots.map((e) {
-          weightAverage.add(e.scale!.weight);
-          var weight = weightAverage.average;
-          return FlSpot(_timestamp(e.machine.timestamp), weight);
+          var weightDiff = e.scale!.weight - previousWeight;
+          previousWeight = e.scale!.weight;
+          weightAverage.add(weightDiff);
+          var weightFlow = weightAverage.average;
+          return FlSpot(_timestamp(e.machine.timestamp), weightFlow);
         }).toList(),
       ),
     ];
