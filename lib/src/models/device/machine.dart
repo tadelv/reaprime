@@ -95,6 +95,7 @@ enum MachineState {
   hotWater,
   flush,
   steam,
+  skipStep,
   cleaning,
   descaling,
   transportMode,

@@ -11,7 +11,7 @@ extension De1Profile on De1 {
     Uint8List data = Uint8List(5);
 
     int index = 0;
-    data[index] = 1;
+    data[index] = 1; // Header version
     index++;
     data[index] = profile.steps.length;
     index++;

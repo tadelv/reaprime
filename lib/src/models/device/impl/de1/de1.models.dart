@@ -96,6 +96,8 @@ enum De1StateEnum {
         return De1StateEnum.hotWaterRinse;
       case MachineState.steam:
         return De1StateEnum.steam;
+      case MachineState.skipStep:
+        return De1StateEnum.skipToNext;
       case MachineState.cleaning:
         // TODO: Handle this case.
         throw UnimplementedError();

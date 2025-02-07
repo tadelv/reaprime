@@ -4,7 +4,8 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/device/machine.dart';
-import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/util/moving_average.dart';
+import 'package:rxdart/rxdart.dart';
 import 'package:rxdart/transformers.dart';
 
 class ShotController {
@@ -13,15 +14,24 @@ class ShotController {
 
   final Logger _log = Logger("ShotController");
 
+  MovingAverage weightFlowAverage = MovingAverage(10);
+  double _lastWeight = 0.0;
+
   ShotController({required this.scaleController, required this.de1controller}) {
     try {
-      var combinedStream = de1controller
-          .connectedDe1()
-          .currentSnapshot
-          .withLatestFrom(
-              scaleController.connectedScale().currentSnapshot,
-              (machine, weight) =>
-                  ShotSnapshot(machine: machine, scale: weight));
+      var combinedStream =
+          de1controller.connectedDe1().currentSnapshot.withLatestFrom(
+        scaleController.connectedScale().currentSnapshot,
+        (machine, weight) {
+          var difference = weight.weight - _lastWeight;
+          _lastWeight = weight.weight;
+          weightFlowAverage.add(difference);
+          var weightFlow = weightFlowAverage.average;
+          var weightData =
+              WeightSnapshot(weight: weight.weight, weightFlow: weightFlow);
+          return ShotSnapshot(machine: machine, scale: weightData);
+        },
+      );
       _snapshotSubscription = combinedStream.listen(_processSnapshot);
     } catch (e) {
       _log.warning("Continuing without scale");
@@ -53,8 +63,12 @@ class ShotController {
   final StreamController<bool> _resetCommand = StreamController.broadcast();
   Stream<bool> get resetCommand => _resetCommand.stream;
 
-	DateTime _shotStartTime = DateTime.now();
-	DateTime get shotStartTime => _shotStartTime;
+  final BehaviorSubject<ShotState> _stateStream =
+      BehaviorSubject.seeded(ShotState.idle);
+  Stream<ShotState> get state => _stateStream.stream;
+
+  DateTime _shotStartTime = DateTime.now();
+  DateTime get shotStartTime => _shotStartTime;
 
   TargetShotParameters? _targetShot;
   ShotState _state = ShotState.idle;
@@ -71,7 +85,7 @@ class ShotController {
 
   void _handleStateTransition(ShotSnapshot snapshot) {
     final MachineSnapshot machine = snapshot.machine;
-    final ScaleSnapshot? scale = snapshot.scale;
+    final WeightSnapshot? scale = snapshot.scale;
 
     _log.finest(
         "recv: ${machine.state.substate.name}, ${machine.state.state.name}");
@@ -81,12 +95,13 @@ class ShotController {
       case ShotState.idle:
         if (machine.state.substate == MachineSubstate.preparingForShot) {
           _resetCommand.add(true);
-					_shotStartTime = DateTime.now();
+          _shotStartTime = DateTime.now();
           if (scale != null) {
             _log.info("Machine getting ready. Taring scale...");
             scaleController.connectedScale().tare();
           }
           _state = ShotState.preheating;
+          _stateStream.add(_state);
           dataCollectionEnabled = true;
         }
         break;
@@ -98,6 +113,7 @@ class ShotController {
             scaleController.connectedScale().tare();
           }
           _state = ShotState.pouring;
+    _stateStream.add(_state);
         }
         break;
 
@@ -110,11 +126,14 @@ class ShotController {
             de1controller.connectedDe1().requestState(
                 MachineState.idle); // Send stop command to machine
             _state = ShotState.stopping;
+    _stateStream.add(_state);
+		break;
           }
         }
         if (machine.state.substate == MachineSubstate.pouringDone ||
             machine.state.substate == MachineSubstate.idle) {
           _state = ShotState.stopping;
+    _stateStream.add(_state);
         }
         break;
 
@@ -122,6 +141,7 @@ class ShotController {
         Future.delayed(Duration(seconds: 4), () {
           _log.info("Recording finished.");
           _state = ShotState.finished;
+    _stateStream.add(_state);
         });
         break;
 
@@ -129,6 +149,9 @@ class ShotController {
         // Reset or prepare for next shot
         dataCollectionEnabled = false;
         _state = ShotState.idle;
+    _stateStream.add(_state);
+        _lastWeight = 0.0;
+        weightFlowAverage = MovingAverage(10);
         break;
     }
     _log.finest("State out: ${_state.name}");
@@ -137,16 +160,22 @@ class ShotController {
 
 class ShotSnapshot {
   final MachineSnapshot machine;
-  final ScaleSnapshot? scale;
+  final WeightSnapshot? scale;
 
   ShotSnapshot({required this.machine, this.scale});
 
-  copyWith({MachineSnapshot? machine, ScaleSnapshot? scale}) {
+  copyWith({MachineSnapshot? machine, WeightSnapshot? scale}) {
     return ShotSnapshot(
       machine: machine ?? this.machine,
       scale: scale ?? this.scale,
     );
   }
+}
+
+class WeightSnapshot {
+  final double weight;
+  final double weightFlow;
+  WeightSnapshot({required this.weight, required this.weightFlow});
 }
 
 class TargetShotParameters {
