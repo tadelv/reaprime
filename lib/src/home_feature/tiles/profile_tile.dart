@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/shot_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
@@ -26,6 +27,9 @@ class ProfileTile extends StatefulWidget {
 
 class _ProfileState extends State<ProfileTile> {
   Profile? loadedProfile;
+  TargetShotParameters shotParameters = TargetShotParameters(targetWeight: 0.0);
+
+  final Logger _log = Logger('ProfileTile');
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +53,12 @@ class _ProfileState extends State<ProfileTile> {
                         .connectedDe1()
                         .setProfile(loadedProfile!);
                     widget.workflowController.loadedProfile = loadedProfile;
+                    shotParameters = TargetShotParameters(
+                        targetWeight: loadedProfile!.targetWeight ?? 0.0);
+                    widget.workflowController.targetShotParameters =
+                        shotParameters;
+                    _log.fine('Loaded profile: ${loadedProfile!.title}');
+                    _log.fine('Target weight: ${loadedProfile!.targetWeight}');
                   });
                 }
               },
@@ -102,7 +112,7 @@ class _ProfileState extends State<ProfileTile> {
                   interval: 5,
                   // The function to build your custom widget label for each tick.
                   getTitlesWidget: (double value, TitleMeta meta) {
-                    final int seconds = value.toInt();
+                    final int seconds = value.ceil().toInt();
                     String text;
 
                     if (profileTime < 60) {
@@ -241,15 +251,17 @@ class _ProfileState extends State<ProfileTile> {
                 maxWidth: 100,
               ),
               child: ShadInput(
-                initialValue: widget
-                        .workflowController.targetShotParameters?.targetWeight
-                        .toStringAsFixed(0) ??
-                    "0.0",
+                key: Key(shotParameters.targetWeight.toStringAsFixed(1)),
+                initialValue: shotParameters.targetWeight.toStringAsFixed(1),
                 placeholder: Text("Target weight"),
                 keyboardType: TextInputType.numberWithOptions(),
                 onSubmitted: (val) {
-                  widget.workflowController.targetShotParameters =
-                      TargetShotParameters(targetWeight: double.parse(val));
+                  setState(() {
+                    shotParameters =
+                        TargetShotParameters(targetWeight: double.parse(val));
+                    widget.workflowController.targetShotParameters =
+                        TargetShotParameters(targetWeight: double.parse(val));
+                  });
                 },
               ),
             ),

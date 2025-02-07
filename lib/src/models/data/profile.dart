@@ -34,11 +34,10 @@ class Profile {
       steps: (json['steps'] as List)
           .map((step) => ProfileStep.fromJson(step))
           .toList(),
-      targetVolume: double.parse(json['target_volume']),
-      targetWeight: double.parse(json['target_weight']),
-      targetVolumeCountStart: int.tryParse(json['target_volume_count_start']) ??
-          double.parse(json['target_volume_count_start']).toInt(),
-      tankTemperature: double.parse(json['tank_temperature']),
+      targetVolume: parseDouble(json['target_volume']),
+      targetWeight: parseDouble(json['target_weight']),
+      targetVolumeCountStart: parseInt(json['target_volume_count_start']),
+      tankTemperature: parseDouble(json['tank_temperature']),
     );
   }
 
@@ -103,8 +102,8 @@ class StepLimiter {
 
   factory StepLimiter.fromJson(Map<String, dynamic> json) {
     return StepLimiter(
-      value: double.parse(json["value"]),
-      range: double.parse(json["range"]),
+      value: parseDouble(json["value"]),
+      range: parseDouble(json["range"]),
     );
   }
 
@@ -293,4 +292,16 @@ class StepExitCondition {
   Map<String, dynamic> toJson() {
     return {'type': type.name, 'condition': condition.name, 'value': value};
   }
+}
+
+double parseDouble(dynamic value) {
+  if (value is double) return value;
+  if (value is int) return value.toDouble();
+  return double.tryParse(value) ?? int.parse(value).toDouble();
+}
+
+int parseInt(dynamic value) {
+	if (value is int) return value;
+	if (value is double) return value.toInt();
+	return int.parse(value);
 }
