@@ -54,11 +54,13 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
       });
     });
     _stateSubscription = _shotController.state.listen((state) {
-      if (state == ShotState.finished || state == ShotState.idle) {
-        backEnabled = true;
-      } else {
-        backEnabled = false;
-      }
+      setState(() {
+        if (state == ShotState.pouring || state == ShotState.preheating) {
+          backEnabled = false;
+        } else {
+          backEnabled = true;
+        }
+      });
     });
   }
 
@@ -194,7 +196,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
             ),
             clipData: FlClipData.all(),
           ),
-          duration: Duration(milliseconds: 0),
+          duration: Duration(milliseconds: 100),
           curve: Curves.easeInOutCubic,
         ),
       ),
@@ -303,6 +305,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
         .toDouble();
   }
 
+  DateTime lastSnapshot = DateTime.now();
   Widget _buttons(BuildContext context) {
     return Row(
       children: [
@@ -311,6 +314,19 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
           icon: Icon(Icons.home),
           onPressed: () {
             Navigator.pop(context);
+          },
+        ),
+        StreamBuilder(
+          stream: _shotController.shotData,
+          builder: (context, snapshot) {
+            if (snapshot.hasData) {
+              var difference = lastSnapshot
+                  .difference(snapshot.data!.machine.timestamp)
+                  .inMilliseconds;
+              lastSnapshot = snapshot.data!.machine.timestamp;
+              return Text("Freq: ${difference}ms");
+            }
+            return Container();
           },
         ),
         Spacer(),

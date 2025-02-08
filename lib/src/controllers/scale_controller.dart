@@ -4,6 +4,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/util/moving_average.dart';
 import 'package:rxdart/rxdart.dart';
 
 class ScaleController {
@@ -48,7 +49,8 @@ class ScaleController {
   Stream<WeightSnapshot> get weightSnapshot => _weightSnapshotController.stream;
 
   double? _lastWeight;
-	DateTime? _lastTimestamp;
+  DateTime? _lastTimestamp;
+  MovingAverage weightFlowAverage = MovingAverage(10);
 
   _processSnapshot(ScaleSnapshot snapshot) {
     // calculate weight flow
@@ -56,14 +58,16 @@ class ScaleController {
     if (_lastWeight != null) {
       var difference = snapshot.weight - _lastWeight!;
       weightFlow =
-          difference / snapshot.timestamp.difference(_lastTimestamp!).inSeconds;
+          difference / snapshot.timestamp.difference(_lastTimestamp!).inMilliseconds;
+      weightFlowAverage.add(weightFlow * 1000);
     }
     _lastWeight = snapshot.weight;
     _lastTimestamp = snapshot.timestamp;
     _weightSnapshotController.add(WeightSnapshot(
-        timestamp: snapshot.timestamp,
-        weight: snapshot.weight,
-        weightFlow: weightFlow));
+      timestamp: snapshot.timestamp,
+      weight: snapshot.weight,
+      weightFlow: weightFlowAverage.average,
+    ));
   }
 
   _processConnection(ConnectionState d) {
@@ -82,8 +86,9 @@ class WeightSnapshot {
   final DateTime timestamp;
   final double weight;
   final double weightFlow;
-  WeightSnapshot(
-      {required this.timestamp,
-      required this.weight,
-      required this.weightFlow});
+  WeightSnapshot({
+    required this.timestamp,
+    required this.weight,
+    required this.weightFlow,
+  });
 }

@@ -4,7 +4,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/device/machine.dart';
-import 'package:reaprime/src/util/moving_average.dart';
+import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:rxdart/rxdart.dart';
 
 class ShotController {
@@ -13,36 +13,52 @@ class ShotController {
 
   final Logger _log = Logger("ShotController");
 
-  MovingAverage weightFlowAverage = MovingAverage(10);
-  double _lastWeight = 0.0;
-
   ShotController(
       {required this.scaleController,
       required this.de1controller,
       TargetShotParameters? targetShot})
       : _targetShot = targetShot {
+    Future.value(_initialize).then((_) {
+		_log.info("ShotController initialized");
+		});
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+	_log.shout("Initializing ShotController");
     try {
-      var combinedStream =
+      final state = await scaleController.connectionState.first;
+			_log.shout("Scale state: $state");
+      if (state != device.ConnectionState.connected) {
+        throw Exception("Scale not connected");
+      }
+
+      // Combine DE1 and scale data if the scale is connected
+      final combinedStream =
           de1controller.connectedDe1().currentSnapshot.withLatestFrom(
-        scaleController.connectedScale().currentSnapshot,
-        (machine, weight) {
-          var difference = weight.weight - _lastWeight;
-          _lastWeight = weight.weight;
-          weightFlowAverage.add(difference);
-          var weightFlow = weightFlowAverage.average;
-          var weightData =
-              WeightSnapshot(weight: weight.weight, weightFlow: weightFlow);
-          return ShotSnapshot(machine: machine, scale: weightData);
-        },
+                scaleController.weightSnapshot,
+                (machine, weight) =>
+                    ShotSnapshot(machine: machine, scale: weight),
+              );
+
+      _snapshotSubscription = combinedStream.listen(
+        _processSnapshot,
+        onError: (error) =>
+            _log.warning("Error processing combined snapshot: $error"),
       );
-      _snapshotSubscription = combinedStream.listen(_processSnapshot);
     } catch (e) {
-      _log.warning("Continuing without scale");
+      _log.warning("Continuing without scale: $e");
+
+      // Fallback: Only DE1 data if the scale is not connected
       _snapshotSubscription = de1controller
           .connectedDe1()
           .currentSnapshot
           .map((snapshot) => ShotSnapshot(machine: snapshot))
-          .listen(_processSnapshot);
+          .listen(
+            _processSnapshot,
+            onError: (error) =>
+                _log.warning("Error processing DE1 snapshot: $error"),
+          );
     }
   }
 
@@ -77,6 +93,7 @@ class ShotController {
   ShotState _state = ShotState.idle;
 
   _processSnapshot(ShotSnapshot snapshot) {
+	_log.finest("Processing snapshot");
     _rawShotDataStream.add(snapshot);
     _handleStateTransition(snapshot);
     if (dataCollectionEnabled) {
@@ -123,9 +140,9 @@ class ShotController {
       case ShotState.pouring:
         if (scale != null && _targetShot != null) {
           double currentWeight = scale.weight;
-          if (currentWeight >= _targetShot!.targetWeight) {
+          if (currentWeight >= _targetShot.targetWeight) {
             _log.info(
-                "Target weight ${_targetShot!.targetWeight}g reached. Stopping shot.");
+                "Target weight ${_targetShot.targetWeight}g reached. Stopping shot.");
             de1controller.connectedDe1().requestState(
                 MachineState.idle); // Send stop command to machine
             _state = ShotState.stopping;
@@ -153,8 +170,6 @@ class ShotController {
         dataCollectionEnabled = false;
         _state = ShotState.idle;
         _stateStream.add(_state);
-        _lastWeight = 0.0;
-        weightFlowAverage = MovingAverage(10);
         break;
     }
     _log.finest("State out: ${_state.name}");
@@ -173,12 +188,6 @@ class ShotSnapshot {
       scale: scale ?? this.scale,
     );
   }
-}
-
-class WeightSnapshot {
-  final double weight;
-  final double weightFlow;
-  WeightSnapshot({required this.weight, required this.weightFlow});
 }
 
 class TargetShotParameters {

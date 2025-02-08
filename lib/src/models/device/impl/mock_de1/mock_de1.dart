@@ -74,11 +74,12 @@ class MockDe1 implements De1Interface {
   @override
   DeviceType get type => DeviceType.machine;
 
+  DateTime lastIdleSnapshot = DateTime.now();
   _simulateState() {
     _snapshotStream.add(_lastSnapshot);
 
     _stateTimer = Timer.periodic(
-      Duration(milliseconds: 500),
+      Duration(milliseconds: 100),
       (t) {
         MachineSnapshot newSnapshot;
         switch (_simulationType) {
@@ -86,6 +87,11 @@ class MockDe1 implements De1Interface {
             newSnapshot = _simulateEspresso();
             break;
           case _SimulationType.idle:
+            if (DateTime.now().difference(lastIdleSnapshot).inMilliseconds <
+                500) {
+              return;
+            }
+            lastIdleSnapshot = DateTime.now();
             newSnapshot = _simulateIdle();
           default:
             newSnapshot = _simulateIdle();
@@ -98,7 +104,7 @@ class MockDe1 implements De1Interface {
 
   MachineSnapshot _simulateIdle() {
     return MachineSnapshot(
-      timestamp: DateTime.now(),
+      timestamp: lastIdleSnapshot,
       state: MachineStateSnapshot(
         state: _currentState,
         substate: MachineSubstate.idle,
@@ -136,7 +142,7 @@ class MockDe1 implements De1Interface {
     }
     if (_lastSnapshot.pressure >= 9) {
       _simulationType = _SimulationType.idle;
-			_currentState = MachineState.idle;
+      _currentState = MachineState.idle;
     }
     return MachineSnapshot(
       timestamp: DateTime.now(),
@@ -144,8 +150,8 @@ class MockDe1 implements De1Interface {
         state: _currentState,
         substate: substate,
       ),
-      flow: min(_lastSnapshot.flow + 0.5, 4.0),
-      pressure: min(_lastSnapshot.pressure + 0.4, 9.0),
+      flow: min(_lastSnapshot.flow + 0.05, 4.0),
+      pressure: min(_lastSnapshot.pressure + 0.04, 9.0),
       targetFlow: 4.5,
       targetPressure: 9.0,
       mixTemperature: _lastSnapshot.mixTemperature > 95
