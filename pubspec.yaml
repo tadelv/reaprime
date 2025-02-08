@@ -29,6 +29,7 @@ dependencies:
   shadcn_ui: ^0.18.5
   file_picker: ^8.3.1
   fl_chart: ^0.70.2
+  flutter_launcher_icons: ^0.14.3
   
 dev_dependencies:
   flutter_test:
