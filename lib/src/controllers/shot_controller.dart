@@ -133,6 +133,8 @@ class ShotController {
             _log.info("Taring scale again.");
             scaleController.connectedScale().tare();
           }
+          // TODO: Settings control, whether reset should happen here or not
+          //_resetCommand.add(true);
           _state = ShotState.pouring;
           _stateStream.add(_state);
         }

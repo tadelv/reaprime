@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:collection/collection.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
@@ -93,33 +94,29 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
 
   Widget _shotStats(BuildContext context) {
     return DefaultTextStyle(
-      style: Theme.of(context).textTheme.titleMedium!,
+      style: Theme.of(context).textTheme.headlineSmall!,
       child: Row(
         children: [
           Spacer(),
           Text(
-              "Time: ${DateTime.now().difference(_shotController.shotStartTime).inSeconds}s"),
+              "Time: ${_shotSnapshots.lastWhereOrNull((sn) => sn.machine.state.substate == MachineSubstate.pouring)?.machine.timestamp.difference(_shotController.shotStartTime).inSeconds}s"),
           Spacer(),
           Text(
-              "Status: ${_shotSnapshots.lastOrNull?.machine.state.substate.name}"),
-          Spacer(),
-          Text("Step: ${_currentStep()}"),
+              "${_shotSnapshots.lastOrNull?.machine.flow.toStringAsFixed(1)}ml/s"),
           Spacer(),
           Text(
-              "Flow: ${_shotSnapshots.lastOrNull?.machine.flow.toStringAsFixed(1)}"),
+              "${_shotSnapshots.lastOrNull?.machine.pressure.toStringAsFixed(1)}bar"),
           Spacer(),
           Text(
-              "Pressure: ${_shotSnapshots.lastOrNull?.machine.pressure.toStringAsFixed(1)}"),
-          Spacer(),
-          Text(
-              "Group Temp: ${_shotSnapshots.lastOrNull?.machine.groupTemperature.toStringAsFixed(1)}"),
+              "GT: ${_shotSnapshots.lastOrNull?.machine.groupTemperature.toStringAsFixed(1)}℃"),
           Spacer(),
           if (_shotSnapshots.lastOrNull?.scale != null)
             Text(
-                "Scale Weight: ${_shotSnapshots.lastOrNull?.scale?.weight.toStringAsFixed(1)}"),
+                "W: ${_shotSnapshots.lastOrNull?.scale?.weight.toStringAsFixed(1)}g"),
+          if (_shotSnapshots.lastOrNull?.scale != null) Spacer(),
           if (_shotSnapshots.lastOrNull?.scale != null)
             Text(
-                "Scale Weight Flow: ${_shotSnapshots.lastOrNull?.scale?.weightFlow.toStringAsFixed(1)}"),
+                "WF: ${_shotSnapshots.lastOrNull?.scale?.weightFlow.toStringAsFixed(1)}g/s"),
           Spacer(),
         ],
       ),
@@ -130,6 +127,10 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
     if (widget.workflowController.loadedProfile == null ||
         _shotSnapshots.lastOrNull == null) {
       return "Unknown";
+    }
+    if (_shotSnapshots.last.machine.state.substate ==
+        MachineSubstate.preparingForShot) {
+      return "Preheat";
     }
     Profile profile = widget.workflowController.loadedProfile!;
     int lastFrame = _shotSnapshots.lastOrNull!.machine.profileFrame;
@@ -196,7 +197,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
             ),
             clipData: FlClipData.all(),
           ),
-          duration: Duration(milliseconds: 100),
+          duration: Duration(milliseconds: 200),
           curve: Curves.easeInOutCubic,
         ),
       ),
@@ -309,25 +310,30 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
   Widget _buttons(BuildContext context) {
     return Row(
       children: [
+        Spacer(),
         ShadButton(
           enabled: backEnabled,
-          icon: Icon(Icons.home),
+          icon: Icon(LucideIcons.arrowLeft),
           onPressed: () {
             Navigator.pop(context);
           },
         ),
-        StreamBuilder(
-          stream: _shotController.shotData,
-          builder: (context, snapshot) {
-            if (snapshot.hasData) {
-              var difference = lastSnapshot
-                  .difference(snapshot.data!.machine.timestamp)
-                  .inMilliseconds;
-              lastSnapshot = snapshot.data!.machine.timestamp;
-              return Text("Freq: ${difference}ms");
-            }
-            return Container();
-          },
+        Spacer(),
+        SizedBox(
+          width: 300,
+          child: StreamBuilder(
+            stream: _shotController.shotData,
+            builder: (context, snapshot) {
+              if (snapshot.hasData) {
+                var difference = lastSnapshot
+                    .difference(snapshot.data!.machine.timestamp)
+                    .inMilliseconds;
+                lastSnapshot = snapshot.data!.machine.timestamp;
+                return Text("Freq: ${difference}ms");
+              }
+              return Container();
+            },
+          ),
         ),
         Spacer(),
         ShadButton.destructive(
@@ -346,6 +352,11 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
           },
           child: Text('Skip Step'),
         ),
+        Spacer(),
+        Text(
+            "Status: ${_shotSnapshots.lastOrNull?.machine.state.substate.name}"),
+        Spacer(),
+        Text("Step: ${_currentStep()}"),
         Spacer(),
       ],
     );
