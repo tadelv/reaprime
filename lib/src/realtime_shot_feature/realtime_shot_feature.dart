@@ -41,7 +41,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
     _shotController = ShotController(
       de1controller: widget.de1controller,
       scaleController: widget.scaleController,
-			targetShot: widget.workflowController.targetShotParameters,
+      targetShot: widget.workflowController.targetShotParameters,
     );
     _resetCommandSubscription = _shotController.resetCommand.listen((event) {
       setState(() {
@@ -192,6 +192,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
                         );
                       })),
             ),
+            clipData: FlClipData.all(),
           ),
           duration: Duration(milliseconds: 0),
           curve: Curves.easeInOutCubic,
