@@ -19,16 +19,16 @@ class ShotController {
       TargetShotParameters? targetShot})
       : _targetShot = targetShot {
     Future.value(_initialize).then((_) {
-		_log.info("ShotController initialized");
-		});
+      _log.info("ShotController initialized");
+    });
     _initialize();
   }
 
   Future<void> _initialize() async {
-	_log.shout("Initializing ShotController");
+    _log.shout("Initializing ShotController");
     try {
       final state = await scaleController.connectionState.first;
-			_log.shout("Scale state: $state");
+      _log.shout("Scale state: $state");
       if (state != device.ConnectionState.connected) {
         throw Exception("Scale not connected");
       }
@@ -93,7 +93,7 @@ class ShotController {
   ShotState _state = ShotState.idle;
 
   _processSnapshot(ShotSnapshot snapshot) {
-	_log.finest("Processing snapshot");
+    _log.finest("Processing snapshot");
     _rawShotDataStream.add(snapshot);
     _handleStateTransition(snapshot);
     if (dataCollectionEnabled) {
@@ -127,7 +127,8 @@ class ShotController {
         break;
 
       case ShotState.preheating:
-        if (machine.state.substate == MachineSubstate.pouring) {
+        if (machine.state.substate == MachineSubstate.preinfusion ||
+            machine.state.substate == MachineSubstate.pouring) {
           if (scale != null) {
             _log.info("Taring scale again.");
             scaleController.connectedScale().tare();
