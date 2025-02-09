@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
+import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/home_feature/forms/hot_water_form.dart';
+import 'package:reaprime/src/home_feature/forms/rinse_form.dart';
 import 'package:reaprime/src/home_feature/forms/steam_form.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
-import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/sample_feature/sample_item_list_view.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -12,9 +15,15 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 class StatusTile extends StatelessWidget {
   final De1Interface de1;
   final De1Controller controller;
-  final Scale? scale;
-  const StatusTile(
-      {super.key, required this.de1, required this.controller, this.scale});
+  final ScaleController scaleController;
+  final DeviceController deviceController;
+  const StatusTile({
+    super.key,
+    required this.de1,
+    required this.controller,
+    required this.scaleController,
+    required this.deviceController,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -24,8 +33,11 @@ class StatusTile extends StatelessWidget {
         _firstRow(),
         SizedBox(height: 8),
         StreamBuilder(
-          stream: Rx.combineLatest2(controller.steamData,
-              controller.hotWaterData, (steam, hotWater) => [steam, hotWater]),
+          stream: Rx.combineLatest3(
+              controller.steamData,
+              controller.hotWaterData,
+              controller.rinseData,
+              (steam, hotWater, rinse) => [steam, hotWater, rinse]),
           builder: (context, settingsSnapshot) {
             if (settingsSnapshot.connectionState != ConnectionState.active) {
               return Text("Waiting");
@@ -33,38 +45,47 @@ class StatusTile extends StatelessWidget {
             var settings = settingsSnapshot.data!;
             var steamSettings = settings[0] as De1ControllerSteamSettings;
             var hotWaterSettings = settings[1] as De1ControllerHotWaterData;
-            return GestureDetector(
-              onTap: () async {
-                await _showShotSettingsDialog(context, controller);
-              },
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                spacing: 5,
-                children: [
-                  Column(children: [
+            var rinseSettings = settings[2] as De1ControllerRinseData;
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              spacing: 5,
+              children: [
+                GestureDetector(
+                  onTap: () async {
+                    _showRinseSettingsDialog(context, controller);
+                  },
+                  child: Column(children: [
+                    Text("FT: ${rinseSettings.targetTemperature}℃"),
+                    Text("FD:  ${hotWaterSettings.duration}s"),
+                    Text("FF: ${hotWaterSettings.flow.toStringAsFixed(1)}ml/s")
+                  ]),
+                ),
+                GestureDetector(
+                  onTap: () async {
+                    _showHotWaterSettingsDialog(context, controller);
+                  },
+                  child: Column(children: [
                     Text("HW: ${hotWaterSettings.targetTemperature}℃"),
                     Text(
                         "HW: ${hotWaterSettings.volume}ml | ${hotWaterSettings.duration}s"),
-                    Text("HF: ${hotWaterSettings.flow}ml/s")
+                    Text("HF: ${hotWaterSettings.flow.toStringAsFixed(1)}ml/s")
                   ]),
-                  Column(children: [
+                ),
+                GestureDetector(
+                  onTap: () async {
+                    await _showSteamSettingsDialog(context, controller);
+                  },
+                  child: Column(children: [
                     Text("SF: ${steamSettings.flow.toStringAsFixed(1)}ml/s"),
                     Text("ST: ${steamSettings.targetTemperature}℃"),
                     Text("SD: ${steamSettings.duration}s"),
                   ]),
-                ],
-              ),
+                ),
+                ..._scaleWidgets(),
+              ],
             );
           },
         ),
-        if (scale != null)
-          Text(
-            "Scale",
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.blueGrey,
-            ),
-          ),
         SizedBox(height: 8),
         Row(children: [
           _powerButton(),
@@ -83,7 +104,7 @@ class StatusTile extends StatelessWidget {
     );
   }
 
-  Future<void> _showShotSettingsDialog(
+  Future<void> _showSteamSettingsDialog(
     BuildContext context,
     De1Controller controller,
   ) async {
@@ -103,6 +124,80 @@ class StatusTile extends StatelessWidget {
             },
           )),
     );
+  }
+
+  Future<void> _showHotWaterSettingsDialog(
+    BuildContext context,
+    De1Controller controller,
+  ) async {
+    var hotWaterSettings = await controller.hotWaterSettings();
+    if (!context.mounted) {
+      return;
+    }
+    showShadDialog(
+      context: context,
+      builder: (context) => ShadDialog(
+          title: const Text('Edit Hot Water settings'),
+          child: HotWaterForm(
+            hotWaterSettings: hotWaterSettings,
+            apply: (settings) {
+              Navigator.of(context).pop();
+              controller.updateHotWaterSettings(settings);
+            },
+          )),
+    );
+  }
+
+  Future<void> _showRinseSettingsDialog(
+    BuildContext context,
+    De1Controller controller,
+  ) async {
+    var rinseSettings = await controller.rinseData.first;
+    if (!context.mounted) {
+      return;
+    }
+    showShadDialog(
+      context: context,
+      builder: (context) => ShadDialog(
+          title: const Text('Edit Hot Water settings'),
+          child: RinseForm(
+            rinseSettings: rinseSettings,
+            apply: (settings) {
+              Navigator.of(context).pop();
+              controller.updateFlushSettings(settings);
+            },
+          )),
+    );
+  }
+
+  List<Widget> _scaleWidgets() {
+    return [
+      StreamBuilder(
+          stream: scaleController.connectionState,
+          builder: (context, state) {
+            if (state.connectionState != ConnectionState.active ||
+                state.data! != device.ConnectionState.connected) {
+// call device controller scan?
+              return GestureDetector(
+                  onTap: () async {
+                    await deviceController.scanForDevices();
+                  },
+                  child: Text("Waiting"));
+            }
+            return StreamBuilder(
+                stream: scaleController.weightSnapshot,
+                builder: (context, weight) {
+                  return Column(children: [
+                    GestureDetector(
+                        onTap: () {
+                          scaleController.connectedScale().tare();
+                        },
+                        child: Text(
+                            "W: ${weight.data?.weight.toStringAsFixed(1) ?? 0.0}g")),
+                  ]);
+                });
+          })
+    ];
   }
 
   Widget _powerButton() {
@@ -165,8 +260,7 @@ class StatusTile extends StatelessWidget {
                   ),
                   SizedBox(
                     width: boxWidth,
-                    child: Text(
-                        "Steam: ${snapshot.steamTemperature}℃"),
+                    child: Text("Steam: ${snapshot.steamTemperature}℃"),
                   ),
                 ]);
           }),

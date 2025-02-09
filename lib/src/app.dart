@@ -171,6 +171,8 @@ class MyApp extends StatelessWidget {
                     return HomeScreen(
                       de1controller: de1Controller,
                       workflowController: workflowController,
+                      scaleController: scaleController,
+                      deviceController: deviceController,
                     );
                   case RealtimeShotFeature.routeName:
                     return RealtimeShotFeature(
@@ -184,6 +186,8 @@ class MyApp extends StatelessWidget {
                       return HomeScreen(
                         de1controller: de1Controller,
                         workflowController: workflowController,
+                        scaleController: scaleController,
+                        deviceController: deviceController,
                       );
                     } else {
                       return SampleItemListView(controller: deviceController);

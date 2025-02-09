@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/home_feature/forms/hot_water_form.dart';
 import 'package:reaprime/src/home_feature/forms/steam_form.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:rxdart/subjects.dart';
@@ -39,8 +40,8 @@ class De1Controller {
       _hotWaterDataController.stream;
 
   final BehaviorSubject<De1ControllerRinseData> _rinseStream =
-      BehaviorSubject.seeded(
-          De1ControllerRinseData(duration: 0, targetTemperature: 0, flow: 0));
+      BehaviorSubject.seeded(De1ControllerRinseData(
+          duration: 5, targetTemperature: 90, flow: 2.5));
 
   Stream<De1ControllerRinseData> get rinseData => _rinseStream.stream;
 
@@ -122,7 +123,7 @@ class De1Controller {
     double flowRate = await connectedDe1().getSteamFlow();
 
     return SteamFormSettings(
-      steamEnabled: shotSettings.targetSteamTemp >= 130 ,
+      steamEnabled: shotSettings.targetSteamTemp >= 130,
       targetTemp: shotSettings.targetSteamTemp,
       targetDuration: shotSettings.targetSteamDuration,
       targetFlow: flowRate,
@@ -141,21 +142,40 @@ class De1Controller {
     });
   }
 
-  Future<void> updateFlushSettings(De1ControllerRinseData settings) async {
-    await connectedDe1().setFlushTimeout(settings.duration.toDouble());
-    await connectedDe1().setFlushFlow(settings.flow);
-    await connectedDe1()
-        .setFlushTemperature(settings.targetTemperature.toDouble());
+  Future<HotWaterFormSettings> hotWaterSettings() async {
+    if (_de1 == null) {
+      throw "De1 not connected yet";
+    }
+    De1ShotSettings shotSettings = await connectedDe1().shotSettings.first;
+    double flowRate = await connectedDe1().getHotWaterFlow();
+    return HotWaterFormSettings(
+      targetTemperature: shotSettings.targetHotWaterTemp,
+      flow: flowRate,
+      volume: shotSettings.targetHotWaterVolume,
+      duration: shotSettings.targetHotWaterDuration,
+    );
   }
 
-  Future updateHotWaterSettings(De1ControllerHotWaterData settings) async {
+  Future<void> updateHotWaterSettings(HotWaterFormSettings settings) async {
     await connectedDe1().setHotWaterFlow(settings.flow);
-    return connectedDe1().shotSettings.first.then((s) async {
+    await connectedDe1().shotSettings.first.then((s) async {
       await connectedDe1().updateShotSettings(s.copyWith(
           targetHotWaterTemp: settings.targetTemperature,
           targetHotWaterVolume: settings.volume,
           targetHotWaterDuration: settings.duration));
     });
+    _hotWaterDataController.first.then((d) {
+      _hotWaterDataController.add(d.copyWith(flow: settings.flow));
+    });
+  }
+
+  Future<void> updateFlushSettings(De1ControllerRinseData settings) async {
+    await connectedDe1().setFlushTimeout(settings.duration.toDouble());
+    await connectedDe1().setFlushFlow(settings.flow);
+    await connectedDe1()
+        .setFlushTemperature(settings.targetTemperature.toDouble());
+
+    _rinseStream.add(settings);
   }
 }
 
@@ -193,6 +213,20 @@ class De1ControllerHotWaterData {
       required this.duration,
       required this.volume,
       required this.flow});
+
+  De1ControllerHotWaterData copyWith({
+    int? targetTemperature,
+    int? duration,
+    int? volume,
+    double? flow,
+  }) {
+    return De1ControllerHotWaterData(
+      targetTemperature: targetTemperature ?? this.targetTemperature,
+      duration: duration ?? this.duration,
+      volume: volume ?? this.volume,
+      flow: flow ?? this.flow,
+    );
+  }
 }
 
 class De1ControllerRinseData {

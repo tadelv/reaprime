@@ -1,3 +1,5 @@
+import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/home_feature/tiles/profile_tile.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -9,11 +11,15 @@ class HomeScreen extends StatelessWidget {
   static const routeName = '/home';
   const HomeScreen({
     super.key,
+    required this.deviceController,
     required this.de1controller,
+    required this.scaleController,
     required this.workflowController,
   });
 
+  final DeviceController deviceController;
   final De1Controller de1controller;
+  final ScaleController scaleController;
   final WorkflowController workflowController;
 
   final double _leftColumWidth = 400;
@@ -94,6 +100,8 @@ class HomeScreen extends StatelessWidget {
               child: StatusTile(
             de1: de1Available.data!,
             controller: de1controller,
+            scaleController: scaleController,
+            deviceController: deviceController,
           ));
         } else {
           return Text("Connecting to DE1");

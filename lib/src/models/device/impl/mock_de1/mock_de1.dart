@@ -247,28 +247,26 @@ class MockDe1 implements De1Interface {
     throw UnimplementedError();
   }
 
+  double _hotWaterFlow = 1.0;
   @override
-  Future<double> getHotWaterFlow() {
-    // TODO: implement getHotWaterFlow
-    throw UnimplementedError();
+  Future<double> getHotWaterFlow() async {
+    return _hotWaterFlow;
   }
 
   @override
-  Future<void> setHotWaterFlow(double newFlow) {
-    // TODO: implement setHotWaterFlow
-    throw UnimplementedError();
+  Future<void> setHotWaterFlow(double newFlow) async {
+    _hotWaterFlow = newFlow;
+  }
+
+  double _flushFlow = 1.0;
+  @override
+  Future<double> getFlushFlow() async {
+    return _flushFlow;
   }
 
   @override
-  Future<double> getFlushFlow() {
-    // TODO: implement getFlushFlow
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<void> setFlushFlow(double newFlow) {
-    // TODO: implement setFlushFlow
-    throw UnimplementedError();
+  Future<void> setFlushFlow(double newFlow) async {
+    _flushFlow = newFlow;
   }
 
   @override
