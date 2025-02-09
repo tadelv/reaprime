@@ -138,14 +138,9 @@ abstract class ProfileStep {
   double getTarget(); // Abstract method for subclasses to implement
 
   factory ProfileStep.fromJson(Map<String, dynamic> json) {
-    if ((json.containsKey('pressure') &&
-            json['pressure'].toString().isEmpty == false &&
-            json['pressure'].toString() != "0") ||
-        (json.containsKey('pump') && json['pump'] == 'pressure')) {
+    if (json.containsKey('pump') && json['pump'] == 'pressure') {
       return ProfileStepPressure.fromJson(json);
-    } else if (json.containsKey('flow') &&
-        json['flow'].toString().isEmpty == false &&
-        json['flow'].toString() != "0") {
+    } else if (json.containsKey('pump') && json['pump'] == 'flow') {
       return ProfileStepFlow.fromJson(json);
     } else {
       throw Exception(
@@ -301,7 +296,7 @@ double parseDouble(dynamic value) {
 }
 
 int parseInt(dynamic value) {
-	if (value is int) return value;
-	if (value is double) return value.toInt();
-	return int.parse(value);
+  if (value is int) return value;
+  if (value is double) return value.toInt();
+  return int.parse(value);
 }

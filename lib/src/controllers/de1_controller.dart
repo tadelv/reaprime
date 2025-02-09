@@ -40,8 +40,13 @@ class De1Controller {
       _hotWaterDataController.stream;
 
   final BehaviorSubject<De1ControllerRinseData> _rinseStream =
-      BehaviorSubject.seeded(De1ControllerRinseData(
-          duration: 5, targetTemperature: 90, flow: 2.5));
+      BehaviorSubject.seeded(
+    De1ControllerRinseData(
+      duration: 5,
+      targetTemperature: 90,
+      flow: 2.5,
+    ),
+  );
 
   Stream<De1ControllerRinseData> get rinseData => _rinseStream.stream;
 

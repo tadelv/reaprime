@@ -56,8 +56,8 @@ class StatusTile extends StatelessWidget {
                   },
                   child: Column(children: [
                     Text("FT: ${rinseSettings.targetTemperature}℃"),
-                    Text("FD:  ${hotWaterSettings.duration}s"),
-                    Text("FF: ${hotWaterSettings.flow.toStringAsFixed(1)}ml/s")
+                    Text("FD: ${rinseSettings.duration}s"),
+                    Text("FF: ${rinseSettings.flow.toStringAsFixed(1)}ml/s")
                   ]),
                 ),
                 GestureDetector(
