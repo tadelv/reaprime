@@ -195,7 +195,7 @@ class ShotSnapshot {
 class TargetShotParameters {
   final double targetWeight;
 
-  TargetShotParameters({required this.targetWeight});
+  const TargetShotParameters({required this.targetWeight});
 }
 
 enum ShotState {
