@@ -18,7 +18,7 @@ class ShotController {
       required this.de1controller,
       TargetShotParameters? targetShot})
       : _targetShot = targetShot {
-    Future.value(_initialize).then((_) {
+    Future.value(_initialize()).then((_) {
       _log.info("ShotController initialized");
     });
   }
