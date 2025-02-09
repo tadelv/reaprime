@@ -17,7 +17,7 @@ class BatteryController {
       var batteyState = await _battery.batteryState;
       _log.fine("checking battery: ${chargeLevel}, ${batteyState.name}");
       try {
-        var de1 = await _controller.connectedDe1();
+        var de1 = _controller.connectedDe1();
         if (chargeLevel < 30) {
           await de1.setUsbChargerMode(true);
         } else if (chargeLevel > 70) {

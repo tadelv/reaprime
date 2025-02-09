@@ -21,7 +21,6 @@ class ShotController {
     Future.value(_initialize).then((_) {
       _log.info("ShotController initialized");
     });
-    _initialize();
   }
 
   Future<void> _initialize() async {

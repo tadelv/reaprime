@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
@@ -34,6 +36,20 @@ void main() async {
   PrintAppender(formatter: ColorFormatter()).attachToLogger(Logger.root);
 
   final log = Logger("Main");
+
+  if (Platform.isAndroid) {
+    var dir = Directory('/storage/emulated/0/Download/REA1');
+
+    try {
+      dir.createSync();
+      RotatingFileAppender(
+        formatter: const DefaultLogRecordFormatter(),
+        baseFilePath: '${dir.path}/log.txt',
+      ).attachToLogger(Logger.root);
+    } catch (e) {
+      log.severe('failed to create log file', e);
+    }
+  }
 
   final List<DeviceDiscoveryService> services = [
     BleDiscoveryService({

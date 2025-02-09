@@ -215,7 +215,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
             ),
             clipData: FlClipData.all(),
           ),
-          duration: Duration(milliseconds: 150),
+          duration: Duration(milliseconds: 300),
           curve: Curves.easeInOutCubic,
         ),
       ),
