@@ -10,6 +10,7 @@ class BatteryController {
   late Timer _batteryCheckTimer;
   final Battery _battery = Battery();
   final Logger _log = Logger("Battery");
+  bool _isCharging = false;
 
   BatteryController(this._controller) {
     _batteryCheckTimer = Timer.periodic(Duration(minutes: 1), (Timer t) async {
@@ -19,10 +20,12 @@ class BatteryController {
       try {
         var de1 = _controller.connectedDe1();
         if (chargeLevel < 30) {
-          await de1.setUsbChargerMode(true);
+          _isCharging = true;
         } else if (chargeLevel > 70) {
-          await de1.setUsbChargerMode(false);
+          _isCharging = false;
         }
+        // Force charge mode, otherwise it's reset after 10mins
+        await de1.setUsbChargerMode(_isCharging);
       } catch (e) {
         _log.warning("failed to set charger mode", e);
       }
