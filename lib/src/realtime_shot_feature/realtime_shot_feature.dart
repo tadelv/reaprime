@@ -107,33 +107,43 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
           SizedBox(
             width: 150,
             child: Text(
-                "${_shotSnapshots.lastOrNull?.machine.flow.toStringAsFixed(1)}ml/s"),
+              "${_shotSnapshots.lastOrNull?.machine.flow.toStringAsFixed(1)}ml/s",
+              style: TextStyle(color: Colors.blue),
+            ),
           ),
           Spacer(),
           SizedBox(
             width: 150,
             child: Text(
-                "${_shotSnapshots.lastOrNull?.machine.pressure.toStringAsFixed(1)}bar"),
+              "${_shotSnapshots.lastOrNull?.machine.pressure.toStringAsFixed(1)}bar",
+              style: TextStyle(color: Colors.green),
+            ),
           ),
           Spacer(),
           SizedBox(
             width: 150,
             child: Text(
-                "GT: ${_shotSnapshots.lastOrNull?.machine.groupTemperature.toStringAsFixed(1)}℃"),
+              "GT: ${_shotSnapshots.lastOrNull?.machine.groupTemperature.toStringAsFixed(1)}℃",
+              style: TextStyle(color: Colors.red),
+            ),
           ),
           Spacer(),
           if (_shotSnapshots.lastOrNull?.scale != null)
             SizedBox(
               width: 150,
               child: Text(
-                  "W: ${_shotSnapshots.lastOrNull?.scale?.weight.toStringAsFixed(1)}g"),
+                "W: ${_shotSnapshots.lastOrNull?.scale?.weight.toStringAsFixed(1)}g",
+                style: TextStyle(color: Colors.purpleAccent),
+              ),
             ),
           if (_shotSnapshots.lastOrNull?.scale != null) Spacer(),
           if (_shotSnapshots.lastOrNull?.scale != null)
             SizedBox(
-						width: 150,
+              width: 150,
               child: Text(
-                  "WF: ${_shotSnapshots.lastOrNull?.scale?.weightFlow.toStringAsFixed(1)}g/s"),
+                "WF: ${_shotSnapshots.lastOrNull?.scale?.weightFlow.toStringAsFixed(1)}g/s",
+                style: TextStyle(color: Colors.purple),
+              ),
             ),
           Spacer(),
         ],

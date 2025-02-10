@@ -50,7 +50,7 @@ class ScaleController {
 
   double? _lastWeight;
   DateTime? _lastTimestamp;
-  MovingAverage weightFlowAverage = MovingAverage(10);
+  MovingAverage weightFlowAverage = MovingAverage(20);
 
   _processSnapshot(ScaleSnapshot snapshot) {
     // calculate weight flow
