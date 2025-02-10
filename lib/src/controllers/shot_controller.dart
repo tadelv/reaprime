@@ -101,6 +101,7 @@ class ShotController {
   }
 
   bool dataCollectionEnabled = false;
+  Future<void>? _stoppingStateFuture;
 
   void _handleStateTransition(ShotSnapshot snapshot) {
     final MachineSnapshot machine = snapshot.machine;
@@ -160,7 +161,10 @@ class ShotController {
         break;
 
       case ShotState.stopping:
-        Future.delayed(Duration(seconds: 4), () {
+        if (_stoppingStateFuture != null) {
+          break;
+        }
+        _stoppingStateFuture = Future.delayed(Duration(seconds: 4), () {
           _log.info("Recording finished.");
           _state = ShotState.finished;
           _stateStream.add(_state);
@@ -170,6 +174,7 @@ class ShotController {
       case ShotState.finished:
         // Reset or prepare for next shot
         dataCollectionEnabled = false;
+        _stoppingStateFuture = null;
         _state = ShotState.idle;
         _stateStream.add(_state);
         break;
