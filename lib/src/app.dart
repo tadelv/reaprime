@@ -185,7 +185,7 @@ class MyApp extends StatelessWidget {
                         scaleController: scaleController,
                         de1controller: de1Controller,
                         persistenceController: persistenceController,
-                        targetShot: workflowController.targetShotParameters,
+                        doseData: workflowController.currentWorkflow.doseData,
                       ),
                       workflowController: workflowController,
                     );

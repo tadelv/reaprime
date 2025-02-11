@@ -37,7 +37,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
   @override
   initState() {
     super.initState();
-		_shotController = widget.shotController;
+    _shotController = widget.shotController;
     _resetCommandSubscription = _shotController.resetCommand.listen((event) {
       setState(() {
         _shotSnapshots.clear();
@@ -61,7 +61,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
               id: DateTime.now().toIso8601String(),
               timestamp: _shotController.shotStartTime,
               measurements: _shotSnapshots,
-              workflow: widget.workflowController.currentWorkflow(),
+              workflow: widget.workflowController.currentWorkflow,
             ),
           );
         }
@@ -156,16 +156,15 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
   }
 
   String _currentStep() {
-    if (widget.workflowController.loadedProfile == null ||
-        _shotSnapshots.lastOrNull == null) {
-      return "Unknown";
-    }
     if (_shotSnapshots.last.machine.state.substate ==
         MachineSubstate.preparingForShot) {
       return "Preheat";
     }
-    Profile profile = widget.workflowController.loadedProfile!;
-    int lastFrame = _shotSnapshots.lastOrNull!.machine.profileFrame;
+    Profile profile = widget.workflowController.currentWorkflow.profile;
+    var lastFrame = _shotSnapshots.lastOrNull?.machine.profileFrame;
+    if (lastFrame == null) {
+      return "Unknown";
+    }
     return profile.steps[lastFrame].name;
   }
 

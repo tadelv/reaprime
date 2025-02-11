@@ -5,9 +5,9 @@ import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
+import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
-import 'package:reaprime/src/models/data/shot_parameters.dart';
 import 'package:rxdart/rxdart.dart';
 
 class ShotController {
@@ -17,12 +17,12 @@ class ShotController {
 
   final Logger _log = Logger("ShotController");
 
-  ShotController(
-      {required this.scaleController,
-      required this.de1controller,
-      required this.persistenceController,
-      TargetShotParameters? targetShot})
-      : _targetShot = targetShot {
+  ShotController({
+    required this.scaleController,
+    required this.de1controller,
+    required this.persistenceController,
+    required this.doseData,
+  }) {
     Future.value(_initialize()).then((_) {
       _log.info("ShotController initialized");
     });
@@ -93,7 +93,7 @@ class ShotController {
   DateTime _shotStartTime = DateTime.now();
   DateTime get shotStartTime => _shotStartTime;
 
-  final TargetShotParameters? _targetShot;
+  final DoseData doseData;
   ShotState _state = ShotState.idle;
 
   _processSnapshot(ShotSnapshot snapshot) {
@@ -146,11 +146,11 @@ class ShotController {
         break;
 
       case ShotState.pouring:
-        if (scale != null && _targetShot != null) {
+        if (scale != null) {
           double currentWeight = scale.weight;
-          if (currentWeight >= _targetShot.targetWeight) {
+          if (currentWeight >= doseData.doseOut) {
             _log.info(
-                "Target weight ${_targetShot.targetWeight}g reached. Stopping shot.");
+                "Target weight ${doseData.doseOut}g reached. Stopping shot.");
             de1controller.connectedDe1().requestState(
                 MachineState.idle); // Send stop command to machine
             _state = ShotState.stopping;

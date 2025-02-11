@@ -36,8 +36,8 @@ class Profile {
       steps: (json['steps'] as List)
           .map((step) => ProfileStep.fromJson(step))
           .toList(),
-      targetVolume: parseDouble(json['target_volume']),
-      targetWeight: parseDouble(json['target_weight']),
+      targetVolume: parseOptionalDouble(json['target_volume']),
+      targetWeight: parseOptionalDouble(json['target_weight']),
       targetVolumeCountStart: parseInt(json['target_volume_count_start']),
       tankTemperature: parseDouble(json['tank_temperature']),
     );
@@ -182,7 +182,7 @@ class ProfileStepPressure extends ProfileStep {
           : null,
       volume: parseDouble(json['volume']),
       seconds: parseDouble(json['seconds']),
-      weight: parseDouble(json['weight']),
+      weight: parseOptionalDouble(json['weight']),
       temperature: parseDouble(json['temperature']),
       sensor: TemperatureSensor.values.byName(json['sensor']),
       limiter: json['limiter'] != null
@@ -239,7 +239,7 @@ class ProfileStepFlow extends ProfileStep {
           : null,
       volume: parseDouble(json['volume']),
       seconds: parseDouble(json['seconds']),
-      weight: parseDouble(json['weight']),
+      weight: parseOptionalDouble(json['weight']),
       temperature: parseDouble(json['temperature']),
       sensor: TemperatureSensor.values.byName(json['sensor']),
       limiter: json['limiter'] != null
@@ -296,6 +296,13 @@ double parseDouble(dynamic value) {
   if (value is double) return value;
   if (value is int) return value.toDouble();
   return double.tryParse(value) ?? int.parse(value).toDouble();
+}
+
+double? parseOptionalDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is double) return value;
+  if (value is int) return value.toDouble();
+  return double.tryParse(value) ?? int.tryParse(value)?.toDouble();
 }
 
 int parseInt(dynamic value) {

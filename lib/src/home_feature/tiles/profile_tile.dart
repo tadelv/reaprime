@@ -9,7 +9,6 @@ import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:reaprime/src/models/data/shot_parameters.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class ProfileTile extends StatefulWidget {
@@ -27,9 +26,14 @@ class ProfileTile extends StatefulWidget {
 
 class _ProfileState extends State<ProfileTile> {
   Profile? loadedProfile;
-  TargetShotParameters shotParameters = TargetShotParameters(targetWeight: 0.0);
 
   final Logger _log = Logger('ProfileTile');
+
+  @override
+  void initState() {
+    loadedProfile = widget.workflowController.currentWorkflow.profile;
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,11 +56,10 @@ class _ProfileState extends State<ProfileTile> {
                     widget.de1controller
                         .connectedDe1()
                         .setProfile(loadedProfile!);
-                    widget.workflowController.loadedProfile = loadedProfile;
-                    shotParameters = TargetShotParameters(
-                        targetWeight: loadedProfile!.targetWeight ?? 0.0);
-                    widget.workflowController.targetShotParameters =
-                        shotParameters;
+                    widget.workflowController.currentWorkflow.profile =
+                        loadedProfile!;
+                    widget.workflowController.currentWorkflow.doseData.doseOut =
+                        loadedProfile!.targetWeight ?? 36.0;
                     _log.fine('Loaded profile: ${loadedProfile!.title}');
                     _log.fine('Target weight: ${loadedProfile!.targetWeight}');
                   });
@@ -256,6 +259,8 @@ class _ProfileState extends State<ProfileTile> {
   final weightPopoverController = ShadPopoverController();
 
   ShadPopover _weightPopover(BuildContext context) {
+	var doseIn = widget.workflowController.currentWorkflow.doseData.doseIn.toStringAsFixed(1);
+	var doseOut = widget.workflowController.currentWorkflow.doseData.doseOut.toStringAsFixed(1);
     return ShadPopover(
       controller: weightPopoverController,
       popover: (context) => SizedBox(
@@ -268,7 +273,24 @@ class _ProfileState extends State<ProfileTile> {
                 Text("Input dose"),
                 Expanded(
                   child: ShadInput(
-                    initialValue: 0.0.toStringAsFixed(1),
+                    key: Key(widget
+                        .workflowController.currentWorkflow.doseData.doseIn
+                        .toString()),
+                    keyboardType:
+                        TextInputType.numberWithOptions(decimal: true),
+                    initialValue: widget
+                        .workflowController.currentWorkflow.doseData.doseIn
+                        .toStringAsFixed(1),
+                    onSubmitted: (val) {
+                      setState(() {
+                        var ratio = widget
+                            .workflowController.currentWorkflow.doseData.ratio;
+                        widget.workflowController.currentWorkflow.doseData
+                            .doseIn = double.parse(val);
+                        widget.workflowController.currentWorkflow.doseData
+                            .setRatio(ratio);
+                      });
+                    },
                   ),
                 ),
               ],
@@ -278,7 +300,20 @@ class _ProfileState extends State<ProfileTile> {
                 Text("Ratio 1:"),
                 Expanded(
                   child: ShadInput(
-                    initialValue: 0.0.toStringAsFixed(1),
+                    key: Key(widget
+                        .workflowController.currentWorkflow.doseData.ratio
+                        .toString()),
+                    keyboardType:
+                        TextInputType.numberWithOptions(decimal: true),
+                    initialValue: widget
+                        .workflowController.currentWorkflow.doseData.ratio
+                        .toStringAsFixed(1),
+                    onSubmitted: (val) {
+                      setState(() {
+                        widget.workflowController.currentWorkflow.doseData
+                            .setRatio(double.parse(val));
+                      });
+                    },
                   ),
                 ),
               ],
@@ -288,7 +323,20 @@ class _ProfileState extends State<ProfileTile> {
                 Text("Target weight"),
                 Expanded(
                   child: ShadInput(
-                    initialValue: 0.0.toStringAsFixed(1),
+                    key: Key(widget
+                        .workflowController.currentWorkflow.doseData.doseOut
+                        .toString()),
+                    keyboardType:
+                        TextInputType.numberWithOptions(decimal: true),
+                    initialValue: widget
+                        .workflowController.currentWorkflow.doseData.doseOut
+                        .toStringAsFixed(1),
+                    onSubmitted: (val) {
+                      setState(() {
+                        widget.workflowController.currentWorkflow.doseData
+                            .doseOut = double.parse(val);
+                      });
+                    },
                   ),
                 ),
               ],
@@ -300,8 +348,7 @@ class _ProfileState extends State<ProfileTile> {
         onPressed: () {
           weightPopoverController.toggle();
         },
-        child: Text(
-            "${widget.workflowController.targetShotParameters?.targetWeight.toStringAsFixed(1)}"),
+        child: Text("$doseIn : $doseOut"),
       ),
     );
   }
