@@ -2,20 +2,25 @@ import 'dart:async';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
+import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
+import 'package:reaprime/src/models/data/shot_parameters.dart';
 import 'package:rxdart/rxdart.dart';
 
 class ShotController {
   final De1Controller de1controller;
   final ScaleController scaleController;
+  final PersistenceController persistenceController;
 
   final Logger _log = Logger("ShotController");
 
   ShotController(
       {required this.scaleController,
       required this.de1controller,
+      required this.persistenceController,
       TargetShotParameters? targetShot})
       : _targetShot = targetShot {
     Future.value(_initialize()).then((_) {
@@ -181,26 +186,6 @@ class ShotController {
     }
     _log.finest("State out: ${_state.name}");
   }
-}
-
-class ShotSnapshot {
-  final MachineSnapshot machine;
-  final WeightSnapshot? scale;
-
-  ShotSnapshot({required this.machine, this.scale});
-
-  copyWith({MachineSnapshot? machine, WeightSnapshot? scale}) {
-    return ShotSnapshot(
-      machine: machine ?? this.machine,
-      scale: scale ?? this.scale,
-    );
-  }
-}
-
-class TargetShotParameters {
-  final double targetWeight;
-
-  const TargetShotParameters({required this.targetWeight});
 }
 
 enum ShotState {

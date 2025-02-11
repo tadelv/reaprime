@@ -30,6 +30,7 @@ dependencies:
   file_picker: ^8.3.1
   fl_chart: ^0.70.2
   flutter_launcher_icons: ^0.14.3
+  uuid: ^4.5.1
   
 dev_dependencies:
   flutter_test:

@@ -3,25 +3,23 @@ import 'dart:async';
 import 'package:collection/collection.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:reaprime/src/controllers/de1_controller.dart';
-import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/shot_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
+import 'package:reaprime/src/models/data/shot_record.dart';
+import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class RealtimeShotFeature extends StatefulWidget {
   static const routeName = '/shot';
 
-  final De1Controller de1controller;
-  final ScaleController scaleController;
+  final ShotController shotController;
   final WorkflowController workflowController;
 
   const RealtimeShotFeature({
     super.key,
-    required this.de1controller,
-    required this.scaleController,
+    required this.shotController,
     required this.workflowController,
   });
 
@@ -39,11 +37,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
   @override
   initState() {
     super.initState();
-    _shotController = ShotController(
-      de1controller: widget.de1controller,
-      scaleController: widget.scaleController,
-      targetShot: widget.workflowController.targetShotParameters,
-    );
+		_shotController = widget.shotController;
     _resetCommandSubscription = _shotController.resetCommand.listen((event) {
       setState(() {
         _shotSnapshots.clear();
@@ -60,6 +54,16 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
           backEnabled = false;
         } else {
           backEnabled = true;
+        }
+        if (state == ShotState.finished) {
+          _shotController.persistenceController.persistShot(
+            ShotRecord(
+              id: DateTime.now().toIso8601String(),
+              timestamp: _shotController.shotStartTime,
+              measurements: _shotSnapshots,
+              workflow: widget.workflowController.currentWorkflow(),
+            ),
+          );
         }
       });
     });
@@ -367,14 +371,16 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
         ShadButton.destructive(
           enabled: !backEnabled,
           onPressed: () {
-            widget.de1controller.connectedDe1().requestState(MachineState.idle);
+            widget.shotController.de1controller
+                .connectedDe1()
+                .requestState(MachineState.idle);
           },
           child: Text('Stop Shot'),
         ),
         ShadButton.secondary(
           enabled: !backEnabled,
           onPressed: () {
-            widget.de1controller
+            widget.shotController.de1controller
                 .connectedDe1()
                 .requestState(MachineState.skipStep);
           },

@@ -57,8 +57,8 @@ class ScaleController {
     var weightFlow = 0.0;
     if (_lastWeight != null) {
       var difference = snapshot.weight - _lastWeight!;
-      weightFlow =
-          difference / snapshot.timestamp.difference(_lastTimestamp!).inMilliseconds;
+      weightFlow = difference /
+          snapshot.timestamp.difference(_lastTimestamp!).inMilliseconds;
       weightFlowAverage.add(weightFlow * 1000);
     }
     _lastWeight = snapshot.weight;
@@ -91,4 +91,20 @@ class WeightSnapshot {
     required this.weight,
     required this.weightFlow,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      "timestamp": timestamp.toIso8601String(),
+      "weight": weight,
+      "weightFlow": weightFlow,
+    };
+  }
+
+  factory WeightSnapshot.fromJson(Map<String, dynamic> json) {
+    return WeightSnapshot(
+      timestamp: DateTime.parse(json["timestamp"]),
+      weight: json["weight"],
+      weightFlow: json["weightFlow"],
+    );
+  }
 }

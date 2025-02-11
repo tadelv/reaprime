@@ -1,3 +1,5 @@
+import 'package:flutter/cupertino.dart';
+
 /// Trying to imitate the common v2 profile as close as reasonable
 class Profile {
   final String? version;
@@ -178,16 +180,15 @@ class ProfileStepPressure extends ProfileStep {
       exit: json['exit'] != null
           ? StepExitCondition.fromJson(json['exit'])
           : null,
-      volume: double.parse(json['volume']),
-      seconds: double.parse(json['seconds']),
-      weight: double.parse(json['weight']),
-      temperature: double.parse(json['temperature']),
+      volume: parseDouble(json['volume']),
+      seconds: parseDouble(json['seconds']),
+      weight: parseDouble(json['weight']),
+      temperature: parseDouble(json['temperature']),
       sensor: TemperatureSensor.values.byName(json['sensor']),
       limiter: json['limiter'] != null
           ? StepLimiter.fromJson(json['limiter'])
           : null,
-      pressure: double.tryParse(json['pressure']) ??
-          int.parse(json['pressure']).toDouble(),
+      pressure: parseDouble(json['pressure']),
     );
   }
 
@@ -195,6 +196,7 @@ class ProfileStepPressure extends ProfileStep {
   Map<String, dynamic> toJson() {
     final data = {
       'name': name,
+      'pump': 'pressure',
       'transition': transition.name,
       'exit': exit?.toJson(),
       'volume': volume,
@@ -235,15 +237,15 @@ class ProfileStepFlow extends ProfileStep {
       exit: json['exit'] != null
           ? StepExitCondition.fromJson(json['exit'])
           : null,
-      volume: double.parse(json['volume']),
-      seconds: double.parse(json['seconds']),
-      weight: double.parse(json['weight']),
-      temperature: double.parse(json['temperature']),
+      volume: parseDouble(json['volume']),
+      seconds: parseDouble(json['seconds']),
+      weight: parseDouble(json['weight']),
+      temperature: parseDouble(json['temperature']),
       sensor: TemperatureSensor.values.byName(json['sensor']),
       limiter: json['limiter'] != null
           ? StepLimiter.fromJson(json['limiter'])
           : null,
-      flow: double.parse(json['flow']),
+      flow: parseDouble(json['flow']),
     );
   }
 
@@ -251,6 +253,7 @@ class ProfileStepFlow extends ProfileStep {
   Map<String, dynamic> toJson() {
     final data = {
       'name': name,
+      'pump': 'flow',
       'transition': transition.name,
       'exit': exit?.toJson(),
       'volume': volume,
@@ -280,7 +283,7 @@ class StepExitCondition {
     return StepExitCondition(
       type: ExitType.values.byName(json['type']),
       condition: ExitCondition.values.byName(json['condition']),
-      value: double.parse(json['value']),
+      value: parseDouble(json['value']),
     );
   }
 

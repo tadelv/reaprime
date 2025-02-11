@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +9,7 @@ import 'package:logging_appenders/logging_appenders.dart';
 import 'package:reaprime/src/controllers/battery_controller.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/device/device.dart';
@@ -16,6 +18,7 @@ import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
 import 'package:reaprime/src/models/device/impl/felicita/arc.dart';
 import 'package:reaprime/src/services/ble_discovery_service.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
+import 'package:reaprime/src/services/storage/file_storage_service.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
 
 import 'src/app.dart';
@@ -38,9 +41,8 @@ void main() async {
   final log = Logger("Main");
 
   if (Platform.isAndroid) {
-    var dir = Directory('/storage/emulated/0/Download/REA1');
-
     try {
+      var dir = Directory('/storage/emulated/0/Download/REA1');
       dir.createSync();
       RotatingFileAppender(
         formatter: const DefaultLogRecordFormatter(),
@@ -64,6 +66,11 @@ void main() async {
     services.add(SimulatedDeviceService());
     log.shout("adding Simulated Service");
   }
+  var storagePath = await getApplicationDocumentsDirectory();
+  //var storagePath = await getDownloadsDirectory();
+  final persistenceController = PersistenceController(
+    storageService: FileStorageService(path: storagePath),
+  );
 
   final settingsController = SettingsController(SettingsService());
   final deviceController = DeviceController(services);
@@ -93,6 +100,7 @@ void main() async {
         de1Controller: de1Controller,
         scaleController: scaleController,
         workflowController: workflowController,
+        persistenceController: persistenceController,
       ),
     ),
   );

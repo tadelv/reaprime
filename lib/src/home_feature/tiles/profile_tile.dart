@@ -6,10 +6,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
-import 'package:reaprime/src/controllers/shot_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:reaprime/src/models/data/shot_parameters.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class ProfileTile extends StatefulWidget {
@@ -246,28 +246,63 @@ class _ProfileState extends State<ProfileTile> {
         height: 64,
         child: Row(
           children: [
-            ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: 100,
-              ),
-              child: ShadInput(
-                key: Key(shotParameters.targetWeight.toStringAsFixed(1)),
-                initialValue: shotParameters.targetWeight.toStringAsFixed(1),
-                placeholder: Text("Target weight"),
-                keyboardType: TextInputType.numberWithOptions(),
-                onSubmitted: (val) {
-                  setState(() {
-                    shotParameters =
-                        TargetShotParameters(targetWeight: double.parse(val));
-                    widget.workflowController.targetShotParameters =
-                        TargetShotParameters(targetWeight: double.parse(val));
-                  });
-                },
-              ),
-            ),
+            _weightPopover(context),
           ],
         ),
       )
     ];
+  }
+
+  final weightPopoverController = ShadPopoverController();
+
+  ShadPopover _weightPopover(BuildContext context) {
+    return ShadPopover(
+      controller: weightPopoverController,
+      popover: (context) => SizedBox(
+        width: 288,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Text("Input dose"),
+                Expanded(
+                  child: ShadInput(
+                    initialValue: 0.0.toStringAsFixed(1),
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Text("Ratio 1:"),
+                Expanded(
+                  child: ShadInput(
+                    initialValue: 0.0.toStringAsFixed(1),
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Text("Target weight"),
+                Expanded(
+                  child: ShadInput(
+                    initialValue: 0.0.toStringAsFixed(1),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      child: ShadButton.link(
+        onPressed: () {
+          weightPopoverController.toggle();
+        },
+        child: Text(
+            "${widget.workflowController.targetShotParameters?.targetWeight.toStringAsFixed(1)}"),
+      ),
+    );
   }
 }

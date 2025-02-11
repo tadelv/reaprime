@@ -1,4 +1,5 @@
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/home_feature/tiles/profile_tile.dart';
@@ -15,12 +16,14 @@ class HomeScreen extends StatelessWidget {
     required this.de1controller,
     required this.scaleController,
     required this.workflowController,
+    required this.persistenceController,
   });
 
   final DeviceController deviceController;
   final De1Controller de1controller;
   final ScaleController scaleController;
   final WorkflowController workflowController;
+  final PersistenceController persistenceController;
 
   final double _leftColumWidth = 400;
 
@@ -97,12 +100,13 @@ class HomeScreen extends StatelessWidget {
       builder: (context, de1Available) {
         if (de1Available.hasData) {
           return SizedBox(
-              child: StatusTile(
-            de1: de1Available.data!,
-            controller: de1controller,
-            scaleController: scaleController,
-            deviceController: deviceController,
-          ));
+            child: StatusTile(
+              de1: de1Available.data!,
+              controller: de1controller,
+              scaleController: scaleController,
+              deviceController: deviceController,
+            ),
+          );
         } else {
           return Text("Connecting to DE1");
         }
@@ -124,15 +128,22 @@ class HomeScreen extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('Name'),
-              const ShadInput(placeholder: Text('Name of your project')),
-              const SizedBox(height: 6),
-              const Text('Framework'),
-              ShadButton(
-                  onPressed: () {
-                    print("f");
-                  },
-                  child: Text("Press")),
+              FutureBuilder(
+                  future: persistenceController.loadShots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Center(child: CircularProgressIndicator());
+                    } else if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    } else if (snapshot.hasData) {
+                      return Center(
+                          child: Text(snapshot
+                                  .data!.firstOrNull?.workflow.profile.title
+                                  .toString() ??
+                              "No"));
+                    }
+                    return Center(child: Text('No data found.'));
+                  })
             ],
           ),
         ));

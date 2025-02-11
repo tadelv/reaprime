@@ -4,6 +4,8 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:reaprime/src/controllers/persistence_controller.dart';
+import 'package:reaprime/src/controllers/shot_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
@@ -47,6 +49,7 @@ class MyApp extends StatelessWidget {
     required this.de1Controller,
     required this.scaleController,
     required this.workflowController,
+    required this.persistenceController,
   });
 
   final SettingsController settingsController;
@@ -54,6 +57,7 @@ class MyApp extends StatelessWidget {
   final De1Controller de1Controller;
   final ScaleController scaleController;
   final WorkflowController workflowController;
+  final PersistenceController persistenceController;
 
   @override
   Widget build(BuildContext context) {
@@ -173,11 +177,16 @@ class MyApp extends StatelessWidget {
                       workflowController: workflowController,
                       scaleController: scaleController,
                       deviceController: deviceController,
+                      persistenceController: persistenceController,
                     );
                   case RealtimeShotFeature.routeName:
                     return RealtimeShotFeature(
-                      de1controller: de1Controller,
-                      scaleController: scaleController,
+                      shotController: ShotController(
+                        scaleController: scaleController,
+                        de1controller: de1Controller,
+                        persistenceController: persistenceController,
+                        targetShot: workflowController.targetShotParameters,
+                      ),
                       workflowController: workflowController,
                     );
                   default:
@@ -188,6 +197,7 @@ class MyApp extends StatelessWidget {
                         workflowController: workflowController,
                         scaleController: scaleController,
                         deviceController: deviceController,
+                        persistenceController: persistenceController,
                       );
                     } else {
                       return SampleItemListView(controller: deviceController);

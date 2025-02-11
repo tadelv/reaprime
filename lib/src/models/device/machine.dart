@@ -83,6 +83,28 @@ class MachineSnapshot {
       'steamTemperature': steamTemperature,
     };
   }
+
+  factory MachineSnapshot.fromJson(Map<String, dynamic> json) {
+    return MachineSnapshot(
+      timestamp: DateTime.parse(json["timestamp"]),
+      state: MachineStateSnapshot(
+        state: MachineState.values
+            .firstWhere((e) => e.name == json["state"]["state"]),
+        substate: MachineSubstate.values
+            .firstWhere((e) => e.name == json["state"]["substate"]),
+      ),
+      flow: json["flow"],
+      pressure: json["pressure"],
+      targetFlow: json["targetFlow"],
+      targetPressure: json["targetPressure"],
+      mixTemperature: json["mixTemperature"],
+      groupTemperature: json["groupTemperature"],
+      targetMixTemperature: json["targetMixTemperature"],
+      targetGroupTemperature: json["targetGroupTemperature"],
+      profileFrame: json["profileFrame"],
+      steamTemperature: json["steamTemperature"],
+    );
+  }
 }
 
 enum MachineState {
