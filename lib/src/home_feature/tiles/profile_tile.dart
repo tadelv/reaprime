@@ -259,9 +259,12 @@ class _ProfileState extends State<ProfileTile> {
   final weightPopoverController = ShadPopoverController();
 
   ShadPopover _weightPopover(BuildContext context) {
-	var doseIn = widget.workflowController.currentWorkflow.doseData.doseIn.toStringAsFixed(1);
-	var doseOut = widget.workflowController.currentWorkflow.doseData.doseOut.toStringAsFixed(1);
+    var doseIn = widget.workflowController.currentWorkflow.doseData.doseIn
+        .toStringAsFixed(1);
+    var doseOut = widget.workflowController.currentWorkflow.doseData.doseOut
+        .toStringAsFixed(1);
     return ShadPopover(
+      anchor: ShadAnchorAuto(verticalOffset: 20, preferBelow: false, followTargetOnResize: true),
       controller: weightPopoverController,
       popover: (context) => SizedBox(
         width: 288,
