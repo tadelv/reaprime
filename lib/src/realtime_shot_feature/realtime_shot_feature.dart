@@ -156,8 +156,9 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
   }
 
   String _currentStep() {
-    if (_shotSnapshots.last.machine.state.substate ==
-        MachineSubstate.preparingForShot) {
+    if (_shotSnapshots.isEmpty ||
+        _shotSnapshots.last.machine.state.substate ==
+            MachineSubstate.preparingForShot) {
       return "Preheat";
     }
     Profile profile = widget.workflowController.currentWorkflow.profile;

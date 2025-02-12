@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/util/moving_average.dart';
@@ -57,9 +59,22 @@ class ScaleController {
     var weightFlow = 0.0;
     if (_lastWeight != null) {
       var difference = snapshot.weight - _lastWeight!;
-      weightFlow = difference /
+      log.finest("weight diff: ${difference.toStringAsFixed(3)}");
+      weightFlow = (difference * 1000) /
           snapshot.timestamp.difference(_lastTimestamp!).inMilliseconds;
-      weightFlowAverage.add(weightFlow * 1000);
+      log.finest("raw flow: ${weightFlow.toStringAsFixed(3)}");
+      log.finest(
+          "ms difference: ${snapshot.timestamp.difference(_lastTimestamp!).inMilliseconds}");
+      if (!weightFlow.isNaN && !weightFlow.isInfinite) {
+        weightFlow = weightFlow.abs();
+        weightFlow = max(0, min(weightFlow, 8.0));
+        log.finest("smoothed flow: ${weightFlow.toStringAsFixed(3)}");
+        weightFlowAverage.add(weightFlow);
+        log.finest(
+            "new average: ${weightFlowAverage.average.toStringAsFixed(3)}");
+      } else {
+        weightFlowAverage.add(0);
+      }
     }
     _lastWeight = snapshot.weight;
     _lastTimestamp = snapshot.timestamp;
