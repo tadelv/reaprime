@@ -9,6 +9,7 @@ import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class ProfileTile extends StatefulWidget {
@@ -250,6 +251,8 @@ class _ProfileState extends State<ProfileTile> {
         child: Row(
           children: [
             _weightPopover(context),
+            _grinderPopover(context),
+            _coffeePopover(context),
           ],
         ),
       )
@@ -264,7 +267,8 @@ class _ProfileState extends State<ProfileTile> {
     var doseOut = widget.workflowController.currentWorkflow.doseData.doseOut
         .toStringAsFixed(1);
     return ShadPopover(
-      anchor: ShadAnchorAuto(verticalOffset: 20, preferBelow: false, followTargetOnResize: true),
+      anchor: ShadAnchorAuto(
+          verticalOffset: 20, preferBelow: false, followTargetOnResize: true),
       controller: weightPopoverController,
       popover: (context) => SizedBox(
         width: 288,
@@ -352,6 +356,201 @@ class _ProfileState extends State<ProfileTile> {
           weightPopoverController.toggle();
         },
         child: Text("$doseIn : $doseOut"),
+      ),
+    );
+  }
+
+  final ShadPopoverController _grinderPopoverController =
+      ShadPopoverController();
+
+  ShadPopover _grinderPopover(BuildContext context) {
+    var data = widget.workflowController.currentWorkflow.grinderData;
+
+    return ShadPopover(
+      anchor: ShadAnchorAuto(
+          verticalOffset: 20, preferBelow: false, followTargetOnResize: true),
+      controller: _grinderPopoverController,
+      popover: (context) => SizedBox(
+        width: 320,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Text("Grind setting"),
+                Expanded(
+                  child: ShadInput(
+                    key: Key(
+                      widget.workflowController.currentWorkflow.grinderData
+                              ?.setting ??
+                          "",
+                    ),
+                    initialValue: widget.workflowController.currentWorkflow
+                        .grinderData?.setting,
+                    onSubmitted: (val) {
+                      setState(() {
+                        if (widget.workflowController.currentWorkflow
+                                .grinderData ==
+                            null) {
+                          widget.workflowController.currentWorkflow
+                              .grinderData = GrinderData(setting: val);
+                        } else {
+                          widget.workflowController.currentWorkflow.grinderData!
+                              .setting = val;
+                        }
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Text("Grinder model"),
+                Expanded(
+                  child: ShadInput(
+                    key: Key(widget.workflowController.currentWorkflow
+                            .grinderData?.model ??
+                        ""),
+                    initialValue: widget
+                        .workflowController.currentWorkflow.grinderData?.model,
+                    onSubmitted: (val) {
+                      setState(() {
+                        if (widget.workflowController.currentWorkflow
+                                .grinderData ==
+                            null) {
+                          widget.workflowController.currentWorkflow
+                              .grinderData = GrinderData(model: val);
+                        } else {
+                          widget.workflowController.currentWorkflow.grinderData!
+                              .model = val;
+                        }
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Text("Grinder manufacturer"),
+                Expanded(
+                  child: ShadInput(
+                    key: Key(widget.workflowController.currentWorkflow
+                            .grinderData?.manufacturer ??
+                        ""),
+                    initialValue: widget.workflowController.currentWorkflow
+                        .grinderData?.manufacturer,
+                    onSubmitted: (val) {
+                      setState(() {
+                        if (widget.workflowController.currentWorkflow
+                                .grinderData ==
+                            null) {
+                          widget.workflowController.currentWorkflow
+                              .grinderData = GrinderData(manufacturer: val);
+                        } else {
+                          widget.workflowController.currentWorkflow.grinderData!
+                              .manufacturer = val;
+                        }
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      child: ShadButton.link(
+        onPressed: () {
+          _grinderPopoverController.toggle();
+        },
+        child: Text(data == null
+            ? "Grind settings"
+            : '${data.model == null ? "" : data.model!} ${data.setting}'),
+      ),
+    );
+  }
+
+  final ShadPopoverController _coffeePopoverController =
+      ShadPopoverController();
+
+  ShadPopover _coffeePopover(BuildContext context) {
+    var data = widget.workflowController.currentWorkflow.coffeeData;
+
+    return ShadPopover(
+      anchor: ShadAnchorAuto(
+          verticalOffset: 20, preferBelow: false, followTargetOnResize: true),
+      controller: _coffeePopoverController,
+      popover: (context) => SizedBox(
+        width: 320,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Text("Coffee name"),
+                Expanded(
+                  child: ShadInput(
+                    key: Key(
+                      widget.workflowController.currentWorkflow.coffeeData
+                              ?.name ??
+                          "",
+                    ),
+                    initialValue: widget
+                        .workflowController.currentWorkflow.coffeeData?.name,
+                    onSubmitted: (val) {
+                      setState(() {
+                        if (widget.workflowController.currentWorkflow
+                                .coffeeData ==
+                            null) {
+                          widget.workflowController.currentWorkflow.coffeeData =
+                              CoffeeData(name: val);
+                        } else {
+                          widget.workflowController.currentWorkflow.coffeeData!
+                              .name = val;
+                        }
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Text("Roaster"),
+                Expanded(
+                  child: ShadInput(
+                    key: Key(widget.workflowController.currentWorkflow
+                            .coffeeData?.roaster ??
+                        ""),
+                    initialValue: widget
+                        .workflowController.currentWorkflow.coffeeData?.roaster,
+                    onSubmitted: (val) {
+                      setState(() {
+                        if (widget.workflowController.currentWorkflow
+                                .coffeeData ==
+                            null) {
+                          widget.workflowController.currentWorkflow.coffeeData =
+                              CoffeeData(roaster: val);
+                        } else {
+                          widget.workflowController.currentWorkflow.coffeeData!
+                              .roaster = val;
+                        }
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      child: ShadButton.link(
+        onPressed: () {
+          _coffeePopoverController.toggle();
+        },
+        child: Text(data == null ? "Coffee settings" : "${data.name}"),
       ),
     );
   }

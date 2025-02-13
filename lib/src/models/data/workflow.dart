@@ -1,3 +1,4 @@
+
 import 'package:reaprime/src/models/data/profile.dart';
 
 class Workflow {
@@ -6,20 +7,28 @@ class Workflow {
   final String description;
   Profile profile;
   DoseData doseData;
-  Workflow({
-    required this.id,
-    required this.name,
-    this.description = '',
-    required this.profile,
-    required this.doseData,
-  });
+  GrinderData? grinderData;
+  CoffeeData? coffeeData;
+  Workflow(
+      {required this.id,
+      required this.name,
+      this.description = '',
+      required this.profile,
+      required this.doseData,
+      this.grinderData,
+      this.coffeeData});
   factory Workflow.fromJson(Map<String, dynamic> json) {
     return Workflow(
-        id: json['id'],
-        name: json['name'],
-        description: json['description'],
-        profile: Profile.fromJson(json['profile']),
-        doseData: DoseData.fromJson(json['doseData']));
+      id: json['id'],
+      name: json['name'],
+      description: json['description'],
+      profile: Profile.fromJson(json['profile']),
+      doseData: DoseData.fromJson(json['doseData']),
+      coffeeData: CoffeeData.fromJson(json['coffeeData']),
+      grinderData: GrinderData.fromJson(
+        json['grinderData'],
+      ),
+    );
   }
   Map<String, dynamic> toJson() {
     return {
@@ -28,6 +37,8 @@ class Workflow {
       'description': description,
       'profile': profile.toJson(),
       'doseData': doseData.toJson(),
+      'coffeeData': coffeeData?.toJson(),
+      'grinderData': grinderData?.toJson(),
     };
   }
 }
@@ -54,6 +65,51 @@ class DoseData {
     return {
       'doseIn': doseIn,
       'doseOut': doseOut,
+    };
+  }
+}
+
+class GrinderData {
+  String setting;
+  String? manufacturer;
+  String? model;
+
+  GrinderData({this.setting = "", this.manufacturer, this.model});
+
+  factory GrinderData.fromJson(Map<String, dynamic> json) {
+    return GrinderData(
+      setting: json['setting'],
+      manufacturer: json['manufacturer'],
+      model: json['model'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'setting': setting,
+      'manufacturer': manufacturer,
+      'model': model,
+    };
+  }
+}
+
+class CoffeeData {
+  String? roaster;
+  String name;
+
+  CoffeeData({this.name = '', this.roaster});
+
+  factory CoffeeData.fromJson(Map<String, dynamic> json) {
+    return CoffeeData(
+      name: json['name'],
+      roaster: json['roaster'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'roaster': roaster,
     };
   }
 }
