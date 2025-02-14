@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/home_feature/tiles/status_tile.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   static const routeName = '/home';
   const HomeScreen({
     super.key,
@@ -26,6 +26,11 @@ class HomeScreen extends StatelessWidget {
   final WorkflowController workflowController;
   final PersistenceController persistenceController;
 
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
   final double _leftColumWidth = 400;
 
   @override
@@ -80,8 +85,8 @@ class HomeScreen extends StatelessWidget {
             child: ShadCard(
                 title: Text("Next shot"),
                 child: ProfileTile(
-                  de1controller: de1controller,
-                  workflowController: workflowController,
+                  de1controller: widget.de1controller,
+                  workflowController: widget.workflowController,
                 )),
           ),
           _statusCard(context),
@@ -97,15 +102,15 @@ class HomeScreen extends StatelessWidget {
 
   Widget _de1Status(BuildContext context) {
     return StreamBuilder(
-      stream: de1controller.de1,
+      stream: widget.de1controller.de1,
       builder: (context, de1Available) {
         if (de1Available.hasData) {
           return SizedBox(
             child: StatusTile(
               de1: de1Available.data!,
-              controller: de1controller,
-              scaleController: scaleController,
-              deviceController: deviceController,
+              controller: widget.de1controller,
+              scaleController: widget.scaleController,
+              deviceController: widget.deviceController,
             ),
           );
         } else {
@@ -130,14 +135,19 @@ class HomeScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               FutureBuilder(
-                  future: persistenceController.loadShots(),
+                  future: widget.persistenceController.loadShots(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return Center(child: CircularProgressIndicator());
                     } else if (snapshot.hasError) {
                       return Center(child: Text('Error: ${snapshot.error}'));
                     } else if (snapshot.hasData) {
-                      return Center(child: HistoryTile(persistenceController: persistenceController));
+                      return Center(
+                        child: HistoryTile(
+                          persistenceController: widget.persistenceController,
+                          workflowController: widget.workflowController,
+                        ),
+                      );
                     }
                     return Center(child: Text('No data found.'));
                   }),

@@ -4,6 +4,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
+import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/util/shot_chart.dart';
@@ -11,10 +12,12 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 class HistoryTile extends StatefulWidget {
   final PersistenceController persistenceController;
+  final WorkflowController workflowController;
 
   const HistoryTile({
     super.key,
     required this.persistenceController,
+    required this.workflowController,
   });
 
   @override
@@ -76,6 +79,12 @@ class _HistoryTileState extends State<HistoryTile> {
             },
             enabled: canGoBack,
             child: Icon(LucideIcons.moveLeft),
+          ),
+          ShadButton(
+            onPressed: () {
+              widget.workflowController.setWorkflow(shot.workflow);
+            },
+            child: Text("Repeat"),
           ),
           ShadButton(
             onPressed: () {

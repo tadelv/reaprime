@@ -1,11 +1,12 @@
+import 'package:flutter/material.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:uuid/uuid.dart';
 
-class WorkflowController {
+class WorkflowController extends ChangeNotifier {
   WorkflowController();
 
-  Workflow currentWorkflow = Workflow(
+  Workflow _currentWorkflow = Workflow(
     id: Uuid().v4(),
     name: "Workflow",
     description: "Description",
@@ -21,6 +22,13 @@ class WorkflowController {
       profile: Defaults.createDefaultProfile(),
       doseData: DoseData(doseIn: 18.0, doseOut: 36.0),
     );
+  }
+
+	Workflow get currentWorkflow => _currentWorkflow;
+
+  setWorkflow(Workflow newWorkflow) {
+    _currentWorkflow = newWorkflow;
+		notifyListeners();
   }
 }
 

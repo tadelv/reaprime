@@ -33,7 +33,20 @@ class _ProfileState extends State<ProfileTile> {
   @override
   void initState() {
     loadedProfile = widget.workflowController.currentWorkflow.profile;
+    widget.workflowController.addListener(_workflowChange);
     super.initState();
+  }
+
+  @override
+  void dispose() {
+    widget.workflowController.removeListener(_workflowChange);
+    super.dispose();
+  }
+
+  _workflowChange() {
+    setState(() {
+      loadedProfile = widget.workflowController.currentWorkflow.profile;
+    });
   }
 
   @override
