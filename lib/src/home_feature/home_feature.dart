@@ -2,6 +2,7 @@ import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
+import 'package:reaprime/src/home_feature/tiles/history_tile.dart';
 import 'package:reaprime/src/home_feature/tiles/profile_tile.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter/material.dart';
@@ -136,14 +137,10 @@ class HomeScreen extends StatelessWidget {
                     } else if (snapshot.hasError) {
                       return Center(child: Text('Error: ${snapshot.error}'));
                     } else if (snapshot.hasData) {
-                      return Center(
-                          child: Text(snapshot
-                                  .data!.firstOrNull?.workflow.profile.title
-                                  .toString() ??
-                              "No"));
+                      return Center(child: HistoryTile(persistenceController: persistenceController));
                     }
                     return Center(child: Text('No data found.'));
-                  })
+                  }),
             ],
           ),
         ));
