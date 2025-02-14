@@ -24,9 +24,13 @@ class PersistenceController {
   }
 
   Future<List<ShotRecord>> loadShots() async {
+    var loadedShots = await storageService.getAllShots();
+    _log.fine("shots loaded: ${loadedShots.length}");
     _shots.clear();
-    _shots.addAll(await storageService.getAllShots());
+    _log.fine("shots cleared: ${_shots.length}");
+    _shots.addAll(loadedShots);
     _shotsController.add(_shots);
+    _log.fine("shots changed: ${_shots.length}");
     return _shots;
   }
 

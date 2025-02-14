@@ -1,4 +1,3 @@
-
 import 'package:reaprime/src/models/data/profile.dart';
 
 class Workflow {
@@ -24,10 +23,14 @@ class Workflow {
       description: json['description'],
       profile: Profile.fromJson(json['profile']),
       doseData: DoseData.fromJson(json['doseData']),
-      coffeeData: CoffeeData.fromJson(json['coffeeData']),
-      grinderData: GrinderData.fromJson(
-        json['grinderData'],
-      ),
+      coffeeData: json['coffeeData'] != null
+          ? CoffeeData.fromJson(json['coffeeData'])
+          : null,
+      grinderData: json['grinderData'] != null
+          ? GrinderData.fromJson(
+              json['grinderData'],
+            )
+          : null,
     );
   }
   Map<String, dynamic> toJson() {
