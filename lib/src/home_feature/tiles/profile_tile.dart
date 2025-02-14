@@ -70,8 +70,11 @@ class _ProfileState extends State<ProfileTile> {
                     widget.de1controller
                         .connectedDe1()
                         .setProfile(loadedProfile!);
-                    widget.workflowController.currentWorkflow.profile =
-                        loadedProfile!;
+                    widget.workflowController.setWorkflow(
+                      widget.workflowController.currentWorkflow.copyWith(
+                        profile: loadedProfile!,
+                      ),
+                    );
                     widget.workflowController.currentWorkflow.doseData.doseOut =
                         loadedProfile!.targetWeight ?? 36.0;
                     _log.fine('Loaded profile: ${loadedProfile!.title}');
@@ -405,11 +408,20 @@ class _ProfileState extends State<ProfileTile> {
                         if (widget.workflowController.currentWorkflow
                                 .grinderData ==
                             null) {
-                          widget.workflowController.currentWorkflow
-                              .grinderData = GrinderData(setting: val);
+                          widget.workflowController.setWorkflow(
+                            widget.workflowController.currentWorkflow.copyWith(
+                              grinderData: GrinderData(
+                                setting: val,
+                              ),
+                            ),
+                          );
                         } else {
-                          widget.workflowController.currentWorkflow.grinderData!
-                              .setting = val;
+                          widget.workflowController.setWorkflow(
+                            widget.workflowController.currentWorkflow.copyWith(
+                                grinderData: widget.workflowController
+                                    .currentWorkflow.grinderData!
+                                  ..setting = val),
+                          );
                         }
                       });
                     },
@@ -432,11 +444,20 @@ class _ProfileState extends State<ProfileTile> {
                         if (widget.workflowController.currentWorkflow
                                 .grinderData ==
                             null) {
-                          widget.workflowController.currentWorkflow
-                              .grinderData = GrinderData(model: val);
+                          widget.workflowController.setWorkflow(
+                            widget.workflowController.currentWorkflow.copyWith(
+                              grinderData: GrinderData(
+                                model: val,
+                              ),
+                            ),
+                          );
                         } else {
-                          widget.workflowController.currentWorkflow.grinderData!
-                              .model = val;
+                          widget.workflowController.setWorkflow(
+                            widget.workflowController.currentWorkflow.copyWith(
+                                grinderData: widget.workflowController
+                                    .currentWorkflow.grinderData!
+                                  ..model = val),
+                          );
                         }
                       });
                     },
@@ -459,11 +480,20 @@ class _ProfileState extends State<ProfileTile> {
                         if (widget.workflowController.currentWorkflow
                                 .grinderData ==
                             null) {
-                          widget.workflowController.currentWorkflow
-                              .grinderData = GrinderData(manufacturer: val);
+                          widget.workflowController.setWorkflow(
+                            widget.workflowController.currentWorkflow.copyWith(
+                              grinderData: GrinderData(
+                                manufacturer: val,
+                              ),
+                            ),
+                          );
                         } else {
-                          widget.workflowController.currentWorkflow.grinderData!
-                              .manufacturer = val;
+                          widget.workflowController.setWorkflow(
+                            widget.workflowController.currentWorkflow.copyWith(
+                                grinderData: widget.workflowController
+                                    .currentWorkflow.grinderData!
+                                  ..manufacturer = val),
+                          );
                         }
                       });
                     },
@@ -517,11 +547,20 @@ class _ProfileState extends State<ProfileTile> {
                         if (widget.workflowController.currentWorkflow
                                 .coffeeData ==
                             null) {
-                          widget.workflowController.currentWorkflow.coffeeData =
-                              CoffeeData(name: val);
+                          widget.workflowController.setWorkflow(
+                            widget.workflowController.currentWorkflow.copyWith(
+                              coffeeData: CoffeeData(
+                                name: val,
+                              ),
+                            ),
+                          );
                         } else {
-                          widget.workflowController.currentWorkflow.coffeeData!
-                              .name = val;
+                          widget.workflowController.setWorkflow(
+                            widget.workflowController.currentWorkflow.copyWith(
+                                coffeeData: widget.workflowController
+                                    .currentWorkflow.coffeeData!
+                                  ..name = val),
+                          );
                         }
                       });
                     },
@@ -544,11 +583,20 @@ class _ProfileState extends State<ProfileTile> {
                         if (widget.workflowController.currentWorkflow
                                 .coffeeData ==
                             null) {
-                          widget.workflowController.currentWorkflow.coffeeData =
-                              CoffeeData(roaster: val);
+                          widget.workflowController.setWorkflow(
+                            widget.workflowController.currentWorkflow.copyWith(
+                              coffeeData: CoffeeData(
+                                roaster: val,
+                              ),
+                            ),
+                          );
                         } else {
-                          widget.workflowController.currentWorkflow.coffeeData!
-                              .roaster = val;
+                          widget.workflowController.setWorkflow(
+                            widget.workflowController.currentWorkflow.copyWith(
+                                coffeeData: widget.workflowController
+                                    .currentWorkflow.coffeeData!
+                                  ..roaster = val),
+                          );
                         }
                       });
                     },

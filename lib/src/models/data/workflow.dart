@@ -1,13 +1,15 @@
 import 'package:reaprime/src/models/data/profile.dart';
+import 'package:uuid/uuid.dart';
 
 class Workflow {
   final String id;
   final String name;
   final String description;
-  Profile profile;
-  DoseData doseData;
-  GrinderData? grinderData;
-  CoffeeData? coffeeData;
+  final Profile profile;
+  final DoseData doseData;
+  final GrinderData? grinderData;
+  final CoffeeData? coffeeData;
+
   Workflow(
       {required this.id,
       required this.name,
@@ -44,9 +46,29 @@ class Workflow {
       'grinderData': grinderData?.toJson(),
     };
   }
+
+  Workflow copyWith({
+    String? name,
+    String? description,
+    Profile? profile,
+    DoseData? doseData,
+    GrinderData? grinderData,
+    CoffeeData? coffeeData,
+  }) {
+    return Workflow(
+      id: Uuid().v4(),
+      name: name ?? this.name,
+      description: description ?? this.description,
+      profile: profile ?? this.profile,
+      doseData: doseData ?? this.doseData,
+      grinderData: grinderData ?? this.grinderData,
+      coffeeData: coffeeData ?? this.coffeeData,
+    );
+  }
 }
 
 class DoseData {
+  // TODO: final?
   double doseIn;
   double doseOut;
 

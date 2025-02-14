@@ -60,7 +60,6 @@ class _HistoryTileState extends State<HistoryTile> {
 
   Widget _body(BuildContext context) {
     var shot = _shotHistory[_selectedShotIndex];
-    Logger("History").shout("shot is ${shot.timestamp.toIso8601String()}");
     var canGoBack = _selectedShotIndex > 0;
     var canGoForward = _selectedShotIndex < _shotHistory.length - 1;
     return Column(

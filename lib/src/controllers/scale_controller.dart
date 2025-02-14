@@ -3,7 +3,6 @@ import 'dart:math';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
-import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/util/moving_average.dart';
