@@ -274,7 +274,16 @@ class StatusTile extends StatelessWidget {
             return Row(children: [
               SizedBox(
                 width: boxWidth,
-                child: Text("Water: ${snapshot.currentPercentage}%"),
+                child: Text(
+                  "Water: ${snapshot.currentPercentage}%",
+                  style: TextStyle(
+                    color: snapshot.currentPercentage > 50
+                        ? Colors.green
+                        : snapshot.currentPercentage > 20
+                            ? Colors.yellowAccent
+                            : Colors.redAccent,
+                  ),
+                ),
               ),
             ]);
           })

@@ -53,7 +53,6 @@ class _ProfileState extends State<ProfileTile> {
   @override
   Widget build(BuildContext context) {
     return ShadCard(
-      title: _title(context),
       child: _body(context),
     );
   }
@@ -61,6 +60,10 @@ class _ProfileState extends State<ProfileTile> {
   Widget _body(BuildContext context) {
     return Column(
       children: [
+        DefaultTextStyle(
+          style: Theme.of(context).textTheme.titleMedium!,
+          child: _title(context),
+        ),
         ..._workflow(context),
         ..._profileChart(context),
       ],
@@ -73,12 +76,10 @@ class _ProfileState extends State<ProfileTile> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         ShadButton.link(
+          size: ShadButtonSize.sm,
           child: Text(
             loadedProfile != null ? loadedProfile!.title : "Load profile",
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+            style: TextStyle(fontWeight: FontWeight.bold),
           ),
           onPressed: () async {
             FilePickerResult? result = await FilePicker.platform.pickFiles();
