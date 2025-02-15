@@ -4,6 +4,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/machine.dart';
@@ -14,6 +15,7 @@ class ShotController {
   final De1Controller de1controller;
   final ScaleController scaleController;
   final PersistenceController persistenceController;
+  final Profile targetProfile;
 
   final Logger _log = Logger("ShotController");
 
@@ -21,6 +23,7 @@ class ShotController {
     required this.scaleController,
     required this.de1controller,
     required this.persistenceController,
+    required this.targetProfile,
     required this.doseData,
   }) {
     Future.value(_initialize()).then((_) {
@@ -118,7 +121,8 @@ class ShotController {
     _log.finest("State in: ${_state.name}");
     switch (_state) {
       case ShotState.idle:
-        if (machine.state.substate == MachineSubstate.preparingForShot) {
+        if (machine.state.state == MachineState.espresso &&
+            machine.state.substate == MachineSubstate.preparingForShot) {
           _resetCommand.add(true);
           _shotStartTime = DateTime.now();
           if (scale != null) {
@@ -148,7 +152,18 @@ class ShotController {
       case ShotState.pouring:
         if (scale != null) {
           double currentWeight = scale.weight;
-          if (currentWeight >= doseData.doseOut) {
+          double weightFlow = scale.weightFlow;
+          double projectedWeight = currentWeight + weightFlow;
+          if (targetProfile.steps.length > machine.profileFrame &&
+              targetProfile.steps[machine.profileFrame].weight != null) {
+            var stepExitWeight =
+                targetProfile.steps[machine.profileFrame].weight!;
+            if (projectedWeight >= stepExitWeight) {
+              _log.info("Step weight reached, moving on");
+              de1controller.connectedDe1().requestState(MachineState.skipStep);
+            }
+          }
+          if (projectedWeight >= doseData.doseOut) {
             _log.info(
                 "Target weight ${doseData.doseOut}g reached. Stopping shot.");
             de1controller.connectedDe1().requestState(
