@@ -319,4 +319,52 @@ class De1 implements De1Interface {
     var value = _packMMRInt(temp);
     await _mmrWrite(MMRItem.tankTemp, value);
   }
+
+  @override
+  Future<double> getHeaterIdleTemp() async {
+    var result = await _mmrRead(MMRItem.waterHeaterIdleTemp);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<double> getHeaterPhase1Flow() async {
+    var result = await _mmrRead(MMRItem.heaterUp1Flow);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<double> getHeaterPhase2Flow() async {
+    var result = await _mmrRead(MMRItem.heaterUp2Flow);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<double> getHeaterPhase2Timeout() async {
+    var result = await _mmrRead(MMRItem.heaterUp2Timeout);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<void> setHeaterIdleTemp(double val) async {
+    var value = _packMMRInt((val * 10).toInt());
+    await _mmrWrite(MMRItem.waterHeaterIdleTemp, value);
+  }
+
+  @override
+  Future<void> setHeaterPhase1Flow(double val) async {
+    var value = _packMMRInt((val * 10).toInt());
+    await _mmrWrite(MMRItem.heaterUp1Flow, value);
+  }
+
+  @override
+  Future<void> setHeaterPhase2Flow(double val) async {
+    var value = _packMMRInt((val * 10).toInt());
+    await _mmrWrite(MMRItem.heaterUp2Flow, value);
+  }
+
+  @override
+  Future<void> setHeaterPhase2Timeout(double val) async {
+    var value = _packMMRInt((val * 10).toInt());
+    await _mmrWrite(MMRItem.heaterUp2Timeout, value);
+  }
 }

@@ -50,6 +50,16 @@ abstract class De1Interface extends Machine {
   //Future<int> getSerialNumber();
   //Future<int> getGhcInfo();
   //Future<int> getGhcMode();
+
+	// Heater prefs
+	Future<double> getHeaterPhase1Flow();
+	Future<void> setHeaterPhase1Flow(double val);
+	Future<double> getHeaterPhase2Flow();
+	Future<void> setHeaterPhase2Flow(double val);
+	Future<double> getHeaterPhase2Timeout();
+	Future<void> setHeaterPhase2Timeout(double val);
+	Future<double> getHeaterIdleTemp();
+	Future<void> setHeaterIdleTemp(double val);
 }
 
 // This doesn't change anything

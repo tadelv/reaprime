@@ -307,4 +307,52 @@ class MockDe1 implements De1Interface {
 
   @override
   Stream<bool> get ready => Stream.value(true);
+
+  @override
+  Future<double> getHeaterIdleTemp() {
+    // TODO: implement getHeaterIdleTemp
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<double> getHeaterPhase1Flow() {
+    // TODO: implement getHeaterPhase1Flow
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<double> getHeaterPhase2Flow() {
+    // TODO: implement getHeaterPhase2Flow
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<double> getHeaterPhase2Timeout() {
+    // TODO: implement getHeaterPhase2Timeout
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> setHeaterIdleTemp(double val) {
+    // TODO: implement setHeaterIdleTemp
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> setHeaterPhase1Flow(double val) {
+    // TODO: implement setHeaterPhase1Flow
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> setHeaterPhase2Flow(double val) {
+    // TODO: implement setHeaterPhase2Flow
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> setHeaterPhase2Timeout(double val) {
+    // TODO: implement setHeaterPhase2Timeout
+    throw UnimplementedError();
+  }
 }

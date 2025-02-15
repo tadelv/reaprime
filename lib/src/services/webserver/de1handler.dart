@@ -64,6 +64,36 @@ class De1Handler {
         return Response.ok(jsonEncode(json));
       });
     });
+
+    app.post('/api/v1/de1/settings/advanced', (Request r) async {
+      return withDe1((de1) async {
+        var json = jsonDecode(await r.readAsString());
+        if (json['heaterPh1Flow'] != null) {
+          await de1.setHeaterPhase1Flow(json['heaterPh1Flow']);
+        }
+        if (json['heaterPh2Flow'] != null) {
+          await de1.setHeaterPhase2Flow(json['heaterPh2Flow']);
+        }
+        if (json['heaterIdleTemp'] != null) {
+          await de1.setHeaterIdleTemp(json['heaterIdleTemp']);
+        }
+        if (json['heaterPh2Timeout'] != null) {
+          await de1.setHeaterPhase2Timeout(json['heaterPh2Timeout']);
+        }
+        return Response(202);
+      });
+    });
+
+    app.get('/api/v1/de1/settings/advanced', () async {
+      return withDe1((de1) async {
+        var json = <String, dynamic>{};
+        json['heaterPh1Flow'] = await de1.getHeaterPhase1Flow();
+        json['heaterPh2Flow'] = await de1.getHeaterPhase2Flow();
+        json['heaterIdleTemp'] = await de1.getHeaterIdleTemp();
+        json['heaterPh2Timeout'] = await de1.getHeaterPhase2Timeout();
+        return Response.ok(jsonEncode(json));
+      });
+    });
   }
 
   Future<Response> withDe1(Future<Response> Function(De1Interface) call) async {
