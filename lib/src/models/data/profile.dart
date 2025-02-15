@@ -84,6 +84,14 @@ class Profile {
       tankTemperature: tankTemperature ?? this.tankTemperature,
     );
   }
+
+  Profile adjustTemperature(double offset) {
+    return copyWith(
+      steps: steps
+          .map((step) => step.copyWith(temperature: step.temperature + offset))
+          .toList(),
+    );
+  }
 }
 
 enum BeverageType { espresso, calibrate, cleaning, manual, pourover }
@@ -152,6 +160,8 @@ abstract class ProfileStep {
   }
 
   Map<String, dynamic> toJson();
+
+  ProfileStep copyWith({double? temperature});
 }
 
 class ProfileStepPressure extends ProfileStep {
@@ -209,6 +219,18 @@ class ProfileStepPressure extends ProfileStep {
     };
     return data;
   }
+
+  @override
+  ProfileStep copyWith({double? temperature}) {
+    return ProfileStepPressure(
+        name: name,
+        transition: transition,
+        volume: volume,
+        seconds: seconds,
+        temperature: temperature ?? this.temperature,
+        sensor: sensor,
+        pressure: pressure);
+  }
 }
 
 class ProfileStepFlow extends ProfileStep {
@@ -265,6 +287,18 @@ class ProfileStepFlow extends ProfileStep {
       'limiter': limiter?.toJson(),
     };
     return data;
+  }
+
+  @override
+  ProfileStep copyWith({double? temperature}) {
+    return ProfileStepFlow(
+        name: name,
+        transition: transition,
+        volume: volume,
+        seconds: seconds,
+        temperature: temperature ?? this.temperature,
+        sensor: sensor,
+        flow: flow);
   }
 }
 

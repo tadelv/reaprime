@@ -134,7 +134,7 @@ class _ProfileState extends State<ProfileTile> {
               ..._profileChartData(profile),
             ],
             minY: 0,
-            maxY: profileMaxVal > 10 ? 12 : profileMaxVal + 2,
+            maxY: profileMaxVal > 10 ? 12 : 10,
             titlesData: FlTitlesData(
               // Hide the top and left/right titles if not needed.
               topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -200,6 +200,7 @@ class _ProfileState extends State<ProfileTile> {
     List<FlSpot> pressureData = [];
     List<FlSpot> flowLimitData = [];
     List<FlSpot> pressureLimitData = [];
+    List<FlSpot> temperatureData = [];
     double seconds = 0;
     double previousTarget = 0.0;
     bool previousFlow = false;
@@ -232,6 +233,8 @@ class _ProfileState extends State<ProfileTile> {
         previousTarget = pressure;
       }
 
+      temperatureData.add(FlSpot(seconds, step.temperature / 10.0));
+
       seconds += step.seconds;
       //seconds += step.seconds - 1;
       //if (step.seconds < 2 || isSwitched) {
@@ -244,6 +247,8 @@ class _ProfileState extends State<ProfileTile> {
         pressureData.add(FlSpot(seconds, pressure));
         flowLimitData.add(FlSpot(seconds, flowLimit));
       }
+
+      temperatureData.add(FlSpot(seconds, step.temperature / 10.0));
       //if (step.seconds > 2 && !isSwitched) {
       //  seconds++;
       //}
@@ -272,6 +277,11 @@ class _ProfileState extends State<ProfileTile> {
         dashArray: [5, 5],
         dotData: FlDotData(show: false),
       ),
+      LineChartBarData(
+        spots: temperatureData,
+        color: Colors.redAccent,
+        dotData: FlDotData(show: false),
+      ),
     ];
   }
 
@@ -281,6 +291,7 @@ class _ProfileState extends State<ProfileTile> {
         height: 64,
         child: Row(
           children: [
+            _temperaturePopover(context),
             _weightPopover(context),
             _grinderPopover(context),
             _coffeePopover(context),
@@ -288,6 +299,69 @@ class _ProfileState extends State<ProfileTile> {
         ),
       )
     ];
+  }
+
+  final temperaturePopoverController = ShadPopoverController();
+
+  ShadPopover _temperaturePopover(BuildContext context) {
+    final profile = widget.workflowController.currentWorkflow.profile;
+    final startTemp = profile.steps.first.temperature;
+    var endTemp = startTemp;
+    var textController =
+        TextEditingController(text: endTemp.toStringAsFixed(1));
+    return ShadPopover(
+      controller: temperaturePopoverController,
+      popover: (context) => SizedBox(
+        width: 288,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            ShadInput(
+              textAlign: TextAlign.center,
+              decoration: ShadDecoration(merge: false),
+              controller: textController,
+              keyboardType: TextInputType.number,
+              prefix: ShadButton.ghost(
+                child: Text("-"),
+                onPressed: () {
+                  endTemp -= 1.0;
+                  textController.text = endTemp.toStringAsFixed(1);
+                },
+              ),
+              suffix: ShadButton.ghost(
+                child: Text("+"),
+                onPressed: () {
+                  endTemp += 1.0;
+                  textController.text = endTemp.toStringAsFixed(1);
+                },
+              ),
+            ),
+            ShadButton(
+              onPressed: () {
+                var workflow = widget.workflowController.currentWorkflow;
+                workflow = workflow.copyWith(
+                    profile: profile.adjustTemperature(endTemp - startTemp));
+                widget.workflowController.setWorkflow(workflow);
+                widget.de1controller
+                    .connectedDe1()
+                    .setProfile(workflow.profile);
+                temperaturePopoverController.toggle();
+              },
+              child: Text("Apply"),
+            )
+          ],
+        ),
+      ),
+      child: ShadButton.link(
+        child: Text(
+          "${startTemp.toStringAsFixed(1)}℃",
+        ),
+        onPressed: () {
+          temperaturePopoverController.toggle();
+        },
+      ),
+    );
   }
 
   final weightPopoverController = ShadPopoverController();

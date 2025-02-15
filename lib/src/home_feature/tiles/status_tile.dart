@@ -189,11 +189,13 @@ class StatusTile extends StatelessWidget {
                 builder: (context, weight) {
                   return Column(children: [
                     GestureDetector(
-                        onTap: () {
-                          scaleController.connectedScale().tare();
-                        },
-                        child: Text(
-                            "W: ${weight.data?.weight.toStringAsFixed(1) ?? 0.0}g")),
+                      onTap: () {
+                        scaleController.connectedScale().tare();
+                      },
+                      child: Text(
+                          "W: ${weight.data?.weight.toStringAsFixed(1) ?? 0.0}g"),
+                    ),
+                    Text("B: ${weight.data?.battery}%"),
                   ]);
                 });
           })
@@ -230,63 +232,67 @@ class StatusTile extends StatelessWidget {
 
   Widget _firstRow() {
     double boxWidth = 100;
-    return Row(spacing: 5, children: [
-      Text(
-        "DE1:",
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      StreamBuilder(
-          stream: de1.currentSnapshot,
-          builder: (context, snapshotData) {
-            if (snapshotData.connectionState != ConnectionState.active) {
-              return Text("Waiting");
-            }
-            var snapshot = snapshotData.data!;
-            return Row(
-                //mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                spacing: 50,
-                children: [
-                  SizedBox(
-                    width: 100,
-                    child: Text("${snapshot.state.state.name}"),
-                  ),
+    return Row(
+        spacing: 5,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            "DE1:",
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          StreamBuilder(
+              stream: de1.currentSnapshot,
+              builder: (context, snapshotData) {
+                if (snapshotData.connectionState != ConnectionState.active) {
+                  return Text("Waiting");
+                }
+                var snapshot = snapshotData.data!;
+                return Row(
+                    //mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    spacing: 50,
+                    children: [
+                      SizedBox(
+                        width: 100,
+                        child: Text("${snapshot.state.state.name}"),
+                      ),
+                      SizedBox(
+                        width: boxWidth,
+                        child: Text(
+                            "Group: ${snapshot.groupTemperature.toStringAsFixed(1)}℃"),
+                      ),
+                      SizedBox(
+                        width: boxWidth,
+                        child: Text("Steam: ${snapshot.steamTemperature}℃"),
+                      ),
+                    ]);
+              }),
+          StreamBuilder(
+              stream: de1.waterLevels,
+              builder: (context, waterSnapshot) {
+                if (waterSnapshot.connectionState != ConnectionState.active) {
+                  return Text("Waiting");
+                }
+                var snapshot = waterSnapshot.data!;
+                final theme = Theme.of(context);
+                return Row(children: [
                   SizedBox(
                     width: boxWidth,
                     child: Text(
-                        "Group: ${snapshot.groupTemperature.toStringAsFixed(1)}℃"),
-                  ),
-                  SizedBox(
-                    width: boxWidth,
-                    child: Text("Steam: ${snapshot.steamTemperature}℃"),
+                      "Water: ${snapshot.currentPercentage}%",
+                      style: TextStyle(
+                        color: snapshot.currentPercentage > 50
+                            ? theme.colorScheme.primary
+                            : snapshot.currentPercentage > 20
+                                ? theme.colorScheme.onSurface
+                                : theme.colorScheme.error,
+                      ),
+                    ),
                   ),
                 ]);
-          }),
-      StreamBuilder(
-          stream: de1.waterLevels,
-          builder: (context, waterSnapshot) {
-            if (waterSnapshot.connectionState != ConnectionState.active) {
-              return Text("Waiting");
-            }
-            var snapshot = waterSnapshot.data!;
-            return Row(children: [
-              SizedBox(
-                width: boxWidth,
-                child: Text(
-                  "Water: ${snapshot.currentPercentage}%",
-                  style: TextStyle(
-                    color: snapshot.currentPercentage > 50
-                        ? Colors.green
-                        : snapshot.currentPercentage > 20
-                            ? Colors.yellowAccent
-                            : Colors.redAccent,
-                  ),
-                ),
-              ),
-            ]);
-          })
-    ]);
+              })
+        ]);
   }
 }

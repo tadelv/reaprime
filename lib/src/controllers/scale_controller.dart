@@ -81,6 +81,7 @@ class ScaleController {
       timestamp: snapshot.timestamp,
       weight: snapshot.weight,
       weightFlow: weightFlowAverage.average,
+      battery: snapshot.batteryLevel,
     ));
   }
 
@@ -100,10 +101,12 @@ class WeightSnapshot {
   final DateTime timestamp;
   final double weight;
   final double weightFlow;
+  final int? battery;
   WeightSnapshot({
     required this.timestamp,
     required this.weight,
     required this.weightFlow,
+    this.battery,
   });
 
   Map<String, dynamic> toJson() {
