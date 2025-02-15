@@ -63,7 +63,7 @@ class _HistoryTileState extends State<HistoryTile> {
     var canGoBack = _selectedShotIndex > 0;
     var canGoForward = _selectedShotIndex < _shotHistory.length - 1;
     return Column(
-      key: Key(shot.timestamp.toIso8601String()),
+      //key: Key(shot.timestamp.toIso8601String()),
       children: [
         Text(
           "${shot.timestamp}",
@@ -118,6 +118,7 @@ class _HistoryTileState extends State<HistoryTile> {
           ),
         ),
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text("${shot.workflow.profile.title}"),
             Text(
@@ -133,6 +134,7 @@ class _HistoryTileState extends State<HistoryTile> {
           ),
         if (shot.workflow.grinderData != null)
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               Text("${shot.workflow.grinderData!.model}"),
               Text("${shot.workflow.grinderData!.setting}"),

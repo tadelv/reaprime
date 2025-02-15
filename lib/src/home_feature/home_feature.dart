@@ -82,12 +82,10 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           SizedBox(
             width: double.infinity,
-            child: ShadCard(
-                title: Text("Next shot"),
-                child: ProfileTile(
-                  de1controller: widget.de1controller,
-                  workflowController: widget.workflowController,
-                )),
+            child: ProfileTile(
+              de1controller: widget.de1controller,
+              workflowController: widget.workflowController,
+            ),
           ),
           _statusCard(context),
         ],

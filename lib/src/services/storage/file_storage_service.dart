@@ -5,7 +5,6 @@ import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
-import 'package:path_provider/path_provider.dart';
 
 class FileStorageService implements StorageService {
   final Directory _path;
@@ -17,6 +16,7 @@ class FileStorageService implements StorageService {
     _shotsPath = Directory('${_path.path}/shots');
     _shotsPath.createSync(recursive: true);
   }
+
   @override
   Future<List<ShotRecord>> getAllShots() async {
     var paths = await _getShotFiles();

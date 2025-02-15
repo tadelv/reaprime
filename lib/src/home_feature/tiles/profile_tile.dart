@@ -46,48 +46,62 @@ class _ProfileState extends State<ProfileTile> {
   _workflowChange() {
     setState(() {
       loadedProfile = widget.workflowController.currentWorkflow.profile;
+      widget.de1controller.connectedDe1().setProfile(loadedProfile!);
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    return ShadCard(
+      title: _title(context),
+      child: _body(context),
+    );
+  }
+
+  Widget _body(BuildContext context) {
     return Column(
       children: [
-        Row(
-          children: [
-            ShadButton.link(
-              child: Text(loadedProfile != null
-                  ? loadedProfile!.title
-                  : "Load profile"),
-              onPressed: () async {
-                FilePickerResult? result =
-                    await FilePicker.platform.pickFiles();
-                if (result != null) {
-                  File file = File(result.files.single.path!);
-                  var json = jsonDecode(await file.readAsString());
-                  setState(() {
-                    loadedProfile = Profile.fromJson(json);
-                    widget.de1controller
-                        .connectedDe1()
-                        .setProfile(loadedProfile!);
-                    widget.workflowController.setWorkflow(
-                      widget.workflowController.currentWorkflow.copyWith(
-                        profile: loadedProfile!,
-                      ),
-                    );
-                    widget.workflowController.currentWorkflow.doseData.doseOut =
-                        loadedProfile!.targetWeight ?? 36.0;
-                    _log.fine('Loaded profile: ${loadedProfile!.title}');
-                    _log.fine('Target weight: ${loadedProfile!.targetWeight}');
-                  });
-                }
-              },
-            ),
-            ..._profileStats(),
-          ],
-        ),
-        ..._profileChart(context),
         ..._workflow(context),
+        ..._profileChart(context),
+      ],
+    );
+  }
+
+  Widget _title(BuildContext context) {
+    return Row(
+      //mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        ShadButton.link(
+          child: Text(
+            loadedProfile != null ? loadedProfile!.title : "Load profile",
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+          ),
+          onPressed: () async {
+            FilePickerResult? result = await FilePicker.platform.pickFiles();
+            if (result != null) {
+              File file = File(result.files.single.path!);
+              var json = jsonDecode(await file.readAsString());
+              setState(() {
+                loadedProfile = Profile.fromJson(json);
+                widget.de1controller.connectedDe1().setProfile(loadedProfile!);
+                widget.workflowController.setWorkflow(
+                  widget.workflowController.currentWorkflow.copyWith(
+                    profile: loadedProfile!,
+                  ),
+                );
+                widget.workflowController.currentWorkflow.doseData.doseOut =
+                    loadedProfile!.targetWeight ?? 36.0;
+                _log.fine('Loaded profile: ${loadedProfile!.title}');
+                _log.fine('Target weight: ${loadedProfile!.targetWeight}');
+              });
+            }
+          },
+        ),
+        ..._profileStats(),
       ],
     );
   }
@@ -284,7 +298,7 @@ class _ProfileState extends State<ProfileTile> {
         .toStringAsFixed(1);
     return ShadPopover(
       anchor: ShadAnchorAuto(
-          verticalOffset: 20, preferBelow: false, followTargetOnResize: true),
+          verticalOffset: 0, preferBelow: true, followTargetOnResize: true),
       controller: weightPopoverController,
       popover: (context) => SizedBox(
         width: 288,
@@ -384,7 +398,7 @@ class _ProfileState extends State<ProfileTile> {
 
     return ShadPopover(
       anchor: ShadAnchorAuto(
-          verticalOffset: 20, preferBelow: false, followTargetOnResize: true),
+          verticalOffset: 0, preferBelow: true, followTargetOnResize: true),
       controller: _grinderPopoverController,
       popover: (context) => SizedBox(
         width: 320,
@@ -523,7 +537,7 @@ class _ProfileState extends State<ProfileTile> {
 
     return ShadPopover(
       anchor: ShadAnchorAuto(
-          verticalOffset: 20, preferBelow: false, followTargetOnResize: true),
+          verticalOffset: 0, preferBelow: true, followTargetOnResize: true),
       controller: _coffeePopoverController,
       popover: (context) => SizedBox(
         width: 320,

@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class SteamForm extends StatefulWidget {
-  SteamForm({
+  const SteamForm({
     super.key,
     required this.apply,
     required this.steamSettings,
   });
   final Function(SteamFormSettings) apply;
-  SteamFormSettings steamSettings;
+  final SteamFormSettings steamSettings;
 
   @override
   State<SteamForm> createState() {
