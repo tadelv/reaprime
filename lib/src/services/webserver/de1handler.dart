@@ -17,6 +17,15 @@ class De1Handler {
     app.get(
         '/ws/v1/de1/shotSettings', sws.webSocketHandler(_handleShotSettings));
     app.get('/ws/v1/de1/waterLevels', sws.webSocketHandler(_handleWaterLevels));
+    app.post('/api/v1/de1/waterLevels', (Request r) async {
+      return withDe1((de1) async {
+        var json = jsonDecode(await r.readAsString());
+        if (json['threshold'] != null) {
+          await de1.setWaterLevelWarning(json['threshold']);
+        }
+        return Response(202);
+      });
+    });
 
     // MMR?
 

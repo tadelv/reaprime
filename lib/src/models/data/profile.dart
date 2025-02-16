@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 
 /// Trying to imitate the common v2 profile as close as reasonable
 class Profile {
