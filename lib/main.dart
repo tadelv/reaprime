@@ -66,10 +66,9 @@ void main() async {
     services.add(SimulatedDeviceService());
     log.shout("adding Simulated Service");
   }
-  var storagePath = await getApplicationDocumentsDirectory();
-  //var storagePath = await getDownloadsDirectory();
+  var storagePath = await getDownloadsDirectory();
   final persistenceController = PersistenceController(
-    storageService: FileStorageService(path: storagePath),
+    storageService: FileStorageService(path: storagePath!),
   );
 
   final settingsController = SettingsController(SettingsService());

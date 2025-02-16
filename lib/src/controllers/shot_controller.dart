@@ -155,7 +155,8 @@ class ShotController {
           double weightFlow = scale.weightFlow;
           double projectedWeight = currentWeight + weightFlow;
           if (targetProfile.steps.length > machine.profileFrame &&
-              targetProfile.steps[machine.profileFrame].weight != null) {
+              targetProfile.steps[machine.profileFrame].weight != null &&
+              targetProfile.steps[machine.profileFrame].weight! > 0) {
             var stepExitWeight =
                 targetProfile.steps[machine.profileFrame].weight!;
             if (projectedWeight >= stepExitWeight) {
@@ -163,7 +164,7 @@ class ShotController {
               de1controller.connectedDe1().requestState(MachineState.skipStep);
             }
           }
-          if (projectedWeight >= doseData.doseOut) {
+          if (doseData.doseOut > 0 && projectedWeight >= doseData.doseOut) {
             _log.info(
                 "Target weight ${doseData.doseOut}g reached. Stopping shot.");
             de1controller.connectedDe1().requestState(

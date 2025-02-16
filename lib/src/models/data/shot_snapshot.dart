@@ -24,7 +24,7 @@ class ShotSnapshot {
   factory ShotSnapshot.fromJson(Map<String, dynamic> json) {
     return ShotSnapshot(
       machine: MachineSnapshot.fromJson(json["machine"]),
-      scale: WeightSnapshot.fromJson(json["scale"]),
+      scale: json['scale'] != null ? WeightSnapshot.fromJson(json["scale"]) : null,
     );
   }
 }
