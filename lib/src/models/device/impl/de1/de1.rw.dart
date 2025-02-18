@@ -32,6 +32,7 @@ extension De1ReadWrite on De1 {
   Future<void> _writeWithResponse(Endpoint e, Uint8List data) async {
     try {
 		_log.info('about to write to ${e.name}');
+		_log.info('payload: ${data.map((el) => toHexString(el))}');
       final characteristic = QualifiedCharacteristic(
         characteristicId: Uuid.parse(e.uuid),
         serviceId: Uuid.parse(de1ServiceUUID),

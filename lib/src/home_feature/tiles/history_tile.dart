@@ -122,7 +122,7 @@ class _HistoryTileState extends State<HistoryTile> {
           children: [
             Text("${shot.workflow.profile.title}"),
             Text(
-                "${shot.workflow.doseData.doseIn} : ${shot.workflow.doseData.doseOut}"),
+                "${shot.workflow.doseData.doseIn.toStringAsFixed(1)} : ${shot.workflow.doseData.doseOut.toStringAsFixed(1)}"),
             Text("${shot.measurements.last.scale?.weight.toStringAsFixed(1)}g")
           ],
         ),

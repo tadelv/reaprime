@@ -88,14 +88,15 @@ class _ProfileState extends State<ProfileTile> {
               var json = jsonDecode(await file.readAsString());
               setState(() {
                 loadedProfile = Profile.fromJson(json);
-                widget.de1controller.connectedDe1().setProfile(loadedProfile!);
-                widget.workflowController.setWorkflow(
-                  widget.workflowController.currentWorkflow.copyWith(
-                    profile: loadedProfile!,
-                  ),
+                //widget.de1controller.connectedDe1().setProfile(loadedProfile!);
+                final newWorkflow =
+                    widget.workflowController.currentWorkflow.copyWith(
+                  profile: loadedProfile!,
                 );
-                widget.workflowController.currentWorkflow.doseData.doseOut =
+                newWorkflow.doseData.doseOut =
                     loadedProfile!.targetWeight ?? 36.0;
+
+                widget.workflowController.setWorkflow(newWorkflow);
                 _log.fine('Loaded profile: ${loadedProfile!.title}');
                 _log.fine('Target weight: ${loadedProfile!.targetWeight}');
               });
@@ -343,9 +344,6 @@ class _ProfileState extends State<ProfileTile> {
                 workflow = workflow.copyWith(
                     profile: profile.adjustTemperature(endTemp - startTemp));
                 widget.workflowController.setWorkflow(workflow);
-                widget.de1controller
-                    .connectedDe1()
-                    .setProfile(workflow.profile);
                 temperaturePopoverController.toggle();
               },
               child: Text("Apply"),
