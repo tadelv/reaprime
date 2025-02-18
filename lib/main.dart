@@ -53,6 +53,10 @@ void main() async {
     }
   }
 
+  RotatingFileAppender(
+    baseFilePath: '${(await getApplicationDocumentsDirectory()).path}/log.txt',
+  ).attachToLogger(Logger.root);
+
   final List<DeviceDiscoveryService> services = [
     BleDiscoveryService({
       De1.advertisingUUID: (id) => De1.fromId(id),
