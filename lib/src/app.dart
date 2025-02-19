@@ -171,14 +171,6 @@ class MyApp extends StatelessWidget {
                     return Text("No mapping for ${device.name}");
                   case SampleItemListView.routeName:
                     return SampleItemListView(controller: deviceController);
-                  case HomeScreen.routeName:
-                    return HomeScreen(
-                      de1controller: de1Controller,
-                      workflowController: workflowController,
-                      scaleController: scaleController,
-                      deviceController: deviceController,
-                      persistenceController: persistenceController,
-                    );
                   case RealtimeShotFeature.routeName:
                     return RealtimeShotFeature(
                       shotController: ShotController(
@@ -191,19 +183,15 @@ class MyApp extends StatelessWidget {
                       ),
                       workflowController: workflowController,
                     );
+                  case HomeScreen.routeName:
                   default:
-                    // TODO: dedicated server mode?
-                    if (kDebugMode) {
-                      return HomeScreen(
-                        de1controller: de1Controller,
-                        workflowController: workflowController,
-                        scaleController: scaleController,
-                        deviceController: deviceController,
-                        persistenceController: persistenceController,
-                      );
-                    } else {
-                      return SampleItemListView(controller: deviceController);
-                    }
+                    return HomeScreen(
+                      de1controller: de1Controller,
+                      workflowController: workflowController,
+                      scaleController: scaleController,
+                      deviceController: deviceController,
+                      persistenceController: persistenceController,
+                    );
                 }
               },
             );

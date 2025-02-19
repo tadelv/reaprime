@@ -8,7 +8,7 @@ import 'package:reaprime/src/home_feature/forms/steam_form.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
-import 'package:reaprime/src/sample_feature/sample_item_list_view.dart';
+import 'package:reaprime/src/settings/settings_view.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -92,7 +92,9 @@ class StatusTile extends StatelessWidget {
           ShadButton.secondary(
             onPressed: () {
               Navigator.restorablePushNamed(
-                  context, SampleItemListView.routeName);
+                context,
+                SettingsView.routeName,
+              );
             },
             child: Icon(
               LucideIcons.settings,
