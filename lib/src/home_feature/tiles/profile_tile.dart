@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
+import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -15,11 +16,14 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 class ProfileTile extends StatefulWidget {
   final De1Controller de1controller;
   final WorkflowController workflowController;
+  final PersistenceController persistenceController;
 
-  const ProfileTile(
-      {super.key,
-      required this.de1controller,
-      required this.workflowController});
+  const ProfileTile({
+    super.key,
+    required this.de1controller,
+    required this.workflowController,
+    required this.persistenceController,
+  });
 
   @override
   State<StatefulWidget> createState() => _ProfileState();
@@ -479,18 +483,35 @@ class _ProfileState extends State<ProfileTile> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Row(
+              spacing: 16,
               children: [
                 Text("Grind setting"),
                 Expanded(
-                  child: ShadInput(
+                  child: Autocomplete(
+                    optionsBuilder: (TextEditingValue val) {
+                      final options = widget.persistenceController
+                          .grinderOptions()
+                          .where((el) => el.setting
+                              .toLowerCase()
+                              .contains(val.text.toLowerCase()))
+                          .map((e) => e.setting)
+                          .toSet();
+                      if (options.isEmpty) {
+                        return [val.text];
+                      }
+                      return options;
+                    },
                     key: Key(
                       widget.workflowController.currentWorkflow.grinderData
                               ?.setting ??
                           "",
                     ),
-                    initialValue: widget.workflowController.currentWorkflow
-                        .grinderData?.setting,
-                    onSubmitted: (val) {
+                    initialValue: TextEditingValue(
+                        text: widget.workflowController.currentWorkflow
+                                .grinderData?.setting ??
+                            ""),
+                    onSelected: (val) {
+                      //_log.shout("selected: $val");
                       setState(() {
                         if (widget.workflowController.currentWorkflow
                                 .grinderData ==
@@ -517,16 +538,38 @@ class _ProfileState extends State<ProfileTile> {
               ],
             ),
             Row(
+              spacing: 16,
               children: [
                 Text("Grinder model"),
                 Expanded(
-                  child: ShadInput(
+                  child: Autocomplete(
+                    optionsBuilder: (TextEditingValue val) {
+                      final options = widget.persistenceController
+                          .grinderOptions()
+                          .where((e) =>
+                              e.model
+                                  ?.toLowerCase()
+                                  .contains(val.text.toLowerCase()) ??
+                              false)
+                          .fold(<String>[], (r, e) {
+                        if (e.model != null) {
+                          r.add(e.model!);
+                        }
+                        return r;
+                      }).toSet();
+                      if (options.isEmpty) {
+                        return [val.text];
+                      }
+                      return options;
+                    },
                     key: Key(widget.workflowController.currentWorkflow
                             .grinderData?.model ??
                         ""),
-                    initialValue: widget
-                        .workflowController.currentWorkflow.grinderData?.model,
-                    onSubmitted: (val) {
+                    initialValue: TextEditingValue(
+                        text: widget.workflowController.currentWorkflow
+                                .grinderData?.model ??
+                            ""),
+                    onSelected: (val) {
                       setState(() {
                         if (widget.workflowController.currentWorkflow
                                 .grinderData ==
@@ -553,16 +596,38 @@ class _ProfileState extends State<ProfileTile> {
               ],
             ),
             Row(
+              spacing: 16,
               children: [
                 Text("Grinder manufacturer"),
                 Expanded(
-                  child: ShadInput(
+                  child: Autocomplete(
+                    optionsBuilder: (TextEditingValue val) {
+                      final options = widget.persistenceController
+                          .grinderOptions()
+                          .where((e) =>
+                              e.manufacturer
+                                  ?.toLowerCase()
+                                  .contains(val.text.toLowerCase()) ??
+                              false)
+                          .fold(<String>[], (r, e) {
+                        if (e.manufacturer != null) {
+                          r.add(e.manufacturer!);
+                        }
+                        return r;
+                      }).toSet();
+                      if (options.isEmpty) {
+                        return [val.text];
+                      }
+                      return options;
+                    },
                     key: Key(widget.workflowController.currentWorkflow
                             .grinderData?.manufacturer ??
                         ""),
-                    initialValue: widget.workflowController.currentWorkflow
-                        .grinderData?.manufacturer,
-                    onSubmitted: (val) {
+                    initialValue: TextEditingValue(
+                        text: widget.workflowController.currentWorkflow
+                                .grinderData?.manufacturer ??
+                            ""),
+                    onSelected: (val) {
                       setState(() {
                         if (widget.workflowController.currentWorkflow
                                 .grinderData ==
@@ -618,18 +683,34 @@ class _ProfileState extends State<ProfileTile> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Row(
+              spacing: 16,
               children: [
                 Text("Coffee name"),
                 Expanded(
-                  child: ShadInput(
+                  child: Autocomplete<String>(
+                    optionsBuilder: (TextEditingValue val) {
+                      final options = widget.persistenceController
+                          .coffeeOptions()
+                          .where((e) => e.name
+                              .toLowerCase()
+                              .contains(val.text.toLowerCase()))
+                          .map((e) => e.name)
+                          .toSet();
+                      if (options.isEmpty) {
+                        return [val.text];
+                      }
+                      return options;
+                    },
                     key: Key(
                       widget.workflowController.currentWorkflow.coffeeData
                               ?.name ??
                           "",
                     ),
-                    initialValue: widget
-                        .workflowController.currentWorkflow.coffeeData?.name,
-                    onSubmitted: (val) {
+                    initialValue: TextEditingValue(
+                        text: widget.workflowController.currentWorkflow
+                                .coffeeData?.name ??
+                            ""),
+                    onSelected: (val) {
                       setState(() {
                         if (widget.workflowController.currentWorkflow
                                 .coffeeData ==
@@ -656,16 +737,38 @@ class _ProfileState extends State<ProfileTile> {
               ],
             ),
             Row(
+              spacing: 16,
               children: [
                 Text("Roaster"),
                 Expanded(
-                  child: ShadInput(
+                  child: Autocomplete<String>(
+                    optionsBuilder: (TextEditingValue val) {
+                      final options = widget.persistenceController
+                          .coffeeOptions()
+                          .where((e) =>
+                              e.roaster
+                                  ?.toLowerCase()
+                                  .contains(val.text.toLowerCase()) ??
+                              false)
+                          .fold(<String>[], (r, e) {
+                        if (e.roaster != null) {
+                          r.add(e.roaster!);
+                        }
+                        return r;
+                      }).toSet();
+                      if (options.isEmpty) {
+                        return [val.text];
+                      }
+                      return options;
+                    },
                     key: Key(widget.workflowController.currentWorkflow
                             .coffeeData?.roaster ??
                         ""),
-                    initialValue: widget
-                        .workflowController.currentWorkflow.coffeeData?.roaster,
-                    onSubmitted: (val) {
+                    initialValue: TextEditingValue(
+                        text: widget.workflowController.currentWorkflow
+                                .coffeeData?.roaster ??
+                            ""),
+                    onSelected: (val) {
                       setState(() {
                         if (widget.workflowController.currentWorkflow
                                 .coffeeData ==

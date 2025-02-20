@@ -85,6 +85,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: ProfileTile(
               de1controller: widget.de1controller,
               workflowController: widget.workflowController,
+              persistenceController: widget.persistenceController,
             ),
           ),
           _statusCard(context),

@@ -100,14 +100,18 @@ class De1 implements De1Interface {
       switch (data.connectionState) {
         case DeviceConnectionState.connecting:
           _connectionStateController.add(ConnectionState.connecting);
+          break;
         case DeviceConnectionState.connected:
           _connectionStateController.add(ConnectionState.connected);
           await _onConnected();
+          break;
         case DeviceConnectionState.disconnecting:
           _connectionStateController.add(ConnectionState.disconnecting);
+          break;
         case DeviceConnectionState.disconnected:
           _connectionStateController.add(ConnectionState.disconnected);
           disconnect(); // just in case we got disconnected unintentionally
+          break;
       }
     });
   }
