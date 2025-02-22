@@ -46,7 +46,31 @@ Handler _init(
 ) {
   log.info("called _init");
   var app = Router().plus;
-  app.use(typeByExtension('json'));
+
+  jsonContentTypeMiddleware(Handler innerHandler) {
+    return (Request request) async {
+      log.fine("handling request: ${request.requestedUri.path}");
+      final response = await innerHandler(request);
+
+      // Option 1: Check by path if it starts with "/ws" (or any other condition)
+      if (request.requestedUri.path.startsWith('/ws')) {
+        return response;
+      }
+
+      // Option 2: Alternatively, check if the request has an Upgrade header
+      // if ((request.headers['upgrade']?.toLowerCase() ?? '') == 'websocket') {
+      //   return response;
+      // }
+
+      // Add the header to responses that aren’t websocket-related.
+      return response.change(headers: {
+        ...response.headersAll,
+        'content-type': 'application/json',
+      });
+    };
+  }
+
+  app.use(jsonContentTypeMiddleware);
 
   deviceHandler.addRoutes(app);
   de1Handler.addRoutes(app);

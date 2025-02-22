@@ -13,7 +13,7 @@ extension De1Mmr on De1 {
     var buffer = bytes.buffer.asUint8List();
     buffer[0] = (length % 0xFF);
 
-		_log.fine('sending read req ${buffer.map(toHexString).toList()}');
+    _log.fine('sending read req ${buffer.map(toHexString).toList()}');
 
     await _writeWithResponse(Endpoint.readFromMMR, Uint8List.fromList(buffer));
 
@@ -43,7 +43,7 @@ extension De1Mmr on De1 {
     for (var _ in bufferData) {
       buffer[i + 4] = bufferData[i++];
     }
-		_log.fine('payload ${bufferData.map(toHexString).toList()}');
+    _log.fine('payload ${bufferData.map(toHexString).toList()}');
     return _writeWithResponse(Endpoint.writeToMMR, Uint8List.fromList(buffer));
   }
 
@@ -59,7 +59,7 @@ extension De1Mmr on De1 {
 
   Uint8List _packMMRInt(int number) {
     var bytes = ByteData(4);
-    bytes.setUint32(0, number);
+    bytes.setUint32(0, number, Endian.little);
     return bytes.buffer.asUint8List();
   }
 }

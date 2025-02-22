@@ -1,3 +1,4 @@
+
 /// Trying to imitate the common v2 profile as close as reasonable
 class Profile {
   final String? version;
@@ -31,14 +32,13 @@ class Profile {
       notes: json['notes'],
       author: json['author'],
       beverageType: BeverageType.values.byName(json['beverage_type']),
-      steps:
-          (json['steps'] as List)
-              .map((step) => ProfileStep.fromJson(step))
-              .toList(),
-      targetVolume: double.parse(json['target_volume']),
-      targetWeight: double.parse(json['target_weight']),
-      targetVolumeCountStart: int.parse(json['target_volume_count_start']),
-      tankTemperature: double.parse(json['tank_temperature']),
+      steps: (json['steps'] as List)
+          .map((step) => ProfileStep.fromJson(step))
+          .toList(),
+      targetVolume: parseOptionalDouble(json['target_volume']),
+      targetWeight: parseOptionalDouble(json['target_weight']),
+      targetVolumeCountStart: parseInt(json['target_volume_count_start']),
+      tankTemperature: parseDouble(json['tank_temperature']),
     );
   }
 
@@ -83,6 +83,14 @@ class Profile {
       tankTemperature: tankTemperature ?? this.tankTemperature,
     );
   }
+
+  Profile adjustTemperature(double offset) {
+    return copyWith(
+      steps: steps
+          .map((step) => step.copyWith(temperature: step.temperature + offset))
+          .toList(),
+    );
+  }
 }
 
 enum BeverageType { espresso, calibrate, cleaning, manual, pourover }
@@ -103,8 +111,8 @@ class StepLimiter {
 
   factory StepLimiter.fromJson(Map<String, dynamic> json) {
     return StepLimiter(
-      value: double.parse(json["value"]),
-      range: double.parse(json["range"]),
+      value: parseDouble(json["value"]),
+      range: parseDouble(json["range"]),
     );
   }
 
@@ -139,9 +147,9 @@ abstract class ProfileStep {
   double getTarget(); // Abstract method for subclasses to implement
 
   factory ProfileStep.fromJson(Map<String, dynamic> json) {
-    if (json.containsKey('pressure')) {
+    if (json.containsKey('pump') && json['pump'] == 'pressure') {
       return ProfileStepPressure.fromJson(json);
-    } else if (json.containsKey('flow')) {
+    } else if (json.containsKey('pump') && json['pump'] == 'flow') {
       return ProfileStepFlow.fromJson(json);
     } else {
       throw Exception(
@@ -151,6 +159,8 @@ abstract class ProfileStep {
   }
 
   Map<String, dynamic> toJson();
+
+  ProfileStep copyWith({double? temperature});
 }
 
 class ProfileStepPressure extends ProfileStep {
@@ -176,20 +186,18 @@ class ProfileStepPressure extends ProfileStep {
     return ProfileStepPressure(
       name: json['name'],
       transition: TransitionType.values.byName(json['transition']),
-      exit:
-          json['exit'] != null
-              ? StepExitCondition.fromJson(json['exit'])
-              : null,
-      volume: double.parse(json['volume']),
-      seconds: double.parse(json['seconds']),
-      weight: double.parse(json['weight']),
-      temperature: double.parse(json['temperature']),
+      exit: json['exit'] != null
+          ? StepExitCondition.fromJson(json['exit'])
+          : null,
+      volume: parseDouble(json['volume']),
+      seconds: parseDouble(json['seconds']),
+      weight: parseOptionalDouble(json['weight']),
+      temperature: parseDouble(json['temperature']),
       sensor: TemperatureSensor.values.byName(json['sensor']),
-      limiter:
-          json['limiter'] != null
-              ? StepLimiter.fromJson(json['limiter'])
-              : null,
-      pressure: double.parse(json['pressure']),
+      limiter: json['limiter'] != null
+          ? StepLimiter.fromJson(json['limiter'])
+          : null,
+      pressure: parseDouble(json['pressure']),
     );
   }
 
@@ -197,6 +205,7 @@ class ProfileStepPressure extends ProfileStep {
   Map<String, dynamic> toJson() {
     final data = {
       'name': name,
+      'pump': 'pressure',
       'transition': transition.name,
       'exit': exit?.toJson(),
       'volume': volume,
@@ -208,6 +217,18 @@ class ProfileStepPressure extends ProfileStep {
       'limiter': limiter?.toJson(),
     };
     return data;
+  }
+
+  @override
+  ProfileStep copyWith({double? temperature}) {
+    return ProfileStepPressure(
+        name: name,
+        transition: transition,
+        volume: volume,
+        seconds: seconds,
+        temperature: temperature ?? this.temperature,
+        sensor: sensor,
+        pressure: pressure);
   }
 }
 
@@ -234,20 +255,18 @@ class ProfileStepFlow extends ProfileStep {
     return ProfileStepFlow(
       name: json['name'],
       transition: TransitionType.values.byName(json['transition']),
-      exit:
-          json['exit'] != null
-              ? StepExitCondition.fromJson(json['exit'])
-              : null,
-      volume: double.parse(json['volume']),
-      seconds: double.parse(json['seconds']),
-      weight: double.parse(json['weight']),
-      temperature: double.parse(json['temperature']),
+      exit: json['exit'] != null
+          ? StepExitCondition.fromJson(json['exit'])
+          : null,
+      volume: parseDouble(json['volume']),
+      seconds: parseDouble(json['seconds']),
+      weight: parseOptionalDouble(json['weight']),
+      temperature: parseDouble(json['temperature']),
       sensor: TemperatureSensor.values.byName(json['sensor']),
-      limiter:
-          json['limiter'] != null
-              ? StepLimiter.fromJson(json['limiter'])
-              : null,
-      flow: double.parse(json['flow']),
+      limiter: json['limiter'] != null
+          ? StepLimiter.fromJson(json['limiter'])
+          : null,
+      flow: parseDouble(json['flow']),
     );
   }
 
@@ -255,6 +274,7 @@ class ProfileStepFlow extends ProfileStep {
   Map<String, dynamic> toJson() {
     final data = {
       'name': name,
+      'pump': 'flow',
       'transition': transition.name,
       'exit': exit?.toJson(),
       'volume': volume,
@@ -266,6 +286,18 @@ class ProfileStepFlow extends ProfileStep {
       'limiter': limiter?.toJson(),
     };
     return data;
+  }
+
+  @override
+  ProfileStep copyWith({double? temperature}) {
+    return ProfileStepFlow(
+        name: name,
+        transition: transition,
+        volume: volume,
+        seconds: seconds,
+        temperature: temperature ?? this.temperature,
+        sensor: sensor,
+        flow: flow);
   }
 }
 
@@ -284,11 +316,30 @@ class StepExitCondition {
     return StepExitCondition(
       type: ExitType.values.byName(json['type']),
       condition: ExitCondition.values.byName(json['condition']),
-      value: double.parse(json['value']),
+      value: parseDouble(json['value']),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {'type': type.name, 'condition': condition.name, 'value': value};
   }
+}
+
+double parseDouble(dynamic value) {
+  if (value is double) return value;
+  if (value is int) return value.toDouble();
+  return double.tryParse(value) ?? int.parse(value).toDouble();
+}
+
+double? parseOptionalDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is double) return value;
+  if (value is int) return value.toDouble();
+  return double.tryParse(value) ?? int.tryParse(value)?.toDouble();
+}
+
+int parseInt(dynamic value) {
+  if (value is int) return value;
+  if (value is double) return value.toInt();
+  return int.parse(value);
 }

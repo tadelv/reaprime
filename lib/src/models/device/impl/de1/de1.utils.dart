@@ -40,9 +40,8 @@ MachineState mapDe1ToMachineState(De1StateEnum de1State) {
     case De1StateEnum.descale:
       return MachineState.descaling;
 
-		// TODO: what to do with this one?
     case De1StateEnum.skipToNext: 
-      return MachineState.flush;
+      return MachineState.skipStep;
 
     case De1StateEnum.refill:
       return MachineState.needsWater;

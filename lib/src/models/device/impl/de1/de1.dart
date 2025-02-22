@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
@@ -73,6 +74,11 @@ class De1 implements De1Interface {
   final StreamController<List<int>> _mmrController =
       StreamController.broadcast();
 
+  final BehaviorSubject<bool> _onReadyStream = BehaviorSubject.seeded(false);
+
+  @override
+  Stream<bool> get ready => _onReadyStream.stream;
+
   @override
   Stream<MachineSnapshot> get currentSnapshot => _snapshotStream.stream;
 
@@ -94,14 +100,18 @@ class De1 implements De1Interface {
       switch (data.connectionState) {
         case DeviceConnectionState.connecting:
           _connectionStateController.add(ConnectionState.connecting);
+          break;
         case DeviceConnectionState.connected:
           _connectionStateController.add(ConnectionState.connected);
           await _onConnected();
+          break;
         case DeviceConnectionState.disconnecting:
           _connectionStateController.add(ConnectionState.disconnecting);
+          break;
         case DeviceConnectionState.disconnected:
           _connectionStateController.add(ConnectionState.disconnected);
-					disconnect(); // just in case we got disconnected unintentionally
+          disconnect(); // just in case we got disconnected unintentionally
+          break;
       }
     });
   }
@@ -154,6 +164,8 @@ class De1 implements De1Interface {
     _subscribe(Endpoint.shotSettings, _parseShotSettings);
     _subscribe(Endpoint.waterLevels, _parseWaterLevels);
     _subscribe(Endpoint.readFromMMR, _mmrNotification);
+
+    _onReadyStream.add(true);
   }
 
   @override
@@ -211,7 +223,8 @@ class De1 implements De1Interface {
             .toInt();
     index++;
 
-    _writeWithResponse(Endpoint.shotSettings, data);
+    await _writeWithResponse(Endpoint.shotSettings, data);
+    await _parseShotSettings(await _read(Endpoint.shotSettings));
   }
 
   @override
@@ -226,5 +239,136 @@ class De1 implements De1Interface {
   @override
   Future<void> setUsbChargerMode(bool t) async {
     await _mmrWrite(MMRItem.allowUSBCharging, _packMMRInt(t ? 1 : 0));
+  }
+
+  @override
+  Future<int> getFanThreshhold() async {
+    var result = await _mmrRead(MMRItem.fanThreshold);
+    return _unpackMMRInt(result);
+  }
+
+  @override
+  Future<void> setFanThreshhold(int temp) async {
+    await _mmrWrite(MMRItem.fanThreshold, _packMMRInt(min(50, temp)));
+  }
+
+  @override
+  Future<double> getSteamFlow() async {
+    var result = await _mmrRead(MMRItem.targetSteamFlow);
+    return _unpackMMRInt(result).toDouble() / 100;
+  }
+
+  @override
+  Future<void> setSteamFlow(double newFlow) async {
+    var value = _packMMRInt((newFlow * 100).toInt());
+    await _mmrWrite(MMRItem.targetSteamFlow, value);
+  }
+
+  @override
+  Future<double> getHotWaterFlow() async {
+    var result = await _mmrRead(MMRItem.hotWaterFlowRate);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<void> setHotWaterFlow(double newFlow) async {
+    var value = _packMMRInt((newFlow * 10).toInt());
+    await _mmrWrite(MMRItem.hotWaterFlowRate, value);
+  }
+
+  @override
+  Future<double> getFlushFlow() async {
+    var result = await _mmrRead(MMRItem.flushFlowRate);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<void> setFlushFlow(double newFlow) async {
+    var value = _packMMRInt((newFlow * 10).toInt());
+    await _mmrWrite(MMRItem.flushFlowRate, value);
+  }
+
+  @override
+  Future<double> getFlushTimeout() async {
+    var result = await _mmrRead(MMRItem.flushTimeout);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<void> setFlushTimeout(double newTimeout) async {
+    var value = _packMMRInt((newTimeout * 10).toInt());
+    await _mmrWrite(MMRItem.flushTimeout, value);
+  }
+
+  @override
+  Future<double> getFlushTemperature() async {
+    var result = await _mmrRead(MMRItem.flushTemp);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<void> setFlushTemperature(double newTemp) async {
+    var value = _packMMRInt((newTemp * 10).toInt());
+    await _mmrWrite(MMRItem.flushTemp, value);
+  }
+
+  @override
+  Future<int> getTankTempThreshold() async {
+    var result = await _mmrRead(MMRItem.tankTemp);
+    return _unpackMMRInt(result);
+  }
+
+  @override
+  Future<void> setTankTempThreshold(int temp) async {
+    var value = _packMMRInt(temp);
+    await _mmrWrite(MMRItem.tankTemp, value);
+  }
+
+  @override
+  Future<double> getHeaterIdleTemp() async {
+    var result = await _mmrRead(MMRItem.waterHeaterIdleTemp);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<double> getHeaterPhase1Flow() async {
+    var result = await _mmrRead(MMRItem.heaterUp1Flow);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<double> getHeaterPhase2Flow() async {
+    var result = await _mmrRead(MMRItem.heaterUp2Flow);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<double> getHeaterPhase2Timeout() async {
+    var result = await _mmrRead(MMRItem.heaterUp2Timeout);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<void> setHeaterIdleTemp(double val) async {
+    var value = _packMMRInt((val * 10).toInt());
+    await _mmrWrite(MMRItem.waterHeaterIdleTemp, value);
+  }
+
+  @override
+  Future<void> setHeaterPhase1Flow(double val) async {
+    var value = _packMMRInt((val * 10).toInt());
+    await _mmrWrite(MMRItem.heaterUp1Flow, value);
+  }
+
+  @override
+  Future<void> setHeaterPhase2Flow(double val) async {
+    var value = _packMMRInt((val * 10).toInt());
+    await _mmrWrite(MMRItem.heaterUp2Flow, value);
+  }
+
+  @override
+  Future<void> setHeaterPhase2Timeout(double val) async {
+    var value = _packMMRInt((val * 10).toInt());
+    await _mmrWrite(MMRItem.heaterUp2Timeout, value);
   }
 }

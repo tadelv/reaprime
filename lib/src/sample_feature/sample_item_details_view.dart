@@ -6,7 +6,7 @@ import 'package:reaprime/src/models/device/machine.dart';
 class De1DebugView extends StatefulWidget {
   const De1DebugView({super.key, required this.machine});
 
-  static const routeName = '/sample_item';
+  static const routeName = '/debug_details';
 
   final De1Interface machine;
 
@@ -35,7 +35,7 @@ class _De1DebugViewState extends State<De1DebugView> {
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.active) {
                         var diff =
-                            snapshot.data?.timestamp.difference(_lastDate) ?? 0;
+                            snapshot.data?.timestamp.difference(_lastDate) ?? Duration.zero;
                         _lastDate = snapshot.data?.timestamp ?? DateTime.now();
                         return Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -71,7 +71,7 @@ class _De1DebugViewState extends State<De1DebugView> {
 
   List<Widget> machineState(
     AsyncSnapshot<MachineSnapshot> snapshot,
-    Object diff,
+    Duration diff,
   ) {
     return [
       Text("${snapshot.data?.state.state}: ${snapshot.data?.state.substate}"),
@@ -89,7 +89,7 @@ class _De1DebugViewState extends State<De1DebugView> {
         "target pressure: ${snapshot.data?.targetPressure.toStringAsFixed(2)}",
       ),
       Text("target flow: ${snapshot.data?.flow.toStringAsFixed(2)}"),
-      Text("update freq: ${diff}"),
+      Text("update freq: ${diff.inMilliseconds}ms"),
       _stateButton(snapshot),
     ];
   }

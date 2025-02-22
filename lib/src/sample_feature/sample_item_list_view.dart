@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../settings/settings_view.dart';
 import 'sample_item_details_view.dart';
@@ -12,34 +12,21 @@ class SampleItemListView extends StatelessWidget {
     required this.controller,
   });
 
-  static const routeName = '/';
+  static const routeName = '/debug';
 
   final DeviceController controller;
 
   @override
   Widget build(BuildContext context) {
-    FlutterForegroundTask.startService(
-      notificationTitle: "Reaprime talking to DE1",
-      notificationText: "Tap to return to Reaprime",
-    );
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sample Items'),
+        title: const Text('Debug Items'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              // Navigate to the settings page. If the user leaves and returns
-              // to the app after it has been killed while running in the
-              // background, the navigation stack is restored.
-              Navigator.restorablePushNamed(context, SettingsView.routeName);
-            },
-          ),
           IconButton(
             onPressed: () async {
               await controller.scanForDevices();
             },
-            icon: const Icon(Icons.radar),
+            icon: const Icon(LucideIcons.radar),
           ),
         ],
       ),

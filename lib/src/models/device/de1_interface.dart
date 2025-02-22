@@ -1,9 +1,9 @@
-import 'package:flutter/services.dart';
 import 'package:reaprime/src/models/data/profile.dart';
-import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 
 abstract class De1Interface extends Machine {
+  Stream<bool> get ready;
+
   Stream<De1ShotSettings> get shotSettings;
   Future<void> updateShotSettings(De1ShotSettings newSettings);
 
@@ -14,15 +14,26 @@ abstract class De1Interface extends Machine {
   // TODO: also heater timeouts and others? (check mmr for options)
 
   //// Timeouts and Thresholds
-  //Future<void> setFlushTimeout(double newTimeout);
-  //Future<void> setFanThreshhold(int temp);
-  //Future<int> getFanThreshhold();
-  //Future<int> getTankTempThreshold();
-  //Future<void> setTankTempThreshold(int temp);
+  Future<void> setFanThreshhold(int temp);
+  Future<int> getFanThreshhold();
+  Future<int> getTankTempThreshold();
+  Future<void> setTankTempThreshold(int temp);
   //
   //// Flow Control
-  //Future<void> setSteamFlow(double newFlow);
-  //Future<double> getSteamFlow();
+  Future<void> setSteamFlow(double newFlow);
+  Future<double> getSteamFlow();
+  Future<void> setHotWaterFlow(double newFlow);
+  Future<double> getHotWaterFlow();
+
+// Flush/Rinse control
+  Future<void> setFlushFlow(double newFlow);
+  Future<double> getFlushFlow();
+  Future<void> setFlushTimeout(double newTimeout);
+  Future<double> getFlushTimeout();
+  Future<double> getFlushTemperature();
+  Future<void> setFlushTemperature(double newTemp);
+
+  // Calibration
   //Future<void> setFlowEstimation(double newFlow);
   //Future<double> getFlowEstimation();
   //
@@ -39,8 +50,19 @@ abstract class De1Interface extends Machine {
   //Future<int> getSerialNumber();
   //Future<int> getGhcInfo();
   //Future<int> getGhcMode();
+
+	// Heater prefs
+	Future<double> getHeaterPhase1Flow();
+	Future<void> setHeaterPhase1Flow(double val);
+	Future<double> getHeaterPhase2Flow();
+	Future<void> setHeaterPhase2Flow(double val);
+	Future<double> getHeaterPhase2Timeout();
+	Future<void> setHeaterPhase2Timeout(double val);
+	Future<double> getHeaterIdleTemp();
+	Future<void> setHeaterIdleTemp(double val);
 }
 
+// This doesn't change anything
 enum De1SteamSettingsValues {
   none(0),
   fastStart(0x80),
@@ -88,14 +110,37 @@ final class De1ShotSettings {
 
   factory De1ShotSettings.fromJson(Map<String, dynamic> json) {
     return De1ShotSettings(
-      steamSetting: int.parse(json['steamSetting']),
-      targetSteamTemp: int.parse(json['targetSteamTemp']),
-      targetSteamDuration: int.parse(json['targetSteamDuration']),
-      targetHotWaterTemp: int.parse(json['targetHotWaterTemp']),
-      targetHotWaterVolume: int.parse(json['targetHotWaterVolume']),
-      targetHotWaterDuration: int.parse(json['targetHotWaterDuration']),
-      targetShotVolume: int.parse(json['targetShotVolume']),
-      groupTemp: double.parse(json['groupTemp']),
+      steamSetting: json['steamSetting'],
+      targetSteamTemp: json['targetSteamTemp'],
+      targetSteamDuration: json['targetSteamDuration'],
+      targetHotWaterTemp: json['targetHotWaterTemp'],
+      targetHotWaterVolume: json['targetHotWaterVolume'],
+      targetHotWaterDuration: json['targetHotWaterDuration'],
+      targetShotVolume: json['targetShotVolume'],
+      groupTemp: json['groupTemp'],
+    );
+  }
+
+  De1ShotSettings copyWith({
+    int? steamSetting,
+    int? targetSteamTemp,
+    int? targetSteamDuration,
+    int? targetHotWaterTemp,
+    int? targetHotWaterVolume,
+    int? targetHotWaterDuration,
+    int? targetShotVolume,
+    double? groupTemp,
+  }) {
+    return De1ShotSettings(
+      steamSetting: steamSetting ?? this.steamSetting,
+      targetSteamTemp: targetSteamTemp ?? this.targetSteamTemp,
+      targetSteamDuration: targetSteamDuration ?? this.targetSteamDuration,
+      targetHotWaterTemp: targetHotWaterTemp ?? this.targetHotWaterTemp,
+      targetHotWaterVolume: targetHotWaterVolume ?? this.targetHotWaterVolume,
+      targetHotWaterDuration:
+          targetHotWaterDuration ?? this.targetHotWaterDuration,
+      targetShotVolume: targetShotVolume ?? this.targetShotVolume,
+      groupTemp: groupTemp ?? this.groupTemp,
     );
   }
 }

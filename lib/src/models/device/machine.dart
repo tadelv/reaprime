@@ -18,7 +18,7 @@ class MachineSnapshot {
   final double targetMixTemperature;
   final double targetGroupTemperature;
   final int profileFrame;
-  final double steamTemperature;
+  final int steamTemperature;
 
   MachineSnapshot({
     required this.timestamp,
@@ -48,7 +48,7 @@ class MachineSnapshot {
     double? targetMixTemperature,
     double? targetGroupTemperature,
     int? profileFrame,
-    double? steamTemperature,
+    int? steamTemperature,
   }) {
     return MachineSnapshot(
       timestamp: timestamp ?? this.timestamp,
@@ -83,6 +83,28 @@ class MachineSnapshot {
       'steamTemperature': steamTemperature,
     };
   }
+
+  factory MachineSnapshot.fromJson(Map<String, dynamic> json) {
+    return MachineSnapshot(
+      timestamp: DateTime.parse(json["timestamp"]),
+      state: MachineStateSnapshot(
+        state: MachineState.values
+            .firstWhere((e) => e.name == json["state"]["state"]),
+        substate: MachineSubstate.values
+            .firstWhere((e) => e.name == json["state"]["substate"]),
+      ),
+      flow: json["flow"],
+      pressure: json["pressure"],
+      targetFlow: json["targetFlow"],
+      targetPressure: json["targetPressure"],
+      mixTemperature: json["mixTemperature"],
+      groupTemperature: json["groupTemperature"],
+      targetMixTemperature: json["targetMixTemperature"],
+      targetGroupTemperature: json["targetGroupTemperature"],
+      profileFrame: json["profileFrame"],
+      steamTemperature: json["steamTemperature"],
+    );
+  }
 }
 
 enum MachineState {
@@ -95,6 +117,7 @@ enum MachineState {
   hotWater,
   flush,
   steam,
+  skipStep,
   cleaning,
   descaling,
   transportMode,

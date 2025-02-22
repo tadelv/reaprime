@@ -11,7 +11,7 @@ extension De1Profile on De1 {
     Uint8List data = Uint8List(5);
 
     int index = 0;
-    data[index] = 1;
+    data[index] = 1; // Header version
     index++;
     data[index] = profile.steps.length;
     index++;
@@ -31,6 +31,9 @@ extension De1Profile on De1 {
     // write frames
     for (var i = 0; i < profile.steps.length; i++) {
       var step = profile.steps[i];
+			_log.fine("encoding step ${step.name}");
+			_log.fine("limiter: ${step.limiter?.toJson()}");
+			_log.fine("exit: ${step.exit?.toJson()}");
       Uint8List data = Uint8List(8);
 
       int index = 0;
@@ -48,7 +51,7 @@ extension De1Profile on De1 {
       index++;
       Helper.convert_float_to_U10P0(step.volume, data, index);
 
-      _writeWithResponse(Endpoint.frameWrite, data);
+      await _writeWithResponse(Endpoint.frameWrite, data);
     }
 
     // write available extension frames
@@ -60,8 +63,8 @@ extension De1Profile on De1 {
       data[0] = stepIndex;
 
       if (step.limiter == null) {
-        _writeWithResponse(Endpoint.frameWrite, data);
-        break;
+        await _writeWithResponse(Endpoint.frameWrite, data);
+        continue;
       }
       double limiterValue = step.limiter!.value;
       double limiterRange = step.limiter!.range;
@@ -75,7 +78,7 @@ extension De1Profile on De1 {
       data[6] = 0;
       data[7] = 0;
 
-      _writeWithResponse(Endpoint.frameWrite, data);
+      await _writeWithResponse(Endpoint.frameWrite, data);
     }
   }
 
@@ -91,7 +94,7 @@ extension De1Profile on De1 {
     data[5] = 0;
     data[6] = 0;
     data[7] = 0;
-    _writeWithResponse(Endpoint.frameWrite, data);
+    await _writeWithResponse(Endpoint.frameWrite, data);
   }
 }
 

@@ -1,0 +1,308 @@
+openapi: 3.0.3
+info:
+  title: Rea Prime API
+  version: 1.0.0
+  description: |
+    This API provides endpoints to retrieve a list of Bluetooth devices, trigger a scan for new devices, manage DE1 espresso machine state and settings, and interact with a connected scale.
+servers:
+  - url: http://{tablet-ip}/api/v1
+    variables:
+      tablet-ip:
+        default: localhost
+paths:
+  /devices:
+    get:
+      summary: Get Available Devices
+      description: Retrieves a list of available Bluetooth devices with their connection states.
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    id:
+                      type: string
+                    state:
+                      type: string
+                      enum: [connected, disconnected]
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /devices/scan:
+    get:
+      summary: Scan for Devices
+      description: Triggers a Bluetooth device scan.
+      responses:
+        "200":
+          description: Scan started successfully
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /de1/state:
+    get:
+      summary: Get DE1 State
+      description: Retrieves the current DE1 machine state.
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  snapshot:
+                    $ref: "#/components/schemas/MachineSnapshot"
+                  usbChargerEnabled:
+                    type: boolean
+  /de1/state/{newState}:
+    put:
+      summary: Request DE1 State Change
+      description: Requests a state change for the DE1 espresso machine.
+      parameters:
+        - name: newState
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: State change successful
+        "400":
+          description: Bad Request
+  /de1/profile:
+    post:
+      summary: Set DE1 Profile
+      description: Uploads a new brewing profile to the DE1 machine.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Profile"
+      responses:
+        "200":
+          description: Profile updated successfully
+  /de1/shotSettings:
+    post:
+      summary: Update Shot Settings
+      description: Updates shot settings on the DE1 espresso machine.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShotSettings"
+      responses:
+        "200":
+          description: Shot settings updated successfully
+  /de1/usb/{state}:
+    put:
+      summary: Toggle USB Charger Mode
+      description: Enables or disables the USB charger mode on the DE1 machine.
+      parameters:
+        - name: state
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [enable, disable]
+      responses:
+        "200":
+          description: USB mode updated successfully
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /scale/tare:
+    put:
+      summary: Tare Scale
+      description: Tares the connected scale.
+      responses:
+        "200":
+          description: Scale tared successfully
+        "404":
+          description: Scale not found
+  /ws/v1/de1/snapshot:
+    get:
+      summary: WebSocket Snapshot Updates
+      description: Receives real-time snapshot data from the DE1 machine.
+      responses:
+        "200":
+          description: "Socket message"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MachineSnapshot"
+  /ws/v1/de1/shotSettings:
+    get:
+      summary: WebSocket Shot Settings Updates
+      description: Receives real-time shot settings updates.
+      responses:
+        "200":
+          description: "a snapshot of ShotSettings"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShotSettings"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /ws/v1/de1/waterLevels:
+    get:
+      summary: WebSocket Water Levels Updates
+      description: Receives real-time water level updates.
+      responses:
+        "200":
+          description: "a snapshot of WaterLevels"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WaterLevels"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /ws/v1/scale/snapshot:
+    get:
+      summary: WebSocket Scale Snapshot
+      description: Receives real-time weight data from the scale.
+      responses:
+        "200":
+          description: "a snapshot of Scale data"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScaleSnapshot"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        e:
+          type: string
+        st:
+          type: string
+    ScaleSnapshot:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        weight:
+          type: number
+        batteryLevel:
+          type: integer
+    MachineSnapshot:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        state:
+          type: object
+        flow:
+          type: number
+        pressure:
+          type: number
+        targetFlow:
+          type: number
+        targetPressure:
+          type: number
+        mixTemperature:
+          type: number
+        groupTemperature:
+          type: number
+        targetMixTemperature:
+          type: number
+        targetGroupTemperature:
+          type: number
+        profileFrame:
+          type: integer
+        steamTemperature:
+          type: number
+    Profile:
+      type: object
+      properties:
+        version:
+          type: string
+        title:
+          type: string
+        notes:
+          type: string
+        author:
+          type: string
+        beverage_type:
+          type: string
+        steps:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              value:
+                type: number
+              duration:
+                type: integer
+        target_volume:
+          type: number
+        target_weight:
+          type: number
+        target_volume_count_start:
+          type: integer
+        tank_temperature:
+          type: number
+    ShotSettings:
+      type: object
+      properties:
+        steamSetting:
+          type: integer
+        targetSteamTemp:
+          type: number
+        targetSteamDuration:
+          type: integer
+        targetHotWaterTemp:
+          type: number
+        targetHotWaterVolume:
+          type: number
+        targetHotWaterDuration:
+          type: integer
+        targetShotVolume:
+          type: number
+        groupTemp:
+          type: number
+    WaterLevels:
+      type: object
+      properties:
+        currentPercentage:
+          type: integer
+        warningThresholdPercentage:
+          type: integer

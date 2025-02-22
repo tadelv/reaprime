@@ -2,14 +2,15 @@ import 'dart:async';
 
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:rxdart/rxdart.dart';
 
 class DeviceController {
   final List<DeviceDiscoveryService> _services;
 
   late Map<DeviceDiscoveryService, List<Device>> _devices;
 
-  final StreamController<List<Device>> _deviceStream =
-      StreamController.broadcast();
+  final BehaviorSubject<List<Device>> _deviceStream =
+      BehaviorSubject.seeded([]);
 
   Stream<List<Device>> get deviceStream => _deviceStream.stream;
 

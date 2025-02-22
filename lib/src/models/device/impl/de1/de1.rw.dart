@@ -23,7 +23,7 @@ extension De1ReadWrite on De1 {
         deviceId: deviceId,
       );
 
-      _ble.writeCharacteristicWithoutResponse(characteristic, value: data);
+      await _ble.writeCharacteristicWithoutResponse(characteristic, value: data);
     } catch (e, st) {
       _log.severe("failed to write", e, st);
     }
@@ -31,13 +31,15 @@ extension De1ReadWrite on De1 {
 
   Future<void> _writeWithResponse(Endpoint e, Uint8List data) async {
     try {
+		_log.info('about to write to ${e.name}');
+		_log.info('payload: ${data.map((el) => toHexString(el))}');
       final characteristic = QualifiedCharacteristic(
         characteristicId: Uuid.parse(e.uuid),
         serviceId: Uuid.parse(de1ServiceUUID),
         deviceId: deviceId,
       );
 
-      _ble.writeCharacteristicWithResponse(characteristic, value: data);
+      await _ble.writeCharacteristicWithResponse(characteristic, value: data);
     } catch (e, st) {
       _log.severe("failed to write", e, st);
     }
