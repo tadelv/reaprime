@@ -60,12 +60,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  snapshot:
-                    $ref: "#/components/schemas/MachineSnapshot"
-                  usbChargerEnabled:
-                    type: boolean
+                $ref: "#/components/schemas/MachineSnapshot"
   /de1/state/{newState}:
     put:
       summary: Request DE1 State Change

@@ -119,12 +119,10 @@ class De1Handler {
   Future<Response> _stateHandler(Request request) async {
     return withDe1((De1Interface de1) async {
       var snapshot = await de1.currentSnapshot.first;
-      var charger = await de1.getUsbChargerMode();
       return Response.ok(
-        jsonEncode({
-          'snapshot': snapshot.toJson(),
-          'usbChargerEnabled': charger,
-        }),
+        jsonEncode(
+          snapshot.toJson(),
+        ),
       );
     });
   }
