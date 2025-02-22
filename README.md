@@ -5,7 +5,7 @@
 
 
 ## API
-read more about the api in [v1 api doc](./api_v1.md)
+read more about the api in [v1 api doc](./api_v1.md) or use the [OpenApi yaml](./api_v1.yaml).
 
 ## Supported platforms
 The primary platform for ReaPrime is Android, as it runs on the tablet the DE1 ships with.
@@ -29,4 +29,5 @@ Currently, R1 supports the most basic of features, but enough to support the mai
 ##### Currently supported scales:
 - Felicita Arc
 - Decent Scale
+- Bookoo
 

@@ -141,8 +141,8 @@ Currently supports upload of v2 json profiles, that are present in the de1app.
 
 ```json
 {
-  "profileName": "Espresso Shot",
-  "settings": { ... }
+  "title": "Espresso Shot",
+  "steps": [ ... ]
 }
 ```
 
@@ -163,8 +163,8 @@ Updates shot settings on the DE1 espresso machine.
 
 ```json
 {
-  "temperature": 93.0,
-  "pressure": 9.0
+  "targetHotWaterTemp": 93.0,
+  "targetSteamTemp": 9.0
 }
 ```
 
