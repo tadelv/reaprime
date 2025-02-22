@@ -61,6 +61,7 @@ class StatusTile extends StatelessWidget {
                         Icon(
                           LucideIcons.showerHead,
                           size: 32.0,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                         Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
@@ -85,6 +86,7 @@ class StatusTile extends StatelessWidget {
                         Icon(
                           LucideIcons.paintBucket,
                           size: 32.0,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                         Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
@@ -107,7 +109,11 @@ class StatusTile extends StatelessWidget {
                     },
                     child: Row(
                       children: [
-                        Icon(LucideIcons.wind, size: 32.0),
+                        Icon(
+                          LucideIcons.wind,
+                          size: 32.0,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                         Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
@@ -120,7 +126,7 @@ class StatusTile extends StatelessWidget {
                     ),
                   ),
                 ),
-                ..._scaleWidgets(),
+                ..._scaleWidgets(context),
               ],
             );
           },
@@ -211,7 +217,7 @@ class StatusTile extends StatelessWidget {
     );
   }
 
-  List<Widget> _scaleWidgets() {
+  List<Widget> _scaleWidgets(BuildContext context) {
     return [
       SizedBox(
         width: 110,
@@ -221,6 +227,7 @@ class StatusTile extends StatelessWidget {
             Icon(
               LucideIcons.scale,
               size: 32.0,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
             StreamBuilder(
                 stream: scaleController.connectionState,
@@ -317,7 +324,10 @@ class StatusTile extends StatelessWidget {
                         width: boxWidth,
                         child: Row(
                           children: [
-                            Icon(LucideIcons.thermometer),
+                            Icon(
+                              LucideIcons.thermometer,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
                             Text(
                                 "${snapshot.groupTemperature.toStringAsFixed(1)}℃"),
                           ],
@@ -327,7 +337,10 @@ class StatusTile extends StatelessWidget {
                         width: boxWidth,
                         child: Row(
                           children: [
-                            Icon(LucideIcons.wind),
+                            Icon(
+                              LucideIcons.wind,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
                             Text("${snapshot.steamTemperature}℃"),
                           ],
                         ),
@@ -347,7 +360,10 @@ class StatusTile extends StatelessWidget {
                     width: boxWidth,
                     child: Row(
                       children: [
-                        Icon(LucideIcons.waves),
+                        Icon(
+                          LucideIcons.waves,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                         Text(
                           "${snapshot.currentPercentage}%",
                           style: TextStyle(
