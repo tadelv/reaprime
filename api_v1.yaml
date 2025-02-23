@@ -102,6 +102,52 @@ paths:
       responses:
         "200":
           description: Shot settings updated successfully
+  /de1/settings:
+    get:
+      summary: Get De1 settings
+      description: pulls additional settings from the De1
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/De1SettingsResponse"
+    post:
+      summary: Set De1 settings
+      description: set additional settings on the De1, each setting can be set individually
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/De1SettingsRequest"
+      responses:
+        "200":
+          description: Settings update successful
+  /de1/settings/advanced:
+    get:
+      summary: Get advanced De1 settings
+      description: Get additional advanced De1 settings
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/De1AdvancedSettingsResponse"
+    post:
+      summary: Set advanced De1 settings
+      description: Set advanced settings on the De1, each setting can be sent separately
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/De1AdvancedSettingsRequest"
+      responses:
+        "200":
+          description: Advanced settings updated successfully
   /de1/usb/{state}:
     put:
       summary: Toggle USB Charger Mode
@@ -300,4 +346,76 @@ components:
         currentPercentage:
           type: integer
         warningThresholdPercentage:
+          type: integer
+    De1SettingsRequest:
+      type: object
+      properties:
+        usb:
+          type: boolean
+          nullable: true
+        fan:
+          type: integer
+          nullable: true
+        flushTemp:
+          type: integer
+          nullable: true
+        flushFlow:
+          type: number
+          nullable: true
+        flushTimeout:
+          type: integer
+          nullable: true
+        hotWaterFlow:
+          type: number
+          nullable: true
+        steamFlow:
+          type: number
+          nullable: true
+        tankTemp:
+          type: integer
+          nullable: true
+    De1SettingsResponse:
+      type: object
+      properties:
+        usb:
+          type: boolean
+        fan:
+          type: integer
+        flushTemp:
+          type: integer
+        flushFlow:
+          type: number
+        flushTimeout:
+          type: integer
+        hotWaterFlow:
+          type: number
+        steamFlow:
+          type: number
+        tankTemp:
+          type: integer
+    De1AdvancedSettingsRequest:
+      type: object
+      properties:
+        heaterPh1Flow:
+          type: number
+          nullable: true
+        heaterPh2Flow:
+          type: number
+          nullable: true
+        heaterIdleTemp:
+          type: number
+          nullable: true
+        heaterPh2Timeout:
+          type: integer
+          nullable: true
+    De1AdvancedSettingsResponse:
+      type: object
+      properties:
+        heaterPh1Flow:
+          type: number
+        heaterPh2Flow:
+          type: number
+        heaterIdleTemp:
+          type: number
+        heaterPh2Timeout:
           type: integer
