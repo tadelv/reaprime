@@ -403,6 +403,12 @@ class _ProfileState extends State<ProfileTile> {
                             .doseIn = double.parse(val);
                         widget.workflowController.currentWorkflow.doseData
                             .setRatio(ratio);
+                        var doseData =
+                            widget.workflowController.currentWorkflow.doseData;
+                        var newWorkflow = widget
+                            .workflowController.currentWorkflow
+                            .copyWith(doseData: doseData);
+                        widget.workflowController.setWorkflow(newWorkflow);
                       });
                     },
                   ),
@@ -426,6 +432,12 @@ class _ProfileState extends State<ProfileTile> {
                       setState(() {
                         widget.workflowController.currentWorkflow.doseData
                             .setRatio(double.parse(val));
+                        var doseData =
+                            widget.workflowController.currentWorkflow.doseData;
+                        var newWorkflow = widget
+                            .workflowController.currentWorkflow
+                            .copyWith(doseData: doseData);
+                        widget.workflowController.setWorkflow(newWorkflow);
                       });
                     },
                   ),
@@ -449,6 +461,12 @@ class _ProfileState extends State<ProfileTile> {
                       setState(() {
                         widget.workflowController.currentWorkflow.doseData
                             .doseOut = double.parse(val);
+                        var doseData =
+                            widget.workflowController.currentWorkflow.doseData;
+                        var newWorkflow = widget
+                            .workflowController.currentWorkflow
+                            .copyWith(doseData: doseData);
+                        widget.workflowController.setWorkflow(newWorkflow);
                       });
                     },
                   ),
