@@ -4,17 +4,21 @@ import 'dart:io';
 import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
+import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
 
 class FileStorageService implements StorageService {
   final Directory _path;
   late Directory _shotsPath;
+  late Directory _dataPath;
 
-	final _log = Logger("FileStorageService");
+  final _log = Logger("FileStorageService");
 
   FileStorageService({required Directory path}) : _path = path {
     _shotsPath = Directory('${_path.path}/shots');
     _shotsPath.createSync(recursive: true);
+    _dataPath = Directory('${_path.path}/data');
+    _dataPath.createSync(recursive: true);
   }
 
   @override
@@ -28,8 +32,8 @@ class FileStorageService implements StorageService {
         var json = jsonDecode(jsonString);
         records.add(ShotRecord.fromJson(json));
       } catch (e) {
-			_log.severe("Failed to read shot file: $path", e);
-			}
+        _log.severe("Failed to read shot file: $path", e);
+      }
     }
     return records;
   }
@@ -59,10 +63,25 @@ class FileStorageService implements StorageService {
   Future<void> storeShot(ShotRecord record) async {
     File file = File('${_shotsPath.path}/${record.id}.json');
     await file.writeAsString(jsonEncode(record.toJson()));
-		_log.info("Stored shot: ${record.id} at ${file.path}");
+    _log.fine("Stored shot: ${record.id} at ${file.path}");
   }
 
   Future<List<String>> _getShotFiles() {
     return _shotsPath.list().map((e) => e.path).toList();
+  }
+
+  @override
+  Future<Workflow?> loadCurrentWorkflow() async {
+    File file = File('${_dataPath.path}/defaultWorkflow.json');
+    String contents = await file.readAsString();
+    var json = jsonDecode(contents);
+    return Workflow.fromJson(json);
+  }
+
+  @override
+  Future<void> storeCurrentWorkflow(Workflow workflow) async {
+    File file = File('${_dataPath.path}/defaultWorkflow.json');
+    await file.writeAsString(jsonEncode(workflow.toJson()));
+    _log.fine("Stored workflow: ${workflow.id} at ${file.path}");
   }
 }

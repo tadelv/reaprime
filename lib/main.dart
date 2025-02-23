@@ -12,6 +12,7 @@ import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
+import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/bookoo/miniscale.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
@@ -90,6 +91,13 @@ void main() async {
   await settingsController.loadSettings();
 
   final WorkflowController workflowController = WorkflowController();
+  Workflow? workflow = await persistenceController.loadWorkflow();
+  if (workflow != null) {
+    workflowController.setWorkflow(workflow);
+  }
+  workflowController.addListener(() {
+    persistenceController.saveWorkflow(workflowController.currentWorkflow);
+  });
 
   // Run the app and pass in the SettingsController. The app listens to the
   // SettingsController for changes, then passes it further down to the
