@@ -91,9 +91,13 @@ void main() async {
   await settingsController.loadSettings();
 
   final WorkflowController workflowController = WorkflowController();
-  Workflow? workflow = await persistenceController.loadWorkflow();
-  if (workflow != null) {
-    workflowController.setWorkflow(workflow);
+  try {
+    Workflow? workflow = await persistenceController.loadWorkflow();
+    if (workflow != null) {
+      workflowController.setWorkflow(workflow);
+    }
+  } catch (e) {
+    log.warning("loading default workflow failed", e);
   }
   workflowController.addListener(() {
     persistenceController.saveWorkflow(workflowController.currentWorkflow);
