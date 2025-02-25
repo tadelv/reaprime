@@ -278,6 +278,7 @@ components:
           type: number
         pressure:
           type: number
+          example: 6.2
         targetFlow:
           type: number
         targetPressure:
@@ -297,6 +298,7 @@ components:
     MachineState:
       type: string
       enum: [idle, booting, sleeping, heating, preheating, espresso, hotWater, flush, steam, skipStep, cleaning, descaling, transportMode, needsWater, error]
+      example: espresso
     MachineSubstate:
       type: string
       enum: [   idle,
@@ -309,7 +311,7 @@ components:
         cleanSoaking,
         cleaningSteam,
       ]
-
+      example: preparingForShot
     Profile:
       type: object
       properties:
