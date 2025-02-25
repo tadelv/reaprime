@@ -70,7 +70,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: "#/components/schemas/MachineState"
       responses:
         "200":
           description: State change successful
@@ -269,6 +269,11 @@ components:
           format: date-time
         state:
           type: object
+          properties:
+            state:
+              $ref: "#/components/schemas/MachineState"
+            substate:
+              $ref: "#/components/schemas/MachineSubstate"
         flow:
           type: number
         pressure:
@@ -289,6 +294,22 @@ components:
           type: integer
         steamTemperature:
           type: number
+    MachineState:
+      type: string
+      enum: [idle, booting, sleeping, heating, preheating, espresso, hotWater, flush, steam, skipStep, cleaning, descaling, transportMode, needsWater, error]
+    MachineSubstate:
+      type: string
+      enum: [   idle,
+        preparingForShot, 
+        preinfusion,
+        pouring,
+        pouringDone,
+        cleaningStart, 
+        cleaingGroup, 
+        cleanSoaking,
+        cleaningSteam,
+      ]
+
     Profile:
       type: object
       properties:
@@ -306,13 +327,6 @@ components:
           type: array
           items:
             type: object
-            properties:
-              type:
-                type: string
-              value:
-                type: number
-              duration:
-                type: integer
         target_volume:
           type: number
         target_weight:
