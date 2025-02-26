@@ -301,8 +301,8 @@ class _ProfileState extends State<ProfileTile> {
           children: [
             _temperaturePopover(context),
             _weightPopover(context),
-            _grinderPopover(context),
-            _coffeePopover(context),
+            _grinderDialog(context),
+            _coffeeDialog(context),
           ],
         ),
       )
@@ -488,342 +488,359 @@ class _ProfileState extends State<ProfileTile> {
     );
   }
 
-  final ShadPopoverController _grinderPopoverController =
-      ShadPopoverController();
-
-  ShadPopover _grinderPopover(BuildContext context) {
+  Widget _grinderDialog(BuildContext context) {
     var data = widget.workflowController.currentWorkflow.grinderData;
-
-    return ShadPopover(
-      anchor: ShadAnchorAuto(
-          verticalOffset: 0, preferBelow: true, followTargetOnResize: true),
-      controller: _grinderPopoverController,
-      popover: (context) => SizedBox(
-        width: 320,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              spacing: 16,
-              children: [
-                Text("Grind setting"),
-                Expanded(
-                  child: Autocomplete(
-                    optionsBuilder: (TextEditingValue val) {
-                      final options = widget.persistenceController
-                          .grinderOptions()
-                          .where((el) => el.setting
-                              .toLowerCase()
-                              .contains(val.text.toLowerCase()))
-                          .map((e) => e.setting)
-                          .toSet();
-                      if (options.isEmpty) {
-                        return [val.text];
-                      }
-                      return options;
+    return ShadButton.link(
+      onPressed: () {
+        showShadDialog(
+          context: context,
+          builder: (context) => ShadDialog(
+            title: const Text("Grinder Settings"),
+            child: Dialog(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                spacing: 16,
+                children: [
+                  grinderDataForm(context),
+                  ShadButton(
+                    child: Text("Done"),
+                    onPressed: () {
+                      Navigator.of(context).pop();
                     },
-                    key: Key(
-                      widget.workflowController.currentWorkflow.grinderData
-                              ?.setting ??
-                          "",
-                    ),
-                    initialValue: TextEditingValue(
-                        text: widget.workflowController.currentWorkflow
-                                .grinderData?.setting ??
-                            ""),
-                    onSelected: (val) {
-                      //_log.shout("selected: $val");
-                      setState(() {
-                        if (widget.workflowController.currentWorkflow
-                                .grinderData ==
-                            null) {
-                          widget.workflowController.setWorkflow(
-                            widget.workflowController.currentWorkflow.copyWith(
-                              grinderData: GrinderData(
-                                setting: val,
-                              ),
-                            ),
-                          );
-                        } else {
-                          widget.workflowController.setWorkflow(
-                            widget.workflowController.currentWorkflow.copyWith(
-                                grinderData: widget.workflowController
-                                    .currentWorkflow.grinderData!
-                                  ..setting = val),
-                          );
-                        }
-                      });
-                    },
-                  ),
-                ),
-              ],
+                  )
+                ],
+              ),
             ),
-            Row(
-              spacing: 16,
-              children: [
-                Text("Grinder model"),
-                Expanded(
-                  child: Autocomplete(
-                    optionsBuilder: (TextEditingValue val) {
-                      final options = widget.persistenceController
-                          .grinderOptions()
-                          .where((e) =>
-                              e.model
-                                  ?.toLowerCase()
-                                  .contains(val.text.toLowerCase()) ??
-                              false)
-                          .fold(<String>[], (r, e) {
-                        if (e.model != null) {
-                          r.add(e.model!);
-                        }
-                        return r;
-                      }).toSet();
-                      if (options.isEmpty) {
-                        return [val.text];
-                      }
-                      return options;
-                    },
-                    key: Key(widget.workflowController.currentWorkflow
-                            .grinderData?.model ??
-                        ""),
-                    initialValue: TextEditingValue(
-                        text: widget.workflowController.currentWorkflow
-                                .grinderData?.model ??
-                            ""),
-                    onSelected: (val) {
-                      setState(() {
-                        if (widget.workflowController.currentWorkflow
-                                .grinderData ==
-                            null) {
-                          widget.workflowController.setWorkflow(
-                            widget.workflowController.currentWorkflow.copyWith(
-                              grinderData: GrinderData(
-                                model: val,
-                              ),
-                            ),
-                          );
-                        } else {
-                          widget.workflowController.setWorkflow(
-                            widget.workflowController.currentWorkflow.copyWith(
-                                grinderData: widget.workflowController
-                                    .currentWorkflow.grinderData!
-                                  ..model = val),
-                          );
-                        }
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              spacing: 16,
-              children: [
-                Text("Grinder manufacturer"),
-                Expanded(
-                  child: Autocomplete(
-                    optionsBuilder: (TextEditingValue val) {
-                      final options = widget.persistenceController
-                          .grinderOptions()
-                          .where((e) =>
-                              e.manufacturer
-                                  ?.toLowerCase()
-                                  .contains(val.text.toLowerCase()) ??
-                              false)
-                          .fold(<String>[], (r, e) {
-                        if (e.manufacturer != null) {
-                          r.add(e.manufacturer!);
-                        }
-                        return r;
-                      }).toSet();
-                      if (options.isEmpty) {
-                        return [val.text];
-                      }
-                      return options;
-                    },
-                    key: Key(widget.workflowController.currentWorkflow
-                            .grinderData?.manufacturer ??
-                        ""),
-                    initialValue: TextEditingValue(
-                        text: widget.workflowController.currentWorkflow
-                                .grinderData?.manufacturer ??
-                            ""),
-                    onSelected: (val) {
-                      setState(() {
-                        if (widget.workflowController.currentWorkflow
-                                .grinderData ==
-                            null) {
-                          widget.workflowController.setWorkflow(
-                            widget.workflowController.currentWorkflow.copyWith(
-                              grinderData: GrinderData(
-                                manufacturer: val,
-                              ),
-                            ),
-                          );
-                        } else {
-                          widget.workflowController.setWorkflow(
-                            widget.workflowController.currentWorkflow.copyWith(
-                                grinderData: widget.workflowController
-                                    .currentWorkflow.grinderData!
-                                  ..manufacturer = val),
-                          );
-                        }
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-      child: ShadButton.link(
-        onPressed: () {
-          _grinderPopoverController.toggle();
-        },
-        child: Text(data == null
+          ),
+        );
+      },
+      child: Text(
+        data == null
             ? "Grind settings"
-            : '${data.model == null ? "" : data.model!} ${data.setting}'),
+            : '${data.model == null ? "" : data.model!} ${data.setting}',
       ),
     );
   }
 
-  final ShadPopoverController _coffeePopoverController =
-      ShadPopoverController();
-
-  ShadPopover _coffeePopover(BuildContext context) {
-    var data = widget.workflowController.currentWorkflow.coffeeData;
-
-    return ShadPopover(
-      anchor: ShadAnchorAuto(
-          verticalOffset: 0, preferBelow: true, followTargetOnResize: true),
-      controller: _coffeePopoverController,
-      popover: (context) => SizedBox(
-        width: 320,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+  Column grinderDataForm(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          spacing: 16,
           children: [
-            Row(
-              spacing: 16,
-              children: [
-                Text("Coffee name"),
-                Expanded(
-                  child: Autocomplete<String>(
-                    optionsBuilder: (TextEditingValue val) {
-                      final options = widget.persistenceController
-                          .coffeeOptions()
-                          .where((e) => e.name
-                              .toLowerCase()
-                              .contains(val.text.toLowerCase()))
-                          .map((e) => e.name)
-                          .toSet();
-                      if (options.isEmpty) {
-                        return [val.text];
-                      }
-                      return options;
-                    },
-                    key: Key(
-                      widget.workflowController.currentWorkflow.coffeeData
-                              ?.name ??
-                          "",
-                    ),
-                    initialValue: TextEditingValue(
-                        text: widget.workflowController.currentWorkflow
-                                .coffeeData?.name ??
-                            ""),
-                    onSelected: (val) {
-                      setState(() {
-                        if (widget.workflowController.currentWorkflow
-                                .coffeeData ==
-                            null) {
-                          widget.workflowController.setWorkflow(
-                            widget.workflowController.currentWorkflow.copyWith(
-                              coffeeData: CoffeeData(
-                                name: val,
-                              ),
-                            ),
-                          );
-                        } else {
-                          widget.workflowController.setWorkflow(
-                            widget.workflowController.currentWorkflow.copyWith(
-                                coffeeData: widget.workflowController
-                                    .currentWorkflow.coffeeData!
-                                  ..name = val),
-                          );
-                        }
-                      });
-                    },
-                  ),
+            Text("Grind setting"),
+            Expanded(
+              child: Autocomplete(
+                optionsBuilder: (TextEditingValue val) {
+                  final options = widget.persistenceController
+                      .grinderOptions()
+                      .where((el) => el.setting
+                          .toLowerCase()
+                          .contains(val.text.toLowerCase()))
+                      .map((e) => e.setting)
+                      .toSet();
+                  if (options.isEmpty) {
+                    return [val.text];
+                  }
+                  return options;
+                },
+                key: Key(
+                  widget.workflowController.currentWorkflow.grinderData
+                          ?.setting ??
+                      "",
                 ),
-              ],
-            ),
-            Row(
-              spacing: 16,
-              children: [
-                Text("Roaster"),
-                Expanded(
-                  child: Autocomplete<String>(
-                    optionsBuilder: (TextEditingValue val) {
-                      final options = widget.persistenceController
-                          .coffeeOptions()
-                          .where((e) =>
-                              e.roaster
-                                  ?.toLowerCase()
-                                  .contains(val.text.toLowerCase()) ??
-                              false)
-                          .fold(<String>[], (r, e) {
-                        if (e.roaster != null) {
-                          r.add(e.roaster!);
-                        }
-                        return r;
-                      }).toSet();
-                      if (options.isEmpty) {
-                        return [val.text];
-                      }
-                      return options;
-                    },
-                    key: Key(widget.workflowController.currentWorkflow
-                            .coffeeData?.roaster ??
+                initialValue: TextEditingValue(
+                    text: widget.workflowController.currentWorkflow.grinderData
+                            ?.setting ??
                         ""),
-                    initialValue: TextEditingValue(
-                        text: widget.workflowController.currentWorkflow
-                                .coffeeData?.roaster ??
-                            ""),
-                    onSelected: (val) {
-                      setState(() {
-                        if (widget.workflowController.currentWorkflow
-                                .coffeeData ==
-                            null) {
-                          widget.workflowController.setWorkflow(
-                            widget.workflowController.currentWorkflow.copyWith(
-                              coffeeData: CoffeeData(
-                                roaster: val,
-                              ),
-                            ),
-                          );
-                        } else {
-                          widget.workflowController.setWorkflow(
-                            widget.workflowController.currentWorkflow.copyWith(
-                                coffeeData: widget.workflowController
-                                    .currentWorkflow.coffeeData!
-                                  ..roaster = val),
-                          );
-                        }
-                      });
-                    },
-                  ),
-                ),
-              ],
+                onSelected: (val) {
+                  //_log.shout("selected: $val");
+                  setState(() {
+                    if (widget.workflowController.currentWorkflow.grinderData ==
+                        null) {
+                      widget.workflowController.setWorkflow(
+                        widget.workflowController.currentWorkflow.copyWith(
+                          grinderData: GrinderData(
+                            setting: val,
+                          ),
+                        ),
+                      );
+                    } else {
+                      widget.workflowController.setWorkflow(
+                        widget.workflowController.currentWorkflow.copyWith(
+                            grinderData: widget
+                                .workflowController.currentWorkflow.grinderData!
+                              ..setting = val),
+                      );
+                    }
+                  });
+                },
+              ),
             ),
           ],
         ),
-      ),
-      child: ShadButton.link(
-        onPressed: () {
-          _coffeePopoverController.toggle();
-        },
-        child: Text(data == null ? "Coffee settings" : "${data.name}"),
-      ),
+        Row(
+          spacing: 16,
+          children: [
+            Text("Grinder model"),
+            Expanded(
+              child: Autocomplete(
+                optionsBuilder: (TextEditingValue val) {
+                  final options = widget.persistenceController
+                      .grinderOptions()
+                      .where((e) =>
+                          e.model
+                              ?.toLowerCase()
+                              .contains(val.text.toLowerCase()) ??
+                          false)
+                      .fold(<String>[], (r, e) {
+                    if (e.model != null) {
+                      r.add(e.model!);
+                    }
+                    return r;
+                  }).toSet();
+                  if (options.isEmpty) {
+                    return [val.text];
+                  }
+                  return options;
+                },
+                key: Key(widget.workflowController.currentWorkflow.grinderData
+                        ?.model ??
+                    ""),
+                initialValue: TextEditingValue(
+                    text: widget.workflowController.currentWorkflow.grinderData
+                            ?.model ??
+                        ""),
+                onSelected: (val) {
+                  setState(() {
+                    if (widget.workflowController.currentWorkflow.grinderData ==
+                        null) {
+                      widget.workflowController.setWorkflow(
+                        widget.workflowController.currentWorkflow.copyWith(
+                          grinderData: GrinderData(
+                            model: val,
+                          ),
+                        ),
+                      );
+                    } else {
+                      widget.workflowController.setWorkflow(
+                        widget.workflowController.currentWorkflow.copyWith(
+                            grinderData: widget
+                                .workflowController.currentWorkflow.grinderData!
+                              ..model = val),
+                      );
+                    }
+                  });
+                },
+              ),
+            ),
+          ],
+        ),
+        Row(
+          spacing: 16,
+          children: [
+            Text("Grinder manufacturer"),
+            Expanded(
+              child: Autocomplete(
+                optionsBuilder: (TextEditingValue val) {
+                  final options = widget.persistenceController
+                      .grinderOptions()
+                      .where((e) =>
+                          e.manufacturer
+                              ?.toLowerCase()
+                              .contains(val.text.toLowerCase()) ??
+                          false)
+                      .fold(<String>[], (r, e) {
+                    if (e.manufacturer != null) {
+                      r.add(e.manufacturer!);
+                    }
+                    return r;
+                  }).toSet();
+                  if (options.isEmpty) {
+                    return [val.text];
+                  }
+                  return options;
+                },
+                key: Key(widget.workflowController.currentWorkflow.grinderData
+                        ?.manufacturer ??
+                    ""),
+                initialValue: TextEditingValue(
+                    text: widget.workflowController.currentWorkflow.grinderData
+                            ?.manufacturer ??
+                        ""),
+                onSelected: (val) {
+                  setState(() {
+                    if (widget.workflowController.currentWorkflow.grinderData ==
+                        null) {
+                      widget.workflowController.setWorkflow(
+                        widget.workflowController.currentWorkflow.copyWith(
+                          grinderData: GrinderData(
+                            manufacturer: val,
+                          ),
+                        ),
+                      );
+                    } else {
+                      widget.workflowController.setWorkflow(
+                        widget.workflowController.currentWorkflow.copyWith(
+                            grinderData: widget
+                                .workflowController.currentWorkflow.grinderData!
+                              ..manufacturer = val),
+                      );
+                    }
+                  });
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _coffeeDialog(BuildContext context) {
+    var data = widget.workflowController.currentWorkflow.coffeeData;
+
+    return ShadButton.link(
+      onPressed: () {
+        showShadDialog(
+          context: context,
+          builder: (context) => ShadDialog(
+            title: const Text("Cofee data"),
+            child: Dialog(
+                child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              spacing: 16,
+              children: [
+                _coffeeDataForm(),
+                ShadButton(
+                  child: Text("Done"),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                )
+              ],
+            )),
+          ),
+        );
+      },
+      child: Text(data == null ? "Coffee settings" : "${data.name}"),
+    );
+  }
+
+  Column _coffeeDataForm() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          spacing: 16,
+          children: [
+            Text("Coffee name"),
+            Expanded(
+              child: Autocomplete<String>(
+                optionsBuilder: (TextEditingValue val) {
+                  final options = widget.persistenceController
+                      .coffeeOptions()
+                      .where((e) =>
+                          e.name.toLowerCase().contains(val.text.toLowerCase()))
+                      .map((e) => e.name)
+                      .toSet();
+                  if (options.isEmpty) {
+                    return [val.text];
+                  }
+                  return options;
+                },
+                key: Key(
+                  widget.workflowController.currentWorkflow.coffeeData?.name ??
+                      "",
+                ),
+                initialValue: TextEditingValue(
+                    text: widget.workflowController.currentWorkflow.coffeeData
+                            ?.name ??
+                        ""),
+                onSelected: (val) {
+                  setState(() {
+                    if (widget.workflowController.currentWorkflow.coffeeData ==
+                        null) {
+                      widget.workflowController.setWorkflow(
+                        widget.workflowController.currentWorkflow.copyWith(
+                          coffeeData: CoffeeData(
+                            name: val,
+                          ),
+                        ),
+                      );
+                    } else {
+                      widget.workflowController.setWorkflow(
+                        widget.workflowController.currentWorkflow.copyWith(
+                            coffeeData: widget
+                                .workflowController.currentWorkflow.coffeeData!
+                              ..name = val),
+                      );
+                    }
+                  });
+                },
+              ),
+            ),
+          ],
+        ),
+        Row(
+          spacing: 16,
+          children: [
+            Text("Roaster"),
+            Expanded(
+              child: Autocomplete<String>(
+                optionsBuilder: (TextEditingValue val) {
+                  final options = widget.persistenceController
+                      .coffeeOptions()
+                      .where((e) =>
+                          e.roaster
+                              ?.toLowerCase()
+                              .contains(val.text.toLowerCase()) ??
+                          false)
+                      .fold(<String>[], (r, e) {
+                    if (e.roaster != null) {
+                      r.add(e.roaster!);
+                    }
+                    return r;
+                  }).toSet();
+                  if (options.isEmpty) {
+                    return [val.text];
+                  }
+                  return options;
+                },
+                key: Key(widget.workflowController.currentWorkflow.coffeeData
+                        ?.roaster ??
+                    ""),
+                initialValue: TextEditingValue(
+                    text: widget.workflowController.currentWorkflow.coffeeData
+                            ?.roaster ??
+                        ""),
+                onSelected: (val) {
+                  setState(() {
+                    if (widget.workflowController.currentWorkflow.coffeeData ==
+                        null) {
+                      widget.workflowController.setWorkflow(
+                        widget.workflowController.currentWorkflow.copyWith(
+                          coffeeData: CoffeeData(
+                            roaster: val,
+                          ),
+                        ),
+                      );
+                    } else {
+                      widget.workflowController.setWorkflow(
+                        widget.workflowController.currentWorkflow.copyWith(
+                            coffeeData: widget
+                                .workflowController.currentWorkflow.coffeeData!
+                              ..roaster = val),
+                      );
+                    }
+                  });
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
