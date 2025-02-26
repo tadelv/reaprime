@@ -49,8 +49,14 @@ class _ProfileState extends State<ProfileTile> {
 
   _workflowChange() {
     setState(() {
-      loadedProfile = widget.workflowController.currentWorkflow.profile;
-      widget.de1controller.connectedDe1().setProfile(loadedProfile!);
+      if (loadedProfile != widget.workflowController.currentWorkflow.profile) {
+        _log.info(
+            "Changing profile to: ${widget.workflowController.currentWorkflow.profile.title}");
+        loadedProfile = widget.workflowController.currentWorkflow.profile;
+        widget.de1controller.connectedDe1().setProfile(loadedProfile!);
+        _log.fine('Loaded profile: ${loadedProfile!.title}');
+        _log.fine('Target weight: ${loadedProfile!.targetWeight}');
+      }
     });
   }
 
@@ -91,18 +97,15 @@ class _ProfileState extends State<ProfileTile> {
               File file = File(result.files.single.path!);
               var json = jsonDecode(await file.readAsString());
               setState(() {
-                loadedProfile = Profile.fromJson(json);
+                var newProfile = Profile.fromJson(json);
                 //widget.de1controller.connectedDe1().setProfile(loadedProfile!);
                 final newWorkflow =
                     widget.workflowController.currentWorkflow.copyWith(
-                  profile: loadedProfile!,
+                  profile: newProfile,
                 );
-                newWorkflow.doseData.doseOut =
-                    loadedProfile!.targetWeight ?? 36.0;
+                newWorkflow.doseData.doseOut = newProfile.targetWeight ?? 36.0;
 
                 widget.workflowController.setWorkflow(newWorkflow);
-                _log.fine('Loaded profile: ${loadedProfile!.title}');
-                _log.fine('Target weight: ${loadedProfile!.targetWeight}');
               });
             }
           },
@@ -403,6 +406,12 @@ class _ProfileState extends State<ProfileTile> {
                             .doseIn = double.parse(val);
                         widget.workflowController.currentWorkflow.doseData
                             .setRatio(ratio);
+                        var doseData =
+                            widget.workflowController.currentWorkflow.doseData;
+                        var newWorkflow = widget
+                            .workflowController.currentWorkflow
+                            .copyWith(doseData: doseData);
+                        widget.workflowController.setWorkflow(newWorkflow);
                       });
                     },
                   ),
@@ -426,6 +435,12 @@ class _ProfileState extends State<ProfileTile> {
                       setState(() {
                         widget.workflowController.currentWorkflow.doseData
                             .setRatio(double.parse(val));
+                        var doseData =
+                            widget.workflowController.currentWorkflow.doseData;
+                        var newWorkflow = widget
+                            .workflowController.currentWorkflow
+                            .copyWith(doseData: doseData);
+                        widget.workflowController.setWorkflow(newWorkflow);
                       });
                     },
                   ),
@@ -449,6 +464,12 @@ class _ProfileState extends State<ProfileTile> {
                       setState(() {
                         widget.workflowController.currentWorkflow.doseData
                             .doseOut = double.parse(val);
+                        var doseData =
+                            widget.workflowController.currentWorkflow.doseData;
+                        var newWorkflow = widget
+                            .workflowController.currentWorkflow
+                            .copyWith(doseData: doseData);
+                        widget.workflowController.setWorkflow(newWorkflow);
                       });
                     },
                   ),

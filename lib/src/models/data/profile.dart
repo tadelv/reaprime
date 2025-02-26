@@ -1,6 +1,9 @@
+import 'package:flutter/widgets.dart';
+import 'package:equatable/equatable.dart';
 
 /// Trying to imitate the common v2 profile as close as reasonable
-class Profile {
+@immutable
+class Profile extends Equatable {
   final String? version;
   final String title;
   final String notes;
@@ -12,7 +15,7 @@ class Profile {
   final int targetVolumeCountStart;
   final double tankTemperature;
 
-  Profile({
+  const Profile({
     required this.version,
     required this.title,
     required this.notes,
@@ -24,6 +27,20 @@ class Profile {
     required this.targetVolumeCountStart,
     required this.tankTemperature,
   });
+
+  @override
+  List<Object?> get props => [
+        version,
+        title,
+        notes,
+        author,
+        beverageType,
+        steps,
+        targetVolume,
+        targetWeight,
+        targetVolumeCountStart,
+        tankTemperature
+      ];
 
   factory Profile.fromJson(Map<String, dynamic> json) {
     return Profile(
@@ -103,7 +120,7 @@ enum ExitType { pressure, flow }
 
 enum ExitCondition { over, under }
 
-class StepLimiter {
+class StepLimiter extends Equatable {
   final double value;
   final double range;
 
@@ -119,9 +136,15 @@ class StepLimiter {
   Map<String, dynamic> toJson() {
     return {'value': value, 'range': range};
   }
+
+  @override
+  List<Object?> get props => [
+        value,
+        range,
+      ];
 }
 
-abstract class ProfileStep {
+abstract class ProfileStep extends Equatable {
   final String name;
   final TransitionType transition;
   final StepExitCondition? exit;
@@ -222,14 +245,32 @@ class ProfileStepPressure extends ProfileStep {
   @override
   ProfileStep copyWith({double? temperature}) {
     return ProfileStepPressure(
-        name: name,
-        transition: transition,
-        volume: volume,
-        seconds: seconds,
-        temperature: temperature ?? this.temperature,
-        sensor: sensor,
-        pressure: pressure);
+      name: name,
+      transition: transition,
+      exit: exit,
+      volume: volume,
+      seconds: seconds,
+      weight: weight,
+      temperature: temperature ?? this.temperature,
+      sensor: sensor,
+      pressure: pressure,
+      limiter: limiter,
+    );
   }
+
+  @override
+  List<Object?> get props => [
+        name,
+        transition,
+        exit,
+        volume,
+        seconds,
+        weight,
+        temperature,
+        sensor,
+        pressure,
+        limiter,
+      ];
 }
 
 class ProfileStepFlow extends ProfileStep {
@@ -293,15 +334,32 @@ class ProfileStepFlow extends ProfileStep {
     return ProfileStepFlow(
         name: name,
         transition: transition,
+        exit: exit,
         volume: volume,
         seconds: seconds,
+        weight: weight,
         temperature: temperature ?? this.temperature,
         sensor: sensor,
-        flow: flow);
+        flow: flow,
+        limiter: limiter);
   }
+
+  @override
+  List<Object?> get props => [
+        name,
+        transition,
+        exit,
+        volume,
+        seconds,
+        weight,
+        temperature,
+        sensor,
+        flow,
+        limiter,
+      ];
 }
 
-class StepExitCondition {
+class StepExitCondition extends Equatable {
   final ExitType type;
   final ExitCondition condition;
   final double value;
@@ -323,6 +381,13 @@ class StepExitCondition {
   Map<String, dynamic> toJson() {
     return {'type': type.name, 'condition': condition.name, 'value': value};
   }
+
+  @override
+  List<Object?> get props => [
+        type,
+        condition,
+        value,
+      ];
 }
 
 double parseDouble(dynamic value) {

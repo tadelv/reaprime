@@ -50,38 +50,83 @@ class StatusTile extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               spacing: 5,
               children: [
-                GestureDetector(
-                  onTap: () async {
-                    _showRinseSettingsDialog(context, controller);
-                  },
-                  child: Column(children: [
-                    Text("FT: ${rinseSettings.targetTemperature}℃"),
-                    Text("FD: ${rinseSettings.duration}s"),
-                    Text("FF: ${rinseSettings.flow.toStringAsFixed(1)}ml/s")
-                  ]),
+                SizedBox(
+                  width: 90,
+                  child: GestureDetector(
+                    onTap: () async {
+                      _showRinseSettingsDialog(context, controller);
+                    },
+                    child: Row(
+                      children: [
+                        Icon(
+                          LucideIcons.showerHead,
+                          size: 32.0,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                        Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text("${rinseSettings.targetTemperature}℃"),
+                              Text("${rinseSettings.duration}s"),
+                              Text(
+                                  "${rinseSettings.flow.toStringAsFixed(1)}ml/s")
+                            ]),
+                      ],
+                    ),
+                  ),
                 ),
-                GestureDetector(
-                  onTap: () async {
-                    _showHotWaterSettingsDialog(context, controller);
-                  },
-                  child: Column(children: [
-                    Text("HW: ${hotWaterSettings.targetTemperature}℃"),
-                    Text(
-                        "HW: ${hotWaterSettings.volume}ml | ${hotWaterSettings.duration}s"),
-                    Text("HF: ${hotWaterSettings.flow.toStringAsFixed(1)}ml/s")
-                  ]),
+                SizedBox(
+                  width: 120,
+                  child: GestureDetector(
+                    onTap: () async {
+                      _showHotWaterSettingsDialog(context, controller);
+                    },
+                    child: Row(
+                      children: [
+                        Icon(
+                          LucideIcons.paintBucket,
+                          size: 32.0,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                        Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text("${hotWaterSettings.targetTemperature}℃"),
+                              Text(
+                                  "${hotWaterSettings.volume}ml | ${hotWaterSettings.duration}s"),
+                              Text(
+                                  "${hotWaterSettings.flow.toStringAsFixed(1)}ml/s")
+                            ]),
+                      ],
+                    ),
+                  ),
                 ),
-                GestureDetector(
-                  onTap: () async {
-                    await _showSteamSettingsDialog(context, controller);
-                  },
-                  child: Column(children: [
-                    Text("SF: ${steamSettings.flow.toStringAsFixed(1)}ml/s"),
-                    Text("ST: ${steamSettings.targetTemperature}℃"),
-                    Text("SD: ${steamSettings.duration}s"),
-                  ]),
+                SizedBox(
+                  width: 90,
+                  child: GestureDetector(
+                    onTap: () async {
+                      await _showSteamSettingsDialog(context, controller);
+                    },
+                    child: Row(
+                      children: [
+                        Icon(
+                          LucideIcons.wind,
+                          size: 32.0,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                        Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                  "${steamSettings.flow.toStringAsFixed(1)}ml/s"),
+                              Text("${steamSettings.targetTemperature}℃"),
+                              Text("${steamSettings.duration}s"),
+                            ]),
+                      ],
+                    ),
+                  ),
                 ),
-                ..._scaleWidgets(),
+                ..._scaleWidgets(context),
               ],
             );
           },
@@ -172,35 +217,50 @@ class StatusTile extends StatelessWidget {
     );
   }
 
-  List<Widget> _scaleWidgets() {
+  List<Widget> _scaleWidgets(BuildContext context) {
     return [
-      StreamBuilder(
-          stream: scaleController.connectionState,
-          builder: (context, state) {
-            if (state.connectionState != ConnectionState.active ||
-                state.data! != device.ConnectionState.connected) {
-// call device controller scan?
-              return GestureDetector(
-                  onTap: () async {
-                    await deviceController.scanForDevices();
-                  },
-                  child: Text("Waiting"));
-            }
-            return StreamBuilder(
-                stream: scaleController.weightSnapshot,
-                builder: (context, weight) {
-                  return Column(children: [
-                    GestureDetector(
-                      onTap: () {
-                        scaleController.connectedScale().tare();
-                      },
-                      child: Text(
-                          "W: ${weight.data?.weight.toStringAsFixed(1) ?? 0.0}g"),
-                    ),
-                    Text("B: ${weight.data?.battery}%"),
-                  ]);
-                });
-          })
+      SizedBox(
+        width: 110,
+        child: Row(
+          spacing: 8,
+          children: [
+            Icon(
+              LucideIcons.scale,
+              size: 32.0,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+            StreamBuilder(
+                stream: scaleController.connectionState,
+                builder: (context, state) {
+                  if (state.connectionState != ConnectionState.active ||
+                      state.data! != device.ConnectionState.connected) {
+                    // call device controller scan?
+                    return GestureDetector(
+                        onTap: () async {
+                          await deviceController.scanForDevices();
+                        },
+                        child: Text("Waiting"));
+                  }
+                  return StreamBuilder(
+                      stream: scaleController.weightSnapshot,
+                      builder: (context, weight) {
+                        return Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              GestureDetector(
+                                onTap: () {
+                                  scaleController.connectedScale().tare();
+                                },
+                                child: Text(
+                                    "W: ${weight.data?.weight.toStringAsFixed(1) ?? 0.0}g"),
+                              ),
+                              Text("B: ${weight.data?.battery}%"),
+                            ]);
+                      });
+                }),
+          ],
+        ),
+      )
     ];
   }
 
@@ -262,12 +322,28 @@ class StatusTile extends StatelessWidget {
                       ),
                       SizedBox(
                         width: boxWidth,
-                        child: Text(
-                            "Group: ${snapshot.groupTemperature.toStringAsFixed(1)}℃"),
+                        child: Row(
+                          children: [
+                            Icon(
+                              LucideIcons.thermometer,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                            Text(
+                                "${snapshot.groupTemperature.toStringAsFixed(1)}℃"),
+                          ],
+                        ),
                       ),
                       SizedBox(
                         width: boxWidth,
-                        child: Text("Steam: ${snapshot.steamTemperature}℃"),
+                        child: Row(
+                          children: [
+                            Icon(
+                              LucideIcons.wind,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                            Text("${snapshot.steamTemperature}℃"),
+                          ],
+                        ),
                       ),
                     ]);
               }),
@@ -282,15 +358,23 @@ class StatusTile extends StatelessWidget {
                 return Row(children: [
                   SizedBox(
                     width: boxWidth,
-                    child: Text(
-                      "Water: ${snapshot.currentPercentage}%",
-                      style: TextStyle(
-                        color: snapshot.currentPercentage > 50
-                            ? theme.colorScheme.primary
-                            : snapshot.currentPercentage > 20
-                                ? theme.colorScheme.onSurface
-                                : theme.colorScheme.error,
-                      ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          LucideIcons.waves,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                        Text(
+                          "${snapshot.currentPercentage}%",
+                          style: TextStyle(
+                            color: snapshot.currentPercentage > 50
+                                ? theme.colorScheme.primary
+                                : snapshot.currentPercentage > 20
+                                    ? theme.colorScheme.onSurface
+                                    : theme.colorScheme.error,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ]);
