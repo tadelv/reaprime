@@ -66,6 +66,7 @@ Handler _init(
       return response.change(headers: {
         ...response.headersAll,
         'content-type': 'application/json',
+        if (kDebugMode) 'Access-Control-Allow-Origin': '*',
       });
     };
   }
