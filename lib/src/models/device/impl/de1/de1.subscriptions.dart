@@ -4,32 +4,24 @@ extension De1Subscriptions on De1 {
   void _subscribe(Endpoint e, Function(ByteData) callback) {
     _log.info('enableNotification for ${e.name}');
 
-    final characteristic = QualifiedCharacteristic(
-      serviceId: Uuid.parse(de1ServiceUUID),
-      characteristicId: Uuid.parse(e.uuid),
-      deviceId: deviceId,
-    );
-    var sub = _ble
-        .subscribeToCharacteristic(characteristic)
-        .listen(
-          (data) {
-            // Handle connection state updates
-            try {
-              callback(ByteData.sublistView(Uint8List.fromList(data)));
-            } catch (err, stackTrace) {
-              _log.severe(
-                "failed to invoke callback for ${e.name}",
-                err,
-                stackTrace,
-              );
-            }
-          },
-          onError: (Object error) {
-            // Handle a possible error
-            _log.severe("Error subscribing to ${e.name}", error);
-          },
+    final characteristic = _service.characteristics
+        .firstWhere((c) => c.characteristicUuid == Guid(e.uuid));
+
+    final sub = characteristic.onValueReceived.listen((data) {
+      try {
+        callback(ByteData.sublistView(Uint8List.fromList(data)));
+      } catch (err, stackTrace) {
+        _log.severe(
+          "failed to invoke callback for ${e.name}",
+          err,
+          stackTrace,
         );
-    _notificationSubscriptions.add(sub);
+      }
+    });
+
+    _device.cancelWhenDisconnected(sub);
+    // TODO: check if we need to await here
+    characteristic.setNotifyValue(true);
   }
 
   _parseStatus(ByteData data) {
@@ -51,8 +43,7 @@ extension De1Subscriptions on De1 {
     final groupPressure = data.getUint16(2) / (1 << 12);
     final groupFlow = data.getUint16(4) / (1 << 12);
     final mixTemp = data.getUint16(6) / (1 << 8);
-    final headTemp =
-        ((data.getUint8(8) << 16) +
+    final headTemp = ((data.getUint8(8) << 16) +
             (data.getUint8(9) << 8) +
             (data.getUint8(10))) /
         (1 << 16);
