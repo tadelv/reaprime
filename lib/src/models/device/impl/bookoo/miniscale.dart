@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/services.dart';
-import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:collection/collection.dart';
 import 'package:logging/logging.dart' as logging;
 import 'package:rxdart/subjects.dart';
@@ -16,10 +16,10 @@ class BookooScale implements Scale {
 
   final String _deviceId;
 
-  final StreamController<ScaleSnapshot> _streamController = StreamController.broadcast();
+  final StreamController<ScaleSnapshot> _streamController =
+      StreamController.broadcast();
 
-  final _ble = FlutterReactiveBle();
-  StreamSubscription<ConnectionStateUpdate>? _connection;
+  StreamSubscription<BluetoothConnectionState>? _connection;
   StreamSubscription<List<int>>? _notifications;
 
   BookooScale({required String deviceId}) : _deviceId = deviceId;
@@ -33,36 +33,43 @@ class BookooScale implements Scale {
   @override
   String get name => "Bookoo Mini Scale";
 
-  final StreamController<ConnectionState> _connectionStateController = BehaviorSubject.seeded(ConnectionState.connecting);
+  final StreamController<ConnectionState> _connectionStateController =
+      BehaviorSubject.seeded(ConnectionState.connecting);
+
+  late BluetoothDevice _device;
+  late List<BluetoothService> _services;
+  late BluetoothService _service;
 
   @override
-  Stream<ConnectionState> get connectionState => _connectionStateController.stream;
+  Stream<ConnectionState> get connectionState =>
+      _connectionStateController.stream;
 
   @override
   Future<void> onConnect() async {
     if (_connection != null) {
       return;
     }
-    _connection = _ble.connectToDevice(id: _deviceId).listen(
-      (data) {
-        switch (data.connectionState) {
-          case DeviceConnectionState.connecting:
-            _connectionStateController.add(ConnectionState.connecting);
-          case DeviceConnectionState.connected:
-            _connectionStateController.add(ConnectionState.connected);
-            _registerNotifications();
-          case DeviceConnectionState.disconnecting:
-            _connectionStateController.add(ConnectionState.disconnecting);
-          case DeviceConnectionState.disconnected:
-            _connectionStateController.add(ConnectionState.disconnected);
-            _notifications?.cancel();
-            _connection?.cancel();
-        }
-      },
-      onError: (e) {
-        logging.Logger("Bookoo").warning("failed to connect:", e);
-      },
-    );
+    _device = BluetoothDevice.fromId(_deviceId);
+
+    var subscription =
+        _device.connectionState.listen((BluetoothConnectionState state) async {
+      switch (state) {
+        case BluetoothConnectionState.connected:
+          _connectionStateController.add(ConnectionState.connected);
+          _services = await _device.discoverServices();
+          _service =
+              _services.firstWhere((e) => e.serviceUuid == Guid(serviceUUID));
+
+          _registerNotifications();
+        case BluetoothConnectionState.disconnected:
+          _connectionStateController.add(ConnectionState.disconnected);
+        default:
+          break;
+      }
+    });
+
+    _device.cancelWhenDisconnected(subscription, delayed: true, next: true);
+    await _device.connect();
   }
 
   @override
@@ -77,24 +84,18 @@ class BookooScale implements Scale {
 
   @override
   Future<void> tare() async {
-    var characteristic = QualifiedCharacteristic(
-      characteristicId: Uuid.parse(cmdUUID),
-      serviceId: Uuid.parse(serviceUUID),
-      deviceId: _deviceId,
-    );
-    await _ble.writeCharacteristicWithResponse(
-      characteristic,
-      value: Uint8List.fromList([0x03, 0x0A, 0x01, 0x00, 0x00, 0x08]),
-    );
+    _service.characteristics
+        .firstWhere((c) => c.characteristicUuid == Guid(cmdUUID))
+        .write([0x03, 0x0A, 0x01, 0x00, 0x00, 0x08]);
   }
 
   _registerNotifications() async {
-    var characteristic = QualifiedCharacteristic(
-      characteristicId: Uuid.parse(dataUUID),
-      serviceId: Uuid.parse(serviceUUID),
-      deviceId: _deviceId,
-    );
-    _notifications = _ble.subscribeToCharacteristic(characteristic).listen(_parseNotification);
+    final characteristic = _service.characteristics
+        .firstWhere((c) => c.characteristicUuid == Guid(dataUUID));
+    final subscription =
+        characteristic.onValueReceived.listen(_parseNotification);
+    _device.cancelWhenDisconnected(subscription);
+    await characteristic.setNotifyValue(true);
   }
 
   _parseNotification(List<int> data) {
