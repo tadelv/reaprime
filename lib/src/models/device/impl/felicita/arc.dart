@@ -10,8 +10,8 @@ import 'package:reaprime/src/models/device/device.dart';
 import '../../scale.dart';
 
 class FelicitaArc implements Scale {
-  static String serviceUUID = '0000ffe0-0000-1000-8000-00805f9b34fb';
-  static String dataUUID = '0000ffe1-0000-1000-8000-00805f9b34fb';
+  static String serviceUUID = 'ffe0';
+  static String dataUUID = 'ffe1';
 
   final String _deviceId;
 
@@ -44,7 +44,7 @@ class FelicitaArc implements Scale {
 
   @override
   Future<void> onConnect() async {
-    if (await _device.connectionState.last ==
+    if (await _device.connectionState.first ==
         BluetoothConnectionState.connected) {
       return;
     }

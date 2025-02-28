@@ -18,7 +18,7 @@ part 'de1.profile.dart';
 part 'de1.mmr.dart';
 
 class De1 implements De1Interface {
-  static String advertisingUUID = '0000FFFF-0000-1000-8000-00805F9B34FB';
+  static String advertisingUUID = 'FFFF';
 
   final String _deviceId;
 
@@ -108,19 +108,19 @@ class De1 implements De1Interface {
           break;
         case BluetoothConnectionState.disconnected:
           _connectionStateController.add(ConnectionState.disconnected);
-          disconnect(); // just in case we got disconnected unintentionally
+          //disconnect(); // just in case we got disconnected unintentionally
         default:
           break;
       }
     });
-		_device.cancelWhenDisconnected(subscription, delayed: true, next: true);
-
+    _device.cancelWhenDisconnected(subscription, delayed: true, next: true);
+    await _device.connect();
   }
 
   @override
   disconnect() {
     _device.disconnect();
-    _connectionStateController.add(ConnectionState.disconnected);
+    //_connectionStateController.add(ConnectionState.disconnected);
   }
 
   @override

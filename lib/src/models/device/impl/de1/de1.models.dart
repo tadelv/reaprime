@@ -3,27 +3,27 @@
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 
-final String de1ServiceUUID = '0000A000-0000-1000-8000-00805F9B34FB';
+final String de1ServiceUUID = 'A000';
 
 enum Endpoint {
-  versions('0000A001-0000-1000-8000-00805F9B34FB'),
-  requestedState('0000A002-0000-1000-8000-00805F9B34FB'),
-  setTime('0000A003-0000-1000-8000-00805F9B34FB'),
-  shotDirectory('0000A004-0000-1000-8000-00805F9B34FB'),
-  readFromMMR('0000A005-0000-1000-8000-00805F9B34FB'),
-  writeToMMR('0000A006-0000-1000-8000-00805F9B34FB'),
-  shotMapRequest('0000A007-0000-1000-8000-00805F9B34FB'),
-  deleteShotRange('0000A008-0000-1000-8000-00805F9B34FB'),
-  fwMapRequest('0000A009-0000-1000-8000-00805F9B34FB'),
-  temperatures('0000A00A-0000-1000-8000-00805F9B34FB'),
-  shotSettings('0000A00B-0000-1000-8000-00805F9B34FB'),
-  deprecatedShotDesc('0000A00C-0000-1000-8000-00805F9B34FB'),
-  shotSample('0000A00D-0000-1000-8000-00805F9B34FB'),
-  stateInfo('0000A00E-0000-1000-8000-00805F9B34FB'),
-  headerWrite('0000A00F-0000-1000-8000-00805F9B34FB'),
-  frameWrite('0000A010-0000-1000-8000-00805F9B34FB'),
-  waterLevels('0000A011-0000-1000-8000-00805F9B34FB'),
-  calibration('0000A012-0000-1000-8000-00805F9B34FB');
+  versions('A001'),
+  requestedState('A002'),
+  setTime('A003'),
+  shotDirectory('A004'),
+  readFromMMR('A005'),
+  writeToMMR('A006'),
+  shotMapRequest('A007'),
+  deleteShotRange('A008'),
+  fwMapRequest('A009'),
+  temperatures('A00A'),
+  shotSettings('A00B'),
+  deprecatedShotDesc('A00C'),
+  shotSample('A00D'),
+  stateInfo('A00E'),
+  headerWrite('A00F'),
+  frameWrite('A010'),
+  waterLevels('A011'),
+  calibration('A012');
 
   final String uuid;
 

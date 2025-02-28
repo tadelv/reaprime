@@ -2,7 +2,7 @@ part of 'de1.dart';
 
 extension De1ReadWrite on De1 {
   Future<ByteData> _read(Endpoint e) async {
-    if (await _device.connectionState.last !=
+    if (await _device.connectionState.first !=
         BluetoothConnectionState.connected) {
       throw ("de1 not connected");
     }
@@ -22,7 +22,7 @@ extension De1ReadWrite on De1 {
 
       await characteristic.write(
         data,
-        withoutResponse: true,
+        //withoutResponse: true,
       );
     } catch (e, st) {
       _log.severe("failed to write", e, st);

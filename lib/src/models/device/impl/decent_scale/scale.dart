@@ -8,9 +8,9 @@ import 'package:reaprime/src/models/device/scale.dart';
 import 'package:rxdart/subjects.dart';
 
 class DecentScale implements Scale {
-  static String serviceUUID = '0000fff0-0000-1000-8000-00805f9b34fb';
-  static String dataUUID = '0000fff4-0000-1000-8000-00805f9b34fb';
-  static String writeUUID = '000036f5-0000-1000-8000-00805f9b34fb';
+  static String serviceUUID = 'fff0';
+  static String dataUUID = 'fff4';
+  static String writeUUID = '36f5';
 
   final String _deviceId;
 
@@ -48,7 +48,7 @@ class DecentScale implements Scale {
 
   @override
   Future<void> onConnect() async {
-    if (await _device.connectionState.last ==
+    if (await _device.connectionState.first ==
         BluetoothConnectionState.connected) {
       return;
     }

@@ -7,9 +7,9 @@ import 'package:reaprime/src/models/device/device.dart';
 import '../../scale.dart';
 
 class BookooScale implements Scale {
-  static String serviceUUID = '00000ffe-0000-1000-8000-00805f9b34fb';
-  static String dataUUID = '0000ff11-0000-1000-8000-00805f9b34fb';
-  static String cmdUUID = '0000ff12-0000-1000-8000-00805f9b34fb';
+  static String serviceUUID = '0ffe';
+  static String dataUUID = 'ff11';
+  static String cmdUUID = 'ff12';
 
   final String _deviceId;
 
@@ -42,7 +42,7 @@ class BookooScale implements Scale {
 
   @override
   Future<void> onConnect() async {
-    if (await _device.connectionState.last ==
+    if (await _device.connectionState.first ==
         BluetoothConnectionState.connected) {
       return;
     }
