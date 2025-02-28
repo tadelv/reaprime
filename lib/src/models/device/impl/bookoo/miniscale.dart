@@ -1,8 +1,5 @@
 import 'dart:async';
-import 'package:flutter/services.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'package:collection/collection.dart';
-import 'package:logging/logging.dart' as logging;
 import 'package:rxdart/subjects.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
@@ -19,10 +16,9 @@ class BookooScale implements Scale {
   final StreamController<ScaleSnapshot> _streamController =
       StreamController.broadcast();
 
-  StreamSubscription<BluetoothConnectionState>? _connection;
-  StreamSubscription<List<int>>? _notifications;
-
-  BookooScale({required String deviceId}) : _deviceId = deviceId;
+  BookooScale({required String deviceId}) : _deviceId = deviceId {
+    _device = BluetoothDevice.fromId(_deviceId);
+  }
 
   @override
   Stream<ScaleSnapshot> get currentSnapshot => _streamController.stream;
@@ -46,12 +42,12 @@ class BookooScale implements Scale {
 
   @override
   Future<void> onConnect() async {
-    if (_connection != null) {
+    if (await _device.connectionState.last ==
+        BluetoothConnectionState.connected) {
       return;
     }
-    _device = BluetoothDevice.fromId(_deviceId);
 
-    var subscription =
+    final subscription =
         _device.connectionState.listen((BluetoothConnectionState state) async {
       switch (state) {
         case BluetoothConnectionState.connected:
@@ -74,9 +70,7 @@ class BookooScale implements Scale {
 
   @override
   disconnect() {
-    _notifications?.cancel();
-    _connection?.cancel();
-    _connectionStateController.add(ConnectionState.disconnected);
+    _device.disconnect();
   }
 
   @override
@@ -84,7 +78,7 @@ class BookooScale implements Scale {
 
   @override
   Future<void> tare() async {
-    _service.characteristics
+    await _service.characteristics
         .firstWhere((c) => c.characteristicUuid == Guid(cmdUUID))
         .write([0x03, 0x0A, 0x01, 0x00, 0x00, 0x08]);
   }
