@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'package:flutter/services.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:collection/collection.dart';
-import 'package:logging/logging.dart' as logging;
 import 'package:rxdart/subjects.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
@@ -60,7 +58,10 @@ class FelicitaArc implements Scale {
 
           _registerNotifications();
         case BluetoothConnectionState.disconnected:
-          _connectionStateController.add(ConnectionState.disconnected);
+          if (await _connectionStateController.stream.first !=
+              ConnectionState.connecting) {
+            _connectionStateController.add(ConnectionState.disconnected);
+          }
         default:
           break;
       }

@@ -63,7 +63,10 @@ class DecentScale implements Scale {
 
           _registerNotifications();
         case BluetoothConnectionState.disconnected:
-          _connectionStateController.add(ConnectionState.disconnected);
+          if (await _connectionStateController.stream.first !=
+              ConnectionState.connecting) {
+            _connectionStateController.add(ConnectionState.disconnected);
+          }
         default:
           break;
       }
