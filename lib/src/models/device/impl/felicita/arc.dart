@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'package:flutter/services.dart';
-import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:collection/collection.dart';
-import 'package:logging/logging.dart' as logging;
 import 'package:rxdart/subjects.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
@@ -10,19 +8,21 @@ import 'package:reaprime/src/models/device/device.dart';
 import '../../scale.dart';
 
 class FelicitaArc implements Scale {
-  static String serviceUUID = '0000ffe0-0000-1000-8000-00805f9b34fb';
-  static String dataUUID = '0000ffe1-0000-1000-8000-00805f9b34fb';
+  static String serviceUUID = 'ffe0';
+  static String dataUUID = 'ffe1';
 
   final String _deviceId;
 
   final StreamController<ScaleSnapshot> _streamController =
       StreamController.broadcast();
 
-  final _ble = FlutterReactiveBle();
-  StreamSubscription<ConnectionStateUpdate>? _connection;
-  StreamSubscription<List<int>>? _notifications;
+  final BluetoothDevice _device;
+  late List<BluetoothService> _services;
+  late BluetoothService _service;
 
-  FelicitaArc({required String deviceId}) : _deviceId = deviceId;
+  FelicitaArc({required String deviceId})
+      : _deviceId = deviceId,
+        _device = BluetoothDevice.fromId(deviceId);
 
   @override
   Stream<ScaleSnapshot> get currentSnapshot => _streamController.stream;
@@ -42,36 +42,38 @@ class FelicitaArc implements Scale {
 
   @override
   Future<void> onConnect() async {
-    if (_connection != null) {
+    if (await _device.connectionState.first ==
+        BluetoothConnectionState.connected) {
       return;
     }
-    _connection = _ble.connectToDevice(id: _deviceId).listen(
-      (data) {
-        switch (data.connectionState) {
-          case DeviceConnectionState.connecting:
-            _connectionStateController.add(ConnectionState.connecting);
-          case DeviceConnectionState.connected:
-            _connectionStateController.add(ConnectionState.connected);
-            _registerNotifications();
-          case DeviceConnectionState.disconnecting:
-            _connectionStateController.add(ConnectionState.disconnecting);
-          case DeviceConnectionState.disconnected:
+
+    final subscription =
+        _device.connectionState.listen((BluetoothConnectionState state) async {
+      switch (state) {
+        case BluetoothConnectionState.connected:
+          _connectionStateController.add(ConnectionState.connected);
+          _services = await _device.discoverServices();
+          _service =
+              _services.firstWhere((e) => e.serviceUuid == Guid(serviceUUID));
+
+          _registerNotifications();
+        case BluetoothConnectionState.disconnected:
+          if (await _connectionStateController.stream.first !=
+              ConnectionState.connecting) {
             _connectionStateController.add(ConnectionState.disconnected);
-						_notifications?.cancel();
-						_connection?.cancel();
-        }
-      },
-      onError: (e) {
-        logging.Logger("Felicita").warning("failed to connect:", e);
-      },
-    );
+          }
+        default:
+          break;
+      }
+    });
+
+    _device.cancelWhenDisconnected(subscription, delayed: true, next: true);
+    await _device.connect();
   }
 
   @override
   disconnect() {
-    _notifications?.cancel();
-    _connection?.cancel();
-		_connectionStateController.add(ConnectionState.disconnected);
+    _device.disconnect();
   }
 
   @override
@@ -79,26 +81,18 @@ class FelicitaArc implements Scale {
 
   @override
   Future<void> tare() async {
-    var characteristic = QualifiedCharacteristic(
-      characteristicId: Uuid.parse(dataUUID),
-      serviceId: Uuid.parse(serviceUUID),
-      deviceId: _deviceId,
-    );
-    await _ble.writeCharacteristicWithResponse(
-      characteristic,
-      value: Uint8List.fromList([0x54]),
-    );
+    await _service.characteristics
+        .firstWhere((c) => c.characteristicUuid == Guid(dataUUID))
+        .write([0x54]);
   }
 
   _registerNotifications() async {
-    var characteristic = QualifiedCharacteristic(
-      characteristicId: Uuid.parse(dataUUID),
-      serviceId: Uuid.parse(serviceUUID),
-      deviceId: _deviceId,
-    );
-    _notifications = _ble
-        .subscribeToCharacteristic(characteristic)
-        .listen(_parseNotification);
+    final characteristic = _service.characteristics
+        .firstWhere((c) => c.characteristicUuid == Guid(dataUUID));
+    final subscription =
+        characteristic.onValueReceived.listen(_parseNotification);
+    _device.cancelWhenDisconnected(subscription);
+    await characteristic.setNotifyValue(true);
   }
 
   static const int minBattLevel = 129;

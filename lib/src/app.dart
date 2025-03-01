@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
@@ -66,21 +68,29 @@ class MyApp extends StatelessWidget {
     // The ListenableBuilder Widget listens to the SettingsController for changes.
     // Whenever the user updates their settings, the MaterialApp is rebuilt.
     var wait = false;
-    Future.forEach([
-      Permission.bluetoothScan.request,
-      Permission.bluetoothConnect.request,
-      Permission.bluetooth.request,
-      Permission.locationWhenInUse.request,
-      Permission.locationAlways.request,
-      deviceController.initialize,
-    ], (e) async => await waitForPermission(wait, e));
+    if (Platform.isAndroid || Platform.isIOS) {
+      Future.forEach([
+        Permission.bluetoothScan.request,
+        Permission.bluetoothConnect.request,
+        Permission.bluetooth.request,
+        Permission.locationWhenInUse.request,
+        Permission.locationAlways.request,
+        deviceController.initialize,
+      ], (e) async => await waitForPermission(wait, e));
+    } else {
+      Future.forEach([
+        deviceController.initialize,
+      ], (e) async => await waitForPermission(wait, e));
+    }
 
-    FlutterForegroundTask.startService(
-      notificationTitle: "Reaprime talking to DE1",
-      notificationText: "Tap to return to Reaprime",
-    );
+    if (Platform.isAndroid) {
+      FlutterForegroundTask.startService(
+        notificationTitle: "Reaprime talking to DE1",
+        notificationText: "Tap to return to Reaprime",
+      );
+    }
+
     final themeColor = 'green';
-
     de1Controller.de1.listen((event) {
       if (event != null) {
         event.currentSnapshot.listen((snapshot) {
