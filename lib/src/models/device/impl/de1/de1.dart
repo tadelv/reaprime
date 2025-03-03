@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
@@ -18,18 +18,21 @@ part 'de1.profile.dart';
 part 'de1.mmr.dart';
 
 class De1 implements De1Interface {
-  static String advertisingUUID = '0000FFFF-0000-1000-8000-00805F9B34FB';
+  static String advertisingUUID = 'FFFF';
 
   final String _deviceId;
 
-  final _ble = FlutterReactiveBle();
+  final BluetoothDevice _device;
 
-  StreamSubscription<ConnectionStateUpdate>? _connectionSubscription;
+  late BluetoothService _service;
+
   final List<StreamSubscription<dynamic>> _notificationSubscriptions = [];
 
   final _log = logging.Logger("DE1");
 
-  De1({required String deviceId}) : _deviceId = deviceId {
+  De1({required String deviceId})
+      : _deviceId = deviceId,
+        _device = BluetoothDevice.fromId(deviceId) {
     _snapshotStream.add(_currentSnapshot);
   }
 
@@ -93,36 +96,31 @@ class De1 implements De1Interface {
   Future<void> onConnect() async {
     _snapshotStream.add(_currentSnapshot);
 
-    _connectionSubscription = _ble.connectToDevice(id: _deviceId).listen((
-      data,
-    ) async {
-      _log.info("connection update: ${data}");
-      switch (data.connectionState) {
-        case DeviceConnectionState.connecting:
-          _connectionStateController.add(ConnectionState.connecting);
-          break;
-        case DeviceConnectionState.connected:
+    var subscription =
+        _device.connectionState.listen((BluetoothConnectionState state) async {
+      switch (state) {
+        case BluetoothConnectionState.connected:
           _connectionStateController.add(ConnectionState.connected);
+          var services = await _device.discoverServices();
+          _service =
+              services.firstWhere((s) => s.serviceUuid == Guid(de1ServiceUUID));
           await _onConnected();
           break;
-        case DeviceConnectionState.disconnecting:
-          _connectionStateController.add(ConnectionState.disconnecting);
-          break;
-        case DeviceConnectionState.disconnected:
+        case BluetoothConnectionState.disconnected:
           _connectionStateController.add(ConnectionState.disconnected);
-          disconnect(); // just in case we got disconnected unintentionally
+          //disconnect(); // just in case we got disconnected unintentionally
+        default:
           break;
       }
     });
+    _device.cancelWhenDisconnected(subscription, delayed: true, next: true);
+    await _device.connect();
   }
 
   @override
   disconnect() {
-    for (var s in _notificationSubscriptions) {
-      s.cancel();
-    }
-    _connectionSubscription?.cancel();
-    _connectionStateController.add(ConnectionState.disconnected);
+    _device.disconnect();
+    //_connectionStateController.add(ConnectionState.disconnected);
   }
 
   @override

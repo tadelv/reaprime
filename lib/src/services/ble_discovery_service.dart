@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../models/device/device.dart';
 import '../models/device/machine.dart';
 import '../models/device/scale.dart';
@@ -13,7 +13,6 @@ class BleDiscoveryService extends DeviceDiscoveryService {
 
   final Map<String, Device> _devices = {};
 
-  late FlutterReactiveBle _ble;
   final log = logging.Logger("BleDeviceService");
 
   final StreamController<List<Device>> _deviceStreamController =
@@ -24,39 +23,32 @@ class BleDiscoveryService extends DeviceDiscoveryService {
   @override
   Stream<List<Device>> get devices => _deviceStreamController.stream;
 
-  StreamSubscription<DiscoveredDevice>? _subscription;
-
   @override
   Future<void> initialize() async {
-    _ble = FlutterReactiveBle();
-    log.info("inting: ${_ble.status}");
-    _ble.statusStream.listen((status) {
-      log.fine("status change: ${status}");
-      if (status == BleStatus.ready) {
-        //scanForDevices();
-      }
+    if (await FlutterBluePlus.isSupported == false) {
+      log.warning("Bluetooth not supported on this platform");
+      return;
+    }
+    FlutterBluePlus.adapterState.listen((BluetoothAdapterState state) {
+      log.info("BLE Adapter state: ${state.name}");
     });
   }
 
   @override
   Future<void> scanForDevices() async {
-    _subscription = _ble
-        .scanForDevices(
-      withServices: deviceMappings.keys.map((k) => Uuid.parse(k)).toList(),
-      scanMode: ScanMode.lowLatency,
-      //requireLocationServicesEnabled: false,
-    )
-        .listen(
-      (d) => _deviceScanned(d),
-      onError: (e) {
-        log.warning("failed: $e");
-      },
-    );
-
-    Future.delayed(Duration(seconds: 30), () {
-      _subscription?.cancel();
-      log.info("stopping scan");
+    var sub = FlutterBluePlus.onScanResults.listen((results) {
+      if (results.isNotEmpty) {
+        ScanResult r = results.last;
+        log.info("Found: ${r.device.remoteId}: ${r.advertisementData.advName}");
+        _deviceScanned(r);
+      }
     });
+
+    FlutterBluePlus.cancelWhenScanComplete(sub);
+
+    await FlutterBluePlus.startScan(
+        withServices: deviceMappings.keys.map((k) => Guid(k)).toList(),
+        timeout: Duration(seconds: 30));
   }
 
   // return machine with specific id
@@ -79,18 +71,22 @@ class BleDiscoveryService extends DeviceDiscoveryService {
     _deviceStreamController.add(_devices.values.toList());
   }
 
-  _deviceScanned(DiscoveredDevice device) {
-    for (Uuid uid in device.serviceUuids) {
+  _deviceScanned(ScanResult device) {
+    for (Guid uid in device.advertisementData.serviceUuids) {
       var initializer = deviceMappings[uid.toString().toUpperCase()];
-      if (initializer != null && _devices.containsKey(device.id) == false) {
-        _devices[device.id] = initializer(device.id);
+      if (initializer != null &&
+          _devices.containsKey(device.device.remoteId.toString()) == false) {
+        _devices[device.device.remoteId.toString()] =
+            initializer(device.device.remoteId.toString());
         _deviceStreamController.add(_devices.values.toList());
-        log.fine("found new device: ${device.name}");
+        log.fine("found new device: ${device.advertisementData.advName}");
         log.fine("devices: ${_devices.toString()}");
-        _connections[device.id] =
-            _devices[device.id]!.connectionState.listen((connectionState) {
+        _connections[device.device.remoteId.toString()] =
+            _devices[device.device.remoteId.toString()]!
+                .connectionState
+                .listen((connectionState) {
           if (connectionState == ConnectionState.disconnected) {
-            _devices.remove(device.id);
+            _devices.remove(device.device.remoteId.toString());
             _deviceStreamController.add(_devices.values.toList());
           }
         });

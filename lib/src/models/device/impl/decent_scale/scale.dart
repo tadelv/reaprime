@@ -1,29 +1,31 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:logging/logging.dart' as logging;
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:rxdart/subjects.dart';
 
 class DecentScale implements Scale {
-  static String serviceUUID = '0000fff0-0000-1000-8000-00805f9b34fb';
-  static String dataUUID = '0000fff4-0000-1000-8000-00805f9b34fb';
-  static String writeUUID = '000036f5-0000-1000-8000-00805f9b34fb';
+  static String serviceUUID = 'fff0';
+  static String dataUUID = 'fff4';
+  static String writeUUID = '36f5';
 
   final String _deviceId;
 
   final StreamController<ScaleSnapshot> _streamController =
       StreamController.broadcast();
 
-  final _ble = FlutterReactiveBle();
-  StreamSubscription<ConnectionStateUpdate>? _connection;
-  StreamSubscription<List<int>>? _notifications;
+  final BluetoothDevice _device;
+  late List<BluetoothService> _services;
+  late BluetoothService _service;
 
   final logging.Logger _log = logging.Logger("Decent scale");
 
-  DecentScale({required String deviceId}) : _deviceId = deviceId;
+  DecentScale({required String deviceId})
+      : _deviceId = deviceId,
+        _device = BluetoothDevice.fromId(deviceId);
 
   @override
   Stream<ScaleSnapshot> get currentSnapshot => _streamController.stream;
@@ -46,62 +48,54 @@ class DecentScale implements Scale {
 
   @override
   Future<void> onConnect() async {
-    if (_connection != null) {
+    if (await _device.connectionState.first ==
+        BluetoothConnectionState.connected) {
       return;
     }
-    _connection = _ble.connectToDevice(id: _deviceId).listen(
-      (data) {
-        switch (data.connectionState) {
-          case DeviceConnectionState.connecting:
-            _connectionStateController.add(ConnectionState.connecting);
-          case DeviceConnectionState.connected:
-            _connectionStateController.add(ConnectionState.connected);
-            _registerNotifications();
-          case DeviceConnectionState.disconnecting:
-            _connectionStateController.add(ConnectionState.disconnecting);
-          case DeviceConnectionState.disconnected:
+    final subscription =
+        _device.connectionState.listen((BluetoothConnectionState state) async {
+      switch (state) {
+        case BluetoothConnectionState.connected:
+          _connectionStateController.add(ConnectionState.connected);
+          _services = await _device.discoverServices();
+          _service =
+              _services.firstWhere((e) => e.serviceUuid == Guid(serviceUUID));
+
+          _registerNotifications();
+        case BluetoothConnectionState.disconnected:
+          if (await _connectionStateController.stream.first !=
+              ConnectionState.connecting) {
             _connectionStateController.add(ConnectionState.disconnected);
-            _notifications?.cancel();
-            _connection?.cancel();
-        }
-      },
-      onError: (e) {
-        _log.warning("failed to connect:", e);
-      },
-    );
+          }
+        default:
+          break;
+      }
+    });
+
+    _device.cancelWhenDisconnected(subscription, delayed: true, next: true);
+    await _device.connect();
   }
 
   @override
   disconnect() {
-    _notifications?.cancel();
-    _connection?.cancel();
-    _connectionStateController.add(ConnectionState.disconnected);
+    _device.disconnect();
   }
 
   @override
   Future<void> tare() async {
     List<int> payload = [0x03, 0x0F, 0xFD];
-    var characteristic = QualifiedCharacteristic(
-      characteristicId: Uuid.parse(DecentScale.writeUUID),
-      serviceId: Uuid.parse(DecentScale.serviceUUID),
-      deviceId: _deviceId,
-    );
-
-    await _ble.writeCharacteristicWithResponse(
-      characteristic,
-      value: Uint8List.fromList(payload),
-    );
+    await _service.characteristics
+        .firstWhere((c) => c.characteristicUuid == Guid(writeUUID))
+        .write(payload);
   }
 
   _registerNotifications() async {
-    var characteristic = QualifiedCharacteristic(
-      characteristicId: Uuid.parse(dataUUID),
-      serviceId: Uuid.parse(serviceUUID),
-      deviceId: _deviceId,
-    );
-    _notifications = _ble
-        .subscribeToCharacteristic(characteristic)
-        .listen(_parseNotification);
+    final characteristic = _service.characteristics
+        .firstWhere((c) => c.characteristicUuid == Guid(dataUUID));
+    final subscription =
+        characteristic.onValueReceived.listen(_parseNotification);
+    _device.cancelWhenDisconnected(subscription);
+    await characteristic.setNotifyValue(true);
   }
 
   _parseNotification(List<int> data) {
