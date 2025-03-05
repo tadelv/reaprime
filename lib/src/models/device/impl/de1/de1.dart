@@ -16,6 +16,42 @@ part 'de1.subscriptions.dart';
 part 'de1.rw.dart';
 part 'de1.profile.dart';
 part 'de1.mmr.dart';
+part 'de1.raw.dart';
+
+final class De1RawMessage {
+  final De1RawMessageType type;
+  final De1RawOperationType operation;
+  final String characteristicUUID;
+  final String payload;
+
+  De1RawMessage({
+    required this.type,
+    required this.operation,
+    required this.characteristicUUID,
+    required this.payload,
+  });
+
+  factory De1RawMessage.fromJson(Map<String, dynamic> json) {
+    return De1RawMessage(
+        type: De1RawMessageType.values[json['type']],
+        operation: De1RawOperationType.values[json['operation']],
+        characteristicUUID: json['characteristicUUID'],
+        payload: json['payload']);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'type': type.name,
+      'operation': operation.name,
+      'characteristicUUID': characteristicUUID,
+      'payload': payload
+    };
+  }
+}
+
+enum De1RawMessageType { request, response }
+
+enum De1RawOperationType { read, write, notify }
 
 class De1 implements De1Interface {
   static String advertisingUUID = 'FFFF';
@@ -26,7 +62,11 @@ class De1 implements De1Interface {
 
   late BluetoothService _service;
 
-  final List<StreamSubscription<dynamic>> _notificationSubscriptions = [];
+  final StreamController<De1RawMessage> _rawOutStream =
+      StreamController.broadcast();
+  Stream<De1RawMessage> get rawOutStream => _rawOutStream.stream;
+
+  final StreamController<De1RawMessage> _rawInStream = StreamController();
 
   final _log = logging.Logger("DE1");
 
@@ -108,7 +148,7 @@ class De1 implements De1Interface {
           break;
         case BluetoothConnectionState.disconnected:
           _connectionStateController.add(ConnectionState.disconnected);
-          //disconnect(); // just in case we got disconnected unintentionally
+        //disconnect(); // just in case we got disconnected unintentionally
         default:
           break;
       }

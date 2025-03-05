@@ -217,4 +217,12 @@ class De1Handler {
       onError: (e, st) => sub.cancel(),
     );
   }
+
+  _handleRawSocket(WebSocketChannel socket) async {
+    socket.stream.listen((event) {
+      var json = jsonDecode(event.toString());
+			final message = De1RawMessage.fromJson(json);
+			_controller.connectedDe1().
+    });
+  }
 }
