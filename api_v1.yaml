@@ -5,12 +5,13 @@ info:
   description: |
     This API provides endpoints to retrieve a list of Bluetooth devices, trigger a scan for new devices, manage DE1 espresso machine state and settings, and interact with a connected scale.
 servers:
-  - url: http://{tablet-ip}/api/v1
+  - url: http://{tablet-ip}
     variables:
       tablet-ip:
         default: localhost
+
 paths:
-  /devices:
+  /api/v1/devices:
     get:
       summary: Get Available Devices
       description: Retrieves a list of available Bluetooth devices with their connection states.
@@ -37,7 +38,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /devices/scan:
+  /api/v1/devices/scan:
     get:
       summary: Scan for Devices
       description: Triggers a Bluetooth device scan.
@@ -50,7 +51,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /de1/state:
+  /api/v1/de1/state:
     get:
       summary: Get DE1 State
       description: Retrieves the current DE1 machine state.
@@ -61,7 +62,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MachineSnapshot"
-  /de1/state/{newState}:
+  /api/v1/de1/state/{newState}:
     put:
       summary: Request DE1 State Change
       description: Requests a state change for the DE1 espresso machine.
@@ -76,7 +77,7 @@ paths:
           description: State change successful
         "400":
           description: Bad Request
-  /de1/profile:
+  /api/v1/de1/profile:
     post:
       summary: Set DE1 Profile
       description: Uploads a new brewing profile to the DE1 machine.
@@ -89,7 +90,7 @@ paths:
       responses:
         "200":
           description: Profile updated successfully
-  /de1/shotSettings:
+  /api/v1/de1/shotSettings:
     post:
       summary: Update Shot Settings
       description: Updates shot settings on the DE1 espresso machine.
@@ -102,7 +103,7 @@ paths:
       responses:
         "200":
           description: Shot settings updated successfully
-  /de1/settings:
+  /api/v1/de1/settings:
     get:
       summary: Get De1 settings
       description: pulls additional settings from the De1
@@ -125,7 +126,7 @@ paths:
       responses:
         "200":
           description: Settings update successful
-  /de1/settings/advanced:
+  /api/v1/de1/settings/advanced:
     get:
       summary: Get advanced De1 settings
       description: Get additional advanced De1 settings
@@ -148,7 +149,7 @@ paths:
       responses:
         "200":
           description: Advanced settings updated successfully
-  /de1/usb/{state}:
+  /api/v1/de1/usb/{state}:
     put:
       summary: Toggle USB Charger Mode
       description: Enables or disables the USB charger mode on the DE1 machine.
@@ -168,7 +169,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /scale/tare:
+  /api/v1/scale/tare:
     put:
       summary: Tare Scale
       description: Tares the connected scale.
@@ -241,6 +242,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /ws/v1/de1/raw:
+    get:
+      summary: Websocket De1 raw BLE data
+      description: Receives real-time BLE data from DE1. Use this to send and receive BLE messages
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/De1RawMessage"
 
 components:
   schemas:
@@ -435,3 +446,36 @@ components:
           type: number
         heaterPh2Timeout:
           type: integer
+    De1RawMessage:
+      type: object
+      required:
+        - type
+        - operation
+        - characteristicUUID
+        - payload
+      properties:
+        type:
+          $ref: '#/components/schemas/De1RawMessageType'
+        operation:
+          $ref: '#/components/schemas/De1RawOperationType'
+        characteristicUUID:
+          type: string
+          description: UUID of the characteristic (len = 4).
+        payload:
+          type: string
+          description: The data payload as a hex string.
+
+    De1RawMessageType:
+      type: string
+      enum:
+        - request
+        - response
+      description: Type of raw message indicating whether it's a request or response.
+
+    De1RawOperationType:
+      type: string
+      enum:
+        - read
+        - write
+        - notify
+      description: Operation type indicating the nature of the raw message.
