@@ -1,6 +1,6 @@
 import 'package:reaprime/src/models/data/profile.dart';
-import 'package:reaprime/src/models/device/impl/de1/de1.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 
 abstract class De1Interface extends Machine {
   Stream<bool> get ready;

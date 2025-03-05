@@ -4,6 +4,7 @@ extension De1Mmr on De1 {
   void _mmrNotification(ByteData value) {
     var list = value.buffer.asUint8List();
     _mmrController.add(list);
+    notifyFrom(Endpoint.readFromMMR, list);
   }
 
   Future<List<int>> _mmrRead(MMRItem item, {int length = 0}) async {

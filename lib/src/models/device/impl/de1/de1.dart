@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.utils.dart';
 import 'package:reaprime/src/models/device/machine.dart';
@@ -17,41 +18,6 @@ part 'de1.rw.dart';
 part 'de1.profile.dart';
 part 'de1.mmr.dart';
 part 'de1.raw.dart';
-
-final class De1RawMessage {
-  final De1RawMessageType type;
-  final De1RawOperationType operation;
-  final String characteristicUUID;
-  final String payload;
-
-  De1RawMessage({
-    required this.type,
-    required this.operation,
-    required this.characteristicUUID,
-    required this.payload,
-  });
-
-  factory De1RawMessage.fromJson(Map<String, dynamic> json) {
-    return De1RawMessage(
-        type: De1RawMessageType.values[json['type']],
-        operation: De1RawOperationType.values[json['operation']],
-        characteristicUUID: json['characteristicUUID'],
-        payload: json['payload']);
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'type': type.name,
-      'operation': operation.name,
-      'characteristicUUID': characteristicUUID,
-      'payload': payload
-    };
-  }
-}
-
-enum De1RawMessageType { request, response }
-
-enum De1RawOperationType { read, write, notify }
 
 class De1 implements De1Interface {
   static String advertisingUUID = 'FFFF';
@@ -174,7 +140,7 @@ class De1 implements De1Interface {
 
   Future<void> _onConnected() async {
     _log.info("Connected, subscribing to services");
-		initRawStream();
+    initRawStream();
     _snapshotStream.add(
       MachineSnapshot(
         flow: 0,

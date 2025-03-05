@@ -4,7 +4,7 @@ import 'dart:math';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
-import 'package:reaprime/src/models/device/impl/de1/de1.dart';
+import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:rxdart/subjects.dart';
 
