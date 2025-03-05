@@ -24,7 +24,7 @@ extension De1Raw on De1 {
               ),
             );
           case De1RawOperationType.write:
-            var payload = Uint8List.fromList(data.payload.codeUnits);
+            var payload = _hexToBytes(data.payload);
             await _write(endpoint, payload);
             _rawOutStream.add(
               packToRaw(
@@ -41,7 +41,6 @@ extension De1Raw on De1 {
     });
   }
 
-
   notifyFrom(
     Endpoint e,
     Uint8List data,
@@ -50,7 +49,7 @@ extension De1Raw on De1 {
       packToRaw(
         De1RawOperationType.notify,
         e.uuid,
-        data.buffer.asUint8List(),
+        data,
       ),
     );
   }
@@ -64,7 +63,18 @@ extension De1Raw on De1 {
       type: De1RawMessageType.response,
       operation: operation,
       characteristicUUID: characteristicUUID,
-      payload: data.map((e) => e.toString()).join(),
+      payload: data
+          .map((byte) => byte.toRadixString(16).padLeft(2, '0').toUpperCase())
+          .join(),
     );
+  }
+
+  Uint8List _hexToBytes(String hex) {
+    final length = hex.length;
+    final bytes = Uint8List(length ~/ 2);
+    for (int i = 0; i < length; i += 2) {
+      bytes[i ~/ 2] = int.parse(hex.substring(i, i + 2), radix: 16);
+    }
+    return bytes;
   }
 }
