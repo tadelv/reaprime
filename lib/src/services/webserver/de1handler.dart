@@ -17,6 +17,8 @@ class De1Handler {
     app.get(
         '/ws/v1/de1/shotSettings', sws.webSocketHandler(_handleShotSettings));
     app.get('/ws/v1/de1/waterLevels', sws.webSocketHandler(_handleWaterLevels));
+    app.get('/ws/v1/de1/raw', sws.webSocketHandler(_handleRawSocket));
+
     app.post('/api/v1/de1/waterLevels', (Request r) async {
       return withDe1((de1) async {
         var json = jsonDecode(await r.readAsString());
@@ -219,10 +221,19 @@ class De1Handler {
   }
 
   _handleRawSocket(WebSocketChannel socket) async {
+    var de1 = _controller.connectedDe1();
+    var sub = de1.rawOutStream.listen((data) {
+      try {
+        var json = jsonEncode(data.toJson());
+        socket.sink.add(json);
+      } catch (e) {
+        log.severe("Failed to send raw: ", e);
+      }
+    });
     socket.stream.listen((event) {
       var json = jsonDecode(event.toString());
-			final message = De1RawMessage.fromJson(json);
-			_controller.connectedDe1().
-    });
+      final message = De1RawMessage.fromJson(json);
+      de1.sendRawMessage(message);
+    }, onDone: () => sub.cancel(), onError: (e, st) => sub.cancel());
   }
 }

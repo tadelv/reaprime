@@ -64,6 +64,8 @@ class De1 implements De1Interface {
 
   final StreamController<De1RawMessage> _rawOutStream =
       StreamController.broadcast();
+
+  @override
   Stream<De1RawMessage> get rawOutStream => _rawOutStream.stream;
 
   final StreamController<De1RawMessage> _rawInStream = StreamController();
@@ -172,6 +174,7 @@ class De1 implements De1Interface {
 
   Future<void> _onConnected() async {
     _log.info("Connected, subscribing to services");
+		initRawStream();
     _snapshotStream.add(
       MachineSnapshot(
         flow: 0,
@@ -408,5 +411,10 @@ class De1 implements De1Interface {
   Future<void> setHeaterPhase2Timeout(double val) async {
     var value = _packMMRInt((val * 10).toInt());
     await _mmrWrite(MMRItem.heaterUp2Timeout, value);
+  }
+
+  @override
+  sendRawMessage(De1RawMessage message) {
+    _rawInStream.add(message);
   }
 }

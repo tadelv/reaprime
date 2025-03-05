@@ -41,6 +41,7 @@ extension De1Raw on De1 {
     });
   }
 
+
   notifyFrom(
     Endpoint e,
     Uint8List data,
@@ -67,4 +68,3 @@ extension De1Raw on De1 {
     );
   }
 }
-
