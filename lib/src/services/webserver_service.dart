@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
@@ -68,7 +67,10 @@ Handler _init(
       return response.change(headers: {
         ...response.headersAll,
         'content-type': 'application/json',
-        if (kDebugMode) 'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': '*',
+        //'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT',
+        //'Access-Control-Allow-Headers':
+        //    'X-Requested-With, Content-Type, Authorization, Origin, Accept, Referer, User-Agent',
       });
     };
   }

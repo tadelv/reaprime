@@ -10,6 +10,18 @@ class De1Handler {
     app.get('/api/v1/de1/state', _stateHandler);
     app.put('/api/v1/de1/state/<newState>', _requestStateHandler);
     app.post('/api/v1/de1/profile', _profileHandler);
+    app.options('/api/v1/de1/profile', (Request r) {
+      return Response.ok('', headers: {
+        'Access-Control-Allow-Origin': '*', // or specify a particular origin
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers':
+            'Origin, Content-Type, Accept, Authorization',
+        // Optionally, add the following if you need to allow credentials:
+        // 'Access-Control-Allow-Credentials': 'true',
+        // And you may also include a max age:
+        // 'Access-Control-Max-Age': '3600'
+      });
+    });
     app.post('/api/v1/de1/shotSettings', _shotSettingsHandler);
 
     // Sockets
