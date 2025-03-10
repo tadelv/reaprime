@@ -131,22 +131,6 @@ class StatusTile extends StatelessWidget {
             );
           },
         ),
-        SizedBox(height: 8),
-        Row(children: [
-          _powerButton(),
-          ShadButton.secondary(
-            onPressed: () {
-              Navigator.restorablePushNamed(
-                context,
-                SettingsView.routeName,
-              );
-            },
-            child: Icon(
-              LucideIcons.settings,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          )
-        ]),
       ],
     );
   }
@@ -264,33 +248,6 @@ class StatusTile extends StatelessWidget {
     ];
   }
 
-  Widget _powerButton() {
-    return StreamBuilder(
-        stream: de1.currentSnapshot,
-        builder: (context, snapshotData) {
-          if (snapshotData.connectionState != ConnectionState.active) {
-            return Text("Waiting");
-          }
-          var snapshot = snapshotData.data!;
-          if (snapshot.state.state == MachineState.sleeping) {
-            return ShadButton.secondary(
-              onPressed: () async {
-                await de1.requestState(MachineState.idle);
-              },
-              child: Icon(
-                LucideIcons.power,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            );
-          }
-          return ShadButton(
-            onPressed: () async {
-              await de1.requestState(MachineState.sleeping);
-            },
-            child: Icon(LucideIcons.power),
-          );
-        });
-  }
 
   Widget _firstRow() {
     double boxWidth = 100;

@@ -4,6 +4,7 @@ import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/home_feature/tiles/history_tile.dart';
 import 'package:reaprime/src/home_feature/tiles/profile_tile.dart';
+import 'package:reaprime/src/home_feature/tiles/settings_tile.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
@@ -89,6 +90,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           _statusCard(context),
+          _settingsCard(context),
         ],
       ),
     );
@@ -97,6 +99,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _statusCard(BuildContext context) {
     return SizedBox(
         width: double.infinity, child: ShadCard(child: _de1Status(context)));
+  }
+
+  Widget _settingsCard(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: ShadCard(
+        child: SettingsTile(
+          controller: widget.de1controller,
+        ),
+      ),
+    );
   }
 
   Widget _de1Status(BuildContext context) {
