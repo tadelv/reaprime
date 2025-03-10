@@ -108,6 +108,12 @@ class De1 implements De1Interface {
         _device.connectionState.listen((BluetoothConnectionState state) async {
       switch (state) {
         case BluetoothConnectionState.connected:
+          if (await _connectionStateController.stream.first ==
+              ConnectionState.connected) {
+            _log.info("Already connected, not signalling again");
+            break;
+          }
+          _log.fine("state changed to connected");
           _connectionStateController.add(ConnectionState.connected);
           var services = await _device.discoverServices();
           _service =

@@ -59,9 +59,9 @@ class De1Controller {
       var de1List = devices.whereType<De1Interface>().toList();
       if (de1List.firstOrNull != null && _de1 == null) {
         var de1 = de1List.first;
+        _de1 = de1;
         _log.fine("found de1, connecting");
         await de1.onConnect();
-        _de1 = de1;
         _de1Controller.add(_de1);
 
         _de1!.ready.listen((ready) {
