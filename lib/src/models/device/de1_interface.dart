@@ -1,8 +1,12 @@
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 
 abstract class De1Interface extends Machine {
   Stream<bool> get ready;
+
+  Stream<De1RawMessage> get rawOutStream;
+  void sendRawMessage(De1RawMessage message);
 
   Stream<De1ShotSettings> get shotSettings;
   Future<void> updateShotSettings(De1ShotSettings newSettings);
@@ -51,15 +55,15 @@ abstract class De1Interface extends Machine {
   //Future<int> getGhcInfo();
   //Future<int> getGhcMode();
 
-	// Heater prefs
-	Future<double> getHeaterPhase1Flow();
-	Future<void> setHeaterPhase1Flow(double val);
-	Future<double> getHeaterPhase2Flow();
-	Future<void> setHeaterPhase2Flow(double val);
-	Future<double> getHeaterPhase2Timeout();
-	Future<void> setHeaterPhase2Timeout(double val);
-	Future<double> getHeaterIdleTemp();
-	Future<void> setHeaterIdleTemp(double val);
+  // Heater prefs
+  Future<double> getHeaterPhase1Flow();
+  Future<void> setHeaterPhase1Flow(double val);
+  Future<double> getHeaterPhase2Flow();
+  Future<void> setHeaterPhase2Flow(double val);
+  Future<double> getHeaterPhase2Timeout();
+  Future<void> setHeaterPhase2Timeout(double val);
+  Future<double> getHeaterIdleTemp();
+  Future<void> setHeaterIdleTemp(double val);
 }
 
 // This doesn't change anything

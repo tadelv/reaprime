@@ -25,6 +25,7 @@ extension De1Subscriptions on De1 {
   }
 
   _parseStatus(ByteData data) {
+    notifyFrom(Endpoint.stateInfo, data.buffer.asUint8List());
     var state = De1StateEnum.fromHexValue(data.getUint8(0));
     var subState =
         De1SubState.fromHexValue(data.getUint8(1)) ?? De1SubState.noState;
@@ -39,6 +40,7 @@ extension De1Subscriptions on De1 {
   }
 
   _parseShot(ByteData data) {
+    notifyFrom(Endpoint.shotSample, data.buffer.asUint8List());
     //final sampleTime = 100 * (data.getUint16(0)) / (50 * 2);
     final groupPressure = data.getUint16(2) / (1 << 12);
     final groupFlow = data.getUint16(4) / (1 << 12);
@@ -71,6 +73,7 @@ extension De1Subscriptions on De1 {
   }
 
   _parseShotSettings(ByteData data) {
+    notifyFrom(Endpoint.shotSettings, data.buffer.asUint8List());
     var steamBits = data.getUint8(0);
     var targetSteamTemp = data.getUint8(1);
     var targetSteamLength = data.getUint8(2);
@@ -105,6 +108,7 @@ extension De1Subscriptions on De1 {
 
   _parseWaterLevels(ByteData data) {
     try {
+      notifyFrom(Endpoint.waterLevels, data.buffer.asUint8List());
       var waterlevel = data.getUint16(0, Endian.big);
       var waterThreshold = data.getUint16(2, Endian.big);
 

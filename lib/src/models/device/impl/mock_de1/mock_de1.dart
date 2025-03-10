@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:rxdart/subjects.dart';
 
@@ -354,5 +355,14 @@ class MockDe1 implements De1Interface {
   Future<void> setHeaterPhase2Timeout(double val) {
     // TODO: implement setHeaterPhase2Timeout
     throw UnimplementedError();
+  }
+
+  @override
+  // TODO: implement rawOutStream
+  Stream<De1RawMessage> get rawOutStream => throw UnimplementedError();
+
+  @override
+  void sendRawMessage(De1RawMessage message) {
+    // TODO: implement sendRawMessage
   }
 }

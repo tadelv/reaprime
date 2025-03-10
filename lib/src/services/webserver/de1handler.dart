@@ -10,6 +10,18 @@ class De1Handler {
     app.get('/api/v1/de1/state', _stateHandler);
     app.put('/api/v1/de1/state/<newState>', _requestStateHandler);
     app.post('/api/v1/de1/profile', _profileHandler);
+    app.options('/api/v1/de1/profile', (Request r) {
+      return Response.ok('', headers: {
+        'Access-Control-Allow-Origin': '*', // or specify a particular origin
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers':
+            'Origin, Content-Type, Accept, Authorization',
+        // Optionally, add the following if you need to allow credentials:
+        // 'Access-Control-Allow-Credentials': 'true',
+        // And you may also include a max age:
+        // 'Access-Control-Max-Age': '3600'
+      });
+    });
     app.post('/api/v1/de1/shotSettings', _shotSettingsHandler);
 
     // Sockets
@@ -17,6 +29,8 @@ class De1Handler {
     app.get(
         '/ws/v1/de1/shotSettings', sws.webSocketHandler(_handleShotSettings));
     app.get('/ws/v1/de1/waterLevels', sws.webSocketHandler(_handleWaterLevels));
+    app.get('/ws/v1/de1/raw', sws.webSocketHandler(_handleRawSocket));
+
     app.post('/api/v1/de1/waterLevels', (Request r) async {
       return withDe1((de1) async {
         var json = jsonDecode(await r.readAsString());
@@ -216,5 +230,22 @@ class De1Handler {
       onDone: () => sub.cancel(),
       onError: (e, st) => sub.cancel(),
     );
+  }
+
+  _handleRawSocket(WebSocketChannel socket) async {
+    var de1 = _controller.connectedDe1();
+    var sub = de1.rawOutStream.listen((data) {
+      try {
+        var json = jsonEncode(data.toJson());
+        socket.sink.add(json);
+      } catch (e) {
+        log.severe("Failed to send raw: ", e);
+      }
+    });
+    socket.stream.listen((event) {
+      var json = jsonDecode(event.toString());
+      final message = De1RawMessage.fromJson(json);
+      de1.sendRawMessage(message);
+    }, onDone: () => sub.cancel(), onError: (e, st) => sub.cancel());
   }
 }

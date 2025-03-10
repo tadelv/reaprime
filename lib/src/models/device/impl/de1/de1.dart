@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.utils.dart';
 import 'package:reaprime/src/models/device/machine.dart';
@@ -16,6 +17,7 @@ part 'de1.subscriptions.dart';
 part 'de1.rw.dart';
 part 'de1.profile.dart';
 part 'de1.mmr.dart';
+part 'de1.raw.dart';
 
 class De1 implements De1Interface {
   static String advertisingUUID = 'FFFF';
@@ -26,7 +28,13 @@ class De1 implements De1Interface {
 
   late BluetoothService _service;
 
-  final List<StreamSubscription<dynamic>> _notificationSubscriptions = [];
+  final StreamController<De1RawMessage> _rawOutStream =
+      StreamController.broadcast();
+
+  @override
+  Stream<De1RawMessage> get rawOutStream => _rawOutStream.stream;
+
+  final StreamController<De1RawMessage> _rawInStream = StreamController();
 
   final _log = logging.Logger("DE1");
 
@@ -108,7 +116,7 @@ class De1 implements De1Interface {
           break;
         case BluetoothConnectionState.disconnected:
           _connectionStateController.add(ConnectionState.disconnected);
-          //disconnect(); // just in case we got disconnected unintentionally
+        //disconnect(); // just in case we got disconnected unintentionally
         default:
           break;
       }
@@ -132,6 +140,7 @@ class De1 implements De1Interface {
 
   Future<void> _onConnected() async {
     _log.info("Connected, subscribing to services");
+    initRawStream();
     _snapshotStream.add(
       MachineSnapshot(
         flow: 0,
@@ -368,5 +377,10 @@ class De1 implements De1Interface {
   Future<void> setHeaterPhase2Timeout(double val) async {
     var value = _packMMRInt((val * 10).toInt());
     await _mmrWrite(MMRItem.heaterUp2Timeout, value);
+  }
+
+  @override
+  sendRawMessage(De1RawMessage message) {
+    _rawInStream.add(message);
   }
 }
