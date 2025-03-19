@@ -1,7 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
@@ -10,6 +8,7 @@ import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/shot_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/permissions_feature/permissions_view.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
@@ -34,13 +33,6 @@ class NavigationService {
 }
 
 bool isRealtimeShotFeatureActive = false;
-
-Future<void> waitForPermission(bool wait, Future<void> Function() exec) async {
-  await Future.doWhile(() => wait);
-  wait = true;
-  await exec();
-  wait = false;
-}
 
 /// The Widget that configures your application.
 class MyApp extends StatelessWidget {
@@ -67,21 +59,6 @@ class MyApp extends StatelessWidget {
     //
     // The ListenableBuilder Widget listens to the SettingsController for changes.
     // Whenever the user updates their settings, the MaterialApp is rebuilt.
-    var wait = false;
-    if (Platform.isAndroid || Platform.isIOS) {
-      Future.forEach([
-        Permission.bluetoothScan.request,
-        Permission.bluetoothConnect.request,
-        Permission.bluetooth.request,
-        Permission.locationWhenInUse.request,
-        Permission.locationAlways.request,
-        deviceController.initialize,
-      ], (e) async => await waitForPermission(wait, e));
-    } else {
-      Future.forEach([
-        deviceController.initialize,
-      ], (e) async => await waitForPermission(wait, e));
-    }
 
     if (Platform.isAndroid) {
       FlutterForegroundTask.startService(
@@ -194,13 +171,16 @@ class MyApp extends StatelessWidget {
                       workflowController: workflowController,
                     );
                   case HomeScreen.routeName:
-                  default:
                     return HomeScreen(
                       de1controller: de1Controller,
                       workflowController: workflowController,
                       scaleController: scaleController,
                       deviceController: deviceController,
                       persistenceController: persistenceController,
+                    );
+                  default:
+                    return PermissionsView(
+                      deviceController: deviceController,
                     );
                 }
               },

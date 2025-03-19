@@ -74,7 +74,7 @@ class De1Controller {
   }
 
   _initializeData() async {
-    connectedDe1().shotSettings.first.then(_shotSettingsUpdate);
+    await connectedDe1().shotSettings.first.then(_shotSettingsUpdate);
     _subscriptions.add(
       connectedDe1().shotSettings.listen(
             _shotSettingsUpdate,
