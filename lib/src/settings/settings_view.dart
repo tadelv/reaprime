@@ -66,11 +66,14 @@ class SettingsView extends StatelessWidget {
                     var docs = await getApplicationDocumentsDirectory();
                     File logFile = File('${docs.path}/log.txt');
                     var bytes = await logFile.readAsBytes();
-                    FilePicker.platform.saveFile(
+                    String? outputFile = await FilePicker.platform.saveFile(
                       fileName: "R1-logs.txt",
-                      bytes: bytes,
                       dialogTitle: "Choose where to save logs",
                     );
+                    if (outputFile != null) {
+                      File destination = File(outputFile);
+                      await destination.writeAsBytes(bytes);
+                    }
                   },
                 ),
                 ShadButton(
