@@ -7,6 +7,8 @@ import 'package:reaprime/src/home_feature/forms/steam_form.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:rxdart/subjects.dart';
 
+part 'de1_controller.defaults.dart';
+
 class De1Controller {
   final DeviceController _deviceController;
 
@@ -55,20 +57,26 @@ class De1Controller {
   De1Controller({required DeviceController controller})
       : _deviceController = controller {
     _log.info("checking ${_deviceController.devices}");
+  }
+
+  connectToFirstAvailableDe1() {
     _deviceController.deviceStream.listen((devices) async {
       var de1List = devices.whereType<De1Interface>().toList();
       if (de1List.firstOrNull != null && _de1 == null) {
         var de1 = de1List.first;
-        _de1 = de1;
-        _log.fine("found de1, connecting");
-        await de1.onConnect();
-        _de1Controller.add(_de1);
+      }
+    });
+  }
 
-        _de1!.ready.listen((ready) {
-          if (ready) {
-            _initializeData();
-          }
-        });
+  connectToDe1(De1Interface de1Interface) async {
+    _de1 = de1Interface;
+    _log.fine("found de1, connecting");
+    await de1Interface.onConnect();
+    _de1Controller.add(_de1);
+
+    _de1!.ready.listen((ready) {
+      if (ready) {
+        _initializeData();
       }
     });
   }
@@ -80,6 +88,7 @@ class De1Controller {
             _shotSettingsUpdate,
           ),
     );
+    await _setDe1Defaults();
   }
 
   _shotSettingsUpdate(De1ShotSettings data) async {

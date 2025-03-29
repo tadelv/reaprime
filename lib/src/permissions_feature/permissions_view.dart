@@ -3,13 +3,17 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/home_feature/home_feature.dart';
 
 class PermissionsView extends StatelessWidget {
   final DeviceController deviceController;
 
-  const PermissionsView({super.key, required this.deviceController});
+  final De1Controller de1controller;
+
+  const PermissionsView(
+      {super.key, required this.deviceController, required this.de1controller});
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +31,7 @@ class PermissionsView extends StatelessWidget {
     return Center(
       child: Column(
         children: [
-          Text('Checking permissions'),
+          Text('REAPrime is starting ...'),
           FutureBuilder(
             future: checkPermissions(),
             builder: (context, result) {
@@ -39,12 +43,13 @@ class PermissionsView extends StatelessWidget {
                 case ConnectionState.active:
                   return Text("Done");
                 case ConnectionState.done:
-                  Future.delayed(Duration(milliseconds: 300), () {
-                    if (context.mounted) {
-                      Navigator.pushReplacementNamed(
-                          context, HomeScreen.routeName);
-                    }
-                  });
+                  // Future.delayed(Duration(milliseconds: 300), () {
+                  //   if (context.mounted) {
+                  //     Navigator.pushReplacementNamed(
+                  //         context, HomeScreen.routeName);
+                  //   }
+                  // });
+                  return _de1Picker(context);
               }
               return Text("Done");
             },
@@ -69,5 +74,28 @@ class PermissionsView extends StatelessWidget {
       await deviceController.initialize();
     }
     return true;
+  }
+
+  Widget _de1Picker(BuildContext context) {
+    deviceController.scanForDevices();
+    return Text("Waiting for devices to be discovered ...");
+  }
+}
+
+class DeviceDiscoveryView extends StatefulWidget {
+  final DeviceController deviceController;
+  final De1Controller de1controller;
+  const DeviceDiscoveryView(
+      {super.key, required this.deviceController, required this.de1controller});
+
+  @override
+  State<StatefulWidget> createState() => _DeviceDiscoveryState();
+}
+
+class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
+  @override
+  Widget build(BuildContext context) {
+    // TODO: implement build
+    throw UnimplementedError();
   }
 }
