@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../settings/settings_view.dart';
@@ -30,7 +32,6 @@ class SampleItemListView extends StatelessWidget {
           ),
         ],
       ),
-
       body: StreamBuilder(
         stream: controller.deviceStream,
         builder: (buildContext, data) {
@@ -44,10 +45,24 @@ class SampleItemListView extends StatelessWidget {
               final item = controller.devices[index];
 
               return ListTile(
-                title: Text('${item.type.name} ${item.name} : ${item.deviceId}'),
-                leading: const CircleAvatar(
-                  // Display the Flutter Logo image asset.
-                  foregroundImage: AssetImage('assets/images/flutter_logo.png'),
+                title:
+                    Text('${item.type.name} ${item.name} : ${item.deviceId}'),
+                leading: StreamBuilder(
+                  stream: item.connectionState,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.active) {
+                      switch (snapshot.data) {
+                        case dev.ConnectionState.connected:
+                          return Icon(LucideIcons.check);
+                        case dev.ConnectionState.disconnected:
+                          return Icon(LucideIcons.cross);
+                        default:
+                          return Icon(LucideIcons.user);
+                      }
+                    } else {
+                      return Icon(LucideIcons.scanEye);
+                    }
+                  },
                 ),
                 onTap: () {
                   // Navigate to the details page. If the user leaves and returns to

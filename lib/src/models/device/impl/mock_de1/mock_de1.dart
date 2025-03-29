@@ -16,7 +16,7 @@ enum _SimulationType {
 }
 
 class MockDe1 implements De1Interface {
-  MockDe1();
+  MockDe1({String deviceId = "MockDe1"}): _deviceId = deviceId;
 
   StreamController<MachineSnapshot> _snapshotStream =
       StreamController.broadcast();
@@ -47,8 +47,10 @@ class MockDe1 implements De1Interface {
   @override
   Stream<MachineSnapshot> get currentSnapshot => _snapshotStream.stream;
 
+	String _deviceId = "MockDe1";
+
   @override
-  String get deviceId => "MockDe1";
+  String get deviceId => _deviceId;
 
   @override
   String get name => "MockDe1";
