@@ -122,9 +122,9 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
             ? DiscoveryState.foundMany
             : DiscoveryState.searching;
       });
-      // If it took more than 10 seconds to find the first de1, or the second de1 
-			// appeared after the timeout,
-			// connect to first one automatically
+      // If it took more than 10 seconds to find the first de1, or the second de1
+      // appeared after the timeout,
+      // connect to first one automatically
       // if (_timeoutReached && _discoveredDevices.isNotEmpty && mounted) {
       //   widget.de1controller.connectToDe1(_discoveredDevices.first);
       //   Navigator.popAndPushNamed(context, HomeScreen.routeName);
@@ -139,6 +139,8 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       _timeoutReached = true;
       if (mounted && _discoveredDevices.length == 1) {
         widget.de1controller.connectToDe1(_discoveredDevices.first);
+        Navigator.popAndPushNamed(context, HomeScreen.routeName);
+      } else if (mounted && _discoveredDevices.isEmpty) {
         Navigator.popAndPushNamed(context, HomeScreen.routeName);
       }
     });
