@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,9 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/home_feature/home_feature.dart';
+import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/device.dart' as dev;
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 class PermissionsView extends StatelessWidget {
   final DeviceController deviceController;
@@ -77,8 +81,12 @@ class PermissionsView extends StatelessWidget {
   }
 
   Widget _de1Picker(BuildContext context) {
-    deviceController.scanForDevices();
-    return Text("Waiting for devices to be discovered ...");
+    return Center(
+      child: DeviceDiscoveryView(
+        de1controller: de1controller,
+        deviceController: deviceController,
+      ),
+    );
   }
 }
 
@@ -93,9 +101,86 @@ class DeviceDiscoveryView extends StatefulWidget {
 }
 
 class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
+  DiscoveryState _state = DiscoveryState.searching;
+
+  List<De1Interface> _discoveredDevices = [];
+
+  late StreamSubscription<List<dev.Device>> _discoverySubscription;
+
+  @override
+  void initState() {
+    _discoverySubscription =
+        widget.deviceController.deviceStream.listen((data) {
+      _discoveredDevices.clear();
+      setState(() {
+        _discoveredDevices.addAll(data.whereType<De1Interface>());
+        _state = _discoveredDevices.length > 0
+            ? DiscoveryState.foundMany
+            : DiscoveryState.searching;
+      });
+    });
+    _discoveredDevices
+        .addAll(widget.deviceController.devices.whereType<De1Interface>());
+    widget.deviceController.scanForDevices();
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    _discoverySubscription.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    // TODO: implement build
-    throw UnimplementedError();
+    switch (_state) {
+      case DiscoveryState.searching:
+        return _searchingView(context);
+      case DiscoveryState.foundOne:
+      case DiscoveryState.foundMany:
+        return SizedBox(height: 500, width: 300, child: _resultsView(context));
+    }
   }
+
+  Widget _searchingView(BuildContext context) {
+    return Text("searching");
+  }
+
+  Widget _resultsView(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          "Select De1 from the list",
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        Expanded(
+          child: ListView.builder(
+            itemBuilder: (context, index) {
+              final de1 = _discoveredDevices[index];
+              return TapRegion(
+                child: SizedBox(
+                  width: 200,
+                  child: ShadCard(
+                    title: Text("De1"),
+                    description: Text("${de1.deviceId}"),
+                  ),
+                ),
+                onTapUpInside: (_) {
+                  widget.de1controller.connectToDe1(de1);
+                  Navigator.popAndPushNamed(context, HomeScreen.routeName);
+                },
+              );
+            },
+            itemCount: _discoveredDevices.length,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+enum DiscoveryState {
+  searching,
+  foundOne,
+  foundMany,
 }
