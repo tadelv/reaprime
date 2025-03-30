@@ -34,6 +34,7 @@ class PermissionsView extends StatelessWidget {
   Widget _permissions(context) {
     return Center(
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text('REAPrime is starting ...'),
           FutureBuilder(
@@ -107,6 +108,9 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 
   late StreamSubscription<List<dev.Device>> _discoverySubscription;
 
+  final Duration _timeoutDuration = Duration(seconds: 10);
+  bool _timeoutReached = false;
+
   @override
   void initState() {
     _discoverySubscription =
@@ -114,15 +118,30 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       _discoveredDevices.clear();
       setState(() {
         _discoveredDevices.addAll(data.whereType<De1Interface>());
-        _state = _discoveredDevices.length > 0
+        _state = _discoveredDevices.length > 1
             ? DiscoveryState.foundMany
             : DiscoveryState.searching;
       });
+      // If it took more than 10 seconds to find the first de1, or the second de1 
+			// appeared after the timeout,
+			// connect to first one automatically
+      // if (_timeoutReached && _discoveredDevices.isNotEmpty && mounted) {
+      //   widget.de1controller.connectToDe1(_discoveredDevices.first);
+      //   Navigator.popAndPushNamed(context, HomeScreen.routeName);
+      // }
     });
     _discoveredDevices
         .addAll(widget.deviceController.devices.whereType<De1Interface>());
     widget.deviceController.scanForDevices();
     super.initState();
+    // If 10 seconds elapsed without finding a second de1, continue automatically
+    Future.delayed(_timeoutDuration, () {
+      _timeoutReached = true;
+      if (mounted && _discoveredDevices.length == 1) {
+        widget.de1controller.connectToDe1(_discoveredDevices.first);
+        Navigator.popAndPushNamed(context, HomeScreen.routeName);
+      }
+    });
   }
 
   @override
@@ -143,7 +162,15 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   }
 
   Widget _searchingView(BuildContext context) {
-    return Text("searching");
+    return Column(
+      children: [
+        SizedBox(width: 200, child: ShadProgress()),
+        Text(
+          "searching",
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+      ],
+    );
   }
 
   Widget _resultsView(BuildContext context) {
