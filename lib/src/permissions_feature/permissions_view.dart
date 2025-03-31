@@ -164,10 +164,11 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 
   Widget _searchingView(BuildContext context) {
     return Column(
+      spacing: 16,
       children: [
         SizedBox(width: 200, child: ShadProgress()),
         Text(
-          "searching",
+          "Getting things ready",
           style: Theme.of(context).textTheme.titleMedium,
         ),
       ],
@@ -176,6 +177,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 
   Widget _resultsView(BuildContext context) {
     return Column(
+      spacing: 16,
       children: [
         Text(
           "Select De1 from the list",
