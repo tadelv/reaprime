@@ -132,7 +132,6 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
     });
     _discoveredDevices
         .addAll(widget.deviceController.devices.whereType<De1Interface>());
-    widget.deviceController.scanForDevices();
     super.initState();
     // If 10 seconds elapsed without finding a second de1, continue automatically
     Future.delayed(_timeoutDuration, () {
