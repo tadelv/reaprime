@@ -17,14 +17,18 @@ class SettingsController with ChangeNotifier {
   // also persisting the changes with the SettingsService.
   late ThemeMode _themeMode;
 
+  late bool _bypassShotController;
+
   // Allow Widgets to read the user's preferred ThemeMode.
   ThemeMode get themeMode => _themeMode;
+  bool get bypassShotController => _bypassShotController;
 
   /// Load the user's settings from the SettingsService. It may load from a
   /// local database or the internet. The controller only knows it can load the
   /// settings from the service.
   Future<void> loadSettings() async {
     _themeMode = await _settingsService.themeMode();
+    _bypassShotController = await _settingsService.bypassShotController();
 
     // Important! Inform listeners a change has occurred.
     notifyListeners();
@@ -46,5 +50,17 @@ class SettingsController with ChangeNotifier {
     // Persist the changes to a local database or the internet using the
     // SettingService.
     await _settingsService.updateThemeMode(newThemeMode);
+  }
+
+  Future<void> updateBypassShotController(bool bypass) async {
+    if (bypass == _bypassShotController) {
+      return;
+    }
+
+    _bypassShotController = bypass;
+
+    notifyListeners();
+
+    await _settingsService.updateBypassShotController(bypass);
   }
 }
