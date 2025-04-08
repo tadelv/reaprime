@@ -181,6 +181,7 @@ class MyApp extends StatelessWidget {
                   default:
                     return PermissionsView(
                       deviceController: deviceController,
+                      de1controller: de1Controller,
                     );
                 }
               },

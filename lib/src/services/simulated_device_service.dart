@@ -37,11 +37,17 @@ class SimulatedDeviceService
   @override
   Future<void> initialize() async {}
 
+  int scanCount = 0;
+
   @override
   Future<void> scanForDevices() async {
     _devices["MockDe1"] = MockDe1();
     _devices["MockScale"] = MockScale();
+    if (scanCount > 1) {
+      _devices["MockDe1 #2"] = MockDe1(deviceId: "MockDe1 #2");
+    }
     _deviceStreamController.add(_devices.values.toList());
     notifyListeners();
+    scanCount++;
   }
 }
