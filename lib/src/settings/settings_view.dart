@@ -64,7 +64,9 @@ class SettingsView extends StatelessWidget {
                   value: controller.bypassShotController,
                   onChanged: controller.updateBypassShotController,
                 ),
-                SizedBox(width: 16,),
+                SizedBox(
+                  width: 16,
+                ),
                 Text(
                     "Bypass shot controller (let REAPrime clients stop the shot)"),
               ],
