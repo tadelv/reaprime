@@ -9,6 +9,7 @@ import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
+import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:rxdart/rxdart.dart';
 
 class ShotController {
@@ -18,6 +19,8 @@ class ShotController {
   final Profile targetProfile;
 
   final Logger _log = Logger("ShotController");
+
+  late bool _bypassSAW;
 
   ShotController({
     required this.scaleController,
@@ -32,6 +35,7 @@ class ShotController {
   }
 
   Future<void> _initialize() async {
+    _bypassSAW = await SettingsService().bypassShotController();
     _log.shout("Initializing ShotController");
     try {
       final state = await scaleController.connectionState.first;
@@ -125,7 +129,7 @@ class ShotController {
             machine.state.substate == MachineSubstate.preparingForShot) {
           _resetCommand.add(true);
           _shotStartTime = DateTime.now();
-          if (scale != null) {
+          if (_bypassSAW == false && scale != null) {
             _log.info("Machine getting ready. Taring scale...");
             scaleController.connectedScale().tare();
           }
@@ -138,7 +142,7 @@ class ShotController {
       case ShotState.preheating:
         if (machine.state.substate == MachineSubstate.preinfusion ||
             machine.state.substate == MachineSubstate.pouring) {
-          if (scale != null) {
+          if (_bypassSAW == false && scale != null) {
             _log.info("Taring scale again.");
             scaleController.connectedScale().tare();
           }
@@ -150,7 +154,7 @@ class ShotController {
         break;
 
       case ShotState.pouring:
-        if (scale != null) {
+        if (_bypassSAW == false && scale != null) {
           double currentWeight = scale.weight;
           double weightFlow = scale.weightFlow;
           double projectedWeight = currentWeight + weightFlow;
