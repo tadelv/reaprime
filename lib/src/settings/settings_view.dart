@@ -68,7 +68,7 @@ class SettingsView extends StatelessWidget {
                   width: 16,
                 ),
                 Text(
-                    "Bypass shot controller (let REAPrime clients stop the shot)"),
+                    "Gateway mode (let REAPrime clients control the shot, scale and other parameters)"),
               ],
             ),
             Row(
