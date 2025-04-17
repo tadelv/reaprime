@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:rxdart/rxdart.dart';
@@ -26,8 +27,13 @@ class DeviceController {
 
   Future<void> initialize() async {
     for (var service in _services) {
-      await service.initialize();
-      service.devices.listen((devices) => _serviceUpdate(service, devices));
+      try {
+        await service.initialize();
+        service.devices.listen((devices) => _serviceUpdate(service, devices));
+      } catch (e) {
+        Logger("DeviceController")
+            .warning("Service ${service} failed to init:", e);
+      }
     }
     await scanForDevices();
   }
@@ -44,7 +50,12 @@ class DeviceController {
     });
     _deviceStream.add(devices);
     for (var service in _services) {
-      await service.scanForDevices();
+      try {
+        await service.scanForDevices();
+      } catch (e) {
+        Logger("DeviceController")
+            .warning("Service ${service} failed to scan:", e);
+      }
     }
   }
 

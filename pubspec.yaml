@@ -35,6 +35,7 @@ dependencies:
   equatable: ^2.0.7
   flutter_blue_plus: ^1.35.3
   shared_preferences: ^2.5.3
+  usb_serial: ^0.5.2
   
 dev_dependencies:
   flutter_test:
