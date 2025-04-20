@@ -7,6 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/shot_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
+import 'package:reaprime/src/history_feature/history_feature.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/permissions_feature/permissions_view.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
@@ -176,6 +177,10 @@ class MyApp extends StatelessWidget {
                       workflowController: workflowController,
                       scaleController: scaleController,
                       deviceController: deviceController,
+                      persistenceController: persistenceController,
+                    );
+                  case HistoryFeature.routeName:
+                    return HistoryFeature(
                       persistenceController: persistenceController,
                     );
                   default:
