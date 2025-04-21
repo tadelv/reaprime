@@ -142,6 +142,9 @@ class _HistoryFeatureState extends State<HistoryFeature> {
     return Column(
       children: [
         Text("${record.id}"),
+        if (record.workflow.grinderData != null)
+          Text(
+              "${record.workflow.grinderData!.model}: ${record.workflow.grinderData!.setting}"),
         ShotChart(
           shotSnapshots: record.measurements,
           shotStartTime: record.timestamp,
