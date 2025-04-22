@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
+import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/util/shot_chart.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -13,9 +14,11 @@ class HistoryFeature extends StatefulWidget {
   const HistoryFeature({
     super.key,
     required this.persistenceController,
+    required this.workflowController,
   });
 
   final PersistenceController persistenceController;
+  final WorkflowController workflowController;
 
   @override
   State<StatefulWidget> createState() => _HistoryFeatureState();
@@ -145,6 +148,15 @@ class _HistoryFeatureState extends State<HistoryFeature> {
         if (record.workflow.grinderData != null)
           Text(
               "${record.workflow.grinderData!.model}: ${record.workflow.grinderData!.setting}"),
+        Text("Profile: ${record.workflow.profile.title}"),
+        ShadButton(
+          child: Text("Repeat"),
+          onPressed: () {
+            widget.workflowController.setWorkflow(
+              record.workflow.copyWith(),
+            );
+          },
+        ),
         ShotChart(
           shotSnapshots: record.measurements,
           shotStartTime: record.timestamp,

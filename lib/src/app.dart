@@ -182,6 +182,7 @@ class MyApp extends StatelessWidget {
                   case HistoryFeature.routeName:
                     return HistoryFeature(
                       persistenceController: persistenceController,
+                      workflowController: workflowController,
                     );
                   default:
                     return PermissionsView(
