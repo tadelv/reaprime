@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
@@ -38,9 +39,9 @@ class _HistoryFeatureState extends State<HistoryFeature> {
   void initState() {
     _shotsSubscription = widget.persistenceController.shots.listen((records) {
       setState(() {
-        _shots = records;
+        _shots = records.sorted((a, b) => a.timestamp.isBefore(b.timestamp) ? 1 : -1);
         if (_searchController.text.isEmpty) {
-          _filteredShots = records;
+          _filteredShots = _shots;
         }
       });
     });
