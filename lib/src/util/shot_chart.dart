@@ -74,7 +74,7 @@ class ShotChart extends StatelessWidget {
             clipData: FlClipData.all(),
           ),
           duration: Duration(milliseconds: 300),
-          curve: Curves.easeInOutCubic,
+          // curve: Curves.fastLinearToSlowEaseIn,
         ),
       ),
     );

@@ -28,6 +28,7 @@ import 'src/settings/settings_controller.dart';
 import 'src/settings/settings_service.dart';
 
 import 'src/models/device/impl/de1/de1.dart';
+import 'src/services/serial/serial_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -67,10 +68,15 @@ void main() async {
     }),
   ];
 
+  if (Platform.isAndroid) {
+    services.add(createSerialService());
+  }
+
   if (const String.fromEnvironment("simulate") == "1") {
     services.add(SimulatedDeviceService());
     log.shout("adding Simulated Service");
   }
+  // TODO: replace with documents once import is implemented
   var storagePath = await getDownloadsDirectory();
   final persistenceController = PersistenceController(
     storageService: FileStorageService(path: storagePath!),

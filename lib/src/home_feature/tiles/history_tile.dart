@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
+import 'package:reaprime/src/history_feature/history_feature.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/util/shot_chart.dart';
@@ -68,7 +69,12 @@ class _HistoryTileState extends State<HistoryTile> {
         Text(
           "${shot.timestamp}",
         ),
-        _shotDetails(context, shot),
+        TapRegion(
+          child: _shotDetails(context, shot),
+          onTapInside: (cb) {
+            Navigator.pushNamed(context, HistoryFeature.routeName);
+          },
+        ),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           ShadButton(
             onPressed: () {

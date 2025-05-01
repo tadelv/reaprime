@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:collection/collection.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/controllers/shot_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
@@ -9,6 +8,7 @@ import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:reaprime/src/util/shot_chart.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -34,10 +34,12 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
   late StreamSubscription<ShotSnapshot> _shotSubscription;
   late StreamSubscription<bool> _resetCommandSubscription;
   late StreamSubscription<ShotState> _stateSubscription;
+  late bool _gatewayMode;
   bool backEnabled = false;
   @override
   initState() {
     super.initState();
+    SettingsService().bypassShotController().then((b) => _gatewayMode = b);
     _shotController = widget.shotController;
     _resetCommandSubscription = _shotController.resetCommand.listen((event) {
       setState(() {
@@ -56,7 +58,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
         } else {
           backEnabled = true;
         }
-        if (state == ShotState.finished) {
+        if (state == ShotState.finished && _gatewayMode == false) {
           _shotController.persistenceController.persistShot(
             ShotRecord(
               id: DateTime.now().toIso8601String(),
@@ -169,6 +171,9 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
     var lastFrame = _shotSnapshots.lastOrNull?.machine.profileFrame;
     if (lastFrame == null) {
       return "Unknown";
+    }
+    if (_gatewayMode || profile.steps.length <= lastFrame) {
+      return "Step ${lastFrame + 1}";
     }
     return profile.steps[lastFrame].name;
   }

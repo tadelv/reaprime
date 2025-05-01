@@ -60,6 +60,19 @@ class SettingsView extends StatelessWidget {
             ),
             Row(
               children: [
+                ShadSwitch(
+                  value: controller.bypassShotController,
+                  onChanged: controller.updateBypassShotController,
+                ),
+                SizedBox(
+                  width: 16,
+                ),
+                Text(
+                    "Gateway mode (let REAPrime clients control the shot, scale and other parameters)"),
+              ],
+            ),
+            Row(
+              children: [
                 ShadButton(
                   child: Text("Export logs"),
                   onPressed: () async {
