@@ -92,6 +92,16 @@ class DoseData {
       'doseOut': doseOut,
     };
   }
+
+  DoseData copyWith({
+    double? doseIn,
+    double? doseOut,
+  }) {
+    return DoseData(
+      doseIn: doseIn ?? this.doseIn,
+      doseOut: doseOut ?? this.doseOut,
+    );
+  }
 }
 
 class GrinderData {
@@ -116,6 +126,18 @@ class GrinderData {
       'model': model,
     };
   }
+
+  GrinderData copyWith({
+    String? setting,
+    String? manufacturer,
+    String? model,
+  }) {
+    return GrinderData(
+      model: model ?? this.model,
+      manufacturer: manufacturer ?? this.manufacturer,
+      setting: setting ?? this.setting,
+    );
+  }
 }
 
 class CoffeeData {
@@ -136,5 +158,15 @@ class CoffeeData {
       'name': name,
       'roaster': roaster,
     };
+  }
+
+  CoffeeData copyWith({
+    String? name,
+    String? roaster,
+  }) {
+    return CoffeeData(
+      name: name ?? this.name,
+      roaster: roaster ?? this.roaster,
+    );
   }
 }
