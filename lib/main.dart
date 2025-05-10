@@ -68,9 +68,7 @@ void main() async {
     }),
   ];
 
-  if (Platform.isAndroid) {
-    services.add(createSerialService());
-  }
+  services.add(createSerialService());
 
   if (const String.fromEnvironment("simulate") == "1") {
     services.add(SimulatedDeviceService());
