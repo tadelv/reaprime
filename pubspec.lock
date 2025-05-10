@@ -145,6 +145,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.0"
+  dylib:
+    dependency: transitive
+    description:
+      name: dylib
+      sha256: bf609b3eb6492a3309b3d1dbe8f83a4031de5535dd7686be33487051cc760bb0
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.3"
   equatable:
     dependency: "direct main"
     description:
@@ -302,6 +310,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.14.3"
+  flutter_libserialport:
+    dependency: "direct main"
+    description:
+      name: flutter_libserialport
+      sha256: d193b5ac819db6540d20cc8d20d9f5ec9e3396edb4d2c4a23c97863fa9132336
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.5.0"
   flutter_lints:
     dependency: "direct dev"
     description:
@@ -445,6 +461,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.1"
+  libserialport:
+    dependency: transitive
+    description:
+      name: libserialport
+      sha256: "392e1592def65282429832ec66fa25e9e163d3b37716b97691482e2406720727"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.0+1"
   lints:
     dependency: transitive
     description:
@@ -882,14 +906,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.0"
-  usb_serial:
-    dependency: "direct main"
-    description:
-      name: usb_serial
-      sha256: a605a600e34e7f28d4e80851ca3999ef747e42e406138887b8a88b8c382a8b07
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.5.2"
   uuid:
     dependency: "direct main"
     description:
