@@ -35,7 +35,11 @@ dependencies:
   equatable: ^2.0.7
   flutter_blue_plus: ^1.35.3
   shared_preferences: ^2.5.3
-  flutter_libserialport: ^0.5.0
+  flutter_libserialport: 
+    # path: ../flutter_libserialport
+    git:
+      url: https://github.com/tadelv/flutter_libserialport.git
+      ref: main
   
 dev_dependencies:
   flutter_test:

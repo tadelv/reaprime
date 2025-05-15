@@ -313,11 +313,12 @@ packages:
   flutter_libserialport:
     dependency: "direct main"
     description:
-      name: flutter_libserialport
-      sha256: d193b5ac819db6540d20cc8d20d9f5ec9e3396edb4d2c4a23c97863fa9132336
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.5.0"
+      path: "."
+      ref: main
+      resolved-ref: "0ef3c37e2036a16a2f5ce87f090407844b85214c"
+      url: "https://github.com/tadelv/flutter_libserialport.git"
+    source: git
+    version: "0.4.0"
   flutter_lints:
     dependency: "direct dev"
     description:
@@ -464,10 +465,11 @@ packages:
   libserialport:
     dependency: transitive
     description:
-      name: libserialport
-      sha256: "392e1592def65282429832ec66fa25e9e163d3b37716b97691482e2406720727"
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: HEAD
+      resolved-ref: "4dda57bed9959557a5b8bcb6eb11101bafda72a7"
+      url: "https://github.com/AurelienBallier/libserialport.dart"
+    source: git
     version: "0.3.0+1"
   lints:
     dependency: transitive
@@ -906,6 +908,15 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.0"
+  usb_serial:
+    dependency: transitive
+    description:
+      path: "."
+      ref: HEAD
+      resolved-ref: "38920722a868c4170993eed38269bbd0abbef0a8"
+      url: "https://github.com/AurelienBallier/usbserial_dart"
+    source: git
+    version: "0.5.1"
   uuid:
     dependency: "direct main"
     description:
