@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:collection/collection.dart';
+import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
@@ -14,12 +16,16 @@ import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:rxdart/subjects.dart';
 
-import 'package:usb_serial/usb_serial.dart';
+import 'package:libserialport/libserialport.dart';
 
 DeviceDiscoveryService createSerialService() => SerialServiceAndroid();
 
 class SerialServiceAndroid implements DeviceDiscoveryService {
-  final _log = Logger("Android Serial service");
+  final _log = Logger("Serial service");
+
+  // StreamSubscription<UsbEvent>? _usbSerialSubscription;
+  List<_SerialDE1> _devices = [];
+  Machine? _connectedMachine;
 
   @override
   Future<Machine> connectToMachine({String? deviceId}) {
@@ -33,7 +39,6 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
     throw UnimplementedError();
   }
 
-  List<_SerialDe1> _devices = [];
   final BehaviorSubject<List<Device>> _machineSubject =
       BehaviorSubject.seeded(<Device>[]);
   @override
@@ -47,37 +52,52 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
 
   @override
   Future<void> initialize() async {
-    List<UsbDevice> devices = await UsbSerial.listDevices();
-    _log.shout("found ${devices}");
+    final list = await SerialPort.availablePorts;
+    _log.shout("found devices: $list");
   }
 
   @override
   Future<void> scanForDevices() async {
-    _devices.clear();
-    final devices = await UsbSerial.listDevices();
-    for (UsbDevice d in devices) {
-      try {
-        final port = await d.create();
-        if (port != null) {
-          _devices.add(_SerialDe1(device: d, port: port));
-        }
-      } catch (e) {
-        _log.warning("failed to add $d", e);
-      }
-    }
+    final list = SerialPort.availablePorts;
+    _devices = list.map((id) {
+      final port = SerialPort(id);
+      return _SerialDE1(port: port);
+    }).toList();
     _machineSubject.add(_devices);
+  }
+
+  Future<void> _processDevices() async {
+    // if (_devices.isEmpty) {
+    //   _connectedMachine = null;
+    //   _machineSubject.add([]);
+    //   return;
+    // }
+    // if (_connectedMachine != null) {
+    //   return;
+    // }
+    // UsbDevice? de1 = _devices.firstWhereOrNull((e) => e.deviceName == "DE1");
+    // if (de1 == null) {
+    //   return;
+    // }
+    // UsbPort? port = await de1.create();
+    // if (port == null) {
+    //   return;
+    // }
+    // if (await port.open() == false) {
+    //   return;
+    // }
+    // _connectedMachine = _SerialDE1(port: port);
   }
 }
 
-class _SerialDe1 implements De1Interface {
-  UsbDevice _device;
-  UsbPort _port;
+class _SerialDE1 implements De1Interface {
   late Logger _log;
+  SerialPort _port;
 
-  _SerialDe1({required UsbDevice device, required UsbPort port})
-      : _device = device,
-        _port = port {
-    _log = Logger("Serial: ${_device.deviceName}");
+  StreamSubscription<Uint8List>? _portSubscription;
+
+  _SerialDE1({required SerialPort port}) : _port = port {
+    _log = Logger("Serial: ${port.name}");
   }
 
   @override
@@ -103,10 +123,12 @@ class _SerialDe1 implements De1Interface {
   );
   BehaviorSubject<MachineSnapshot> _snapshotSubject = BehaviorSubject();
   @override
+  // TODO: implement currentSnapshot
   Stream<MachineSnapshot> get currentSnapshot => _snapshotSubject.stream;
 
   @override
-  String get deviceId => _device.deviceName;
+  // TODO: implement deviceId
+  String get deviceId => '${_port.name ?? "unknown port" }';
 
   @override
   disconnect() {
@@ -115,106 +137,58 @@ class _SerialDe1 implements De1Interface {
   }
 
   @override
-  Future<int> getFanThreshhold() {
-    // TODO: implement getFanThreshhold
-    throw UnimplementedError();
-  }
+  // TODO: implement name
+  String get name => _port.description ?? "Serial de1";
 
-  @override
-  Future<double> getFlushFlow() {
-    // TODO: implement getFlushFlow
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<double> getFlushTemperature() {
-    // TODO: implement getFlushTemperature
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<double> getFlushTimeout() {
-    // TODO: implement getFlushTimeout
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<double> getHeaterIdleTemp() {
-    // TODO: implement getHeaterIdleTemp
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<double> getHeaterPhase1Flow() {
-    // TODO: implement getHeaterPhase1Flow
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<double> getHeaterPhase2Flow() {
-    // TODO: implement getHeaterPhase2Flow
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<double> getHeaterPhase2Timeout() {
-    // TODO: implement getHeaterPhase2Timeout
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<double> getHotWaterFlow() {
-    // TODO: implement getHotWaterFlow
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<double> getSteamFlow() {
-    // TODO: implement getSteamFlow
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<int> getTankTempThreshold() {
-    // TODO: implement getTankTempThreshold
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<bool> getUsbChargerMode() {
-    // TODO: implement getUsbChargerMode
-    throw UnimplementedError();
-  }
-
-  @override
-  String get name => "Serial De1: ${_device.deviceName}";
-
-  StreamSubscription<Uint8List>? _portSubscription;
   @override
   Future<void> onConnect() async {
-    bool openResult = await _port.open();
-    if (!openResult) {
-      _log.severe("Failed to open");
-      return;
-    }
+    _log.fine("connecting to device");
+    await Future.microtask(() async {
+      // _port.openRead();
+      // _port.openWrite();
+      if (_port.open(mode: 3) == false) {
+        _log.warning("could not open port");
+        return;
+      }
+      final SerialPortConfig cfg = SerialPortConfig();
+      cfg.baudRate = 115200;
+      cfg.bits = 8;
+      cfg.parity = 0;
+      cfg.stopBits = 1;
+      cfg.rts = 0;
+      cfg.cts = 0;
+      cfg.dtr = 0;
+      cfg.dsr = 0;
+      cfg.xonXoff = 0;
+      cfg.setFlowControl(0);
+			_port.config = cfg;
+      // _port.config = cfg;
+      _log.info("current config: ${_port.config.bits}");
+      _log.info("current config: ${_port.config.parity}");
+      _log.info("current config: ${_port.config.stopBits}");
+      _log.info("current config: ${_port.config.baudRate}");
 
-    await _port.setDTR(false);
-    await _port.setRTS(false);
-
-    _port.setPortParameters(
-        115200, UsbPort.DATABITS_8, UsbPort.STOPBITS_1, UsbPort.PARITY_NONE);
-
-    // print first result and close port.
-    _portSubscription = _port.inputStream?.listen((Uint8List event) {
-      final input = utf8.decode(event);
-      _log.fine("received serial input: $input");
-      _processSerialInput(input);
+      _log.fine("port opened");
+      // await _writeToPort("(D)ISCONNECTED");
+      // await _writeToPort("(C)ONNECTED");
+      // await _writeToPort("{F}00000001");
+      // await _writeToPort("{C}00000001");
+      // await _writeToPort("DE BLE Module");
+      // await _writeToPort("<N>");
+      await _writeToPort("<+N>");
+      await _writeToPort("<+M>");
+      await _writeToPort("<+Q>");
+      // _port.flush();
+      _portSubscription = SerialPortReader(_port).stream.listen((data) {
+        final input = utf8.decode(data);
+        _log.fine("received serial input: $input");
+        _processSerialInput(input);
+      });
+      _log.fine("port subscribed: ${_portSubscription}");
+      _log.fine("err: ${SerialPort.lastError}");
+      // _readySubject.add(true);
+      _snapshotSubject.add(_currentSnapshot);
     });
-  }
-
-  Future<void> _writeToPort(String command) async {
-    await _port.write(utf8.encode(command + '\n'));
-    _log.fine("wrote request: $command");
   }
 
   String _currentBuffer = "";
@@ -327,13 +301,14 @@ class _SerialDe1 implements De1Interface {
     return result;
   }
 
-  @override
-  // TODO: implement rawOutStream
-  Stream<De1RawMessage> get rawOutStream => throw UnimplementedError();
-
-  BehaviorSubject<bool> _readySubject = BehaviorSubject.seeded(false);
-  @override
-  Stream<bool> get ready => _readySubject.stream;
+  Future<void> _writeToPort(String command) async {
+    await Future.microtask(() {
+    _port.write(utf8.encode(command + '\n'), timeout: 250);
+      // _port.write(utf8.encode('\n'), timeout: 100);
+      _port.drain();
+      _log.fine("wrote request: $command");
+    });
+  }
 
   @override
   Future<void> requestState(MachineState newState) async {
@@ -342,8 +317,92 @@ class _SerialDe1 implements De1Interface {
         .toRadixString(16)
         .padLeft(2, "0");
     final String command = "<B>$value";
-    await _writeToPort(command);
+    return await _writeToPort(command);
   }
+
+  @override
+  DeviceType get type => DeviceType.machine;
+
+  @override
+  Future<int> getFanThreshhold() {
+    // TODO: implement getFanThreshhold
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<double> getFlushFlow() {
+    // TODO: implement getFlushFlow
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<double> getFlushTemperature() {
+    // TODO: implement getFlushTemperature
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<double> getFlushTimeout() {
+    // TODO: implement getFlushTimeout
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<double> getHeaterIdleTemp() {
+    // TODO: implement getHeaterIdleTemp
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<double> getHeaterPhase1Flow() {
+    // TODO: implement getHeaterPhase1Flow
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<double> getHeaterPhase2Flow() {
+    // TODO: implement getHeaterPhase2Flow
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<double> getHeaterPhase2Timeout() {
+    // TODO: implement getHeaterPhase2Timeout
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<double> getHotWaterFlow() {
+    // TODO: implement getHotWaterFlow
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<double> getSteamFlow() {
+    // TODO: implement getSteamFlow
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<int> getTankTempThreshold() {
+    // TODO: implement getTankTempThreshold
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<bool> getUsbChargerMode() {
+    // TODO: implement getUsbChargerMode
+    throw UnimplementedError();
+  }
+
+  @override
+  // TODO: implement rawOutStream
+  Stream<De1RawMessage> get rawOutStream => throw UnimplementedError();
+
+  BehaviorSubject<bool> _readySubject = BehaviorSubject.seeded(false);
+  @override
+  // TODO: implement ready
+  Stream<bool> get ready => _readySubject.stream;
 
   @override
   void sendRawMessage(De1RawMessage message) {
@@ -423,8 +482,9 @@ class _SerialDe1 implements De1Interface {
   }
 
   @override
-  Future<void> setUsbChargerMode(bool t) async {
-    _log.fine("ignoring setUsbChargerMode");
+  Future<void> setUsbChargerMode(bool t) {
+    // TODO: implement setUsbChargerMode
+    throw UnimplementedError();
   }
 
   @override
@@ -438,10 +498,6 @@ class _SerialDe1 implements De1Interface {
   Stream<De1ShotSettings> get shotSettings => throw UnimplementedError();
 
   @override
-  // TODO: implement type
-  DeviceType get type => DeviceType.machine;
-
-  @override
   Future<void> updateShotSettings(De1ShotSettings newSettings) {
     // TODO: implement updateShotSettings
     throw UnimplementedError();
@@ -449,5 +505,6 @@ class _SerialDe1 implements De1Interface {
 
   BehaviorSubject<De1WaterLevels> _waterSubject = BehaviorSubject();
   @override
+  // TODO: implement waterLevels
   Stream<De1WaterLevels> get waterLevels => _waterSubject.stream;
 }
