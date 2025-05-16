@@ -17,6 +17,7 @@ import 'package:rxdart/subjects.dart';
 
 part 'serial_de1.parsing.dart';
 part 'serial_de1.mmr.dart';
+part 'serial_de1.profile.dart';
 
 class SerialDe1 implements De1Interface {
   late Logger _log;
@@ -247,9 +248,8 @@ class SerialDe1 implements De1Interface {
   Stream<De1WaterLevels> get waterLevels => _waterSubject.stream;
 
   @override
-  Future<void> setProfile(Profile profile) {
-    // TODO: implement setProfile
-    throw UnimplementedError();
+  Future<void> setProfile(Profile profile) async {
+    await _sendProfile(profile);
   }
 
   // MMR
