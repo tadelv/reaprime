@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
@@ -7,15 +6,16 @@ import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/serial_port.dart';
-import 'package:reaprime/src/services/serial/serial_service.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.utils.dart';
 import 'package:reaprime/src/models/device/machine.dart';
-import 'package:reaprime/src/models/device/scale.dart';
 import 'package:rxdart/subjects.dart';
+
+part 'serial_de1.parsing.dart';
+part 'serial_de1.mmr.dart';
 
 class SerialDe1 implements De1Interface {
   late Logger _log;
@@ -57,15 +57,15 @@ class SerialDe1 implements De1Interface {
 
   @override
   disconnect() {
-    // TODO: implement disconnect
-    throw UnimplementedError();
+    _transportSubscription.cancel();
+    _transport.close();
   }
 
   @override
-  // TODO: implement name
-  String get name => _transport.name ?? "Serial de1";
+  String get name => _transport.name;
 
   late StreamSubscription<String> _transportSubscription;
+  StreamController<List<int>> _mmrController = StreamController();
 
   @override
   Future<void> onConnect() async {
@@ -83,6 +83,8 @@ class SerialDe1 implements De1Interface {
     await _transport.writeCommand("<+N>");
     await _transport.writeCommand("<+M>");
     await _transport.writeCommand("<+Q>");
+    await _transport.writeCommand("<+K>");
+    await _transport.writeCommand("<+E>");
     _snapshotSubject.add(_currentSnapshot);
   }
 
@@ -114,70 +116,20 @@ class SerialDe1 implements De1Interface {
     final ByteData data = ByteData.sublistView(payload);
     switch (input.substring(0, 3)) {
       case "[M]":
-        final groupPressure = data.getUint16(2) / (1 << 12);
-        final groupFlow = data.getUint16(4) / (1 << 12);
-        final mixTemp = data.getUint16(6) / (1 << 8);
-        final headTemp = ((data.getUint8(8) << 16) +
-                (data.getUint8(9) << 8) +
-                (data.getUint8(10))) /
-            (1 << 16);
-        final setMixTemp = data.getUint16(11) / (1 << 8);
-        final setHeadTemp = data.getUint16(13) / (1 << 8);
-        final setGroupPressure = data.getUint8(15) / (1 << 4);
-        final setGroupFlow = data.getUint8(16) / (1 << 4);
-        final frameNumber = data.getUint8(17);
-        final steamTemp = data.getUint8(18);
-
-        _currentSnapshot = _currentSnapshot.copyWith(
-          timestamp: DateTime.now(),
-          pressure: groupPressure,
-          flow: groupFlow,
-          mixTemperature: mixTemp,
-          groupTemperature: headTemp,
-          targetMixTemperature: setMixTemp,
-          targetGroupTemperature: setHeadTemp,
-          targetPressure: setGroupPressure,
-          targetFlow: setGroupFlow,
-          profileFrame: frameNumber,
-          steamTemperature: steamTemp,
-        );
+        _parseShotSample(data);
       case "[N]":
-        var state = De1StateEnum.fromHexValue(payload[0]);
-        var subState =
-            De1SubState.fromHexValue(payload[1]) ?? De1SubState.noState;
-        _currentSnapshot = _currentSnapshot.copyWith(
-          state: MachineStateSnapshot(
-            state: mapDe1ToMachineState(state),
-            substate: mapDe1SubToMachineSubstate(subState),
-          ),
-        );
+        _parseState(data);
       case "[Q]":
         _parseWaterLevels(data);
+      case "[K]":
+        _parseShotSettings(data);
+				case "[E]":
+				_mmrNotification(data);
       default:
+        _log.warning("unhandled de1 message: $input");
         break;
     }
     _snapshotSubject.add(_currentSnapshot);
-  }
-
-  _parseWaterLevels(ByteData data) {
-    try {
-      // notifyFrom(Endpoint.waterLevels, data.buffer.asUint8List());
-      var waterlevel = data.getUint16(0, Endian.big);
-      var waterThreshold = data.getUint16(2, Endian.big);
-
-      De1WaterLevelData wlData = De1WaterLevelData(
-        currentLevel: waterlevel,
-        currentLimit: waterThreshold,
-      );
-      _waterSubject.add(
-        De1WaterLevels(
-          currentPercentage: wlData.getLevelPercent(),
-          warningThresholdPercentage: 0,
-        ),
-      );
-    } catch (e) {
-      _log.severe("waternotify", e);
-    }
   }
 
   /// Converts an even‑length hex string to the corresponding bytes.
@@ -379,9 +331,11 @@ class SerialDe1 implements De1Interface {
     throw UnimplementedError();
   }
 
+  final BehaviorSubject<De1ShotSettings> _shotSettingsController =
+      BehaviorSubject();
   @override
-  // TODO: implement shotSettings
-  Stream<De1ShotSettings> get shotSettings => throw UnimplementedError();
+  Stream<De1ShotSettings> get shotSettings =>
+      _shotSettingsController.asBroadcastStream();
 
   @override
   Future<void> updateShotSettings(De1ShotSettings newSettings) {
