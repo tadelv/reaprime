@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
@@ -65,7 +66,7 @@ class SerialDe1 implements De1Interface {
   String get name => _transport.name;
 
   late StreamSubscription<String> _transportSubscription;
-  StreamController<List<int>> _mmrController = StreamController();
+  StreamController<List<int>> _mmrController = StreamController.broadcast();
 
   @override
   Future<void> onConnect() async {
@@ -85,7 +86,17 @@ class SerialDe1 implements De1Interface {
     await _transport.writeCommand("<+Q>");
     await _transport.writeCommand("<+K>");
     await _transport.writeCommand("<+E>");
+    updateShotSettings(De1ShotSettings(
+        steamSetting: 0,
+        targetSteamTemp: 150,
+        targetSteamDuration: 60,
+        targetHotWaterTemp: 70,
+        targetHotWaterVolume: 50,
+        targetHotWaterDuration: 30,
+        targetShotVolume: 0,
+        groupTemp: 90.0));
     _snapshotSubject.add(_currentSnapshot);
+    _readySubject.add(true);
   }
 
   String _currentBuffer = "";
@@ -99,7 +110,7 @@ class SerialDe1 implements De1Interface {
     for (int i = 0; i < lines.length - 1; i++) {
       final line = lines[i].trim();
       if (line.isNotEmpty && line.startsWith('[')) {
-        _log.fine("received complete response: $line");
+        _log.finest("received complete response: $line");
         _processDe1Response(line);
       } else {
         _log.warning("Ignored invalid or incomplete line: '$line'");
@@ -111,7 +122,7 @@ class SerialDe1 implements De1Interface {
   }
 
   _processDe1Response(String input) {
-    _log.info("processing input: $input");
+    _log.fine("processing input: $input");
     final Uint8List payload = hexToBytes(input.substring(3));
     final ByteData data = ByteData.sublistView(payload);
     switch (input.substring(0, 3)) {
@@ -123,8 +134,8 @@ class SerialDe1 implements De1Interface {
         _parseWaterLevels(data);
       case "[K]":
         _parseShotSettings(data);
-				case "[E]":
-				_mmrNotification(data);
+      case "[E]":
+        _mmrNotification(data);
       default:
         _log.warning("unhandled de1 message: $input");
         break;
@@ -162,78 +173,6 @@ class SerialDe1 implements De1Interface {
   DeviceType get type => DeviceType.machine;
 
   @override
-  Future<int> getFanThreshhold() {
-    // TODO: implement getFanThreshhold
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<double> getFlushFlow() {
-    // TODO: implement getFlushFlow
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<double> getFlushTemperature() {
-    // TODO: implement getFlushTemperature
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<double> getFlushTimeout() {
-    // TODO: implement getFlushTimeout
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<double> getHeaterIdleTemp() {
-    // TODO: implement getHeaterIdleTemp
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<double> getHeaterPhase1Flow() {
-    // TODO: implement getHeaterPhase1Flow
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<double> getHeaterPhase2Flow() {
-    // TODO: implement getHeaterPhase2Flow
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<double> getHeaterPhase2Timeout() {
-    // TODO: implement getHeaterPhase2Timeout
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<double> getHotWaterFlow() {
-    // TODO: implement getHotWaterFlow
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<double> getSteamFlow() {
-    // TODO: implement getSteamFlow
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<int> getTankTempThreshold() {
-    // TODO: implement getTankTempThreshold
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<bool> getUsbChargerMode() {
-    // TODO: implement getUsbChargerMode
-    throw UnimplementedError();
-  }
-
-  @override
   // TODO: implement rawOutStream
   Stream<De1RawMessage> get rawOutStream => throw UnimplementedError();
 
@@ -248,87 +187,20 @@ class SerialDe1 implements De1Interface {
   }
 
   @override
-  Future<void> setFanThreshhold(int temp) {
-    // TODO: implement setFanThreshhold
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<void> setFlushFlow(double newFlow) {
-    // TODO: implement setFlushFlow
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<void> setFlushTemperature(double newTemp) {
-    // TODO: implement setFlushTemperature
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<void> setFlushTimeout(double newTimeout) {
-    // TODO: implement setFlushTimeout
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<void> setHeaterIdleTemp(double val) {
-    // TODO: implement setHeaterIdleTemp
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<void> setHeaterPhase1Flow(double val) {
-    // TODO: implement setHeaterPhase1Flow
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<void> setHeaterPhase2Flow(double val) {
-    // TODO: implement setHeaterPhase2Flow
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<void> setHeaterPhase2Timeout(double val) {
-    // TODO: implement setHeaterPhase2Timeout
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<void> setHotWaterFlow(double newFlow) {
-    // TODO: implement setHotWaterFlow
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<void> setProfile(Profile profile) {
-    // TODO: implement setProfile
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<void> setSteamFlow(double newFlow) {
-    // TODO: implement setSteamFlow
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<void> setTankTempThreshold(int temp) {
-    // TODO: implement setTankTempThreshold
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<void> setUsbChargerMode(bool t) {
-    // TODO: implement setUsbChargerMode
-    throw UnimplementedError();
-  }
-
-  @override
   Future<void> setWaterLevelWarning(int newThresholdPercentage) {
-    // TODO: implement setWaterLevelWarning
-    throw UnimplementedError();
+    ByteData value = ByteData(4);
+    try {
+      // 00 00 0c 00
+      // 00 00 00 07
+      value.setInt16(0, 0, Endian.big);
+      value.setInt16(2, newThresholdPercentage * 256, Endian.big);
+
+      return _transport.writeCommand(
+          "<Q>${value.buffer.asUint8List().map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
+    } catch (e) {
+      _log.severe("failed to set water warning", e);
+      rethrow;
+    }
   }
 
   final BehaviorSubject<De1ShotSettings> _shotSettingsController =
@@ -338,13 +210,189 @@ class SerialDe1 implements De1Interface {
       _shotSettingsController.asBroadcastStream();
 
   @override
-  Future<void> updateShotSettings(De1ShotSettings newSettings) {
-    // TODO: implement updateShotSettings
-    throw UnimplementedError();
+  Future<void> updateShotSettings(De1ShotSettings newSettings) async {
+    Uint8List data = Uint8List(9);
+
+    int index = 0;
+    data[index] = newSettings.steamSetting;
+    index++;
+    data[index] = newSettings.targetSteamTemp;
+    index++;
+    data[index] = newSettings.targetSteamDuration;
+    index++;
+    data[index] = newSettings.targetHotWaterTemp;
+    index++;
+    data[index] = newSettings.targetHotWaterVolume;
+    index++;
+    data[index] = newSettings.targetHotWaterDuration;
+    index++;
+    data[index] = newSettings.targetShotVolume;
+    index++;
+
+    data[index] = newSettings.groupTemp.toInt();
+    index++;
+    data[index] =
+        ((newSettings.groupTemp - newSettings.groupTemp.floor()) * 256.0)
+            .toInt();
+    index++;
+
+    await _transport.writeCommand(
+        "<K>${data.map((e) => e.toRadixString(16).padLeft(2, '0')).toList()}");
+    // await _parseShotSettings(await _read(Endpoint.shotSettings));
+    _parseShotSettings(ByteData.sublistView(data));
   }
 
   BehaviorSubject<De1WaterLevels> _waterSubject = BehaviorSubject();
   @override
-  // TODO: implement waterLevels
   Stream<De1WaterLevels> get waterLevels => _waterSubject.stream;
+
+  @override
+  Future<void> setProfile(Profile profile) {
+    // TODO: implement setProfile
+    throw UnimplementedError();
+  }
+
+  // MMR
+
+  @override
+  Future<bool> getUsbChargerMode() async {
+    var result = await _mmrRead(MMRItem.allowUSBCharging);
+    return _unpackMMRInt(result) == 1;
+  }
+
+  @override
+  Future<void> setUsbChargerMode(bool t) async {
+    await _mmrWrite(MMRItem.allowUSBCharging, _packMMRInt(t ? 1 : 0));
+  }
+
+  @override
+  Future<int> getFanThreshhold() async {
+    var result = await _mmrRead(MMRItem.fanThreshold);
+    return _unpackMMRInt(result);
+  }
+
+  @override
+  Future<void> setFanThreshhold(int temp) async {
+    await _mmrWrite(MMRItem.fanThreshold, _packMMRInt(min(50, temp)));
+  }
+
+  @override
+  Future<double> getSteamFlow() async {
+    var result = await _mmrRead(MMRItem.targetSteamFlow);
+    return _unpackMMRInt(result).toDouble() / 100;
+  }
+
+  @override
+  Future<void> setSteamFlow(double newFlow) async {
+    var value = _packMMRInt((newFlow * 100).toInt());
+    await _mmrWrite(MMRItem.targetSteamFlow, value);
+  }
+
+  @override
+  Future<double> getHotWaterFlow() async {
+    var result = await _mmrRead(MMRItem.hotWaterFlowRate);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<void> setHotWaterFlow(double newFlow) async {
+    var value = _packMMRInt((newFlow * 10).toInt());
+    await _mmrWrite(MMRItem.hotWaterFlowRate, value);
+  }
+
+  @override
+  Future<double> getFlushFlow() async {
+    var result = await _mmrRead(MMRItem.flushFlowRate);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<void> setFlushFlow(double newFlow) async {
+    var value = _packMMRInt((newFlow * 10).toInt());
+    await _mmrWrite(MMRItem.flushFlowRate, value);
+  }
+
+  @override
+  Future<double> getFlushTimeout() async {
+    var result = await _mmrRead(MMRItem.flushTimeout);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<void> setFlushTimeout(double newTimeout) async {
+    var value = _packMMRInt((newTimeout * 10).toInt());
+    await _mmrWrite(MMRItem.flushTimeout, value);
+  }
+
+  @override
+  Future<double> getFlushTemperature() async {
+    var result = await _mmrRead(MMRItem.flushTemp);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<void> setFlushTemperature(double newTemp) async {
+    var value = _packMMRInt((newTemp * 10).toInt());
+    await _mmrWrite(MMRItem.flushTemp, value);
+  }
+
+  @override
+  Future<int> getTankTempThreshold() async {
+    var result = await _mmrRead(MMRItem.tankTemp);
+    return _unpackMMRInt(result);
+  }
+
+  @override
+  Future<void> setTankTempThreshold(int temp) async {
+    var value = _packMMRInt(temp);
+    await _mmrWrite(MMRItem.tankTemp, value);
+  }
+
+  @override
+  Future<double> getHeaterIdleTemp() async {
+    var result = await _mmrRead(MMRItem.waterHeaterIdleTemp);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<double> getHeaterPhase1Flow() async {
+    var result = await _mmrRead(MMRItem.heaterUp1Flow);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<double> getHeaterPhase2Flow() async {
+    var result = await _mmrRead(MMRItem.heaterUp2Flow);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<double> getHeaterPhase2Timeout() async {
+    var result = await _mmrRead(MMRItem.heaterUp2Timeout);
+    return _unpackMMRInt(result).toDouble() / 10;
+  }
+
+  @override
+  Future<void> setHeaterIdleTemp(double val) async {
+    var value = _packMMRInt((val * 10).toInt());
+    await _mmrWrite(MMRItem.waterHeaterIdleTemp, value);
+  }
+
+  @override
+  Future<void> setHeaterPhase1Flow(double val) async {
+    var value = _packMMRInt((val * 10).toInt());
+    await _mmrWrite(MMRItem.heaterUp1Flow, value);
+  }
+
+  @override
+  Future<void> setHeaterPhase2Flow(double val) async {
+    var value = _packMMRInt((val * 10).toInt());
+    await _mmrWrite(MMRItem.heaterUp2Flow, value);
+  }
+
+  @override
+  Future<void> setHeaterPhase2Timeout(double val) async {
+    var value = _packMMRInt((val * 10).toInt());
+    await _mmrWrite(MMRItem.heaterUp2Timeout, value);
+  }
 }

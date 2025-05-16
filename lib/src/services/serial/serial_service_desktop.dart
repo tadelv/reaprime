@@ -56,12 +56,11 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
     final list = SerialPort.availablePorts;
     _devices = list.map((id) {
       final port = SerialPort(id);
-			final transport = _DesktopSerialPort(port: port);
+      final transport = _DesktopSerialPort(port: port);
       return SerialDe1(transport: transport);
     }).toList();
     _machineSubject.add(_devices);
   }
-
 }
 
 class _DesktopSerialPort implements SerialTransport {
@@ -107,15 +106,15 @@ class _DesktopSerialPort implements SerialTransport {
       cfg.setFlowControl(0);
       _port.config = cfg;
       // _port.config = cfg;
-      _log.fine("current config: ${_port.config.bits}");
-      _log.fine("current config: ${_port.config.parity}");
-      _log.fine("current config: ${_port.config.stopBits}");
-      _log.fine("current config: ${_port.config.baudRate}");
+      _log.finest("current config: ${_port.config.bits}");
+      _log.finest("current config: ${_port.config.parity}");
+      _log.finest("current config: ${_port.config.stopBits}");
+      _log.finest("current config: ${_port.config.baudRate}");
 
       _log.fine("port opened");
       _portSubscription = SerialPortReader(_port).stream.listen((data) {
         final input = utf8.decode(data);
-        _log.fine("received serial input: $input");
+        _log.finest("received serial input: $input");
         _readController.add(input);
       });
       _log.fine("port subscribed: ${_portSubscription}");
@@ -131,6 +130,7 @@ class _DesktopSerialPort implements SerialTransport {
   Future<void> writeCommand(String command) async {
     await Future.microtask(() {
       _port.write(utf8.encode("$command\n"));
+      _log.fine("wrote: $command");
     });
   }
 }
