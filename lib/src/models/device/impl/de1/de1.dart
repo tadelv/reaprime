@@ -18,6 +18,7 @@ part 'de1.rw.dart';
 part 'de1.profile.dart';
 part 'de1.mmr.dart';
 part 'de1.raw.dart';
+part 'de1.firmware.dart';
 
 class De1 implements De1Interface {
   static String advertisingUUID = 'FFFF';
