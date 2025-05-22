@@ -12,8 +12,6 @@ import 'package:rxdart/subjects.dart';
 
 import 'package:usb_serial/usb_serial.dart';
 
-DeviceDiscoveryService createSerialService() => SerialServiceAndroid();
-
 class SerialServiceAndroid implements DeviceDiscoveryService {
   final _log = Logger("Android Serial service");
 

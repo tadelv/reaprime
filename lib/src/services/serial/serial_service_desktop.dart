@@ -14,9 +14,8 @@ import 'package:rxdart/subjects.dart';
 
 import 'package:libserialport/libserialport.dart';
 
-DeviceDiscoveryService createSerialService() => SerialServiceAndroid();
 
-class SerialServiceAndroid implements DeviceDiscoveryService {
+class SerialServiceDesktop implements DeviceDiscoveryService {
   final _log = Logger("Serial service");
 
   // StreamSubscription<UsbEvent>? _usbSerialSubscription;

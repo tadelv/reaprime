@@ -82,6 +82,18 @@ class SerialDe1 implements De1Interface {
     _transportSubscription = _transport.readStream.listen(_processSerialInput);
 
     _log.fine("port opened");
+
+		// stop all previous notifies (if any) - just in case.
+
+    await _transport.writeCommand("<-N>");
+    await _transport.writeCommand("<-M>");
+    await _transport.writeCommand("<-Q>");
+    await _transport.writeCommand("<-K>");
+    await _transport.writeCommand("<-E>");
+
+    // TODO: needed to know which state we're at?
+    await requestState(MachineState.sleeping);
+
     await _transport.writeCommand("<+N>");
     await _transport.writeCommand("<+M>");
     await _transport.writeCommand("<+Q>");
@@ -179,7 +191,6 @@ class SerialDe1 implements De1Interface {
 
   BehaviorSubject<bool> _readySubject = BehaviorSubject.seeded(false);
   @override
-  // TODO: implement ready
   Stream<bool> get ready => _readySubject.stream;
 
   @override
