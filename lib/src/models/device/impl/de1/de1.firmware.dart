@@ -15,12 +15,16 @@ extension De1Firmware on De1 {
     // unsub = _subscribe(Endpoint.fwMapRequest, (ByteData data) async {
     _subscribe(Endpoint.fwMapRequest, (ByteData data) async {
       final request = FWMapRequestData.from(data);
-      _log.fine("FW map recv: ${request.window}, ${request.erase}, "
+      _log.fine(
+          "FW map recv: ${request.window}, ${request.window}, ${request.erase}, "
           "err: 0x${request.error.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
 
       switch (currentState) {
         case FWUpgradeState.erase:
-          if (request.erase == 0) {
+          if (request.erase == 0 &&
+              request.error[0] == 0xff &&
+              request.error[1] == 0xff &&
+              request.error[2] == 0xfd) {
             currentState = FWUpgradeState.upload;
             await uploadFW(fwImage);
             _log.info("Done uploading ${fwImage.length} bytes");
@@ -30,6 +34,8 @@ extension De1Firmware on De1 {
           } else {
             _log.warning(
                 "Received fw upgrade notify while in erase state (erase != 0)");
+            completer.completeError(
+                Exception("Unexpected error encountered in erase request"));
           }
           break;
 
