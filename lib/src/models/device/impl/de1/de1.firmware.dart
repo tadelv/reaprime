@@ -6,49 +6,65 @@ extension De1Firmware on De1 {
 
     await requestState(MachineState.sleeping);
 
+    final completer = Completer<void>();
     FWUpgradeState currentState = FWUpgradeState.erase;
 
-    // notify from fwmap
+    // TODO: should be refactored at some point, currently can not unsub in ble
+    // late final StreamSubscription<ByteData> unsub;
+
+    // unsub = _subscribe(Endpoint.fwMapRequest, (ByteData data) async {
     _subscribe(Endpoint.fwMapRequest, (ByteData data) async {
       final request = FWMapRequestData.from(data);
-      _log.fine(
-          "FW map recv: ${request.window}, ${request.erase}, err: 0x${request.error.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
+      _log.fine("FW map recv: ${request.window}, ${request.erase}, "
+          "err: 0x${request.error.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
 
       switch (currentState) {
         case FWUpgradeState.erase:
           if (request.erase == 0) {
             currentState = FWUpgradeState.upload;
             await uploadFW(fwImage);
-						_log.info("Done uploading ${fwImage.length} bytes");
-						// TODO: check for errors
-						currentState = FWUpgradeState.done;
+            _log.info("Done uploading ${fwImage.length} bytes");
+            currentState = FWUpgradeState.done;
+            completer.complete();
+            // unsub.cancel();
           } else {
             _log.warning(
-                "Received fw upgrade notify while in erase state which is not erase == 0");
+                "Received fw upgrade notify while in erase state (erase != 0)");
           }
+          break;
+
         case FWUpgradeState.upload:
-          // TODO: Handle this case.
-          throw UnimplementedError();
+          _log.warning("Unexpected notify during upload phase.");
+          break;
+
         case FWUpgradeState.error:
-          // TODO: Handle this case.
-          throw UnimplementedError();
+          _log.severe("Firmware upgrade failed — error state entered.");
+          if (!completer.isCompleted) {
+            completer.completeError(Exception("Firmware upgrade failed"));
+          }
+          unsub.cancel();
+          break;
+
         case FWUpgradeState.done:
-          // TODO: Handle this case.
-          throw UnimplementedError();
+          _log.info("Firmware upgrade already complete.");
+          break;
       }
     });
-    // requsst firmware erase
+
+    // Request firmware erase
     await _write(
       Endpoint.fwMapRequest,
       Uint8List.view(
         FWMapRequestData(
-          window: 0 as Uint8,
-					firmwareToErase: 0 as Uint8,
-          erase: 1 as Uint8,
+          window: 0,
+          firmwareToErase: 0,
+          erase: 1,
           error: Uint8List.fromList([0xff, 0xff, 0xff]),
         ).asData().buffer,
       ),
     );
+
+    return completer.future;
   }
 
   Future<void> uploadFW(Uint8List list) async {
@@ -61,9 +77,7 @@ extension De1Firmware on De1 {
       data[1] = address[1];
       data[2] = address[2];
 
-      for (int j = 0; j < chunkLength; j++) {
-        data[3 + j] = list[i + j];
-      }
+      data.setRange(3, 3 + chunkLength, list, i);
 
       await _write(Endpoint.writeToMMR, data);
     }
@@ -85,37 +99,39 @@ extension De1Firmware on De1 {
 enum FWUpgradeState { erase, upload, error, done }
 
 final class FWMapRequestData {
-  final Uint8 window;
-	final Uint8 firmwareToErase;
-  final Uint8 erase;
+  final int window;
+  final int firmwareToErase;
+  final int erase;
   final Uint8List error;
 
-  FWMapRequestData(
-      {required this.window, required this.firmwareToErase, required this.erase, required this.error});
+  FWMapRequestData({
+    required this.window,
+    required this.firmwareToErase,
+    required this.erase,
+    required this.error,
+  });
 
   factory FWMapRequestData.from(ByteData data) {
-    final Uint8 window = data.getInt8(0) as Uint8;
-		final firmwareToErase = data.getInt8(1) as Uint8;
-    final erase = data.getInt8(2) as Uint8;
-    final errorHi = data.getInt8(3);
-    final errorMid = data.getInt8(4);
-    final errorLow = data.getInt8(5);
+    final int window = data.getInt8(0);
+    final int firmwareToErase = data.getInt8(1);
+    final int erase = data.getInt8(2);
+    final int errorHi = data.getInt8(3);
+    final int errorMid = data.getInt8(4);
+    final int errorLow = data.getInt8(5);
 
     return FWMapRequestData(
       window: window,
-			firmwareToErase: firmwareToErase,
+      firmwareToErase: firmwareToErase,
       erase: erase,
-      error: Uint8List.fromList(
-        [errorHi, errorMid, errorLow],
-      ),
+      error: Uint8List.fromList([errorHi, errorMid, errorLow]),
     );
   }
 
   ByteData asData() {
-    ByteData data = ByteData(5);
-    data.setInt8(0, window as int);
-		data.setInt8(1, firmwareToErase as int);
-    data.setInt8(2, erase as int);
+    final data = ByteData(6);
+    data.setInt8(0, window);
+    data.setInt8(1, firmwareToErase);
+    data.setInt8(2, erase);
     data.setInt8(3, error[0]);
     data.setInt8(4, error[1]);
     data.setInt8(5, error[2]);
