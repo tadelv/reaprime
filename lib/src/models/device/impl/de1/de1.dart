@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
+import 'dart:ffi';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:reaprime/src/models/data/profile.dart';
@@ -389,5 +390,11 @@ class De1 implements De1Interface {
   @override
   sendRawMessage(De1RawMessage message) {
     _rawInStream.add(message);
+  }
+
+  @override
+  Future<void> updateFirmware(Uint8List fwImage) async {
+	await _updateFirmware(fwImage);
+
   }
 }
