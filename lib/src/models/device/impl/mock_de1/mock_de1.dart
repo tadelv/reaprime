@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
@@ -16,7 +17,7 @@ enum _SimulationType {
 }
 
 class MockDe1 implements De1Interface {
-  MockDe1({String deviceId = "MockDe1"}): _deviceId = deviceId;
+  MockDe1({String deviceId = "MockDe1"}) : _deviceId = deviceId;
 
   StreamController<MachineSnapshot> _snapshotStream =
       StreamController.broadcast();
@@ -47,7 +48,7 @@ class MockDe1 implements De1Interface {
   @override
   Stream<MachineSnapshot> get currentSnapshot => _snapshotStream.stream;
 
-	String _deviceId = "MockDe1";
+  String _deviceId = "MockDe1";
 
   @override
   String get deviceId => _deviceId;
@@ -366,5 +367,11 @@ class MockDe1 implements De1Interface {
   @override
   void sendRawMessage(De1RawMessage message) {
     // TODO: implement sendRawMessage
+  }
+
+  @override
+  Future<void> updateFirmware(Uint8List fwImage) async {
+	  // uploading bytes ...
+    await Future.delayed(Duration(seconds: 10));
   }
 }

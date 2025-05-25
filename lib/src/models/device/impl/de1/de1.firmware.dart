@@ -42,7 +42,7 @@ extension De1Firmware on De1 {
           if (!completer.isCompleted) {
             completer.completeError(Exception("Firmware upgrade failed"));
           }
-          unsub.cancel();
+          // unsub.cancel();
           break;
 
         case FWUpgradeState.done:

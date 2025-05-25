@@ -83,7 +83,7 @@ class SerialDe1 implements De1Interface {
 
     _log.fine("port opened");
 
-		// stop all previous notifies (if any) - just in case.
+    // stop all previous notifies (if any) - just in case.
 
     await _transport.writeCommand("<-N>");
     await _transport.writeCommand("<-M>");
@@ -405,5 +405,11 @@ class SerialDe1 implements De1Interface {
   Future<void> setHeaterPhase2Timeout(double val) async {
     var value = _packMMRInt((val * 10).toInt());
     await _mmrWrite(MMRItem.heaterUp2Timeout, value);
+  }
+
+  @override
+  Future<void> updateFirmware(Uint8List fwImage) {
+    // TODO: implement updateFirmware
+    throw UnimplementedError();
   }
 }
