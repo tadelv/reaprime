@@ -124,8 +124,12 @@ class De1 implements De1Interface {
           await _onConnected();
           break;
         case BluetoothConnectionState.disconnected:
-          _connectionStateController.add(ConnectionState.disconnected);
-        //disconnect(); // just in case we got disconnected unintentionally
+          if (await _connectionStateController.stream.first ==
+              ConnectionState.connected) {
+            _connectionStateController.add(ConnectionState.disconnected);
+          }
+          //disconnect(); // just in case we got disconnected unintentionally
+          break;
         default:
           break;
       }
@@ -395,7 +399,6 @@ class De1 implements De1Interface {
 
   @override
   Future<void> updateFirmware(Uint8List fwImage) async {
-	await _updateFirmware(fwImage);
-
+    await _updateFirmware(fwImage);
   }
 }

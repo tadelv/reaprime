@@ -28,17 +28,22 @@ class _De1DebugViewState extends State<De1DebugView> {
             direction: Axis.horizontal,
             children: [
               Expanded(
-                child: Flexible(
-                  flex: 1,
-                  child: StreamBuilder(
+                child: Column(children: [
+                  Text(
+                    "Shot snapshot:",
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  StreamBuilder(
                     stream: widget.machine.currentSnapshot,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.active) {
                         var diff =
-                            snapshot.data?.timestamp.difference(_lastDate) ?? Duration.zero;
+                            snapshot.data?.timestamp.difference(_lastDate) ??
+                                Duration.zero;
                         _lastDate = snapshot.data?.timestamp ?? DateTime.now();
                         return Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: machineState(snapshot, diff));
                       } else if (snapshot.connectionState ==
                           ConnectionState.waiting) {
@@ -49,13 +54,15 @@ class _De1DebugViewState extends State<De1DebugView> {
                       );
                     },
                   ),
-                ),
+                ]),
               ),
-              Flexible(
-                  flex: 1,
-                  child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: _shotSettings(widget.machine.shotSettings))),
+              Column(children: [
+                Text(
+                  "Shot shot settings:",
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                _shotSettings(widget.machine.shotSettings),
+              ]),
               Flexible(
                   flex: 1,
                   child: Padding(
@@ -120,9 +127,13 @@ class _De1DebugViewState extends State<De1DebugView> {
       stream: shotSettings,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.active) {
-          return Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [Text("${snapshot.data!.steamSetting}")]);
+          return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text(
+                "steam setting 0x${snapshot.data!.steamSetting.toRadixString(16).padLeft(2, '0')}"),
+								            Text(
+                "target group temp ${snapshot.data!.groupTemp.toStringAsFixed(1)}")
+
+          ]);
         }
         return Text("Waiting for data ${snapshot.connectionState}");
       },
