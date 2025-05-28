@@ -117,6 +117,24 @@ class De1Handler {
         return Response.ok(jsonEncode(json));
       });
     });
+
+    app.post('/api/v1/de1/firmware', (Request request) async {
+      try {
+        // Read the binary body into a Uint8List
+        final List<int> bodyBytes =
+            await request.read().expand((x) => x).toList();
+        final Uint8List fwImage = Uint8List.fromList(bodyBytes);
+
+        // Send to DE1 (assumes withDe1 returns a response or Future<void>)
+        return await withDe1((de1) async {
+          await de1.updateFirmware(fwImage);
+          return Response.ok('Firmware uploaded successfully');
+        });
+      } catch (e) {
+        return Response.internalServerError(
+            body: 'Failed to upload firmware: $e');
+      }
+    });
   }
 
   Future<Response> withDe1(Future<Response> Function(De1Interface) call) async {

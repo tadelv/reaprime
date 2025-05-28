@@ -1,7 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
-import 'dart:ffi';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:reaprime/src/models/data/profile.dart';
@@ -10,6 +10,7 @@ import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.utils.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/device/de1_firmwaremodel.dart';
 import 'package:logging/logging.dart' as logging;
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:rxdart/subjects.dart';

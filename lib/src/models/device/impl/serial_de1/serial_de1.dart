@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/data/profile.dart';
@@ -13,11 +14,13 @@ import 'package:reaprime/src/models/device/impl/de1/de1.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.utils.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/device/de1_firmwaremodel.dart';
 import 'package:rxdart/subjects.dart';
 
 part 'serial_de1.parsing.dart';
 part 'serial_de1.mmr.dart';
 part 'serial_de1.profile.dart';
+part 'serial_de1.firmware.dart';
 
 class SerialDe1 implements De1Interface {
   late Logger _log;
@@ -134,6 +137,7 @@ class SerialDe1 implements De1Interface {
     _currentBuffer = lines.last;
   }
 
+  // TODO: allow code to register own processors per "Endpoint"
   _processDe1Response(String input) {
     _log.fine("processing input: $input");
     final Uint8List payload = hexToBytes(input.substring(3));
@@ -149,6 +153,8 @@ class SerialDe1 implements De1Interface {
         _parseShotSettings(data);
       case "[E]":
         _mmrNotification(data);
+      case "[I]":
+        _parseFWMapRequest(data);
       default:
         _log.warning("unhandled de1 message: $input");
         break;
@@ -408,8 +414,7 @@ class SerialDe1 implements De1Interface {
   }
 
   @override
-  Future<void> updateFirmware(Uint8List fwImage) {
-    // TODO: implement updateFirmware
-    throw UnimplementedError();
+  Future<void> updateFirmware(Uint8List fwImage) async {
+    await _updateFirmware(fwImage);
   }
 }

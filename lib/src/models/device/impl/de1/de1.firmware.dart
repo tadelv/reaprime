@@ -16,12 +16,12 @@ extension De1Firmware on De1 {
     _subscribe(Endpoint.fwMapRequest, (ByteData data) async {
       final request = FWMapRequestData.from(data);
       _log.fine(
-          "FW map recv: ${request.window}, ${request.window}, ${request.erase}, "
+          "FW map recv: ${request.windowIncrement}, ${request.firmwareToErase}, ${request.firmwareToMap}, "
           "err: 0x${request.error.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
 
       switch (currentState) {
         case FWUpgradeState.erase:
-          if (request.erase == 0 &&
+          if (request.firmwareToMap == 0 &&
               request.error[0] == 0xff &&
               request.error[1] == 0xff &&
               request.error[2] == 0xfd) {
@@ -58,19 +58,42 @@ extension De1Firmware on De1 {
     });
 
     // Request firmware erase
-    await _write(
+    await _writeWithResponse(
       Endpoint.fwMapRequest,
       Uint8List.view(
         FWMapRequestData(
-          window: 0,
-          firmwareToErase: 0,
-          erase: 1,
+          windowIncrement: 0,
+          firmwareToErase: 1,
+          firmwareToMap: 1,
           error: Uint8List.fromList([0xff, 0xff, 0xff]),
         ).asData().buffer,
       ),
     );
 
-    return completer.future;
+    int count = 0;
+    while (count < 10) {
+      count += 1;
+      _log.info("Waiting $count seconds on firmware to erase");
+      sleep(Duration(seconds: 1));
+    }
+
+    await uploadFW(fwImage);
+    _log.info("All done!");
+
+		// verify crc?
+    await _writeWithResponse(
+      Endpoint.fwMapRequest,
+      Uint8List.view(
+        FWMapRequestData(
+          windowIncrement: 0,
+          firmwareToErase: 0,
+          firmwareToMap: 1,
+          error: Uint8List.fromList([0xff, 0xff, 0xff]),
+        ).asData().buffer,
+      ),
+    );
+
+    _log.info("Sent check for errors");
   }
 
   Future<void> uploadFW(Uint8List list) async {
@@ -88,59 +111,7 @@ extension De1Firmware on De1 {
       await _write(Endpoint.writeToMMR, data);
     }
   }
-
-  Uint8List encodeU24P0(int value) {
-    if (value < 0 || value > 0xFFFFFF) {
-      throw ArgumentError(
-          'Value must be between 0 and 0xFFFFFF (24-bit unsigned)');
-    }
-    return Uint8List.fromList([
-      (value >> 16) & 0xFF, // high byte
-      (value >> 8) & 0xFF, // mid byte
-      value & 0xFF // low byte
-    ]);
-  }
 }
 
 enum FWUpgradeState { erase, upload, error, done }
 
-final class FWMapRequestData {
-  final int window;
-  final int firmwareToErase;
-  final int erase;
-  final Uint8List error;
-
-  FWMapRequestData({
-    required this.window,
-    required this.firmwareToErase,
-    required this.erase,
-    required this.error,
-  });
-
-  factory FWMapRequestData.from(ByteData data) {
-    final int window = data.getInt8(0);
-    final int firmwareToErase = data.getInt8(1);
-    final int erase = data.getInt8(2);
-    final int errorHi = data.getInt8(3);
-    final int errorMid = data.getInt8(4);
-    final int errorLow = data.getInt8(5);
-
-    return FWMapRequestData(
-      window: window,
-      firmwareToErase: firmwareToErase,
-      erase: erase,
-      error: Uint8List.fromList([errorHi, errorMid, errorLow]),
-    );
-  }
-
-  ByteData asData() {
-    final data = ByteData(6);
-    data.setInt8(0, window);
-    data.setInt8(1, firmwareToErase);
-    data.setInt8(2, erase);
-    data.setInt8(3, error[0]);
-    data.setInt8(4, error[1]);
-    data.setInt8(5, error[2]);
-    return data;
-  }
-}
