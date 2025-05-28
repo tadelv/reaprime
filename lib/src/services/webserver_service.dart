@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';

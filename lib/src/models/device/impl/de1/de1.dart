@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -9,6 +10,7 @@ import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.utils.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/device/de1_firmwaremodel.dart';
 import 'package:logging/logging.dart' as logging;
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:rxdart/subjects.dart';
@@ -18,6 +20,7 @@ part 'de1.rw.dart';
 part 'de1.profile.dart';
 part 'de1.mmr.dart';
 part 'de1.raw.dart';
+part 'de1.firmware.dart';
 
 class De1 implements De1Interface {
   static String advertisingUUID = 'FFFF';
@@ -388,5 +391,11 @@ class De1 implements De1Interface {
   @override
   sendRawMessage(De1RawMessage message) {
     _rawInStream.add(message);
+  }
+
+  @override
+  Future<void> updateFirmware(Uint8List fwImage) async {
+	await _updateFirmware(fwImage);
+
   }
 }
