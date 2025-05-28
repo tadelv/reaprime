@@ -35,6 +35,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v3
 
+      - name: Install automake and libtool
+        run: brew install automake libtool
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -51,3 +54,26 @@ jobs:
         with:
           name: macos-app
           path: build/macos/Build/Products/Release/*.app
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.0'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Linux app (unsigned)
+        run: flutter build linux --release
+
+      - name: Upload Linux app
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-app
+          path: build/linux/x64/release/bundle
