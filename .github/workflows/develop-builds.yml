@@ -61,6 +61,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v3
 
+      - name: Install GTK+ 3.0
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
