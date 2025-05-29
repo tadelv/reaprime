@@ -1,7 +1,7 @@
 part of "serial_de1.dart";
 
 extension SerialDe1Firmware on SerialDe1 {
-  Future<void> _updateFirmware(Uint8List fwImage) async {
+  Future<void> _updateFirmware(Uint8List fwImage, void Function(double) onProgress) async {
     _log.info("Starting firmware upgrade");
 
     await requestState(MachineState.sleeping);
@@ -25,7 +25,7 @@ extension SerialDe1Firmware on SerialDe1 {
     }
 
     _log.info("Starting write");
-    await _uploadFW(fwImage);
+    await _uploadFW(fwImage, onProgress);
 
     _log.info("Done writing");
 
@@ -51,7 +51,8 @@ extension SerialDe1Firmware on SerialDe1 {
 
   }
 
-  Future<void> _uploadFW(Uint8List list) async {
+  Future<void> _uploadFW(Uint8List list, void Function(double) onProgress) async {
+	final total = list.length;
     for (int i = 0; i < list.length; i += 16) {
       final chunkLength = (i + 16 <= list.length) ? 16 : list.length - i;
       final data = Uint8List(3 + chunkLength);
@@ -65,7 +66,9 @@ extension SerialDe1Firmware on SerialDe1 {
 
       await _transport.writeCommand(
           "<F>${data.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
-					sleep(Duration(milliseconds: 10));
+					sleep(Duration(milliseconds: 3));
+
+			onProgress(min(i / total, 1.0));
     }
   }
 

@@ -1,7 +1,8 @@
 part of 'de1.dart';
 
 extension De1Firmware on De1 {
-  Future<void> _updateFirmware(Uint8List fwImage) async {
+  Future<void> _updateFirmware(
+      Uint8List fwImage, void Function(double) onProgress) async {
     _log.info("Starting firmware upgrade ...");
 
     await requestState(MachineState.sleeping);
@@ -77,10 +78,10 @@ extension De1Firmware on De1 {
       sleep(Duration(seconds: 1));
     }
 
-    await uploadFW(fwImage);
+    await uploadFW(fwImage, onProgress);
     _log.info("All done!");
 
-		// verify crc?
+    // verify crc?
     await _writeWithResponse(
       Endpoint.fwMapRequest,
       Uint8List.view(
@@ -96,7 +97,9 @@ extension De1Firmware on De1 {
     _log.info("Sent check for errors");
   }
 
-  Future<void> uploadFW(Uint8List list) async {
+  Future<void> uploadFW(
+      Uint8List list, void Function(double) onProgress) async {
+    final total = list.length;
     for (int i = 0; i < list.length; i += 16) {
       final chunkLength = (i + 16 <= list.length) ? 16 : list.length - i;
       final data = Uint8List(3 + chunkLength);
@@ -109,9 +112,9 @@ extension De1Firmware on De1 {
       data.setRange(3, 3 + chunkLength, list, i);
 
       await _write(Endpoint.writeToMMR, data);
+      onProgress(min(i / total, 1.0));
     }
   }
 }
 
 enum FWUpgradeState { erase, upload, error, done }
-
