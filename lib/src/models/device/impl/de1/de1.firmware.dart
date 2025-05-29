@@ -20,42 +20,42 @@ extension De1Firmware on De1 {
           "FW map recv: ${request.windowIncrement}, ${request.firmwareToErase}, ${request.firmwareToMap}, "
           "err: 0x${request.error.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
 
-      switch (currentState) {
-        case FWUpgradeState.erase:
-          if (request.firmwareToMap == 0 &&
-              request.error[0] == 0xff &&
-              request.error[1] == 0xff &&
-              request.error[2] == 0xfd) {
-            currentState = FWUpgradeState.upload;
-            await uploadFW(fwImage);
-            _log.info("Done uploading ${fwImage.length} bytes");
-            currentState = FWUpgradeState.done;
-            completer.complete();
-            // unsub.cancel();
-          } else {
-            _log.warning(
-                "Received fw upgrade notify while in erase state (erase != 0)");
-            completer.completeError(
-                Exception("Unexpected error encountered in erase request"));
-          }
-          break;
-
-        case FWUpgradeState.upload:
-          _log.warning("Unexpected notify during upload phase.");
-          break;
-
-        case FWUpgradeState.error:
-          _log.severe("Firmware upgrade failed — error state entered.");
-          if (!completer.isCompleted) {
-            completer.completeError(Exception("Firmware upgrade failed"));
-          }
-          // unsub.cancel();
-          break;
-
-        case FWUpgradeState.done:
-          _log.info("Firmware upgrade already complete.");
-          break;
-      }
+      // switch (currentState) {
+      //   case FWUpgradeState.erase:
+      //     if (request.firmwareToMap == 0 &&
+      //         request.error[0] == 0xff &&
+      //         request.error[1] == 0xff &&
+      //         request.error[2] == 0xfd) {
+      //       currentState = FWUpgradeState.upload;
+      //       await uploadFW(fwImage);
+      //       _log.info("Done uploading ${fwImage.length} bytes");
+      //       currentState = FWUpgradeState.done;
+      //       completer.complete();
+      //       // unsub.cancel();
+      //     } else {
+      //       _log.warning(
+      //           "Received fw upgrade notify while in erase state (erase != 0)");
+      //       completer.completeError(
+      //           Exception("Unexpected error encountered in erase request"));
+      //     }
+      //     break;
+      //
+      //   case FWUpgradeState.upload:
+      //     _log.warning("Unexpected notify during upload phase.");
+      //     break;
+      //
+      //   case FWUpgradeState.error:
+      //     _log.severe("Firmware upgrade failed — error state entered.");
+      //     if (!completer.isCompleted) {
+      //       completer.completeError(Exception("Firmware upgrade failed"));
+      //     }
+      //     // unsub.cancel();
+      //     break;
+      //
+      //   case FWUpgradeState.done:
+      //     _log.info("Firmware upgrade already complete.");
+      //     break;
+      // }
     });
 
     // Request firmware erase
