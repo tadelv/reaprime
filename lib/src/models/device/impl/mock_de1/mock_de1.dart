@@ -370,8 +370,21 @@ class MockDe1 implements De1Interface {
   }
 
   @override
-  Future<void> updateFirmware(Uint8List fwImage) async {
-	  // uploading bytes ...
-    await Future.delayed(Duration(seconds: 10));
+  Future<void> updateFirmware(
+      Uint8List fwImage, {required void Function(double) onProgress}) async {
+    // uploading bytes ...
+    final chunkSize = 4096;
+    final total = fwImage.length;
+    for (int offset = 0; offset < total; offset += chunkSize) {
+      // Simulate work
+      await Future.delayed(Duration(milliseconds: 20));
+
+      // Send chunk to device...
+      // await sendChunk(data.sublist(offset, min(offset + chunkSize, total)));
+
+      // Report progress
+      onProgress(offset / total);
+    }
+    onProgress(1.0);
   }
 }

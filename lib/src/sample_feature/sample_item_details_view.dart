@@ -1,6 +1,10 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// Displays detailed information about a SampleItem.
 class De1DebugView extends StatefulWidget {
@@ -20,7 +24,7 @@ class _De1DebugViewState extends State<De1DebugView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Item Details')),
+      appBar: AppBar(title: const Text('Device Details')),
       body: Center(
         child: Padding(
           padding: EdgeInsets.all(8),
@@ -56,19 +60,112 @@ class _De1DebugViewState extends State<De1DebugView> {
                   ),
                 ]),
               ),
-              Column(children: [
-                Text(
-                  "Shot shot settings:",
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                _shotSettings(widget.machine.shotSettings),
-              ]),
-              Flexible(
-                  flex: 1,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: _waterLevels(widget.machine.waterLevels),
-                  )),
+              Expanded(
+                child: Column(children: [
+                  Text(
+                    "Shot settings:",
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  _shotSettings(widget.machine.shotSettings),
+                ]),
+              ),
+              Expanded(
+                child: Column(children: [
+                  Text(
+                    "Water levels:",
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  _waterLevels(widget.machine.waterLevels),
+                ]),
+              ),
+              Expanded(
+                  child: Column(
+                children: [
+                  Text(
+                    "Machine info:",
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  // TODO: firmware version
+                  ShadButton(
+                    child: const Text("Firmware update"),
+                    onTapUp: (_) async {
+                      FilePickerResult? result =
+                          await FilePicker.platform.pickFiles(
+                        type: FileType.custom,
+                        allowedExtensions: ["dat"],
+                      );
+
+                      if (result == null) return;
+
+                      File file = File(result.files.single.path!);
+                      final data = await file.readAsBytes();
+
+                      if (!context.mounted) return;
+
+                      double progress = 0.0;
+                      final progressNotifier = ValueNotifier<double>(0.0);
+
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (context) {
+                          return ValueListenableBuilder<double>(
+                            valueListenable: progressNotifier,
+                            builder: (context, value, _) {
+                              return ShadDialog(
+                                title: const Text("Updating firmware..."),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      LinearProgressIndicator(value: value),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                          "${(value * 100).toStringAsFixed(0)}%"),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      );
+
+                      try {
+                        await widget.machine.updateFirmware(
+                          data,
+                          onProgress: (p) {
+                            progressNotifier.value = p;
+                          },
+                        );
+                      } catch (e) {
+                        if (context.mounted) {
+                          Navigator.of(context).pop(); // Close progress dialog
+                          showShadDialog(
+                            context: context,
+                            builder: (context) => ShadDialog(
+                              title: const Text("Firmware update failed"),
+                              child: Text(e.toString()),
+                              actions: [
+                                ShadButton(
+                                  child: const Text("OK"),
+                                  onTapUp: (_) => Navigator.of(context).pop(),
+                                )
+                              ],
+                            ),
+                          );
+                        }
+                        return;
+                      }
+
+                      if (context.mounted) {
+                        Navigator.of(context).pop(); // Close progress dialog
+                      }
+                    },
+                  )
+                ],
+              ))
             ],
           ),
         ),
@@ -130,9 +227,8 @@ class _De1DebugViewState extends State<De1DebugView> {
           return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Text(
                 "steam setting 0x${snapshot.data!.steamSetting.toRadixString(16).padLeft(2, '0')}"),
-								            Text(
+            Text(
                 "target group temp ${snapshot.data!.groupTemp.toStringAsFixed(1)}")
-
           ]);
         }
         return Text("Waiting for data ${snapshot.connectionState}");
@@ -148,7 +244,9 @@ class _De1DebugViewState extends State<De1DebugView> {
           return Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text("water level: ${snapshot.data!.currentPercentage}%"),
+              Text("water level: ${snapshot.data!.currentPercentage}"),
+              Text(
+                  "threshold level: ${snapshot.data!.warningThresholdPercentage}"),
             ],
           );
         }

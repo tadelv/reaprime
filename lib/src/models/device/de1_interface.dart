@@ -66,10 +66,10 @@ abstract class De1Interface extends Machine {
   Future<double> getHeaterIdleTemp();
   Future<void> setHeaterIdleTemp(double val);
 
-
-	// Firmware upgrade
-	// TODO: should it be something different than Uint8List?
-	Future<void> updateFirmware(Uint8List fwImage);
+  // Firmware upgrade
+  // TODO: should it be something different than Uint8List?
+  Future<void> updateFirmware(Uint8List fwImage,
+      {required void Function(double progress) onProgress});
 }
 
 // This doesn't change anything

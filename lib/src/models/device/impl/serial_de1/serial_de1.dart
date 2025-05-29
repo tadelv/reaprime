@@ -414,7 +414,8 @@ class SerialDe1 implements De1Interface {
   }
 
   @override
-  Future<void> updateFirmware(Uint8List fwImage) async {
+  Future<void> updateFirmware(Uint8List fwImage,
+      {required void Function(double) onProgress}) async {
     await _updateFirmware(fwImage);
   }
 }

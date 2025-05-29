@@ -127,7 +127,7 @@ class De1Handler {
 
         // Send to DE1 (assumes withDe1 returns a response or Future<void>)
         return await withDe1((de1) async {
-          await de1.updateFirmware(fwImage);
+          await de1.updateFirmware(fwImage, onProgress: (progress){});
           return Response.ok('Firmware uploaded successfully');
         });
       } catch (e) {
