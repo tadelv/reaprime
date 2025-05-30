@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -163,13 +164,44 @@ class _De1DebugViewState extends State<De1DebugView> {
                         Navigator.of(context).pop(); // Close progress dialog
                       }
                     },
-                  )
+                  ),
+                  _serialComms(context)
                 ],
               ))
             ],
           ),
         ),
       ),
+    );
+  }
+
+  final TextEditingController _serialController = TextEditingController();
+
+  Widget _serialComms(BuildContext context) {
+    return Column(
+      spacing: 8.0,
+      children: [
+        SizedBox(
+          height: 16.0,
+        ),
+        Text("Send raw command:"),
+        Padding(
+          padding: EdgeInsetsGeometry.all(8.0),
+          child: ShadInput(
+            controller: _serialController,
+          ),
+        ),
+        ShadButton(
+          child: Text("Send"),
+          onTapUp: (e) {
+            widget.machine.sendRawMessage(De1RawMessage(
+                type: De1RawMessageType.request,
+                operation: De1RawOperationType.write,
+                characteristicUUID: "",
+                payload: _serialController.text));
+          },
+        )
+      ],
     );
   }
 

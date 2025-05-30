@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
@@ -21,6 +22,8 @@ class MockDe1 implements De1Interface {
 
   StreamController<MachineSnapshot> _snapshotStream =
       StreamController.broadcast();
+
+  final _log = Logger("MockDe1");
 
   Timer? _stateTimer;
 
@@ -366,12 +369,12 @@ class MockDe1 implements De1Interface {
 
   @override
   void sendRawMessage(De1RawMessage message) {
-    // TODO: implement sendRawMessage
-  }
+	_log.fine("sending raw message: ${message.toJson()}");
+	}
 
   @override
-  Future<void> updateFirmware(
-      Uint8List fwImage, {required void Function(double) onProgress}) async {
+  Future<void> updateFirmware(Uint8List fwImage,
+      {required void Function(double) onProgress}) async {
     // uploading bytes ...
     final chunkSize = 4096;
     final total = fwImage.length;

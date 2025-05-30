@@ -201,7 +201,7 @@ class SerialDe1 implements De1Interface {
 
   @override
   void sendRawMessage(De1RawMessage message) {
-    // TODO: implement sendRawMessage
+    _transport.writeCommand(message.payload);
   }
 
   @override

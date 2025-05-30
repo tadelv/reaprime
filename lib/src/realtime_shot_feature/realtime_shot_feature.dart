@@ -185,7 +185,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
         Spacer(),
         ShadButton(
           enabled: backEnabled,
-          icon: Icon(LucideIcons.arrowLeft),
+          child: Icon(LucideIcons.arrowLeft),
           onPressed: () {
             Navigator.pop(context);
           },
