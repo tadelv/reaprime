@@ -114,8 +114,7 @@ class MyApp extends StatelessWidget {
           //
           // The appTitle is defined in .arb files found in the localization
           // directory.
-          onGenerateTitle: (BuildContext context) =>
-              "ReaPrime",
+          onGenerateTitle: (BuildContext context) => "ReaPrime",
 
           // Define a light and dark color theme. Then, read the user's
           // preferred ThemeMode (light, dark, or system default) from the
@@ -145,6 +144,12 @@ class MyApp extends StatelessWidget {
                       (e) => e.deviceId == routeSettings.arguments as String,
                     );
                     if (device is De1Interface) {
+                      try {
+                        de1Controller.connectedDe1();
+                      } catch (_) {
+                        // De1 controller has no connected de1, connect to this one
+                        de1Controller.connectToDe1(device);
+                      }
                       return De1DebugView(
                         machine: deviceController.devices.firstWhere(
                           (e) =>
