@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-import '../settings/settings_view.dart';
 import 'sample_item_details_view.dart';
 
 /// Displays a list of SampleItems.

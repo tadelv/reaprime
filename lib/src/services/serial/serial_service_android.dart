@@ -103,7 +103,7 @@ class AndroidSerialPort implements SerialTransport {
 
     _portSubscription = _port.inputStream?.listen((Uint8List event) {
       final input = utf8.decode(event);
-      _log.fine("received serial input: $input");
+      _log.finest("received serial input: $input");
       _outputController.add(input);
     });
   }
