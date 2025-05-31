@@ -15,6 +15,7 @@ import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.utils.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/de1_firmwaremodel.dart';
+import 'package:rxdart/streams.dart';
 import 'package:rxdart/subjects.dart';
 
 part 'serial_de1.parsing.dart';
@@ -30,9 +31,11 @@ class SerialDe1 implements De1Interface {
     _log = Logger("Serial De1/${_transport.name}");
   }
 
+  final BehaviorSubject<ConnectionState> _connectionStateSubject =
+      BehaviorSubject.seeded(ConnectionState.connecting);
+
   @override
-  Stream<ConnectionState> get connectionState =>
-      BehaviorSubject.seeded(ConnectionState.connected);
+  Stream<ConnectionState> get connectionState => _connectionStateSubject.stream;
 
   MachineSnapshot _currentSnapshot = MachineSnapshot(
     flow: 0,
@@ -64,6 +67,7 @@ class SerialDe1 implements De1Interface {
   disconnect() {
     _transportSubscription.cancel();
     _transport.close();
+    _connectionStateSubject.add(ConnectionState.disconnected);
   }
 
   @override
@@ -85,6 +89,7 @@ class SerialDe1 implements De1Interface {
     _transportSubscription = _transport.readStream.listen(_processSerialInput);
 
     _log.fine("port opened");
+    _connectionStateSubject.add(ConnectionState.connected);
 
     // stop all previous notifies (if any) - just in case.
 
