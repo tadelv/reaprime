@@ -91,10 +91,7 @@ class _De1DebugViewState extends State<De1DebugView> {
                     child: const Text("Firmware update"),
                     onTapUp: (_) async {
                       FilePickerResult? result =
-                          await FilePicker.platform.pickFiles(
-                        type: FileType.custom,
-                        allowedExtensions: ["dat"],
-                      );
+                          await FilePicker.platform.pickFiles();
 
                       if (result == null) return;
 

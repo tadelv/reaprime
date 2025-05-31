@@ -82,6 +82,7 @@ class SettingsView extends StatelessWidget {
                     String? outputFile = await FilePicker.platform.saveFile(
                       fileName: "R1-logs.txt",
                       dialogTitle: "Choose where to save logs",
+											bytes: bytes
                     );
                     if (outputFile != null) {
                       File destination = File(outputFile);
