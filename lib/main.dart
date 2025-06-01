@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:collection/collection.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:flutter/material.dart';
@@ -96,6 +97,10 @@ void main() async {
   // Load the user's preferred theme while the splash screen is displayed.
   // This prevents a sudden theme change when the app is first displayed.
   await settingsController.loadSettings();
+
+  Logger.root.level = Level.LEVELS
+          .firstWhereOrNull((e) => e.name == settingsController.logLevel) ??
+      Level.INFO;
 
   final WorkflowController workflowController = WorkflowController();
   try {

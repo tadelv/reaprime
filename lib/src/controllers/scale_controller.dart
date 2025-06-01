@@ -50,10 +50,12 @@ class ScaleController {
 
   Stream<WeightSnapshot> get weightSnapshot => _weightSnapshotController.stream;
 
-  MovingAverage weightFlowAverage = MovingAverage(20);
+  MovingAverage weightFlowAverage = MovingAverage(10);
+
+  static const smoothingWindowDuration = Duration(milliseconds: 300);
 
   FlowCalculator _flowCalculator =
-      FlowCalculator(windowDuration: Duration(milliseconds: 500));
+      FlowCalculator(windowDuration: smoothingWindowDuration);
 
   _processSnapshot(ScaleSnapshot snapshot) {
     final flow = _flowCalculator.addSample(snapshot.timestamp, snapshot.weight);
@@ -77,7 +79,7 @@ class ScaleController {
       _scale = null;
       _scaleConnection = null;
       _flowCalculator =
-          FlowCalculator(windowDuration: Duration(milliseconds: 500));
+          FlowCalculator(windowDuration: smoothingWindowDuration);
     }
   }
 }

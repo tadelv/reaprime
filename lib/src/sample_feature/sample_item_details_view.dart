@@ -172,7 +172,8 @@ class _De1DebugViewState extends State<De1DebugView> {
     );
   }
 
-  final TextEditingController _serialController = TextEditingController();
+  final TextEditingController _serialPayloadController = TextEditingController();
+  final TextEditingController _serialCharacteristicController = TextEditingController();
 
   Widget _serialComms(BuildContext context) {
     return Column(
@@ -182,10 +183,18 @@ class _De1DebugViewState extends State<De1DebugView> {
           height: 16.0,
         ),
         Text("Send raw command:"),
+        Text("Characteristic (for BLE):"),
         Padding(
           padding: EdgeInsetsGeometry.all(8.0),
           child: ShadInput(
-            controller: _serialController,
+            controller: _serialCharacteristicController,
+          ),
+        ),
+        Text("Payload:"),
+        Padding(
+          padding: EdgeInsetsGeometry.all(8.0),
+          child: ShadInput(
+            controller: _serialPayloadController,
           ),
         ),
         ShadButton(
@@ -194,8 +203,8 @@ class _De1DebugViewState extends State<De1DebugView> {
             widget.machine.sendRawMessage(De1RawMessage(
                 type: De1RawMessageType.request,
                 operation: De1RawOperationType.write,
-                characteristicUUID: "",
-                payload: _serialController.text));
+                characteristicUUID: _serialCharacteristicController.text,
+                payload: _serialPayloadController.text));
           },
         )
       ],
