@@ -5,6 +5,7 @@ import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/home_feature/forms/hot_water_form.dart';
 import 'package:reaprime/src/home_feature/forms/rinse_form.dart';
 import 'package:reaprime/src/home_feature/forms/steam_form.dart';
+import 'package:reaprime/src/home_feature/forms/water_levels_form.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
@@ -201,6 +202,31 @@ class StatusTile extends StatelessWidget {
     );
   }
 
+  Future<void> _showWaterLevelsDialog(
+    BuildContext context,
+    De1Controller controller,
+  ) async {
+    var waterLevels = await controller.connectedDe1().waterLevels.first;
+    if (!context.mounted) {
+      return;
+    }
+    showShadDialog(
+      context: context,
+      builder: (context) => ShadDialog(
+        title: const Text('Edit Water levels settings'),
+        child: WaterLevelsForm(
+          apply: (newLevels) {
+            Navigator.of(context).pop();
+            controller
+                .connectedDe1()
+                .setWaterLevelWarning(newLevels.warningThresholdPercentage);
+          },
+          levels: waterLevels,
+        ),
+      ),
+    );
+  }
+
   List<Widget> _scaleWidgets(BuildContext context) {
     return [
       SizedBox(
@@ -247,7 +273,6 @@ class StatusTile extends StatelessWidget {
       )
     ];
   }
-
 
   Widget _firstRow() {
     double boxWidth = 100;
@@ -312,9 +337,12 @@ class StatusTile extends StatelessWidget {
                 }
                 var snapshot = waterSnapshot.data!;
                 final theme = Theme.of(context);
-                return Row(children: [
-                  SizedBox(
-                    width: boxWidth,
+                return SizedBox(
+                  width: boxWidth,
+                  child: GestureDetector(
+                    onTap: () {
+                      _showWaterLevelsDialog(context, controller);
+                    },
                     child: Row(
                       children: [
                         Icon(
@@ -334,7 +362,7 @@ class StatusTile extends StatelessWidget {
                       ],
                     ),
                   ),
-                ]);
+                );
               })
         ]);
   }
