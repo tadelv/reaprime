@@ -4,6 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   battery_plus
+  flutter_libserialport
   permission_handler_windows
 )
 

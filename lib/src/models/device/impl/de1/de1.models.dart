@@ -11,10 +11,10 @@ enum Endpoint {
   setTime('A003'),
   shotDirectory('A004'),
   readFromMMR('A005'),
-  writeToMMR('A006'),
+  writeToMMR('A006'), // F
   shotMapRequest('A007'),
   deleteShotRange('A008'),
-  fwMapRequest('A009'),
+  fwMapRequest('A009'), // I
   temperatures('A00A'),
   shotSettings('A00B'),
   deprecatedShotDesc('A00C'),

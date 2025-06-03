@@ -28,6 +28,14 @@ class SettingsService {
   Future<void> updateBypassShotController(bool bypass) async {
     await prefs.setBool(SettingsKeys.bypassShotController.name, bypass);
   }
+
+  Future<String> logLevel() async {
+    return await prefs.getString(SettingsKeys.logLevel.name) ?? "INFO";
+  }
+
+  Future<void> updateLogLevel(String newLogLevel) async {
+    await prefs.setString(SettingsKeys.logLevel.name, newLogLevel);
+  }
 }
 
-enum SettingsKeys { themeMode, bypassShotController }
+enum SettingsKeys { themeMode, bypassShotController, logLevel }

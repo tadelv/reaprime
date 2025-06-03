@@ -1,64 +1,41 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
+import 'dart:io';
 
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
+import 'package:reaprime/src/models/device/serial_port.dart';
+
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/impl/de1/de1.dart';
+import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.utils.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/de1_firmwaremodel.dart';
-import 'package:logging/logging.dart' as logging;
-import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
+import 'package:rxdart/streams.dart';
 import 'package:rxdart/subjects.dart';
 
-part 'de1.subscriptions.dart';
-part 'de1.rw.dart';
-part 'de1.profile.dart';
-part 'de1.mmr.dart';
-part 'de1.raw.dart';
-part 'de1.firmware.dart';
+part 'serial_de1.parsing.dart';
+part 'serial_de1.mmr.dart';
+part 'serial_de1.profile.dart';
+part 'serial_de1.firmware.dart';
 
-class De1 implements De1Interface {
-  static String advertisingUUID = 'FFFF';
+class SerialDe1 implements De1Interface {
+  late Logger _log;
+  final SerialTransport _transport;
 
-  final String _deviceId;
-
-  final BluetoothDevice _device;
-
-  late BluetoothService _service;
-
-  final StreamController<De1RawMessage> _rawOutStream =
-      StreamController.broadcast();
-
-  @override
-  Stream<De1RawMessage> get rawOutStream => _rawOutStream.stream;
-
-  final StreamController<De1RawMessage> _rawInStream = StreamController();
-
-  final _log = logging.Logger("DE1");
-
-  De1({required String deviceId})
-      : _deviceId = deviceId,
-        _device = BluetoothDevice.fromId(deviceId) {
-    _snapshotStream.add(_currentSnapshot);
+  SerialDe1({required SerialTransport transport}) : _transport = transport {
+    _log = Logger("Serial De1/${_transport.name}");
   }
 
-  factory De1.fromId(String id) {
-    return De1(deviceId: id);
-  }
+  final BehaviorSubject<ConnectionState> _connectionStateSubject =
+      BehaviorSubject.seeded(ConnectionState.connecting);
 
   @override
-  String get deviceId => _deviceId;
-
-  @override
-  String get name => "DE1";
-
-  @override
-  DeviceType get type => DeviceType.machine;
+  Stream<ConnectionState> get connectionState => _connectionStateSubject.stream;
 
   MachineSnapshot _currentSnapshot = MachineSnapshot(
     flow: 0,
@@ -77,120 +54,159 @@ class De1 implements De1Interface {
     mixTemperature: 0,
     pressure: 0,
   );
-
-  final StreamController<MachineSnapshot> _snapshotStream =
-      StreamController<MachineSnapshot>.broadcast();
-  final BehaviorSubject<De1ShotSettings> _shotSettingsController =
-      BehaviorSubject();
-  final BehaviorSubject<De1WaterLevels> _waterLevelsController =
-      BehaviorSubject();
-
-  final StreamController<List<int>> _mmrController =
-      StreamController.broadcast();
-
-  final BehaviorSubject<bool> _onReadyStream = BehaviorSubject.seeded(false);
+  BehaviorSubject<MachineSnapshot> _snapshotSubject = BehaviorSubject();
+  @override
+  // TODO: implement currentSnapshot
+  Stream<MachineSnapshot> get currentSnapshot => _snapshotSubject.stream;
 
   @override
-  Stream<bool> get ready => _onReadyStream.stream;
-
-  @override
-  Stream<MachineSnapshot> get currentSnapshot => _snapshotStream.stream;
-
-  final StreamController<ConnectionState> _connectionStateController =
-      BehaviorSubject.seeded(ConnectionState.connecting);
-
-  @override
-  Stream<ConnectionState> get connectionState =>
-      _connectionStateController.stream;
-
-  @override
-  Future<void> onConnect() async {
-    _snapshotStream.add(_currentSnapshot);
-
-    var subscription =
-        _device.connectionState.listen((BluetoothConnectionState state) async {
-      switch (state) {
-        case BluetoothConnectionState.connected:
-          if (await _connectionStateController.stream.first ==
-              ConnectionState.connected) {
-            _log.info("Already connected, not signalling again");
-            break;
-          }
-          _log.fine("state changed to connected");
-          _connectionStateController.add(ConnectionState.connected);
-          var services = await _device.discoverServices();
-          _service =
-              services.firstWhere((s) => s.serviceUuid == Guid(de1ServiceUUID));
-          await _onConnected();
-          break;
-        case BluetoothConnectionState.disconnected:
-          if (await _connectionStateController.stream.first ==
-              ConnectionState.connected) {
-            _connectionStateController.add(ConnectionState.disconnected);
-          }
-          //disconnect(); // just in case we got disconnected unintentionally
-          break;
-        default:
-          break;
-      }
-    });
-    _device.cancelWhenDisconnected(subscription, delayed: true, next: true);
-    await _device.connect();
-  }
+  // TODO: implement deviceId
+  String get deviceId => _transport.name;
 
   @override
   disconnect() {
-    _device.disconnect();
-    //_connectionStateController.add(ConnectionState.disconnected);
+    _transportSubscription.cancel();
+    _transport.close();
+    _connectionStateSubject.add(ConnectionState.disconnected);
+  }
+
+  @override
+  String get name => _transport.name;
+
+  late StreamSubscription<String> _transportSubscription;
+  StreamController<List<int>> _mmrController = StreamController.broadcast();
+
+  @override
+  Future<void> onConnect() async {
+    _log.fine("connecting to device");
+    try {
+      await _transport.open();
+    } catch (e, st) {
+      _log.severe("failed to open transport", e, st);
+      return;
+    }
+
+    _transportSubscription = _transport.readStream.listen(_processSerialInput);
+
+    _log.fine("port opened");
+    _connectionStateSubject.add(ConnectionState.connected);
+
+    // stop all previous notifies (if any) - just in case.
+
+    await _transport.writeCommand("<-N>");
+    await _transport.writeCommand("<-M>");
+    await _transport.writeCommand("<-Q>");
+    await _transport.writeCommand("<-K>");
+    await _transport.writeCommand("<-E>");
+
+    // TODO: needed to know which state we're at?
+    await requestState(MachineState.sleeping);
+
+    await _transport.writeCommand("<+N>");
+    await _transport.writeCommand("<+M>");
+    await _transport.writeCommand("<+Q>");
+    await _transport.writeCommand("<+K>");
+    await _transport.writeCommand("<+E>");
+    updateShotSettings(De1ShotSettings(
+        steamSetting: 0,
+        targetSteamTemp: 150,
+        targetSteamDuration: 60,
+        targetHotWaterTemp: 70,
+        targetHotWaterVolume: 50,
+        targetHotWaterDuration: 30,
+        targetShotVolume: 0,
+        groupTemp: 90.0));
+    _snapshotSubject.add(_currentSnapshot);
+    _readySubject.add(true);
+  }
+
+  String _currentBuffer = "";
+  void _processSerialInput(String input) {
+    _currentBuffer += input;
+
+    // Split by newlines — preserves partials if any
+    final lines = _currentBuffer.split('\n');
+
+    // All complete lines except the last (which may be incomplete)
+    for (int i = 0; i < lines.length - 1; i++) {
+      final line = lines[i].trim();
+      if (line.isNotEmpty && line.startsWith('[')) {
+        _log.finest("received complete response: $line");
+        _processDe1Response(line);
+      } else {
+        _log.warning("Ignored invalid or incomplete line: '$line'");
+      }
+    }
+
+    // Save the last (possibly incomplete) line back into the buffer
+    _currentBuffer = lines.last;
+  }
+
+  // TODO: allow code to register own processors per "Endpoint"
+  _processDe1Response(String input) {
+    _log.fine("processing input: $input");
+    final Uint8List payload = hexToBytes(input.substring(3));
+    final ByteData data = ByteData.sublistView(payload);
+    switch (input.substring(0, 3)) {
+      case "[M]":
+        _parseShotSample(data);
+      case "[N]":
+        _parseState(data);
+      case "[Q]":
+        _parseWaterLevels(data);
+      case "[K]":
+        _parseShotSettings(data);
+      case "[E]":
+        _mmrNotification(data);
+      case "[I]":
+        _parseFWMapRequest(data);
+      default:
+        _log.warning("unhandled de1 message: $input");
+        break;
+    }
+    _snapshotSubject.add(_currentSnapshot);
+  }
+
+  /// Converts an even‑length hex string to the corresponding bytes.
+  ///
+  /// Throws a [FormatException] if the string length is odd or contains non‑hex digits.
+  Uint8List hexToBytes(String hex) {
+    hex = hex.replaceAll(RegExp(r'\s+'), ''); // strip whitespace
+    if (hex.length.isOdd) {
+      throw FormatException('Invalid input length, must be even', hex);
+    }
+    final result = Uint8List(hex.length ~/ 2);
+    for (var i = 0; i < hex.length; i += 2) {
+      final byteStr = hex.substring(i, i + 2);
+      result[i ~/ 2] = int.parse(byteStr, radix: 16);
+    }
+    return result;
   }
 
   @override
   Future<void> requestState(MachineState newState) async {
-    Uint8List data = Uint8List(1);
-    data[0] = De1StateEnum.fromMachineState(newState).hexValue;
-    await _write(Endpoint.requestedState, data);
-  }
-
-  Future<void> _onConnected() async {
-    _log.info("Connected, subscribing to services");
-    initRawStream();
-    _snapshotStream.add(
-      MachineSnapshot(
-        flow: 0,
-        state: MachineStateSnapshot(
-          state: MachineState.sleeping,
-          substate: MachineSubstate.idle,
-        ),
-        steamTemperature: 0,
-        profileFrame: 0,
-        targetFlow: 0,
-        targetPressure: 0,
-        targetMixTemperature: 0,
-        targetGroupTemperature: 0,
-        timestamp: DateTime.now(),
-        groupTemperature: 0,
-        mixTemperature: 0,
-        pressure: 0,
-      ),
-    );
-
-    _parseStatus(await _read(Endpoint.stateInfo));
-    _parseShotSettings(await _read(Endpoint.shotSettings));
-    _parseWaterLevels(await _read(Endpoint.waterLevels));
-    _parseVersion(await _read(Endpoint.versions));
-
-    _subscribe(Endpoint.stateInfo, _parseStatus);
-    _subscribe(Endpoint.shotSample, _parseShot);
-    _subscribe(Endpoint.shotSettings, _parseShotSettings);
-    _subscribe(Endpoint.waterLevels, _parseWaterLevels);
-    _subscribe(Endpoint.readFromMMR, _mmrNotification);
-
-    _onReadyStream.add(true);
+    final String value = De1StateEnum.fromMachineState(newState)
+        .hexValue
+        .toRadixString(16)
+        .padLeft(2, "0");
+    final String command = "<B>$value";
+    await _transport.writeCommand(command);
   }
 
   @override
-  Future<void> setProfile(Profile profile) async {
-    await _sendProfile(profile);
+  DeviceType get type => DeviceType.machine;
+
+  @override
+  // TODO: implement rawOutStream
+  Stream<De1RawMessage> get rawOutStream => throw UnimplementedError();
+
+  BehaviorSubject<bool> _readySubject = BehaviorSubject.seeded(false);
+  @override
+  Stream<bool> get ready => _readySubject.stream;
+
+  @override
+  void sendRawMessage(De1RawMessage message) {
+    _transport.writeCommand(message.payload);
   }
 
   @override
@@ -202,19 +218,19 @@ class De1 implements De1Interface {
       value.setInt16(0, 0, Endian.big);
       value.setInt16(2, newThresholdPercentage * 256, Endian.big);
 
-      return _writeWithResponse(
-        Endpoint.waterLevels,
-        value.buffer.asUint8List(),
-      );
+      return _transport.writeCommand(
+          "<Q>${value.buffer.asUint8List().map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
     } catch (e) {
       _log.severe("failed to set water warning", e);
       rethrow;
     }
   }
 
+  final BehaviorSubject<De1ShotSettings> _shotSettingsController =
+      BehaviorSubject();
   @override
   Stream<De1ShotSettings> get shotSettings =>
-      _shotSettingsController.stream.asBroadcastStream();
+      _shotSettingsController.asBroadcastStream();
 
   @override
   Future<void> updateShotSettings(De1ShotSettings newSettings) async {
@@ -243,12 +259,22 @@ class De1 implements De1Interface {
             .toInt();
     index++;
 
-    await _writeWithResponse(Endpoint.shotSettings, data);
-    await _parseShotSettings(await _read(Endpoint.shotSettings));
+    await _transport.writeCommand(
+        "<K>${data.map((e) => e.toRadixString(16).padLeft(2, '0')).toList()}");
+    // await _parseShotSettings(await _read(Endpoint.shotSettings));
+    _parseShotSettings(ByteData.sublistView(data));
   }
 
+  BehaviorSubject<De1WaterLevels> _waterSubject = BehaviorSubject();
   @override
-  Stream<De1WaterLevels> get waterLevels => _waterLevelsController.stream;
+  Stream<De1WaterLevels> get waterLevels => _waterSubject.stream;
+
+  @override
+  Future<void> setProfile(Profile profile) async {
+    await _sendProfile(profile);
+  }
+
+  // MMR
 
   @override
   Future<bool> getUsbChargerMode() async {
@@ -390,11 +416,6 @@ class De1 implements De1Interface {
   Future<void> setHeaterPhase2Timeout(double val) async {
     var value = _packMMRInt((val * 10).toInt());
     await _mmrWrite(MMRItem.heaterUp2Timeout, value);
-  }
-
-  @override
-  sendRawMessage(De1RawMessage message) {
-    _rawInStream.add(message);
   }
 
   @override

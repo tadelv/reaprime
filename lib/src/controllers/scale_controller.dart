@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/controllers/weight_flow_calculator.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/util/moving_average.dart';
@@ -49,34 +50,18 @@ class ScaleController {
 
   Stream<WeightSnapshot> get weightSnapshot => _weightSnapshotController.stream;
 
-  double? _lastWeight;
-  DateTime? _lastTimestamp;
-  MovingAverage weightFlowAverage = MovingAverage(20);
+  MovingAverage weightFlowAverage = MovingAverage(10);
+
+  static const smoothingWindowDuration = Duration(milliseconds: 600);
+
+  FlowCalculator _flowCalculator =
+      FlowCalculator(windowDuration: smoothingWindowDuration);
 
   _processSnapshot(ScaleSnapshot snapshot) {
-    // calculate weight flow
-    var weightFlow = 0.0;
-    if (_lastWeight != null) {
-      var difference = snapshot.weight - _lastWeight!;
-      log.finest("weight diff: ${difference.toStringAsFixed(3)}");
-      weightFlow = (difference * 1000) /
-          snapshot.timestamp.difference(_lastTimestamp!).inMilliseconds;
-      log.finest("raw flow: ${weightFlow.toStringAsFixed(3)}");
-      log.finest(
-          "ms difference: ${snapshot.timestamp.difference(_lastTimestamp!).inMilliseconds}");
-      if (!weightFlow.isNaN && !weightFlow.isInfinite) {
-        weightFlow = weightFlow.abs();
-        weightFlow = max(0, min(weightFlow, 8.0));
-        log.finest("smoothed flow: ${weightFlow.toStringAsFixed(3)}");
-        weightFlowAverage.add(weightFlow);
-        log.finest(
-            "new average: ${weightFlowAverage.average.toStringAsFixed(3)}");
-      } else {
-        weightFlowAverage.add(0);
-      }
-    }
-    _lastWeight = snapshot.weight;
-    _lastTimestamp = snapshot.timestamp;
+    final flow = _flowCalculator.addSample(snapshot.timestamp, snapshot.weight);
+
+    weightFlowAverage.add(flow); // Use your existing average queue
+
     _weightSnapshotController.add(WeightSnapshot(
       timestamp: snapshot.timestamp,
       weight: snapshot.weight,
@@ -93,6 +78,8 @@ class ScaleController {
       _scaleConnection?.cancel();
       _scale = null;
       _scaleConnection = null;
+      _flowCalculator =
+          FlowCalculator(windowDuration: smoothingWindowDuration);
     }
   }
 }

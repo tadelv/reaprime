@@ -72,6 +72,7 @@ class SettingsView extends StatelessWidget {
               ],
             ),
             Row(
+              spacing: 16,
               children: [
                 ShadButton(
                   child: Text("Export logs"),
@@ -80,9 +81,9 @@ class SettingsView extends StatelessWidget {
                     File logFile = File('${docs.path}/log.txt');
                     var bytes = await logFile.readAsBytes();
                     String? outputFile = await FilePicker.platform.saveFile(
-                      fileName: "R1-logs.txt",
-                      dialogTitle: "Choose where to save logs",
-                    );
+                        fileName: "R1-logs.txt",
+                        dialogTitle: "Choose where to save logs",
+                        bytes: bytes);
                     if (outputFile != null) {
                       File destination = File(outputFile);
                       await destination.writeAsBytes(bytes);
@@ -120,6 +121,29 @@ class SettingsView extends StatelessWidget {
                       SampleItemListView.routeName,
                     );
                   },
+                ),
+              ],
+            ),
+
+            DropdownButton<String>(
+              value: controller.logLevel,
+              onChanged: controller.updateLogLevel,
+              items: const [
+                DropdownMenuItem(
+                  value: "FINE",
+                  child: Text('Fine'),
+                ),
+                DropdownMenuItem(
+                  value: "INFO",
+                  child: Text('Info'),
+                ),
+                DropdownMenuItem(
+                  value: "FINEST",
+                  child: Text('Finest'),
+                ),
+                DropdownMenuItem(
+                  value: "WARNING",
+                  child: Text('Warning'),
                 ),
               ],
             ),

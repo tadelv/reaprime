@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
@@ -64,6 +65,11 @@ abstract class De1Interface extends Machine {
   Future<void> setHeaterPhase2Timeout(double val);
   Future<double> getHeaterIdleTemp();
   Future<void> setHeaterIdleTemp(double val);
+
+  // Firmware upgrade
+  // TODO: should it be something different than Uint8List?
+  Future<void> updateFirmware(Uint8List fwImage,
+      {required void Function(double progress) onProgress});
 }
 
 // This doesn't change anything

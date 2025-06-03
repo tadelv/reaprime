@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
 
+import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
@@ -16,10 +18,12 @@ enum _SimulationType {
 }
 
 class MockDe1 implements De1Interface {
-  MockDe1({String deviceId = "MockDe1"}): _deviceId = deviceId;
+  MockDe1({String deviceId = "MockDe1"}) : _deviceId = deviceId;
 
   StreamController<MachineSnapshot> _snapshotStream =
       StreamController.broadcast();
+
+  final _log = Logger("MockDe1");
 
   Timer? _stateTimer;
 
@@ -47,7 +51,7 @@ class MockDe1 implements De1Interface {
   @override
   Stream<MachineSnapshot> get currentSnapshot => _snapshotStream.stream;
 
-	String _deviceId = "MockDe1";
+  String _deviceId = "MockDe1";
 
   @override
   String get deviceId => _deviceId;
@@ -365,6 +369,25 @@ class MockDe1 implements De1Interface {
 
   @override
   void sendRawMessage(De1RawMessage message) {
-    // TODO: implement sendRawMessage
+	_log.fine("sending raw message: ${message.toJson()}");
+	}
+
+  @override
+  Future<void> updateFirmware(Uint8List fwImage,
+      {required void Function(double) onProgress}) async {
+    // uploading bytes ...
+    final chunkSize = 4096;
+    final total = fwImage.length;
+    for (int offset = 0; offset < total; offset += chunkSize) {
+      // Simulate work
+      await Future.delayed(Duration(milliseconds: 20));
+
+      // Send chunk to device...
+      // await sendChunk(data.sublist(offset, min(offset + chunkSize, total)));
+
+      // Report progress
+      onProgress(offset / total);
+    }
+    onProgress(1.0);
   }
 }

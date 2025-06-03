@@ -1,4 +1,6 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 
 import 'settings_service.dart';
 
@@ -19,9 +21,12 @@ class SettingsController with ChangeNotifier {
 
   late bool _bypassShotController;
 
+  late String _logLevel;
+
   // Allow Widgets to read the user's preferred ThemeMode.
   ThemeMode get themeMode => _themeMode;
   bool get bypassShotController => _bypassShotController;
+  String get logLevel => _logLevel;
 
   /// Load the user's settings from the SettingsService. It may load from a
   /// local database or the internet. The controller only knows it can load the
@@ -29,6 +34,7 @@ class SettingsController with ChangeNotifier {
   Future<void> loadSettings() async {
     _themeMode = await _settingsService.themeMode();
     _bypassShotController = await _settingsService.bypassShotController();
+    _logLevel = await _settingsService.logLevel();
 
     // Important! Inform listeners a change has occurred.
     notifyListeners();
@@ -62,5 +68,26 @@ class SettingsController with ChangeNotifier {
     notifyListeners();
 
     await _settingsService.updateBypassShotController(bypass);
+  }
+
+  Future<void> updateLogLevel(String? newLogLevel) async {
+    if (newLogLevel == null) {
+      return;
+    }
+    if (newLogLevel == _logLevel) {
+      return;
+    }
+    final loggerLevel =
+        Level.LEVELS.firstWhereOrNull((e) => e.name == newLogLevel);
+    if (loggerLevel == null) {
+      return;
+    }
+    Logger.root.level = loggerLevel;
+
+    _logLevel = newLogLevel;
+
+    notifyListeners();
+
+    await _settingsService.updateLogLevel(newLogLevel);
   }
 }

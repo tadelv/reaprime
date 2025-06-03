@@ -1,6 +1,11 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// Displays detailed information about a SampleItem.
 class De1DebugView extends StatefulWidget {
@@ -20,7 +25,7 @@ class _De1DebugViewState extends State<De1DebugView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Item Details')),
+      appBar: AppBar(title: const Text('Device Details')),
       body: Center(
         child: Padding(
           padding: EdgeInsets.all(8),
@@ -28,17 +33,22 @@ class _De1DebugViewState extends State<De1DebugView> {
             direction: Axis.horizontal,
             children: [
               Expanded(
-                child: Flexible(
-                  flex: 1,
-                  child: StreamBuilder(
+                child: Column(children: [
+                  Text(
+                    "Shot snapshot:",
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  StreamBuilder(
                     stream: widget.machine.currentSnapshot,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.active) {
                         var diff =
-                            snapshot.data?.timestamp.difference(_lastDate) ?? Duration.zero;
+                            snapshot.data?.timestamp.difference(_lastDate) ??
+                                Duration.zero;
                         _lastDate = snapshot.data?.timestamp ?? DateTime.now();
                         return Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: machineState(snapshot, diff));
                       } else if (snapshot.connectionState ==
                           ConnectionState.waiting) {
@@ -49,23 +59,155 @@ class _De1DebugViewState extends State<De1DebugView> {
                       );
                     },
                   ),
-                ),
+                ]),
               ),
-              Flexible(
-                  flex: 1,
-                  child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: _shotSettings(widget.machine.shotSettings))),
-              Flexible(
-                  flex: 1,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: _waterLevels(widget.machine.waterLevels),
-                  )),
+              Expanded(
+                child: Column(children: [
+                  Text(
+                    "Shot settings:",
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  _shotSettings(widget.machine.shotSettings),
+                ]),
+              ),
+              Expanded(
+                child: Column(children: [
+                  Text(
+                    "Water levels:",
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  _waterLevels(widget.machine.waterLevels),
+                ]),
+              ),
+              Expanded(
+                  child: Column(
+                children: [
+                  Text(
+                    "Machine info:",
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  // TODO: firmware version
+                  ShadButton(
+                    child: const Text("Firmware update"),
+                    onTapUp: (_) async {
+                      FilePickerResult? result =
+                          await FilePicker.platform.pickFiles();
+
+                      if (result == null) return;
+
+                      File file = File(result.files.single.path!);
+                      final data = await file.readAsBytes();
+
+                      if (!context.mounted) return;
+
+                      double progress = 0.0;
+                      final progressNotifier = ValueNotifier<double>(0.0);
+
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (context) {
+                          return ValueListenableBuilder<double>(
+                            valueListenable: progressNotifier,
+                            builder: (context, value, _) {
+                              return ShadDialog(
+                                title: const Text("Updating firmware..."),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      LinearProgressIndicator(value: value),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                          "${(value * 100).toStringAsFixed(0)}%"),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      );
+
+                      try {
+                        await widget.machine.updateFirmware(
+                          data,
+                          onProgress: (p) {
+                            progressNotifier.value = p;
+                          },
+                        );
+                      } catch (e) {
+                        if (context.mounted) {
+                          Navigator.of(context).pop(); // Close progress dialog
+                          showShadDialog(
+                            context: context,
+                            builder: (context) => ShadDialog(
+                              title: const Text("Firmware update failed"),
+                              child: Text(e.toString()),
+                              actions: [
+                                ShadButton(
+                                  child: const Text("OK"),
+                                  onTapUp: (_) => Navigator.of(context).pop(),
+                                )
+                              ],
+                            ),
+                          );
+                        }
+                        return;
+                      }
+
+                      if (context.mounted) {
+                        Navigator.of(context).pop(); // Close progress dialog
+                      }
+                    },
+                  ),
+                  _serialComms(context)
+                ],
+              ))
             ],
           ),
         ),
       ),
+    );
+  }
+
+  final TextEditingController _serialPayloadController = TextEditingController();
+  final TextEditingController _serialCharacteristicController = TextEditingController();
+
+  Widget _serialComms(BuildContext context) {
+    return Column(
+      spacing: 8.0,
+      children: [
+        SizedBox(
+          height: 16.0,
+        ),
+        Text("Send raw command:"),
+        Text("Characteristic (for BLE):"),
+        Padding(
+          padding: EdgeInsetsGeometry.all(8.0),
+          child: ShadInput(
+            controller: _serialCharacteristicController,
+          ),
+        ),
+        Text("Payload:"),
+        Padding(
+          padding: EdgeInsetsGeometry.all(8.0),
+          child: ShadInput(
+            controller: _serialPayloadController,
+          ),
+        ),
+        ShadButton(
+          child: Text("Send"),
+          onTapUp: (e) {
+            widget.machine.sendRawMessage(De1RawMessage(
+                type: De1RawMessageType.request,
+                operation: De1RawOperationType.write,
+                characteristicUUID: _serialCharacteristicController.text,
+                payload: _serialPayloadController.text));
+          },
+        )
+      ],
     );
   }
 
@@ -120,9 +262,12 @@ class _De1DebugViewState extends State<De1DebugView> {
       stream: shotSettings,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.active) {
-          return Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [Text("${snapshot.data!.steamSetting}")]);
+          return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text(
+                "steam setting 0x${snapshot.data!.steamSetting.toRadixString(16).padLeft(2, '0')}"),
+            Text(
+                "target group temp ${snapshot.data!.groupTemp.toStringAsFixed(1)}")
+          ]);
         }
         return Text("Waiting for data ${snapshot.connectionState}");
       },
@@ -137,7 +282,9 @@ class _De1DebugViewState extends State<De1DebugView> {
           return Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text("water level: ${snapshot.data!.currentPercentage}%"),
+              Text("water level: ${snapshot.data!.currentPercentage}"),
+              Text(
+                  "threshold level: ${snapshot.data!.warningThresholdPercentage}"),
             ],
           );
         }

@@ -330,14 +330,14 @@ class _ProfileState extends State<ProfileTile> {
               decoration: ShadDecoration(merge: false),
               controller: textController,
               keyboardType: TextInputType.number,
-              prefix: ShadButton.ghost(
+              leading: ShadButton.ghost(
                 child: Text("-"),
                 onPressed: () {
                   endTemp -= 1.0;
                   textController.text = endTemp.toStringAsFixed(1);
                 },
               ),
-              suffix: ShadButton.ghost(
+              trailing: ShadButton.ghost(
                 child: Text("+"),
                 onPressed: () {
                   endTemp += 1.0;
@@ -378,7 +378,7 @@ class _ProfileState extends State<ProfileTile> {
         .toStringAsFixed(1);
     return ShadPopover(
       anchor: ShadAnchorAuto(
-          verticalOffset: 0, preferBelow: true, followTargetOnResize: true),
+          offset: Offset(0, 0), followTargetOnResize: true),
       controller: weightPopoverController,
       popover: (context) => SizedBox(
         width: 288,
