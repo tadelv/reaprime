@@ -52,7 +52,7 @@ class ScaleController {
 
   MovingAverage weightFlowAverage = MovingAverage(10);
 
-  static const smoothingWindowDuration = Duration(milliseconds: 300);
+  static const smoothingWindowDuration = Duration(milliseconds: 600);
 
   FlowCalculator _flowCalculator =
       FlowCalculator(windowDuration: smoothingWindowDuration);

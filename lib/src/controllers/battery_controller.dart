@@ -13,7 +13,7 @@ class BatteryController {
   bool _isCharging = false;
 
   BatteryController(this._controller) {
-    _batteryCheckTimer = Timer.periodic(Duration(minutes: 1), (Timer t) async {
+    _batteryCheckTimer = Timer.periodic(Duration(minutes: 3), (Timer t) async {
       var chargeLevel = await _battery.batteryLevel;
       var batteyState = await _battery.batteryState;
       _log.fine("checking battery: ${chargeLevel}, ${batteyState.name}");
