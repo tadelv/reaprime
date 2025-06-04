@@ -80,6 +80,7 @@ void main() async {
   final persistenceController = PersistenceController(
     storageService: FileStorageService(path: storagePath!),
   );
+  persistenceController.loadShots();
 
   final settingsController = SettingsController(SettingsService());
   final deviceController = DeviceController(services);

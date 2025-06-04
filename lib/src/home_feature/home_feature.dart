@@ -146,8 +146,8 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              FutureBuilder(
-                  future: widget.persistenceController.loadShots(),
+              StreamBuilder(
+                  stream: widget.persistenceController.shots,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return Center(child: CircularProgressIndicator());
