@@ -3,8 +3,6 @@ part of "serial_de1.dart";
 extension SerialDe1Firmware on SerialDe1 {
   Future<void> _updateFirmware(Uint8List fwImage, void Function(double) onProgress) async {
     _log.info("Starting firmware upgrade");
-    // FIXME: check if this helps with UI lock
-    await Future.delayed(Duration(seconds: 1));
 
     await requestState(MachineState.sleeping);
 
@@ -23,7 +21,7 @@ extension SerialDe1Firmware on SerialDe1 {
     while (count < 10) {
       count += 1;
       _log.info("Waiting $count seconds on firmware to erase");
-      sleep(Duration(seconds: 1));
+      await Future.delayed(Duration(seconds: 1));
     }
 
     _log.info("Starting write");
@@ -46,7 +44,7 @@ extension SerialDe1Firmware on SerialDe1 {
     while (count < 10) {
       count += 1;
       _log.info("Waiting $count seconds on firmware to verify");
-      sleep(Duration(seconds: 1));
+      await Future.delayed(Duration(seconds: 1));
     }
 
 		_log.info("Finished with fw upgrade");
@@ -68,13 +66,13 @@ extension SerialDe1Firmware on SerialDe1 {
 
       await _transport.writeCommand(
           "<F>${data.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
-					sleep(Duration(milliseconds: 5));
+					await Future.delayed(Duration(milliseconds: 5));
 
 			onProgress(min(i / total, 1.0));
     }
   }
 
-  _parseFWMapRequest(ByteData data) {
+  Future<void> _parseFWMapRequest(ByteData data) async {
     final request = FWMapRequestData.from(data);
     _log.fine(
         "FW map recv: ${request.windowIncrement}, ${request.firmwareToErase}, ${request.firmwareToMap}, "
