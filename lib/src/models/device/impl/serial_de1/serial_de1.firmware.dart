@@ -3,6 +3,8 @@ part of "serial_de1.dart";
 extension SerialDe1Firmware on SerialDe1 {
   Future<void> _updateFirmware(Uint8List fwImage, void Function(double) onProgress) async {
     _log.info("Starting firmware upgrade");
+    // FIXME: check if this helps with UI lock
+    await Future.delayed(Duration(seconds: 1));
 
     await requestState(MachineState.sleeping);
 
@@ -66,7 +68,7 @@ extension SerialDe1Firmware on SerialDe1 {
 
       await _transport.writeCommand(
           "<F>${data.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
-					sleep(Duration(milliseconds: 3));
+					sleep(Duration(milliseconds: 5));
 
 			onProgress(min(i / total, 1.0));
     }
