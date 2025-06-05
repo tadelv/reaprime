@@ -14,12 +14,12 @@ final class FWMapRequestData {
   });
 
   factory FWMapRequestData.from(ByteData data) {
-    final int window = data.getInt8(0);
-    final int firmwareToErase = data.getInt8(1);
-    final int erase = data.getInt8(2);
-    final int errorHi = data.getInt8(3);
-    final int errorMid = data.getInt8(4);
-    final int errorLow = data.getInt8(5);
+    final int window = data.getInt16(0);
+    final int firmwareToErase = data.getInt8(2);
+    final int erase = data.getInt8(3);
+    final int errorHi = data.getInt8(4);
+    final int errorMid = data.getInt8(5);
+    final int errorLow = data.getInt8(6);
 
     return FWMapRequestData(
       windowIncrement: window,
@@ -30,13 +30,13 @@ final class FWMapRequestData {
   }
 
   ByteData asData() {
-    final data = ByteData(6);
-    data.setInt8(0, windowIncrement);
-    data.setInt8(1, firmwareToErase);
-    data.setInt8(2, firmwareToMap);
-    data.setInt8(3, error[0]);
-    data.setInt8(4, error[1]);
-    data.setInt8(5, error[2]);
+    final data = ByteData(7);
+    data.setInt16(0, windowIncrement);
+    data.setInt8(2, firmwareToErase);
+    data.setInt8(3, firmwareToMap);
+    data.setInt8(4, error[0]);
+    data.setInt8(5, error[1]);
+    data.setInt8(6, error[2]);
     return data;
   }
 }
