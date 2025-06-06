@@ -7,8 +7,8 @@ extension De1Firmware on De1 {
 
     await requestState(MachineState.sleeping);
 
-    final completer = Completer<void>();
-    FWUpgradeState currentState = FWUpgradeState.erase;
+    // final completer = Completer<void>();
+    // FWUpgradeState currentState = FWUpgradeState.erase;
 
     // TODO: should be refactored at some point, currently can not unsub in ble
     // late final StreamSubscription<ByteData> unsub;
@@ -16,7 +16,7 @@ extension De1Firmware on De1 {
     // unsub = _subscribe(Endpoint.fwMapRequest, (ByteData data) async {
     _subscribe(Endpoint.fwMapRequest, (ByteData data) async {
       final request = FWMapRequestData.from(data);
-      _log.fine(
+      _log.info(
           "FW map recv: ${request.windowIncrement}, ${request.firmwareToErase}, ${request.firmwareToMap}, "
           "err: 0x${request.error.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
 
@@ -75,7 +75,7 @@ extension De1Firmware on De1 {
     while (count < 10) {
       count += 1;
       _log.info("Waiting $count seconds on firmware to erase");
-      sleep(Duration(seconds: 1));
+      await Future.delayed(Duration(seconds: 1));
     }
 
     await uploadFW(fwImage, onProgress);
@@ -95,6 +95,8 @@ extension De1Firmware on De1 {
     );
 
     _log.info("Sent check for errors");
+
+    onProgress(1.0);
   }
 
   Future<void> uploadFW(
@@ -102,14 +104,15 @@ extension De1Firmware on De1 {
     final total = list.length;
     for (int i = 0; i < list.length; i += 16) {
       final chunkLength = (i + 16 <= list.length) ? 16 : list.length - i;
-      final data = Uint8List(3 + chunkLength);
+      final data = Uint8List(4 + chunkLength);
       final address = encodeU24P0(i);
 
-      data[0] = address[0];
-      data[1] = address[1];
-      data[2] = address[2];
+      data[0] = chunkLength;
+      data[1] = address[0];
+      data[2] = address[1];
+      data[3] = address[2];
 
-      data.setRange(3, 3 + chunkLength, list, i);
+      data.setRange(4, 4 + chunkLength, list, i);
 
       await _write(Endpoint.writeToMMR, data);
       onProgress(min(i / total, 1.0));
