@@ -5,6 +5,7 @@ import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/home_feature/forms/hot_water_form.dart';
 import 'package:reaprime/src/home_feature/forms/steam_form.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/device.dart';
 import 'package:rxdart/subjects.dart';
 
 part 'de1_controller.defaults.dart';
@@ -59,26 +60,49 @@ class De1Controller {
     _log.info("checking ${_deviceController.devices}");
   }
 
-  connectToFirstAvailableDe1() {
-    _deviceController.deviceStream.listen((devices) async {
-      var de1List = devices.whereType<De1Interface>().toList();
-      if (de1List.firstOrNull != null && _de1 == null) {
-        var de1 = de1List.first;
-      }
-    });
-  }
-
   connectToDe1(De1Interface de1Interface) async {
     _de1 = de1Interface;
     _log.fine("found de1, connecting");
     await de1Interface.onConnect();
     _de1Controller.add(_de1);
 
-    _de1!.ready.listen((ready) {
-      if (ready) {
-        _initializeData();
-      }
-    });
+    _subscriptions.add(
+      _de1!.ready.listen(
+        (ready) {
+          if (ready) {
+            _initializeData();
+          }
+        },
+      ),
+    );
+
+    _subscriptions.add(
+      _de1!.connectionState.listen(
+        (connectionData) {
+          switch (connectionData) {
+            case ConnectionState.connecting:
+              _log.info("device $_de1 connecting");
+            case ConnectionState.connected:
+              _log.info("device $_de1 connected");
+            case ConnectionState.disconnecting:
+              _log.info("device $_de1 disconnecting");
+            case ConnectionState.disconnected:
+              _log.info("device $_de1 disconnected, resetting");
+              _onDisconnect();
+          }
+        },
+      ),
+    );
+  }
+
+  void _onDisconnect() {
+    _log.info("resetting de1");
+    _de1 = null;
+    _de1Controller.add(_de1);
+    for (var sub in _subscriptions) {
+      sub.cancel();
+    }
+    _subscriptions.clear();
   }
 
   _initializeData() async {
