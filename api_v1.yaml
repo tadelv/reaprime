@@ -169,6 +169,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /api/v1/de1/firmware:
+    post:
+      summary: Push new firmware to the De1
+      description: Send a firmware file to De1, the call will wait until the firmware upgrade is complete (which might be a long time)
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+      responses:
+        "200":
+          description: Firmware update successful. Need to restart De1 to load new firmware
+        "500":
+          description: Something went wrong during the firmware upgrade process. Check the response and Rea logs
+
   /api/v1/scale/tare:
     put:
       summary: Tare Scale
