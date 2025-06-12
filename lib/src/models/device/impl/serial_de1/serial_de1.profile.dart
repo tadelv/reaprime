@@ -24,7 +24,7 @@ extension De1Profile on SerialDe1 {
     // max flow
     data[index] = (0.5 + 12.0 * 16.0).toInt();
 
-    await _transport.writeCommand(
+    await _sendCommand(
         "<O>${data.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
   }
 
@@ -52,7 +52,7 @@ extension De1Profile on SerialDe1 {
       index++;
       Helper.convert_float_to_U10P0(step.volume, data, index);
 
-      await _transport.writeCommand(
+      await _sendCommand(
           "<P>${data.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
     }
 
@@ -65,7 +65,7 @@ extension De1Profile on SerialDe1 {
       data[0] = stepIndex;
 
       if (step.limiter == null) {
-        await _transport.writeCommand(
+        await _sendCommand(
             "<P>${data.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
         continue;
       }
@@ -81,7 +81,7 @@ extension De1Profile on SerialDe1 {
       data[6] = 0;
       data[7] = 0;
 
-      await _transport.writeCommand(
+      await _sendCommand(
           "<P>${data.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
     }
   }
@@ -98,7 +98,7 @@ extension De1Profile on SerialDe1 {
     data[5] = 0;
     data[6] = 0;
     data[7] = 0;
-    await _transport.writeCommand(
+    await _sendCommand(
         "<P>${data.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
   }
 }

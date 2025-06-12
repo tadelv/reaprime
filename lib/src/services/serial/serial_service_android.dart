@@ -1,7 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:js_interop';
 import 'dart:typed_data';
+import 'dart:ui';
 
+import 'package:flutter/material.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/serial_de1/serial_de1.dart';
@@ -42,7 +46,23 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
   @override
   Future<void> initialize() async {
     List<UsbDevice> devices = await UsbSerial.listDevices();
-    _log.shout("found ${devices}");
+    _log.info("found ${devices}");
+
+    UsbSerial.usbEventStream?.listen((data) {
+      switch (data.event) {
+        case UsbEvent.ACTION_USB_DETACHED:
+          // we lost connectivity, disconnect all devices.
+          for (Device d in _devices) {
+            d.disconnect();
+          }
+          _devices.clear();
+          _machineSubject.add(_devices);
+          break;
+        default:
+          // require user initiated scan for now
+          break;
+      }
+    });
   }
 
   @override
@@ -99,7 +119,11 @@ class AndroidSerialPort implements SerialTransport {
     await _port.setRTS(false);
 
     _port.setPortParameters(
-        115200, UsbPort.DATABITS_8, UsbPort.STOPBITS_1, UsbPort.PARITY_NONE);
+      115200,
+      UsbPort.DATABITS_8,
+      UsbPort.STOPBITS_1,
+      UsbPort.PARITY_NONE,
+    );
 
     _portSubscription = _port.inputStream?.listen((Uint8List event) {
       final input = utf8.decode(event);

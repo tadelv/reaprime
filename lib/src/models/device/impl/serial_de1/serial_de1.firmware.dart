@@ -7,7 +7,7 @@ extension SerialDe1Firmware on SerialDe1 {
 
     await requestState(MachineState.sleeping);
 
-    await _transport.writeCommand("<+I>");
+    await _sendCommand("<+I>");
 
     final eraseFWRequest = FWMapRequestData(
       windowIncrement: 0,
@@ -16,7 +16,7 @@ extension SerialDe1Firmware on SerialDe1 {
       error: Uint8List.fromList([0xff, 0xff, 0xff]),
     );
 
-    await _transport.writeCommand(
+    await _sendCommand(
         "<I>${eraseFWRequest.asData().buffer.asUint8List().map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
     int count = 0;
     while (count < 10) {
@@ -38,7 +38,7 @@ extension SerialDe1Firmware on SerialDe1 {
       firmwareToMap: 1,
       error: Uint8List.fromList([0xff, 0xff, 0xff]),
     );
-    await _transport.writeCommand(
+    await _sendCommand(
         "<I>${verifyRequest.asData().buffer.asUint8List().map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
 
     count = 5;
@@ -65,7 +65,7 @@ extension SerialDe1Firmware on SerialDe1 {
 
       data.setRange(4, 4 + chunkLength, list, i);
 
-      await _transport.writeCommand(
+      await _sendCommand(
           "<F>${data.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
       await Future.delayed(Duration(milliseconds: 5));
 

@@ -15,7 +15,7 @@ extension De1Mmr on SerialDe1 {
 
     _log.fine('sending read req ${buffer.map(toHexString).toList()}');
 
-    await _transport.writeCommand(
+    await _sendCommand(
         "<E>${buffer.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
 
     var result = await _mmrController.stream.firstWhere((element) {
@@ -45,7 +45,7 @@ extension De1Mmr on SerialDe1 {
       buffer[i + 4] = bufferData[i++];
     }
     _log.fine('payload ${bufferData.map(toHexString).toList()}');
-    return _transport.writeCommand(
+    return _sendCommand(
         "<F>${buffer.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
   }
 
