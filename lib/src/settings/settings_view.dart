@@ -6,6 +6,7 @@ import 'package:flutter_archive/flutter_archive.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/src/sample_feature/sample_item_list_view.dart';
+import 'package:reaprime/src/webui_support/webui_view.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'settings_controller.dart';
@@ -124,7 +125,6 @@ class SettingsView extends StatelessWidget {
                 ),
               ],
             ),
-
             DropdownButton<String>(
               value: controller.logLevel,
               onChanged: controller.updateLogLevel,
@@ -146,6 +146,12 @@ class SettingsView extends StatelessWidget {
                   child: Text('Warning'),
                 ),
               ],
+            ),
+            ShadButton.secondary(
+              onPressed: () {
+                Navigator.of(context).pushNamed(WebUIView.routeName);
+              },
+              child: Text("Web"),
             ),
           ],
         ),

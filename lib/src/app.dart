@@ -12,6 +12,7 @@ import 'package:reaprime/src/history_feature/history_feature.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/permissions_feature/permissions_view.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
+import 'package:reaprime/src/webui_support/webui_view.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
@@ -185,12 +186,14 @@ class MyApp extends StatelessWidget {
                       persistenceController: persistenceController,
                     );
                   case HistoryFeature.routeName:
-                  final possibleShot = routeSettings.arguments as String;
+                    final possibleShot = routeSettings.arguments as String;
                     return HistoryFeature(
                       persistenceController: persistenceController,
                       workflowController: workflowController,
                       selectedShot: possibleShot,
                     );
+                  case WebUIView.routeName:
+                    return WebUIView();
                   default:
                     return PermissionsView(
                       deviceController: deviceController,

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Bluetooth Devices</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 16px;
+      }
+      h1 {
+        font-size: 24px;
+      }
+      .device {
+        margin-bottom: 12px;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+      }
+      .connected {
+        color: green;
+      }
+      .disconnected {
+        color: red;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Bluetooth Devices</h1>
+    <div id="deviceList">Loading...</div>
+
+    <script>
+      async function loadDevices() {
+        const deviceListEl = document.getElementById("deviceList");
+        try {
+          const response = await fetch("http://localhost:8080/api/v1/devices"); // Change to your API base
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const devices = await response.json();
+
+          if (devices.length === 0) {
+            deviceListEl.innerHTML = "<p>No devices found.</p>";
+            return;
+          }
+
+          deviceListEl.innerHTML = ""; // Clear loading message
+          devices.forEach((device) => {
+            const div = document.createElement("div");
+            div.className = `device ${device.state}`;
+            div.innerHTML = `
+            <strong>${device.name}</strong><br>
+            ID: ${device.id}<br>
+            State: <span class="${device.state}">${device.state}</span>
+          `;
+            deviceListEl.appendChild(div);
+          });
+        } catch (err) {
+          deviceListEl.innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
+          console.error("Failed to load devices:", err);
+        }
+      }
+
+      loadDevices();
+    </script>
+  </body>
+</html>

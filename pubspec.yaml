@@ -40,6 +40,7 @@ dependencies:
        url: https://github.com/NeariX67/flutter_libserialport.git
        ref: main
   usb_serial: ^0.5.2
+  webview_flutter: ^4.13.0
     # path: ../flutter_libserialport
     # git:
     #   url: https://github.com/tadelv/flutter_libserialport.git
@@ -60,3 +61,4 @@ flutter:
   assets:
     # Add assets from the images directory to the application.
     - assets/images/
+    - assets/web/
