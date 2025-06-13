@@ -36,6 +36,19 @@ class SettingsService {
   Future<void> updateLogLevel(String newLogLevel) async {
     await prefs.setString(SettingsKeys.logLevel.name, newLogLevel);
   }
+
+  Future<bool> recordShotPreheat() async {
+    return await prefs.getBool(SettingsKeys.recordShotPreheat.name) ?? false;
+  }
+
+  Future<void> setRecordShotPreheat(bool value) async {
+    return await prefs.setBool(SettingsKeys.recordShotPreheat.name, value);
+  }
 }
 
-enum SettingsKeys { themeMode, bypassShotController, logLevel }
+enum SettingsKeys {
+  themeMode,
+  bypassShotController,
+  logLevel,
+  recordShotPreheat
+}

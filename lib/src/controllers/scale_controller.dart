@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';

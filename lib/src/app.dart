@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:collection/collection.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter/material.dart';
 // import 'package:flutter_gen/gen_l10n/app_localizations.dart';
@@ -184,9 +185,11 @@ class MyApp extends StatelessWidget {
                       persistenceController: persistenceController,
                     );
                   case HistoryFeature.routeName:
+                  final possibleShot = routeSettings.arguments as String;
                     return HistoryFeature(
                       persistenceController: persistenceController,
                       workflowController: workflowController,
+                      selectedShot: possibleShot,
                     );
                   default:
                     return PermissionsView(
