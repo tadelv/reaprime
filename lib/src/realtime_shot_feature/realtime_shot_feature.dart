@@ -182,7 +182,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
   Widget _buttons(BuildContext context) {
     return Row(
       children: [
-        Spacer(),
+        SizedBox(width: 50,),
         ShadButton(
           enabled: backEnabled,
           child: Icon(LucideIcons.arrowLeft),
@@ -190,9 +190,9 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
             Navigator.pop(context);
           },
         ),
-        Spacer(),
+        SizedBox(width: 50,),
         SizedBox(
-          width: 300,
+          width: 100,
           child: StreamBuilder(
             stream: _shotController.shotData,
             builder: (context, snapshot) {
@@ -207,6 +207,8 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
             },
           ),
         ),
+        Spacer(),
+        ShotDataView(firstLine: "Profile: ${_shotController.targetProfile.title}", secondLine: "Target weight: ${_shotController.doseData.doseIn.toStringAsFixed(1)}g"),
         Spacer(),
         ShadButton.destructive(
           enabled: !backEnabled,
@@ -224,14 +226,49 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
                 .connectedDe1()
                 .requestState(MachineState.skipStep);
           },
+          trailing: Icon(LucideIcons.fastForward),
           child: Text('Skip Step'),
         ),
         Spacer(),
-        Text(
-            "Status: ${_shotSnapshots.lastOrNull?.machine.state.substate.name}"),
+        ShotStateView(
+            status: _shotSnapshots.lastOrNull?.machine.state.substate.name,
+            step: _currentStep()),
         Spacer(),
-        Text("Step: ${_currentStep()}"),
-        Spacer(),
+      ],
+    );
+  }
+}
+
+class ShotStateView extends StatelessWidget {
+  final String? status;
+  final String step;
+
+  const ShotStateView({super.key, required this.status, required this.step});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text("Status: $status"),
+        Text("Step: $step"),
+      ],
+    );
+  }
+}
+
+class ShotDataView extends StatelessWidget {
+  final String? firstLine;
+  final String secondLine;
+
+  const ShotDataView(
+      {super.key, required this.firstLine, required this.secondLine});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text("$firstLine"),
+        Text(secondLine),
       ],
     );
   }
