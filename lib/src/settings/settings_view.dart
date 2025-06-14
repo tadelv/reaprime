@@ -6,6 +6,7 @@ import 'package:flutter_archive/flutter_archive.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/src/sample_feature/sample_item_list_view.dart';
+import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_view.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -149,8 +150,8 @@ class SettingsView extends StatelessWidget {
             ),
             ShadButton.secondary(
               onPressed: () {
-                  _pickFolderAndLoadHtml(context);
-                },
+                _pickFolderAndLoadHtml(context);
+              },
               child: Text("Web"),
             ),
           ],
@@ -163,8 +164,11 @@ class SettingsView extends StatelessWidget {
     String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
 
     if (selectedDirectory != null) {
+      final dir = Directory(selectedDirectory);
+      Logger("Settings").shout("list dir: ${dir.listSync(recursive: true)}");
       final indexFile = File('$selectedDirectory/index.html');
       final itExists = await indexFile.exists();
+      await WebUIService.serveFolderAtPath(selectedDirectory);
       if (context.mounted == false) {
         return;
       }

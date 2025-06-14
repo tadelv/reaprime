@@ -196,7 +196,6 @@ class MyApp extends StatelessWidget {
                       selectedShot: possibleShot,
                     );
                   case WebUIView.routeName:
-                  webUIService.serveFolderAtPath(routeSettings.arguments as String);
                     return WebUIView(
                       indexPath: routeSettings.arguments as String,
                     );

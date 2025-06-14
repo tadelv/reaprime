@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 class WebUIView extends StatefulWidget {
@@ -25,19 +28,22 @@ class _WebuiViewState extends State<WebUIView> {
     _controller = WebViewController(onPermissionRequest: (request) {
       _log.info("onPermissionRequest:", request);
     })
+      ..clearCache()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(onWebResourceError: (error) {
           _log.warning("onWebResourceError", error);
+          _log.warning("${error.description}\n${error.errorCode}");
         }, onHttpError: (error) {
           _log.warning("onHttpError:", error);
+          _log.warning("${error.runtimeType}, ${error.response?.statusCode}, ${error.response?.headers}");
         }, onNavigationRequest: (request) {
           return NavigationDecision.navigate;
         }, onPageStarted: (page) {
           _log.info("loading page: $page");
         }),
       )
-      ..loadRequest(Uri.http('localhost:3000'));
+      ..loadRequest(Uri.parse('http://${WebUIService.serverIP()}:3000/index.html'));
   }
 
   @override
