@@ -149,13 +149,34 @@ class SettingsView extends StatelessWidget {
             ),
             ShadButton.secondary(
               onPressed: () {
-                Navigator.of(context).pushNamed(WebUIView.routeName);
-              },
+                  _pickFolderAndLoadHtml(context);
+                },
               child: Text("Web"),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _pickFolderAndLoadHtml(BuildContext context) async {
+    String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
+
+    if (selectedDirectory != null) {
+      final indexFile = File('$selectedDirectory/index.html');
+      final itExists = await indexFile.exists();
+      if (context.mounted == false) {
+        return;
+      }
+      if (itExists) {
+        Navigator.of(context)
+            .pushNamed(WebUIView.routeName, arguments: selectedDirectory);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('index.html not found in selected folder')),
+        );
+      }
+    }
   }
 }

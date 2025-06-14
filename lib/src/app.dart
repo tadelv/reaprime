@@ -12,6 +12,7 @@ import 'package:reaprime/src/history_feature/history_feature.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/permissions_feature/permissions_view.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
+import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_view.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
@@ -36,6 +37,7 @@ class NavigationService {
 }
 
 bool isRealtimeShotFeatureActive = false;
+  final WebUIService webUIService = WebUIService();
 
 /// The Widget that configures your application.
 class MyApp extends StatelessWidget {
@@ -55,6 +57,7 @@ class MyApp extends StatelessWidget {
   final ScaleController scaleController;
   final WorkflowController workflowController;
   final PersistenceController persistenceController;
+
 
   @override
   Widget build(BuildContext context) {
@@ -193,7 +196,10 @@ class MyApp extends StatelessWidget {
                       selectedShot: possibleShot,
                     );
                   case WebUIView.routeName:
-                    return WebUIView();
+                  webUIService.serveFolderAtPath(routeSettings.arguments as String);
+                    return WebUIView(
+                      indexPath: routeSettings.arguments as String,
+                    );
                   default:
                     return PermissionsView(
                       deviceController: deviceController,
