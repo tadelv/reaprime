@@ -182,7 +182,9 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
   Widget _buttons(BuildContext context) {
     return Row(
       children: [
-        SizedBox(width: 50,),
+        SizedBox(
+          width: 50,
+        ),
         ShadButton(
           enabled: backEnabled,
           child: Icon(LucideIcons.arrowLeft),
@@ -190,7 +192,9 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
             Navigator.pop(context);
           },
         ),
-        SizedBox(width: 50,),
+        SizedBox(
+          width: 50,
+        ),
         SizedBox(
           width: 100,
           child: StreamBuilder(
@@ -208,7 +212,11 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
           ),
         ),
         Spacer(),
-        ShotDataView(firstLine: "Profile: ${_shotController.targetProfile.title}", secondLine: "Target weight: ${_shotController.doseData.doseIn.toStringAsFixed(1)}g"),
+        ShotDataView(
+          firstLine: "Profile: ${_shotController.targetProfile.title}",
+          secondLine:
+              "Target weight: ${_shotController.doseData.doseOut.toStringAsFixed(1)}g",
+        ),
         Spacer(),
         ShadButton.destructive(
           enabled: !backEnabled,
