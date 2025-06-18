@@ -11,6 +11,7 @@ import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:shelf/shelf_io.dart' as io;
 import 'package:shelf_web_socket/shelf_web_socket.dart' as sws;
+import 'package:shelf_cors_headers/shelf_cors_headers.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 
 part 'webserver/de1handler.dart';
@@ -49,7 +50,7 @@ Handler _init(
   log.info("called _init");
   var app = Router().plus;
 
-  jsonContentTypeMiddleware(Handler innerHandler) {
+  Future<Response> Function(Request request) jsonContentTypeMiddleware(Handler innerHandler) {
     return (Request request) async {
       log.fine("handling request: ${request.requestedUri.path}");
       final response = await innerHandler(request);
@@ -68,10 +69,6 @@ Handler _init(
       return response.change(headers: {
         ...response.headersAll,
         'content-type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        //'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT',
-        //'Access-Control-Allow-Headers':
-        //    'X-Requested-With, Content-Type, Authorization, Origin, Accept, Referer, User-Agent',
       });
     };
   }
@@ -82,5 +79,12 @@ Handler _init(
   de1Handler.addRoutes(app);
   scaleHandler.addRoutes(app);
 
-  return app.call;
+
+  final handler = const Pipeline()
+  .addMiddleware(logRequests())
+  .addMiddleware(corsHeaders())
+  .addMiddleware(jsonContentTypeMiddleware)
+  .addHandler(app.call);
+
+  return handler;
 }
