@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
@@ -17,6 +18,7 @@ import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 part 'webserver/de1handler.dart';
 part 'webserver/scale_handler.dart';
 part 'webserver/devices_handler.dart';
+part 'webserver/settings_handler.dart';
 
 final log = Logger("Webservice");
 
@@ -24,18 +26,20 @@ Future<void> startWebServer(
   DeviceController deviceController,
   De1Controller de1Controller,
   ScaleController scaleController,
+  SettingsController settingsController,
 ) async {
   log.info("starting webserver");
   final de1Handler = De1Handler(controller: de1Controller);
   final scaleHandler = ScaleHandler(controller: scaleController);
   final deviceHandler = DevicesHandler(controller: deviceController);
-
+  final settingsHandler = SettingsHandler(controller: settingsController);
   // Start server
   final server = await io.serve(
       _init(
         deviceHandler,
         de1Handler,
         scaleHandler,
+        settingsHandler,
       ),
       '0.0.0.0',
       8080);
@@ -46,11 +50,13 @@ Handler _init(
   DevicesHandler deviceHandler,
   De1Handler de1Handler,
   ScaleHandler scaleHandler,
+  SettingsHandler settingsHandler,
 ) {
   log.info("called _init");
   var app = Router().plus;
 
-  Future<Response> Function(Request request) jsonContentTypeMiddleware(Handler innerHandler) {
+  Future<Response> Function(Request request) jsonContentTypeMiddleware(
+      Handler innerHandler) {
     return (Request request) async {
       log.fine("handling request: ${request.requestedUri.path}");
       final response = await innerHandler(request);
@@ -78,13 +84,13 @@ Handler _init(
   deviceHandler.addRoutes(app);
   de1Handler.addRoutes(app);
   scaleHandler.addRoutes(app);
-
+  settingsHandler.addRoutes(app);
 
   final handler = const Pipeline()
-  .addMiddleware(logRequests())
-  .addMiddleware(corsHeaders())
-  .addMiddleware(jsonContentTypeMiddleware)
-  .addHandler(app.call);
+      .addMiddleware(logRequests())
+      .addMiddleware(corsHeaders())
+      .addMiddleware(jsonContentTypeMiddleware)
+      .addHandler(app.call);
 
   return handler;
 }

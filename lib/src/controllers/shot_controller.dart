@@ -22,6 +22,9 @@ class ShotController {
 
   late bool _bypassSAW;
 
+  // Skip step on weight specific
+  List<int> skippedSteps = [];
+
   ShotController({
     required this.scaleController,
     required this.de1controller,
@@ -159,12 +162,14 @@ class ShotController {
           double weightFlow = scale.weightFlow;
           double projectedWeight = currentWeight + weightFlow;
           if (targetProfile.steps.length > machine.profileFrame &&
+              skippedSteps.contains(machine.profileFrame) == false &&
               targetProfile.steps[machine.profileFrame].weight != null &&
               targetProfile.steps[machine.profileFrame].weight! > 0) {
             var stepExitWeight =
                 targetProfile.steps[machine.profileFrame].weight!;
             if (projectedWeight >= stepExitWeight) {
               _log.info("Step weight reached, moving on");
+              skippedSteps.add(machine.profileFrame);
               de1controller.connectedDe1().requestState(MachineState.skipStep);
             }
           }

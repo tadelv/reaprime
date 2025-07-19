@@ -100,4 +100,6 @@ class WebUIService {
       }
     });
   }
+
+  static bool get isServing => _server != null;
 }

@@ -152,8 +152,18 @@ class SettingsView extends StatelessWidget {
               onPressed: () {
                 _pickFolderAndLoadHtml(context);
               },
-              child: Text("Web"),
+              child: Text("Load and show web"),
             ),
+            if (WebUIService.isServing)
+              ShadButton.secondary(
+                onPressed: () {
+                  Navigator.of(context).pushNamed(
+                    WebUIView.routeName,
+                    arguments: "index.html",
+                  );
+                },
+                child: Text("To Web UI"),
+              ),
           ],
         ),
       ),

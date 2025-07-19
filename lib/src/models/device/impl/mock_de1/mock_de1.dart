@@ -225,20 +225,19 @@ class MockDe1 implements De1Interface {
         );
       });
 
-  @override
-  Stream<ConnectionState> get connectionState =>
+  final BehaviorSubject<ConnectionState> _connectionState =
       BehaviorSubject.seeded(ConnectionState.connected);
 
   @override
-  Future<int> getFanThreshhold() {
-    // TODO: implement getFanThreshhold
-    throw UnimplementedError();
+  Stream<ConnectionState> get connectionState => _connectionState.stream;
+
+  @override
+  Future<int> getFanThreshhold() async {
+    return 50;
   }
 
   @override
-  Future<void> setFanThreshhold(int temp) {
-    // TODO: implement setFanThreshhold
-    throw UnimplementedError();
+  Future<void> setFanThreshhold(int temp) async {
   }
 
   @override
@@ -283,15 +282,13 @@ class MockDe1 implements De1Interface {
   }
 
   @override
-  Future<double> getFlushTimeout() {
-    // TODO: implement getFlushTimeout
-    throw UnimplementedError();
+  Future<double> getFlushTimeout() async {
+    return 10.0;
   }
 
   @override
-  Future<double> getFlushTemperature() {
-    // TODO: implement getFlushTemperature
-    throw UnimplementedError();
+  Future<double> getFlushTemperature() async {
+    return 25.0;
   }
 
   @override
@@ -301,9 +298,8 @@ class MockDe1 implements De1Interface {
   }
 
   @override
-  Future<int> getTankTempThreshold() {
-    // TODO: implement getTankTempThreshold
-    throw UnimplementedError();
+  Future<int> getTankTempThreshold() async {
+    return 20;
   }
 
   @override
@@ -358,9 +354,13 @@ class MockDe1 implements De1Interface {
   }
 
   @override
-  Future<void> setHeaterPhase2Timeout(double val) {
-    // TODO: implement setHeaterPhase2Timeout
-    throw UnimplementedError();
+  Future<void> setHeaterPhase2Timeout(double val) async {
+    // simulate disconnect
+    _connectionState.add(ConnectionState.disconnected);
+
+    Future.delayed(Duration(seconds: 10), () {
+      _connectionState.add(ConnectionState.connected);
+    });
   }
 
   @override
@@ -369,8 +369,8 @@ class MockDe1 implements De1Interface {
 
   @override
   void sendRawMessage(De1RawMessage message) {
-	_log.fine("sending raw message: ${message.toJson()}");
-	}
+    _log.fine("sending raw message: ${message.toJson()}");
+  }
 
   @override
   Future<void> updateFirmware(Uint8List fwImage,

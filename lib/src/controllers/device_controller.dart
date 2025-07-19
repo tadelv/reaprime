@@ -41,11 +41,16 @@ class DeviceController {
   Future<void> scanForDevices() async {
     // throw out all disconnected devices
     _devices.forEach((_, devices) async {
+      List<Device> devicesToRemove = [];
       for (var device in devices) {
         var state = await device.connectionState.first;
         if (state != ConnectionState.connected) {
-          devices.remove(device);
+          // devices.remove(device);
+          devicesToRemove.add(device);
         }
+      }
+      for (var device in devicesToRemove) {
+        devices.remove(device);
       }
     });
     _deviceStream.add(devices);

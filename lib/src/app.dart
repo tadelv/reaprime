@@ -37,7 +37,7 @@ class NavigationService {
 }
 
 bool isRealtimeShotFeatureActive = false;
-  final WebUIService webUIService = WebUIService();
+final WebUIService webUIService = WebUIService();
 
 /// The Widget that configures your application.
 class MyApp extends StatelessWidget {
@@ -58,7 +58,6 @@ class MyApp extends StatelessWidget {
   final WorkflowController workflowController;
   final PersistenceController persistenceController;
 
-
   @override
   Widget build(BuildContext context) {
     // Glue the SettingsController to the MaterialApp.
@@ -78,7 +77,8 @@ class MyApp extends StatelessWidget {
       if (event != null) {
         event.currentSnapshot.listen((snapshot) {
           BuildContext? context = NavigationService.context;
-          if (!isRealtimeShotFeatureActive &&
+          if (!settingsController.bypassShotController &&
+              !isRealtimeShotFeatureActive &&
               snapshot.state.state == MachineState.espresso &&
               context != null &&
               context.mounted) {

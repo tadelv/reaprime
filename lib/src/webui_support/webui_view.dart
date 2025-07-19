@@ -1,6 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
-import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -18,12 +18,39 @@ class WebUIView extends StatefulWidget {
 class _WebuiViewState extends State<WebUIView> {
   InAppWebViewController? _controller;
   final Logger _log = Logger("WebUI");
+  InAppWebViewSettings settings = InAppWebViewSettings(
+      isInspectable: kDebugMode,
+      // mediaPlaybackRequiresUserGesture: false,
+      // allowsInlineMediaPlayback: true,
+      javaScriptEnabled: true,
+      javaScriptCanOpenWindowsAutomatically: true);
+
+  PullToRefreshController? pullToRefreshController;
 
   @override
   void initState() {
     super.initState();
     _log.info("loading ${widget.indexPath}");
-
+    // if (kDebugMode) {
+    //   InAppWebViewController.setWebContentsDebuggingEnabled(true);
+    // }
+    pullToRefreshController = kIsWeb ||
+            ![TargetPlatform.iOS, TargetPlatform.android]
+                .contains(defaultTargetPlatform)
+        ? null
+        : PullToRefreshController(
+            settings: PullToRefreshSettings(
+              color: Colors.blue,
+            ),
+            onRefresh: () async {
+              if (defaultTargetPlatform == TargetPlatform.android) {
+                _controller?.reload();
+              } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+                _controller?.loadUrl(
+                    urlRequest: URLRequest(url: await _controller?.getUrl()));
+              }
+            },
+          );
     // _controller = WebViewController(onPermissionRequest: (request) {
     //   _log.info("onPermissionRequest:", request);
     // })
@@ -57,11 +84,28 @@ class _WebuiViewState extends State<WebUIView> {
   Widget _body(BuildContext context) {
     return Stack(children: [
       InAppWebView(
-        initialUrlRequest: URLRequest(url: WebUri('http://localhost:3000')),
-        onWebViewCreated: (controller) {
-          _controller = controller;
-        },
-      ),
+          initialUrlRequest: URLRequest(url: WebUri('http://localhost:3000')),
+          onWebViewCreated: (controller) {
+            _controller = controller;
+          },
+          pullToRefreshController: pullToRefreshController,
+          onProgressChanged: (controller, progress) {
+            if (progress == 100) {
+              pullToRefreshController?.endRefreshing();
+            }
+          },
+          initialSettings: settings,
+          onConsoleMessage: (controller, consoleMessage) {
+            if (kDebugMode) {
+              _log.fine("console: ${consoleMessage.message}");
+            }
+          },
+          onReceivedHttpError: (controller, request, response) {
+            _log.warning("received error: ${request}, ${response}");
+          },
+          onReceivedError: (controller, request, error) {
+            _log.warning("received error: ", error);
+          }),
       ShadButton.ghost(
         child: Text("close"),
         onPressed: () {
