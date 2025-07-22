@@ -23,7 +23,9 @@ class _WebuiViewState extends State<WebUIView> {
       // mediaPlaybackRequiresUserGesture: false,
       // allowsInlineMediaPlayback: true,
       javaScriptEnabled: true,
-      javaScriptCanOpenWindowsAutomatically: true);
+      javaScriptCanOpenWindowsAutomatically: true,
+      mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
+      );
 
   PullToRefreshController? pullToRefreshController;
 
