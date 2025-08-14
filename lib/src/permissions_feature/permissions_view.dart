@@ -44,7 +44,7 @@ class PermissionsView extends StatelessWidget {
                 case ConnectionState.none:
                   return Text("Unknown");
                 case ConnectionState.waiting:
-                  return Text("Checking");
+                  return Text("Checking, make sure Bluetooth is turned on");
                 case ConnectionState.active:
                   return Text("Done");
                 case ConnectionState.done:
@@ -72,11 +72,11 @@ class PermissionsView extends StatelessWidget {
       await Permission.bluetooth.request();
       await Permission.locationWhenInUse.request();
       await Permission.locationAlways.request();
-      await deviceController.initialize();
     } else {
-      await UniversalBle.availabilityStream.firstWhere((e) => e == AvailabilityState.poweredOn);
-      await deviceController.initialize();
+      await UniversalBle.availabilityStream
+          .firstWhere((e) => e == AvailabilityState.poweredOn);
     }
+    deviceController.initialize();
     return true;
   }
 
