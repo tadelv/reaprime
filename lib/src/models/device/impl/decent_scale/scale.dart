@@ -1,31 +1,31 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:universal_ble/universal_ble.dart';
 import 'package:logging/logging.dart' as logging;
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:rxdart/subjects.dart';
 
 class DecentScale implements Scale {
-  static String serviceUUID = 'fff0';
-  static String dataUUID = 'fff4';
-  static String writeUUID = '36f5';
+  static String serviceUUID = BleUuidParser.string('fff0');
+  static String dataUUID = BleUuidParser.string('fff4');
+  static String writeUUID = BleUuidParser.string('36f5');
 
   final String _deviceId;
 
   final StreamController<ScaleSnapshot> _streamController =
       StreamController.broadcast();
 
-  final BluetoothDevice _device;
-  late List<BluetoothService> _services;
-  late BluetoothService _service;
+  final BleDevice _device;
+  late List<BleService> _services;
+  late BleService _service;
 
   final logging.Logger _log = logging.Logger("Decent scale");
 
   DecentScale({required String deviceId})
       : _deviceId = deviceId,
-        _device = BluetoothDevice.fromId(deviceId);
+        _device = BleDevice(deviceId: deviceId, name: "Decent Scale $deviceId");
 
   @override
   Stream<ScaleSnapshot> get currentSnapshot => _streamController.stream;
@@ -48,31 +48,32 @@ class DecentScale implements Scale {
 
   @override
   Future<void> onConnect() async {
-    if (await _device.connectionState.first ==
-        BluetoothConnectionState.connected) {
+    _log.info("on connect");
+    _log.info(await _device.isConnected);
+    if (await _device.isConnected == true) {
       return;
     }
-    final subscription =
-        _device.connectionState.listen((BluetoothConnectionState state) async {
+    StreamSubscription<bool>? subscription;
+    subscription = _device.connectionStream.listen((bool state) async {
+      _log.info("state: $state");
       switch (state) {
-        case BluetoothConnectionState.connected:
+        case true:
           _connectionStateController.add(ConnectionState.connected);
           _services = await _device.discoverServices();
           _service =
-              _services.firstWhere((e) => e.serviceUuid == Guid(serviceUUID));
+              _services.firstWhere((BleService e) => e.uuid == serviceUUID);
 
           _registerNotifications();
-        case BluetoothConnectionState.disconnected:
+          // TODO: heartbeat support?
+          tare();
+        case false:
           if (await _connectionStateController.stream.first !=
               ConnectionState.connecting) {
             _connectionStateController.add(ConnectionState.disconnected);
+            subscription?.cancel();
           }
-        default:
-          break;
       }
     });
-
-    _device.cancelWhenDisconnected(subscription, delayed: true, next: true);
     await _device.connect();
   }
 
@@ -85,20 +86,23 @@ class DecentScale implements Scale {
   Future<void> tare() async {
     List<int> payload = [0x03, 0x0F, 0xFD];
     await _service.characteristics
-        .firstWhere((c) => c.characteristicUuid == Guid(writeUUID))
+        .firstWhere((c) => c.uuid == writeUUID)
         .write(payload);
   }
 
-  _registerNotifications() async {
-    final characteristic = _service.characteristics
-        .firstWhere((c) => c.characteristicUuid == Guid(dataUUID));
-    final subscription =
+  void _registerNotifications() async {
+    final characteristic =
+        _service.characteristics.firstWhere((c) => c.uuid == dataUUID);
+    // final subscription =
+        // characteristic.notifications.listen(_parseNotification);
         characteristic.onValueReceived.listen(_parseNotification);
-    _device.cancelWhenDisconnected(subscription);
-    await characteristic.setNotifyValue(true);
+    await characteristic.notifications.subscribe();
+    _log.info("subscribe");
+    // _device.cancelWhenDisconnected(subscription);
+    // await characteristic.setNotifyValue(true);
   }
 
-  _parseNotification(List<int> data) {
+  void _parseNotification(List<int> data) {
     if (data.length < 4) return;
     var d = ByteData(2);
     d.setInt8(0, data[2]);
