@@ -4,24 +4,24 @@ extension De1Subscriptions on De1 {
   void _subscribe(Endpoint e, Function(ByteData) callback) {
     _log.info('enableNotification for ${e.name}');
 
-    final characteristic = _service.characteristics
-        .firstWhere((c) => c.characteristicUuid == Guid(e.uuid));
-
-    final sub = characteristic.onValueReceived.listen((data) {
-      try {
-        callback(ByteData.sublistView(Uint8List.fromList(data)));
-      } catch (err, stackTrace) {
-        _log.severe(
-          "failed to invoke callback for ${e.name}",
-          err,
-          stackTrace,
-        );
-      }
-    });
-
-    _device.cancelWhenDisconnected(sub);
-    // TODO: check if we need to await here
-    characteristic.setNotifyValue(true);
+    // final characteristic = _service.characteristics
+    //     .firstWhere((c) => c.characteristicUuid == Guid(e.uuid));
+    //
+    // final sub = characteristic.onValueReceived.listen((data) {
+    //   try {
+    //     callback(ByteData.sublistView(Uint8List.fromList(data)));
+    //   } catch (err, stackTrace) {
+    //     _log.severe(
+    //       "failed to invoke callback for ${e.name}",
+    //       err,
+    //       stackTrace,
+    //     );
+    //   }
+    // });
+    //
+    // _device.cancelWhenDisconnected(sub);
+    // // TODO: check if we need to await here
+    // characteristic.setNotifyValue(true);
   }
 
   _parseStatus(ByteData data) {

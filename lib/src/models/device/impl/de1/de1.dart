@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:universal_ble/universal_ble.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
@@ -27,9 +27,9 @@ class De1 implements De1Interface {
 
   final String _deviceId;
 
-  final BluetoothDevice _device;
-
-  late BluetoothService _service;
+  final BleDevice _device;
+  //
+  // late BluetoothService _service;
 
   final StreamController<De1RawMessage> _rawOutStream =
       StreamController.broadcast();
@@ -43,7 +43,7 @@ class De1 implements De1Interface {
 
   De1({required String deviceId})
       : _deviceId = deviceId,
-        _device = BluetoothDevice.fromId(deviceId) {
+        _device = BleDevice(deviceId: deviceId, name: "De1 $deviceId") {
     _snapshotStream.add(_currentSnapshot);
   }
 
@@ -107,35 +107,35 @@ class De1 implements De1Interface {
   Future<void> onConnect() async {
     _snapshotStream.add(_currentSnapshot);
 
-    var subscription =
-        _device.connectionState.listen((BluetoothConnectionState state) async {
-      switch (state) {
-        case BluetoothConnectionState.connected:
-          if (await _connectionStateController.stream.first ==
-              ConnectionState.connected) {
-            _log.info("Already connected, not signalling again");
-            break;
-          }
-          _log.fine("state changed to connected");
-          _connectionStateController.add(ConnectionState.connected);
-          var services = await _device.discoverServices();
-          _service =
-              services.firstWhere((s) => s.serviceUuid == Guid(de1ServiceUUID));
-          await _onConnected();
-          break;
-        case BluetoothConnectionState.disconnected:
-          if (await _connectionStateController.stream.first ==
-              ConnectionState.connected) {
-            _connectionStateController.add(ConnectionState.disconnected);
-          }
-          //disconnect(); // just in case we got disconnected unintentionally
-          break;
-        default:
-          break;
-      }
-    });
-    _device.cancelWhenDisconnected(subscription, delayed: true, next: true);
-    await _device.connect();
+    // var subscription =
+    //     _device.connectionState.listen((BluetoothConnectionState state) async {
+    //   switch (state) {
+    //     case BluetoothConnectionState.connected:
+    //       if (await _connectionStateController.stream.first ==
+    //           ConnectionState.connected) {
+    //         _log.info("Already connected, not signalling again");
+    //         break;
+    //       }
+    //       _log.fine("state changed to connected");
+    //       _connectionStateController.add(ConnectionState.connected);
+    //       var services = await _device.discoverServices();
+    //       _service =
+    //           services.firstWhere((s) => s.serviceUuid == Guid(de1ServiceUUID));
+    //       await _onConnected();
+    //       break;
+    //     case BluetoothConnectionState.disconnected:
+    //       if (await _connectionStateController.stream.first ==
+    //           ConnectionState.connected) {
+    //         _connectionStateController.add(ConnectionState.disconnected);
+    //       }
+    //       //disconnect(); // just in case we got disconnected unintentionally
+    //       break;
+    //     default:
+    //       break;
+    //   }
+    // });
+    // _device.cancelWhenDisconnected(subscription, delayed: true, next: true);
+    // await _device.connect();
   }
 
   @override
