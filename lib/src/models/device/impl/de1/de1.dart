@@ -23,7 +23,7 @@ part 'de1.raw.dart';
 part 'de1.firmware.dart';
 
 class De1 implements De1Interface {
-  static String advertisingUUID = BleUuidParser.string('FFFF');
+  static String advertisingUUID = BleUuidParser.string('ffff');
 
   final String _deviceId;
 
@@ -122,7 +122,7 @@ class De1 implements De1Interface {
           _log.fine("state changed to connected");
           _connectionStateController.add(ConnectionState.connected);
           var services = await _device.discoverServices();
-          _service = services.firstWhere((s) => s.uuid == de1ServiceUUID);
+          _service = services.firstWhere((s) => s.uuid == BleUuidParser.string(de1ServiceUUID));
           await _onConnected();
           break;
         case false:
@@ -138,6 +138,7 @@ class De1 implements De1Interface {
           break;
       }
     });
+    _log.info("connecting ...");
     await _device.connect();
   }
 

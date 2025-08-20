@@ -5,7 +5,7 @@ extension De1Subscriptions on De1 {
     _log.info('enableNotification for ${e.name}');
 
     final characteristic = _service.characteristics
-        .firstWhere((c) => c.uuid == e.uuid);
+        .firstWhere((c) => c.uuid == BleUuidParser.string( e.uuid));
 
     final sub = characteristic.onValueReceived.listen((data) {
       try {

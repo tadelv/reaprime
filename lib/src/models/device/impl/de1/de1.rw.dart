@@ -5,7 +5,7 @@ extension De1ReadWrite on De1 {
     if (!await _device.isConnected ) {
       throw ("de1 not connected");
     }
-    final characteristic = _service.characteristics.firstWhere((c) => c.uuid == e.uuid);
+    final characteristic = _service.characteristics.firstWhere((c) => c.uuid == BleUuidParser.string(e.uuid));
     var data = await characteristic.read();
     ByteData response = ByteData.sublistView(Uint8List.fromList(data));
     return response;
@@ -16,7 +16,7 @@ extension De1ReadWrite on De1 {
       _log.fine('about to write to ${e.name}');
       _log.fine('payload: ${data.map((el) => toHexString(el))}');
       final characteristic = _service.characteristics
-          .firstWhere((c) => c.uuid == e.uuid);
+          .firstWhere((c) => c.uuid == BleUuidParser.string(e.uuid));
 
       await characteristic.write(
         data,
@@ -33,7 +33,7 @@ extension De1ReadWrite on De1 {
       _log.fine('about to write with response to ${e.name}');
       _log.fine('payload: ${data.map((el) => toHexString(el))}');
       final characteristic = _service.characteristics
-          .firstWhere((c) => c.uuid == e.uuid);
+          .firstWhere((c) => c.uuid == BleUuidParser.string(e.uuid));
 
       await characteristic.write(
         data,

@@ -38,8 +38,9 @@ class BleDiscoveryService extends DeviceDiscoveryService {
 
   @override
   Future<void> scanForDevices() async {
+    log.info("mappings: ${deviceMappings}");
     var sub = UniversalBle.scanStream.listen((result) {
-      log.info("Found: ${result.deviceId}: ${result.name}");
+      log.info("Found: ${result.deviceId}: ${result.name}, adv: ${result.services}");
       _deviceScanned(result);
     });
 
