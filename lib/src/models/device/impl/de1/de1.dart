@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:universal_ble/universal_ble.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
@@ -23,13 +23,13 @@ part 'de1.raw.dart';
 part 'de1.firmware.dart';
 
 class De1 implements De1Interface {
-  static String advertisingUUID = 'FFFF';
+  static String advertisingUUID = BleUuidParser.string('ffff');
 
   final String _deviceId;
 
-  final BluetoothDevice _device;
-
-  late BluetoothService _service;
+  final BleDevice _device;
+  //
+  late BleService _service;
 
   final StreamController<De1RawMessage> _rawOutStream =
       StreamController.broadcast();
@@ -43,7 +43,7 @@ class De1 implements De1Interface {
 
   De1({required String deviceId})
       : _deviceId = deviceId,
-        _device = BluetoothDevice.fromId(deviceId) {
+        _device = BleDevice(deviceId: deviceId, name: "De1 $deviceId") {
     _snapshotStream.add(_currentSnapshot);
   }
 
@@ -90,6 +90,9 @@ class De1 implements De1Interface {
 
   final BehaviorSubject<bool> _onReadyStream = BehaviorSubject.seeded(false);
 
+
+  final List<StreamSubscription<Uint8List>> _subscriptions = [];
+
   @override
   Stream<bool> get ready => _onReadyStream.stream;
 
@@ -107,10 +110,10 @@ class De1 implements De1Interface {
   Future<void> onConnect() async {
     _snapshotStream.add(_currentSnapshot);
 
-    var subscription =
-        _device.connectionState.listen((BluetoothConnectionState state) async {
+    StreamSubscription<bool>? subscription;
+    subscription = _device.connectionStream.listen((bool state) async {
       switch (state) {
-        case BluetoothConnectionState.connected:
+        case true:
           if (await _connectionStateController.stream.first ==
               ConnectionState.connected) {
             _log.info("Already connected, not signalling again");
@@ -119,29 +122,29 @@ class De1 implements De1Interface {
           _log.fine("state changed to connected");
           _connectionStateController.add(ConnectionState.connected);
           var services = await _device.discoverServices();
-          _service =
-              services.firstWhere((s) => s.serviceUuid == Guid(de1ServiceUUID));
+          _service = services.firstWhere((s) => s.uuid == BleUuidParser.string(de1ServiceUUID));
           await _onConnected();
           break;
-        case BluetoothConnectionState.disconnected:
+        case false:
           if (await _connectionStateController.stream.first ==
               ConnectionState.connected) {
             _connectionStateController.add(ConnectionState.disconnected);
           }
-          //disconnect(); // just in case we got disconnected unintentionally
-          break;
-        default:
+          subscription?.cancel();
+          for (var sub in _subscriptions) {
+            sub.cancel();
+          }
+          await _device.disconnect();
           break;
       }
     });
-    _device.cancelWhenDisconnected(subscription, delayed: true, next: true);
+    _log.info("connecting ...");
     await _device.connect();
   }
 
   @override
   disconnect() {
     _device.disconnect();
-    //_connectionStateController.add(ConnectionState.disconnected);
   }
 
   @override
@@ -179,11 +182,11 @@ class De1 implements De1Interface {
     _parseWaterLevels(await _read(Endpoint.waterLevels));
     _parseVersion(await _read(Endpoint.versions));
 
-    _subscribe(Endpoint.stateInfo, _parseStatus);
-    _subscribe(Endpoint.shotSample, _parseShot);
-    _subscribe(Endpoint.shotSettings, _parseShotSettings);
-    _subscribe(Endpoint.waterLevels, _parseWaterLevels);
-    _subscribe(Endpoint.readFromMMR, _mmrNotification);
+    await _subscribe(Endpoint.stateInfo, _parseStatus);
+    await _subscribe(Endpoint.shotSample, _parseShot);
+    await _subscribe(Endpoint.shotSettings, _parseShotSettings);
+    await _subscribe(Endpoint.waterLevels, _parseWaterLevels);
+    await _subscribe(Endpoint.readFromMMR, _mmrNotification);
 
     _onReadyStream.add(true);
   }

@@ -1,11 +1,11 @@
 part of 'de1.dart';
 
 extension De1Subscriptions on De1 {
-  void _subscribe(Endpoint e, Function(ByteData) callback) {
+  Future<void> _subscribe(Endpoint e, Function(ByteData) callback) async {
     _log.info('enableNotification for ${e.name}');
 
     final characteristic = _service.characteristics
-        .firstWhere((c) => c.characteristicUuid == Guid(e.uuid));
+        .firstWhere((c) => c.uuid == BleUuidParser.string( e.uuid));
 
     final sub = characteristic.onValueReceived.listen((data) {
       try {
@@ -18,10 +18,9 @@ extension De1Subscriptions on De1 {
         );
       }
     });
+    _subscriptions.add(sub);
 
-    _device.cancelWhenDisconnected(sub);
-    // TODO: check if we need to await here
-    characteristic.setNotifyValue(true);
+    await characteristic.notifications.subscribe();
   }
 
   _parseStatus(ByteData data) {

@@ -1,6 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:universal_ble/universal_ble.dart';
 import '../models/device/device.dart';
 import '../models/device/machine.dart';
 import '../models/device/scale.dart';
@@ -25,30 +26,37 @@ class BleDiscoveryService extends DeviceDiscoveryService {
 
   @override
   Future<void> initialize() async {
-    if (await FlutterBluePlus.isSupported == false) {
+    UniversalBle.queueType = QueueType.perDevice;
+    if (await UniversalBle.getBluetoothAvailabilityState() !=
+        AvailabilityState.poweredOn) {
       log.warning("Bluetooth not supported on this platform");
       return;
     }
-    FlutterBluePlus.adapterState.listen((BluetoothAdapterState state) {
+    UniversalBle.availabilityStream.listen((state) {
       log.info("BLE Adapter state: ${state.name}");
     });
   }
 
   @override
   Future<void> scanForDevices() async {
-    var sub = FlutterBluePlus.onScanResults.listen((results) {
-      if (results.isNotEmpty) {
-        ScanResult r = results.last;
-        log.info("Found: ${r.device.remoteId}: ${r.advertisementData.advName}");
-        _deviceScanned(r);
-      }
+    log.info("mappings: ${deviceMappings}");
+    var sub = UniversalBle.scanStream.listen((result) {
+      log.info("Found: ${result.deviceId}: ${result.name}, adv: ${result.services}");
+      _deviceScanned(result);
     });
 
-    FlutterBluePlus.cancelWhenScanComplete(sub);
+    // FIXME: determine correct way to specify services for linux
+    final List<String> services = Platform.isLinux ? [] : deviceMappings.keys.toList();
 
-    await FlutterBluePlus.startScan(
-        withServices: deviceMappings.keys.map((k) => Guid(k)).toList(),
-        timeout: Duration(seconds: 30));
+    final filter = ScanFilter(withServices: services);
+
+    await UniversalBle.startScan(scanFilter: filter);
+
+    // TODO: configurable delay?
+    await Future.delayed(Duration(seconds: 15), () async {
+      await UniversalBle.stopScan();
+      await sub.cancel();
+    });
   }
 
   // return machine with specific id
@@ -71,22 +79,22 @@ class BleDiscoveryService extends DeviceDiscoveryService {
     _deviceStreamController.add(_devices.values.toList());
   }
 
-  _deviceScanned(ScanResult device) {
-    for (Guid uid in device.advertisementData.serviceUuids) {
+  void _deviceScanned(BleDevice device) {
+    for (String uid in device.services) {
       var initializer = deviceMappings[uid.toString().toUpperCase()];
       if (initializer != null &&
-          _devices.containsKey(device.device.remoteId.toString()) == false) {
-        _devices[device.device.remoteId.toString()] =
-            initializer(device.device.remoteId.toString());
+          _devices.containsKey(device.deviceId.toString()) == false) {
+        _devices[device.deviceId.toString()] =
+            initializer(device.deviceId.toString());
         _deviceStreamController.add(_devices.values.toList());
-        log.fine("found new device: ${device.advertisementData.advName}");
+        log.fine("found new device: ${device.name}");
         log.fine("devices: ${_devices.toString()}");
-        _connections[device.device.remoteId.toString()] =
-            _devices[device.device.remoteId.toString()]!
+        _connections[device.deviceId.toString()] =
+            _devices[device.deviceId.toString()]!
                 .connectionState
                 .listen((connectionState) {
           if (connectionState == ConnectionState.disconnected) {
-            _devices.remove(device.device.remoteId.toString());
+            _devices.remove(device.deviceId.toString());
             _deviceStreamController.add(_devices.values.toList());
           }
         });

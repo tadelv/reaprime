@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:universal_ble/universal_ble.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
@@ -44,7 +44,7 @@ class PermissionsView extends StatelessWidget {
                 case ConnectionState.none:
                   return Text("Unknown");
                 case ConnectionState.waiting:
-                  return Text("Checking");
+                  return Text("Checking, make sure Bluetooth is turned on");
                 case ConnectionState.active:
                   return Text("Done");
                 case ConnectionState.done:
@@ -72,13 +72,11 @@ class PermissionsView extends StatelessWidget {
       await Permission.bluetooth.request();
       await Permission.locationWhenInUse.request();
       await Permission.locationAlways.request();
-      await deviceController.initialize();
     } else {
-      await FlutterBluePlus.isSupported;
-      await FlutterBluePlus.adapterState
-          .firstWhere((e) => e == BluetoothAdapterState.on);
-      await deviceController.initialize();
+      await UniversalBle.availabilityStream
+          .firstWhere((e) => e == AvailabilityState.poweredOn);
     }
+    deviceController.initialize();
     return true;
   }
 
