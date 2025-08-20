@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:universal_ble/universal_ble.dart';
 import '../models/device/device.dart';
@@ -44,7 +45,10 @@ class BleDiscoveryService extends DeviceDiscoveryService {
       _deviceScanned(result);
     });
 
-    final filter = ScanFilter(withServices: deviceMappings.keys.toList());
+    // FIXME: determine correct way to specify services for linux
+    final List<String> services = Platform.isLinux ? [] : deviceMappings.keys.toList();
+
+    final filter = ScanFilter(withServices: services);
 
     await UniversalBle.startScan(scanFilter: filter);
 
