@@ -23,7 +23,7 @@ part 'de1.raw.dart';
 part 'de1.firmware.dart';
 
 class De1 implements De1Interface {
-  static String advertisingUUID = 'FFFF';
+  static String advertisingUUID = BleUuidParser.string('FFFF');
 
   final String _deviceId;
 
