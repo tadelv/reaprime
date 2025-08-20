@@ -29,7 +29,7 @@ class De1 implements De1Interface {
 
   final BleDevice _device;
   //
-  // late BluetoothService _service;
+  late BleService _service;
 
   final StreamController<De1RawMessage> _rawOutStream =
       StreamController.broadcast();
@@ -90,6 +90,9 @@ class De1 implements De1Interface {
 
   final BehaviorSubject<bool> _onReadyStream = BehaviorSubject.seeded(false);
 
+
+  final List<StreamSubscription<Uint8List>> _subscriptions = [];
+
   @override
   Stream<bool> get ready => _onReadyStream.stream;
 
@@ -107,41 +110,40 @@ class De1 implements De1Interface {
   Future<void> onConnect() async {
     _snapshotStream.add(_currentSnapshot);
 
-    // var subscription =
-    //     _device.connectionState.listen((BluetoothConnectionState state) async {
-    //   switch (state) {
-    //     case BluetoothConnectionState.connected:
-    //       if (await _connectionStateController.stream.first ==
-    //           ConnectionState.connected) {
-    //         _log.info("Already connected, not signalling again");
-    //         break;
-    //       }
-    //       _log.fine("state changed to connected");
-    //       _connectionStateController.add(ConnectionState.connected);
-    //       var services = await _device.discoverServices();
-    //       _service =
-    //           services.firstWhere((s) => s.serviceUuid == Guid(de1ServiceUUID));
-    //       await _onConnected();
-    //       break;
-    //     case BluetoothConnectionState.disconnected:
-    //       if (await _connectionStateController.stream.first ==
-    //           ConnectionState.connected) {
-    //         _connectionStateController.add(ConnectionState.disconnected);
-    //       }
-    //       //disconnect(); // just in case we got disconnected unintentionally
-    //       break;
-    //     default:
-    //       break;
-    //   }
-    // });
-    // _device.cancelWhenDisconnected(subscription, delayed: true, next: true);
-    // await _device.connect();
+    StreamSubscription<bool>? subscription;
+    subscription = _device.connectionStream.listen((bool state) async {
+      switch (state) {
+        case true:
+          if (await _connectionStateController.stream.first ==
+              ConnectionState.connected) {
+            _log.info("Already connected, not signalling again");
+            break;
+          }
+          _log.fine("state changed to connected");
+          _connectionStateController.add(ConnectionState.connected);
+          var services = await _device.discoverServices();
+          _service = services.firstWhere((s) => s.uuid == de1ServiceUUID);
+          await _onConnected();
+          break;
+        case false:
+          if (await _connectionStateController.stream.first ==
+              ConnectionState.connected) {
+            _connectionStateController.add(ConnectionState.disconnected);
+          }
+          subscription?.cancel();
+          for (var sub in _subscriptions) {
+            sub.cancel();
+          }
+          await _device.disconnect();
+          break;
+      }
+    });
+    await _device.connect();
   }
 
   @override
   disconnect() {
     _device.disconnect();
-    //_connectionStateController.add(ConnectionState.disconnected);
   }
 
   @override
@@ -179,11 +181,11 @@ class De1 implements De1Interface {
     _parseWaterLevels(await _read(Endpoint.waterLevels));
     _parseVersion(await _read(Endpoint.versions));
 
-    _subscribe(Endpoint.stateInfo, _parseStatus);
-    _subscribe(Endpoint.shotSample, _parseShot);
-    _subscribe(Endpoint.shotSettings, _parseShotSettings);
-    _subscribe(Endpoint.waterLevels, _parseWaterLevels);
-    _subscribe(Endpoint.readFromMMR, _mmrNotification);
+    await _subscribe(Endpoint.stateInfo, _parseStatus);
+    await _subscribe(Endpoint.shotSample, _parseShot);
+    await _subscribe(Endpoint.shotSettings, _parseShotSettings);
+    await _subscribe(Endpoint.waterLevels, _parseWaterLevels);
+    await _subscribe(Endpoint.readFromMMR, _mmrNotification);
 
     _onReadyStream.add(true);
   }
