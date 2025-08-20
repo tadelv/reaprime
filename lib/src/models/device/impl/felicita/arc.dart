@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:universal_ble/universal_ble.dart';
 import 'package:collection/collection.dart';
 import 'package:rxdart/subjects.dart';
@@ -60,6 +61,7 @@ class FelicitaArc implements Scale {
               ConnectionState.connecting) {
             _connectionStateController.add(ConnectionState.disconnected);
             subscription?.cancel();
+            _notificationsSubscription?.cancel();
           }
       }
     });
@@ -81,25 +83,21 @@ class FelicitaArc implements Scale {
         .write([0x54]);
   }
 
-  _registerNotifications() async {
+  late StreamSubscription<Uint8List>? _notificationsSubscription;
+
+  void _registerNotifications() async {
     final characteristic =
         _service.characteristics.firstWhere((c) => c.uuid == dataUUID);
-    // final subscription =
-        // characteristic.notifications.listen(_parseNotification);
+    _notificationsSubscription =
         characteristic.onValueReceived.listen(_parseNotification);
+
     await characteristic.notifications.subscribe();
-    // final characteristic = _service.characteristics
-    //     .firstWhere((c) => c.characteristicUuid == Guid(dataUUID));
-    // final subscription =
-    //     characteristic.onValueReceived.listen(_parseNotification);
-    // _device.cancelWhenDisconnected(subscription);
-    // await characteristic.setNotifyValue(true);
   }
 
   static const int minBattLevel = 129;
   static const int maxBattLevel = 158;
 
-  _parseNotification(List<int> data) {
+  void _parseNotification(List<int> data) {
     if (data.length != 18) {
       return;
     }

@@ -71,6 +71,7 @@ class DecentScale implements Scale {
               ConnectionState.connecting) {
             _connectionStateController.add(ConnectionState.disconnected);
             subscription?.cancel();
+            _notificationsSubscription?.cancel();
           }
       }
     });
@@ -90,16 +91,15 @@ class DecentScale implements Scale {
         .write(payload);
   }
 
+  late StreamSubscription<Uint8List>? _notificationsSubscription;
+
   void _registerNotifications() async {
     final characteristic =
         _service.characteristics.firstWhere((c) => c.uuid == dataUUID);
-    // final subscription =
-        // characteristic.notifications.listen(_parseNotification);
+    _notificationsSubscription =
         characteristic.onValueReceived.listen(_parseNotification);
     await characteristic.notifications.subscribe();
-    _log.info("subscribe");
-    // _device.cancelWhenDisconnected(subscription);
-    // await characteristic.setNotifyValue(true);
+    _log.finest("subscribe");
   }
 
   void _parseNotification(List<int> data) {

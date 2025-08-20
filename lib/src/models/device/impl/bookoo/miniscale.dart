@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:universal_ble/universal_ble.dart';
 import 'package:rxdart/subjects.dart';
 
@@ -60,6 +61,7 @@ class BookooScale implements Scale {
               ConnectionState.connecting) {
             _connectionStateController.add(ConnectionState.disconnected);
             subscription?.cancel();
+            _notificationsSubscription?.cancel();
           }
       }
     });
@@ -82,11 +84,13 @@ class BookooScale implements Scale {
         .write([0x03, 0x0A, 0x01, 0x00, 0x00, 0x08]);
   }
 
+  late StreamSubscription<Uint8List>? _notificationsSubscription;
+
   void _registerNotifications() async {
     final characteristic =
         _service.characteristics.firstWhere((c) => c.uuid == dataUUID);
-    final subscription =
-        characteristic.notifications.listen(_parseNotification);
+    _notificationsSubscription =
+        characteristic.onValueReceived.listen(_parseNotification);
     await characteristic.notifications.subscribe();
     // characteristic.onValueReceived.listen(_parseNotification);
     // _device.cancelWhenDisconnected(subscription);
@@ -94,7 +98,7 @@ class BookooScale implements Scale {
     // await UniversalBle.subscribeNotifications(_deviceId, serviceUUID, dataUUID);
   }
 
-  _parseNotification(List<int> data) {
+  void _parseNotification(List<int> data) {
     int weight = 0;
     if (data.length == 20) {
       weight = (data[7] << 16) + (data[8] << 8) + data[9];
