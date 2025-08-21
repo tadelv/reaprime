@@ -109,7 +109,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       if (_isDecentScale(strings, rawData)) {
         _log.info("Detected: Decent Scale");
         return HDSSerial(transport: transport);
-      } else if (_isSensorBasket(dataString)) {
+      } else if (_isSensorBasket(strings)) {
         _log.info("Detected: Sensor Basket");
         // return SensorBasketSerial(transport: transport);
       } else if (_isDE1(dataString, combined)) {
@@ -139,8 +139,10 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
         messages.any((t) => hdsRegex.hasMatch(t));
   }
 
-  bool _isSensorBasket(String data) {
-    return data.contains("SensorBasket");
+  final sbRegex = RegExp(
+      r'\d+ [+-]?[0-9]*[.]?[0-9]+ [+-]?[0-9]*[.]?[0-9]+ [+-]?[0-9]*[.]?[0-9]+ [+-]?[0-9]*[.]?[0-9]+');
+  bool _isSensorBasket(List<String> messages) {
+    return messages.any((t) => sbRegex.hasMatch(t));
   }
 
   bool _isDE1(String data, List<int> bytes) {

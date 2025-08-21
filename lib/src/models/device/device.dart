@@ -1,7 +1,7 @@
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 
-enum DeviceType { machine, scale }
+enum DeviceType { machine, scale, sensor }
 
 abstract class Device {
   String get deviceId;
