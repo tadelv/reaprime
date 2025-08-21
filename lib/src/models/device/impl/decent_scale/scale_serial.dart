@@ -36,7 +36,6 @@ class HDSSerial implements Scale {
   }
 
   @override
-  // TODO: implement name
   String get name => "Half Decent Scale";
 
   late StreamSubscription<Uint8List> _transportSubscription;
