@@ -121,22 +121,39 @@ class AndroidSerialPort implements SerialTransport {
       UsbPort.PARITY_NONE,
     );
 
+    // TODO: onError close stream
     _portSubscription = _port.inputStream?.listen((Uint8List event) {
-      final input = utf8.decode(event);
-      _log.finest("received serial input: $input");
-      _outputController.add(input);
+      _rawController.add(event);
+      try {
+        final input = utf8.decode(event);
+        _log.finest("received serial input: $input");
+        _outputController.add(input);
+      } catch (e) {
+        _log.fine("unable to parse to string", e);
+      }
     });
   }
 
-  StreamController<String> _outputController = StreamController.broadcast();
+  final StreamController<Uint8List> _rawController =
+      StreamController<Uint8List>.broadcast();
 
   @override
-  // TODO: implement readStream
+  Stream<Uint8List> get rawStream => _rawController.stream;
+
+  final StreamController<String> _outputController = StreamController<String>.broadcast();
+
+  @override
   Stream<String> get readStream => _outputController.stream;
 
   @override
   Future<void> writeCommand(String command) async {
     await _port.write(utf8.encode('$command\n'));
     _log.fine("wrote request: $command");
+  }
+
+  @override
+  Future<void> writeHexCommand(Uint8List command) async {
+    await _port.write(command);
+    _log.fine("wrote request: ${command.map((e) => e.toRadixString(16))}");
   }
 }

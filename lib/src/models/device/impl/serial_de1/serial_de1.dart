@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
-import 'dart:io';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/data/profile.dart';
