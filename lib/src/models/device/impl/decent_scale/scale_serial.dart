@@ -39,18 +39,19 @@ class HDSSerial implements Scale {
   // TODO: implement name
   String get name => "Half Decent Scale";
 
-  late StreamSubscription<String> _transportSubscription;
+  late StreamSubscription<Uint8List> _transportSubscription;
   @override
   Future<void> onConnect() async {
     _log.info("on connect");
     await _transport.open();
     _transportSubscription =
-        _transport.readStream.listen(onData, onError: (error) {
+        _transport.rawStream.listen(onData, onError: (error) {
       _log.warning("transport error", error);
       disconnect();
     }, onDone: () {
-       disconnect(); 
-      });
+      disconnect();
+    });
+    await _transport.writeHexCommand(Uint8List.fromList([0x03, 0x20, 0x01]));
     _connectionSubject.add(ConnectionState.connected);
   }
 
@@ -68,20 +69,17 @@ class HDSSerial implements Scale {
   @override
   DeviceType get type => DeviceType.scale;
 
-  final dataRegex = RegExp(r'\d+ Weight: (.*)');
-  void onData(String data) {
+  void onData(Uint8List data) {
     _log.fine("got message: $data");
-    final dataMatch = dataRegex.firstMatch(data);
-    if (dataMatch == null) {
-      _log.fine("data does not match regex");
+    if (data.length != 7 || data[0] != 0x03 || data[1] != 0xCE) {
+      _log.finest("data is not weight data");
       return;
     }
-    final match = dataMatch.group(1);
-    if (match != null) {
-      _snapshotHandler.add(ScaleSnapshot(
-          timestamp: DateTime.now(),
-          weight: double.tryParse(match) ?? 0.0,
-          batteryLevel: 100));
-    }
+    var d = ByteData(2);
+    d.setInt8(0, data[2]);
+    d.setInt8(1, data[3]);
+    var weight = d.getInt16(0) / 10;
+    _snapshotHandler.add(ScaleSnapshot(
+        timestamp: DateTime.now(), weight: weight, batteryLevel: 100));
   }
 }

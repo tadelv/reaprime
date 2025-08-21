@@ -102,10 +102,11 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       // Combine all chunks into one buffer
       final combined = rawData.expand((e) => e).toList();
       final dataString = String.fromCharCodes(combined);
+      final strings = rawData.map((e) => String.fromCharCodes(e)).toList();
       _log.info("Collected serial data: $dataString");
 
       // Heuristic checks for device type
-      if (_isDecentScale(rawData)) {
+      if (_isDecentScale(strings, rawData)) {
         _log.info("Detected: Decent Scale");
         return HDSSerial(transport: transport);
       } else if (_isSensorBasket(dataString)) {
@@ -127,11 +128,15 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
   }
 
 // ---- Device-specific detection helpers ----
-
-  bool _isDecentScale(List<Uint8List> captures) {
+  final hdsRegex = RegExp(r'\d+ Weight: .*');
+  bool _isDecentScale(List<String> messages, List<Uint8List> captures) {
     _log.shout("data: ${captures}");
     return captures.any((Uint8List bytes) =>
-        bytes[0] == 0x03 && bytes[1] == 0xCE && bytes[4] == 0 && bytes[5] == 0);
+            bytes[0] == 0x03 &&
+            bytes[1] == 0xCE &&
+            bytes[4] == 0 &&
+            bytes[5] == 0) ||
+        messages.any((t) => hdsRegex.hasMatch(t));
   }
 
   bool _isSensorBasket(String data) {
