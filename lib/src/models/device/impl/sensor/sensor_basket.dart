@@ -64,8 +64,8 @@ class SensorBasket implements Sensor {
   void onData(String data) {
     final elements = data.split(' ');
     if (elements.length != 5) {
-        return;
-      }
+      return;
+    }
     Map<String, dynamic> values = {};
     values['timestamp'] = DateTime.now().toIso8601String();
 

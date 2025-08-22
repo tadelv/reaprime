@@ -83,6 +83,7 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
   }
 
   Future<Device?> _detectDevice(UsbDevice device) async {
+    // TODO: test multiple serial types?
     final port = await device.create(UsbSerial.CH34x);
     if (port == null) {
       _log.warning("failed to add $device, port is null");
@@ -120,11 +121,7 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
         return HDSSerial(transport: transport);
       } else if (isSensorBasket(strings)) {
         _log.info("Detected: Sensor Basket");
-        // FIXME: connect in controller
-        final basket = SensorBasket(transport: transport);
-        await basket.onConnect();
-        return basket;
-        // return SensorBasketSerial(transport: transport);
+        return SensorBasket(transport: transport);
       } else if (isDE1(dataString, combined)) {
         _log.info("Detected: DE1 Machine");
         return SerialDe1(transport: transport);
@@ -162,12 +159,10 @@ class AndroidSerialPort implements SerialTransport {
   bool get isReady => _isReady;
 
   @override
-    // TODO: implement id
-    String get id => "${_device.deviceId}";
+  String get id => "${_device.deviceId}";
 
   @override
-  // TODO: implement name
-  String get name => "${_device.deviceName}";
+  String get name => _device.deviceName;
 
   StreamSubscription<Uint8List>? _portSubscription;
   @override
@@ -186,7 +181,6 @@ class AndroidSerialPort implements SerialTransport {
       UsbPort.PARITY_NONE,
     );
 
-    // TODO: onError close stream
     _portSubscription = _port.inputStream?.listen((Uint8List event) {
       _rawController.add(event);
       try {
@@ -196,6 +190,9 @@ class AndroidSerialPort implements SerialTransport {
       } catch (e) {
         _log.fine("unable to parse to string", e);
       }
+    }, onError: (error) {
+      _log.severe("port read failed", error);
+      close();
     });
   }
 

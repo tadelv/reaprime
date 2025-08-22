@@ -20,7 +20,7 @@ r'^\d+ (?:nan|[+-]?[0-9]*[.]?[0-9]+) [+-]?[0-9]*[.]?[0-9]+ [+-]?[0-9]*[.]?[0-9]+
 
   bool isDE1(String data, List<int> bytes) {
     // TODO:
-    final hdsRegex = RegExp(r'^<M>.*');
-    final sensorBasketRegex = RegExp(r'^<Q>.*');
+    final hdsRegex = RegExp(r'^[M].*');
+    final sensorBasketRegex = RegExp(r'^[Q].*');
     return hdsRegex.hasMatch(data) || sensorBasketRegex.hasMatch(data);
   }

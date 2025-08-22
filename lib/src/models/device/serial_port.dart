@@ -6,7 +6,6 @@ abstract class SerialTransport {
   bool get isReady;
   Future<void> open();
   Future<void> close();
-  // TODO: be more specific?
   Future<void> writeCommand(String command);
   Future<void> writeHexCommand(Uint8List command);
   Stream<String> get readStream;

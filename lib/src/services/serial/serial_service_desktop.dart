@@ -113,11 +113,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
         return HDSSerial(transport: transport);
       } else if (isSensorBasket(strings)) {
         _log.info("Detected: Sensor Basket");
-        // FIXME: connect in controller
-        final basket = SensorBasket(transport: transport);
-        await basket.onConnect();
-        return basket;
-        // return SensorBasketSerial(transport: transport);
+        return SensorBasket(transport: transport);
       } else if (isDE1(dataString, combined)) {
         _log.info("Detected: DE1 Machine");
         return SerialDe1(transport: transport);
@@ -205,6 +201,7 @@ class _DesktopSerialPort implements SerialTransport {
         _log.severe("port error:", error);
         _readController.addError(error);
         _readController.close();
+        close();
       });
       _log.fine("port subscribed: ${_portSubscription}");
     });

@@ -55,11 +55,9 @@ class SerialDe1 implements De1Interface {
   );
   BehaviorSubject<MachineSnapshot> _snapshotSubject = BehaviorSubject();
   @override
-  // TODO: implement currentSnapshot
   Stream<MachineSnapshot> get currentSnapshot => _snapshotSubject.stream;
 
   @override
-  // TODO: implement deviceId
   String get deviceId => _transport.name;
 
   @override
