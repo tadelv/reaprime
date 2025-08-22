@@ -12,6 +12,7 @@ import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/controllers/sensor_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/device.dart';
@@ -86,12 +87,14 @@ void main() async {
   final deviceController = DeviceController(services);
   final de1Controller = De1Controller(controller: deviceController);
   final scaleController = ScaleController(controller: deviceController);
+  final sensorController = SensorController(controller: deviceController);
   try {
     await startWebServer(
       deviceController,
       de1Controller,
       scaleController,
       settingsController,
+      sensorController,
     );
   } catch (e, st) {
     log.severe('failed to start web server', e, st);
