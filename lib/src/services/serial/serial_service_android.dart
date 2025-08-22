@@ -4,10 +4,13 @@ import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/impl/decent_scale/scale_serial.dart';
+import 'package:reaprime/src/models/device/impl/sensor/sensor_basket.dart';
 import 'package:reaprime/src/models/device/impl/serial_de1/serial_de1.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/serial_port.dart';
+import 'utils.dart';
 import 'package:rxdart/subjects.dart';
 
 import 'package:usb_serial/usb_serial.dart';
@@ -27,7 +30,7 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
     throw UnimplementedError();
   }
 
-  List<SerialDe1> _devices = [];
+  List<Device> _devices = [];
   final BehaviorSubject<List<Device>> _machineSubject =
       BehaviorSubject.seeded(<Device>[]);
   @override
@@ -65,18 +68,76 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
   Future<void> scanForDevices() async {
     _devices.clear();
     final devices = await UsbSerial.listDevices();
-    for (UsbDevice d in devices) {
+    final results = await Future.wait(devices.map((d) async {
       try {
-        final port = await d.create();
-        if (port != null) {
-          final transport = AndroidSerialPort(device: d, port: port);
-          _devices.add(SerialDe1(transport: transport));
-        }
-      } catch (e) {
-        _log.warning("failed to add $d", e);
+        final device = await _detectDevice(d);
+        _log.info("Port $d -> ${device ?? 'no device'}");
+        return device;
+      } catch (e, st) {
+        _log.warning("Error detecting device on $d", e, st);
+        return null;
       }
-    }
+    }));
+    _devices = results.whereType<Device>().toList();
     _machineSubject.add(_devices);
+  }
+
+  Future<Device?> _detectDevice(UsbDevice device) async {
+    final port = await device.create(UsbSerial.CH34x);
+    if (port == null) {
+      _log.warning("failed to add $device, port is null");
+      return null;
+    }
+    final transport = AndroidSerialPort(device: device, port: port);
+    final List<Uint8List> rawData = [];
+    final duration = const Duration(seconds: 3);
+
+    try {
+      await transport.open();
+
+      // Start listening to the stream
+      final subscription = transport.rawStream.listen(
+        (chunk) {
+          rawData.add(chunk);
+        },
+        onError: (err, st) => _log.warning("Serial read error", err, st),
+        cancelOnError: false,
+      );
+
+      // Collect for the desired duration
+      await Future.delayed(duration);
+      await subscription.cancel();
+
+      // Combine all chunks into one buffer
+      final combined = rawData.expand((e) => e).toList();
+      final dataString = String.fromCharCodes(combined);
+      final strings = rawData.map((e) => String.fromCharCodes(e)).toList();
+      _log.info("Collected serial data: $dataString");
+
+      // Heuristic checks for device type
+      if (isDecentScale(strings, rawData)) {
+        _log.info("Detected: Decent Scale");
+        return HDSSerial(transport: transport);
+      } else if (isSensorBasket(strings)) {
+        _log.info("Detected: Sensor Basket");
+        // FIXME: connect in controller
+        final basket = SensorBasket(transport: transport);
+        await basket.onConnect();
+        return basket;
+        // return SensorBasketSerial(transport: transport);
+      } else if (isDE1(dataString, combined)) {
+        _log.info("Detected: DE1 Machine");
+        return SerialDe1(transport: transport);
+      }
+
+      _log.warning("Unknown device on port $device");
+      await transport.close();
+      return null;
+    } catch (e, st) {
+      _log.warning("Port $device is probably not a device we want", e, st);
+      await transport.close();
+      return null;
+    }
   }
 }
 
@@ -140,7 +201,8 @@ class AndroidSerialPort implements SerialTransport {
   @override
   Stream<Uint8List> get rawStream => _rawController.stream;
 
-  final StreamController<String> _outputController = StreamController<String>.broadcast();
+  final StreamController<String> _outputController =
+      StreamController<String>.broadcast();
 
   @override
   Stream<String> get readStream => _outputController.stream;

@@ -11,6 +11,7 @@ import 'package:reaprime/src/models/device/impl/serial_de1/serial_de1.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/serial_port.dart';
+import 'utils.dart';
 
 import 'package:rxdart/subjects.dart';
 
@@ -107,17 +108,17 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       _log.info("Collected serial data: $dataString");
 
       // Heuristic checks for device type
-      if (_isDecentScale(strings, rawData)) {
+      if (isDecentScale(strings, rawData)) {
         _log.info("Detected: Decent Scale");
         return HDSSerial(transport: transport);
-      } else if (_isSensorBasket(strings)) {
+      } else if (isSensorBasket(strings)) {
         _log.info("Detected: Sensor Basket");
         // FIXME: connect in controller
         final basket = SensorBasket(transport: transport);
         await basket.onConnect();
         return basket;
         // return SensorBasketSerial(transport: transport);
-      } else if (_isDE1(dataString, combined)) {
+      } else if (isDE1(dataString, combined)) {
         _log.info("Detected: DE1 Machine");
         return SerialDe1(transport: transport);
       }
@@ -132,29 +133,6 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     }
   }
 
-// ---- Device-specific detection helpers ----
-  final hdsRegex = RegExp(r'\d+ Weight: .*');
-  bool _isDecentScale(List<String> messages, List<Uint8List> captures) {
-    return captures.any((Uint8List bytes) =>
-            bytes[0] == 0x03 &&
-            bytes[1] == 0xCE &&
-            bytes[4] == 0 &&
-            bytes[5] == 0) ||
-        messages.any((t) => hdsRegex.hasMatch(t));
-  }
-
-  final sbRegex = RegExp(
-      r'^\d+ (?:nan|[+-]?(?:\d+(?:\.\d+)?|\.\d+)) [+-]?(?:\d+(?:\.\d+)?|\.\d+) [+-]?(?:\d+(?:\.\d+)?|\.\d+) [+-]?(?:\d+(?:\.\d+)?|\.\d+)$');
-  bool _isSensorBasket(List<String> messages) {
-    return messages.any((t) => sbRegex.hasMatch(t));
-  }
-
-  bool _isDE1(String data, List<int> bytes) {
-    // TODO:
-    final hdsRegex = RegExp(r'^<M>.*');
-    final sensorBasketRegex = RegExp(r'^<Q>.*');
-    return hdsRegex.hasMatch(data) || sensorBasketRegex.hasMatch(data);
-  }
 }
 
 class _DesktopSerialPort implements SerialTransport {
