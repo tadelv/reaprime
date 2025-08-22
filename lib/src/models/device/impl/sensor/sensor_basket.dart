@@ -43,6 +43,9 @@ class SensorBasket implements Sensor {
 
   @override
   Future<void> onConnect() async {
+    if (await _connectionSubject.first == ConnectionState.connected) {
+      return;
+    }
     _log.info("on connect");
     await _transport.open();
     _transportSubscription =
