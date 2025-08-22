@@ -6,7 +6,7 @@ import 'package:reaprime/src/models/device/sensor.dart';
 class SensorController {
   final DeviceController _deviceController;
 
-  List<Sensor> _sensors = [];
+  Map<String, Sensor> _sensors = {};
 
   final Logger _log = Logger("SensorController");
 
@@ -17,9 +17,13 @@ class SensorController {
 
   Future<void> _processDevices(List<Device> devices) async {
     final sensors = devices.whereType<Sensor>().toList();
-    _sensors = sensors;
-    await Future.wait(_sensors.map((s) => s.onConnect()));
+    _log.info("received sensors: $sensors");
+    _sensors = sensors.fold({}, (val, s) {
+      val[s.deviceId] = s;
+      return val;
+    });
+    await Future.wait(sensors.map((s) => s.onConnect()));
   }
 
-  List<Sensor> get sensors => _sensors;
+  Map<String, Sensor> get sensors => _sensors;
 }

@@ -94,6 +94,7 @@ void main() async {
       de1Controller,
       scaleController,
       settingsController,
+      sensorController,
     );
   } catch (e, st) {
     log.severe('failed to start web server', e, st);

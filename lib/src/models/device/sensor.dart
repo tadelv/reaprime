@@ -20,6 +20,15 @@ class SensorInfo {
       required this.vendor,
       required this.dataChannels,
       required this.commands});
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'vendor': vendor,
+      'data': dataChannels.map((e) => e.toJson()).toList(),
+      'commands': commands?.map((e) => e.toJson()).toList()
+    };
+  }
 }
 
 class CommandDescriptor {
@@ -35,6 +44,16 @@ class CommandDescriptor {
       required this.description,
       required this.paramsSchema,
       required this.resultsSchema});
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'paramsSchema': paramsSchema,
+      'resultsSchema': resultsSchema,
+    };
+  }
 }
 
 class DataChannel {
@@ -43,4 +62,12 @@ class DataChannel {
   final String? unit;
 
   DataChannel({required this.key, required this.type, this.unit});
+
+  Map<String, dynamic> toJson() {
+    return {
+      'key': key,
+      'type': type,
+      'unit': unit,
+    };
+  }
 }

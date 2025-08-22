@@ -2,6 +2,8 @@ import 'dart:typed_data';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/controllers/sensor_controller.dart';
+import 'package:reaprime/src/services/webserver/sensors_handler.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:shelf_plus/shelf_plus.dart';
@@ -27,12 +29,14 @@ Future<void> startWebServer(
   De1Controller de1Controller,
   ScaleController scaleController,
   SettingsController settingsController,
+  SensorController sensorController,
 ) async {
   log.info("starting webserver");
   final de1Handler = De1Handler(controller: de1Controller);
   final scaleHandler = ScaleHandler(controller: scaleController);
   final deviceHandler = DevicesHandler(controller: deviceController);
   final settingsHandler = SettingsHandler(controller: settingsController);
+  final sensorsHandler = SensorsHandler(controller: sensorController);
   // Start server
   final server = await io.serve(
       _init(
@@ -40,6 +44,7 @@ Future<void> startWebServer(
         de1Handler,
         scaleHandler,
         settingsHandler,
+        sensorsHandler,
       ),
       '0.0.0.0',
       8080);
@@ -51,6 +56,7 @@ Handler _init(
   De1Handler de1Handler,
   ScaleHandler scaleHandler,
   SettingsHandler settingsHandler,
+  SensorsHandler sensorsHandler,
 ) {
   log.info("called _init");
   var app = Router().plus;
@@ -85,6 +91,7 @@ Handler _init(
   de1Handler.addRoutes(app);
   scaleHandler.addRoutes(app);
   settingsHandler.addRoutes(app);
+  sensorsHandler.addRoutes(app);
 
   final handler = const Pipeline()
       .addMiddleware(logRequests())
