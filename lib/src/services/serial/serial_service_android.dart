@@ -162,6 +162,10 @@ class AndroidSerialPort implements SerialTransport {
   bool get isReady => _isReady;
 
   @override
+    // TODO: implement id
+    String get id => "${_device.deviceId}";
+
+  @override
   // TODO: implement name
   String get name => "${_device.deviceName}";
 

@@ -3,7 +3,6 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/sensor_controller.dart';
-import 'package:reaprime/src/services/webserver/sensors_handler.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:shelf_plus/shelf_plus.dart';
@@ -21,6 +20,7 @@ part 'webserver/de1handler.dart';
 part 'webserver/scale_handler.dart';
 part 'webserver/devices_handler.dart';
 part 'webserver/settings_handler.dart';
+part 'webserver/sensors_handler.dart';
 
 final log = Logger("Webservice");
 

@@ -1,8 +1,4 @@
-import 'dart:convert';
-
-import 'package:logging/logging.dart';
-import 'package:reaprime/src/controllers/sensor_controller.dart';
-import 'package:shelf_plus/shelf_plus.dart';
+part of '../webserver_service.dart';
 
 final class SensorsHandler {
   final SensorController _controller;
@@ -26,6 +22,31 @@ final class SensorsHandler {
         return Response.notFound('not found');
       }
       return Response.ok(sensor.info.toJson());
+    });
+
+    app.get('/api/v1/sensors/<id>/snapshot', (Request req) {
+      final id = req.params['id']; // works for normal handlers
+      return sws.webSocketHandler((socket) {
+        final sensor = _controller.sensors[id];
+        if (sensor == null) {
+          socket.sink.add(jsonEncode({'error': 'not found'}));
+          socket.sink.close();
+          return;
+        }
+
+        final sub = sensor.data.listen(
+          (snapshot) => socket.sink.add(jsonEncode(snapshot)),
+          onError: (e, st) => log.severe('send error', e, st),
+        );
+
+        socket.stream.listen(
+          (msg) {
+            // handle incoming messages if needed
+          },
+          onDone: sub.cancel,
+          onError: (_, __) => sub.cancel(),
+        );
+      })(req); // <-- don't forget to call the returned handler
     });
   }
 }

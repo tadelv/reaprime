@@ -25,7 +25,7 @@ class SensorBasket implements Sensor {
   Stream<Map<String, dynamic>> get data => _streamSubject.asBroadcastStream();
 
   @override
-  String get deviceId => _transport.name;
+  String get deviceId => "sb${_transport.id}";
 
   @override
   disconnect() {
@@ -63,8 +63,11 @@ class SensorBasket implements Sensor {
 
   void onData(String data) {
     final elements = data.split(' ');
+    if (elements.length != 5) {
+        return;
+      }
     Map<String, dynamic> values = {};
-    values['timestamp'] = DateTime.now();
+    values['timestamp'] = DateTime.now().toIso8601String();
 
     if (elements.elementAtOrNull(1) != null) {
       values["temperature"] = double.tryParse(elements[1]);

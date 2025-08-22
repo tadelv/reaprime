@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 abstract class SerialTransport {
   String get name;
+  String get id;
   bool get isReady;
   Future<void> open();
   Future<void> close();

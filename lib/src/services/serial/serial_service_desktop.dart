@@ -132,7 +132,6 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       return null;
     }
   }
-
 }
 
 class _DesktopSerialPort implements SerialTransport {
@@ -152,6 +151,9 @@ class _DesktopSerialPort implements SerialTransport {
 
   @override
   bool get isReady => _port.isOpen;
+
+  @override
+  String get id => "${_port.address}";
 
   @override
   String get name => _port.name ?? "Unknown port";
