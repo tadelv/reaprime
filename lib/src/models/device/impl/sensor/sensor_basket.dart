@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'dart:async';
 import 'package:rxdart/subjects.dart';
 
@@ -23,7 +22,7 @@ class SensorBasket implements Sensor {
       _connectionSubject.asBroadcastStream();
 
   @override
-  Stream<Uint8List> get data => _streamSubject.asBroadcastStream();
+  Stream<Map<String, dynamic>> get data => _streamSubject.asBroadcastStream();
 
   @override
   String get deviceId => _transport.name;
@@ -38,15 +37,16 @@ class SensorBasket implements Sensor {
   @override
   String get name => "SensorBasket";
 
-  late StreamSubscription<Uint8List> _transportSubscription;
-  final BehaviorSubject<Uint8List> _streamSubject = BehaviorSubject();
+  late StreamSubscription<String> _transportSubscription;
+  final BehaviorSubject<Map<String, dynamic>> _streamSubject =
+      BehaviorSubject();
 
   @override
   Future<void> onConnect() async {
     _log.info("on connect");
     await _transport.open();
     _transportSubscription =
-        _transport.rawStream.listen(onData, onError: (error) {
+        _transport.readStream.listen(onData, onError: (error) {
       _log.warning("transport error", error);
       disconnect();
     }, onDone: () {
@@ -56,16 +56,53 @@ class SensorBasket implements Sensor {
   }
 
   @override
-  Future<void> tare() {
-    // TODO: implement tare
-    throw UnimplementedError();
+  DeviceType get type => DeviceType.sensor;
+
+  void onData(String data) {
+    final elements = data.split(' ');
+    Map<String, dynamic> values = {};
+    values['timestamp'] = DateTime.now();
+
+    if (elements.elementAtOrNull(1) != null) {
+      values["temperature"] = double.tryParse(elements[1]);
+    }
+    if (elements.elementAtOrNull(2) != null) {
+      values["pressure"] = double.tryParse(elements[2]);
+    }
+    if (elements.elementAtOrNull(3) != null) {
+      values["weight"] = double.tryParse(elements[3]);
+    }
+    if (elements.elementAtOrNull(4) != null) {
+      values["weightFlow"] = double.tryParse(elements[4]);
+    }
+
+    _streamSubject.add(values);
   }
 
   @override
-  DeviceType get type => DeviceType.sensor;
-
-  void onData(Uint8List data) {
-    _log.finest("recv: ${data.map((e) => e.toRadixString(16))}");
-    _streamSubject.add(data);
+  Future<Map<String, dynamic>> execute(
+      String commandId, Map<String, dynamic>? parameters) async {
+    if (commandId == 'tare') {
+      await _transport.writeCommand('tare');
+      return {'status': 'ok'};
+    }
+    return {};
   }
+
+  @override
+  SensorInfo get info =>
+      SensorInfo(name: "SensorBasket", vendor: "DecentEspresso", dataChannels: [
+        DataChannel(key: "timestamp", type: "string"),
+        DataChannel(key: "temperature", type: "number", unit: "°C"),
+        DataChannel(key: "pressure", type: "number", unit: "Bar"),
+        DataChannel(key: "weight", type: "number", unit: "g"),
+        DataChannel(key: "weightFlow", type: "number", unit: "g/s"),
+      ], commands: [
+        CommandDescriptor(
+            id: 'tare',
+            name: 'Tare',
+            description: 'Tare sensor scale',
+            paramsSchema: null,
+            resultsSchema: null)
+      ]);
 }
