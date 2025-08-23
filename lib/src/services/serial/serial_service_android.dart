@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale_serial.dart';
@@ -122,9 +123,20 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
       } else if (isSensorBasket(strings)) {
         _log.info("Detected: Sensor Basket");
         return SensorBasket(transport: transport);
-      } else if (isDE1(dataString, combined)) {
-        _log.info("Detected: DE1 Machine");
-        return SerialDe1(transport: transport);
+      } else {
+        // try and check if we get some replies when subscribing to state
+        final List<String> messages = [];
+        final sub = transport.readStream.listen((line) {
+          messages.add(line);
+        });
+        await transport.writeCommand('<+M>');
+        await Future.delayed(duration);
+        await transport.writeCommand('<-M>');
+        sub.cancel();
+        if (isDE1(messages, combined)) {
+          _log.info("Detected: DE1 Machine");
+          return SerialDe1(transport: transport);
+        }
       }
 
       _log.warning("Unknown device on port $device");

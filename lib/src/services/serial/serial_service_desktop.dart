@@ -114,9 +114,20 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       } else if (isSensorBasket(strings)) {
         _log.info("Detected: Sensor Basket");
         return SensorBasket(transport: transport);
-      } else if (isDE1(dataString, combined)) {
-        _log.info("Detected: DE1 Machine");
-        return SerialDe1(transport: transport);
+      } else {
+        // try and check if we get some replies when subscribing to state
+        final List<String> messages = [];
+        final sub = transport.readStream.listen((line) {
+          messages.add(line);
+        });
+        await transport.writeCommand('<+M>');
+        await Future.delayed(duration);
+        await transport.writeCommand('<-M>');
+        sub.cancel();
+        if (isDE1(messages, combined)) {
+          _log.info("Detected: DE1 Machine");
+          return SerialDe1(transport: transport);
+        }
       }
 
       _log.warning("Unknown device on port $id");
