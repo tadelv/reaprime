@@ -90,7 +90,13 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
     if (device.productName?.contains('Serial') == false) {
       return null;
     }
-    final port = await device.create(UsbSerial.CDC);
+    UsbPort? port;
+    try {
+      port = await device.create(UsbSerial.CDC);
+    } catch (e) {
+      port = await device.create(UsbSerial.CH34x);
+    }
+    // final port = await device.create(UsbSerial.CDC);
     if (port == null) {
       _log.warning("failed to add $device, port is null");
       return null;
