@@ -124,7 +124,8 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
         await Future.delayed(duration);
         await transport.writeCommand('<-M>');
         sub.cancel();
-        if (isDE1(messages, combined)) {
+        final List<String> lines = messages.join().split('\n');
+        if (isDE1(lines, combined)) {
           _log.info("Detected: DE1 Machine");
           return SerialDe1(transport: transport);
         }

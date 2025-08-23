@@ -46,7 +46,7 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
   @override
   Future<void> initialize() async {
     List<UsbDevice> devices = await UsbSerial.listDevices();
-    _log.info("found ${devices}");
+    _log.shout("found ${devices}");
 
     UsbSerial.usbEventStream?.listen((data) {
       switch (data.event) {
@@ -69,6 +69,7 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
   Future<void> scanForDevices() async {
     _devices.clear();
     final devices = await UsbSerial.listDevices();
+    _log.info("have devices: $devices");
     final results = await Future.wait(devices.map((d) async {
       try {
         final device = await _detectDevice(d);
@@ -85,7 +86,11 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
 
   Future<Device?> _detectDevice(UsbDevice device) async {
     // TODO: test multiple serial types?
-    final port = await device.create(UsbSerial.CH34x);
+    _log.shout("device name: ${device.productName}");
+    if (device.productName?.contains('Serial') == false) {
+      return null;
+    }
+    final port = await device.create(UsbSerial.CDC);
     if (port == null) {
       _log.warning("failed to add $device, port is null");
       return null;
@@ -133,7 +138,8 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
         await Future.delayed(duration);
         await transport.writeCommand('<-M>');
         sub.cancel();
-        if (isDE1(messages, combined)) {
+        final List<String> lines = messages.join().split('\n');
+        if (isDE1(lines, combined)) {
           _log.info("Detected: DE1 Machine");
           return SerialDe1(transport: transport);
         }
@@ -155,6 +161,7 @@ class AndroidSerialPort implements SerialTransport {
   final UsbPort _port;
   late Logger _log;
   bool _isReady = false;
+  bool _isOpen = false;
 
   AndroidSerialPort({required UsbDevice device, required UsbPort port})
       : _device = device,
@@ -163,6 +170,7 @@ class AndroidSerialPort implements SerialTransport {
   }
   @override
   Future<void> close() async {
+    _isOpen = false;
     _portSubscription?.cancel();
     await _port.close();
   }
@@ -179,6 +187,10 @@ class AndroidSerialPort implements SerialTransport {
   StreamSubscription<Uint8List>? _portSubscription;
   @override
   Future<void> open() async {
+    if (_isOpen) {
+      _log.warning('port already open');
+      return;
+    }
     if (await _port.open() == false) {
       throw "Failed to open port";
     }
@@ -206,6 +218,7 @@ class AndroidSerialPort implements SerialTransport {
       _log.severe("port read failed", error);
       close();
     });
+    _isOpen = true;
   }
 
   final StreamController<Uint8List> _rawController =

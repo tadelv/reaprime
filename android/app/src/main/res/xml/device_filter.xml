@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 0x1366 / 0x0105: CH340 JLink -->
+    <usb-device vendor-id="1A86" product-id="7523" />
+
+</resources>
