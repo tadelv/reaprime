@@ -176,6 +176,10 @@ class _DesktopSerialPort implements SerialTransport {
 
   @override
   Future<void> open() async {
+    if (_port.isOpen) {
+      _log.warning("already open");
+      return;
+    }
     await Future.microtask(() {
       if (_port.open(mode: 3) == false) {
         _log.warning("could not open port");
