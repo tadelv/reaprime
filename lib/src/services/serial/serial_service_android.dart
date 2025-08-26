@@ -85,9 +85,9 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
   }
 
   Future<Device?> _detectDevice(UsbDevice device) async {
-    // TODO: test multiple serial types?
-    _log.shout("device name: ${device.productName}");
-    if (device.productName?.contains('Serial') == false) {
+    _log.info("device name: ${device.productName}");
+    if (device.productName?.contains('Serial') == false &&
+        !(device.productName == 'DE1')) {
       return null;
     }
     UsbPort? port;
@@ -102,6 +102,13 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
       return null;
     }
     final transport = AndroidSerialPort(device: device, port: port);
+
+    // yay, shortcuts
+    if (device.productName == "DE1") {
+      _log.info("short circuit to de1");
+      return SerialDe1(transport: transport);
+    }
+
     final List<Uint8List> rawData = [];
     final duration = const Duration(seconds: 3);
 
