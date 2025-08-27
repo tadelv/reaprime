@@ -192,6 +192,27 @@ paths:
           description: Scale tared successfully
         "404":
           description: Scale not found
+
+  /api/v1/sensors:
+    get:
+      summary: Get a list of sensor devices connected to Rea
+      description: Will show all the sensors and their ids, that are currently connected and available through Rea
+      responses:
+        "200":
+          description: List of available sensors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    id:
+                      type: string
+
+
   /ws/v1/de1/snapshot:
     get:
       summary: WebSocket Snapshot Updates
@@ -262,6 +283,7 @@ paths:
       description: Receives real-time BLE data from DE1. Use this to send and receive BLE messages
       responses:
         "200":
+          description: Upgraded to websocket messages
           content:
             application/json:
               schema:
@@ -438,27 +460,35 @@ components:
       type: object
       properties:
         heaterPh1Flow:
+          description: Heater phase 1 flow (when heating up for shot)
           type: number
           nullable: true
         heaterPh2Flow:
+          description: Heater phase 2 flow (when heating up for shot)
           type: number
           nullable: true
         heaterIdleTemp:
+          description: Heater idle temperature
           type: number
           nullable: true
         heaterPh2Timeout:
+          description: Heater phase 2 timeout in seconds (how long should de1 try to stabilize temperature)
           type: integer
           nullable: true
     De1AdvancedSettingsResponse:
       type: object
       properties:
         heaterPh1Flow:
+          description: Heater phase 1 flow (when heating up for shot)
           type: number
         heaterPh2Flow:
+          description: Heater phase 2 flow (when heating up for shot)
           type: number
         heaterIdleTemp:
+          description: Heater idle temperature
           type: number
         heaterPh2Timeout:
+          description: Heater phase 2 timeout in seconds (how long should de1 try to stabilize temperature)
           type: integer
     De1RawMessage:
       type: object
