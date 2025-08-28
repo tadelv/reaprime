@@ -209,9 +209,49 @@ paths:
                   properties:
                     name:
                       type: string
-                    id:
-                      type: string
+                    info:
+                      $ref: "#/components/schemas/SensorManifest"
+  /api/v1/sensors/{id}:
+    get:
+      summary: Get full manifest for a sensor
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Full sensor manifest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SensorManifest"
+        '404':
+          description: Sensor not found
 
+
+  /api/v1/settings:
+    get:
+      summary: Get Rea settings
+      responses:
+        "200":
+          description: Rea settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReaSettings"
+    post:
+      summary: Update Rea settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReaSettingsRequest"
+      responses:
+        "200":
+          description: Rea settings updated successfully
 
   /ws/v1/de1/snapshot:
     get:
@@ -288,6 +328,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/De1RawMessage"
+  
+  /api/sensors/{id}/snapshot:
+    get:
+      summary: Get latest snapshot of all data channels for a sensor
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Snapshot of current sensor values
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SensorSnapshot"
+        '404':
+          description: Sensor not found
+
 
 components:
   schemas:
@@ -523,3 +583,102 @@ components:
         - write
         - notify
       description: Operation type indicating the nature of the raw message.
+
+    ReaSettingsRequest:
+      type: object
+      properties:
+        gatewayMode:
+          description: Control whether Rea acts as gateway
+          type: boolean
+          nullable: true
+
+    ReaSettings:
+      type: object
+      properties:
+        gatewayMode:
+          description: Control whether Rea acts as gateway
+          type: boolean
+
+    SensorManifest:
+      type: object
+      required:
+        - id
+        - dataChannels
+      properties:
+        id:
+          type: string
+          description: Unique sensor ID
+          example: "sensor:acme:tempflow:001"
+        name:
+          type: string
+          example: "Acme Temp+Flow v1"
+        vendor:
+          type: string
+          example: "Acme"
+        dataChannels:
+          type: array
+          items:
+            $ref: "#/components/schemas/DataChannel"
+        commands:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommandDescriptor"
+
+    DataChannel:
+      type: object
+      required:
+        - key
+        - type
+      properties:
+        key:
+          type: string
+          example: "temperature"
+        type:
+          type: string
+          enum: ["number", "integer", "string", "boolean", "object", "array"]
+          example: "number"
+        unit:
+          type: string
+          example: "°C"
+        
+    CommandDescriptor:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          example: "calibrate"
+        name:
+          nullable: true
+          type: string
+          example: "Calibrate sensor"
+        description:
+          nullable: true
+          type: string
+          example: "Run auto-calibration routine."
+        paramsSchema:
+          type: object
+          additionalProperties: true
+          example:
+            type: object
+            properties:
+              mode:
+                type: string
+                enum: ["quick","full"]
+            required: ["mode"]
+        resultSchema:
+          type: object
+          additionalProperties: true
+          example:
+            type: object
+            properties:
+              success:
+                type: boolean
+              message:
+                type: string
+
+    SensorSnapshot:
+      type: object
+      required:
+        - values
