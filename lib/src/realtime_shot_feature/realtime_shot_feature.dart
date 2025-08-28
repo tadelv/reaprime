@@ -8,6 +8,7 @@ import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:reaprime/src/util/shot_chart.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -39,7 +40,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
   @override
   initState() {
     super.initState();
-    SettingsService().bypassShotController().then((b) => _gatewayMode = b);
+    SettingsService().gatewayMode().then((b) => _gatewayMode = b == GatewayMode.full);
     _shotController = widget.shotController;
     _resetCommandSubscription = _shotController.resetCommand.listen((event) {
       setState(() {

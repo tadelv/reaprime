@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
@@ -11,8 +12,10 @@ import 'package:reaprime/src/history_feature/history_feature.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/permissions_feature/permissions_view.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
+import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_view.dart';
+import 'package:rxdart/rxdart.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
@@ -40,7 +43,7 @@ final WebUIService webUIService = WebUIService();
 
 /// The Widget that configures your application.
 class MyApp extends StatelessWidget {
-  const MyApp({
+  MyApp({
     super.key,
     required this.settingsController,
     required this.deviceController,
@@ -56,6 +59,8 @@ class MyApp extends StatelessWidget {
   final ScaleController scaleController;
   final WorkflowController workflowController;
   final PersistenceController persistenceController;
+  final BehaviorSubject<ShotController?> _shotStreamController =
+      BehaviorSubject();
 
   @override
   Widget build(BuildContext context) {
@@ -75,17 +80,44 @@ class MyApp extends StatelessWidget {
     de1Controller.de1.listen((event) {
       if (event != null) {
         event.currentSnapshot.listen((snapshot) {
-          BuildContext? context = NavigationService.context;
-          if (!settingsController.bypassShotController &&
-              !isRealtimeShotFeatureActive &&
-              snapshot.state.state == MachineState.espresso &&
-              context != null &&
-              context.mounted) {
-            isRealtimeShotFeatureActive = true;
-            Navigator.pushNamed(
-              context,
-              RealtimeShotFeature.routeName,
-            ).then((_) => isRealtimeShotFeatureActive = false);
+          switch (snapshot.state.state) {
+            case MachineState.espresso:
+              break;
+            default:
+              return;
+          }
+          switch (settingsController.gatewayMode) {
+            case GatewayMode.full:
+              // full gateway mode, not touching anything
+              return;
+            case GatewayMode.tracking:
+              final controller = ShotController(
+                scaleController: scaleController,
+                de1controller: de1Controller,
+                persistenceController: persistenceController,
+                targetProfile: workflowController.currentWorkflow.profile,
+                doseData: workflowController.currentWorkflow.doseData,
+              );
+              _shotStreamController.add(controller);
+              StreamSubscription<ShotState>? sub;
+              sub = controller.state.listen((st) {
+                if (st == ShotState.finished) {
+                  sub?.cancel();
+                  _shotStreamController.add(null);
+                }
+              });
+            case GatewayMode.disabled:
+              BuildContext? context = NavigationService.context;
+              if (!isRealtimeShotFeatureActive &&
+                  snapshot.state.state == MachineState.espresso &&
+                  context != null &&
+                  context.mounted) {
+                isRealtimeShotFeatureActive = true;
+                Navigator.pushNamed(
+                  context,
+                  RealtimeShotFeature.routeName,
+                ).then((_) => isRealtimeShotFeatureActive = false);
+              }
           }
         });
       }

@@ -9,7 +9,7 @@ class SettingsHandler {
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/settings', () async {
       log.info("handling settings");
-      final gatewayMode = _controller.bypassShotController;
+      final gatewayMode = _controller.gatewayMode.name;
       return {
         'gatewayMode': gatewayMode,
       };
@@ -18,8 +18,14 @@ class SettingsHandler {
       final payload = await request.readAsString();
       Map<String, dynamic> json = jsonDecode(payload);
       if (json.containsKey('gatewayMode')) {
-        final bool gatewayMode = json['gatewayMode'];
-        await _controller.updateBypassShotController(gatewayMode);
+        final GatewayMode? gatewayMode =
+            GatewayModeFromString.fromString(json['gatewayMode']);
+        if (gatewayMode == null) {
+          return Response.badRequest(body: {
+            'message': '${json["gatewayMode"]} is not a gateway mode'
+          });
+        }
+        await _controller.updateGatewayMode(gatewayMode);
         return Response.ok('');
       }
       return Response.badRequest();

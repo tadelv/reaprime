@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:logging/logging.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:path/path.dart' as p;

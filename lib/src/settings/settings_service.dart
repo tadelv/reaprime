@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// A service that stores and retrieves user settings.
@@ -21,12 +22,15 @@ class SettingsService {
     await prefs.setString(SettingsKeys.themeMode.name, theme.name);
   }
 
-  Future<bool> bypassShotController() async {
-    return await prefs.getBool(SettingsKeys.bypassShotController.name) ?? false;
+  Future<GatewayMode> gatewayMode() async {
+    return GatewayModeFromString.fromString(
+            await prefs.getString(SettingsKeys.gatewayMode.name) ??
+                GatewayMode.disabled.name) ??
+        GatewayMode.disabled;
   }
 
-  Future<void> updateBypassShotController(bool bypass) async {
-    await prefs.setBool(SettingsKeys.bypassShotController.name, bypass);
+  Future<void> updateGatewayMode(GatewayMode mode) async {
+    await prefs.setString(SettingsKeys.gatewayMode.name, mode.name);
   }
 
   Future<String> logLevel() async {
@@ -46,9 +50,4 @@ class SettingsService {
   }
 }
 
-enum SettingsKeys {
-  themeMode,
-  bypassShotController,
-  logLevel,
-  recordShotPreheat
-}
+enum SettingsKeys { themeMode, gatewayMode, logLevel, recordShotPreheat }

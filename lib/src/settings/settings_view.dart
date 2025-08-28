@@ -6,6 +6,7 @@ import 'package:flutter_archive/flutter_archive.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/src/sample_feature/sample_item_list_view.dart';
+import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_view.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -62,10 +63,28 @@ class SettingsView extends StatelessWidget {
             ),
             Row(
               children: [
-                ShadSwitch(
-                  value: controller.bypassShotController,
-                  onChanged: controller.updateBypassShotController,
-                ),
+                DropdownButton<GatewayMode>(
+                    value: controller.gatewayMode,
+                    onChanged: (v) {
+                      if (v != null) {
+                        controller.updateGatewayMode(v);
+                      }
+                    },
+                    items: const [
+                      DropdownMenuItem(
+                        value: GatewayMode.full,
+                        child: Text('Full (Rea has no control)'),
+                      ),
+                      DropdownMenuItem(
+                        value: GatewayMode.tracking,
+                        child: Text(
+                            'Tracking (Rea will stop shot if target weight is reached)'),
+                      ),
+                      DropdownMenuItem(
+                        value: GatewayMode.disabled,
+                        child: Text('Disabled (Rea has full control'),
+                      ),
+                    ]),
                 SizedBox(
                   width: 16,
                 ),

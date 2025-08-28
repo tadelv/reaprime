@@ -9,6 +9,7 @@ import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
+import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -38,7 +39,7 @@ class ShotController {
   }
 
   Future<void> _initialize() async {
-    _bypassSAW = await SettingsService().bypassShotController();
+    _bypassSAW = await SettingsService().gatewayMode() == GatewayMode.full;
     _log.shout("Initializing ShotController");
     try {
       final state = await scaleController.connectionState.first;

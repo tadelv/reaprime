@@ -1,6 +1,7 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/settings/gateway_mode.dart';
 
 import 'settings_service.dart';
 
@@ -19,13 +20,13 @@ class SettingsController with ChangeNotifier {
   // also persisting the changes with the SettingsService.
   late ThemeMode _themeMode;
 
-  late bool _bypassShotController;
+  late GatewayMode _gatewayMode;
 
   late String _logLevel;
 
   // Allow Widgets to read the user's preferred ThemeMode.
   ThemeMode get themeMode => _themeMode;
-  bool get bypassShotController => _bypassShotController;
+  GatewayMode get gatewayMode => _gatewayMode;
   String get logLevel => _logLevel;
 
   /// Load the user's settings from the SettingsService. It may load from a
@@ -33,7 +34,7 @@ class SettingsController with ChangeNotifier {
   /// settings from the service.
   Future<void> loadSettings() async {
     _themeMode = await _settingsService.themeMode();
-    _bypassShotController = await _settingsService.bypassShotController();
+    _gatewayMode = await _settingsService.gatewayMode();
     _logLevel = await _settingsService.logLevel();
 
     // Important! Inform listeners a change has occurred.
@@ -58,16 +59,16 @@ class SettingsController with ChangeNotifier {
     await _settingsService.updateThemeMode(newThemeMode);
   }
 
-  Future<void> updateBypassShotController(bool bypass) async {
-    if (bypass == _bypassShotController) {
+  Future<void> updateGatewayMode(GatewayMode mode) async {
+    if (mode == _gatewayMode) {
       return;
     }
 
-    _bypassShotController = bypass;
+    _gatewayMode = mode;
 
     notifyListeners();
 
-    await _settingsService.updateBypassShotController(bypass);
+    await _settingsService.updateGatewayMode(mode);
   }
 
   Future<void> updateLogLevel(String? newLogLevel) async {
