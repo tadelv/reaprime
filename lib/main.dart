@@ -61,6 +61,8 @@ void main() async {
     baseFilePath: '${(await getApplicationDocumentsDirectory()).path}/log.txt',
   ).attachToLogger(Logger.root);
 
+  Logger.root.info("==== REA PRIME starting ====");
+
   final List<DeviceDiscoveryService> services = [
     BleDiscoveryService({
       De1.advertisingUUID.toUpperCase(): (id) => De1.fromId(id),
@@ -83,6 +85,19 @@ void main() async {
   );
   persistenceController.loadShots();
 
+  final WorkflowController workflowController = WorkflowController();
+  try {
+    Workflow? workflow = await persistenceController.loadWorkflow();
+    if (workflow != null) {
+      workflowController.setWorkflow(workflow);
+    }
+  } catch (e) {
+    log.warning("loading default workflow failed", e);
+  }
+  workflowController.addListener(() {
+    persistenceController.saveWorkflow(workflowController.currentWorkflow);
+  });
+
   final settingsController = SettingsController(SettingsService());
   final deviceController = DeviceController(services);
   final de1Controller = De1Controller(controller: deviceController);
@@ -95,6 +110,7 @@ void main() async {
       scaleController,
       settingsController,
       sensorController,
+      workflowController,
     );
   } catch (e, st) {
     log.severe('failed to start web server', e, st);
@@ -111,18 +127,6 @@ void main() async {
           .firstWhereOrNull((e) => e.name == settingsController.logLevel) ??
       Level.INFO;
 
-  final WorkflowController workflowController = WorkflowController();
-  try {
-    Workflow? workflow = await persistenceController.loadWorkflow();
-    if (workflow != null) {
-      workflowController.setWorkflow(workflow);
-    }
-  } catch (e) {
-    log.warning("loading default workflow failed", e);
-  }
-  workflowController.addListener(() {
-    persistenceController.saveWorkflow(workflowController.currentWorkflow);
-  });
 
   // Run the app and pass in the SettingsController. The app listens to the
   // SettingsController for changes, then passes it further down to the

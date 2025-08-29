@@ -3,6 +3,8 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/sensor_controller.dart';
+import 'package:reaprime/src/controllers/workflow_controller.dart';
+import 'package:reaprime/src/services/webserver/workflow_handler.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -31,6 +33,7 @@ Future<void> startWebServer(
   ScaleController scaleController,
   SettingsController settingsController,
   SensorController sensorController,
+  WorkflowController workflowController,
 ) async {
   log.info("starting webserver");
   final de1Handler = De1Handler(controller: de1Controller);
@@ -38,15 +41,12 @@ Future<void> startWebServer(
   final deviceHandler = DevicesHandler(controller: deviceController);
   final settingsHandler = SettingsHandler(controller: settingsController);
   final sensorsHandler = SensorsHandler(controller: sensorController);
+  final workflowHandler = WorkflowHandler(
+      controller: workflowController, de1controller: de1Controller);
   // Start server
   final server = await io.serve(
-      _init(
-        deviceHandler,
-        de1Handler,
-        scaleHandler,
-        settingsHandler,
-        sensorsHandler,
-      ),
+      _init(deviceHandler, de1Handler, scaleHandler, settingsHandler,
+          sensorsHandler, workflowHandler),
       '0.0.0.0',
       8080);
   log.info('Web server running on ${server.address.host}:${server.port}');
@@ -58,6 +58,7 @@ Handler _init(
   ScaleHandler scaleHandler,
   SettingsHandler settingsHandler,
   SensorsHandler sensorsHandler,
+  WorkflowHandler workflowHandler,
 ) {
   log.info("called _init");
   var app = Router().plus;
@@ -93,6 +94,7 @@ Handler _init(
   scaleHandler.addRoutes(app);
   settingsHandler.addRoutes(app);
   sensorsHandler.addRoutes(app);
+  workflowHandler.addRoutes(app);
 
   final handler = const Pipeline()
       .addMiddleware(logRequests())

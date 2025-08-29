@@ -6,7 +6,7 @@ class De1Handler {
 
   De1Handler({required De1Controller controller}) : _controller = controller;
 
-  addRoutes(RouterPlus app) {
+  void addRoutes(RouterPlus app) {
     app.get('/api/v1/de1/state', _stateHandler);
     app.put('/api/v1/de1/state/<newState>', _requestStateHandler);
     app.post('/api/v1/de1/profile', _profileHandler);
