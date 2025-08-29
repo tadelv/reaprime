@@ -329,7 +329,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/De1RawMessage"
   
-  /api/sensors/{id}/snapshot:
+  /api/v1/sensors/{id}/snapshot:
     get:
       summary: Get latest snapshot of all data channels for a sensor
       parameters:
@@ -347,6 +347,32 @@ paths:
                 $ref: "#/components/schemas/SensorSnapshot"
         '404':
           description: Sensor not found
+
+  /api/v1/workflow:
+    get:
+      summary: Get info about current workflow
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowRequest'
+    put:
+      summary: Set or update current workflow
+      description: You can update only specific fields, like doseData or grinderData, or profile etc.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowRequest"
+      responses:
+        "200":
+          description: Returns the new workflow object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowRequest'
+            
 
 
 components:
@@ -682,3 +708,52 @@ components:
       type: object
       required:
         - values
+
+    WorkflowRequest:
+      type: object
+      properties:
+        name: 
+          type: string
+        description:
+          type: string
+        profile:
+          $ref: '#/components/schemas/Profile'
+        doseData:
+          $ref: '#/components/schemas/DoseData'
+        grinderData:
+          $ref: '#/components/schemas/GrinderData'
+        coffeeData:
+          $ref: '#/components/schemas/CoffeeData'
+
+    DoseData:
+      type: object
+      required:
+        - doseIn
+        - doseOut
+      properties:
+        doseIn: 
+          type: number
+        doseOut:
+          type: number
+
+    GrinderData:
+      type: object
+      required:
+        - setting
+      properties:
+        setting:
+          type: string
+        manufacturer:
+          type: string
+        model:
+          type: string
+
+    CoffeeData:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        roaster:
+          type: string
