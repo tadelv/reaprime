@@ -66,6 +66,7 @@ class PermissionsView extends StatelessWidget {
 
   Future<bool> checkPermissions() async {
     if (Platform.isAndroid || Platform.isIOS) {
+      // await Permission.ignoreBatteryOptimizations.request();
       await Permission.manageExternalStorage.request();
       await Permission.bluetoothScan.request();
       await Permission.bluetoothConnect.request();

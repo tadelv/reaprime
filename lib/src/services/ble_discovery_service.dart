@@ -26,7 +26,8 @@ class BleDiscoveryService extends DeviceDiscoveryService {
 
   @override
   Future<void> initialize() async {
-    UniversalBle.queueType = QueueType.perDevice;
+    UniversalBle.queueType = QueueType.global;
+    // UniversalBle.onQueueUpdate
     if (await UniversalBle.getBluetoothAvailabilityState() !=
         AvailabilityState.poweredOn) {
       log.warning("Bluetooth not supported on this platform");
