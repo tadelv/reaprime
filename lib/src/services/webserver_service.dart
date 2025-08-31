@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
@@ -18,6 +20,7 @@ import 'package:shelf/shelf_io.dart' as io;
 import 'package:shelf_web_socket/shelf_web_socket.dart' as sws;
 import 'package:shelf_cors_headers/shelf_cors_headers.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
+import 'package:shelf_swagger_ui/shelf_swagger_ui.dart';
 
 part 'webserver/de1handler.dart';
 part 'webserver/scale_handler.dart';
@@ -49,7 +52,15 @@ Future<void> startWebServer(
           sensorsHandler, workflowHandler),
       '0.0.0.0',
       8080);
-  log.info('Web server running on ${server.address.host}:${server.port}');
+  log.info('API Web server running on ${server.address.host}:${server.port}');
+
+
+  // start swagger
+  final swaggerYaml = await rootBundle.loadString('assets/openapi/v1.yaml');
+  log.info("swagger file length: ${swaggerYaml.length}");
+  final swaggerUI = SwaggerUI(swaggerYaml, specType: SpecType.yaml);
+  // final swaggerUI = SwaggerUI.fromFile(File('assets/openapi/v1.yaml'));
+  final swaggerServer = await io.serve(swaggerUI, '0.0.0.0', 4001);
 }
 
 Handler _init(

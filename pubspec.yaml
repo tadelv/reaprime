@@ -50,6 +50,10 @@ dependencies:
   path: ^1.9.1
   shelf_cors_headers: ^0.1.5
   flutter_inappwebview: ^6.1.5
+  shelf_swagger_ui:
+    git:
+      url: https://github.com/Flutterando/shelf_swagger_ui
+      ref: main
     # path: ../flutter_libserialport
     # git:
     #   url: https://github.com/tadelv/flutter_libserialport.git
@@ -71,3 +75,4 @@ flutter:
     # Add assets from the images directory to the application.
     - assets/images/
     - assets/web/
+    - assets/openapi/
