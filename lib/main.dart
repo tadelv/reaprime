@@ -123,11 +123,11 @@ void main() async {
   }
   // Load the user's preferred theme while the splash screen is displayed.
   // This prevents a sudden theme change when the app is first displayed.
-  await settingsController.loadSettings();
   settingsController.addListener(() {
     simulatedDevicesService.simulationEnabled =
         settingsController.simulatedDevices;
   });
+  await settingsController.loadSettings();
 
   Logger.root.level = Level.LEVELS
           .firstWhereOrNull((e) => e.name == settingsController.logLevel) ??
