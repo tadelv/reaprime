@@ -57,24 +57,18 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     final ports = SerialPort.availablePorts;
     _log.info("Found ports: $ports");
 
-    // Check each port individually to avoid failures breaking the loop
-    final results = await Future.wait(
-      ports.map((portId) async {
-        try {
-          final device = await _detectDevice(portId);
-          _log.info("Port $portId -> ${device ?? 'no device'}");
-          return device;
-        } catch (e, st) {
-          _log.warning("Error detecting device on $portId", e, st);
-          return null;
-        }
-      }),
-    );
+    final results = <Device?>[];
 
-    // Keep only valid devices
+    for (final portId in ports) {
+      try {
+        results.add(await _detectDevice(portId));
+      } catch (e, st) {
+        _log.warning("Error detecting device on $portId", e, st);
+        results.add(null);
+      }
+    }
+
     _devices = results.whereType<Device>().toList();
-
-    // Notify observers
     _machineSubject.add(_devices);
     _log.info("Added devices: $_devices");
   }
@@ -82,32 +76,36 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
   Future<Device?> _detectDevice(String id) async {
     final port = SerialPort(id);
     final transport = _DesktopSerialPort(port: port);
-    final List<Uint8List> rawData = [];
-    final duration = const Duration(seconds: 3);
+    final rawData = <Uint8List>[];
+    const readDuration = Duration(milliseconds: 800);
+    _log.fine("Inspecting: ${port.name}, ${port.productName}");
+
+    // De1 shortcut
+    if (port.productName == "DE1") {
+      return SerialDe1(transport: transport);
+    }
 
     try {
       await transport.open();
 
-      // Start listening to the stream
-      final subscription = transport.rawStream.listen(
-        (chunk) {
-          rawData.add(chunk);
+      // Collect data with a timeout rather than a fixed delay
+      final subscription = transport.rawStream.listen(rawData.add);
+
+      // Wait for data or timeout
+      await subscription.asFuture<void>().timeout(
+        readDuration,
+        onTimeout: () async {
+          await subscription.cancel();
         },
-        onError: (err, st) => _log.warning("Serial read error", err, st),
-        cancelOnError: false,
       );
 
-      // Collect for the desired duration
-      await Future.delayed(duration);
-      await subscription.cancel();
-
-      // Combine all chunks into one buffer
       final combined = rawData.expand((e) => e).toList();
-      final dataString = String.fromCharCodes(combined);
-      final strings = rawData.map((e) => String.fromCharCodes(e)).toList();
-      _log.info("Collected serial data: $dataString");
+      final strings = rawData.map(utf8.decode).toList();
+      _log.info("Collected serial data: ${utf8.decode(combined)}");
+      if (combined.isEmpty && strings.isEmpty) {
+        throw ('no data collected');
+      }
 
-      // Heuristic checks for device type
       if (isDecentScale(strings, rawData)) {
         _log.info("Detected: Decent Scale");
         return HDSSerial(transport: transport);
@@ -115,17 +113,24 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
         _log.info("Detected: Sensor Basket");
         return SensorBasket(transport: transport);
       } else {
-        // try and check if we get some replies when subscribing to state
-        final List<String> messages = [];
-        final sub = transport.readStream.listen((line) {
-          messages.add(line);
-        });
+        // TODO: better DE1 detection
+        final messages = <String>[];
+        final stateSubscription = transport.readStream.listen(messages.add);
+
+        // Send state commands without a fixed delay, but with timeout
         await transport.writeCommand('<+M>');
-        await Future.delayed(duration);
-        await transport.writeCommand('<-M>');
-        sub.cancel();
-        final List<String> lines = messages.join().split('\n');
-        if (isDE1(lines, combined)) {
+        try {
+          await stateSubscription.asFuture<void>().timeout(
+            readDuration,
+            onTimeout: () async {
+              await stateSubscription.cancel();
+            },
+          );
+        } finally {
+          await transport.writeCommand('<-M>');
+        }
+
+        if (isDE1(messages.join().split('\n'), combined)) {
           _log.info("Detected: DE1 Machine");
           return SerialDe1(transport: transport);
         }
