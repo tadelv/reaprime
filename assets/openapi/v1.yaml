@@ -622,8 +622,8 @@ components:
       type: object
       properties:
         gatewayMode:
-          description: Control whether Rea acts as gateway
-          type: boolean
+          description: Control whether Rea acts as gateway. Disabled means gateway is disabled, full means full gateway mode. Tracking means rea will not show graphs, but will control the shot (stop at weight)
+          enum: ["disabled","full", "tracking"]
 
     SensorManifest:
       type: object
