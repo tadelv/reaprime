@@ -74,9 +74,11 @@ void main() async {
 
   services.add(createSerialService());
 
+  final simulatedDevicesService = SimulatedDeviceService();
+  services.add(simulatedDevicesService);
   if (const String.fromEnvironment("simulate") == "1") {
-    services.add(SimulatedDeviceService());
-    log.shout("adding Simulated Service");
+    simulatedDevicesService.simulationEnabled = true;
+    log.shout("enabling Simulated Service");
   }
   // TODO: replace with documents once import is implemented
   var storagePath = await getDownloadsDirectory();
@@ -122,11 +124,14 @@ void main() async {
   // Load the user's preferred theme while the splash screen is displayed.
   // This prevents a sudden theme change when the app is first displayed.
   await settingsController.loadSettings();
+  settingsController.addListener(() {
+    simulatedDevicesService.simulationEnabled =
+        settingsController.simulatedDevices;
+  });
 
   Logger.root.level = Level.LEVELS
           .firstWhereOrNull((e) => e.name == settingsController.logLevel) ??
       Level.INFO;
-
 
   // Run the app and pass in the SettingsController. The app listens to the
   // SettingsController for changes, then passes it further down to the

@@ -15,6 +15,8 @@ class SimulatedDeviceService
   final StreamController<List<Device>> _deviceStreamController =
       StreamController.broadcast();
 
+  bool simulationEnabled = false;
+
   @override
   Future<Machine> connectToMachine({String? deviceId}) async {
     return MockDe1();
@@ -41,11 +43,14 @@ class SimulatedDeviceService
 
   @override
   Future<void> scanForDevices() async {
+    if (!simulationEnabled) {
+      return;
+    }
     _devices["MockDe1"] = MockDe1();
     _devices["MockScale"] = MockScale();
-    if (scanCount > 1) {
-      _devices["MockDe1 #2"] = MockDe1(deviceId: "MockDe1 #2");
-    }
+    // if (scanCount > 1) {
+    //   _devices["MockDe1 #2"] = MockDe1(deviceId: "MockDe1 #2");
+    // }
     _deviceStreamController.add(_devices.values.toList());
     notifyListeners();
     scanCount++;

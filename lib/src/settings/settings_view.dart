@@ -167,6 +167,21 @@ class SettingsView extends StatelessWidget {
                 ),
               ],
             ),
+            Row(
+              children: [
+                ShadSwitch(
+                  value: controller.simulatedDevices,
+                  enabled: true,
+                  onChanged: (v) async {
+                    Logger("Settings").info("toggle sim to ${v}");
+                    await controller.setSimulatedDevices(v);
+                  },
+                  label: Text("Show simulated devices"),
+                  sublabel: Text(
+                      "Whether simulated devices should be shown in scan results"),
+                ),
+              ],
+            ),
             ShadButton.secondary(
               onPressed: () {
                 _pickFolderAndLoadHtml(context);

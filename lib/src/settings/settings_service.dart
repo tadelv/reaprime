@@ -48,6 +48,20 @@ class SettingsService {
   Future<void> setRecordShotPreheat(bool value) async {
     return await prefs.setBool(SettingsKeys.recordShotPreheat.name, value);
   }
+
+  Future<bool> simulateDevices() async {
+    return await prefs.getBool(SettingsKeys.simulateDevices.name) ?? false;
+  }
+
+  Future<void> setSimulatedDevices(bool value) async {
+    await prefs.setBool(SettingsKeys.simulateDevices.name, value);
+  }
 }
 
-enum SettingsKeys { themeMode, gatewayMode, logLevel, recordShotPreheat }
+enum SettingsKeys {
+  themeMode,
+  gatewayMode,
+  logLevel,
+  recordShotPreheat,
+  simulateDevices
+}
