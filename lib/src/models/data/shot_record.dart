@@ -1,5 +1,6 @@
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 class ShotRecord {
   final String id;
