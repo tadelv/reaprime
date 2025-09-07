@@ -5,6 +5,8 @@ import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/home_feature/tiles/history_tile.dart';
 import 'package:reaprime/src/home_feature/tiles/profile_tile.dart';
 import 'package:reaprime/src/home_feature/tiles/settings_tile.dart';
+import 'package:reaprime/src/settings/gateway_mode.dart';
+import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
@@ -19,6 +21,7 @@ class HomeScreen extends StatefulWidget {
     required this.scaleController,
     required this.workflowController,
     required this.persistenceController,
+    required this.settingsController,
   });
 
   final DeviceController deviceController;
@@ -26,6 +29,7 @@ class HomeScreen extends StatefulWidget {
   final ScaleController scaleController;
   final WorkflowController workflowController;
   final PersistenceController persistenceController;
+  final SettingsController settingsController;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -72,6 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
       spacing: 12,
       children: [
         _historyCard(context),
+        _quickSettingsCard(context),
       ],
     );
   }
@@ -163,6 +168,53 @@ class _HomeScreenState extends State<HomeScreen> {
                     }
                     return Center(child: Text('No data found.'));
                   }),
+            ],
+          ),
+        ));
+  }
+
+  Widget _quickSettingsCard(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return ShadCard(
+        width: _leftColumWidth,
+        title: Text(
+          'Quick Settings',
+          style: theme.textTheme.h4,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Gateway mode"),
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: DropdownButton<GatewayMode>(
+                    isDense: true,
+                    menuWidth: 200,
+                    value: widget.settingsController.gatewayMode,
+                    onChanged: (v) {
+                      if (v != null) {
+                        widget.settingsController.updateGatewayMode(v);
+                      }
+                    },
+                    items: const [
+                      DropdownMenuItem(
+                        value: GatewayMode.full,
+                        child: Text('Full (Rea has no control)'),
+                      ),
+                      DropdownMenuItem(
+                        value: GatewayMode.tracking,
+                        child: Text(
+                            'Tracking (Rea will stop shot if target weight is reached)'),
+                      ),
+                      DropdownMenuItem(
+                        value: GatewayMode.disabled,
+                        child: Text('Disabled (Rea has full control'),
+                      ),
+                    ]),
+              ),
             ],
           ),
         ));

@@ -218,6 +218,7 @@ class MyApp extends StatelessWidget {
                       scaleController: scaleController,
                       deviceController: deviceController,
                       persistenceController: persistenceController,
+                      settingsController: settingsController,
                     );
                   case HistoryFeature.routeName:
                     final possibleShot = routeSettings.arguments as String;

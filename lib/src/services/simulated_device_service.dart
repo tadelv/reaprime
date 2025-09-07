@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
 import 'package:reaprime/src/models/device/impl/mock_scale/mock_scale.dart';
+import 'package:reaprime/src/models/device/impl/sensor/mock/mock_sensor_basket.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 
@@ -48,6 +49,7 @@ class SimulatedDeviceService
     }
     _devices["MockDe1"] = MockDe1();
     _devices["MockScale"] = MockScale();
+    _devices["MockSensorBasket"] = MockSensorBasket();
     // if (scanCount > 1) {
     //   _devices["MockDe1 #2"] = MockDe1(deviceId: "MockDe1 #2");
     // }

@@ -60,6 +60,7 @@ class _HistoryTileState extends State<HistoryTile> {
     }
   }
 
+
   Widget _body(BuildContext context) {
     var shot = _shotHistory[_selectedShotIndex];
     var canGoBack = _selectedShotIndex > 0;
@@ -68,7 +69,7 @@ class _HistoryTileState extends State<HistoryTile> {
       //key: Key(shot.timestamp.toIso8601String()),
       children: [
         Text(
-          "${shot.timestamp}",
+          shot.shotTime(),
         ),
         TapRegion(
           child: _shotDetails(context, shot),

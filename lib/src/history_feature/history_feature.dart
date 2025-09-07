@@ -126,7 +126,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                       });
                     },
                     child: ShadCard(
-                        title: Text(record.id),
+                        title: Text(record.shotTime()),
                         description: Text(record.workflow.name),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
