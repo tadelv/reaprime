@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class WebUIView extends StatefulWidget {
   static const String routeName = "WebuiView";
@@ -19,13 +21,13 @@ class _WebuiViewState extends State<WebUIView> {
   InAppWebViewController? _controller;
   final Logger _log = Logger("WebUI");
   InAppWebViewSettings settings = InAppWebViewSettings(
-      isInspectable: kDebugMode,
-      // mediaPlaybackRequiresUserGesture: false,
-      // allowsInlineMediaPlayback: true,
-      javaScriptEnabled: true,
-      javaScriptCanOpenWindowsAutomatically: true,
-      mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
-      );
+    isInspectable: kDebugMode,
+    // mediaPlaybackRequiresUserGesture: false,
+    // allowsInlineMediaPlayback: true,
+    javaScriptEnabled: true,
+    javaScriptCanOpenWindowsAutomatically: true,
+    mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
+  );
 
   PullToRefreshController? pullToRefreshController;
 
@@ -37,10 +39,9 @@ class _WebuiViewState extends State<WebUIView> {
     //   InAppWebViewController.setWebContentsDebuggingEnabled(true);
     // }
     pullToRefreshController = kIsWeb ||
-            ![TargetPlatform.iOS, TargetPlatform.android]
+            [TargetPlatform.iOS, TargetPlatform.android]
                 .contains(defaultTargetPlatform)
-        ? null
-        : PullToRefreshController(
+        ? PullToRefreshController(
             settings: PullToRefreshSettings(
               color: Colors.blue,
             ),
@@ -52,7 +53,8 @@ class _WebuiViewState extends State<WebUIView> {
                     urlRequest: URLRequest(url: await _controller?.getUrl()));
               }
             },
-          );
+          )
+        : null;
     // _controller = WebViewController(onPermissionRequest: (request) {
     //   _log.info("onPermissionRequest:", request);
     // })
@@ -77,9 +79,30 @@ class _WebuiViewState extends State<WebUIView> {
 
   @override
   Widget build(BuildContext context) {
+    if (Platform.isLinux) {
+      return _linuxBody(context);
+    }
     return Scaffold(
       appBar: null, //AppBar(title: const Text('Local Web UI')),
       body: _body(context),
+    );
+  }
+
+  Widget _linuxBody(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text("Web UI")),
+      body: Column(
+        children: [
+          Text("REA Web UI running, but unsupported on Linux currently"),
+          ShadButton(
+            child: Text("Open UI in browser"),
+            onPressed: () async {
+                final url  = Uri.parse('http://localhost:3000');
+                await launchUrl(url);
+              },
+          )
+        ],
+      ),
     );
   }
 
