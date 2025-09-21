@@ -91,21 +91,25 @@ class MyApp extends StatelessWidget {
               // full gateway mode, not touching anything
               return;
             case GatewayMode.tracking:
-              final controller = ShotController(
-                scaleController: scaleController,
-                de1controller: de1Controller,
-                persistenceController: persistenceController,
-                targetProfile: workflowController.currentWorkflow.profile,
-                doseData: workflowController.currentWorkflow.doseData,
-              );
-              _shotStreamController.add(controller);
-              StreamSubscription<ShotState>? sub;
-              sub = controller.state.listen((st) {
-                if (st == ShotState.finished) {
-                  sub?.cancel();
-                  _shotStreamController.add(null);
-                }
-              });
+              if (!isRealtimeShotFeatureActive) {
+                isRealtimeShotFeatureActive = true;
+                final controller = ShotController(
+                  scaleController: scaleController,
+                  de1controller: de1Controller,
+                  persistenceController: persistenceController,
+                  targetProfile: workflowController.currentWorkflow.profile,
+                  doseData: workflowController.currentWorkflow.doseData,
+                );
+                _shotStreamController.add(controller);
+                StreamSubscription<ShotState>? sub;
+                sub = controller.state.listen((st) {
+                  if (st == ShotState.finished) {
+                    sub?.cancel();
+                    _shotStreamController.add(null);
+                    isRealtimeShotFeatureActive = false;
+                  }
+                });
+              }
             case GatewayMode.disabled:
               BuildContext? context = NavigationService.context;
               if (!isRealtimeShotFeatureActive &&
