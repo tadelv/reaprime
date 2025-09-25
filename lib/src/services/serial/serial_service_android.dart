@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale_serial.dart';
@@ -46,7 +45,7 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
   @override
   Future<void> initialize() async {
     List<UsbDevice> devices = await UsbSerial.listDevices();
-    _log.shout("found ${devices}");
+    _log.info("found ${devices}");
 
     UsbSerial.usbEventStream?.listen((data) {
       switch (data.event) {

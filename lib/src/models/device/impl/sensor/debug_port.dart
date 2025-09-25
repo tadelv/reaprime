@@ -21,14 +21,24 @@ class DebugPort implements Sensor {
   }
 
   @override
-  Future<Map<String, dynamic>> execute(String commandId, Map<String, dynamic>? parameters) {
+  Future<Map<String, dynamic>> execute(
+      String commandId, Map<String, dynamic>? parameters) {
     // TODO: implement execute
     throw UnimplementedError();
   }
 
   @override
-  // TODO: implement info
-  SensorInfo get info => throw UnimplementedError();
+  SensorInfo get info =>
+      SensorInfo(name: "Debug Port", vendor: "Decent Espresso", dataChannels: [
+        DataChannel(key: "output", type: "string")
+      ], commands: [
+        CommandDescriptor(
+            id: "input",
+            name: "input",
+            description: "Send line to debug port",
+            paramsSchema: {"command": "string"},
+            resultsSchema: null)
+      ]);
 
   @override
   // TODO: implement name
