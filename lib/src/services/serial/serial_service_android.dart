@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale_serial.dart';
+import 'package:reaprime/src/models/device/impl/sensor/debug_port.dart';
 import 'package:reaprime/src/models/device/impl/sensor/sensor_basket.dart';
 import 'package:reaprime/src/models/device/impl/serial_de1/serial_de1.dart';
 import 'package:reaprime/src/models/device/machine.dart';
@@ -134,7 +135,9 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
       _log.info("Collected serial data: $dataString");
 
       // Heuristic checks for device type
-      if (isDecentScale(strings, rawData)) {
+      if (strings.any((s) => s.startsWith('R '))) {
+        return DebugPort(transport: transport);
+      } else if (isDecentScale(strings, rawData)) {
         _log.info("Detected: Decent Scale");
         return HDSSerial(transport: transport);
       } else if (isSensorBasket(strings)) {
