@@ -79,16 +79,21 @@ class DebugPort implements Sensor {
     _connectionSubject.add(ConnectionState.connected);
   }
 
+  String _buffer = "";
+
   void onData(String data) {
-    final elements = data.split(' ');
-    if (elements.length != 5) {
+    final split = data.split('\n');
+    if (split.length == 1) {
+      _buffer += split.first;
       return;
     }
     Map<String, dynamic> values = {};
     values['timestamp'] = DateTime.now().toIso8601String();
 
-    values['output'] = data;
+    values['output'] = _buffer + split.first;
     _streamSubject.add(values);
+
+    _buffer = split[1].replaceAll('\n', '');
   }
 
   @override
