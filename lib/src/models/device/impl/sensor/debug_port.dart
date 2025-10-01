@@ -40,10 +40,23 @@ class DebugPort implements Sensor {
 
   @override
   Future<Map<String, dynamic>> execute(
-      String commandId, Map<String, dynamic>? parameters) {
+      String commandId, Map<String, dynamic>? parameters) async {
+    if (commandId != "input") {
+      throw "Invalid command";
+    }
+    if (parameters == null) {
+      throw 'Parameter "command" required';
+    }
+
+    final command = parameters["command"];
+
+    if (command == null || command.runtimeType != String) {
+      throw 'Invalid "command" type: ${command.runtimeType}';
+    }
+
     _log.fine("executing $commandId");
-    // TODO: implement execute
-    throw UnimplementedError();
+    await _transport.writeCommand(command);
+    return {};
   }
 
   @override

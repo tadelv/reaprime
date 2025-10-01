@@ -48,5 +48,26 @@ final class SensorsHandler {
         );
       })(req); // <-- don't forget to call the returned handler
     });
+
+    app.post('/api/v1/sensors/<id>/execute', (Request req, String id) async {
+      final sensor = _controller.sensors[id];
+      if (sensor == null) {
+        return Response.notFound('not found');
+      }
+
+      final body = await req.readAsString();
+      final jsonBody = jsonDecode(body);
+      final cmdId = jsonBody['commandId'] as String;
+      final params = jsonBody['params'] as Map<String, dynamic>?;
+      try {
+        final res = await sensor.execute(cmdId, params);
+        return Response.ok(jsonEncode({'status': 'ok', 'result': res}),
+            headers: {'content-type': 'application/json'});
+      } catch (e) {
+        return Response.internalServerError(
+            body: jsonEncode({'status': 'error', 'message': e.toString()}),
+            headers: {'content-type': 'application/json'});
+      }
+    });
   }
 }
