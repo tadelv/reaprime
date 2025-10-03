@@ -7,7 +7,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.6.1
+  sdk: ^3.7.0
 
 dependencies:
   flutter:
@@ -22,10 +22,10 @@ dependencies:
   shelf: ^1.0.0
   shelf_web_socket: ^2.0.1
   shelf_router: ^1.1.4
-  battery_plus: ^6.2.1
+  battery_plus: ^7.0.0
   collection: ^1.19.0
   shelf_plus: ^1.10.0
-  shadcn_ui: ^0.29.0
+  shadcn_ui: ^0.36.1
   file_picker: ^10.1.9
   fl_chart: ^1.0.0
   flutter_launcher_icons: ^0.14.3
