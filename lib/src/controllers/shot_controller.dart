@@ -40,10 +40,10 @@ class ShotController {
 
   Future<void> _initialize() async {
     _bypassSAW = await SettingsService().gatewayMode() == GatewayMode.full;
-    _log.shout("Initializing ShotController");
+    _log.info("Initializing ShotController");
     try {
       final state = await scaleController.connectionState.first;
-      _log.shout("Scale state: $state");
+      _log.info("Scale state: $state");
       if (state != device.ConnectionState.connected) {
         throw Exception("Scale not connected");
       }
@@ -78,6 +78,7 @@ class ShotController {
   }
 
   void dispose() {
+    _log.fine("dispose");
     _snapshotSubscription?.cancel();
     _rawShotDataStream.close();
     _shotDataStream.close();

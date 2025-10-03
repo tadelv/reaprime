@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 // import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 // import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
@@ -59,8 +60,6 @@ class MyApp extends StatelessWidget {
   final ScaleController scaleController;
   final WorkflowController workflowController;
   final PersistenceController persistenceController;
-  final BehaviorSubject<ShotController?> _shotStreamController =
-      BehaviorSubject();
 
   @override
   Widget build(BuildContext context) {
@@ -78,6 +77,7 @@ class MyApp extends StatelessWidget {
 
     final themeColor = 'green';
     de1Controller.de1.listen((event) {
+      final logger = Logger("de1 event logger");
       if (event != null) {
         event.currentSnapshot.listen((snapshot) {
           switch (snapshot.state.state) {
@@ -86,12 +86,16 @@ class MyApp extends StatelessWidget {
             default:
               return;
           }
+          logger.fine(
+            "handling state: ${snapshot.state.state} in mode: ${settingsController.gatewayMode.name}",
+          );
           switch (settingsController.gatewayMode) {
             case GatewayMode.full:
               // full gateway mode, not touching anything
               return;
             case GatewayMode.tracking:
               if (!isRealtimeShotFeatureActive) {
+                logger.shout("new shot controller");
                 isRealtimeShotFeatureActive = true;
                 final controller = ShotController(
                   scaleController: scaleController,
@@ -100,12 +104,12 @@ class MyApp extends StatelessWidget {
                   targetProfile: workflowController.currentWorkflow.profile,
                   doseData: workflowController.currentWorkflow.doseData,
                 );
-                _shotStreamController.add(controller);
                 StreamSubscription<ShotState>? sub;
                 sub = controller.state.listen((st) {
                   if (st == ShotState.finished) {
+                    logger.fine("cancelling shot controller");
+                    controller.dispose();
                     sub?.cancel();
-                    _shotStreamController.add(null);
                     isRealtimeShotFeatureActive = false;
                   }
                 });
@@ -160,13 +164,19 @@ class MyApp extends StatelessWidget {
           // preferred ThemeMode (light, dark, or system default) from the
           // SettingsController to display the correct theme.
           theme: ShadThemeData(
-              colorScheme: ShadColorScheme.fromName(themeColor,
-                  brightness: Brightness.light),
-              brightness: Brightness.light),
+            colorScheme: ShadColorScheme.fromName(
+              themeColor,
+              brightness: Brightness.light,
+            ),
+            brightness: Brightness.light,
+          ),
           darkTheme: ShadThemeData(
-              colorScheme: ShadColorScheme.fromName(themeColor,
-                  brightness: Brightness.dark),
-              brightness: Brightness.dark),
+            colorScheme: ShadColorScheme.fromName(
+              themeColor,
+              brightness: Brightness.dark,
+            ),
+            brightness: Brightness.dark,
+          ),
           themeMode: settingsController.themeMode,
 
           navigatorKey: NavigationService.navigatorKey,
@@ -191,10 +201,13 @@ class MyApp extends StatelessWidget {
                         de1Controller.connectToDe1(device);
                       }
                       return De1DebugView(
-                        machine: deviceController.devices.firstWhere(
-                          (e) =>
-                              e.deviceId == (routeSettings.arguments as String),
-                        ) as De1Interface,
+                        machine:
+                            deviceController.devices.firstWhere(
+                                  (e) =>
+                                      e.deviceId ==
+                                      (routeSettings.arguments as String),
+                                )
+                                as De1Interface,
                       );
                     }
                     if (device is Scale) {
