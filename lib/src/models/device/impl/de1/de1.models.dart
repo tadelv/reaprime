@@ -1,6 +1,5 @@
 // ignore_for_file: constant_identifier_names
 
-import 'package:flutter/material.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 
 final String de1ServiceUUID = 'A000';

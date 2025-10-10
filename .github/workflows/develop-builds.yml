@@ -3,7 +3,7 @@ name: Development build
 on:
   push:
     branches:
-      - develop
+      - main
 
 jobs:
   build-android:
@@ -15,7 +15,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.32.1'
+          channel: 'beta'
 
       - name: Install dependencies
         run: flutter pub get
@@ -41,7 +41,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.32.1'
+          channel: 'beta'
 
       - name: Install dependencies
         run: flutter pub get
@@ -67,7 +67,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.32.1'
+          channel: 'beta'
 
       - name: Install dependencies
         run: flutter pub get
@@ -80,3 +80,35 @@ jobs:
         with:
           name: linux-app
           path: build/linux/x64/release/bundle
+
+  build-raspberrypi:
+    name: Build for Raspberry Pi (ARM64 / Pi 4+)
+    runs-on: ubuntu-22.04-arm     # ARM64 hosted runner label
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Install GTK+ 3.0
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: master
+          flutter-version: 3.37.0-0.1.pre
+      
+      - name: Run git safe dir
+        run: git config --global --add safe.directory /opt/hostedtoolcache/flutter/${{ steps.flutter-action.outputs.CHANNEL }}-${{ steps.flutter-action.outputs.VERSION }}-${{ steps.flutter-action.outputs.ARCHITECTURE }}
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Linux app (ARM64)
+        run: flutter build linux --release 
+
+      - name: Upload Raspberry Pi build (ARM64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: raspberrypi-linux-arm64-app
+          path: build/linux/arm64/release/bundle
+

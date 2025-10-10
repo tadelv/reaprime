@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -16,10 +17,12 @@ class HistoryFeature extends StatefulWidget {
     super.key,
     required this.persistenceController,
     required this.workflowController,
+    this.selectedShot,
   });
 
   final PersistenceController persistenceController;
   final WorkflowController workflowController;
+  final String? selectedShot;
 
   @override
   State<StatefulWidget> createState() => _HistoryFeatureState();
@@ -27,7 +30,7 @@ class HistoryFeature extends StatefulWidget {
 
 class _HistoryFeatureState extends State<HistoryFeature> {
   Logger _log = Logger("HistoryFeature");
-  TextEditingController _searchController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
 
   List<ShotRecord> _shots = [];
   List<ShotRecord> _filteredShots = [];
@@ -39,14 +42,24 @@ class _HistoryFeatureState extends State<HistoryFeature> {
   void initState() {
     _shotsSubscription = widget.persistenceController.shots.listen((records) {
       setState(() {
-        _shots = records.sorted((a, b) => a.timestamp.isBefore(b.timestamp) ? 1 : -1);
+        _shots = records
+            .sorted((a, b) => a.timestamp.isBefore(b.timestamp) ? 1 : -1);
         if (_searchController.text.isEmpty) {
           _filteredShots = _shots;
         }
       });
     });
     _searchController.addListener(searchTextUpdate);
+    if (widget.selectedShot != null) {
+      setSelectedShot("");
+    }
     super.initState();
+  }
+
+  void setSelectedShot(String id) {
+    final json = jsonDecode(widget.selectedShot!);
+    final shot = ShotRecord.fromJson(json);
+    _selectedShot = shot;
   }
 
   @override
@@ -113,7 +126,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                       });
                     },
                     child: ShadCard(
-                        title: Text(record.id),
+                        title: Text(record.shotTime()),
                         description: Text(record.workflow.name),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,10 +171,13 @@ class _HistoryFeatureState extends State<HistoryFeature> {
             );
           },
         ),
-        ShotChart(
-          shotSnapshots: record.measurements,
-          shotStartTime: record.timestamp,
-        )
+        Hero(
+          tag: "shotHistory",
+          child: ShotChart(
+            shotSnapshots: record.measurements,
+            shotStartTime: record.timestamp,
+          ),
+        ),
       ],
     );
   }

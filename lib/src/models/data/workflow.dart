@@ -10,7 +10,7 @@ class Workflow {
   final GrinderData? grinderData;
   final CoffeeData? coffeeData;
 
-  Workflow(
+  const Workflow(
       {required this.id,
       required this.name,
       this.description = '',
@@ -18,6 +18,7 @@ class Workflow {
       required this.doseData,
       this.grinderData,
       this.coffeeData});
+
   factory Workflow.fromJson(Map<String, dynamic> json) {
     return Workflow(
       id: json['id'],
@@ -83,7 +84,10 @@ class DoseData {
   }
 
   factory DoseData.fromJson(Map<String, dynamic> json) {
-    return DoseData(doseIn: json['doseIn'], doseOut: json['doseOut']);
+    return DoseData(
+      doseIn: double.parse(json['doseIn'].toString()),
+      doseOut: double.parse(json['doseOut'].toString()),
+    );
   }
 
   Map<String, dynamic> toJson() {
@@ -105,11 +109,11 @@ class DoseData {
 }
 
 class GrinderData {
-  String setting;
-  String? manufacturer;
-  String? model;
+  final String setting;
+  final String? manufacturer;
+  final String? model;
 
-  GrinderData({this.setting = "", this.manufacturer, this.model});
+  const GrinderData({this.setting = "", this.manufacturer, this.model});
 
   factory GrinderData.fromJson(Map<String, dynamic> json) {
     return GrinderData(
@@ -141,10 +145,10 @@ class GrinderData {
 }
 
 class CoffeeData {
-  String? roaster;
-  String name;
+  final String? roaster;
+  final String name;
 
-  CoffeeData({this.name = '', this.roaster});
+  const CoffeeData({this.name = '', this.roaster});
 
   factory CoffeeData.fromJson(Map<String, dynamic> json) {
     return CoffeeData(

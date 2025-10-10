@@ -100,7 +100,6 @@ class _De1DebugViewState extends State<De1DebugView> {
 
                       if (!context.mounted) return;
 
-                      double progress = 0.0;
                       final progressNotifier = ValueNotifier<double>(0.0);
 
                       showDialog(
@@ -144,13 +143,13 @@ class _De1DebugViewState extends State<De1DebugView> {
                             context: context,
                             builder: (context) => ShadDialog(
                               title: const Text("Firmware update failed"),
-                              child: Text(e.toString()),
                               actions: [
                                 ShadButton(
                                   child: const Text("OK"),
                                   onTapUp: (_) => Navigator.of(context).pop(),
                                 )
                               ],
+                              child: Text(e.toString()),
                             ),
                           );
                         }
@@ -172,8 +171,10 @@ class _De1DebugViewState extends State<De1DebugView> {
     );
   }
 
-  final TextEditingController _serialPayloadController = TextEditingController();
-  final TextEditingController _serialCharacteristicController = TextEditingController();
+  final TextEditingController _serialPayloadController =
+      TextEditingController();
+  final TextEditingController _serialCharacteristicController =
+      TextEditingController();
 
   Widget _serialComms(BuildContext context) {
     return Column(

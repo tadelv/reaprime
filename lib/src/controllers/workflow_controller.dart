@@ -26,7 +26,7 @@ class WorkflowController extends ChangeNotifier {
 
   Workflow get currentWorkflow => _currentWorkflow;
 
-  setWorkflow(Workflow newWorkflow) {
+  void setWorkflow(Workflow newWorkflow) {
     _currentWorkflow = newWorkflow;
     notifyListeners();
   }

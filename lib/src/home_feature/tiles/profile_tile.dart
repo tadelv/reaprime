@@ -327,7 +327,7 @@ class _ProfileState extends State<ProfileTile> {
           children: [
             ShadInput(
               textAlign: TextAlign.center,
-              decoration: ShadDecoration(merge: false),
+              decoration: ShadDecoration(),
               controller: textController,
               keyboardType: TextInputType.number,
               leading: ShadButton.ghost(

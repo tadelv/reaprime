@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'dart:typed_data';
+import 'package:universal_ble/universal_ble.dart';
 import 'package:rxdart/subjects.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
@@ -7,9 +8,9 @@ import 'package:reaprime/src/models/device/device.dart';
 import '../../scale.dart';
 
 class BookooScale implements Scale {
-  static String serviceUUID = '0ffe';
-  static String dataUUID = 'ff11';
-  static String cmdUUID = 'ff12';
+  static String serviceUUID = BleUuidParser.string('0ffe');
+  static String dataUUID = BleUuidParser.string('ff11');
+  static String cmdUUID = BleUuidParser.string('ff12');
 
   final String _deviceId;
 
@@ -17,7 +18,7 @@ class BookooScale implements Scale {
       StreamController.broadcast();
 
   BookooScale({required String deviceId}) : _deviceId = deviceId {
-    _device = BluetoothDevice.fromId(_deviceId);
+    _device = BleDevice(deviceId: deviceId, name: "BookooScale $deviceId");
   }
 
   @override
@@ -32,9 +33,9 @@ class BookooScale implements Scale {
   final StreamController<ConnectionState> _connectionStateController =
       BehaviorSubject.seeded(ConnectionState.connecting);
 
-  late BluetoothDevice _device;
-  late List<BluetoothService> _services;
-  late BluetoothService _service;
+  late BleDevice _device;
+  late List<BleService> _services;
+  late BleService _service;
 
   @override
   Stream<ConnectionState> get connectionState =>
@@ -42,32 +43,29 @@ class BookooScale implements Scale {
 
   @override
   Future<void> onConnect() async {
-    if (await _device.connectionState.first ==
-        BluetoothConnectionState.connected) {
+    if (await _device.connectionStream.first == true) {
       return;
     }
-
-    final subscription =
-        _device.connectionState.listen((BluetoothConnectionState state) async {
+    StreamSubscription<bool>? subscription;
+    subscription = _device.connectionStream.listen((bool state) async {
       switch (state) {
-        case BluetoothConnectionState.connected:
+        case true:
           _connectionStateController.add(ConnectionState.connected);
           _services = await _device.discoverServices();
           _service =
-              _services.firstWhere((e) => e.serviceUuid == Guid(serviceUUID));
+              _services.firstWhere((BleService e) => e.uuid == serviceUUID);
 
           _registerNotifications();
-        case BluetoothConnectionState.disconnected:
+        case false:
           if (await _connectionStateController.stream.first !=
               ConnectionState.connecting) {
             _connectionStateController.add(ConnectionState.disconnected);
+            subscription?.cancel();
+            _notificationsSubscription?.cancel();
           }
-        default:
-          break;
       }
     });
 
-    _device.cancelWhenDisconnected(subscription, delayed: true, next: true);
     await _device.connect();
   }
 
@@ -82,20 +80,25 @@ class BookooScale implements Scale {
   @override
   Future<void> tare() async {
     await _service.characteristics
-        .firstWhere((c) => c.characteristicUuid == Guid(cmdUUID))
+        .firstWhere((c) => c.uuid == cmdUUID)
         .write([0x03, 0x0A, 0x01, 0x00, 0x00, 0x08]);
   }
 
-  _registerNotifications() async {
-    final characteristic = _service.characteristics
-        .firstWhere((c) => c.characteristicUuid == Guid(dataUUID));
-    final subscription =
+  late StreamSubscription<Uint8List>? _notificationsSubscription;
+
+  void _registerNotifications() async {
+    final characteristic =
+        _service.characteristics.firstWhere((c) => c.uuid == dataUUID);
+    _notificationsSubscription =
         characteristic.onValueReceived.listen(_parseNotification);
-    _device.cancelWhenDisconnected(subscription);
-    await characteristic.setNotifyValue(true);
+    await characteristic.notifications.subscribe();
+    // characteristic.onValueReceived.listen(_parseNotification);
+    // _device.cancelWhenDisconnected(subscription);
+    // await characteristic.;
+    // await UniversalBle.subscribeNotifications(_deviceId, serviceUUID, dataUUID);
   }
 
-  _parseNotification(List<int> data) {
+  void _parseNotification(List<int> data) {
     int weight = 0;
     if (data.length == 20) {
       weight = (data[7] << 16) + (data[8] << 8) + data[9];

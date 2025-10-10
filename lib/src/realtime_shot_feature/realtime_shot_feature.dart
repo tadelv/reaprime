@@ -8,6 +8,7 @@ import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:reaprime/src/util/shot_chart.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -39,7 +40,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
   @override
   initState() {
     super.initState();
-    SettingsService().bypassShotController().then((b) => _gatewayMode = b);
+    SettingsService().gatewayMode().then((b) => _gatewayMode = b == GatewayMode.full);
     _shotController = widget.shotController;
     _resetCommandSubscription = _shotController.resetCommand.listen((event) {
       setState(() {
@@ -182,7 +183,9 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
   Widget _buttons(BuildContext context) {
     return Row(
       children: [
-        Spacer(),
+        SizedBox(
+          width: 50,
+        ),
         ShadButton(
           enabled: backEnabled,
           child: Icon(LucideIcons.arrowLeft),
@@ -190,9 +193,11 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
             Navigator.pop(context);
           },
         ),
-        Spacer(),
         SizedBox(
-          width: 300,
+          width: 50,
+        ),
+        SizedBox(
+          width: 100,
           child: StreamBuilder(
             stream: _shotController.shotData,
             builder: (context, snapshot) {
@@ -206,6 +211,12 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
               return Container();
             },
           ),
+        ),
+        Spacer(),
+        ShotDataView(
+          firstLine: "Profile: ${_shotController.targetProfile.title}",
+          secondLine:
+              "Target weight: ${_shotController.doseData.doseOut.toStringAsFixed(1)}g",
         ),
         Spacer(),
         ShadButton.destructive(
@@ -224,14 +235,49 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
                 .connectedDe1()
                 .requestState(MachineState.skipStep);
           },
+          trailing: Icon(LucideIcons.fastForward),
           child: Text('Skip Step'),
         ),
         Spacer(),
-        Text(
-            "Status: ${_shotSnapshots.lastOrNull?.machine.state.substate.name}"),
+        ShotStateView(
+            status: _shotSnapshots.lastOrNull?.machine.state.substate.name,
+            step: _currentStep()),
         Spacer(),
-        Text("Step: ${_currentStep()}"),
-        Spacer(),
+      ],
+    );
+  }
+}
+
+class ShotStateView extends StatelessWidget {
+  final String? status;
+  final String step;
+
+  const ShotStateView({super.key, required this.status, required this.step});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text("Status: $status"),
+        Text("Step: $step"),
+      ],
+    );
+  }
+}
+
+class ShotDataView extends StatelessWidget {
+  final String? firstLine;
+  final String secondLine;
+
+  const ShotDataView(
+      {super.key, required this.firstLine, required this.secondLine});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text("$firstLine"),
+        Text(secondLine),
       ],
     );
   }

@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 // import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 // import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
@@ -11,6 +13,10 @@ import 'package:reaprime/src/history_feature/history_feature.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/permissions_feature/permissions_view.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
+import 'package:reaprime/src/settings/gateway_mode.dart';
+import 'package:reaprime/src/webui_support/webui_service.dart';
+import 'package:reaprime/src/webui_support/webui_view.dart';
+import 'package:rxdart/rxdart.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
@@ -34,10 +40,11 @@ class NavigationService {
 }
 
 bool isRealtimeShotFeatureActive = false;
+final WebUIService webUIService = WebUIService();
 
 /// The Widget that configures your application.
 class MyApp extends StatelessWidget {
-  const MyApp({
+  MyApp({
     super.key,
     required this.settingsController,
     required this.deviceController,
@@ -70,18 +77,55 @@ class MyApp extends StatelessWidget {
 
     final themeColor = 'green';
     de1Controller.de1.listen((event) {
+      final logger = Logger("de1 event logger");
       if (event != null) {
         event.currentSnapshot.listen((snapshot) {
-          BuildContext? context = NavigationService.context;
-          if (!isRealtimeShotFeatureActive &&
-              snapshot.state.state == MachineState.espresso &&
-              context != null &&
-              context.mounted) {
-            isRealtimeShotFeatureActive = true;
-            Navigator.pushNamed(
-              context,
-              RealtimeShotFeature.routeName,
-            ).then((_) => isRealtimeShotFeatureActive = false);
+          switch (snapshot.state.state) {
+            case MachineState.espresso:
+              break;
+            default:
+              return;
+          }
+          logger.fine(
+            "handling state: ${snapshot.state.state} in mode: ${settingsController.gatewayMode.name}",
+          );
+          switch (settingsController.gatewayMode) {
+            case GatewayMode.full:
+              // full gateway mode, not touching anything
+              return;
+            case GatewayMode.tracking:
+              if (!isRealtimeShotFeatureActive) {
+                logger.shout("new shot controller");
+                isRealtimeShotFeatureActive = true;
+                final controller = ShotController(
+                  scaleController: scaleController,
+                  de1controller: de1Controller,
+                  persistenceController: persistenceController,
+                  targetProfile: workflowController.currentWorkflow.profile,
+                  doseData: workflowController.currentWorkflow.doseData,
+                );
+                StreamSubscription<ShotState>? sub;
+                sub = controller.state.listen((st) {
+                  if (st == ShotState.finished) {
+                    logger.fine("cancelling shot controller");
+                    controller.dispose();
+                    sub?.cancel();
+                    isRealtimeShotFeatureActive = false;
+                  }
+                });
+              }
+            case GatewayMode.disabled:
+              BuildContext? context = NavigationService.context;
+              if (!isRealtimeShotFeatureActive &&
+                  snapshot.state.state == MachineState.espresso &&
+                  context != null &&
+                  context.mounted) {
+                isRealtimeShotFeatureActive = true;
+                Navigator.pushNamed(
+                  context,
+                  RealtimeShotFeature.routeName,
+                ).then((_) => isRealtimeShotFeatureActive = false);
+              }
           }
         });
       }
@@ -120,13 +164,19 @@ class MyApp extends StatelessWidget {
           // preferred ThemeMode (light, dark, or system default) from the
           // SettingsController to display the correct theme.
           theme: ShadThemeData(
-              colorScheme: ShadColorScheme.fromName(themeColor,
-                  brightness: Brightness.light),
-              brightness: Brightness.light),
+            colorScheme: ShadColorScheme.fromName(
+              themeColor,
+              brightness: Brightness.light,
+            ),
+            brightness: Brightness.light,
+          ),
           darkTheme: ShadThemeData(
-              colorScheme: ShadColorScheme.fromName(themeColor,
-                  brightness: Brightness.dark),
-              brightness: Brightness.dark),
+            colorScheme: ShadColorScheme.fromName(
+              themeColor,
+              brightness: Brightness.dark,
+            ),
+            brightness: Brightness.dark,
+          ),
           themeMode: settingsController.themeMode,
 
           navigatorKey: NavigationService.navigatorKey,
@@ -151,10 +201,13 @@ class MyApp extends StatelessWidget {
                         de1Controller.connectToDe1(device);
                       }
                       return De1DebugView(
-                        machine: deviceController.devices.firstWhere(
-                          (e) =>
-                              e.deviceId == (routeSettings.arguments as String),
-                        ) as De1Interface,
+                        machine:
+                            deviceController.devices.firstWhere(
+                                  (e) =>
+                                      e.deviceId ==
+                                      (routeSettings.arguments as String),
+                                )
+                                as De1Interface,
                       );
                     }
                     if (device is Scale) {
@@ -182,11 +235,18 @@ class MyApp extends StatelessWidget {
                       scaleController: scaleController,
                       deviceController: deviceController,
                       persistenceController: persistenceController,
+                      settingsController: settingsController,
                     );
                   case HistoryFeature.routeName:
+                    final possibleShot = routeSettings.arguments as String;
                     return HistoryFeature(
                       persistenceController: persistenceController,
                       workflowController: workflowController,
+                      selectedShot: possibleShot,
+                    );
+                  case WebUIView.routeName:
+                    return WebUIView(
+                      indexPath: routeSettings.arguments as String,
                     );
                   default:
                     return PermissionsView(

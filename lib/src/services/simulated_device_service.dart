@@ -4,6 +4,8 @@ import 'package:flutter/widgets.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
 import 'package:reaprime/src/models/device/impl/mock_scale/mock_scale.dart';
+import 'package:reaprime/src/models/device/impl/sensor/mock/mock_debug_port.dart';
+import 'package:reaprime/src/models/device/impl/sensor/mock/mock_sensor_basket.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 
@@ -14,6 +16,8 @@ class SimulatedDeviceService
 
   final StreamController<List<Device>> _deviceStreamController =
       StreamController.broadcast();
+
+  bool simulationEnabled = false;
 
   @override
   Future<Machine> connectToMachine({String? deviceId}) async {
@@ -41,11 +45,16 @@ class SimulatedDeviceService
 
   @override
   Future<void> scanForDevices() async {
+    if (!simulationEnabled) {
+      return;
+    }
     _devices["MockDe1"] = MockDe1();
     _devices["MockScale"] = MockScale();
-    if (scanCount > 1) {
-      _devices["MockDe1 #2"] = MockDe1(deviceId: "MockDe1 #2");
-    }
+    _devices["MockSensorBasket"] = MockSensorBasket();
+    _devices["MockDebugPort"] = MockDebugPort();
+    // if (scanCount > 1) {
+    //   _devices["MockDe1 #2"] = MockDe1(deviceId: "MockDe1 #2");
+    // }
     _deviceStreamController.add(_devices.values.toList());
     notifyListeners();
     scanCount++;

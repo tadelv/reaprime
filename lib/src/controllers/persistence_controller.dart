@@ -63,7 +63,7 @@ class PersistenceController {
     ).toList();
   }
 
-  saveWorkflow(Workflow workflow) async {
+  Future<void> saveWorkflow(Workflow workflow) async {
     await storageService.storeCurrentWorkflow(workflow);
   }
 

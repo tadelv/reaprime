@@ -1,12 +1,13 @@
 part of "serial_de1.dart";
 
 extension SerialDe1Firmware on SerialDe1 {
-  Future<void> _updateFirmware(Uint8List fwImage, void Function(double) onProgress) async {
+  Future<void> _updateFirmware(
+      Uint8List fwImage, void Function(double) onProgress) async {
     _log.info("Starting firmware upgrade");
 
     await requestState(MachineState.sleeping);
 
-    await _transport.writeCommand("<+I>");
+    await _sendCommand("<+I>");
 
     final eraseFWRequest = FWMapRequestData(
       windowIncrement: 0,
@@ -15,13 +16,13 @@ extension SerialDe1Firmware on SerialDe1 {
       error: Uint8List.fromList([0xff, 0xff, 0xff]),
     );
 
-    await _transport.writeCommand(
+    await _sendCommand(
         "<I>${eraseFWRequest.asData().buffer.asUint8List().map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
     int count = 0;
     while (count < 10) {
       count += 1;
       _log.info("Waiting $count seconds on firmware to erase");
-      sleep(Duration(seconds: 1));
+      await Future.delayed(Duration(seconds: 1));
     }
 
     _log.info("Starting write");
@@ -37,42 +38,42 @@ extension SerialDe1Firmware on SerialDe1 {
       firmwareToMap: 1,
       error: Uint8List.fromList([0xff, 0xff, 0xff]),
     );
-    await _transport.writeCommand(
+    await _sendCommand(
         "<I>${verifyRequest.asData().buffer.asUint8List().map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
 
-		count = 5;
+    count = 5;
     while (count < 10) {
       count += 1;
       _log.info("Waiting $count seconds on firmware to verify");
-      sleep(Duration(seconds: 1));
+      await Future.delayed(Duration(seconds: 1));
     }
 
-		_log.info("Finished with fw upgrade");
-
+    _log.info("Finished with fw upgrade");
   }
 
-  Future<void> _uploadFW(Uint8List list, void Function(double) onProgress) async {
-	final total = list.length;
+  Future<void> _uploadFW(
+      Uint8List list, void Function(double) onProgress) async {
+    final total = list.length;
     for (int i = 0; i < list.length; i += 16) {
       final chunkLength = (i + 16 <= list.length) ? 16 : list.length - i;
-      final data = Uint8List(3 + chunkLength);
+      final data = Uint8List(4 + chunkLength);
       final address = encodeU24P0(i);
+      data[0] = chunkLength;
+      data[1] = address[0];
+      data[2] = address[1];
+      data[3] = address[2];
 
-      data[0] = address[0];
-      data[1] = address[1];
-      data[2] = address[2];
+      data.setRange(4, 4 + chunkLength, list, i);
 
-      data.setRange(3, 3 + chunkLength, list, i);
-
-      await _transport.writeCommand(
+      await _sendCommand(
           "<F>${data.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
-					sleep(Duration(milliseconds: 3));
+      await Future.delayed(Duration(milliseconds: 5));
 
-			onProgress(min(i / total, 1.0));
+      onProgress(min(i / total, 1.0));
     }
   }
 
-  _parseFWMapRequest(ByteData data) {
+  Future<void> _parseFWMapRequest(ByteData data) async {
     final request = FWMapRequestData.from(data);
     _log.fine(
         "FW map recv: ${request.windowIncrement}, ${request.firmwareToErase}, ${request.firmwareToMap}, "

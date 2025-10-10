@@ -6,6 +6,9 @@ import 'package:flutter_archive/flutter_archive.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/src/sample_feature/sample_item_list_view.dart';
+import 'package:reaprime/src/settings/gateway_mode.dart';
+import 'package:reaprime/src/webui_support/webui_service.dart';
+import 'package:reaprime/src/webui_support/webui_view.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'settings_controller.dart';
@@ -60,10 +63,28 @@ class SettingsView extends StatelessWidget {
             ),
             Row(
               children: [
-                ShadSwitch(
-                  value: controller.bypassShotController,
-                  onChanged: controller.updateBypassShotController,
-                ),
+                DropdownButton<GatewayMode>(
+                    value: controller.gatewayMode,
+                    onChanged: (v) {
+                      if (v != null) {
+                        controller.updateGatewayMode(v);
+                      }
+                    },
+                    items: const [
+                      DropdownMenuItem(
+                        value: GatewayMode.full,
+                        child: Text('Full (Rea has no control)'),
+                      ),
+                      DropdownMenuItem(
+                        value: GatewayMode.tracking,
+                        child: Text(
+                            'Tracking (Rea will stop shot if target weight is reached)'),
+                      ),
+                      DropdownMenuItem(
+                        value: GatewayMode.disabled,
+                        child: Text('Disabled (Rea has full control'),
+                      ),
+                    ]),
                 SizedBox(
                   width: 16,
                 ),
@@ -124,7 +145,6 @@ class SettingsView extends StatelessWidget {
                 ),
               ],
             ),
-
             DropdownButton<String>(
               value: controller.logLevel,
               onChanged: controller.updateLogLevel,
@@ -147,9 +167,64 @@ class SettingsView extends StatelessWidget {
                 ),
               ],
             ),
+            Row(
+              children: [
+                ShadSwitch(
+                  value: controller.simulatedDevices,
+                  enabled: true,
+                  onChanged: (v) async {
+                    Logger("Settings").info("toggle sim to ${v}");
+                    await controller.setSimulatedDevices(v);
+                  },
+                  label: Text("Show simulated devices"),
+                  sublabel: Text(
+                      "Whether simulated devices should be shown in scan results"),
+                ),
+              ],
+            ),
+            ShadButton.secondary(
+              onPressed: () {
+                _pickFolderAndLoadHtml(context);
+              },
+              child: Text("Load and show web"),
+            ),
+            if (WebUIService.isServing)
+              ShadButton.secondary(
+                onPressed: () {
+                  Navigator.of(context).pushNamed(
+                    WebUIView.routeName,
+                    arguments: "index.html",
+                  );
+                },
+                child: Text("To Web UI"),
+              ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _pickFolderAndLoadHtml(BuildContext context) async {
+    String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
+
+    if (selectedDirectory != null) {
+      final dir = Directory(selectedDirectory);
+      Logger("Settings").shout("list dir: ${dir.listSync(recursive: true)}");
+      final indexFile = File('$selectedDirectory/index.html');
+      final itExists = await indexFile.exists();
+      await WebUIService.serveFolderAtPath(selectedDirectory);
+      if (context.mounted == false) {
+        return;
+      }
+      if (itExists) {
+        Navigator.of(context)
+            .pushNamed(WebUIView.routeName, arguments: selectedDirectory);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('index.html not found in selected folder')),
+        );
+      }
+    }
   }
 }

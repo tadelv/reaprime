@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// A service that stores and retrieves user settings.
@@ -21,12 +22,15 @@ class SettingsService {
     await prefs.setString(SettingsKeys.themeMode.name, theme.name);
   }
 
-  Future<bool> bypassShotController() async {
-    return await prefs.getBool(SettingsKeys.bypassShotController.name) ?? false;
+  Future<GatewayMode> gatewayMode() async {
+    return GatewayModeFromString.fromString(
+            await prefs.getString(SettingsKeys.gatewayMode.name) ??
+                GatewayMode.disabled.name) ??
+        GatewayMode.disabled;
   }
 
-  Future<void> updateBypassShotController(bool bypass) async {
-    await prefs.setBool(SettingsKeys.bypassShotController.name, bypass);
+  Future<void> updateGatewayMode(GatewayMode mode) async {
+    await prefs.setString(SettingsKeys.gatewayMode.name, mode.name);
   }
 
   Future<String> logLevel() async {
@@ -36,6 +40,28 @@ class SettingsService {
   Future<void> updateLogLevel(String newLogLevel) async {
     await prefs.setString(SettingsKeys.logLevel.name, newLogLevel);
   }
+
+  Future<bool> recordShotPreheat() async {
+    return await prefs.getBool(SettingsKeys.recordShotPreheat.name) ?? false;
+  }
+
+  Future<void> setRecordShotPreheat(bool value) async {
+    return await prefs.setBool(SettingsKeys.recordShotPreheat.name, value);
+  }
+
+  Future<bool> simulateDevices() async {
+    return await prefs.getBool(SettingsKeys.simulateDevices.name) ?? false;
+  }
+
+  Future<void> setSimulatedDevices(bool value) async {
+    await prefs.setBool(SettingsKeys.simulateDevices.name, value);
+  }
 }
 
-enum SettingsKeys { themeMode, bypassShotController, logLevel }
+enum SettingsKeys {
+  themeMode,
+  gatewayMode,
+  logLevel,
+  recordShotPreheat,
+  simulateDevices
+}

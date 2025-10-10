@@ -1,7 +1,14 @@
+import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/controllers/sensor_controller.dart';
+import 'package:reaprime/src/controllers/workflow_controller.dart';
+import 'package:reaprime/src/services/webserver/workflow_handler.dart';
+import 'package:reaprime/src/settings/gateway_mode.dart';
+import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
@@ -11,11 +18,15 @@ import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:shelf/shelf_io.dart' as io;
 import 'package:shelf_web_socket/shelf_web_socket.dart' as sws;
+import 'package:shelf_cors_headers/shelf_cors_headers.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
+import 'package:shelf_swagger_ui/shelf_swagger_ui.dart';
 
 part 'webserver/de1handler.dart';
 part 'webserver/scale_handler.dart';
 part 'webserver/devices_handler.dart';
+part 'webserver/settings_handler.dart';
+part 'webserver/sensors_handler.dart';
 
 final log = Logger("Webservice");
 
@@ -23,33 +34,48 @@ Future<void> startWebServer(
   DeviceController deviceController,
   De1Controller de1Controller,
   ScaleController scaleController,
+  SettingsController settingsController,
+  SensorController sensorController,
+  WorkflowController workflowController,
 ) async {
   log.info("starting webserver");
   final de1Handler = De1Handler(controller: de1Controller);
   final scaleHandler = ScaleHandler(controller: scaleController);
   final deviceHandler = DevicesHandler(controller: deviceController);
-
+  final settingsHandler = SettingsHandler(controller: settingsController);
+  final sensorsHandler = SensorsHandler(controller: sensorController);
+  final workflowHandler = WorkflowHandler(
+      controller: workflowController, de1controller: de1Controller);
   // Start server
   final server = await io.serve(
-      _init(
-        deviceHandler,
-        de1Handler,
-        scaleHandler,
-      ),
+      _init(deviceHandler, de1Handler, scaleHandler, settingsHandler,
+          sensorsHandler, workflowHandler),
       '0.0.0.0',
       8080);
-  log.info('Web server running on ${server.address.host}:${server.port}');
+  log.info('API Web server running on ${server.address.host}:${server.port}');
+
+
+  // start swagger
+  final swaggerYaml = await rootBundle.loadString('assets/openapi/v1.yaml');
+  log.info("swagger file length: ${swaggerYaml.length}");
+  final swaggerUI = SwaggerUI(swaggerYaml, specType: SpecType.yaml);
+  // final swaggerUI = SwaggerUI.fromFile(File('assets/openapi/v1.yaml'));
+  final swaggerServer = await io.serve(swaggerUI, '0.0.0.0', 4001);
 }
 
 Handler _init(
   DevicesHandler deviceHandler,
   De1Handler de1Handler,
   ScaleHandler scaleHandler,
+  SettingsHandler settingsHandler,
+  SensorsHandler sensorsHandler,
+  WorkflowHandler workflowHandler,
 ) {
   log.info("called _init");
   var app = Router().plus;
 
-  jsonContentTypeMiddleware(Handler innerHandler) {
+  Future<Response> Function(Request request) jsonContentTypeMiddleware(
+      Handler innerHandler) {
     return (Request request) async {
       log.fine("handling request: ${request.requestedUri.path}");
       final response = await innerHandler(request);
@@ -68,10 +94,6 @@ Handler _init(
       return response.change(headers: {
         ...response.headersAll,
         'content-type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        //'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT',
-        //'Access-Control-Allow-Headers':
-        //    'X-Requested-With, Content-Type, Authorization, Origin, Accept, Referer, User-Agent',
       });
     };
   }
@@ -81,6 +103,15 @@ Handler _init(
   deviceHandler.addRoutes(app);
   de1Handler.addRoutes(app);
   scaleHandler.addRoutes(app);
+  settingsHandler.addRoutes(app);
+  sensorsHandler.addRoutes(app);
+  workflowHandler.addRoutes(app);
 
-  return app.call;
+  final handler = const Pipeline()
+      .addMiddleware(logRequests())
+      .addMiddleware(corsHeaders())
+      .addMiddleware(jsonContentTypeMiddleware)
+      .addHandler(app.call);
+
+  return handler;
 }

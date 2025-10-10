@@ -9,6 +9,7 @@ import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
+import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -21,6 +22,9 @@ class ShotController {
   final Logger _log = Logger("ShotController");
 
   late bool _bypassSAW;
+
+  // Skip step on weight specific
+  List<int> skippedSteps = [];
 
   ShotController({
     required this.scaleController,
@@ -35,11 +39,11 @@ class ShotController {
   }
 
   Future<void> _initialize() async {
-    _bypassSAW = await SettingsService().bypassShotController();
-    _log.shout("Initializing ShotController");
+    _bypassSAW = await SettingsService().gatewayMode() == GatewayMode.full;
+    _log.info("Initializing ShotController");
     try {
       final state = await scaleController.connectionState.first;
-      _log.shout("Scale state: $state");
+      _log.info("Scale state: $state");
       if (state != device.ConnectionState.connected) {
         throw Exception("Scale not connected");
       }
@@ -74,6 +78,7 @@ class ShotController {
   }
 
   void dispose() {
+    _log.fine("dispose");
     _snapshotSubscription?.cancel();
     _rawShotDataStream.close();
     _shotDataStream.close();
@@ -159,12 +164,14 @@ class ShotController {
           double weightFlow = scale.weightFlow;
           double projectedWeight = currentWeight + weightFlow;
           if (targetProfile.steps.length > machine.profileFrame &&
+              skippedSteps.contains(machine.profileFrame) == false &&
               targetProfile.steps[machine.profileFrame].weight != null &&
               targetProfile.steps[machine.profileFrame].weight! > 0) {
             var stepExitWeight =
                 targetProfile.steps[machine.profileFrame].weight!;
             if (projectedWeight >= stepExitWeight) {
               _log.info("Step weight reached, moving on");
+              skippedSteps.add(machine.profileFrame);
               de1controller.connectedDe1().requestState(MachineState.skipStep);
             }
           }

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
-import 'dart:io';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/data/profile.dart';
@@ -56,17 +55,20 @@ class SerialDe1 implements De1Interface {
   );
   BehaviorSubject<MachineSnapshot> _snapshotSubject = BehaviorSubject();
   @override
-  // TODO: implement currentSnapshot
   Stream<MachineSnapshot> get currentSnapshot => _snapshotSubject.stream;
 
   @override
-  // TODO: implement deviceId
   String get deviceId => _transport.name;
 
   @override
   disconnect() {
-    _transportSubscription.cancel();
-    _transport.close();
+    _connectionStateSubject.add(ConnectionState.disconnecting);
+    try {
+      _transportSubscription.cancel();
+      _transport.close();
+    } catch (e, st) {
+      _log.warning("failed to close transport:", e, st);
+    }
     _connectionStateSubject.add(ConnectionState.disconnected);
   }
 
@@ -83,6 +85,7 @@ class SerialDe1 implements De1Interface {
       await _transport.open();
     } catch (e, st) {
       _log.severe("failed to open transport", e, st);
+      disconnect();
       return;
     }
 
@@ -93,20 +96,20 @@ class SerialDe1 implements De1Interface {
 
     // stop all previous notifies (if any) - just in case.
 
-    await _transport.writeCommand("<-N>");
-    await _transport.writeCommand("<-M>");
-    await _transport.writeCommand("<-Q>");
-    await _transport.writeCommand("<-K>");
-    await _transport.writeCommand("<-E>");
+    await _sendCommand("<-N>");
+    await _sendCommand("<-M>");
+    await _sendCommand("<-Q>");
+    await _sendCommand("<-K>");
+    await _sendCommand("<-E>");
 
     // TODO: needed to know which state we're at?
     await requestState(MachineState.sleeping);
 
-    await _transport.writeCommand("<+N>");
-    await _transport.writeCommand("<+M>");
-    await _transport.writeCommand("<+Q>");
-    await _transport.writeCommand("<+K>");
-    await _transport.writeCommand("<+E>");
+    await _sendCommand("<+N>");
+    await _sendCommand("<+M>");
+    await _sendCommand("<+Q>");
+    await _sendCommand("<+K>");
+    await _sendCommand("<+E>");
     updateShotSettings(De1ShotSettings(
         steamSetting: 0,
         targetSteamTemp: 150,
@@ -118,6 +121,15 @@ class SerialDe1 implements De1Interface {
         groupTemp: 90.0));
     _snapshotSubject.add(_currentSnapshot);
     _readySubject.add(true);
+  }
+
+  Future<void> _sendCommand(String command) async {
+    try {
+      await _transport.writeCommand(command);
+    } catch (e, st) {
+      _log.severe("failed to write to transport", e, st);
+      // TODO: disconnect here?
+    }
   }
 
   String _currentBuffer = "";
@@ -143,7 +155,7 @@ class SerialDe1 implements De1Interface {
   }
 
   // TODO: allow code to register own processors per "Endpoint"
-  _processDe1Response(String input) {
+  void _processDe1Response(String input) {
     _log.fine("processing input: $input");
     final Uint8List payload = hexToBytes(input.substring(3));
     final ByteData data = ByteData.sublistView(payload);
@@ -190,7 +202,7 @@ class SerialDe1 implements De1Interface {
         .toRadixString(16)
         .padLeft(2, "0");
     final String command = "<B>$value";
-    await _transport.writeCommand(command);
+    await _sendCommand(command);
   }
 
   @override
@@ -206,7 +218,7 @@ class SerialDe1 implements De1Interface {
 
   @override
   void sendRawMessage(De1RawMessage message) {
-    _transport.writeCommand(message.payload);
+    _sendCommand(message.payload);
   }
 
   @override
@@ -218,7 +230,7 @@ class SerialDe1 implements De1Interface {
       value.setInt16(0, 0, Endian.big);
       value.setInt16(2, newThresholdPercentage * 256, Endian.big);
 
-      return _transport.writeCommand(
+      return _sendCommand(
           "<Q>${value.buffer.asUint8List().map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
     } catch (e) {
       _log.severe("failed to set water warning", e);
@@ -259,7 +271,7 @@ class SerialDe1 implements De1Interface {
             .toInt();
     index++;
 
-    await _transport.writeCommand(
+    await _sendCommand(
         "<K>${data.map((e) => e.toRadixString(16).padLeft(2, '0')).toList()}");
     // await _parseShotSettings(await _read(Endpoint.shotSettings));
     _parseShotSettings(ByteData.sublistView(data));

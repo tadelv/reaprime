@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -59,6 +60,7 @@ class _HistoryTileState extends State<HistoryTile> {
     }
   }
 
+
   Widget _body(BuildContext context) {
     var shot = _shotHistory[_selectedShotIndex];
     var canGoBack = _selectedShotIndex > 0;
@@ -67,12 +69,13 @@ class _HistoryTileState extends State<HistoryTile> {
       //key: Key(shot.timestamp.toIso8601String()),
       children: [
         Text(
-          "${shot.timestamp}",
+          shot.shotTime(),
         ),
         TapRegion(
           child: _shotDetails(context, shot),
           onTapInside: (cb) {
-            Navigator.pushNamed(context, HistoryFeature.routeName);
+            Navigator.pushNamed(context, HistoryFeature.routeName,
+                arguments: jsonEncode(shot.toJson()));
           },
         ),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -114,39 +117,43 @@ class _HistoryTileState extends State<HistoryTile> {
             orElse: () => shot.measurements.first)
         .machine
         .timestamp;
-    return Column(
-      children: [
-        SizedBox(
-          height: 200,
-          child: ShotChart(
-            shotSnapshots: shot.measurements,
-            shotStartTime: shotStart,
+    return Hero(
+      tag: "shotHistory",
+      child: Column(
+        children: [
+          SizedBox(
+            height: 200,
+            child: ShotChart(
+              shotSnapshots: shot.measurements,
+              shotStartTime: shotStart,
+            ),
           ),
-        ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text("${shot.workflow.profile.title}"),
-            Text(
-                "${shot.workflow.doseData.doseIn.toStringAsFixed(1)} : ${shot.workflow.doseData.doseOut.toStringAsFixed(1)}"),
-            Text("${shot.measurements.last.scale?.weight.toStringAsFixed(1)}g")
-          ],
-        ),
-        if (shot.workflow.coffeeData != null)
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("${shot.workflow.coffeeData!.name}"),
+              Text("${shot.workflow.profile.title}"),
+              Text(
+                  "${shot.workflow.doseData.doseIn.toStringAsFixed(1)} : ${shot.workflow.doseData.doseOut.toStringAsFixed(1)}"),
+              Text(
+                  "${shot.measurements.last.scale?.weight.toStringAsFixed(1)}g")
             ],
           ),
-        if (shot.workflow.grinderData != null)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              Text("${shot.workflow.grinderData!.model}"),
-              Text("${shot.workflow.grinderData!.setting}"),
-            ],
-          ),
-      ],
+          if (shot.workflow.coffeeData != null)
+            Row(
+              children: [
+                Text("${shot.workflow.coffeeData!.name}"),
+              ],
+            ),
+          if (shot.workflow.grinderData != null)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Text("${shot.workflow.grinderData!.model}"),
+                Text("${shot.workflow.grinderData!.setting}"),
+              ],
+            ),
+        ],
+      ),
     );
   }
 }

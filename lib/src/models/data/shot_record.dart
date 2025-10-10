@@ -1,5 +1,6 @@
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 class ShotRecord {
   final String id;
@@ -29,5 +30,15 @@ class ShotRecord {
             .map((e) => ShotSnapshot.fromJson(e))
             .toList(),
         workflow: Workflow.fromJson(json["workflow"]));
+  }
+
+  String shotTime() {
+    // final now = DateTime.now();
+    // if (record.timestamp.isSameDay(now)) {
+    //     return "${record.timestamp.difference(now).}"
+    //   }
+    final dateFormat = DateFormat.yMd();
+    final timeFormat = DateFormat('jm');
+    return "${dateFormat.format(timestamp)}, ${timeFormat.format(timestamp)}";
   }
 }

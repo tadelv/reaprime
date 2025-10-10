@@ -169,6 +169,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /api/v1/de1/firmware:
+    post:
+      summary: Push new firmware to the De1
+      description: Send a firmware file to De1, the call will wait until the firmware upgrade is complete (which might be a long time)
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+      responses:
+        "200":
+          description: Firmware update successful. Need to restart De1 to load new firmware
+        "500":
+          description: Something went wrong during the firmware upgrade process. Check the response and Rea logs
+
   /api/v1/scale/tare:
     put:
       summary: Tare Scale
@@ -178,6 +192,67 @@ paths:
           description: Scale tared successfully
         "404":
           description: Scale not found
+
+  /api/v1/sensors:
+    get:
+      summary: Get a list of sensor devices connected to Rea
+      description: Will show all the sensors and their ids, that are currently connected and available through Rea
+      responses:
+        "200":
+          description: List of available sensors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    info:
+                      $ref: "#/components/schemas/SensorManifest"
+  /api/v1/sensors/{id}:
+    get:
+      summary: Get full manifest for a sensor
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Full sensor manifest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SensorManifest"
+        '404':
+          description: Sensor not found
+
+
+  /api/v1/settings:
+    get:
+      summary: Get Rea settings
+      responses:
+        "200":
+          description: Rea settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReaSettings"
+    post:
+      summary: Update Rea settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReaSettingsRequest"
+      responses:
+        "200":
+          description: Rea settings updated successfully
+
   /ws/v1/de1/snapshot:
     get:
       summary: WebSocket Snapshot Updates
@@ -248,10 +323,57 @@ paths:
       description: Receives real-time BLE data from DE1. Use this to send and receive BLE messages
       responses:
         "200":
+          description: Upgraded to websocket messages
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/De1RawMessage"
+  
+  /api/v1/sensors/{id}/snapshot:
+    get:
+      summary: Get latest snapshot of all data channels for a sensor
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Snapshot of current sensor values
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SensorSnapshot"
+        '404':
+          description: Sensor not found
+
+  /api/v1/workflow:
+    get:
+      summary: Get info about current workflow
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowRequest'
+    put:
+      summary: Set or update current workflow
+      description: You can update only specific fields, like doseData or grinderData, or profile etc.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowRequest"
+      responses:
+        "200":
+          description: Returns the new workflow object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowRequest'
+            
+
 
 components:
   schemas:
@@ -424,27 +546,35 @@ components:
       type: object
       properties:
         heaterPh1Flow:
+          description: Heater phase 1 flow (when heating up for shot)
           type: number
           nullable: true
         heaterPh2Flow:
+          description: Heater phase 2 flow (when heating up for shot)
           type: number
           nullable: true
         heaterIdleTemp:
+          description: Heater idle temperature
           type: number
           nullable: true
         heaterPh2Timeout:
+          description: Heater phase 2 timeout in seconds (how long should de1 try to stabilize temperature)
           type: integer
           nullable: true
     De1AdvancedSettingsResponse:
       type: object
       properties:
         heaterPh1Flow:
+          description: Heater phase 1 flow (when heating up for shot)
           type: number
         heaterPh2Flow:
+          description: Heater phase 2 flow (when heating up for shot)
           type: number
         heaterIdleTemp:
+          description: Heater idle temperature
           type: number
         heaterPh2Timeout:
+          description: Heater phase 2 timeout in seconds (how long should de1 try to stabilize temperature)
           type: integer
     De1RawMessage:
       type: object
@@ -479,3 +609,151 @@ components:
         - write
         - notify
       description: Operation type indicating the nature of the raw message.
+
+    ReaSettingsRequest:
+      type: object
+      properties:
+        gatewayMode:
+          description: Control whether Rea acts as gateway. Disabled means gateway is disabled, full means full gateway mode. Tracking means rea will not show graphs, but will control the shot (stop at weight)
+          enum: ["disabled","full", "tracking"]
+          nullable: true
+
+    ReaSettings:
+      type: object
+      properties:
+        gatewayMode:
+          description: Control whether Rea acts as gateway. Disabled means gateway is disabled, full means full gateway mode. Tracking means rea will not show graphs, but will control the shot (stop at weight)
+          enum: ["disabled","full", "tracking"]
+
+    SensorManifest:
+      type: object
+      required:
+        - id
+        - dataChannels
+      properties:
+        id:
+          type: string
+          description: Unique sensor ID
+          example: "sensor:acme:tempflow:001"
+        name:
+          type: string
+          example: "Acme Temp+Flow v1"
+        vendor:
+          type: string
+          example: "Acme"
+        dataChannels:
+          type: array
+          items:
+            $ref: "#/components/schemas/DataChannel"
+        commands:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommandDescriptor"
+
+    DataChannel:
+      type: object
+      required:
+        - key
+        - type
+      properties:
+        key:
+          type: string
+          example: "temperature"
+        type:
+          type: string
+          enum: ["number", "integer", "string", "boolean", "object", "array"]
+          example: "number"
+        unit:
+          type: string
+          example: "°C"
+        
+    CommandDescriptor:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          example: "calibrate"
+        name:
+          nullable: true
+          type: string
+          example: "Calibrate sensor"
+        description:
+          nullable: true
+          type: string
+          example: "Run auto-calibration routine."
+        paramsSchema:
+          type: object
+          additionalProperties: true
+          example:
+            type: object
+            properties:
+              mode:
+                type: string
+                enum: ["quick","full"]
+            required: ["mode"]
+        resultSchema:
+          type: object
+          additionalProperties: true
+          example:
+            type: object
+            properties:
+              success:
+                type: boolean
+              message:
+                type: string
+
+    SensorSnapshot:
+      type: object
+      required:
+        - values
+
+    WorkflowRequest:
+      type: object
+      properties:
+        name: 
+          type: string
+        description:
+          type: string
+        profile:
+          $ref: '#/components/schemas/Profile'
+        doseData:
+          $ref: '#/components/schemas/DoseData'
+        grinderData:
+          $ref: '#/components/schemas/GrinderData'
+        coffeeData:
+          $ref: '#/components/schemas/CoffeeData'
+
+    DoseData:
+      type: object
+      required:
+        - doseIn
+        - doseOut
+      properties:
+        doseIn: 
+          type: number
+        doseOut:
+          type: number
+
+    GrinderData:
+      type: object
+      required:
+        - setting
+      properties:
+        setting:
+          type: string
+        manufacturer:
+          type: string
+        model:
+          type: string
+
+    CoffeeData:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        roaster:
+          type: string

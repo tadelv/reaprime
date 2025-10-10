@@ -41,21 +41,28 @@ class DeviceController {
   Future<void> scanForDevices() async {
     // throw out all disconnected devices
     _devices.forEach((_, devices) async {
+      List<Device> devicesToRemove = [];
       for (var device in devices) {
         var state = await device.connectionState.first;
         if (state != ConnectionState.connected) {
-          devices.remove(device);
+          // devices.remove(device);
+          devicesToRemove.add(device);
         }
+      }
+      for (var device in devicesToRemove) {
+        devices.remove(device);
       }
     });
     _deviceStream.add(devices);
-    for (var service in _services) {
-      try {
-        await service.scanForDevices();
-      } catch (e) {
+    // Scan all services in parallel
+    for (final service in _services) {
+      service.scanForDevices().then((_) {
+        Logger("DeviceController").info("Service $service scan completed");
+        _deviceStream.add(_devices.values.expand((e) => e).toList());
+      }).catchError((e, st) {
         Logger("DeviceController")
-            .warning("Service ${service} failed to scan:", e);
-      }
+            .warning("Service $service failed to scan:", e, st);
+      });
     }
   }
 

@@ -4,10 +4,14 @@ import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/impl/decent_scale/scale_serial.dart';
+import 'package:reaprime/src/models/device/impl/sensor/debug_port.dart';
+import 'package:reaprime/src/models/device/impl/sensor/sensor_basket.dart';
 import 'package:reaprime/src/models/device/impl/serial_de1/serial_de1.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/serial_port.dart';
+import 'utils.dart';
 import 'package:rxdart/subjects.dart';
 
 import 'package:usb_serial/usb_serial.dart';
@@ -27,7 +31,7 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
     throw UnimplementedError();
   }
 
-  List<SerialDe1> _devices = [];
+  List<Device> _devices = [];
   final BehaviorSubject<List<Device>> _machineSubject =
       BehaviorSubject.seeded(<Device>[]);
   @override
@@ -42,25 +46,128 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
   @override
   Future<void> initialize() async {
     List<UsbDevice> devices = await UsbSerial.listDevices();
-    _log.shout("found ${devices}");
+    _log.info("found ${devices}");
+
+    UsbSerial.usbEventStream?.listen((data) {
+      switch (data.event) {
+        case UsbEvent.ACTION_USB_DETACHED:
+          // we lost connectivity, disconnect all devices.
+          for (Device d in _devices) {
+            d.disconnect();
+          }
+          _devices.clear();
+          _machineSubject.add(_devices);
+          break;
+        default:
+          // require user initiated scan for now
+          break;
+      }
+    });
   }
 
   @override
   Future<void> scanForDevices() async {
     _devices.clear();
     final devices = await UsbSerial.listDevices();
-    for (UsbDevice d in devices) {
+    _log.info("have devices: $devices");
+    final results = await Future.wait(devices.map((d) async {
       try {
-        final port = await d.create();
-        if (port != null) {
-          final transport = AndroidSerialPort(device: d, port: port);
-          _devices.add(SerialDe1(transport: transport));
-        }
-      } catch (e) {
-        _log.warning("failed to add $d", e);
+        final device = await _detectDevice(d);
+        _log.info("Port $d -> ${device ?? 'no device'}");
+        return device;
+      } catch (e, st) {
+        _log.warning("Error detecting device on $d", e, st);
+        return null;
       }
-    }
+    }));
+    _devices = results.whereType<Device>().toList();
     _machineSubject.add(_devices);
+  }
+
+  Future<Device?> _detectDevice(UsbDevice device) async {
+    _log.info("device name: ${device.productName}");
+    if (device.productName?.contains('Serial') == false &&
+        !(device.productName == 'DE1')) {
+      return null;
+    }
+    UsbPort? port;
+    try {
+      port = await device.create(UsbSerial.CDC);
+    } catch (e) {
+      port = await device.create(UsbSerial.CH34x);
+    }
+    // final port = await device.create(UsbSerial.CDC);
+    if (port == null) {
+      _log.warning("failed to add $device, port is null");
+      return null;
+    }
+    final transport = AndroidSerialPort(device: device, port: port);
+
+    // yay, shortcuts
+    if (device.productName == "DE1") {
+      _log.info("short circuit to de1");
+      return SerialDe1(transport: transport);
+    }
+
+    final List<Uint8List> rawData = [];
+    final duration = const Duration(seconds: 3);
+
+    try {
+      await transport.open();
+
+      // Start listening to the stream
+      final subscription = transport.rawStream.listen(
+        (chunk) {
+          rawData.add(chunk);
+        },
+        onError: (err, st) => _log.warning("Serial read error", err, st),
+        cancelOnError: false,
+      );
+
+      // Collect for the desired duration
+      await Future.delayed(duration);
+      await subscription.cancel();
+
+      // Combine all chunks into one buffer
+      final combined = rawData.expand((e) => e).toList();
+      final dataString = String.fromCharCodes(combined);
+      final strings = rawData.map((e) => String.fromCharCodes(e)).toList();
+      _log.info("Collected serial data: $dataString");
+
+      // Heuristic checks for device type
+      if (strings.any((s) => s.startsWith('R '))) {
+        return DebugPort(transport: transport);
+      } else if (isDecentScale(strings, rawData)) {
+        _log.info("Detected: Decent Scale");
+        return HDSSerial(transport: transport);
+      } else if (isSensorBasket(strings)) {
+        _log.info("Detected: Sensor Basket");
+        return SensorBasket(transport: transport);
+      } else {
+        // try and check if we get some replies when subscribing to state
+        final List<String> messages = [];
+        final sub = transport.readStream.listen((line) {
+          messages.add(line);
+        });
+        await transport.writeCommand('<+M>');
+        await Future.delayed(duration);
+        await transport.writeCommand('<-M>');
+        sub.cancel();
+        final List<String> lines = messages.join().split('\n');
+        if (isDE1(lines, combined)) {
+          _log.info("Detected: DE1 Machine");
+          return SerialDe1(transport: transport);
+        }
+      }
+
+      _log.warning("Unknown device on port $device");
+      await transport.close();
+      return null;
+    } catch (e, st) {
+      _log.warning("Port $device is probably not a device we want", e, st);
+      await transport.close();
+      return null;
+    }
   }
 }
 
@@ -69,6 +176,7 @@ class AndroidSerialPort implements SerialTransport {
   final UsbPort _port;
   late Logger _log;
   bool _isReady = false;
+  bool _isOpen = false;
 
   AndroidSerialPort({required UsbDevice device, required UsbPort port})
       : _device = device,
@@ -77,6 +185,7 @@ class AndroidSerialPort implements SerialTransport {
   }
   @override
   Future<void> close() async {
+    _isOpen = false;
     _portSubscription?.cancel();
     await _port.close();
   }
@@ -85,12 +194,18 @@ class AndroidSerialPort implements SerialTransport {
   bool get isReady => _isReady;
 
   @override
-  // TODO: implement name
-  String get name => "${_device.deviceName}";
+  String get id => "${_device.deviceId}";
+
+  @override
+  String get name => _device.deviceName;
 
   StreamSubscription<Uint8List>? _portSubscription;
   @override
   Future<void> open() async {
+    if (_isOpen) {
+      _log.warning('port already open');
+      return;
+    }
     if (await _port.open() == false) {
       throw "Failed to open port";
     }
@@ -99,24 +214,49 @@ class AndroidSerialPort implements SerialTransport {
     await _port.setRTS(false);
 
     _port.setPortParameters(
-        115200, UsbPort.DATABITS_8, UsbPort.STOPBITS_1, UsbPort.PARITY_NONE);
+      115200,
+      UsbPort.DATABITS_8,
+      UsbPort.STOPBITS_1,
+      UsbPort.PARITY_NONE,
+    );
 
     _portSubscription = _port.inputStream?.listen((Uint8List event) {
-      final input = utf8.decode(event);
-      _log.finest("received serial input: $input");
-      _outputController.add(input);
+      _rawController.add(event);
+      try {
+        final input = utf8.decode(event);
+        _log.finest("received serial input: $input");
+        _outputController.add(input);
+      } catch (e) {
+        _log.fine("unable to parse to string", e);
+      }
+    }, onError: (error) {
+      _log.severe("port read failed", error);
+      close();
     });
+    _isOpen = true;
   }
 
-  StreamController<String> _outputController = StreamController.broadcast();
+  final StreamController<Uint8List> _rawController =
+      StreamController<Uint8List>.broadcast();
 
   @override
-  // TODO: implement readStream
+  Stream<Uint8List> get rawStream => _rawController.stream;
+
+  final StreamController<String> _outputController =
+      StreamController<String>.broadcast();
+
+  @override
   Stream<String> get readStream => _outputController.stream;
 
   @override
   Future<void> writeCommand(String command) async {
     await _port.write(utf8.encode('$command\n'));
     _log.fine("wrote request: $command");
+  }
+
+  @override
+  Future<void> writeHexCommand(Uint8List command) async {
+    await _port.write(command);
+    _log.fine("wrote request: ${command.map((e) => e.toRadixString(16))}");
   }
 }
