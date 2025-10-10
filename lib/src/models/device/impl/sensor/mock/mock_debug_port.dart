@@ -1,11 +1,11 @@
+
 import 'dart:async';
-import 'dart:math';
 
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/sensor.dart';
 import 'package:rxdart/rxdart.dart';
 
-class MockSensorBasket implements Sensor {
+class MockDebugPort implements Sensor {
   @override
   Stream<ConnectionState> get connectionState =>
       BehaviorSubject.seeded(ConnectionState.connected);
@@ -16,7 +16,7 @@ class MockSensorBasket implements Sensor {
   Stream<Map<String, dynamic>> get data => _streamSubject.stream;
 
   @override
-  String get deviceId => "mockSensorBasket";
+  String get deviceId => "mockDebugPort";
 
   @override
   disconnect() {
@@ -26,42 +26,51 @@ class MockSensorBasket implements Sensor {
   @override
   Future<Map<String, dynamic>> execute(
       String commandId, Map<String, dynamic>? parameters) async {
+    if (commandId != "input") {
+      throw "Invalid command";
+    }
+    if (parameters == null) {
+      throw 'Parameter "command" required';
+    }
+
+    final command = parameters["command"];
+
+    if (command == null || command.runtimeType != String) {
+      throw 'Invalid "command" type: ${command.runtimeType}';
+    }
+
+    _streamSubject.add({
+        "timestamp": "${DateTime.timestamp()}",
+        "output": "[DEBUG] execute: $command"
+      });
     return {};
   }
 
   @override
   SensorInfo get info =>
-      SensorInfo(name: "SensorBasket", vendor: "DecentEspresso", dataChannels: [
-        DataChannel(key: "timestamp", type: "string"),
-        DataChannel(key: "temperature", type: "number", unit: "°C"),
-        DataChannel(key: "pressure", type: "number", unit: "Bar"),
-        DataChannel(key: "weight", type: "number", unit: "g"),
-        DataChannel(key: "weightFlow", type: "number", unit: "g/s"),
+      SensorInfo(name: "DebugPort", vendor: "DecentEspresso", dataChannels: [
+        DataChannel(key: "output", type: "string")
       ], commands: [
         CommandDescriptor(
-            id: 'tare',
-            name: 'Tare',
-            description: 'Tare sensor scale',
-            paramsSchema: null,
+            id: "input",
+            name: "input",
+            description: "Send line to debug port",
+            paramsSchema: {"command": "string"},
             resultsSchema: null)
       ]);
 
   @override
-  String get name => "SensorBasket";
+  String get name => "DebugPort";
 
   late Timer _timer;
 
   @override
   Future<void> onConnect() async {
     // start mock stream
-    _timer = Timer.periodic(Duration(milliseconds: 300), (t) {
-      final rand = Random.secure();
+    _timer = Timer.periodic(Duration(milliseconds: 500), (t) {
       _streamSubject.add({
-        "timestamp": "",
-        "temperature": rand.nextDouble(),
-        "pressure": rand.nextDouble(),
-        "weight": rand.nextDouble(),
-        "weightFlow": rand.nextDouble(),
+        "timestamp": "${DateTime.timestamp()}",
+        "output": "R 1234567"
       });
     });
   }
