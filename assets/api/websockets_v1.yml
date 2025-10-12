@@ -1,0 +1,277 @@
+asyncapi: 3.0.0
+info:
+  title: Rea Prime AsyncAPI
+  version: 1.0.0
+  description: >
+    AsyncAPI specification for Rea Prime WebSocket data streams.
+
+
+    All channels are WebSocket-based and only emit JSON messages to the client.
+
+    These channels provide live updates from the DE1 espresso machine, scale,
+    and sensors.
+servers:
+  production:
+    host: '{tablet-ip}'
+    protocol: ws
+    description: WebSocket server providing live updates
+    variables:
+      tablet-ip:
+        default: localhost
+channels:
+  De1Snapshot:
+    address: ws/v1/de1/snapshot
+    description: Real-time snapshot data from the DE1 machine.
+    messages:
+      machineSnapshotMessage:
+        $ref: '#/components/messages/MachineSnapshot'
+  ShotSettings:
+    description: Real-time shot settings updates.
+    address: ws/v1/de1/shotSettings
+    messages:
+      shotSettingsMessage:
+        $ref: '#/components/messages/ShotSettings'
+  WaterLevels:
+    description: Real-time water level updates.
+    address: ws/v1/de1/waterLevels
+    messages:
+      waterLevelsMessage:
+        $ref: '#/components/messages/WaterLevels'
+  ScaleSnapshot:
+    description: Real-time scale weight and battery data.
+    address: ws/v1/scale/snapshot
+    messages:
+      scaleSnapshotMessage:
+        $ref: '#/components/messages/ScaleSnapshot'
+  De1Raw:
+    description: Real-time raw BLE data from DE1 (read/write/notify).
+    address: ws/v1/de1/raw
+    messages:
+      de1RawMessage:
+        $ref: '#/components/messages/De1RawMessage'
+  SensorSnapshot:
+    description: Real-time sensor snapshot updates for a specific sensor.
+    address: ws/v1/sensors/{id}/snapshot
+    parameters:
+      id:
+        description: Unique sensor identifier.
+    messages:
+      sensorSnapshotMessage:
+        $ref: '#/components/messages/SensorSnapshot'
+operations:
+  de1Snapshot:
+    action: receive
+    channel:
+      $ref: '#/channels/De1Snapshot'
+  shotSettings:
+    action: receive
+    channel:
+      $ref: '#/channels/ShotSettings'
+  waterLevels:
+    action: receive
+    channel:
+      $ref: '#/channels/WaterLevels'
+  scaleSnapshot:
+    action: receive
+    channel:
+      $ref: '#/channels/ScaleSnapshot'
+  de1Raw:
+    action: receive
+    channel:
+      $ref: '#/channels/De1Raw'
+  sensorSnapshot:
+    action: receive
+    channel:
+      $ref: '#/channels/SensorSnapshot'
+components:
+  messages:
+    Error:
+      name: Error
+      title: Error message
+      payload:
+        $ref: '#/components/schemas/Error'
+    ScaleSnapshot:
+      name: ScaleSnapshot
+      title: Scale Snapshot
+      payload:
+        $ref: '#/components/schemas/ScaleSnapshot'
+    MachineSnapshot:
+      name: MachineSnapshot
+      title: Machine Snapshot
+      payload:
+        $ref: '#/components/schemas/MachineSnapshot'
+    ShotSettings:
+      name: ShotSettings
+      title: Shot Settings
+      payload:
+        $ref: '#/components/schemas/ShotSettings'
+    WaterLevels:
+      name: WaterLevels
+      title: Water Levels
+      payload:
+        $ref: '#/components/schemas/WaterLevels'
+    De1RawMessage:
+      name: De1RawMessage
+      title: DE1 Raw BLE Message
+      payload:
+        $ref: '#/components/schemas/De1RawMessage'
+    SensorSnapshot:
+      name: SensorSnapshot
+      title: Sensor Snapshot
+      payload:
+        $ref: '#/components/schemas/SensorSnapshot'
+  schemas:
+    Error:
+      type: object
+      properties:
+        e:
+          type: string
+        st:
+          type: string
+    ScaleSnapshot:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        weight:
+          type: number
+        batteryLevel:
+          type: integer
+    MachineSnapshot:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        state:
+          type: object
+          properties:
+            state:
+              $ref: '#/components/schemas/MachineState'
+            substate:
+              $ref: '#/components/schemas/MachineSubstate'
+        flow:
+          type: number
+        pressure:
+          type: number
+          example: 6.2
+        targetFlow:
+          type: number
+        targetPressure:
+          type: number
+        mixTemperature:
+          type: number
+        groupTemperature:
+          type: number
+        targetMixTemperature:
+          type: number
+        targetGroupTemperature:
+          type: number
+        profileFrame:
+          type: integer
+        steamTemperature:
+          type: number
+    MachineState:
+      type: string
+      enum:
+        - idle
+        - booting
+        - sleeping
+        - heating
+        - preheating
+        - espresso
+        - hotWater
+        - flush
+        - steam
+        - skipStep
+        - cleaning
+        - descaling
+        - transportMode
+        - needsWater
+        - error
+      example: espresso
+    MachineSubstate:
+      type: string
+      enum:
+        - idle
+        - preparingForShot
+        - preinfusion
+        - pouring
+        - pouringDone
+        - cleaningStart
+        - cleaingGroup
+        - cleanSoaking
+        - cleaningSteam
+      example: preparingForShot
+    ShotSettings:
+      type: object
+      properties:
+        steamSetting:
+          type: integer
+        targetSteamTemp:
+          type: number
+        targetSteamDuration:
+          type: integer
+        targetHotWaterTemp:
+          type: number
+        targetHotWaterVolume:
+          type: number
+        targetHotWaterDuration:
+          type: integer
+        targetShotVolume:
+          type: number
+        groupTemp:
+          type: number
+    WaterLevels:
+      type: object
+      properties:
+        currentPercentage:
+          type: integer
+        warningThresholdPercentage:
+          type: integer
+    De1RawMessage:
+      type: object
+      required:
+        - type
+        - operation
+        - characteristicUUID
+        - payload
+      properties:
+        type:
+          $ref: '#/components/schemas/De1RawMessageType'
+        operation:
+          $ref: '#/components/schemas/De1RawOperationType'
+        characteristicUUID:
+          type: string
+          description: UUID of the characteristic (len = 4).
+        payload:
+          type: string
+          description: The data payload as a hex string.
+    De1RawMessageType:
+      type: string
+      enum:
+        - request
+        - response
+      description: Type of raw message indicating whether it's a request or response.
+    De1RawOperationType:
+      type: string
+      enum:
+        - read
+        - write
+        - notify
+      description: Operation type indicating the nature of the raw message.
+    SensorSnapshot:
+      type: object
+      required:
+        - values
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        id:
+          type: string
+          description: Sensor identifier
+        values:
+          type: object
+          additionalProperties: true
