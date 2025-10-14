@@ -63,7 +63,7 @@ class SensorBasket implements Sensor {
 
   void onData(String data) {
     final elements = data.split(' ');
-    if (elements.length != 5) {
+    if (elements.length <= 5) {
       return;
     }
     Map<String, dynamic> values = {};
