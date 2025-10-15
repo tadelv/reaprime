@@ -7,6 +7,10 @@ extension SerialDe1Firmware on SerialDe1 {
 
     await requestState(MachineState.sleeping);
 
+    // TODO: move to Machine impl that needs this
+    await requestState(MachineState.fwUpgrade);
+
+
     await _sendCommand("<+I>");
 
     final eraseFWRequest = FWMapRequestData(

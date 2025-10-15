@@ -123,6 +123,7 @@ enum MachineState {
   transportMode,
   needsWater,
   error,
+  fwUpgrade,
 }
 
 enum MachineSubstate {

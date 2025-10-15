@@ -13,6 +13,10 @@ extension De1Firmware on De1 {
     // TODO: should be refactored at some point, currently can not unsub in ble
     // late final StreamSubscription<ByteData> unsub;
 
+
+    // TODO: move to Machine impl that needs this
+    await requestState(MachineState.fwUpgrade);
+
     // unsub = _subscribe(Endpoint.fwMapRequest, (ByteData data) async {
     _subscribe(Endpoint.fwMapRequest, (ByteData data) async {
       final request = FWMapRequestData.from(data);

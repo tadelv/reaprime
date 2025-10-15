@@ -61,6 +61,7 @@ enum De1StateEnum {
   inBootLoader(0x13), // Bootloader is active, firmware has not run
   airPurge(0x14), // Air purge
   schedIdle(0x15), // Scheduled wake-up idle state
+  fwUpgrade(0x22),
   unknown(-1); // Default or unknown state
 
   final int hexValue;
@@ -110,6 +111,8 @@ enum De1StateEnum {
         throw UnimplementedError();
       case MachineState.error:
         throw UnimplementedError();
+      case MachineState.fwUpgrade:
+        return De1StateEnum.fwUpgrade;
     }
   }
 }
