@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Docs</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; background: #fafafa; }
+    .tabs { display: flex; border-bottom: 1px solid #ccc; background: #f5f5f5; }
+    .tab {
+      padding: 0.5em 1em;
+      cursor: pointer;
+      border: 1px solid transparent;
+      border-bottom: none;
+      user-select: none;
+    }
+    .tab.active {
+      border-color: #ccc #ccc #fff;
+      background: white;
+      font-weight: bold;
+    }
+    .viewer {
+      width: 100%;
+      height: calc(100vh - 2.5em);
+      display: none;
+    }
+    .viewer.active {
+      display: block;
+    }
+  </style>
+
+  <!-- Swagger UI CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/swagger-ui-dist@5.29.4/swagger-ui.css"
+  />
+
+  <!-- AsyncAPI React Component CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/@asyncapi/react-component@2.6.4/styles/default.min.css"
+  />
+</head>
+<body>
+  <div class="tabs">
+    <div id="tab-rest" class="tab active">REST (OpenAPI)</div>
+    <div id="tab-async" class="tab">WebSocket / AsyncAPI</div>
+  </div>
+
+  <div id="viewer-rest" class="viewer active"></div>
+  <div id="viewer-async" class="viewer">
+    <div id="asyncapi-container"></div>
+  </div>
+
+  <!-- Swagger UI -->
+  <script src="https://unpkg.com/swagger-ui-dist@5.29.4/swagger-ui-bundle.js"></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5.29.4/swagger-ui-standalone-preset.js"></script>
+
+  <!-- React + ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <!-- AsyncAPI React Standalone UMD -->
+  <script src="https://unpkg.com/@asyncapi/react-component@2.6.4/browser/standalone/index.js"></script>
+
+  <!-- YAML parser -->
+  <script src="https://unpkg.com/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+
+  <script>
+    window.onload = async function () {
+      // Initialize Swagger UI
+      SwaggerUIBundle({
+        url: 'rest_v1.yml',
+        dom_id: '#viewer-rest',
+        presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+        layout: 'BaseLayout',
+        deepLinking: true
+      });
+
+      const container = document.getElementById('asyncapi-container');
+      const specUrl = 'websocket_v1.yml';
+
+      try {
+        const resp = await fetch(specUrl);
+        const yamlText = await resp.text();
+        const schema = jsyaml.load(yamlText);
+
+        // Use the global defined by the standalone UMD
+        const AsyncApiStandalone = window.AsyncApiStandalone;
+        if (!AsyncApiStandalone || typeof AsyncApiStandalone.render !== 'function') {
+          throw new Error('AsyncApiStandalone global not found or render() not available');
+        }
+
+        // Render into the container
+        AsyncApiStandalone.render({
+          schema,
+          config: {
+            show: { sidebar: true },
+            sidebar: { showOperations: 'byDefault' }
+          }
+        }, container);
+      } catch (err) {
+        console.error('Failed to render AsyncAPI spec:', err);
+        container.innerHTML = `<p style="color:red; padding:1em;">Error rendering AsyncAPI: ${err.message}</p>`;
+      }
+
+      // Tab logic
+      const tabRest = document.getElementById('tab-rest');
+      const tabAsync = document.getElementById('tab-async');
+      const viewerRest = document.getElementById('viewer-rest');
+      const viewerAsync = document.getElementById('viewer-async');
+
+      tabRest.addEventListener('click', () => {
+        tabRest.classList.add('active');
+        tabAsync.classList.remove('active');
+        viewerRest.classList.add('active');
+        viewerAsync.classList.remove('active');
+      });
+      tabAsync.addEventListener('click', () => {
+        tabAsync.classList.add('active');
+        tabRest.classList.remove('active');
+        viewerAsync.classList.add('active');
+        viewerRest.classList.remove('active');
+      });
+    };
+  </script>
+</body>
+</html>

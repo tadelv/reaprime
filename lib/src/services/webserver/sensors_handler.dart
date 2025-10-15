@@ -24,7 +24,7 @@ final class SensorsHandler {
       return Response.ok(sensor.info.toJson());
     });
 
-    app.get('/api/v1/sensors/<id>/snapshot', (Request req) {
+    app.get('/ws/v1/sensors/<id>/snapshot', (Request req) {
       final id = req.params['id']; // works for normal handlers
       return sws.webSocketHandler((socket) {
         final sensor = _controller.sensors[id];

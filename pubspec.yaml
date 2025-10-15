@@ -76,4 +76,4 @@ flutter:
     # Add assets from the images directory to the application.
     - assets/images/
     - assets/web/
-    - assets/openapi/
+    - assets/api/

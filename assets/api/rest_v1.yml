@@ -126,6 +126,7 @@ paths:
       responses:
         "200":
           description: Settings update successful
+
   /api/v1/de1/settings/advanced:
     get:
       summary: Get advanced De1 settings
@@ -149,6 +150,7 @@ paths:
       responses:
         "200":
           description: Advanced settings updated successfully
+
   /api/v1/de1/usb/{state}:
     put:
       summary: Toggle USB Charger Mode
@@ -169,6 +171,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+
   /api/v1/de1/firmware:
     post:
       summary: Push new firmware to the De1
@@ -211,6 +214,7 @@ paths:
                       type: string
                     info:
                       $ref: "#/components/schemas/SensorManifest"
+
   /api/v1/sensors/{id}:
     get:
       summary: Get full manifest for a sensor
@@ -227,6 +231,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SensorManifest"
+        '404':
+          description: Sensor not found
+
+  /api/v1/sensors/{id}/execute:
+    post:
+      summary: Execute a sensor command
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                commandId: 
+                  type: string
+                params: 
+                  type: object
+                  nullable: true
+      responses:
+        '200':
+          description: Sensor executed command
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  timestamp: 
+                    type: string
+                  result:
+                    type: object
+                    nullable: true
         '404':
           description: Sensor not found
 
@@ -253,101 +294,6 @@ paths:
         "200":
           description: Rea settings updated successfully
 
-  /ws/v1/de1/snapshot:
-    get:
-      summary: WebSocket Snapshot Updates
-      description: Receives real-time snapshot data from the DE1 machine.
-      responses:
-        "200":
-          description: "Socket message"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MachineSnapshot"
-  /ws/v1/de1/shotSettings:
-    get:
-      summary: WebSocket Shot Settings Updates
-      description: Receives real-time shot settings updates.
-      responses:
-        "200":
-          description: "a snapshot of ShotSettings"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ShotSettings"
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-  /ws/v1/de1/waterLevels:
-    get:
-      summary: WebSocket Water Levels Updates
-      description: Receives real-time water level updates.
-      responses:
-        "200":
-          description: "a snapshot of WaterLevels"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/WaterLevels"
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-  /ws/v1/scale/snapshot:
-    get:
-      summary: WebSocket Scale Snapshot
-      description: Receives real-time weight data from the scale.
-      responses:
-        "200":
-          description: "a snapshot of Scale data"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ScaleSnapshot"
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  /ws/v1/de1/raw:
-    get:
-      summary: Websocket De1 raw BLE data
-      description: Receives real-time BLE data from DE1. Use this to send and receive BLE messages
-      responses:
-        "200":
-          description: Upgraded to websocket messages
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/De1RawMessage"
-  
-  /api/v1/sensors/{id}/snapshot:
-    get:
-      summary: Get latest snapshot of all data channels for a sensor
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Snapshot of current sensor values
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SensorSnapshot"
-        '404':
-          description: Sensor not found
-
   /api/v1/workflow:
     get:
       summary: Get info about current workflow
@@ -372,7 +318,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WorkflowRequest'
-            
 
 
 components:
