@@ -113,6 +113,7 @@ void main() async {
       settingsController,
       sensorController,
       workflowController,
+      persistenceController,
     );
   } catch (e, st) {
     log.severe('failed to start web server', e, st);
@@ -129,8 +130,10 @@ void main() async {
   });
   await settingsController.loadSettings();
 
-  Logger.root.level = Level.LEVELS
-          .firstWhereOrNull((e) => e.name == settingsController.logLevel) ??
+  Logger.root.level =
+      Level.LEVELS.firstWhereOrNull(
+        (e) => e.name == settingsController.logLevel,
+      ) ??
       Level.INFO;
 
   // Run the app and pass in the SettingsController. The app listens to the

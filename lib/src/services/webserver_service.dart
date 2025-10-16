@@ -4,9 +4,11 @@ import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/sensor_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
+import 'package:reaprime/src/services/webserver/shots_handler.dart';
 import 'package:reaprime/src/services/webserver/workflow_handler.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
@@ -37,6 +39,7 @@ Future<void> startWebServer(
   SettingsController settingsController,
   SensorController sensorController,
   WorkflowController workflowController,
+  PersistenceController persistenceController,
 ) async {
   log.info("starting webserver");
   final de1Handler = De1Handler(controller: de1Controller);
@@ -48,6 +51,9 @@ Future<void> startWebServer(
     controller: workflowController,
     de1controller: de1Controller,
   );
+  final ShotsHandler shotsHandler = ShotsHandler(
+    controller: persistenceController,
+  );
   // Start server
   final server = await io.serve(
     _init(
@@ -57,6 +63,7 @@ Future<void> startWebServer(
       settingsHandler,
       sensorsHandler,
       workflowHandler,
+      shotsHandler,
     ),
     '0.0.0.0',
     8080,
@@ -75,6 +82,7 @@ Handler _init(
   SettingsHandler settingsHandler,
   SensorsHandler sensorsHandler,
   WorkflowHandler workflowHandler,
+  ShotsHandler shotsHandler,
 ) {
   log.info("called _init");
   var app = Router().plus;
@@ -111,6 +119,7 @@ Handler _init(
   settingsHandler.addRoutes(app);
   sensorsHandler.addRoutes(app);
   workflowHandler.addRoutes(app);
+  shotsHandler.addRoutes(app);
 
   final handler = const Pipeline()
       .addMiddleware(logRequests())
