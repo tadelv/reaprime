@@ -12,6 +12,7 @@ class ScaleHandler {
     app.put('/api/v1/scale/<command>', (request, command) async {
       switch (command) {
         case 'tare':
+          _log.fine("handling api tare command");
           await _controller.connectedScale().tare();
           return Response.ok('');
         default:

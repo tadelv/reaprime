@@ -18,6 +18,7 @@ class DevicesHandler {
             'name': device.name,
             'id': device.deviceId,
             'state': state.name,
+            'type': device.type.name,
           });
         }
         return devMap;

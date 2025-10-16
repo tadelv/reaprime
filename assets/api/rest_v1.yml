@@ -32,6 +32,9 @@ paths:
                     state:
                       type: string
                       enum: [connected, disconnected]
+                    type:
+                      type: string
+                      enum: [machine, scale, sensor]
         "500":
           description: Internal Server Error
           content:
@@ -51,6 +54,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+
+
+  # DE1 specific API
   /api/v1/de1/state:
     get:
       summary: Get DE1 State
@@ -186,6 +192,8 @@ paths:
         "500":
           description: Something went wrong during the firmware upgrade process. Check the response and Rea logs
 
+
+  # Scale API
   /api/v1/scale/tare:
     put:
       summary: Tare Scale
@@ -196,6 +204,7 @@ paths:
         "404":
           description: Scale not found
 
+  # Sensors API handling
   /api/v1/sensors:
     get:
       summary: Get a list of sensor devices connected to Rea
@@ -272,6 +281,7 @@ paths:
           description: Sensor not found
 
 
+  # REA settings API
   /api/v1/settings:
     get:
       summary: Get Rea settings
@@ -294,6 +304,7 @@ paths:
         "200":
           description: Rea settings updated successfully
 
+  # REA Workflow API
   /api/v1/workflow:
     get:
       summary: Get info about current workflow
