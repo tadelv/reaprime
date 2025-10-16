@@ -330,6 +330,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/WorkflowRequest'
 
+  # REA Shot history API
+  /api/v1/shots:
+    get:
+      summary: Get a list of shots stored by REA
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: 
+                  $ref: '#/components/schemas/ShotRecord'
+
 
 components:
   schemas:
@@ -713,3 +726,39 @@ components:
           type: string
         roaster:
           type: string
+
+    ShotRecord:
+      type: object
+      properties:
+        id: 
+          type: string
+        timestamp: 
+          type: string
+        measurements:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShotSnapshot'
+        workflow:
+          $ref: '#/components/schemas/WorkflowRequest'
+
+    ShotSnapshot:
+      type: object
+      properties:
+        machine:
+          $ref: '#/components/schemas/MachineSnapshot'
+        scale: 
+          $ref: '#/components/schemas/WeightSnapshot'
+
+    WeightSnapshot:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        weight:
+          type: number
+        weightFlow:
+          type: number
+        batteryLevel:
+          type: integer
+        
