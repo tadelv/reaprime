@@ -50,10 +50,6 @@ dependencies:
   path: ^1.9.1
   shelf_cors_headers: ^0.1.5
   flutter_inappwebview: ^6.1.5
-  shelf_swagger_ui:
-    git:
-      url: https://github.com/Flutterando/shelf_swagger_ui
-      ref: main
   url_launcher: ^6.3.2
     # path: ../flutter_libserialport
     # git:

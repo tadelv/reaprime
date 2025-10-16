@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Rea Prime API
+  title: Rea Prime Rest API
   version: 1.0.0
   description: |
     This API provides endpoints to retrieve a list of Bluetooth devices, trigger a scan for new devices, manage DE1 espresso machine state and settings, and interact with a connected scale.
