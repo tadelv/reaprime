@@ -10,13 +10,14 @@ import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/shot_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/history_feature/history_feature.dart';
+import 'package:reaprime/src/models/data/shot_record.dart';
+import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/permissions_feature/permissions_view.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_view.dart';
-import 'package:rxdart/rxdart.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
@@ -86,7 +87,7 @@ class MyApp extends StatelessWidget {
             default:
               return;
           }
-          logger.fine(
+          logger.finest(
             "handling state: ${snapshot.state.state} in mode: ${settingsController.gatewayMode.name}",
           );
           switch (settingsController.gatewayMode) {
@@ -105,10 +106,25 @@ class MyApp extends StatelessWidget {
                   doseData: workflowController.currentWorkflow.doseData,
                 );
                 StreamSubscription<ShotState>? sub;
+                List<ShotSnapshot> snapshots = [];
+                StreamSubscription<ShotSnapshot> snapshotsSub = controller
+                    .shotData
+                    .listen((snapshot) {
+                      snapshots.add(snapshot);
+                    });
                 sub = controller.state.listen((st) {
                   if (st == ShotState.finished) {
                     logger.fine("cancelling shot controller");
                     controller.dispose();
+                    controller.persistenceController.persistShot(
+                      ShotRecord(
+                        id: DateTime.now().toIso8601String(),
+                        timestamp: controller.shotStartTime,
+                        measurements: snapshots,
+                        workflow: workflowController.currentWorkflow,
+                      ),
+                    );
+                    snapshotsSub.cancel();
                     sub?.cancel();
                     isRealtimeShotFeatureActive = false;
                   }
