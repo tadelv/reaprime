@@ -55,7 +55,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-
   # DE1 specific API
   /api/v1/de1/state:
     get:
@@ -192,7 +191,6 @@ paths:
         "500":
           description: Something went wrong during the firmware upgrade process. Check the response and Rea logs
 
-
   # Scale API
   /api/v1/scale/tare:
     put:
@@ -234,13 +232,13 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Full sensor manifest
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/SensorManifest"
-        '404':
+        "404":
           description: Sensor not found
 
   /api/v1/sensors/{id}/execute:
@@ -259,27 +257,26 @@ paths:
             schema:
               type: object
               properties:
-                commandId: 
+                commandId:
                   type: string
-                params: 
+                params:
                   type: object
                   nullable: true
       responses:
-        '200':
+        "200":
           description: Sensor executed command
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  timestamp: 
+                  timestamp:
                     type: string
                   result:
                     type: object
                     nullable: true
-        '404':
+        "404":
           description: Sensor not found
-
 
   # REA settings API
   /api/v1/settings:
@@ -313,7 +310,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WorkflowRequest'
+                $ref: "#/components/schemas/WorkflowRequest"
     put:
       summary: Set or update current workflow
       description: You can update only specific fields, like doseData or grinderData, or profile etc.
@@ -328,21 +325,40 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WorkflowRequest'
+                $ref: "#/components/schemas/WorkflowRequest"
 
   # REA Shot history API
   /api/v1/shots:
     get:
       summary: Get a list of shots stored by REA
+      parameters:
+        - in: query
+          name: ids
+          description: identifiers of the shots, comma separated
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
       responses:
         "200":
           content:
             application/json:
               schema:
                 type: array
-                items: 
-                  $ref: '#/components/schemas/ShotRecord'
-
+                items:
+                  $ref: "#/components/schemas/ShotRecord"
+  /api/v1/shots/ids:
+    get:
+      summary: Get a list of identifiers of all the shots
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
 
 components:
   schemas:
@@ -399,20 +415,39 @@ components:
           type: number
     MachineState:
       type: string
-      enum: [idle, booting, sleeping, heating, preheating, espresso, hotWater, flush, steam, skipStep, cleaning, descaling, transportMode, needsWater, error]
+      enum:
+        [
+          idle,
+          booting,
+          sleeping,
+          heating,
+          preheating,
+          espresso,
+          hotWater,
+          flush,
+          steam,
+          skipStep,
+          cleaning,
+          descaling,
+          transportMode,
+          needsWater,
+          error,
+        ]
       example: espresso
     MachineSubstate:
       type: string
-      enum: [   idle,
-        preparingForShot, 
-        preinfusion,
-        pouring,
-        pouringDone,
-        cleaningStart, 
-        cleaingGroup, 
-        cleanSoaking,
-        cleaningSteam,
-      ]
+      enum:
+        [
+          idle,
+          preparingForShot,
+          preinfusion,
+          pouring,
+          pouringDone,
+          cleaningStart,
+          cleaingGroup,
+          cleanSoaking,
+          cleaningSteam,
+        ]
       example: preparingForShot
     Profile:
       type: object
@@ -554,9 +589,9 @@ components:
         - payload
       properties:
         type:
-          $ref: '#/components/schemas/De1RawMessageType'
+          $ref: "#/components/schemas/De1RawMessageType"
         operation:
-          $ref: '#/components/schemas/De1RawOperationType'
+          $ref: "#/components/schemas/De1RawOperationType"
         characteristicUUID:
           type: string
           description: UUID of the characteristic (len = 4).
@@ -584,7 +619,7 @@ components:
       properties:
         gatewayMode:
           description: Control whether Rea acts as gateway. Disabled means gateway is disabled, full means full gateway mode. Tracking means rea will not show graphs, but will control the shot (stop at weight)
-          enum: ["disabled","full", "tracking"]
+          enum: ["disabled", "full", "tracking"]
           nullable: true
 
     ReaSettings:
@@ -592,7 +627,7 @@ components:
       properties:
         gatewayMode:
           description: Control whether Rea acts as gateway. Disabled means gateway is disabled, full means full gateway mode. Tracking means rea will not show graphs, but will control the shot (stop at weight)
-          enum: ["disabled","full", "tracking"]
+          enum: ["disabled", "full", "tracking"]
 
     SensorManifest:
       type: object
@@ -635,7 +670,7 @@ components:
         unit:
           type: string
           example: "°C"
-        
+
     CommandDescriptor:
       type: object
       required:
@@ -660,7 +695,7 @@ components:
             properties:
               mode:
                 type: string
-                enum: ["quick","full"]
+                enum: ["quick", "full"]
             required: ["mode"]
         resultSchema:
           type: object
@@ -681,18 +716,18 @@ components:
     WorkflowRequest:
       type: object
       properties:
-        name: 
+        name:
           type: string
         description:
           type: string
         profile:
-          $ref: '#/components/schemas/Profile'
+          $ref: "#/components/schemas/Profile"
         doseData:
-          $ref: '#/components/schemas/DoseData'
+          $ref: "#/components/schemas/DoseData"
         grinderData:
-          $ref: '#/components/schemas/GrinderData'
+          $ref: "#/components/schemas/GrinderData"
         coffeeData:
-          $ref: '#/components/schemas/CoffeeData'
+          $ref: "#/components/schemas/CoffeeData"
 
     DoseData:
       type: object
@@ -700,7 +735,7 @@ components:
         - doseIn
         - doseOut
       properties:
-        doseIn: 
+        doseIn:
           type: number
         doseOut:
           type: number
@@ -730,24 +765,24 @@ components:
     ShotRecord:
       type: object
       properties:
-        id: 
+        id:
           type: string
-        timestamp: 
+        timestamp:
           type: string
         measurements:
           type: array
           items:
-            $ref: '#/components/schemas/ShotSnapshot'
+            $ref: "#/components/schemas/ShotSnapshot"
         workflow:
-          $ref: '#/components/schemas/WorkflowRequest'
+          $ref: "#/components/schemas/WorkflowRequest"
 
     ShotSnapshot:
       type: object
       properties:
         machine:
-          $ref: '#/components/schemas/MachineSnapshot'
-        scale: 
-          $ref: '#/components/schemas/WeightSnapshot'
+          $ref: "#/components/schemas/MachineSnapshot"
+        scale:
+          $ref: "#/components/schemas/WeightSnapshot"
 
     WeightSnapshot:
       type: object
@@ -761,4 +796,3 @@ components:
           type: number
         batteryLevel:
           type: integer
-        
