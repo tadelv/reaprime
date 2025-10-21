@@ -12,6 +12,7 @@ import 'package:reaprime/src/services/webserver/shots_handler.dart';
 import 'package:reaprime/src/services/webserver/workflow_handler.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
+import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
