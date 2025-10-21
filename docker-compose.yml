@@ -1,0 +1,13 @@
+services:
+  flutter-build:
+    image: flutter-linux-arm64:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: flutter-build
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      - PATH=/opt/flutter/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    command: bash

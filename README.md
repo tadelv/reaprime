@@ -31,3 +31,7 @@ Currently, R1 supports the most basic of features, but enough to support the mai
 - Decent Scale
 - Bookoo
 
+
+### Build for Linux arm64 in container:
+
+`docker compose run --rm flutter-build flutter build linux --release`
