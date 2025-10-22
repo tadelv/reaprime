@@ -60,7 +60,8 @@ class De1Controller {
     _log.info("checking ${_deviceController.devices}");
   }
 
-  connectToDe1(De1Interface de1Interface) async {
+  Future<void> connectToDe1(De1Interface de1Interface) async {
+    _onDisconnect(); // just in case
     _de1 = de1Interface;
     _log.fine("found de1, connecting");
     await de1Interface.onConnect();
