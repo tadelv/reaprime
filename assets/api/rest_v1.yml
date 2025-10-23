@@ -14,7 +14,7 @@ paths:
   /api/v1/devices:
     get:
       summary: Get Available Devices
-      description: Retrieves a list of available Bluetooth devices with their connection states.
+      description: Retrieves a list of available devices with their connection states.
       responses:
         "200":
           description: Successful response
@@ -44,7 +44,13 @@ paths:
   /api/v1/devices/scan:
     get:
       summary: Scan for Devices
-      description: Triggers a Bluetooth device scan.
+      description: Triggers a device scan.
+      parameters:
+        - name: connect
+          description: whether REA should automatically connect to discovered devices while scanning (applies for scales). Default is 'false'
+          in: query
+          schema:
+            type: boolean
       responses:
         "200":
           description: Scan started successfully
@@ -54,6 +60,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+
+  /api/v1/devices/connect:
+    put:
+      summary: Connect to specified device
+      parameters:
+        - name: deviceId
+          description: The id of the device, previously discovered with /api/v1/devices/scan request
+          in: query
+          required: true
+          schema: 
+            type: string
+      responses:
+        "200":
+          description: "Device connected successfully"
+
 
   # DE1 specific API
   /api/v1/de1/state:
