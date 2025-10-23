@@ -19,17 +19,36 @@ class ScaleController {
   final Logger log = Logger('ScaleController');
 
   ScaleController({required DeviceController controller})
-      : _deviceController = controller {
+    : _deviceController = controller {
     _deviceController.deviceStream.listen((devices) async {
       var scales = devices.whereType<Scale>().toList();
-      if (_scale == null && scales.firstOrNull != null) {
-        var scale = scales.first;
-        _scaleConnection = scale.connectionState.listen(_processConnection);
-        _scaleSnapshot = scale.currentSnapshot.listen(_processSnapshot);
-        await scale.onConnect();
-        _scale = scale;
+      if (_scale == null &&
+          scales.firstOrNull != null &&
+          _deviceController.shouldAutoConnect) {
+        final scale = scales.first;
+        _onConnect(scale);
       }
     });
+  }
+
+  Future<void> connectToScale(Scale scale) async {
+    _scaleConnection = scale.connectionState.listen(_processConnection);
+    _scaleSnapshot = scale.currentSnapshot.listen(_processSnapshot);
+    await scale.onConnect();
+    _scale = scale;
+  }
+
+  Future<void> _onConnect(Scale scale) async {
+    _onDisconnect();
+    await _onConnect(scale);
+  }
+
+  void _onDisconnect() {
+    _scaleSnapshot?.cancel();
+    _scaleConnection?.cancel();
+    _scale = null;
+    _scaleConnection = null;
+    _flowCalculator = FlowCalculator(windowDuration: smoothingWindowDuration);
   }
 
   Scale connectedScale() {
@@ -53,32 +72,30 @@ class ScaleController {
 
   static const smoothingWindowDuration = Duration(milliseconds: 600);
 
-  FlowCalculator _flowCalculator =
-      FlowCalculator(windowDuration: smoothingWindowDuration);
+  FlowCalculator _flowCalculator = FlowCalculator(
+    windowDuration: smoothingWindowDuration,
+  );
 
   _processSnapshot(ScaleSnapshot snapshot) {
     final flow = _flowCalculator.addSample(snapshot.timestamp, snapshot.weight);
 
     weightFlowAverage.add(flow); // Use your existing average queue
 
-    _weightSnapshotController.add(WeightSnapshot(
-      timestamp: snapshot.timestamp,
-      weight: snapshot.weight,
-      weightFlow: weightFlowAverage.average,
-      battery: snapshot.batteryLevel,
-    ));
+    _weightSnapshotController.add(
+      WeightSnapshot(
+        timestamp: snapshot.timestamp,
+        weight: snapshot.weight,
+        weightFlow: weightFlowAverage.average,
+        battery: snapshot.batteryLevel,
+      ),
+    );
   }
 
   _processConnection(ConnectionState d) {
     log.info('scale connection update: ${d.name}');
     _connectionController.add(d);
     if (d == ConnectionState.disconnected) {
-      _scaleSnapshot?.cancel();
-      _scaleConnection?.cancel();
-      _scale = null;
-      _scaleConnection = null;
-      _flowCalculator =
-          FlowCalculator(windowDuration: smoothingWindowDuration);
+      _onDisconnect();
     }
   }
 }

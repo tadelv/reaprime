@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:collection/collection.dart';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
@@ -8,6 +9,8 @@ import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/sensor_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
+import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/services/webserver/shots_handler.dart';
 import 'package:reaprime/src/services/webserver/workflow_handler.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
@@ -45,7 +48,11 @@ Future<void> startWebServer(
   log.info("starting webserver");
   final de1Handler = De1Handler(controller: de1Controller);
   final scaleHandler = ScaleHandler(controller: scaleController);
-  final deviceHandler = DevicesHandler(controller: deviceController);
+  final deviceHandler = DevicesHandler(
+    controller: deviceController,
+    de1Controller: de1Controller,
+    scaleController: scaleController,
+  );
   final settingsHandler = SettingsHandler(controller: settingsController);
   final sensorsHandler = SensorsHandler(controller: sensorController);
   final workflowHandler = WorkflowHandler(
