@@ -198,6 +198,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/v1/de1/waterLevels:
+    post:
+      summary: Set new water level threshold
+      requestBody:
+        required: true
+        content: 
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WaterLevels"
+      responses:
+        "202":
+          description: Levels updated
+
   /api/v1/de1/firmware:
     post:
       summary: Push new firmware to the De1
