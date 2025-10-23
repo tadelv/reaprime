@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
-import 'package:reaprime/src/models/device/machine.dart';
 import 'package:rxdart/rxdart.dart';
 
 class DeviceController {
@@ -36,13 +35,13 @@ class DeviceController {
         _log.warning("Service ${service} failed to init:", e);
       }
     }
-    await scanForDevices();
+    await scanForDevices(autoConnect: false);
   }
 
   bool _autoConnect = true;
   bool get shouldAutoConnect => _autoConnect;
 
-  Future<void> scanForDevices({bool autoConnect = true}) async {
+  Future<void> scanForDevices({required bool autoConnect }) async {
     // throw out all disconnected devices
     _devices.forEach((_, devices) async {
       List<Device> devicesToRemove = [];
@@ -74,28 +73,15 @@ class DeviceController {
         }),
       );
     } finally {
-      _autoConnect = tmpAutoConnect;
-      _log.info("_autoConnect restored to $tmpAutoConnect");
+      await Future.delayed(Duration(milliseconds: 200), () {
+        _autoConnect = tmpAutoConnect;
+        _log.info("_autoConnect restored to $tmpAutoConnect");
+      });
     }
   }
 
   _serviceUpdate(DeviceDiscoveryService service, List<Device> devices) {
     _devices[service] = devices;
     _deviceStream.add(this.devices);
-  }
-
-  Future<Device> connectToDevice(Device device) async {
-    DeviceDiscoveryService? service;
-    _devices.forEach((s, v) {
-      if (v.contains(device)) {
-        service = s;
-        return;
-      }
-    });
-
-    if (service != null) {
-      return service!.connectToMachine(deviceId: device.deviceId);
-    }
-    throw "Cant find service to use for device connection";
   }
 }

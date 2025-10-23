@@ -24,7 +24,7 @@ class SampleItemListView extends StatelessWidget {
         actions: [
           IconButton(
             onPressed: () async {
-              await controller.scanForDevices();
+              await controller.scanForDevices(autoConnect: false);
             },
             icon: const Icon(LucideIcons.radar),
           ),

@@ -247,7 +247,7 @@ class StatusTile extends StatelessWidget {
                     // call device controller scan?
                     return GestureDetector(
                         onTap: () async {
-                          await deviceController.scanForDevices();
+                          await deviceController.scanForDevices(autoConnect: true);
                         },
                         child: Text("Waiting"));
                   }
