@@ -4,32 +4,38 @@ class DevicesHandler {
   final DeviceController _controller;
 
   DevicesHandler({required DeviceController controller})
-      : _controller = controller;
+    : _controller = controller;
 
   addRoutes(RouterPlus app) {
     app.get('/api/v1/devices', () async {
       log.info("handling devices");
       try {
-        var devices = _controller.devices;
-        var devMap = [];
-        for (var device in devices) {
-          var state = await device.connectionState.first;
-          devMap.add({
-            'name': device.name,
-            'id': device.deviceId,
-            'state': state.name,
-            'type': device.type.name,
-          });
-        }
-        return devMap;
+        return await _deviceList();
       } catch (e, st) {
         return Response.internalServerError(
-            body: {'e': e.toString(), 'st': st.toString()});
+          body: {'e': e.toString(), 'st': st.toString()},
+        );
       }
     });
     app.get('/api/v1/devices/scan', () async {
       await _controller.scanForDevices();
-      return Response.ok('');
+
+      return await _deviceList();
     });
+  }
+
+  Future<List<Map<String, String>>> _deviceList() async {
+    var devices = _controller.devices;
+    var devMap = <Map<String, String>>[];
+    for (var device in devices) {
+      var state = await device.connectionState.first;
+      devMap.add({
+        'name': device.name,
+        'id': device.deviceId,
+        'state': state.name,
+        'type': device.type.name,
+      });
+    }
+    return devMap;
   }
 }
