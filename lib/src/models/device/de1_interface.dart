@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
+import 'package:reaprime/src/models/data/utils.dart';
 
 abstract class De1Interface extends Machine {
   Stream<bool> get ready;
@@ -122,14 +123,14 @@ final class De1ShotSettings {
 
   factory De1ShotSettings.fromJson(Map<String, dynamic> json) {
     return De1ShotSettings(
-      steamSetting: json['steamSetting'],
-      targetSteamTemp: json['targetSteamTemp'],
-      targetSteamDuration: json['targetSteamDuration'],
-      targetHotWaterTemp: json['targetHotWaterTemp'],
-      targetHotWaterVolume: json['targetHotWaterVolume'],
-      targetHotWaterDuration: json['targetHotWaterDuration'],
-      targetShotVolume: json['targetShotVolume'],
-      groupTemp: json['groupTemp'],
+      steamSetting: parseInt(json['steamSetting']),
+      targetSteamTemp: parseInt(json['targetSteamTemp']),
+      targetSteamDuration: parseInt(json['targetSteamDuration']),
+      targetHotWaterTemp: parseInt(json['targetHotWaterTemp']),
+      targetHotWaterVolume: parseInt(json['targetHotWaterVolume']),
+      targetHotWaterDuration: parseInt(json['targetHotWaterDuration']),
+      targetShotVolume: parseInt(json['targetShotVolume']),
+      groupTemp: parseDouble(json['groupTemp']),
     );
   }
 

@@ -200,7 +200,7 @@ paths:
 
   /api/v1/de1/waterLevels:
     post:
-      summary: Set new water level threshold
+      summary: Set new water level threshold, only the warningThresholdPercentage field is important here
       requestBody:
         required: true
         content: 
@@ -513,20 +513,28 @@ components:
       properties:
         steamSetting:
           type: integer
+          nullable: false
         targetSteamTemp:
-          type: number
+          type: integer
+          nullable: false
         targetSteamDuration:
           type: integer
+          nullable: false
         targetHotWaterTemp:
-          type: number
+          type: integer
+          nullable: false
         targetHotWaterVolume:
-          type: number
+          type: integer
+          nullable: false
         targetHotWaterDuration:
           type: integer
+          nullable: false
         targetShotVolume:
-          type: number
+          type: integer
+          nullable: false
         groupTemp:
           type: number
+          nullable: false
     WaterLevels:
       type: object
       properties:
