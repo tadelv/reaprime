@@ -27,7 +27,14 @@ class DevicesHandler {
     app.get('/api/v1/devices/scan', (Request req) async {
       final bool shouldConnect =
           req.requestedUri.queryParametersAll["connect"]?.firstOrNull == "true";
-      log.info("running scan, connect = $shouldConnect");
+      final bool quickScan =
+          req.requestedUri.queryParametersAll["quick"]?.firstOrNull ==
+          "true";
+      log.info("running scan, connect = $shouldConnect, quick = $quickScan");
+      if (quickScan) {
+        _controller.scanForDevices(autoConnect: shouldConnect);
+        return [];
+      }
       await _controller.scanForDevices(autoConnect: shouldConnect);
 
       return await _deviceList();

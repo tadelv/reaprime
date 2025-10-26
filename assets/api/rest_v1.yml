@@ -51,6 +51,11 @@ paths:
           in: query
           schema:
             type: boolean
+        - name: quick
+          description: If this flag is set to true, REA will return immediately after calling this function, returning an empty array. Useful if you want to poll for new devices manually
+          in: query
+          schema:
+            type: boolean
       responses:
         "200":
           description: Scan started successfully

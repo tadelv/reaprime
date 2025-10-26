@@ -119,7 +119,7 @@ void main() async {
     log.severe('failed to start web server', e, st);
   }
 
-  if (Platform.isMacOS == false) {
+  if (Platform.isAndroid || Platform.isIOS) {
     final batteryController = BatteryController(de1Controller);
   }
   // Load the user's preferred theme while the splash screen is displayed.
@@ -142,6 +142,16 @@ void main() async {
   if (Platform.isAndroid) {
     ForegroundTaskService.init();
   }
+
+  void signalHandler(ProcessSignal signal) {
+    Logger.root.warning("Signal received: ${signal.name}");
+    for (var device in deviceController.devices) {
+      device.disconnect();
+    }
+  }
+
+  // ProcessSignal.sigkill.watch().listen(signalHandler);
+  ProcessSignal.sigint.watch().listen(signalHandler);
 
   runApp(
     WithForegroundTask(
