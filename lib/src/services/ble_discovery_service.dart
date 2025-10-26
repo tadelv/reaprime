@@ -41,8 +41,10 @@ class BleDiscoveryService extends DeviceDiscoveryService {
   @override
   Future<void> scanForDevices() async {
     log.info("mappings: ${deviceMappings}");
+    log.fine("Clearing stale connections");
+
     var sub = UniversalBle.scanStream.listen((result) {
-      log.info("Found: ${result.deviceId}: ${result.name}, adv: ${result.services}");
+      log.fine("Found: ${result.deviceId}: ${result.name}, adv: ${result.services}");
       _deviceScanned(result);
     });
 
@@ -57,6 +59,7 @@ class BleDiscoveryService extends DeviceDiscoveryService {
     await Future.delayed(Duration(seconds: 15), () async {
       await UniversalBle.stopScan();
       await sub.cancel();
+      _deviceStreamController.add(_devices.values.toList());
     });
   }
 

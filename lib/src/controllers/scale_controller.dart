@@ -26,21 +26,17 @@ class ScaleController {
           scales.firstOrNull != null &&
           _deviceController.shouldAutoConnect) {
         final scale = scales.first;
-        _onConnect(scale);
+        await connectToScale(scale);
       }
     });
   }
 
   Future<void> connectToScale(Scale scale) async {
+    _onDisconnect();
     _scaleConnection = scale.connectionState.listen(_processConnection);
     _scaleSnapshot = scale.currentSnapshot.listen(_processSnapshot);
     await scale.onConnect();
     _scale = scale;
-  }
-
-  Future<void> _onConnect(Scale scale) async {
-    _onDisconnect();
-    await _onConnect(scale);
   }
 
   void _onDisconnect() {
