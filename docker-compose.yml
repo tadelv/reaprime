@@ -6,14 +6,10 @@ services:
       dockerfile: Dockerfile
     container_name: flutter-build
     working_dir: /app
-    # Mounts
     volumes:
-      # Mount your source
       - .:/app:delegated
-      # Persistent caches
       - flutter_pub_cache:/root/.pub-cache
       - flutter_sdk_cache:/opt/flutter
-      - flutter_build_cache:/app/build
     environment:
       - PATH=/opt/flutter/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       - PUB_CACHE=/root/.pub-cache
@@ -22,4 +18,3 @@ services:
 volumes:
   flutter_pub_cache:
   flutter_sdk_cache:
-  flutter_build_cache:

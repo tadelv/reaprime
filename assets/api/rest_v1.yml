@@ -666,7 +666,17 @@ components:
       properties:
         gatewayMode:
           description: Control whether Rea acts as gateway. Disabled means gateway is disabled, full means full gateway mode. Tracking means rea will not show graphs, but will control the shot (stop at weight)
+          type: string
           enum: ["disabled", "full", "tracking"]
+          nullable: true
+        webUiPath:
+          description: Set a path on local filesystem, from which REA will serve the webUI
+          type: string
+          nullable: true
+        logLevel:
+          description: Current REA log level
+          type: string
+          enum: [ALL,FINEST,FINER,FINE,CONFIG,INFO,WARNING,SEVERE,SHOUT,OFF]
           nullable: true
 
     ReaSettings:
@@ -674,7 +684,15 @@ components:
       properties:
         gatewayMode:
           description: Control whether Rea acts as gateway. Disabled means gateway is disabled, full means full gateway mode. Tracking means rea will not show graphs, but will control the shot (stop at weight)
+          type: string
           enum: ["disabled", "full", "tracking"]
+        webUiPath:
+          description: Path of the currently served folder on the filesystem, if enabled
+          type: string
+        logLevel:
+          description: Current REA log level
+          type: string
+          enum: [ALL,FINEST,FINER,FINE,CONFIG,INFO,WARNING,SEVERE,SHOUT,OFF]
 
     SensorManifest:
       type: object

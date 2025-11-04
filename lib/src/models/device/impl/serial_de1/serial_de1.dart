@@ -146,7 +146,7 @@ class SerialDe1 implements De1Interface {
         _log.finest("received complete response: $line");
         _processDe1Response(line);
       } else {
-        _log.warning("Ignored invalid or incomplete line: '$line'");
+        _log.finest("Ignored invalid or incomplete line: '$line'");
       }
     }
 

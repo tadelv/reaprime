@@ -76,6 +76,7 @@ class DeviceController {
       await Future.delayed(Duration(milliseconds: 200), () {
         _autoConnect = tmpAutoConnect;
         _log.info("_autoConnect restored to $tmpAutoConnect");
+        _log.info("current devices: ${this.devices}");
       });
     }
   }

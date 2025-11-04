@@ -101,8 +101,9 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       );
 
       final combined = rawData.expand((e) => e).toList();
-      final strings = rawData.map(utf8.decode).toList();
+      final strings = rawData.map(utf8.decode).toList().join().split('\n');
       _log.info("Collected serial data: ${utf8.decode(combined)}");
+      _log.info("parsed into strings: ${strings}");
       if (combined.isEmpty && strings.isEmpty) {
         throw ('no data collected');
       }

@@ -11,7 +11,12 @@ class SettingsHandler {
       log.info("handling settings");
       final gatewayMode = _controller.gatewayMode.name;
       final webPath = WebUIService.serverPath();
-      return {'gatewayMode': gatewayMode, 'webUiPath': webPath};
+      final logLevel = _controller.logLevel;
+      return {
+        'gatewayMode': gatewayMode,
+        'webUiPath': webPath,
+        'logLevel': logLevel,
+      };
     });
     app.post('/api/v1/settings', (Request request) async {
       final payload = await request.readAsString();
@@ -32,6 +37,9 @@ class SettingsHandler {
         // Check path is valid
         final _ = File.fromUri(Uri.file(webUiPath));
         await WebUIService.serveFolderAtPath(webUiPath);
+      }
+      if (json.containsKey('logLevel')) {
+        await _controller.updateLogLevel(json['logLevel']);
       }
       return Response.ok('');
     });
