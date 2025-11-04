@@ -36,8 +36,9 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     throw UnimplementedError();
   }
 
-  final BehaviorSubject<List<Device>> _machineSubject =
-      BehaviorSubject.seeded(<Device>[]);
+  final BehaviorSubject<List<Device>> _machineSubject = BehaviorSubject.seeded(
+    <Device>[],
+  );
   @override
   Stream<List<Device>> get devices => _machineSubject.stream;
 
@@ -58,9 +59,20 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     final ports = SerialPort.availablePorts;
     _log.info("Found ports: $ports");
 
+    List<Device> connected = [];
+    for (var d in _devices) {
+      final state = await d.connectionState.first;
+      if (state == ConnectionState.connected) {
+        connected.add(d);
+      }
+    }
+    final scanPorts = ports.where(
+      (p) => connected.map((e) => e.deviceId).contains(p) == false,
+    );
+
     final results = <Device?>[];
 
-    for (final portId in ports) {
+    for (final portId in scanPorts) {
       try {
         results.add(await _detectDevice(portId));
       } catch (e, st) {
@@ -68,6 +80,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
         results.add(null);
       }
     }
+    results.addAll(connected);
 
     _devices = results.whereType<Device>().toList();
     _machineSubject.add(_devices);
@@ -212,21 +225,24 @@ class _DesktopSerialPort implements SerialTransport {
       _log.finest("current config: ${_port.config.baudRate}");
 
       _log.fine("port opened");
-      _portSubscription = SerialPortReader(_port).stream.listen((data) {
-        _rawStreamController.add(data);
-        try {
-          final input = utf8.decode(data);
-          _log.finest("received serial input: $input");
-          _readController.add(input);
-        } catch (e) {
-          _log.fine("unable to parse serial input to string", e);
-        }
-      }, onError: (error) {
-        _log.severe("port error:", error);
-        _readController.addError(error);
-        _readController.close();
-        close();
-      });
+      _portSubscription = SerialPortReader(_port).stream.listen(
+        (data) {
+          _rawStreamController.add(data);
+          try {
+            final input = utf8.decode(data);
+            _log.finest("received serial input: $input");
+            _readController.add(input);
+          } catch (e) {
+            _log.fine("unable to parse serial input to string", e);
+          }
+        },
+        onError: (error) {
+          _log.severe("port error:", error);
+          _readController.addError(error);
+          _readController.close();
+          close();
+        },
+      );
       _log.fine("port subscribed: ${_portSubscription}");
     });
   }

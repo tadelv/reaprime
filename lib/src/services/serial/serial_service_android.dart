@@ -68,7 +68,15 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
 
   @override
   Future<void> scanForDevices() async {
-    _devices.clear();
+    List<Device> connected = [];
+    for (var d in _devices) {
+      final state = await d.connectionState.first;
+      if (state == ConnectionState.connected) {
+        connected.add(d);
+      }
+    }
+
+    _devices.removeWhere((d) => connected.contains(d) == false);
     final devices = await UsbSerial.listDevices();
     _log.info("have devices: $devices");
     final results = await Future.wait(
@@ -83,7 +91,7 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
         }
       }),
     );
-    _devices = results.whereType<Device>().toList();
+    _devices.addAll(results.whereType<Device>());
     _machineSubject.add(_devices);
   }
 
