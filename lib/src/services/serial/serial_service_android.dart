@@ -32,8 +32,9 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
   }
 
   List<Device> _devices = [];
-  final BehaviorSubject<List<Device>> _machineSubject =
-      BehaviorSubject.seeded(<Device>[]);
+  final BehaviorSubject<List<Device>> _machineSubject = BehaviorSubject.seeded(
+    <Device>[],
+  );
   @override
   Stream<List<Device>> get devices => _machineSubject.stream;
 
@@ -70,16 +71,18 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
     _devices.clear();
     final devices = await UsbSerial.listDevices();
     _log.info("have devices: $devices");
-    final results = await Future.wait(devices.map((d) async {
-      try {
-        final device = await _detectDevice(d);
-        _log.info("Port $d -> ${device ?? 'no device'}");
-        return device;
-      } catch (e, st) {
-        _log.warning("Error detecting device on $d", e, st);
-        return null;
-      }
-    }));
+    final results = await Future.wait(
+      devices.map((d) async {
+        try {
+          final device = await _detectDevice(d);
+          _log.info("Port $d -> ${device ?? 'no device'}");
+          return device;
+        } catch (e, st) {
+          _log.warning("Error detecting device on $d", e, st);
+          return null;
+        }
+      }),
+    );
     _devices = results.whereType<Device>().toList();
     _machineSubject.add(_devices);
   }
@@ -130,9 +133,9 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
 
       // Combine all chunks into one buffer
       final combined = rawData.expand((e) => e).toList();
-      final dataString = String.fromCharCodes(combined);
-      final strings = rawData.map((e) => String.fromCharCodes(e)).toList();
-      _log.info("Collected serial data: $dataString");
+      final strings = rawData.map(utf8.decode).toList().join().split('\n');
+      _log.info("Collected serial data: ${utf8.decode(combined)}");
+      _log.info("parsed into strings: ${strings}");
 
       // Heuristic checks for device type
       if (strings.any((s) => s.startsWith('R '))) {
@@ -179,8 +182,8 @@ class AndroidSerialPort implements SerialTransport {
   bool _isOpen = false;
 
   AndroidSerialPort({required UsbDevice device, required UsbPort port})
-      : _device = device,
-        _port = port {
+    : _device = device,
+      _port = port {
     _log = Logger("Serial:${_device.deviceName}");
   }
   @override
@@ -220,19 +223,22 @@ class AndroidSerialPort implements SerialTransport {
       UsbPort.PARITY_NONE,
     );
 
-    _portSubscription = _port.inputStream?.listen((Uint8List event) {
-      _rawController.add(event);
-      try {
-        final input = utf8.decode(event);
-        _log.finest("received serial input: $input");
-        _outputController.add(input);
-      } catch (e) {
-        _log.fine("unable to parse to string", e);
-      }
-    }, onError: (error) {
-      _log.severe("port read failed", error);
-      close();
-    });
+    _portSubscription = _port.inputStream?.listen(
+      (Uint8List event) {
+        _rawController.add(event);
+        try {
+          final input = utf8.decode(event);
+          _log.finest("received serial input: $input");
+          _outputController.add(input);
+        } catch (e) {
+          _log.fine("unable to parse to string", e);
+        }
+      },
+      onError: (error) {
+        _log.severe("port read failed", error);
+        close();
+      },
+    );
     _isOpen = true;
   }
 
