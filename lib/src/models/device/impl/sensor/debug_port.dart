@@ -40,7 +40,9 @@ class DebugPort implements Sensor {
 
   @override
   Future<Map<String, dynamic>> execute(
-      String commandId, Map<String, dynamic>? parameters) async {
+    String commandId,
+    Map<String, dynamic>? parameters,
+  ) async {
     if (commandId != "input") {
       throw "Invalid command";
     }
@@ -56,21 +58,25 @@ class DebugPort implements Sensor {
 
     _log.fine("executing $commandId");
     await _transport.writeCommand(command);
-    return {};
+    final response = await data.first;
+    return response;
   }
 
   @override
-  SensorInfo get info =>
-      SensorInfo(name: "Debug Port", vendor: "Decent Espresso", dataChannels: [
-        DataChannel(key: "output", type: "string")
-      ], commands: [
-        CommandDescriptor(
-            id: "input",
-            name: "input",
-            description: "Send line to debug port",
-            paramsSchema: {"command": "string"},
-            resultsSchema: null)
-      ]);
+  SensorInfo get info => SensorInfo(
+    name: "Debug Port",
+    vendor: "Decent Espresso",
+    dataChannels: [DataChannel(key: "output", type: "string")],
+    commands: [
+      CommandDescriptor(
+        id: "input",
+        name: "input",
+        description: "Send line to debug port",
+        paramsSchema: {"command": "string"},
+        resultsSchema: null,
+      ),
+    ],
+  );
 
   @override
   String get name => "Debug Port";
@@ -82,13 +88,16 @@ class DebugPort implements Sensor {
     }
     _log.info("on connect");
     await _transport.open();
-    _transportSubscription =
-        _transport.readStream.listen(onData, onError: (error) {
-      _log.warning("transport error", error);
-      disconnect();
-    }, onDone: () {
-      disconnect();
-    });
+    _transportSubscription = _transport.readStream.listen(
+      onData,
+      onError: (error) {
+        _log.warning("transport error", error);
+        disconnect();
+      },
+      onDone: () {
+        disconnect();
+      },
+    );
     _connectionSubject.add(ConnectionState.connected);
   }
 

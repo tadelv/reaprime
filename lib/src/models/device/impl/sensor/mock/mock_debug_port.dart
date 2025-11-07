@@ -1,4 +1,3 @@
-
 import 'dart:async';
 
 import 'package:reaprime/src/models/device/device.dart';
@@ -18,6 +17,8 @@ class MockDebugPort implements Sensor {
   @override
   String get deviceId => "mockDebugPort";
 
+  bool _ignoreTimer = false;
+
   @override
   disconnect() {
     _timer.cancel();
@@ -25,7 +26,9 @@ class MockDebugPort implements Sensor {
 
   @override
   Future<Map<String, dynamic>> execute(
-      String commandId, Map<String, dynamic>? parameters) async {
+    String commandId,
+    Map<String, dynamic>? parameters,
+  ) async {
     if (commandId != "input") {
       throw "Invalid command";
     }
@@ -39,25 +42,36 @@ class MockDebugPort implements Sensor {
       throw 'Invalid "command" type: ${command.runtimeType}';
     }
 
-    _streamSubject.add({
-        "timestamp": "${DateTime.timestamp()}",
-        "output": "[DEBUG] execute: $command"
-      });
-    return {};
+    if (command == "!!!!") {
+      _ignoreTimer = true;
+    }
+    final response = {
+      "timestamp": "${DateTime.timestamp()}",
+      "output": "[DEBUG] execute: $command",
+    };
+
+    _streamSubject.add(response);
+    if (command == "q" || command == "fcom") {
+      _ignoreTimer = false;
+    }
+    return response;
   }
 
   @override
-  SensorInfo get info =>
-      SensorInfo(name: "DebugPort", vendor: "DecentEspresso", dataChannels: [
-        DataChannel(key: "output", type: "string")
-      ], commands: [
-        CommandDescriptor(
-            id: "input",
-            name: "input",
-            description: "Send line to debug port",
-            paramsSchema: {"command": "string"},
-            resultsSchema: null)
-      ]);
+  SensorInfo get info => SensorInfo(
+    name: "DebugPort",
+    vendor: "DecentEspresso",
+    dataChannels: [DataChannel(key: "output", type: "string")],
+    commands: [
+      CommandDescriptor(
+        id: "input",
+        name: "input",
+        description: "Send line to debug port",
+        paramsSchema: {"command": "string"},
+        resultsSchema: null,
+      ),
+    ],
+  );
 
   @override
   String get name => "DebugPort";
@@ -68,9 +82,12 @@ class MockDebugPort implements Sensor {
   Future<void> onConnect() async {
     // start mock stream
     _timer = Timer.periodic(Duration(milliseconds: 500), (t) {
+      if (_ignoreTimer) {
+        return;
+      }
       _streamSubject.add({
         "timestamp": "${DateTime.timestamp()}",
-        "output": "R 1234567"
+        "output": "R 1234567",
       });
     });
   }

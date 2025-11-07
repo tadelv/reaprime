@@ -99,7 +99,7 @@ Handler _init(
     Handler innerHandler,
   ) {
     return (Request request) async {
-      log.fine("handling request: ${request.requestedUri.path}");
+      log.finest("handling request: ${request.requestedUri.path}");
       final response = await innerHandler(request);
 
       // Option 1: Check by path if it starts with "/ws" (or any other condition)
@@ -118,8 +118,6 @@ Handler _init(
       );
     };
   }
-
-  app.use(jsonContentTypeMiddleware);
 
   deviceHandler.addRoutes(app);
   de1Handler.addRoutes(app);
