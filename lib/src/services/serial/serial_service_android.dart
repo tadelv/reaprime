@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale_serial.dart';
@@ -77,8 +78,14 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
     }
 
     _devices.removeWhere((d) => connected.contains(d) == false);
-    final devices = await UsbSerial.listDevices();
-    _log.info("have devices: $devices");
+    var devices = await UsbSerial.listDevices();
+    devices.removeWhere((d) {
+      return _devices.firstWhereOrNull((t) {
+          return t.deviceId == "${d.deviceId}";
+        }) != null;
+    });
+
+    _log.info("have new devices: $devices");
     final results = await Future.wait(
       devices.map((d) async {
         try {

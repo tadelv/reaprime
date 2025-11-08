@@ -29,7 +29,7 @@ class DebugPort implements Sensor {
   Stream<Map<String, dynamic>> get data => _streamSubject.asBroadcastStream();
 
   @override
-  String get deviceId => "dp${_transport.id}";
+  String get deviceId => "${_transport.id}";
 
   @override
   disconnect() {
