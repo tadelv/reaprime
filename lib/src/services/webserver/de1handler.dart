@@ -11,23 +11,28 @@ class De1Handler {
     app.put('/api/v1/de1/state/<newState>', _requestStateHandler);
     app.post('/api/v1/de1/profile', _profileHandler);
     app.options('/api/v1/de1/profile', (Request r) {
-      return Response.ok('', headers: {
-        'Access-Control-Allow-Origin': '*', // or specify a particular origin
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers':
-            'Origin, Content-Type, Accept, Authorization',
-        // Optionally, add the following if you need to allow credentials:
-        // 'Access-Control-Allow-Credentials': 'true',
-        // And you may also include a max age:
-        // 'Access-Control-Max-Age': '3600'
-      });
+      return Response.ok(
+        '',
+        headers: {
+          'Access-Control-Allow-Origin': '*', // or specify a particular origin
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers':
+              'Origin, Content-Type, Accept, Authorization',
+          // Optionally, add the following if you need to allow credentials:
+          // 'Access-Control-Allow-Credentials': 'true',
+          // And you may also include a max age:
+          // 'Access-Control-Max-Age': '3600'
+        },
+      );
     });
     app.post('/api/v1/de1/shotSettings', _shotSettingsHandler);
 
     // Sockets
     app.get('/ws/v1/de1/snapshot', sws.webSocketHandler(_handleSnapshot));
     app.get(
-        '/ws/v1/de1/shotSettings', sws.webSocketHandler(_handleShotSettings));
+      '/ws/v1/de1/shotSettings',
+      sws.webSocketHandler(_handleShotSettings),
+    );
     app.get('/ws/v1/de1/waterLevels', sws.webSocketHandler(_handleWaterLevels));
     app.get('/ws/v1/de1/raw', sws.webSocketHandler(_handleRawSocket));
 
@@ -46,27 +51,30 @@ class De1Handler {
     app.post('/api/v1/de1/settings', (Request r) async {
       return withDe1((de1) async {
         var json = jsonDecode(await r.readAsString());
+        log.info("have: $json");
         if (json['usb'] != null) {
           await de1.setUsbChargerMode(json['usb'] == 'enable');
         }
-        if (json['fan'] != null) await de1.setFanThreshhold(json['fan']);
+        if (json['fan'] != null) {
+          await de1.setFanThreshhold(parseInt(json['fan']));
+        }
         if (json['flushTemp'] != null) {
-          await de1.setFlushTemperature(json['flushTemp']);
+          await de1.setFlushTemperature(parseDouble(json['flushTemp']));
         }
         if (json['flushFlow'] != null) {
-          await de1.setFlushFlow(json['flushFlow']);
+          await de1.setFlushFlow(parseDouble(json['flushFlow']));
         }
         if (json['flushTimeout'] != null) {
-          await de1.setFlushTimeout(json['flushTimeout']);
+          await de1.setFlushTimeout(parseDouble(json['flushTimeout']));
         }
         if (json['hotWaterFlow'] != null) {
-          await de1.setHotWaterFlow(json['hotWaterFlow']);
+          await de1.setHotWaterFlow(parseDouble(json['hotWaterFlow']));
         }
         if (json['steamFlow'] != null) {
-          await de1.setSteamFlow(json['steamFlow']);
+          await de1.setSteamFlow(parseDouble(json['steamFlow']));
         }
         if (json['tankTemp'] != null) {
-          await de1.setTankTempThreshold(json['tankTemp']);
+          await de1.setTankTempThreshold(parseInt(json['tankTemp']));
         }
 
         return Response(202);
@@ -92,16 +100,18 @@ class De1Handler {
       return withDe1((de1) async {
         var json = jsonDecode(await r.readAsString());
         if (json['heaterPh1Flow'] != null) {
-          await de1.setHeaterPhase1Flow(json['heaterPh1Flow']);
+          await de1.setHeaterPhase1Flow(parseDouble(json['heaterPh1Flow']));
         }
         if (json['heaterPh2Flow'] != null) {
-          await de1.setHeaterPhase2Flow(json['heaterPh2Flow']);
+          await de1.setHeaterPhase2Flow(parseDouble(json['heaterPh2Flow']));
         }
         if (json['heaterIdleTemp'] != null) {
-          await de1.setHeaterIdleTemp(json['heaterIdleTemp']);
+          await de1.setHeaterIdleTemp(parseDouble(json['heaterIdleTemp']));
         }
         if (json['heaterPh2Timeout'] != null) {
-          await de1.setHeaterPhase2Timeout(json['heaterPh2Timeout']);
+          await de1.setHeaterPhase2Timeout(
+            parseDouble(json['heaterPh2Timeout']),
+          );
         }
         return Response(202);
       });
@@ -127,12 +137,13 @@ class De1Handler {
 
         // Send to DE1 (assumes withDe1 returns a response or Future<void>)
         return await withDe1((de1) async {
-          await de1.updateFirmware(fwImage, onProgress: (progress){});
+          await de1.updateFirmware(fwImage, onProgress: (progress) {});
           return Response.ok('Firmware uploaded successfully');
         });
       } catch (e) {
         return Response.internalServerError(
-            body: 'Failed to upload firmware: $e');
+          body: 'Failed to upload firmware: $e',
+        );
       }
     });
   }
@@ -151,11 +162,7 @@ class De1Handler {
   Future<Response> _stateHandler(Request request) async {
     return withDe1((De1Interface de1) async {
       var snapshot = await de1.currentSnapshot.first;
-      return Response.ok(
-        jsonEncode(
-          snapshot.toJson(),
-        ),
-      );
+      return Response.ok(jsonEncode(snapshot.toJson()));
     });
   }
 
@@ -171,29 +178,25 @@ class De1Handler {
   }
 
   Future<Response> _profileHandler(Request request) async {
-    return withDe1(
-      (de1) async {
-        final payload = await request.readAsString();
+    return withDe1((de1) async {
+      final payload = await request.readAsString();
 
-        Map<String, dynamic> json = jsonDecode(payload);
-        Profile profile = Profile.fromJson(json);
-        await de1.setProfile(profile);
-        return Response.ok("");
-      },
-    );
+      Map<String, dynamic> json = jsonDecode(payload);
+      Profile profile = Profile.fromJson(json);
+      await de1.setProfile(profile);
+      return Response.ok("");
+    });
   }
 
   Future<Response> _shotSettingsHandler(Request request) async {
-    return withDe1(
-      (de1) async {
-        final payload = await request.readAsString();
+    return withDe1((de1) async {
+      final payload = await request.readAsString();
 
-        Map<String, dynamic> json = jsonDecode(payload);
-        De1ShotSettings settings = De1ShotSettings.fromJson(json);
-        await de1.updateShotSettings(settings);
-        return Response.ok("");
-      },
-    );
+      Map<String, dynamic> json = jsonDecode(payload);
+      De1ShotSettings settings = De1ShotSettings.fromJson(json);
+      await de1.updateShotSettings(settings);
+      return Response.ok("");
+    });
   }
 
   _handleSnapshot(WebSocketChannel socket) async {
@@ -260,10 +263,14 @@ class De1Handler {
         log.severe("Failed to send raw: ", e);
       }
     });
-    socket.stream.listen((event) {
-      var json = jsonDecode(event.toString());
-      final message = De1RawMessage.fromJson(json);
-      de1.sendRawMessage(message);
-    }, onDone: () => sub.cancel(), onError: (e, st) => sub.cancel());
+    socket.stream.listen(
+      (event) {
+        var json = jsonDecode(event.toString());
+        final message = De1RawMessage.fromJson(json);
+        de1.sendRawMessage(message);
+      },
+      onDone: () => sub.cancel(),
+      onError: (e, st) => sub.cancel(),
+    );
   }
 }

@@ -10,12 +10,7 @@ import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:rxdart/subjects.dart';
 
-enum _SimulationType {
-  espresso,
-  steam,
-  hotWater,
-  idle,
-}
+enum _SimulationType { espresso, steam, hotWater, idle }
 
 class MockDe1 implements De1Interface {
   MockDe1({String deviceId = "MockDe1"}) : _deviceId = deviceId;
@@ -85,28 +80,25 @@ class MockDe1 implements De1Interface {
   _simulateState() {
     _snapshotStream.add(_lastSnapshot);
 
-    _stateTimer = Timer.periodic(
-      Duration(milliseconds: 100),
-      (t) {
-        MachineSnapshot newSnapshot;
-        switch (_simulationType) {
-          case _SimulationType.espresso:
-            newSnapshot = _simulateEspresso();
-            break;
-          case _SimulationType.idle:
-            if (DateTime.now().difference(lastIdleSnapshot).inMilliseconds <
-                500) {
-              return;
-            }
-            lastIdleSnapshot = DateTime.now();
-            newSnapshot = _simulateIdle();
-          default:
-            newSnapshot = _simulateIdle();
-        }
-        _snapshotStream.add(newSnapshot);
-        _lastSnapshot = newSnapshot;
-      },
-    );
+    _stateTimer = Timer.periodic(Duration(milliseconds: 100), (t) {
+      MachineSnapshot newSnapshot;
+      switch (_simulationType) {
+        case _SimulationType.espresso:
+          newSnapshot = _simulateEspresso();
+          break;
+        case _SimulationType.idle:
+          if (DateTime.now().difference(lastIdleSnapshot).inMilliseconds <
+              500) {
+            return;
+          }
+          lastIdleSnapshot = DateTime.now();
+          newSnapshot = _simulateIdle();
+        default:
+          newSnapshot = _simulateIdle();
+      }
+      _snapshotStream.add(newSnapshot);
+      _lastSnapshot = newSnapshot;
+    });
   }
 
   MachineSnapshot _simulateIdle() {
@@ -120,12 +112,14 @@ class MockDe1 implements De1Interface {
       pressure: 0,
       targetFlow: 0,
       targetPressure: 0,
-      mixTemperature: _lastSnapshot.mixTemperature > 95
-          ? _lastSnapshot.mixTemperature - 0.1
-          : _lastSnapshot.mixTemperature + 0.1,
-      groupTemperature: _lastSnapshot.groupTemperature > 96
-          ? _lastSnapshot.groupTemperature - 0.1
-          : _lastSnapshot.groupTemperature + 0.1,
+      mixTemperature:
+          _lastSnapshot.mixTemperature > 95
+              ? _lastSnapshot.mixTemperature - 0.1
+              : _lastSnapshot.mixTemperature + 0.1,
+      groupTemperature:
+          _lastSnapshot.groupTemperature > 96
+              ? _lastSnapshot.groupTemperature - 0.1
+              : _lastSnapshot.groupTemperature + 0.1,
       targetMixTemperature: 100,
       targetGroupTemperature: 90,
       profileFrame: 0,
@@ -153,20 +147,19 @@ class MockDe1 implements De1Interface {
     }
     return MachineSnapshot(
       timestamp: DateTime.now(),
-      state: MachineStateSnapshot(
-        state: _currentState,
-        substate: substate,
-      ),
+      state: MachineStateSnapshot(state: _currentState, substate: substate),
       flow: min(_lastSnapshot.flow + 0.05, 4.0),
       pressure: min(_lastSnapshot.pressure + 0.04, 9.0),
       targetFlow: 4.5,
       targetPressure: 9.0,
-      mixTemperature: _lastSnapshot.mixTemperature > 95
-          ? _lastSnapshot.mixTemperature - 0.1
-          : _lastSnapshot.mixTemperature + 0.1,
-      groupTemperature: _lastSnapshot.groupTemperature > 96
-          ? _lastSnapshot.groupTemperature - 0.1
-          : _lastSnapshot.groupTemperature + 0.1,
+      mixTemperature:
+          _lastSnapshot.mixTemperature > 95
+              ? _lastSnapshot.mixTemperature - 0.1
+              : _lastSnapshot.mixTemperature + 0.1,
+      groupTemperature:
+          _lastSnapshot.groupTemperature > 96
+              ? _lastSnapshot.groupTemperature - 0.1
+              : _lastSnapshot.groupTemperature + 0.1,
       targetMixTemperature: 100,
       targetGroupTemperature: 90,
       profileFrame: 0,
@@ -192,13 +185,16 @@ class MockDe1 implements De1Interface {
   }
 
   @override
-  Future<void> setProfile(Profile profile) async {}
+  Future<void> setProfile(Profile profile) async {
+    _log.info("set profile: ${profile.title}");
+  }
 
   @override
   Future<void> setWaterLevelWarning(int newThresholdPercentage) async {}
 
   final StreamController<De1ShotSettings> _shotSettingsController =
-      BehaviorSubject.seeded(De1ShotSettings(
+      BehaviorSubject.seeded(
+        De1ShotSettings(
           steamSetting: 0,
           targetSteamTemp: 150,
           targetSteamDuration: 60,
@@ -206,7 +202,9 @@ class MockDe1 implements De1Interface {
           targetHotWaterVolume: 100,
           targetHotWaterDuration: 35,
           targetShotVolume: 36,
-          groupTemp: 94));
+          groupTemp: 94,
+        ),
+      );
 
   @override
   Stream<De1ShotSettings> get shotSettings => _shotSettingsController.stream;
@@ -237,8 +235,7 @@ class MockDe1 implements De1Interface {
   }
 
   @override
-  Future<void> setFanThreshhold(int temp) async {
-  }
+  Future<void> setFanThreshhold(int temp) async {}
 
   @override
   Future<double> getSteamFlow() {
@@ -248,10 +245,7 @@ class MockDe1 implements De1Interface {
   }
 
   @override
-  Future<void> setSteamFlow(double newFlow) {
-    // TODO: implement setSteamFlow
-    throw UnimplementedError();
-  }
+  Future<void> setSteamFlow(double newFlow) async {}
 
   double _hotWaterFlow = 1.0;
   @override
@@ -276,10 +270,7 @@ class MockDe1 implements De1Interface {
   }
 
   @override
-  Future<void> setFlushTimeout(double newTimeout) {
-    // TODO: implement setFlushTimeout
-    throw UnimplementedError();
-  }
+  Future<void> setFlushTimeout(double newTimeout) async {}
 
   @override
   Future<double> getFlushTimeout() async {
@@ -292,10 +283,7 @@ class MockDe1 implements De1Interface {
   }
 
   @override
-  Future<void> setFlushTemperature(double newTemp) {
-    // TODO: implement setFlushTemperature
-    throw UnimplementedError();
-  }
+  Future<void> setFlushTemperature(double newTemp) async {}
 
   @override
   Future<int> getTankTempThreshold() async {
@@ -303,55 +291,39 @@ class MockDe1 implements De1Interface {
   }
 
   @override
-  Future<void> setTankTempThreshold(int temp) {
-    // TODO: implement setTankTempThreshold
-    throw UnimplementedError();
-  }
+  Future<void> setTankTempThreshold(int temp) async {}
 
   @override
   Stream<bool> get ready => Stream.value(true);
 
   @override
-  Future<double> getHeaterIdleTemp() {
-    // TODO: implement getHeaterIdleTemp
-    throw UnimplementedError();
+  Future<double> getHeaterIdleTemp() async {
+    return 98.0;
   }
 
   @override
-  Future<double> getHeaterPhase1Flow() {
-    // TODO: implement getHeaterPhase1Flow
-    throw UnimplementedError();
+  Future<double> getHeaterPhase1Flow() async {
+    return 2.5;
   }
 
   @override
-  Future<double> getHeaterPhase2Flow() {
-    // TODO: implement getHeaterPhase2Flow
-    throw UnimplementedError();
+  Future<double> getHeaterPhase2Flow() async {
+    return 5.0;
   }
 
   @override
-  Future<double> getHeaterPhase2Timeout() {
-    // TODO: implement getHeaterPhase2Timeout
-    throw UnimplementedError();
+  Future<double> getHeaterPhase2Timeout() async {
+    return 5.0;
   }
 
   @override
-  Future<void> setHeaterIdleTemp(double val) {
-    // TODO: implement setHeaterIdleTemp
-    throw UnimplementedError();
-  }
+  Future<void> setHeaterIdleTemp(double val) async {}
 
   @override
-  Future<void> setHeaterPhase1Flow(double val) {
-    // TODO: implement setHeaterPhase1Flow
-    throw UnimplementedError();
-  }
+  Future<void> setHeaterPhase1Flow(double val) async {}
 
   @override
-  Future<void> setHeaterPhase2Flow(double val) {
-    // TODO: implement setHeaterPhase2Flow
-    throw UnimplementedError();
-  }
+  Future<void> setHeaterPhase2Flow(double val) async {}
 
   @override
   Future<void> setHeaterPhase2Timeout(double val) async {
@@ -373,8 +345,10 @@ class MockDe1 implements De1Interface {
   }
 
   @override
-  Future<void> updateFirmware(Uint8List fwImage,
-      {required void Function(double) onProgress}) async {
+  Future<void> updateFirmware(
+    Uint8List fwImage, {
+    required void Function(double) onProgress,
+  }) async {
     // uploading bytes ...
     final chunkSize = 4096;
     final total = fwImage.length;
