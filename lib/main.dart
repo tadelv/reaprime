@@ -19,6 +19,7 @@ import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/bookoo/miniscale.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
 import 'package:reaprime/src/models/device/impl/felicita/arc.dart';
+import 'package:reaprime/src/models/device/impl/machine_parser.dart';
 import 'package:reaprime/src/services/ble_discovery_service.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
 import 'package:reaprime/src/services/storage/file_storage_service.dart';
@@ -65,10 +66,17 @@ void main() async {
 
   final List<DeviceDiscoveryService> services = [
     BleDiscoveryService({
-      De1.advertisingUUID.toUpperCase(): (id) => De1.fromId(id),
-      FelicitaArc.serviceUUID.toUpperCase(): (id) => FelicitaArc(deviceId: id),
-      DecentScale.serviceUUID.toUpperCase(): (id) => DecentScale(deviceId: id),
-      BookooScale.serviceUUID.toUpperCase(): (id) => BookooScale(deviceId: id),
+      De1.advertisingUUID.toUpperCase():
+          (id) => MachineParser.machineFrom(deviceId: id),
+      FelicitaArc.serviceUUID.toUpperCase(): (id) async {
+        return FelicitaArc(deviceId: id);
+      },
+      DecentScale.serviceUUID.toUpperCase(): (id) async {
+        return DecentScale(deviceId: id);
+      },
+      BookooScale.serviceUUID.toUpperCase(): (id) async {
+        return BookooScale(deviceId: id);
+      },
     }),
   ];
 
@@ -152,6 +160,11 @@ void main() async {
 
   // ProcessSignal.sigkill.watch().listen(signalHandler);
   ProcessSignal.sigint.watch().listen(signalHandler);
+  final lifecycleObserver = AppLifecycleListener(
+    onDetach: () {
+      signalHandler(ProcessSignal.sigint);
+    },
+  );
 
   runApp(
     WithForegroundTask(

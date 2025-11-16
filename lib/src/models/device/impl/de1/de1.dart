@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -42,8 +41,14 @@ class De1 implements De1Interface {
   final _log = logging.Logger("DE1");
 
   De1({required String deviceId})
-      : _deviceId = deviceId,
-        _device = BleDevice(deviceId: deviceId, name: "De1 $deviceId") {
+    : _deviceId = deviceId,
+      _device = BleDevice(deviceId: deviceId, name: "De1 $deviceId") {
+    _snapshotStream.add(_currentSnapshot);
+  }
+
+  De1.withDevice({required BleDevice device})
+    : _deviceId = device.deviceId,
+      _device = device {
     _snapshotStream.add(_currentSnapshot);
   }
 
@@ -90,7 +95,6 @@ class De1 implements De1Interface {
 
   final BehaviorSubject<bool> _onReadyStream = BehaviorSubject.seeded(false);
 
-
   final List<StreamSubscription<Uint8List>> _subscriptions = [];
 
   @override
@@ -122,7 +126,9 @@ class De1 implements De1Interface {
           _log.fine("state changed to connected");
           _connectionStateController.add(ConnectionState.connected);
           var services = await _device.discoverServices();
-          _service = services.firstWhere((s) => s.uuid == BleUuidParser.string(de1ServiceUUID));
+          _service = services.firstWhere(
+            (s) => s.uuid == BleUuidParser.string(de1ServiceUUID),
+          );
           await _onConnected();
           break;
         case false:
@@ -401,8 +407,10 @@ class De1 implements De1Interface {
   }
 
   @override
-  Future<void> updateFirmware(Uint8List fwImage,
-      {required void Function(double) onProgress}) async {
+  Future<void> updateFirmware(
+    Uint8List fwImage, {
+    required void Function(double) onProgress,
+  }) async {
     await _updateFirmware(fwImage, onProgress);
   }
 }

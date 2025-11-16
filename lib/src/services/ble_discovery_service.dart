@@ -10,7 +10,7 @@ import 'package:logging/logging.dart' as logging;
 class BleDiscoveryService extends DeviceDiscoveryService {
   BleDiscoveryService(this.deviceMappings);
 
-  Map<String, Device Function(String)> deviceMappings;
+  Map<String, Future<Device> Function(String)> deviceMappings;
 
   final Map<String, Device> _devices = {};
 
@@ -20,6 +20,8 @@ class BleDiscoveryService extends DeviceDiscoveryService {
       StreamController.broadcast();
 
   final Map<String, StreamSubscription<ConnectionState>> _connections = {};
+
+  final List<String> _currentlyScanning = [];
 
   @override
   Stream<List<Device>> get devices => _deviceStreamController.stream;
@@ -42,14 +44,25 @@ class BleDiscoveryService extends DeviceDiscoveryService {
   Future<void> scanForDevices() async {
     log.info("mappings: ${deviceMappings}");
     log.fine("Clearing stale connections");
+    _currentlyScanning.clear();
 
-    var sub = UniversalBle.scanStream.listen((result) {
-      log.fine("Found: ${result.deviceId}: ${result.name}, adv: ${result.services}");
-      _deviceScanned(result);
+    var sub = UniversalBle.scanStream.listen((result) async {
+      log.fine(
+        "Found: ${result.deviceId}: ${result.name}, adv: ${result.services}",
+      );
+      if (_currentlyScanning.contains(result.deviceId)) {
+        return;
+      }
+      // TODO: duplicates scan filter
+      // Only interrogate one result instance at a time (results can be duplicated)
+      _currentlyScanning.add(result.deviceId);
+      await _deviceScanned(result);
+      _currentlyScanning.remove(result.deviceId);
     });
 
     // FIXME: determine correct way to specify services for linux
-    final List<String> services = Platform.isLinux ? [] : deviceMappings.keys.toList();
+    final List<String> services =
+        Platform.isLinux ? [] : deviceMappings.keys.toList();
 
     final filter = ScanFilter(withServices: services);
 
@@ -83,25 +96,26 @@ class BleDiscoveryService extends DeviceDiscoveryService {
     _deviceStreamController.add(_devices.values.toList());
   }
 
-  void _deviceScanned(BleDevice device) {
+  Future<void> _deviceScanned(BleDevice device) async {
     for (String uid in device.services) {
       var initializer = deviceMappings[uid.toString().toUpperCase()];
       if (initializer != null &&
           _devices.containsKey(device.deviceId.toString()) == false) {
-        _devices[device.deviceId.toString()] =
-            initializer(device.deviceId.toString());
+        _devices[device.deviceId.toString()] = await initializer(
+          device.deviceId.toString(),
+        );
         _deviceStreamController.add(_devices.values.toList());
         log.fine("found new device: ${device.name}");
         log.fine("devices: ${_devices.toString()}");
-        _connections[device.deviceId.toString()] =
-            _devices[device.deviceId.toString()]!
-                .connectionState
-                .listen((connectionState) {
-          if (connectionState == ConnectionState.disconnected) {
-            _devices.remove(device.deviceId.toString());
-            _deviceStreamController.add(_devices.values.toList());
-          }
-        });
+        _connections[device.deviceId.toString()] = _devices[device.deviceId
+                .toString()]!
+            .connectionState
+            .listen((connectionState) {
+              if (connectionState == ConnectionState.disconnected) {
+                _devices.remove(device.deviceId.toString());
+                _deviceStreamController.add(_devices.values.toList());
+              }
+            });
       }
     }
   }
