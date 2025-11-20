@@ -204,7 +204,10 @@ class MyApp extends StatelessWidget {
               builder: (BuildContext context) {
                 switch (routeSettings.name) {
                   case SettingsView.routeName:
-                    return SettingsView(controller: settingsController);
+                    return SettingsView(
+                      controller: settingsController,
+                      persistenceController: persistenceController,
+                    );
                   case De1DebugView.routeName:
                     var device = deviceController.devices.firstWhere(
                       (e) => e.deviceId == routeSettings.arguments as String,

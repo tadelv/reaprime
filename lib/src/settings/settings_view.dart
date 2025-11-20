@@ -5,8 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_archive/flutter_archive.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/sample_feature/sample_item_list_view.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
+import 'package:reaprime/src/util/shot_exporter.dart';
+import 'package:reaprime/src/util/shot_importer.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_view.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -18,18 +21,21 @@ import 'settings_controller.dart';
 /// When a user changes a setting, the SettingsController is updated and
 /// Widgets that listen to the SettingsController are rebuilt.
 class SettingsView extends StatelessWidget {
-  const SettingsView({super.key, required this.controller});
+  const SettingsView({
+    super.key,
+    required this.controller,
+    required this.persistenceController,
+  });
 
   static const routeName = '/settings';
 
   final SettingsController controller;
+  final PersistenceController persistenceController;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-      ),
+      appBar: AppBar(title: const Text('Settings')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         // Glue the SettingsController to the theme selection DropdownButton.
@@ -64,32 +70,33 @@ class SettingsView extends StatelessWidget {
             Row(
               children: [
                 DropdownButton<GatewayMode>(
-                    value: controller.gatewayMode,
-                    onChanged: (v) {
-                      if (v != null) {
-                        controller.updateGatewayMode(v);
-                      }
-                    },
-                    items: const [
-                      DropdownMenuItem(
-                        value: GatewayMode.full,
-                        child: Text('Full (Rea has no control)'),
+                  value: controller.gatewayMode,
+                  onChanged: (v) {
+                    if (v != null) {
+                      controller.updateGatewayMode(v);
+                    }
+                  },
+                  items: const [
+                    DropdownMenuItem(
+                      value: GatewayMode.full,
+                      child: Text('Full (Rea has no control)'),
+                    ),
+                    DropdownMenuItem(
+                      value: GatewayMode.tracking,
+                      child: Text(
+                        'Tracking (Rea will stop shot if target weight is reached)',
                       ),
-                      DropdownMenuItem(
-                        value: GatewayMode.tracking,
-                        child: Text(
-                            'Tracking (Rea will stop shot if target weight is reached)'),
-                      ),
-                      DropdownMenuItem(
-                        value: GatewayMode.disabled,
-                        child: Text('Disabled (Rea has full control'),
-                      ),
-                    ]),
-                SizedBox(
-                  width: 16,
+                    ),
+                    DropdownMenuItem(
+                      value: GatewayMode.disabled,
+                      child: Text('Disabled (Rea has full control'),
+                    ),
+                  ],
                 ),
+                SizedBox(width: 16),
                 Text(
-                    "Gateway mode (let REAPrime clients control the shot, scale and other parameters)"),
+                  "Gateway mode (let REAPrime clients control the shot, scale and other parameters)",
+                ),
               ],
             ),
             Row(
@@ -102,9 +109,10 @@ class SettingsView extends StatelessWidget {
                     File logFile = File('${docs.path}/log.txt');
                     var bytes = await logFile.readAsBytes();
                     String? outputFile = await FilePicker.platform.saveFile(
-                        fileName: "R1-logs.txt",
-                        dialogTitle: "Choose where to save logs",
-                        bytes: bytes);
+                      fileName: "R1-logs.txt",
+                      dialogTitle: "Choose where to save logs",
+                      bytes: bytes,
+                    );
                     if (outputFile != null) {
                       File destination = File(outputFile);
                       await destination.writeAsBytes(bytes);
@@ -114,33 +122,64 @@ class SettingsView extends StatelessWidget {
                 ShadButton(
                   child: Text("Export all shots"),
                   onPressed: () async {
-                    var docs = await getDownloadsDirectory();
-                    final shotsDir = Directory('${docs!.path}/shots');
-                    if (!await shotsDir.exists()) {
-                      throw "Shots dir ${shotsDir.path} does not exist";
-                    }
+                    final exporter = ShotExporter(
+                      storage: persistenceController.storageService,
+                    );
+                    final jsonData = await exporter.exportJson();
+                    final tempDir = await getTemporaryDirectory();
+                    final source = File("${tempDir.path}/shots.json");
+                    await source.writeAsString(jsonData);
                     final destination = await FilePicker.platform
                         .getDirectoryPath(dialogTitle: "Pick export dir");
 
                     final tempFile = File('$destination/R1_shots.zip');
                     try {
-                      await ZipFile.createFromDirectory(
-                          sourceDir: shotsDir,
-                          zipFile: tempFile,
-                          includeBaseDirectory: true,
-                          recurseSubDirs: true);
+                      await ZipFile.createFromFiles(
+                        sourceDir: tempDir,
+                        files: [source],
+                        zipFile: tempFile,
+                      );
                     } catch (e, st) {
                       Logger("Settings").severe("failed to export:", e, st);
                     }
                   },
                 ),
                 ShadButton(
+                  child: Text("Import shots"),
+                  onPressed: () async {
+                    Logger log = Logger("ShotImport");
+                    // TODO: folder, bkp file
+                    final importer = ShotImporter(
+                      storage: persistenceController.storageService,
+                    );
+
+                    final sourceDirPath =
+                        await FilePicker.platform.getDirectoryPath();
+
+                    log.fine("importing from $sourceDirPath");
+                    if (sourceDirPath == null) {
+                      return;
+                    }
+                    final Directory sourceDir = Directory(sourceDirPath);
+                    final files = await sourceDir.list().toList();
+                    log.info("listing: ${files}");
+                    for (final file in files) {
+                      final f = File(file.path);
+                      final content = await f.readAsString();
+                      try {
+                        log.fine("Importing: ${f.path}");
+                        importer.importShotJson(content);
+                      } catch (e, st) {
+                        log.warning("shot import failed:", e, st);
+                      }
+                    }
+                    persistenceController.loadShots();
+                  },
+                ),
+                ShadButton(
                   child: Text("Debug view"),
                   onPressed: () {
-                    Navigator.pushNamed(
-                      context,
-                      SampleItemListView.routeName,
-                    );
+                    Navigator.pushNamed(context, SampleItemListView.routeName);
                   },
                 ),
               ],
@@ -149,22 +188,10 @@ class SettingsView extends StatelessWidget {
               value: controller.logLevel,
               onChanged: controller.updateLogLevel,
               items: const [
-                DropdownMenuItem(
-                  value: "FINE",
-                  child: Text('Fine'),
-                ),
-                DropdownMenuItem(
-                  value: "INFO",
-                  child: Text('Info'),
-                ),
-                DropdownMenuItem(
-                  value: "FINEST",
-                  child: Text('Finest'),
-                ),
-                DropdownMenuItem(
-                  value: "WARNING",
-                  child: Text('Warning'),
-                ),
+                DropdownMenuItem(value: "FINE", child: Text('Fine')),
+                DropdownMenuItem(value: "INFO", child: Text('Info')),
+                DropdownMenuItem(value: "FINEST", child: Text('Finest')),
+                DropdownMenuItem(value: "WARNING", child: Text('Warning')),
               ],
             ),
             Row(
@@ -178,7 +205,8 @@ class SettingsView extends StatelessWidget {
                   },
                   label: Text("Show simulated devices"),
                   sublabel: Text(
-                      "Whether simulated devices should be shown in scan results"),
+                    "Whether simulated devices should be shown in scan results",
+                  ),
                 ),
               ],
             ),
@@ -191,10 +219,9 @@ class SettingsView extends StatelessWidget {
             if (WebUIService.isServing)
               ShadButton.secondary(
                 onPressed: () {
-                  Navigator.of(context).pushNamed(
-                    WebUIView.routeName,
-                    arguments: "index.html",
-                  );
+                  Navigator.of(
+                    context,
+                  ).pushNamed(WebUIView.routeName, arguments: "index.html");
                 },
                 child: Text("To Web UI"),
               ),
@@ -217,12 +244,14 @@ class SettingsView extends StatelessWidget {
         return;
       }
       if (itExists) {
-        Navigator.of(context)
-            .pushNamed(WebUIView.routeName, arguments: selectedDirectory);
+        Navigator.of(
+          context,
+        ).pushNamed(WebUIView.routeName, arguments: selectedDirectory);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('index.html not found in selected folder')),
+            content: Text('index.html not found in selected folder'),
+          ),
         );
       }
     }
