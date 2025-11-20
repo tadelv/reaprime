@@ -88,8 +88,7 @@ void main() async {
     simulatedDevicesService.simulationEnabled = true;
     log.shout("enabling Simulated Service");
   }
-  // TODO: replace with documents once import is implemented
-  var storagePath = await getApplicationDocumentsDirectory();
+  final storagePath = await getApplicationDocumentsDirectory();
   final persistenceController = PersistenceController(
     storageService: FileStorageService(path: storagePath),
   );
