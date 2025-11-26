@@ -156,7 +156,7 @@ class SerialDe1 implements De1Interface {
 
   // TODO: allow code to register own processors per "Endpoint"
   void _processDe1Response(String input) {
-    _log.fine("processing input: $input");
+    _log.finest("processing input: $input");
     final Uint8List payload = hexToBytes(input.substring(3));
     final ByteData data = ByteData.sublistView(payload);
     switch (input.substring(0, 3)) {
