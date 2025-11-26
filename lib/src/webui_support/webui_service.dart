@@ -45,15 +45,44 @@ class WebUIService {
       serveFilesOutsidePath: false,
       listDirectories: true,
     );
+
+    Future<Response> Function(Request request) expirationModifier(
+      Handler innerHandler,
+    ) {
+      return (Request request) async {
+        _log.fine("handling request: ${request.requestedUri.path}");
+        final response = await innerHandler(request);
+
+        // Option 1: Check by path if it starts with "/ws" (or any other condition)
+        if (request.requestedUri.path.startsWith('/ws')) {
+          return response;
+        }
+
+        // Option 2: Alternatively, check if the request has an Upgrade header
+        // if ((request.headers['upgrade']?.toLowerCase() ?? '') == 'websocket') {
+        //   return response;
+        // }
+
+        // Add the header to responses that aren’t websocket-related.
+        return response.change(
+          headers: {
+            ...response.headersAll,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Expires': "0",
+          },
+        );
+      };
+    }
+
     //   final handler = (Request request) async {
     //   return Response.ok('<html><body><h1>Hello WebView</h1></body></html>',
     //     headers: {'Content-Type': 'text/html'});
     // };
-      final handler = const Pipeline()
-      .addMiddleware(logRequests())
-      .addMiddleware(corsHeaders())
-      .addHandler(webUI.call);
-
+    final handler = const Pipeline()
+        .addMiddleware(logRequests())
+        .addMiddleware(corsHeaders())
+        .addMiddleware(expirationModifier)
+        .addHandler(webUI.call);
 
     try {
       _server = await shelf_io.serve(handler, '0.0.0.0', port);

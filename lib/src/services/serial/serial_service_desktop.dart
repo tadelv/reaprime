@@ -50,8 +50,9 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
 
   @override
   Future<void> initialize() async {
-    final list = await SerialPort.availablePorts;
-    _log.info("found devices: $list");
+    final list = SerialPort.availablePorts;
+    _log.info("Initializing");
+    _log.info("found ports: $list");
   }
 
   @override

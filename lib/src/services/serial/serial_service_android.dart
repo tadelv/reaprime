@@ -50,14 +50,17 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
     List<UsbDevice> devices = await UsbSerial.listDevices();
     _log.info("found ${devices}");
 
-    UsbSerial.usbEventStream?.listen((data) {
+    UsbSerial.usbEventStream?.listen((data) async {
       switch (data.event) {
         case UsbEvent.ACTION_USB_DETACHED:
-          // we lost connectivity, disconnect all devices.
-          for (Device d in _devices) {
-            d.disconnect();
+          // we lost connectivity, disconnect the device that we lost.
+          if (data.device == null) {
+            break;
           }
-          _devices.clear();
+          _devices
+              .firstWhereOrNull((d) => d.deviceId == "${data.device!.deviceId}")
+              ?.disconnect();
+          _devices.removeWhere((d) => d.deviceId == "${data.device!.deviceId}");
           _machineSubject.add(_devices);
           break;
         default:
@@ -81,8 +84,9 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
     var devices = await UsbSerial.listDevices();
     devices.removeWhere((d) {
       return _devices.firstWhereOrNull((t) {
-          return t.deviceId == "${d.deviceId}";
-        }) != null;
+            return t.deviceId == "${d.deviceId}";
+          }) !=
+          null;
     });
 
     _log.info("have new devices: $devices");
