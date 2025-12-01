@@ -21,7 +21,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Android APK
-        run: flutter build apk --release
+        run: ./flutter_with_commit.sh build apk --release
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
@@ -47,7 +47,7 @@ jobs:
         run: flutter pub get
 
       - name: Build macOS app (unsigned)
-        run: flutter build macos --release
+        run: ./flutter_with_commit.sh build macos --release
 
       - name: Upload macOS app
         uses: actions/upload-artifact@v4
@@ -73,7 +73,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Linux app (unsigned)
-        run: flutter build linux --release
+        run: ./flutter_with_commit.sh build linux --release
 
       - name: Upload Linux app
         uses: actions/upload-artifact@v4
@@ -104,7 +104,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Linux app (ARM64)
-        run: flutter build linux --release 
+        run: ./flutter_with_commit.sh build linux --release 
 
       - name: Upload Raspberry Pi build (ARM64)
         uses: actions/upload-artifact@v4
