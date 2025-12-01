@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_archive/flutter_archive.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/sample_feature/sample_item_list_view.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
@@ -225,6 +226,16 @@ class SettingsView extends StatelessWidget {
                 },
                 child: Text("To Web UI"),
               ),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Commit: ${BuildInfo.commitShort}'),
+                  Text('Branch: ${BuildInfo.branch}'),
+                ],
+              ),
+            ),
           ],
         ),
       ),
