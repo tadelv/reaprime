@@ -10,7 +10,7 @@ import 'package:reaprime/src/models/device/impl/sensor/debug_port.dart';
 import 'package:reaprime/src/models/device/impl/sensor/sensor_basket.dart';
 import 'package:reaprime/src/models/device/impl/serial_de1/serial_de1.dart';
 import 'package:reaprime/src/models/device/machine.dart';
-import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/device/hardware_scale.dart';
 import 'package:reaprime/src/models/device/serial_port.dart';
 import 'utils.dart';
 
@@ -31,7 +31,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
   }
 
   @override
-  Future<Scale> connectToScale({String? deviceId}) {
+  Future<HardwareScale> connectToScale({String? deviceId}) {
     // TODO: implement connectToScale
     throw UnimplementedError();
   }

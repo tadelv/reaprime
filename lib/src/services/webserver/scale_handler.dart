@@ -22,7 +22,7 @@ class ScaleHandler {
     app.get('/ws/v1/scale/snapshot', sws.webSocketHandler(_handleSnapshot));
   }
 
-  _handleSnapshot(WebSocketChannel socket) async {
+  void _handleSnapshot(WebSocketChannel socket, String? _) async {
     log.fine("handling websocket connection");
     var scale = _controller.connectedScale();
     var sub = scale.currentSnapshot.listen((snapshot) {

@@ -186,6 +186,7 @@ class MockDe1 implements De1Interface {
 
   @override
   Future<void> setProfile(Profile profile) async {
+    await Future.delayed(Duration(seconds: 2));
     _log.info("set profile: ${profile.title}");
   }
 

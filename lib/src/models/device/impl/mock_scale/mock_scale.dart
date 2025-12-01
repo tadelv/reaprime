@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:reaprime/src/models/device/device.dart';
-import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/device/hardware_scale.dart';
 
-class MockScale implements Scale {
+class MockScale implements HardwareScale {
   @override
   Stream<ConnectionState> get connectionState =>
       Stream.value(ConnectionState.connected);

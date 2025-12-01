@@ -1,5 +1,5 @@
 import 'package:reaprime/src/models/device/machine.dart';
-import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/device/hardware_scale.dart';
 
 enum DeviceType { machine, scale, sensor }
 
@@ -41,7 +41,7 @@ abstract class DeviceDiscoveryService {
   }
 
   // return scale with specific id
-  Future<Scale> connectToScale({String? deviceId}) async {
+  Future<HardwareScale> connectToScale({String? deviceId}) async {
     throw "Not implemented yet";
   }
 

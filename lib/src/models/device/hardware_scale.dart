@@ -1,6 +1,6 @@
 import 'device.dart';
 
-abstract class Scale extends Device {
+abstract class HardwareScale extends Device {
   Stream<ScaleSnapshot> get currentSnapshot;
 
   // TODO: commands

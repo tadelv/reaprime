@@ -72,7 +72,7 @@ class DevicesHandler {
       case DeviceType.machine:
         await _de1Controller.connectToDe1(device as De1Interface);
       case DeviceType.scale:
-        await _scaleController.connectToScale(device as Scale);
+        await _scaleController.connectToScale(device as HardwareScale);
       case DeviceType.sensor:
         // TODO: Handle this case.
         throw UnimplementedError();

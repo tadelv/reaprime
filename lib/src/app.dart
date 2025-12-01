@@ -12,6 +12,7 @@ import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/history_feature/history_feature.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
+import 'package:reaprime/src/models/device/hardware_scale.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/permissions_feature/permissions_view.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
@@ -24,7 +25,6 @@ import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/home_feature/home_feature.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
-import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/sample_feature/scale_debug_view.dart';
 import 'sample_feature/sample_item_details_view.dart';
 
@@ -229,7 +229,7 @@ class MyApp extends StatelessWidget {
                                 as De1Interface,
                       );
                     }
-                    if (device is Scale) {
+                    if (device is HardwareScale) {
                       return ScaleDebugView(scale: device);
                     }
                     return Text("No mapping for ${device.name}");
