@@ -95,8 +95,8 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: master
-          flutter-version: 3.39.0-0.1.pre
-
+          flutter-version: 3.37.0-0.1.pre
+      
       - name: Run git safe dir
         run: git config --global --add safe.directory /opt/hostedtoolcache/flutter/${{ steps.flutter-action.outputs.CHANNEL }}-${{ steps.flutter-action.outputs.VERSION }}-${{ steps.flutter-action.outputs.ARCHITECTURE }}
 
