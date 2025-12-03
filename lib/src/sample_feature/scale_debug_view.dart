@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:reaprime/src/models/device/hardware_scale.dart';
+import 'package:reaprime/src/models/device/scale.dart';
 
 class ScaleDebugView extends StatefulWidget {
-  final HardwareScale scale;
+  final Scale scale;
 
   const ScaleDebugView({super.key, required this.scale});
 

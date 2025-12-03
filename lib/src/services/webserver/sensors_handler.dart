@@ -5,15 +5,14 @@ final class SensorsHandler {
   final Logger _log = Logger("Sensor handler");
 
   SensorsHandler({required SensorController controller})
-    : _controller = controller;
+      : _controller = controller;
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/sensors', (Request req) {
-      final list =
-          _controller.sensors.values.map((s) {
-            final info = s.info;
-            return {'id': s.deviceId, 'info': info.toJson()};
-          }).toList();
+      final list = _controller.sensors.values.map((s) {
+        final info = s.info;
+        return {'id': s.deviceId, 'info': info.toJson()};
+      }).toList();
       return Response.ok(jsonEncode(list));
     });
 
@@ -27,7 +26,7 @@ final class SensorsHandler {
 
     app.get('/ws/v1/sensors/<id>/snapshot', (Request req) {
       final id = req.params['id']; // works for normal handlers
-      return sws.webSocketHandler((socket, _) {
+      return sws.webSocketHandler((socket) {
         final sensor = _controller.sensors[id];
         if (sensor == null) {
           socket.sink.add(jsonEncode({'error': 'not found'}));
@@ -62,15 +61,12 @@ final class SensorsHandler {
       final params = jsonBody['params'] as Map<String, dynamic>?;
       try {
         final res = await sensor.execute(cmdId, params);
-        return Response.ok(
-          jsonEncode({'status': 'ok', 'result': res}),
-          headers: {'content-type': 'application/json'},
-        );
+        return Response.ok(jsonEncode({'status': 'ok', 'result': res}),
+            headers: {'content-type': 'application/json'});
       } catch (e) {
         return Response.internalServerError(
-          body: jsonEncode({'status': 'error', 'message': e.toString()}),
-          headers: {'content-type': 'application/json'},
-        );
+            body: jsonEncode({'status': 'error', 'message': e.toString()}),
+            headers: {'content-type': 'application/json'});
       }
     });
   }

@@ -7,7 +7,7 @@ import 'package:reaprime/src/models/device/impl/mock_scale/mock_scale.dart';
 import 'package:reaprime/src/models/device/impl/sensor/mock/mock_debug_port.dart';
 import 'package:reaprime/src/models/device/impl/sensor/mock/mock_sensor_basket.dart';
 import 'package:reaprime/src/models/device/machine.dart';
-import 'package:reaprime/src/models/device/hardware_scale.dart';
+import 'package:reaprime/src/models/device/scale.dart';
 
 class SimulatedDeviceService
     with ChangeNotifier
@@ -25,8 +25,8 @@ class SimulatedDeviceService
   }
 
   @override
-  Future<HardwareScale> connectToScale({String? deviceId}) async {
-    return _devices["MockScale"] as HardwareScale;
+  Future<Scale> connectToScale({String? deviceId}) async {
+    return _devices["MockScale"] as Scale;
   }
 
   @override

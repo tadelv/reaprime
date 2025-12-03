@@ -4,10 +4,10 @@ import 'dart:typed_data';
 import 'package:universal_ble/universal_ble.dart';
 import 'package:logging/logging.dart' as logging;
 import 'package:reaprime/src/models/device/device.dart';
-import 'package:reaprime/src/models/device/hardware_scale.dart';
+import 'package:reaprime/src/models/device/scale.dart';
 import 'package:rxdart/subjects.dart';
 
-class DecentScale implements HardwareScale {
+class DecentScale implements Scale {
   static String serviceUUID = BleUuidParser.string('fff0');
   static String dataUUID = BleUuidParser.string('fff4');
   static String writeUUID = BleUuidParser.string('36f5');

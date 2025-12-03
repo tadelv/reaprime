@@ -5,9 +5,9 @@ import 'package:rxdart/subjects.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
 
-import '../../hardware_scale.dart';
+import '../../scale.dart';
 
-class BookooScale implements HardwareScale {
+class BookooScale implements Scale {
   static String serviceUUID = BleUuidParser.string('0ffe');
   static String dataUUID = BleUuidParser.string('ff11');
   static String cmdUUID = BleUuidParser.string('ff12');

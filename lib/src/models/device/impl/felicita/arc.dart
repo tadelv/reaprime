@@ -6,9 +6,9 @@ import 'package:rxdart/subjects.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
 
-import '../../hardware_scale.dart';
+import '../../scale.dart';
 
-class FelicitaArc implements HardwareScale {
+class FelicitaArc implements Scale {
   static String serviceUUID = BleUuidParser.string('ffe0');
   static String dataUUID = BleUuidParser.string('ffe1');
 

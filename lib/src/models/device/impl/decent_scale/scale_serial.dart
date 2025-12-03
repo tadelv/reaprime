@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
-import 'package:reaprime/src/models/device/hardware_scale.dart';
+import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/serial_port.dart';
 import 'package:rxdart/subjects.dart';
 
-class HDSSerial implements HardwareScale {
+class HDSSerial implements Scale {
   late Logger _log;
   final SerialTransport _transport;
 

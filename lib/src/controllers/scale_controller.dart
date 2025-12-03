@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/weight_flow_calculator.dart';
-import 'package:reaprime/src/models/device/hardware_scale.dart';
+import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/util/moving_average.dart';
 import 'package:rxdart/rxdart.dart';
@@ -11,7 +11,7 @@ import 'package:rxdart/rxdart.dart';
 class ScaleController {
   final DeviceController _deviceController;
 
-  HardwareScale? _scale;
+  Scale? _scale;
 
   StreamSubscription<ConnectionState>? _scaleConnection;
   StreamSubscription<ScaleSnapshot>? _scaleSnapshot;
@@ -21,7 +21,7 @@ class ScaleController {
   ScaleController({required DeviceController controller})
     : _deviceController = controller {
     _deviceController.deviceStream.listen((devices) async {
-      var scales = devices.whereType<HardwareScale>().toList();
+      var scales = devices.whereType<Scale>().toList();
       if (_scale == null &&
           scales.firstOrNull != null &&
           _deviceController.shouldAutoConnect) {
@@ -31,7 +31,7 @@ class ScaleController {
     });
   }
 
-  Future<void> connectToScale(HardwareScale scale) async {
+  Future<void> connectToScale(Scale scale) async {
     _onDisconnect();
     _scaleConnection = scale.connectionState.listen(_processConnection);
     _scaleSnapshot = scale.currentSnapshot.listen(_processSnapshot);
@@ -47,7 +47,7 @@ class ScaleController {
     _flowCalculator = FlowCalculator(windowDuration: smoothingWindowDuration);
   }
 
-  HardwareScale connectedScale() {
+  Scale connectedScale() {
     if (_scale == null) {
       throw "No scale connected";
     }

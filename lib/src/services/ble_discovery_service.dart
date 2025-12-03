@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:universal_ble/universal_ble.dart';
 import '../models/device/device.dart';
 import '../models/device/machine.dart';
-import '../models/device/hardware_scale.dart';
+import '../models/device/scale.dart';
 import 'package:logging/logging.dart' as logging;
 
 class BleDiscoveryService extends DeviceDiscoveryService {
@@ -84,7 +84,7 @@ class BleDiscoveryService extends DeviceDiscoveryService {
 
   // return scale with specific id
   @override
-  Future<HardwareScale> connectToScale({String? deviceId}) async {
+  Future<Scale> connectToScale({String? deviceId}) async {
     throw "Not implemented yet";
   }
 
