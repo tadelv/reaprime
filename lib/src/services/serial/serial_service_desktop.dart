@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
@@ -90,6 +91,9 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
 
   Future<Device?> _detectDevice(String id) async {
     final port = SerialPort(id);
+    if (port.transport.toTransport() != 'USB') {
+      return null;
+    }
     final transport = _DesktopSerialPort(port: port);
     final rawData = <Uint8List>[];
     const readDuration = Duration(milliseconds: 800);
@@ -255,17 +259,41 @@ class _DesktopSerialPort implements SerialTransport {
 
   @override
   Future<void> writeCommand(String command) async {
-    await Future.microtask(() {
-      _port.write(utf8.encode("$command\n"));
-      _log.fine("wrote: $command");
-    });
+    await _write(utf8.encode("$command\n"));
+    _log.fine("wrote: $command");
   }
 
   @override
   Future<void> writeHexCommand(Uint8List command) async {
-    await Future.microtask(() {
+    await _write(command);
+  }
+
+  Future<void> _write(Uint8List command) async {
+    await Future.microtask(() async {
       _port.write(command);
       _log.fine("wrote: ${command.map((e) => e.toRadixString(16))}");
+      if (Platform.isLinux) {
+        await Future.delayed(Duration(milliseconds: 20), () {
+          _log.finest("delaying next write");
+        });
+      }
     });
+  }
+}
+
+extension IntToString on int {
+  String toHex() => '0x${toRadixString(16)}';
+  String toPadded([int width = 3]) => toString().padLeft(width, '0');
+  String toTransport() {
+    switch (this) {
+      case SerialPortTransport.usb:
+        return 'USB';
+      case SerialPortTransport.bluetooth:
+        return 'Bluetooth';
+      case SerialPortTransport.native:
+        return 'Native';
+      default:
+        return 'Unknown';
+    }
   }
 }

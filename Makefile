@@ -1,43 +1,78 @@
-# 🐧 Makefile for building Flutter Linux ARM64 app in Colima
-# Usage:
-#   make docker-build        -> Build or rebuild Docker image
-#   make linux-build         -> Build release bundle
-#   make linux-shell         -> Drop into interactive container
-#   make linux-clean         -> Clean build cache
-#   make colima-start        -> Start Colima if not already running
+# ============================
+# Multi-Arch Flutter Build Makefile
+# For M2 Mac + Colima
+# ============================
 
-COLIMA_NAME ?= default
 SERVICE := flutter-build
-IMAGE := flutter-linux-arm64:latest
+IMAGE := flutter-linux
 
-# Default target
-linux-build: colima-start
-	@echo "🚀 Building Flutter Linux ARM64 app..."
-	docker compose run --rm $(SERVICE) bash -c "flutter pub get && flutter build linux --release"
+ARM_PROFILE := flutter-arm
+AMD_PROFILE := flutter-amd
 
-docker-build: colima-start
-	@echo "🐳 Building Docker image for Flutter build environment..."
-	docker compose build --no-cache
+# ----------------------------
+# Colima Profile Helpers
+# ----------------------------
 
-linux-shell: colima-start
-	@echo "💻 Opening shell in Flutter build container..."
+colima-stop:
+	@echo "🛑 Stopping Colima..."
+	@colima stop || true
+
+colima-arm: colima-stop
+	@echo "🐧 Starting Colima (ARM64 mode)..."
+	@colima start --profile $(ARM_PROFILE) --arch aarch64 --vm-type=qemu --cpu 4 --memory 8
+
+colima-amd: colima-stop
+	@echo "💻 Starting Colima (x86_64 mode)..."
+	@colima start --profile $(AMD_PROFILE) --arch x86_64 --vm-type=qemu --cpu 4 --memory 8
+
+# Convenience shortcuts
+arm: colima-arm
+amd: colima-amd
+
+# ----------------------------
+# Docker Image Builds
+# ----------------------------
+
+image-arm: arm
+	@echo "🐳 Building ARM64 Docker image..."
+	docker buildx build --platform linux/arm64 -t $(IMAGE):arm64 --load .
+
+image-amd: amd
+	@echo "🐳 Building x86-64 Docker image..."
+	docker buildx build --platform linux/amd64 -t $(IMAGE):amd64 --load .
+
+# ----------------------------
+# Flutter Builds
+# ----------------------------
+
+build-arm: arm
+	@echo "🚀 Building Flutter Linux ARM64..."
+	TARGETARCH=arm64 docker compose run --rm $(SERVICE) bash -c "flutter pub get && flutter build linux --release"
+
+build-amd: amd
+	@echo "🚀 Building Flutter Linux x86_64..."
+	TARGETARCH=amd64 docker compose run --rm $(SERVICE) bash -c "flutter pub get && flutter build linux --release"
+
+dual-build: build-arm build-amd
+	@echo "🎉 Dual build complete!"
+
+# ----------------------------
+# Shells
+# ----------------------------
+
+shell-arm: arm
 	docker compose run --rm $(SERVICE)
 
-linux-clean:
-	@echo "🧹 Cleaning build and cache volumes..."
-	docker compose down -v
-	@vol=$$(docker volume ls -q | grep flutter_build_cache || true); \
-	if [ -n "$$vol" ]; then \
-	  docker volume rm -f $$vol; \
-	fi
-	@echo "🧽 Removing dangling images..."
-	docker image prune -f
+shell-amd: amd
+	docker compose run --rm $(SERVICE)
 
-colima-start:
-	@echo "🧩 Ensuring Colima is running (ARM64 mode)..."
-	@if ! colima status | grep -q 'running'; then \
-		echo "Starting Colima for ARM64..."; \
-		colima start --arch aarch64 --vm-type=vz --cpu 4 --memory 8; \
-	else \
-		echo "Colima already running ✅"; \
-	fi
+# ----------------------------
+# Clean All Caches
+# ----------------------------
+
+clean:
+	@echo "🧹 Cleaning all containers, volumes, and caches..."
+	docker compose down -v || true
+	docker volume rm -f flutter_pub_cache_amd64 flutter_pub_cache_arm64 \
+	                  flutter_sdk_cache_amd64 flutter_sdk_cache_arm64 || true
+	docker image prune -f

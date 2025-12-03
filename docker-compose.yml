@@ -1,20 +1,23 @@
 services:
   flutter-build:
-    image: flutter-linux-arm64:latest
+    platform: linux/${TARGETARCH:-arm64}
+    image: flutter-linux:latest
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: flutter-build
     working_dir: /app
     volumes:
       - .:/app:delegated
-      - flutter_pub_cache:/root/.pub-cache
-      - flutter_sdk_cache:/opt/flutter
+      - flutter_pub_cache_${TARGETARCH:-arm64}:/root/.pub-cache
+      - flutter_sdk_cache_${TARGETARCH:-arm64}:/opt/flutter
     environment:
+      - TARGETARCH=${TARGETARCH:-arm64}
       - PATH=/opt/flutter/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       - PUB_CACHE=/root/.pub-cache
     command: bash
 
 volumes:
-  flutter_pub_cache:
-  flutter_sdk_cache:
+  flutter_pub_cache_amd64:
+  flutter_pub_cache_arm64:
+  flutter_sdk_cache_amd64:
+  flutter_sdk_cache_arm64:
