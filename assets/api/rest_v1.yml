@@ -15,6 +15,7 @@ paths:
     get:
       summary: Get Available Devices
       description: Retrieves a list of available devices with their connection states.
+      tags: [Devices]
       responses:
         "200":
           description: Successful response
@@ -45,6 +46,7 @@ paths:
     get:
       summary: Scan for Devices
       description: Triggers a device scan.
+      tags: [Devices]
       parameters:
         - name: connect
           description: whether REA should automatically connect to discovered devices while scanning (applies for scales). Default is 'false'
@@ -69,6 +71,7 @@ paths:
   /api/v1/devices/connect:
     put:
       summary: Connect to specified device
+      tags: [Devices]
       parameters:
         - name: deviceId
           description: The id of the device, previously discovered with /api/v1/devices/scan request
@@ -86,6 +89,7 @@ paths:
     get:
       summary: Get DE1 State
       description: Retrieves the current DE1 machine state.
+      tags: [DE1]
       responses:
         "200":
           description: Successful response
@@ -97,6 +101,7 @@ paths:
     put:
       summary: Request DE1 State Change
       description: Requests a state change for the DE1 espresso machine.
+      tags: [DE1]
       parameters:
         - name: newState
           in: path
@@ -112,6 +117,7 @@ paths:
     post:
       summary: Set DE1 Profile
       description: Uploads a new brewing profile to the DE1 machine.
+      tags: [DE1]
       requestBody:
         required: true
         content:
@@ -125,6 +131,7 @@ paths:
     post:
       summary: Update Shot Settings
       description: Updates shot settings on the DE1 espresso machine.
+      tags: [DE1]
       requestBody:
         required: true
         content:
@@ -138,6 +145,7 @@ paths:
     get:
       summary: Get De1 settings
       description: pulls additional settings from the De1
+      tags: [DE1]
       responses:
         "200":
           description: Successful response
@@ -148,6 +156,7 @@ paths:
     post:
       summary: Set De1 settings
       description: set additional settings on the De1, each setting can be set individually
+      tags: [DE1]
       requestBody:
         required: true
         content:
@@ -162,6 +171,7 @@ paths:
     get:
       summary: Get advanced De1 settings
       description: Get additional advanced De1 settings
+      tags: [DE1]
       responses:
         "200":
           description: Successful response
@@ -172,6 +182,7 @@ paths:
     post:
       summary: Set advanced De1 settings
       description: Set advanced settings on the De1, each setting can be sent separately
+      tags: [DE1]
       requestBody:
         required: true
         content:
@@ -186,6 +197,7 @@ paths:
     put:
       summary: Toggle USB Charger Mode
       description: Enables or disables the USB charger mode on the DE1 machine.
+      tags: [DE1]
       parameters:
         - name: state
           in: path
@@ -206,6 +218,7 @@ paths:
   /api/v1/de1/waterLevels:
     post:
       summary: Set new water level threshold, only the warningThresholdPercentage field is important here
+      tags: [DE1]
       requestBody:
         required: true
         content: 
@@ -220,6 +233,7 @@ paths:
     post:
       summary: Push new firmware to the De1
       description: Send a firmware file to De1, the call will wait until the firmware upgrade is complete (which might be a long time)
+      tags: [DE1]
       requestBody:
         required: true
         content:
@@ -235,6 +249,7 @@ paths:
     put:
       summary: Tare Scale
       description: Tares the connected scale.
+      tags: [Scale]
       responses:
         "200":
           description: Scale tared successfully
@@ -246,6 +261,7 @@ paths:
     get:
       summary: Get a list of sensor devices connected to Rea
       description: Will show all the sensors and their ids, that are currently connected and available through Rea
+      tags: [Sensors]
       responses:
         "200":
           description: List of available sensors
@@ -264,6 +280,7 @@ paths:
   /api/v1/sensors/{id}:
     get:
       summary: Get full manifest for a sensor
+      tags: [Sensors]
       parameters:
         - in: path
           name: id
@@ -283,6 +300,7 @@ paths:
   /api/v1/sensors/{id}/execute:
     post:
       summary: Execute a sensor command
+      tags: [Sensors]
       parameters:
         - in: path
           name: id
@@ -321,6 +339,7 @@ paths:
   /api/v1/settings:
     get:
       summary: Get Rea settings
+      tags: [REA Settings]
       responses:
         "200":
           description: Rea settings
@@ -330,6 +349,7 @@ paths:
                 $ref: "#/components/schemas/ReaSettings"
     post:
       summary: Update Rea settings
+      tags: [REA Settings]
       requestBody:
         required: true
         content:
@@ -344,6 +364,7 @@ paths:
   /api/v1/workflow:
     get:
       summary: Get info about current workflow
+      tags: [Workflow]
       responses:
         "200":
           content:
@@ -352,6 +373,7 @@ paths:
                 $ref: "#/components/schemas/WorkflowRequest"
     put:
       summary: Set or update current workflow
+      tags: [Workflow]
       description: You can update only specific fields, like doseData or grinderData, or profile etc.
       requestBody:
         content:
@@ -370,6 +392,7 @@ paths:
   /api/v1/shots:
     get:
       summary: Get a list of shots stored by REA
+      tags: [Shots History]
       parameters:
         - in: query
           name: ids
@@ -390,6 +413,7 @@ paths:
   /api/v1/shots/ids:
     get:
       summary: Get a list of identifiers of all the shots
+      tags: [Shots History]
       responses:
         "200":
           content:
@@ -398,6 +422,105 @@ paths:
                 type: array
                 items:
                   type: string
+
+  # REA Key-Value Store for clients
+  /api/v1/store/{namespace}:
+    get:
+      summary: Get a list of all the keys in the specified key value namespace
+      tags: [Key value store]
+      parameters:
+        - name: namespace
+          value: default
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Array of keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /api/v1/store/{namespace}/{key}:
+    get:
+      summary: Get value for a key
+      tags: [Key value store]
+      parameters:
+        - name: namespace
+          value: default
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: JSON value stored under the key
+          content:
+            application/json:
+              schema: {}
+        "404":
+          description: Key not found
+
+    post:
+      summary: Set value for a key
+      tags: [Key value store]
+      parameters:
+        - name: namespace
+          value: default
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {}
+      responses:
+        "204":
+          description: Successfully stored
+
+    delete:
+      summary: Delete key
+      tags: [Key value store]
+      parameters:
+        - name: namespace
+          value: default
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Key deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+        "404":
+          description: Key not found
 
 components:
   schemas:

@@ -12,6 +12,7 @@ import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/utils.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/services/storage/hive_store_service.dart';
 import 'package:reaprime/src/services/webserver/shots_handler.dart';
 import 'package:reaprime/src/services/webserver/workflow_handler.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
@@ -34,6 +35,7 @@ part 'webserver/scale_handler.dart';
 part 'webserver/devices_handler.dart';
 part 'webserver/settings_handler.dart';
 part 'webserver/sensors_handler.dart';
+part 'webserver/kv_store_handler.dart';
 
 final log = Logger("Webservice");
 
@@ -63,6 +65,9 @@ Future<void> startWebServer(
   final ShotsHandler shotsHandler = ShotsHandler(
     controller: persistenceController,
   );
+
+  final kvStoreHandler = KvStoreHandler();
+  await kvStoreHandler.store.initialize();
   // Start server
   final server = await io.serve(
     _init(
@@ -73,6 +78,7 @@ Future<void> startWebServer(
       sensorsHandler,
       workflowHandler,
       shotsHandler,
+      kvStoreHandler,
     ),
     '0.0.0.0',
     8080,
@@ -92,6 +98,7 @@ Handler _init(
   SensorsHandler sensorsHandler,
   WorkflowHandler workflowHandler,
   ShotsHandler shotsHandler,
+  KvStoreHandler kvStoreHandler,
 ) {
   log.info("called _init");
   var app = Router().plus;
@@ -127,6 +134,7 @@ Handler _init(
   sensorsHandler.addRoutes(app);
   workflowHandler.addRoutes(app);
   shotsHandler.addRoutes(app);
+  kvStoreHandler.addRoutes(app);
 
   final handler = const Pipeline()
       .addMiddleware(logRequests())
