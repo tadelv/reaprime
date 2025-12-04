@@ -38,6 +38,8 @@
 	<string>Needed to discover local devices</string>
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>Needed to discover local devices</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Needed to discover local devices</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
