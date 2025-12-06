@@ -43,6 +43,8 @@ class _WaterLevelsFormState extends State<WaterLevelsForm> {
             min: 0,
             max: 30,
 						divisions: 6,
+            thumbRadius: 15,
+            trackHeight: 15,
             onChanged: (val) {
               setState(() {
                 settings = De1WaterLevels(

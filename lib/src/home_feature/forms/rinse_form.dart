@@ -38,8 +38,11 @@ class _RinseFormState extends State<RinseForm> {
           Text("Temperature: ${settings.targetTemperature}℃"),
           ShadSlider(
             initialValue: settings.targetTemperature.toDouble(),
-            min: 0,
+            min: 5,
             max: 95,
+            divisions: 18,
+            thumbRadius: 15,
+            trackHeight: 15,
             onChanged: (val) {
               setState(() {
                 settings.targetTemperature = val.toInt();
@@ -51,6 +54,9 @@ class _RinseFormState extends State<RinseForm> {
             initialValue: settings.duration.toDouble(),
             min: 0,
             max: 60,
+            divisions: 12,
+            thumbRadius: 15,
+            trackHeight: 15,
             onChanged: (val) {
               setState(() {
                 settings.duration = val.toInt();
@@ -62,6 +68,9 @@ class _RinseFormState extends State<RinseForm> {
             initialValue: settings.flow,
             min: 1.0,
             max: 8.0,
+            divisions: 14,
+            thumbRadius: 15,
+            trackHeight: 15,
             onChanged: (val) {
               setState(() {
                 settings.flow = val;

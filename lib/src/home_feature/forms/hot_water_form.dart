@@ -36,6 +36,9 @@ class _HotWaterFormState extends State<HotWaterForm> {
             initialValue: hotWaterSettings.targetTemperature.toDouble(),
             min: 50,
             max: 95,
+            divisions: 45,
+            thumbRadius: 15,
+            trackHeight: 15,
             onChanged: (val) {
               setState(() {
                 hotWaterSettings.targetTemperature = val.toInt();
@@ -47,6 +50,8 @@ class _HotWaterFormState extends State<HotWaterForm> {
             initialValue: hotWaterSettings.volume.toDouble(),
             min: 0,
             max: 250,
+            thumbRadius: 15,
+            trackHeight: 15,
             onChanged: (val) {
               setState(() {
                 hotWaterSettings.volume = val.toInt();
@@ -58,6 +63,8 @@ class _HotWaterFormState extends State<HotWaterForm> {
             initialValue: hotWaterSettings.duration.toDouble(),
             min: 0,
             max: 60,
+            thumbRadius: 15,
+            trackHeight: 15,
             onChanged: (val) {
               setState(() {
                 hotWaterSettings.duration = val.toInt();
@@ -69,6 +76,8 @@ class _HotWaterFormState extends State<HotWaterForm> {
             initialValue: hotWaterSettings.flow.toDouble(),
             min: 1.0,
             max: 8.0,
+            thumbRadius: 15,
+            trackHeight: 15,
             onChanged: (val) {
               setState(() {
                 hotWaterSettings.flow = val;

@@ -60,6 +60,9 @@ class _SteamFormState extends State<SteamForm> {
                 : 135,
             min: 135,
             max: 170,
+            divisions: 35,
+            thumbRadius: 15,
+            trackHeight: 15,
             enabled: steamSettings.steamEnabled,
             onChanged: (val) {
               setState(() {
@@ -72,6 +75,9 @@ class _SteamFormState extends State<SteamForm> {
             initialValue: steamSettings.targetDuration.toDouble(),
             min: 0,
             max: 120,
+            divisions: 24,
+            thumbRadius: 15,
+            trackHeight: 15,
             enabled: steamSettings.steamEnabled,
             onChanged: (val) {
               setState(() {
@@ -85,6 +91,9 @@ class _SteamFormState extends State<SteamForm> {
             initialValue: steamSettings.targetFlow.toDouble(),
             min: 0.4,
             max: 2.5,
+            divisions: 21,
+            thumbRadius: 15,
+            trackHeight: 15,
             enabled: steamSettings.steamEnabled,
             onChanged: (val) {
               setState(() {

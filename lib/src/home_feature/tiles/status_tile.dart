@@ -169,7 +169,7 @@ class StatusTile extends StatelessWidget {
     showShadDialog(
       context: context,
       builder: (context) => ShadDialog(
-          title: const Text('Edit Hot Water settings'),
+          title: const Text('Edit Hot Water Settings'),
           child: HotWaterForm(
             hotWaterSettings: hotWaterSettings,
             apply: (settings) {
@@ -191,7 +191,7 @@ class StatusTile extends StatelessWidget {
     showShadDialog(
       context: context,
       builder: (context) => ShadDialog(
-          title: const Text('Edit Hot Water settings'),
+          title: const Text('Edit Flush Settings'),
           child: RinseForm(
             rinseSettings: rinseSettings,
             apply: (settings) {
