@@ -53,11 +53,7 @@ class BleDiscoveryService extends DeviceDiscoveryService {
       if (_currentlyScanning.contains(result.deviceId)) {
         return;
       }
-      // TODO: duplicates scan filter
-      // Only interrogate one result instance at a time (results can be duplicated)
-      _currentlyScanning.add(result.deviceId);
       await _deviceScanned(result);
-      _currentlyScanning.remove(result.deviceId);
     });
 
     // FIXME: determine correct way to specify services for linux
@@ -67,6 +63,13 @@ class BleDiscoveryService extends DeviceDiscoveryService {
     final filter = ScanFilter(withServices: services);
 
     await UniversalBle.startScan(scanFilter: filter);
+
+    final systemDevices = await UniversalBle.getSystemDevices(
+      withServices: deviceMappings.keys.toList(),
+    );
+    for (var d in systemDevices) {
+      await _deviceScanned(d);
+    }
 
     // TODO: configurable delay?
     await Future.delayed(Duration(seconds: 15), () async {
@@ -97,6 +100,9 @@ class BleDiscoveryService extends DeviceDiscoveryService {
   }
 
   Future<void> _deviceScanned(BleDevice device) async {
+      // TODO: duplicates scan filter
+      // Only interrogate one result instance at a time (results can be duplicated)
+      _currentlyScanning.add(device.deviceId);
     for (String uid in device.services) {
       var initializer = deviceMappings[uid.toString().toUpperCase()];
       if (initializer != null &&
@@ -117,6 +123,7 @@ class BleDiscoveryService extends DeviceDiscoveryService {
               }
             });
       }
+      _currentlyScanning.remove(device.deviceId);
     }
   }
 }

@@ -275,7 +275,8 @@ class AndroidSerialPort implements SerialTransport {
 
   @override
   Future<void> writeCommand(String command) async {
-    await _port.write(utf8.encode('$command\n'));
+    final toSend = "$command\n";
+    await writeHexCommand(utf8.encode(toSend));
     _log.fine("wrote request: $command");
   }
 

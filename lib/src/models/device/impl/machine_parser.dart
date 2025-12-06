@@ -31,7 +31,7 @@ class MachineParser {
       });
 
       ByteData bytes = ByteData(20);
-      bytes.setInt32(0, MMRItem.model.address, Endian.big);
+      bytes.setInt32(0, MMRItem.v13Model.address, Endian.big);
       var buffer = bytes.buffer.asUint8List();
       buffer[0] = (0 % 0xFF);
       log.info("writing read req");
@@ -68,6 +68,8 @@ class MachineParser {
       }
       readSubscription.cancel();
       await device.disconnect();
+      // TODO: not sure if disconnect will mess up bluetooth on Android?
+      await Future.delayed(Duration(milliseconds: 500));
       return m;
     } catch (e, st) {
       log.warning("failed to check:", e, st);

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:ansi_escape_codes/ansi_escape_codes.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/sensor.dart';
@@ -104,6 +105,7 @@ class DebugPort implements Sensor {
   String _buffer = "";
 
   void onData(String data) {
+
     final split = data.split('\n');
     if (split.length == 1) {
       _buffer += split.first;
@@ -112,7 +114,7 @@ class DebugPort implements Sensor {
     Map<String, dynamic> values = {};
     values['timestamp'] = DateTime.now().toIso8601String();
 
-    values['output'] = _buffer + split.first;
+    values['output'] = AnsiParser(_buffer + split.first).removeAll();
     _streamSubject.add(values);
 
     _buffer = split[1].replaceAll('\n', '');
