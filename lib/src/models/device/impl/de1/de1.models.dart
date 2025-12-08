@@ -81,13 +81,13 @@ enum De1StateEnum {
       case MachineState.idle:
         return De1StateEnum.idle;
       case MachineState.booting:
-        throw UnimplementedError();
+        return De1StateEnum.init;
       case MachineState.sleeping:
         return De1StateEnum.sleep;
       case MachineState.heating:
-        throw UnimplementedError();
+        return De1StateEnum.idle;
       case MachineState.preheating:
-        throw UnimplementedError();
+        return De1StateEnum.idle;
       case MachineState.espresso:
         return De1StateEnum.espresso;
       case MachineState.hotWater:
@@ -105,19 +105,19 @@ enum De1StateEnum {
       case MachineState.airPurge:
         return De1StateEnum.airPurge;
       case MachineState.needsWater:
-        throw UnimplementedError();
+        return De1StateEnum.refill;
       case MachineState.error:
-        throw UnimplementedError();
+        return De1StateEnum.fatalError;
       case MachineState.fwUpgrade:
         return De1StateEnum.fwUpgrade;
       case MachineState.busy:
-        throw UnimplementedError();
+        return De1StateEnum.busy;
       case MachineState.steamRinse:
         return De1StateEnum.steamRinse;
       case MachineState.calibration:
-        throw UnimplementedError();
+        return De1StateEnum.shortCal;
       case MachineState.selfTest:
-        throw UnimplementedError();
+        return De1StateEnum.selfTest;
     }
   }
 }

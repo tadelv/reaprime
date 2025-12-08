@@ -137,7 +137,7 @@ enum MachineSubstate {
   pouring,
   pouringDone,
   cleaningStart, // same for descale
-  cleaingGroup, // same for descale
+  cleaningGroup, // same for descale
   cleanSoaking,
   cleaningSteam,
 

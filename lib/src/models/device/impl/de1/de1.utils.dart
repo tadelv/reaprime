@@ -33,8 +33,11 @@ MachineState mapDe1ToMachineState(De1StateEnum de1State) {
       return MachineState.flush;
 
     case De1StateEnum.steam:
-    case De1StateEnum.steamRinse:
       return MachineState.steam;
+
+    case De1StateEnum.steamRinse:
+      return MachineState.steamRinse;
+
     case De1StateEnum.airPurge:
       return MachineState.airPurge;
 
@@ -93,7 +96,7 @@ MachineSubstate mapDe1SubToMachineSubstate(De1SubState de1SubState) {
     case De1SubState.descaleFillGroup:
     case De1SubState.descaleGroup:
     case De1SubState.descaleReturn:
-      return MachineSubstate.cleaingGroup;
+      return MachineSubstate.cleaningGroup;
 
     case De1SubState.cleanSoak:
       return MachineSubstate.cleanSoaking;
@@ -132,7 +135,7 @@ MachineSubstate mapDe1SubToMachineSubstate(De1SubState de1SubState) {
     case De1SubState.errorHiCurrent:
       return MachineSubstate.errorHiCurrent;
     case De1SubState.errorLoCurrent:
-      return MachineSubstate.errorHiCurrent;
+      return MachineSubstate.errorLoCurrent;
     case De1SubState.errorBootFill:
       return MachineSubstate.errorBootFill;
     case De1SubState.errorNoAC:
