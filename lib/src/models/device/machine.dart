@@ -108,8 +108,9 @@ class MachineSnapshot {
 }
 
 enum MachineState {
-  idle,
   booting,
+  busy,
+  idle,
   sleeping,
   heating,
   preheating,
@@ -117,10 +118,13 @@ enum MachineState {
   hotWater,
   flush,
   steam,
+  steamRinse,
   skipStep,
   cleaning,
   descaling,
-  transportMode,
+  calibration,
+  selfTest,
+  airPurge,
   needsWater,
   error,
   fwUpgrade,
@@ -136,6 +140,25 @@ enum MachineSubstate {
   cleaingGroup, // same for descale
   cleanSoaking,
   cleaningSteam,
+
+  errorNaN,
+  errorInf,
+  errorGeneric,
+  errorAcc,
+  errorTSensor,
+  errorPSensor,
+  errorWLevel,
+  errorDip,
+  errorAssertion,
+  errorUnsafe,
+  errorInvalidParam,
+  errorFlash,
+  errorOOM,
+  errorDeadline,
+  errorHiCurrent,
+  errorLoCurrent,
+  errorBootFill,
+  errorNoAC,
 }
 
 class MachineStateSnapshot {

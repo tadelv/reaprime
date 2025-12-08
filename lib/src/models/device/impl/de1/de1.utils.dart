@@ -5,10 +5,10 @@ MachineState mapDe1ToMachineState(De1StateEnum de1State) {
   switch (de1State) {
     case De1StateEnum.sleep:
     case De1StateEnum.goingToSleep:
-    case De1StateEnum.schedIdle:
       return MachineState.sleeping;
 
     case De1StateEnum.idle:
+    case De1StateEnum.schedIdle:
     case De1StateEnum.noRequest:
       return MachineState.idle;
 
@@ -17,22 +17,26 @@ MachineState mapDe1ToMachineState(De1StateEnum de1State) {
       return MachineState.booting;
 
     case De1StateEnum.busy:
+      return MachineState.busy;
     case De1StateEnum.longCal:
     case De1StateEnum.shortCal:
+      return MachineState.calibration;
     case De1StateEnum.selfTest:
-      return MachineState.preheating;
+      return MachineState.selfTest;
 
     case De1StateEnum.espresso:
       return MachineState.espresso;
 
     case De1StateEnum.hotWater:
-    case De1StateEnum.hotWaterRinse:
       return MachineState.hotWater;
+    case De1StateEnum.hotWaterRinse:
+      return MachineState.flush;
 
     case De1StateEnum.steam:
     case De1StateEnum.steamRinse:
-    case De1StateEnum.airPurge:
       return MachineState.steam;
+    case De1StateEnum.airPurge:
+      return MachineState.airPurge;
 
     case De1StateEnum.clean:
       return MachineState.cleaning;
@@ -40,7 +44,7 @@ MachineState mapDe1ToMachineState(De1StateEnum de1State) {
     case De1StateEnum.descale:
       return MachineState.descaling;
 
-    case De1StateEnum.skipToNext: 
+    case De1StateEnum.skipToNext:
       return MachineState.skipStep;
 
     case De1StateEnum.refill:
@@ -49,11 +53,12 @@ MachineState mapDe1ToMachineState(De1StateEnum de1State) {
     case De1StateEnum.fatalError:
       return MachineState.error;
 
-    default:
-      return MachineState.error; // Fallback for unknown or unexpected states
+    case De1StateEnum.fwUpgrade:
+      return MachineState.fwUpgrade;
+    case De1StateEnum.unknown:
+      return MachineState.error;
   }
 }
-
 
 MachineSubstate mapDe1SubToMachineSubstate(De1SubState de1SubState) {
   switch (de1SubState) {
@@ -96,8 +101,41 @@ MachineSubstate mapDe1SubToMachineSubstate(De1SubState de1SubState) {
     case De1SubState.descaleSteam:
       return MachineSubstate.cleaningSteam;
 
-    default: // Any errors map to idle
-      return MachineSubstate.idle;
+    case De1SubState.errorNaN:
+      return MachineSubstate.errorNaN;
+    case De1SubState.errorInf:
+      return MachineSubstate.errorInf;
+    case De1SubState.errorGeneric:
+      return MachineSubstate.errorGeneric;
+    case De1SubState.errorAcc:
+      return MachineSubstate.errorAcc;
+    case De1SubState.errorTSensor:
+      return MachineSubstate.errorTSensor;
+    case De1SubState.errorPSensor:
+      return MachineSubstate.errorPSensor;
+    case De1SubState.errorWLevel:
+      return MachineSubstate.errorWLevel;
+    case De1SubState.errorDip:
+      return MachineSubstate.errorDip;
+    case De1SubState.errorAssertion:
+      return MachineSubstate.errorAssertion;
+    case De1SubState.errorUnsafe:
+      return MachineSubstate.errorUnsafe;
+    case De1SubState.errorInvalidParam:
+      return MachineSubstate.errorInvalidParam;
+    case De1SubState.errorFlash:
+      return MachineSubstate.errorFlash;
+    case De1SubState.errorOOM:
+      return MachineSubstate.errorOOM;
+    case De1SubState.errorDeadline:
+      return MachineSubstate.errorDeadline;
+    case De1SubState.errorHiCurrent:
+      return MachineSubstate.errorHiCurrent;
+    case De1SubState.errorLoCurrent:
+      return MachineSubstate.errorHiCurrent;
+    case De1SubState.errorBootFill:
+      return MachineSubstate.errorBootFill;
+    case De1SubState.errorNoAC:
+      return MachineSubstate.errorNoAC;
   }
 }
-

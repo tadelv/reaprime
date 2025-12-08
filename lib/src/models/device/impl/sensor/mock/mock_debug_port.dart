@@ -42,7 +42,7 @@ class MockDebugPort implements Sensor {
       throw 'Invalid "command" type: ${command.runtimeType}';
     }
 
-    if (command == "!!!!") {
+    if ((command as String).contains("!")) {
       _ignoreTimer = true;
     }
     final response = {
@@ -51,7 +51,7 @@ class MockDebugPort implements Sensor {
     };
 
     _streamSubject.add(response);
-    if (command == "q" || command == "fcom") {
+    if (command == "q") {
       _ignoreTimer = false;
     }
     return response;

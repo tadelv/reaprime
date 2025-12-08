@@ -52,35 +52,31 @@ final class SensorsHandler {
     });
   }
 
-  _handleSensorSnapshot(Request req) {
+  FutureOr<Response> _handleSensorSnapshot(Request req) {
+    _log.info("Handling: $req");
+    final id = req.params['id']; // works for normal handlers
+    _log.info("got id: $id");
+    return sws.webSocketHandler((socket) {
+      _log.info("upgraded to socket");
+      final sensor = _controller.sensors[id];
+      if (sensor == null) {
+        socket.sink.add(jsonEncode({'error': 'not found'}));
+        socket.sink.close();
+        return;
+      }
 
-      _log.info("Handling: $req");
-      final id = req.params['id']; // works for normal handlers
-      _log.info("got id: $id");
-      return sws.webSocketHandler((socket) {
-        _log.info("upgraded to socket");
-        final sensor = _controller.sensors[id];
-        if (sensor == null) {
-          socket.sink.add(jsonEncode({'error': 'not found'}));
-          socket.sink.close();
-          return;
-        }
+      final sub = sensor.data.listen((snapshot) {
+        _log.finest("received snapshot: $snapshot");
+        socket.sink.add(jsonEncode(snapshot));
+      }, onError: (e, st) => log.severe('send error', e, st));
 
-        final sub = sensor.data.listen(
-          (snapshot) { 
-            _log.fine("received snapshot: $snapshot");
-            socket.sink.add(jsonEncode(snapshot));
-          },
-          onError: (e, st) => log.severe('send error', e, st),
-        );
-
-        socket.stream.listen(
-          (msg) {
-            // handle incoming messages if needed
-          },
-          onDone: sub.cancel,
-          onError: (_, _) => sub.cancel(),
-        );
-      })(req); // <-- don't forget to call the returned handler
-    }
+      socket.stream.listen(
+        (msg) {
+          // handle incoming messages if needed
+        },
+        onDone: sub.cancel,
+        onError: (_, _) => sub.cancel(),
+      );
+    })(req); // <-- don't forget to call the returned handler
+  }
 }

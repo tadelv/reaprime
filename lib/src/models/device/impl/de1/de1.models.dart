@@ -99,20 +99,25 @@ enum De1StateEnum {
       case MachineState.skipStep:
         return De1StateEnum.skipToNext;
       case MachineState.cleaning:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+        return De1StateEnum.clean;
       case MachineState.descaling:
-        // TODO: Handle this case.
-        throw UnimplementedError();
-      case MachineState.transportMode:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+        return De1StateEnum.descale;
+      case MachineState.airPurge:
+        return De1StateEnum.airPurge;
       case MachineState.needsWater:
         throw UnimplementedError();
       case MachineState.error:
         throw UnimplementedError();
       case MachineState.fwUpgrade:
         return De1StateEnum.fwUpgrade;
+      case MachineState.busy:
+        throw UnimplementedError();
+      case MachineState.steamRinse:
+        return De1StateEnum.steamRinse;
+      case MachineState.calibration:
+        throw UnimplementedError();
+      case MachineState.selfTest:
+        throw UnimplementedError();
     }
   }
 }
