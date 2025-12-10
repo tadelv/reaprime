@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scale.dart';
-import 'package:reaprime/src/models/device/serial_port.dart';
+import 'package:reaprime/src/models/device/transport/serial_port.dart';
 import 'package:rxdart/subjects.dart';
 
 class HDSSerial implements Scale {

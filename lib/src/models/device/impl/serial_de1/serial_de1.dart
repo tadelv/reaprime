@@ -6,7 +6,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
-import 'package:reaprime/src/models/device/serial_port.dart';
+import 'package:reaprime/src/models/device/transport/serial_port.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.dart';

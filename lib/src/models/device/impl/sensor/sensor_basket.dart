@@ -5,7 +5,7 @@ import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/sensor.dart';
 
 import 'package:logging/logging.dart';
-import 'package:reaprime/src/models/device/serial_port.dart';
+import 'package:reaprime/src/models/device/transport/serial_port.dart';
 
 class SensorBasket implements Sensor {
   late Logger _log;

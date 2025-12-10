@@ -11,7 +11,7 @@ import 'package:reaprime/src/models/device/impl/sensor/sensor_basket.dart';
 import 'package:reaprime/src/models/device/impl/serial_de1/serial_de1.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
-import 'package:reaprime/src/models/device/serial_port.dart';
+import 'package:reaprime/src/models/device/transport/serial_port.dart';
 import 'utils.dart';
 import 'package:rxdart/subjects.dart';
 

@@ -5,27 +5,25 @@ import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:universal_ble/universal_ble.dart';
 
 class MachineParser {
-  static Future<Machine> machineFrom({required String deviceId}) async {
+  static Future<Machine> machineFrom({required BLETransport transport}) async {
     Logger log = Logger("Machine parser");
     log.info("starting check");
     final StreamController<List<int>> mmrController =
         StreamController.broadcast();
-    final device = BleDevice(deviceId: deviceId, name: "Decent Machine");
     try {
-      await device.connect();
+      await transport.connect();
 
-      final state = await device.isConnected;
+      final state = await transport.connectionState.firstWhere((e) => e);
       log.info("devices connected: $state");
 
-      await device.discoverServices(timeout: Duration(seconds: 3));
-      final service = await device.getService(de1ServiceUUID);
-      final readMMR = service.getCharacteristic(Endpoint.readFromMMR.uuid);
-      final writeMMR = service.getCharacteristic(Endpoint.writeToMMR.uuid);
-      await readMMR.notifications.subscribe(timeout: Duration(seconds: 3));
-      final readSubscription = readMMR.onValueReceived.listen((Uint8List data) {
+      final services = await transport.discoverServices();
+      final service = services.firstWhere((s) => s == de1ServiceUUID);
+
+      transport.subscribe(service, Endpoint.readFromMMR.uuid, (data) {
         log.info("incoming data: ${data}");
         mmrController.add(data);
       });
@@ -36,7 +34,7 @@ class MachineParser {
       buffer[0] = (0 % 0xFF);
       log.info("writing read req");
       log.info('sending read req ${buffer.map(toHexString).toList()}');
-      await readMMR.write(buffer, withResponse: true);
+      await transport.write(service, Endpoint.writeToMMR.uuid, buffer);
 
       // var result = await readMMR.read(timeout: Duration(seconds: 1));
       var result = await mmrController.stream
@@ -66,8 +64,7 @@ class MachineParser {
       } else {
         m = Bengle(deviceId: deviceId);
       }
-      readSubscription.cancel();
-      await device.disconnect();
+      await transport.disconnect();
       // TODO: not sure if disconnect will mess up bluetooth on Android?
       await Future.delayed(Duration(milliseconds: 500));
       return m;
