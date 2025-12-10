@@ -1,20 +1,23 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/services/ble/universal_ble_transport.dart';
 import 'package:universal_ble/universal_ble.dart';
 import '../models/device/device.dart';
 import '../models/device/machine.dart';
 import '../models/device/scale.dart';
 import 'package:logging/logging.dart' as logging;
 
-class BleDiscoveryService extends DeviceDiscoveryService {
-  BleDiscoveryService(this.deviceMappings);
+class UniversalBleDiscoveryService extends DeviceDiscoveryService {
+  UniversalBleDiscoveryService(this.deviceMappings);
 
-  Map<String, Future<Device> Function(String)> deviceMappings;
+  Map<String, Future<Device> Function(BLETransport)> deviceMappings;
 
   final Map<String, Device> _devices = {};
 
-  final log = logging.Logger("BleDeviceService");
+  final log = logging.Logger("UniversalBleDeviceService");
 
   final StreamController<List<Device>> _deviceStreamController =
       StreamController.broadcast();
@@ -108,7 +111,7 @@ class BleDiscoveryService extends DeviceDiscoveryService {
       if (initializer != null &&
           _devices.containsKey(device.deviceId.toString()) == false) {
         _devices[device.deviceId.toString()] = await initializer(
-          device.deviceId.toString(),
+          UniversalBleTransport(device: device),
         );
         _deviceStreamController.add(_devices.values.toList());
         log.fine("found new device: ${device.name}");

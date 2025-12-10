@@ -20,7 +20,7 @@ import 'package:reaprime/src/models/device/impl/bookoo/miniscale.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
 import 'package:reaprime/src/models/device/impl/felicita/arc.dart';
 import 'package:reaprime/src/models/device/impl/machine_parser.dart';
-import 'package:reaprime/src/services/ble_discovery_service.dart';
+import 'package:reaprime/src/services/universal_ble_discovery_service.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
 import 'package:reaprime/src/services/storage/file_storage_service.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
@@ -65,7 +65,7 @@ void main() async {
   Logger.root.info("==== REA PRIME starting ====");
 
   final List<DeviceDiscoveryService> services = [
-    BleDiscoveryService({
+    UniversalBleDiscoveryService({
       De1.advertisingUUID.toUpperCase():
           (id) => MachineParser.machineFrom(deviceId: id),
       FelicitaArc.serviceUUID.toUpperCase(): (id) async {
