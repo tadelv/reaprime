@@ -65,7 +65,7 @@ class SerialDe1 implements De1Interface {
     _connectionStateSubject.add(ConnectionState.disconnecting);
     try {
       _transportSubscription.cancel();
-      _transport.close();
+      _transport.disconnect();
     } catch (e, st) {
       _log.warning("failed to close transport:", e, st);
     }
@@ -82,7 +82,7 @@ class SerialDe1 implements De1Interface {
   Future<void> onConnect() async {
     _log.fine("connecting to device");
     try {
-      await _transport.open();
+      await _transport.connect();
     } catch (e, st) {
       _log.severe("failed to open transport", e, st);
       disconnect();

@@ -1,15 +1,21 @@
 import 'dart:typed_data';
 
+import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1_transport.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
 
+part 'unified_de1.mmr.dart';
+
 class UnifiedDe1 implements De1Interface {
   final UnifiedDe1Transport _transport;
+
+  final Logger _log = Logger("DE1");
 
   UnifiedDe1({required DataTransport transport})
     : _transport = UnifiedDe1Transport(transport: transport);
@@ -123,9 +129,10 @@ class UnifiedDe1 implements De1Interface {
   Stream<bool> get ready => throw UnimplementedError();
 
   @override
-  Future<void> requestState(MachineState newState) {
-    // TODO: implement requestState
-    throw UnimplementedError();
+  Future<void> requestState(MachineState newState) async {
+    Uint8List data = Uint8List(1);
+    data[0] = De1StateEnum.fromMachineState(newState).hexValue;
+    await _transport.write(Endpoint.requestedState, data);
   }
 
   @override

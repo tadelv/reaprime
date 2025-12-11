@@ -37,6 +37,13 @@ class UnifiedDe1Transport {
     ByteData(7),
   );
 
+  Stream<ByteData> get state => _stateSubject.asBroadcastStream();
+  Stream<ByteData> get shotSample => _shotSampleSubject.asBroadcastStream();
+  Stream<ByteData> get shotSettings => _shotSettingsSubject.asBroadcastStream();
+  Stream<ByteData> get waterLevels => _waterLevelsSubject.asBroadcastStream();
+  Stream<ByteData> get mmr => _mmrSubject.asBroadcastStream();
+  Stream<ByteData> get fwMapRequest => _fwMapRequestSubject.asBroadcastStream();
+
   // Serial only
   String _currentBuffer = "";
 
