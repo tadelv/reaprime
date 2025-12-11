@@ -5,28 +5,29 @@ import 'package:reaprime/src/models/device/machine.dart';
 final String de1ServiceUUID = 'A000';
 
 enum Endpoint {
-  versions('A001'),
-  requestedState('A002'),
-  setTime('A003'),
-  shotDirectory('A004'),
-  readFromMMR('A005'),
-  writeToMMR('A006'), // F
-  shotMapRequest('A007'),
-  deleteShotRange('A008'),
-  fwMapRequest('A009'), // I
-  temperatures('A00A'),
-  shotSettings('A00B'),
-  deprecatedShotDesc('A00C'),
-  shotSample('A00D'),
-  stateInfo('A00E'),
-  headerWrite('A00F'),
-  frameWrite('A010'),
-  waterLevels('A011'),
-  calibration('A012');
+  versions('A001', 'A'),
+  requestedState('A002', 'B'),
+  setTime('A003', 'C'),
+  shotDirectory('A004', 'D'),
+  readFromMMR('A005', 'E'),
+  writeToMMR('A006', 'F'), // F
+  shotMapRequest('A007', 'G'),
+  deleteShotRange('A008', 'H'),
+  fwMapRequest('A009', 'I'), // I
+  temperatures('A00A', 'J'),
+  shotSettings('A00B', 'K'),
+  deprecatedShotDesc('A00C', 'L'),
+  shotSample('A00D', 'M'),
+  stateInfo('A00E', 'N'),
+  headerWrite('A00F', 'O'),
+  frameWrite('A010', 'P'),
+  waterLevels('A011', 'Q'),
+  calibration('A012', 'R');
 
   final String uuid;
+  final String representation;
 
-  const Endpoint(this.uuid);
+  const Endpoint(this.uuid, this.representation);
 
   // Helper method to find an Endpoint by its UUID
   static Endpoint? fromUuid(String uuid) {
