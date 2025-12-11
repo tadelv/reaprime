@@ -135,7 +135,7 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
     final duration = const Duration(seconds: 3);
 
     try {
-      await transport.open();
+      await transport.connect();
 
       // Start listening to the stream
       final subscription = transport.rawStream.listen(
@@ -183,11 +183,11 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
       }
 
       _log.warning("Unknown device on port $device");
-      await transport.close();
+      await transport.disconnect();
       return null;
     } catch (e, st) {
       _log.warning("Port $device is probably not a device we want", e, st);
-      await transport.close();
+      await transport.disconnect();
       return null;
     }
   }
@@ -197,8 +197,10 @@ class AndroidSerialPort implements SerialTransport {
   final UsbDevice _device;
   final UsbPort _port;
   late Logger _log;
-  bool _isReady = false;
-  bool _isOpen = false;
+  final BehaviorSubject<bool> _open = BehaviorSubject.seeded(false);
+
+  @override
+  Stream<bool> get connectionState => _open.asBroadcastStream();
 
   AndroidSerialPort({required UsbDevice device, required UsbPort port})
     : _device = device,
@@ -206,14 +208,11 @@ class AndroidSerialPort implements SerialTransport {
     _log = Logger("Serial:${_device.deviceName}");
   }
   @override
-  Future<void> close() async {
-    _isOpen = false;
+  Future<void> disconnect() async {
+    _open.add(false);
     _portSubscription?.cancel();
     await _port.close();
   }
-
-  @override
-  bool get isReady => _isReady;
 
   @override
   String get id => "${_device.deviceId}";
@@ -223,8 +222,8 @@ class AndroidSerialPort implements SerialTransport {
 
   StreamSubscription<Uint8List>? _portSubscription;
   @override
-  Future<void> open() async {
-    if (_isOpen) {
+  Future<void> connect() async {
+    if (await _open.first) {
       _log.warning('port already open');
       return;
     }
@@ -255,10 +254,10 @@ class AndroidSerialPort implements SerialTransport {
       },
       onError: (error) {
         _log.severe("port read failed", error);
-        close();
+        disconnect();
       },
     );
-    _isOpen = true;
+    _open.add(true);
   }
 
   final StreamController<Uint8List> _rawController =

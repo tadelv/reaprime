@@ -31,7 +31,7 @@ class SensorBasket implements Sensor {
   disconnect() {
     _connectionSubject.add(ConnectionState.disconnected);
     _transportSubscription.cancel();
-    _transport.close();
+    _transport.disconnect();
   }
 
   @override
@@ -47,7 +47,7 @@ class SensorBasket implements Sensor {
       return;
     }
     _log.info("on connect");
-    await _transport.open();
+    await _transport.disconnect();
     _transportSubscription =
         _transport.readStream.listen(onData, onError: (error) {
       _log.warning("transport error", error);

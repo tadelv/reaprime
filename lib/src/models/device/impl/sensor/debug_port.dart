@@ -36,7 +36,7 @@ class DebugPort implements Sensor {
   disconnect() {
     _connectionSubject.add(ConnectionState.disconnected);
     _transportSubscription.cancel();
-    _transport.close();
+    _transport.disconnect();
   }
 
   @override
@@ -88,7 +88,7 @@ class DebugPort implements Sensor {
       return;
     }
     _log.info("on connect");
-    await _transport.open();
+    await _transport.connect();
     _transportSubscription = _transport.readStream.listen(
       onData,
       onError: (error) {

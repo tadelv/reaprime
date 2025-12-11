@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
-import 'package:universal_ble/universal_ble.dart';
 import 'package:collection/collection.dart';
+import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/subjects.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
@@ -9,21 +9,19 @@ import 'package:reaprime/src/models/device/device.dart';
 import '../../scale.dart';
 
 class FelicitaArc implements Scale {
-  static String serviceUUID = BleUuidParser.string('ffe0');
-  static String dataUUID = BleUuidParser.string('ffe1');
+  static String serviceUUID = 'ffe0';
+  static String dataUUID = 'ffe1';
 
   final String _deviceId;
 
   final StreamController<ScaleSnapshot> _streamController =
       StreamController.broadcast();
 
-  final BleDevice _device;
-  late List<BleService> _services;
-  late BleService _service;
+  final BLETransport _transport;
 
-  FelicitaArc({required String deviceId})
-      : _deviceId = deviceId,
-        _device = BleDevice(deviceId: deviceId, name: "Felicita $deviceId");
+  FelicitaArc({required BLETransport transport})
+    : _transport = transport,
+      _deviceId = transport.id;
 
   @override
   Stream<ScaleSnapshot> get currentSnapshot => _streamController.stream;
@@ -43,17 +41,15 @@ class FelicitaArc implements Scale {
 
   @override
   Future<void> onConnect() async {
-    if (await _device.isConnected == true) {
+    if (await _transport.connectionState.first == true) {
       return;
     }
     StreamSubscription<bool>? subscription;
-    subscription = _device.connectionStream.listen((bool state) async {
+    subscription = _transport.connectionState.listen((bool state) async {
       switch (state) {
         case true:
           _connectionStateController.add(ConnectionState.connected);
-          _services = await _device.discoverServices();
-          _service =
-              _services.firstWhere((BleService e) => e.uuid == serviceUUID);
+          await _transport.discoverServices();
 
           _registerNotifications();
         case false:
@@ -65,12 +61,12 @@ class FelicitaArc implements Scale {
           }
       }
     });
-    await _device.connect();
+    await _transport.connect();
   }
 
   @override
   disconnect() {
-    _device.disconnect();
+    _transport.disconnect();
   }
 
   @override
@@ -78,20 +74,19 @@ class FelicitaArc implements Scale {
 
   @override
   Future<void> tare() async {
-    await _service.characteristics
-        .firstWhere((c) => c.uuid == dataUUID)
-        .write([0x54]);
+    final writeData = Uint8List(1);
+    writeData[0] = 0x54;
+    await _transport.write(
+      serviceUUID,
+      dataUUID,
+      writeData
+    );
   }
 
   late StreamSubscription<Uint8List>? _notificationsSubscription;
 
   void _registerNotifications() async {
-    final characteristic =
-        _service.characteristics.firstWhere((c) => c.uuid == dataUUID);
-    _notificationsSubscription =
-        characteristic.onValueReceived.listen(_parseNotification);
-
-    await characteristic.notifications.subscribe();
+    _transport.subscribe(serviceUUID, dataUUID, _parseNotification);
   }
 
   static const int minBattLevel = 129;

@@ -32,7 +32,7 @@ class HDSSerial implements Scale {
   disconnect() {
     _connectionSubject.add(ConnectionState.disconnected);
     _transportSubscription.cancel();
-    _transport.close();
+    _transport.disconnect();
   }
 
   @override
@@ -42,7 +42,7 @@ class HDSSerial implements Scale {
   @override
   Future<void> onConnect() async {
     _log.info("on connect");
-    await _transport.open();
+    await _transport.disconnect();
     _transportSubscription =
         _transport.rawStream.listen(onData, onError: (error) {
       _log.warning("transport error", error);

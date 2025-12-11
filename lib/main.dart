@@ -67,15 +67,15 @@ void main() async {
   final List<DeviceDiscoveryService> services = [
     UniversalBleDiscoveryService({
       De1.advertisingUUID.toUpperCase():
-          (id) => MachineParser.machineFrom(deviceId: id),
-      FelicitaArc.serviceUUID.toUpperCase(): (id) async {
-        return FelicitaArc(deviceId: id);
+          (t) => MachineParser.machineFrom(transport: t),
+      FelicitaArc.serviceUUID.toUpperCase(): (t) async {
+        return FelicitaArc(transport: t);
       },
-      DecentScale.serviceUUID.toUpperCase(): (id) async {
-        return DecentScale(deviceId: id);
+      DecentScale.serviceUUID.toUpperCase(): (t) async {
+        return DecentScale(transport: t);
       },
-      BookooScale.serviceUUID.toUpperCase(): (id) async {
-        return BookooScale(deviceId: id);
+      BookooScale.serviceUUID.toUpperCase(): (t) async {
+        return BookooScale(transport: t);
       },
     }),
   ];

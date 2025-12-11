@@ -6,7 +6,6 @@ import 'package:reaprime/src/models/device/impl/de1/de1.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
-import 'package:universal_ble/universal_ble.dart';
 
 class MachineParser {
   static Future<Machine> machineFrom({required BLETransport transport}) async {
@@ -60,9 +59,9 @@ class MachineParser {
       if (model < 128) {
         // TODO: avoid reconnect in the De1 impl
         // m = De1.withDevice(device: device);
-        m = De1.fromId(deviceId);
+        m = De1.fromId(transport.id);
       } else {
-        m = Bengle(deviceId: deviceId);
+        m = Bengle(deviceId: transport.id);
       }
       await transport.disconnect();
       // TODO: not sure if disconnect will mess up bluetooth on Android?
@@ -70,7 +69,7 @@ class MachineParser {
       return m;
     } catch (e, st) {
       log.warning("failed to check:", e, st);
-      await device.disconnect();
+      await transport.disconnect();
       throw "Could not determine model";
     }
   }

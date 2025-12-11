@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
-import 'package:universal_ble/universal_ble.dart';
+import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/subjects.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
@@ -8,24 +8,21 @@ import 'package:reaprime/src/models/device/device.dart';
 import '../../scale.dart';
 
 class BookooScale implements Scale {
-  static String serviceUUID = BleUuidParser.string('0ffe');
-  static String dataUUID = BleUuidParser.string('ff11');
-  static String cmdUUID = BleUuidParser.string('ff12');
+  static String serviceUUID = '0ffe';
+  static String dataUUID = 'ff11';
+  static String cmdUUID = 'ff12';
 
-  final String _deviceId;
+  final BLETransport _transport;
 
   final StreamController<ScaleSnapshot> _streamController =
       StreamController.broadcast();
 
-  BookooScale({required String deviceId}) : _deviceId = deviceId {
-    _device = BleDevice(deviceId: deviceId, name: "BookooScale $deviceId");
-  }
-
+  BookooScale({required BLETransport transport}) : _transport = transport;
   @override
   Stream<ScaleSnapshot> get currentSnapshot => _streamController.stream;
 
   @override
-  String get deviceId => _deviceId;
+  String get deviceId => _transport.id;
 
   @override
   String get name => "Bookoo Mini Scale";
@@ -33,27 +30,21 @@ class BookooScale implements Scale {
   final StreamController<ConnectionState> _connectionStateController =
       BehaviorSubject.seeded(ConnectionState.connecting);
 
-  late BleDevice _device;
-  late List<BleService> _services;
-  late BleService _service;
-
   @override
   Stream<ConnectionState> get connectionState =>
       _connectionStateController.stream;
 
   @override
   Future<void> onConnect() async {
-    if (await _device.connectionStream.first == true) {
+    if (await _transport.connectionState.first == true) {
       return;
     }
     StreamSubscription<bool>? subscription;
-    subscription = _device.connectionStream.listen((bool state) async {
+    subscription = _transport.connectionState.listen((bool state) async {
       switch (state) {
         case true:
           _connectionStateController.add(ConnectionState.connected);
-          _services = await _device.discoverServices();
-          _service =
-              _services.firstWhere((BleService e) => e.uuid == serviceUUID);
+          await _transport.discoverServices();
 
           _registerNotifications();
         case false:
@@ -61,17 +52,16 @@ class BookooScale implements Scale {
               ConnectionState.connecting) {
             _connectionStateController.add(ConnectionState.disconnected);
             subscription?.cancel();
-            _notificationsSubscription?.cancel();
           }
       }
     });
 
-    await _device.connect();
+    await _transport.connect();
   }
 
   @override
   disconnect() {
-    _device.disconnect();
+    _transport.disconnect();
   }
 
   @override
@@ -79,23 +69,16 @@ class BookooScale implements Scale {
 
   @override
   Future<void> tare() async {
-    await _service.characteristics
-        .firstWhere((c) => c.uuid == cmdUUID)
-        .write([0x03, 0x0A, 0x01, 0x00, 0x00, 0x08]);
+    await _transport.write(
+      serviceUUID,
+      cmdUUID,
+      Uint8List.fromList([0x03, 0x0A, 0x01, 0x00, 0x00, 0x08]),
+    );
   }
 
-  late StreamSubscription<Uint8List>? _notificationsSubscription;
 
   void _registerNotifications() async {
-    final characteristic =
-        _service.characteristics.firstWhere((c) => c.uuid == dataUUID);
-    _notificationsSubscription =
-        characteristic.onValueReceived.listen(_parseNotification);
-    await characteristic.notifications.subscribe();
-    // characteristic.onValueReceived.listen(_parseNotification);
-    // _device.cancelWhenDisconnected(subscription);
-    // await characteristic.;
-    // await UniversalBle.subscribeNotifications(_deviceId, serviceUUID, dataUUID);
+    _transport.subscribe(serviceUUID, dataUUID, _parseNotification);
   }
 
   void _parseNotification(List<int> data) {
