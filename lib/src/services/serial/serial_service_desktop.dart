@@ -91,7 +91,9 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
 
   Future<Device?> _detectDevice(String id) async {
     final port = SerialPort(id);
-    if (port.transport.toTransport() != 'USB') {
+    _log.info("detecting: ${port.name} ; ${port.transport.toTransport()}");
+    if (port.transport.toTransport() == "Bluetooth") {
+      port.dispose();
       return null;
     }
     final transport = _DesktopSerialPort(port: port);
@@ -105,7 +107,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     }
 
     try {
-      await transport.disconnect();
+      await transport.connect();
 
       // Collect data with a timeout rather than a fixed delay
       final subscription = transport.rawStream.listen(rawData.add);
@@ -119,7 +121,16 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       );
 
       final combined = rawData.expand((e) => e).toList();
-      final strings = rawData.map(utf8.decode).toList().join().split('\n');
+      List<String> strings = [];
+      try {
+        strings = rawData
+            .map((e) => utf8.decode(e, allowMalformed: true))
+            .toList()
+            .join()
+            .split('\n');
+      } catch (e) {
+        _log.warning("failed to decode:", e);
+      }
       _log.info("Collected serial data: ${utf8.decode(combined)}");
       _log.info("parsed into strings: ${strings}");
       if (combined.isEmpty && strings.isEmpty) {
@@ -159,10 +170,12 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
 
       _log.warning("Unknown device on port $id");
       await transport.disconnect();
+      port.dispose();
       return null;
     } catch (e, st) {
       _log.warning("Port $id is probably not a device we want", e, st);
       await transport.disconnect();
+      port.dispose();
       return null;
     }
   }
@@ -239,7 +252,7 @@ class _DesktopSerialPort implements SerialTransport {
             _log.finest("received serial input: $input");
             _readController.add(input);
           } catch (e) {
-            _log.fine("unable to parse serial input to string", e);
+            _log.finest("unable to parse serial input to string", e);
           }
         },
         onError: (error) {

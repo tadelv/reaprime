@@ -3,11 +3,9 @@ import 'dart:typed_data';
 // ---- Device-specific detection helpers ----
 final _hdsRegex = RegExp(r'\d+ Weight: .*');
 bool isDecentScale(List<String> messages, List<Uint8List> captures) {
-  if (captures.length < 6) {
-    return false;
-  }
   return captures.any(
         (Uint8List bytes) =>
+            bytes.length > 5 &&
             bytes[0] == 0x03 &&
             bytes[1] == 0xCE &&
             bytes[4] == 0 &&

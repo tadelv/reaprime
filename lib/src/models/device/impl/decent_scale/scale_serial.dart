@@ -42,14 +42,17 @@ class HDSSerial implements Scale {
   @override
   Future<void> onConnect() async {
     _log.info("on connect");
-    await _transport.disconnect();
-    _transportSubscription =
-        _transport.rawStream.listen(onData, onError: (error) {
-      _log.warning("transport error", error);
-      disconnect();
-    }, onDone: () {
-      disconnect();
-    });
+    await _transport.connect();
+    _transportSubscription = _transport.rawStream.listen(
+      onData,
+      onError: (error) {
+        _log.warning("transport error", error);
+        disconnect();
+      },
+      onDone: () {
+        disconnect();
+      },
+    );
     await _transport.writeHexCommand(Uint8List.fromList([0x03, 0x20, 0x01]));
     _connectionSubject.add(ConnectionState.connected);
   }
@@ -69,7 +72,7 @@ class HDSSerial implements Scale {
   DeviceType get type => DeviceType.scale;
 
   void onData(Uint8List data) {
-    _log.fine("got message: $data");
+    _log.finest("got message: $data");
     if (data.length != 7 || data[0] != 0x03 || data[1] != 0xCE) {
       _log.finest("data is not weight data");
       return;
@@ -78,7 +81,12 @@ class HDSSerial implements Scale {
     d.setInt8(0, data[2]);
     d.setInt8(1, data[3]);
     var weight = d.getInt16(0) / 10;
-    _snapshotHandler.add(ScaleSnapshot(
-        timestamp: DateTime.now(), weight: weight, batteryLevel: 100));
+    _snapshotHandler.add(
+      ScaleSnapshot(
+        timestamp: DateTime.now(),
+        weight: weight,
+        batteryLevel: 100,
+      ),
+    );
   }
 }
