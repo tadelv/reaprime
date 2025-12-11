@@ -91,20 +91,29 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
 
   Future<Device?> _detectDevice(String id) async {
     final port = SerialPort(id);
-    _log.info("detecting: ${port.name} ; ${port.transport.toTransport()}");
+    _log.info("detecting: ${port.name} ; ${port.productName} ; ${port.transport.toTransport()}");
     if (port.transport.toTransport() == "Bluetooth") {
       port.dispose();
       return null;
     }
-    final transport = _DesktopSerialPort(port: port);
-    final rawData = <Uint8List>[];
-    const readDuration = Duration(milliseconds: 800);
-    _log.fine("Inspecting: ${port.name}, ${port.productName}");
 
+    final transport = _DesktopSerialPort(port: port);
     // De1 shortcut
     if (port.productName == "DE1") {
       return SerialDe1(transport: transport);
     }
+
+    if (port.name != null) {
+      if (!port.name!.contains('serial') &&
+          !port.name!.contains('usbmodem')) {
+        port.dispose();
+        return null;
+      }
+    }
+
+    final rawData = <Uint8List>[];
+    const readDuration = Duration(milliseconds: 800);
+    _log.fine("Inspecting: ${port.name}, ${port.productName}");
 
     try {
       await transport.connect();
