@@ -184,7 +184,6 @@ class _DesktopSerialPort implements SerialTransport {
   Future<void> disconnect() async {
     _portSubscription?.cancel();
     _port.close();
-    _port.dispose();
     _open.add(false);
   }
 

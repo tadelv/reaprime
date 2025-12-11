@@ -65,19 +65,21 @@ void main() async {
   Logger.root.info("==== REA PRIME starting ====");
 
   final List<DeviceDiscoveryService> services = [
-    UniversalBleDiscoveryService({
-      De1.advertisingUUID.toUpperCase():
-          (t) => MachineParser.machineFrom(transport: t),
-      FelicitaArc.serviceUUID.toUpperCase(): (t) async {
-        return FelicitaArc(transport: t);
+    UniversalBleDiscoveryService(
+      mappings: {
+        De1.advertisingUUID.toUpperCase():
+            (t) => MachineParser.machineFrom(transport: t),
+        FelicitaArc.serviceUUID.toUpperCase(): (t) async {
+          return FelicitaArc(transport: t);
+        },
+        DecentScale.serviceUUID.toUpperCase(): (t) async {
+          return DecentScale(transport: t);
+        },
+        BookooScale.serviceUUID.toUpperCase(): (t) async {
+          return BookooScale(transport: t);
+        },
       },
-      DecentScale.serviceUUID.toUpperCase(): (t) async {
-        return DecentScale(transport: t);
-      },
-      BookooScale.serviceUUID.toUpperCase(): (t) async {
-        return BookooScale(transport: t);
-      },
-    }),
+    ),
   ];
 
   services.add(createSerialService());

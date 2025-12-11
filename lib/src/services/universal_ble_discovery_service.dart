@@ -11,7 +11,11 @@ import '../models/device/scale.dart';
 import 'package:logging/logging.dart' as logging;
 
 class UniversalBleDiscoveryService extends DeviceDiscoveryService {
-  UniversalBleDiscoveryService(this.deviceMappings);
+  UniversalBleDiscoveryService({
+    required Map<String, Future<Device> Function(BLETransport)> mappings,
+  }) : deviceMappings = mappings.map((k, v) {
+         return MapEntry(BleUuidParser.string(k), v);
+       });
 
   Map<String, Future<Device> Function(BLETransport)> deviceMappings;
 
@@ -103,11 +107,11 @@ class UniversalBleDiscoveryService extends DeviceDiscoveryService {
   }
 
   Future<void> _deviceScanned(BleDevice device) async {
-      // TODO: duplicates scan filter
-      // Only interrogate one result instance at a time (results can be duplicated)
-      _currentlyScanning.add(device.deviceId);
+    // TODO: duplicates scan filter
+    // Only interrogate one result instance at a time (results can be duplicated)
+    _currentlyScanning.add(device.deviceId);
     for (String uid in device.services) {
-      var initializer = deviceMappings[uid.toString().toUpperCase()];
+      final initializer = deviceMappings[uid];
       if (initializer != null &&
           _devices.containsKey(device.deviceId.toString()) == false) {
         _devices[device.deviceId.toString()] = await initializer(

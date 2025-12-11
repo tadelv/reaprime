@@ -101,8 +101,8 @@ class UniversalBleTransport implements BLETransport {
 
     await UniversalBle.subscribeNotifications(
       _device.deviceId,
-      parsedService,
-      parsedCharacteristic,
+      serviceUUID,
+      characteristicUUID,
     );
   }
 
