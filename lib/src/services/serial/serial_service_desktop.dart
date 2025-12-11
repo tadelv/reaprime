@@ -105,7 +105,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     }
 
     try {
-      await transport.open();
+      await transport.disconnect();
 
       // Collect data with a timeout rather than a fixed delay
       final subscription = transport.rawStream.listen(rawData.add);
@@ -158,11 +158,11 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       }
 
       _log.warning("Unknown device on port $id");
-      await transport.close();
+      await transport.disconnect();
       return null;
     } catch (e, st) {
       _log.warning("Port $id is probably not a device we want", e, st);
-      await transport.close();
+      await transport.disconnect();
       return null;
     }
   }
@@ -171,20 +171,22 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
 class _DesktopSerialPort implements SerialTransport {
   final SerialPort _port;
   late Logger _log;
+  final BehaviorSubject<bool> _open = BehaviorSubject.seeded(false);
+
+  @override
+  Stream<bool> get connectionState => _open.asBroadcastStream();
 
   _DesktopSerialPort({required SerialPort port}) : _port = port {
     _log = Logger("SerialPort:${port.name}");
   }
 
   @override
-  Future<void> close() async {
+  Future<void> disconnect() async {
     _portSubscription?.cancel();
     _port.close();
     _port.dispose();
+    _open.add(false);
   }
-
-  @override
-  bool get isReady => _port.isOpen;
 
   @override
   String get id => "${_port.address}";
@@ -201,7 +203,7 @@ class _DesktopSerialPort implements SerialTransport {
   Stream<Uint8List> get rawStream => _rawStreamController.stream;
 
   @override
-  Future<void> open() async {
+  Future<void> connect() async {
     if (_port.isOpen) {
       _log.warning("already open");
       return;
@@ -245,11 +247,12 @@ class _DesktopSerialPort implements SerialTransport {
           _log.severe("port error:", error);
           _readController.addError(error);
           _readController.close();
-          close();
+          disconnect();
         },
       );
       _log.fine("port subscribed: ${_portSubscription}");
     });
+    _open.add(true);
   }
 
   final StreamController<String> _readController =
