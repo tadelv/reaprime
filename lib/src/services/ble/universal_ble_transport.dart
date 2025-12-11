@@ -63,6 +63,9 @@ class UniversalBleTransport implements BLETransport {
       _device.deviceId,
       timeout: Duration(seconds: 10),
     );
+    _log.fine(
+      "discovered services: ${services.map((e) => e.toString()).toList().join('\n')}",
+    );
     return services.map((s) => s.uuid).toList();
   }
 
@@ -84,22 +87,23 @@ class UniversalBleTransport implements BLETransport {
   final Map<String, StreamSubscription<Uint8List>> _subscriptions = {};
 
   @override
-  void subscribe(
+  Future<void> subscribe(
     String serviceUUID,
     String characteristicUUID,
     void Function(Uint8List) callback,
-  ) {
-    UniversalBle.subscribeNotifications(
-      _device.deviceId,
-      serviceUUID,
-      characteristicUUID,
-    );
-
+  ) async {
+    _log.fine("subscribe to: $serviceUUID, $characteristicUUID");
     final sub = UniversalBle.characteristicValueStream(
       _device.deviceId,
       characteristicUUID,
     ).listen(callback);
     _subscriptions["$serviceUUID--$characteristicUUID"] = sub;
+
+    await UniversalBle.subscribeNotifications(
+      _device.deviceId,
+      parsedService,
+      parsedCharacteristic,
+    );
   }
 
   @override
@@ -107,12 +111,12 @@ class UniversalBleTransport implements BLETransport {
     String serviceUUID,
     String characteristicUUID,
     Uint8List data, {
-    bool withResponse = false,
+    bool withResponse = true,
   }) async {
     await UniversalBle.write(
       _device.deviceId,
-      serviceUUID,
-      characteristicUUID,
+      BleUuidParser.string(serviceUUID),
+      BleUuidParser.string(characteristicUUID),
       data,
       withoutResponse: !withResponse,
     );

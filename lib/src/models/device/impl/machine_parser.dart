@@ -20,9 +20,9 @@ class MachineParser {
       log.info("devices connected: $state");
 
       final services = await transport.discoverServices();
-      final service = services.firstWhere((s) => s == de1ServiceUUID);
+      final service = de1ServiceUUID;
 
-      transport.subscribe(service, Endpoint.readFromMMR.uuid, (data) {
+      await transport.subscribe(service, Endpoint.readFromMMR.uuid, (data) {
         log.info("incoming data: ${data}");
         mmrController.add(data);
       });
@@ -33,7 +33,7 @@ class MachineParser {
       buffer[0] = (0 % 0xFF);
       log.info("writing read req");
       log.info('sending read req ${buffer.map(toHexString).toList()}');
-      await transport.write(service, Endpoint.writeToMMR.uuid, buffer);
+      await transport.write(service, Endpoint.readFromMMR.uuid, buffer);
 
       // var result = await readMMR.read(timeout: Duration(seconds: 1));
       var result = await mmrController.stream

@@ -4,7 +4,7 @@ import 'package:reaprime/src/models/device/transport/data_transport.dart';
 abstract class BLETransport extends DataTransport {
   Future<List<String>> discoverServices();
 
-  void subscribe(
+  Future<void> subscribe(
     String serviceUUID,
     String characteristicUUID,
     void Function(Uint8List) callback,
@@ -16,6 +16,6 @@ abstract class BLETransport extends DataTransport {
     String serviceUUID,
     String characteristicUUID,
     Uint8List data, {
-    bool withResponse = false,
+    bool withResponse = true,
   });
 }

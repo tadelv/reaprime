@@ -113,7 +113,7 @@ class DecentScale implements Scale {
   late StreamSubscription<Uint8List>? _notificationsSubscription;
 
   void _registerNotifications() async {
-    _device.subscribe(serviceUUID, dataUUID, _parseNotification);
+    await _device.subscribe(serviceUUID, dataUUID, _parseNotification);
   }
 
   void _parseNotification(List<int> data) {

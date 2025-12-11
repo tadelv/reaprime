@@ -86,7 +86,7 @@ class FelicitaArc implements Scale {
   late StreamSubscription<Uint8List>? _notificationsSubscription;
 
   void _registerNotifications() async {
-    _transport.subscribe(serviceUUID, dataUUID, _parseNotification);
+    await _transport.subscribe(serviceUUID, dataUUID, _parseNotification);
   }
 
   static const int minBattLevel = 129;

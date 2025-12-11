@@ -56,22 +56,22 @@ class UnifiedDe1Transport {
     if (_transport is BLETransport) {
       await _transport.discoverServices();
 
-      _transport.subscribe(de1ServiceUUID, Endpoint.stateInfo.uuid, (d) {
+      await _transport.subscribe(de1ServiceUUID, Endpoint.stateInfo.uuid, (d) {
         _parseState(ByteData.view(d.buffer));
       });
-      _transport.subscribe(de1ServiceUUID, Endpoint.shotSample.uuid, (d) {
+      await _transport.subscribe(de1ServiceUUID, Endpoint.shotSample.uuid, (d) {
         _parseShotSample(ByteData.view(d.buffer));
       });
-      _transport.subscribe(de1ServiceUUID, Endpoint.waterLevels.uuid, (d) {
+      await _transport.subscribe(de1ServiceUUID, Endpoint.waterLevels.uuid, (d) {
         _parseWaterLevels(ByteData.view(d.buffer));
       });
-      _transport.subscribe(de1ServiceUUID, Endpoint.shotSettings.uuid, (d) {
+      await _transport.subscribe(de1ServiceUUID, Endpoint.shotSettings.uuid, (d) {
         _parseShotSettings(ByteData.view(d.buffer));
       });
-      _transport.subscribe(de1ServiceUUID, Endpoint.readFromMMR.uuid, (d) {
+      await _transport.subscribe(de1ServiceUUID, Endpoint.readFromMMR.uuid, (d) {
         _mmrNotification(ByteData.view(d.buffer));
       });
-      _transport.subscribe(de1ServiceUUID, Endpoint.fwMapRequest.uuid, (d) {
+      await _transport.subscribe(de1ServiceUUID, Endpoint.fwMapRequest.uuid, (d) {
         _parseFWMapRequest(ByteData.view(d.buffer));
       });
     }

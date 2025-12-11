@@ -78,7 +78,7 @@ class BookooScale implements Scale {
 
 
   void _registerNotifications() async {
-    _transport.subscribe(serviceUUID, dataUUID, _parseNotification);
+    await _transport.subscribe(serviceUUID, dataUUID, _parseNotification);
   }
 
   void _parseNotification(List<int> data) {
