@@ -22,12 +22,13 @@ class UnifiedDe1Transport {
   String get id => _transport.id;
 
   final BehaviorSubject<ByteData> _stateSubject = BehaviorSubject.seeded(
-    ByteData(4)..setUint32(0, 0),
+    ByteData(4),
   );
   final BehaviorSubject<ByteData> _shotSampleSubject = BehaviorSubject.seeded(
     ByteData(19),
   );
-  final BehaviorSubject<ByteData> _shotSettingsSubject = BehaviorSubject.seeded(
+  // TODO: change this to expose a different subject if needed
+  final BehaviorSubject<ByteData> shotSettingsSubject = BehaviorSubject.seeded(
     ByteData(9),
   );
   final BehaviorSubject<ByteData> _waterLevelsSubject = BehaviorSubject.seeded(
@@ -42,7 +43,7 @@ class UnifiedDe1Transport {
 
   Stream<ByteData> get state => _stateSubject.asBroadcastStream();
   Stream<ByteData> get shotSample => _shotSampleSubject.asBroadcastStream();
-  Stream<ByteData> get shotSettings => _shotSettingsSubject.asBroadcastStream();
+  Stream<ByteData> get shotSettings => shotSettingsSubject.asBroadcastStream();
   Stream<ByteData> get waterLevels => _waterLevelsSubject.asBroadcastStream();
   Stream<ByteData> get mmr => _mmrSubject.asBroadcastStream();
   Stream<ByteData> get fwMapRequest => _fwMapRequestSubject.asBroadcastStream();
@@ -81,22 +82,23 @@ class UnifiedDe1Transport {
     await _transport.discoverServices();
 
     await _transport.subscribe(de1ServiceUUID, Endpoint.stateInfo.uuid, (d) {
-      _stateNotification(ByteData.view(d.buffer));
+      _stateNotification(ByteData.sublistView(Uint8List.fromList(d)));
     });
     await _transport.subscribe(de1ServiceUUID, Endpoint.shotSample.uuid, (d) {
-      _shotSampleNotification(ByteData.view(d.buffer));
+      _shotSampleNotification(ByteData.sublistView(Uint8List.fromList(d)));
     });
     await _transport.subscribe(de1ServiceUUID, Endpoint.waterLevels.uuid, (d) {
-      _waterLevelsNotification(ByteData.view(d.buffer));
+      _waterLevelsNotification(ByteData.sublistView(Uint8List.fromList(d)));
     });
     await _transport.subscribe(de1ServiceUUID, Endpoint.shotSettings.uuid, (d) {
-      _shotSettingsNotification(ByteData.view(d.buffer));
+      _log.shout("recv shot settings: ${d.lengthInBytes}");
+      _shotSettingsNotification(ByteData.sublistView(Uint8List.fromList(d)));
     });
     await _transport.subscribe(de1ServiceUUID, Endpoint.readFromMMR.uuid, (d) {
-      _mmrNotification(ByteData.view(d.buffer));
+      _mmrNotification(ByteData.sublistView(Uint8List.fromList(d)));
     });
     await _transport.subscribe(de1ServiceUUID, Endpoint.fwMapRequest.uuid, (d) {
-      _fwMapNotification(ByteData.view(d.buffer));
+      _fwMapNotification(ByteData.sublistView(Uint8List.fromList(d)));
     });
   }
 
@@ -231,7 +233,7 @@ class UnifiedDe1Transport {
   }
 
   void _shotSettingsNotification(ByteData d) {
-    _shotSettingsSubject.add(d);
+    shotSettingsSubject.add(d);
   }
 
   void _fwMapNotification(ByteData d) {
@@ -293,7 +295,7 @@ class UnifiedDe1Transport {
       case Endpoint.temperatures:
         throw UnimplementedError();
       case Endpoint.shotSettings:
-        return _shotSettingsSubject.first;
+        return shotSettingsSubject.first;
       case Endpoint.deprecatedShotDesc:
         throw UnimplementedError();
       case Endpoint.shotSample:

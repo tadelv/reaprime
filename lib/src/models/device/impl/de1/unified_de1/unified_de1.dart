@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/data/profile.dart';
+import 'package:reaprime/src/models/device/de1_firmwaremodel.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/device.dart';
@@ -16,6 +17,7 @@ import 'package:rxdart/transformers.dart';
 part 'unified_de1.mmr.dart';
 part 'unified_de1.parsing.dart';
 part 'unified_de1.profile.dart';
+part 'unified_de1.firmware.dart';
 
 // Add this configuration class
 class _MMRConfig {
@@ -51,7 +53,7 @@ class UnifiedDe1 implements De1Interface {
   Stream<MachineSnapshot> get currentSnapshot =>
       _transport.shotSample.withLatestFrom(_transport.state, (snp, st) {
         return _parseStateAndShotSample(st, snp);
-      });
+      }).asBroadcastStream();
 
   @override
   String get deviceId => _transport.id;
@@ -216,14 +218,26 @@ class UnifiedDe1 implements De1Interface {
   }
 
   @override
-  Future<void> setWaterLevelWarning(int newThresholdPercentage) {
-    // TODO: implement setWaterLevelWarning
-    throw UnimplementedError();
+  Future<void> setWaterLevelWarning(int newThresholdPercentage) async {
+    ByteData value = ByteData(4);
+    try {
+      // 00 00 0c 00
+      // 00 00 00 07
+      value.setInt16(0, 0, Endian.big);
+      value.setInt16(2, newThresholdPercentage * 256, Endian.big);
+      _transport.writeWithResponse(
+        Endpoint.waterLevels,
+        value.buffer.asUint8List(),
+      );
+    } catch (e) {
+      _log.severe("failed to set water warning", e);
+      rethrow;
+    }
   }
 
   @override
   Stream<De1ShotSettings> get shotSettings =>
-      _transport.waterLevels.map(_parseShotSettings);
+      _transport.shotSettings.map(_parseShotSettings);
 
   @override
   DeviceType get type => DeviceType.machine;
@@ -232,15 +246,39 @@ class UnifiedDe1 implements De1Interface {
   Future<void> updateFirmware(
     Uint8List fwImage, {
     required void Function(double progress) onProgress,
-  }) {
-    // TODO: implement updateFirmware
-    throw UnimplementedError();
+  }) async {
+    await _updateFirmware(fwImage, onProgress);
   }
 
   @override
-  Future<void> updateShotSettings(De1ShotSettings newSettings) {
-    // TODO: implement updateShotSettings
-    throw UnimplementedError();
+  Future<void> updateShotSettings(De1ShotSettings newSettings) async {
+    Uint8List data = Uint8List(9);
+
+    int index = 0;
+    data[index] = newSettings.steamSetting;
+    index++;
+    data[index] = newSettings.targetSteamTemp;
+    index++;
+    data[index] = newSettings.targetSteamDuration;
+    index++;
+    data[index] = newSettings.targetHotWaterTemp;
+    index++;
+    data[index] = newSettings.targetHotWaterVolume;
+    index++;
+    data[index] = newSettings.targetHotWaterDuration;
+    index++;
+    data[index] = newSettings.targetShotVolume;
+    index++;
+
+    data[index] = newSettings.groupTemp.toInt();
+    index++;
+    data[index] =
+        ((newSettings.groupTemp - newSettings.groupTemp.floor()) * 256.0)
+            .toInt();
+    index++;
+
+    await _transport.writeWithResponse(Endpoint.shotSettings, data);
+    _transport.shotSettingsSubject.add(ByteData.sublistView(data));
   }
 
   @override

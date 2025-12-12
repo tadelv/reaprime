@@ -4,6 +4,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
+import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 
@@ -59,7 +60,8 @@ class MachineParser {
       if (model < 128) {
         // TODO: avoid reconnect in the De1 impl
         // m = De1.withDevice(device: device);
-        m = De1.fromId(transport.id);
+        // m = De1.fromId(transport.id);
+        m = UnifiedDe1(transport: transport);
       } else {
         m = Bengle(deviceId: transport.id);
       }
