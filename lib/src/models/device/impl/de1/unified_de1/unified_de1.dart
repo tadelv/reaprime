@@ -16,13 +16,116 @@ import 'package:rxdart/transformers.dart';
 part 'unified_de1.mmr.dart';
 part 'unified_de1.parsing.dart';
 
+// Add this configuration class
+class _MMRConfig {
+  final MMRItem item;
+  final double readScale;
+  final double writeScale;
+  final int? minValue;
+  final int? maxValue;
+  
+  const _MMRConfig({
+    required this.item,
+    this.readScale = 1.0,
+    this.writeScale = 1.0,
+    this.minValue,
+    this.maxValue,
+  });
+}
+
 class UnifiedDe1 implements De1Interface {
   final UnifiedDe1Transport _transport;
 
   final Logger _log = Logger("DE1");
 
+  // Add MMR configuration map
+  static const Map<MMRItem, _MMRConfig> _mmrConfigs = {
+    MMRItem.fanThreshold: _MMRConfig(
+      item: MMRItem.fanThreshold,
+      minValue: 0,
+      maxValue: 50,
+    ),
+    MMRItem.flushFlowRate: _MMRConfig(
+      item: MMRItem.flushFlowRate,
+      readScale: 0.1,
+      writeScale: 10.0,
+    ),
+    MMRItem.flushTemp: _MMRConfig(
+      item: MMRItem.flushTemp,
+      readScale: 0.1,
+      writeScale: 10.0,
+    ),
+    MMRItem.flushTimeout: _MMRConfig(
+      item: MMRItem.flushTimeout,
+      readScale: 0.1,
+      writeScale: 10.0,
+    ),
+    MMRItem.waterHeaterIdleTemp: _MMRConfig(
+      item: MMRItem.waterHeaterIdleTemp,
+      readScale: 0.1,
+      writeScale: 10.0,
+    ),
+    MMRItem.heaterUp1Flow: _MMRConfig(
+      item: MMRItem.heaterUp1Flow,
+      readScale: 0.1,
+      writeScale: 10.0,
+    ),
+    MMRItem.heaterUp2Flow: _MMRConfig(
+      item: MMRItem.heaterUp2Flow,
+      readScale: 0.1,
+      writeScale: 10.0,
+    ),
+    MMRItem.heaterUp2Timeout: _MMRConfig(
+      item: MMRItem.heaterUp2Timeout,
+      readScale: 0.1,
+      writeScale: 10.0,
+    ),
+    MMRItem.hotWaterFlowRate: _MMRConfig(
+      item: MMRItem.hotWaterFlowRate,
+      readScale: 0.1,
+      writeScale: 10.0,
+    ),
+    MMRItem.targetSteamFlow: _MMRConfig(
+      item: MMRItem.targetSteamFlow,
+      readScale: 0.01,
+      writeScale: 100.0,
+    ),
+    MMRItem.tankTemp: _MMRConfig(
+      item: MMRItem.tankTemp,
+    ),
+    MMRItem.allowUSBCharging: _MMRConfig(
+      item: MMRItem.allowUSBCharging,
+    ),
+  };
+
   UnifiedDe1({required DataTransport transport})
     : _transport = UnifiedDe1Transport(transport: transport);
+
+  // MMR helper methods
+  Future<int> _readMMRInt(MMRItem item) async {
+    final result = await _mmrRead(item);
+    return _unpackMMRInt(result);
+  }
+
+  Future<double> _readMMRScaled(MMRItem item) async {
+    final config = _mmrConfigs[item]!;
+    final rawValue = await _readMMRInt(item);
+    return rawValue.toDouble() * config.readScale;
+  }
+
+  Future<void> _writeMMRInt(MMRItem item, int value) async {
+    final config = _mmrConfigs[item];
+    final clampedValue = config?.minValue != null && config?.maxValue != null
+        ? min(config!.maxValue!, max(config.minValue!, value))
+        : value;
+    await _mmrWrite(item, _packMMRInt(clampedValue));
+  }
+
+  Future<void> _writeMMRScaled(MMRItem item, double value) async {
+    final config = _mmrConfigs[item]!;
+    final scaledValue = (value * config.writeScale).toInt();
+    await _writeMMRInt(item, scaledValue);
+  }
 
   @override
   Stream<ConnectionState> get connectionState => _transport.connectionState.map(
@@ -46,73 +149,63 @@ class UnifiedDe1 implements De1Interface {
 
   @override
   Future<int> getFanThreshhold() async {
-    return _unpackMMRInt( await _mmrRead(MMRItem.fanThreshold));
+    return await _readMMRInt(MMRItem.fanThreshold);
   }
 
   @override
   Future<double> getFlushFlow() async {
-    final result = await _mmrRead(MMRItem.flushFlowRate);
-    return _unpackMMRInt(result).toDouble() / 10;
+    return await _readMMRScaled(MMRItem.flushFlowRate);
   }
 
   @override
   Future<double> getFlushTemperature() async {
-    final result = await _mmrRead(MMRItem.flushTemp);
-    return _unpackMMRInt(result).toDouble() / 10;
+    return await _readMMRScaled(MMRItem.flushTemp);
   }
 
   @override
   Future<double> getFlushTimeout() async {
-    final result = await _mmrRead(MMRItem.flushTimeout);
-    return _unpackMMRInt(result).toDouble() / 10;
+    return await _readMMRScaled(MMRItem.flushTimeout);
   }
 
   @override
   Future<double> getHeaterIdleTemp() async {
-    final result = await _mmrRead(MMRItem.waterHeaterIdleTemp);
-    return _unpackMMRInt(result).toDouble() / 10;
+    return await _readMMRScaled(MMRItem.waterHeaterIdleTemp);
   }
 
   @override
   Future<double> getHeaterPhase1Flow() async {
-    final result = await _mmrRead(MMRItem.heaterUp1Flow);
-    return _unpackMMRInt(result).toDouble() / 10;
+    return await _readMMRScaled(MMRItem.heaterUp1Flow);
   }
 
   @override
   Future<double> getHeaterPhase2Flow() async {
-    final result = await _mmrRead(MMRItem.heaterUp2Flow);
-    return _unpackMMRInt(result).toDouble() / 10;
+    return await _readMMRScaled(MMRItem.heaterUp2Flow);
   }
 
   @override
   Future<double> getHeaterPhase2Timeout() async {
-    final result = await _mmrRead(MMRItem.heaterUp2Timeout);
-    return _unpackMMRInt(result).toDouble() / 10;
+    return await _readMMRScaled(MMRItem.heaterUp2Timeout);
   }
 
   @override
   Future<double> getHotWaterFlow() async {
-    final result = await _mmrRead(MMRItem.hotWaterFlowRate);
-    return _unpackMMRInt(result).toDouble() / 10;
+    return await _readMMRScaled(MMRItem.hotWaterFlowRate);
   }
 
   @override
   Future<double> getSteamFlow() async {
-    final result = await _mmrRead(MMRItem.targetSteamFlow);
-    return _unpackMMRInt(result).toDouble() / 100;
+    return await _readMMRScaled(MMRItem.targetSteamFlow);
   }
 
   @override
   Future<int> getTankTempThreshold() async {
-    final result = await _mmrRead(MMRItem.tankTemp);
-    return _unpackMMRInt(result);
+    return await _readMMRInt(MMRItem.tankTemp);
   }
 
   @override
   Future<bool> getUsbChargerMode() async {
-    final result = await _mmrRead(MMRItem.allowUSBCharging);
-    return _unpackMMRInt(result) == 1;
+    final result = await _readMMRInt(MMRItem.allowUSBCharging);
+    return result == 1;
   }
 
   @override
@@ -144,55 +237,47 @@ class UnifiedDe1 implements De1Interface {
 
   @override
   Future<void> setFanThreshhold(int temp) async {
-    await _mmrWrite(MMRItem.fanThreshold, _packMMRInt(min(50, temp)));
+    await _writeMMRInt(MMRItem.fanThreshold, temp);
   }
 
   @override
   Future<void> setFlushFlow(double newFlow) async {
-    final value = _packMMRInt((newFlow * 10).toInt());
-    await _mmrWrite(MMRItem.flushFlowRate, value);
+    await _writeMMRScaled(MMRItem.flushFlowRate, newFlow);
   }
 
   @override
   Future<void> setFlushTemperature(double newTemp) async {
-    final value = _packMMRInt((newTemp * 10).toInt());
-    await _mmrWrite(MMRItem.flushTemp, value);
+    await _writeMMRScaled(MMRItem.flushTemp, newTemp);
   }
 
   @override
   Future<void> setFlushTimeout(double newTimeout) async {
-    final value = _packMMRInt((newTimeout * 10).toInt());
-    await _mmrWrite(MMRItem.flushTimeout, value);
+    await _writeMMRScaled(MMRItem.flushTimeout, newTimeout);
   }
 
   @override
   Future<void> setHeaterIdleTemp(double val) async {
-    final value = _packMMRInt((val * 10).toInt());
-    await _mmrWrite(MMRItem.waterHeaterIdleTemp, value);
+    await _writeMMRScaled(MMRItem.waterHeaterIdleTemp, val);
   }
 
   @override
   Future<void> setHeaterPhase1Flow(double val) async {
-    final value = _packMMRInt((val * 10).toInt());
-    await _mmrWrite(MMRItem.heaterUp1Flow, value);
+    await _writeMMRScaled(MMRItem.heaterUp1Flow, val);
   }
 
   @override
   Future<void> setHeaterPhase2Flow(double val) async {
-    final value = _packMMRInt((val * 10).toInt());
-    await _mmrWrite(MMRItem.heaterUp2Flow, value);
+    await _writeMMRScaled(MMRItem.heaterUp2Flow, val);
   }
 
   @override
   Future<void> setHeaterPhase2Timeout(double val) async {
-    final value = _packMMRInt((val * 10).toInt());
-    await _mmrWrite(MMRItem.heaterUp2Timeout, value);
+    await _writeMMRScaled(MMRItem.heaterUp2Timeout, val);
   }
 
   @override
   Future<void> setHotWaterFlow(double newFlow) async {
-    final value = _packMMRInt((newFlow * 10).toInt());
-    await _mmrWrite(MMRItem.hotWaterFlowRate, value);
+    await _writeMMRScaled(MMRItem.hotWaterFlowRate, newFlow);
   }
 
   @override
@@ -203,19 +288,17 @@ class UnifiedDe1 implements De1Interface {
 
   @override
   Future<void> setSteamFlow(double newFlow) async {
-    final value = _packMMRInt((newFlow * 100).toInt());
-    await _mmrWrite(MMRItem.targetSteamFlow, value);
+    await _writeMMRScaled(MMRItem.targetSteamFlow, newFlow);
   }
 
   @override
   Future<void> setTankTempThreshold(int temp) async {
-    final value = _packMMRInt(temp);
-    await _mmrWrite(MMRItem.tankTemp, value);
+    await _writeMMRInt(MMRItem.tankTemp, temp);
   }
 
   @override
   Future<void> setUsbChargerMode(bool t) async {
-    await _mmrWrite(MMRItem.allowUSBCharging, _packMMRInt(t ? 1 : 0));
+    await _writeMMRInt(MMRItem.allowUSBCharging, t ? 1 : 0);
   }
 
   @override
