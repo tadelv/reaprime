@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale_serial.dart';
 import 'package:reaprime/src/models/device/impl/sensor/debug_port.dart';
 import 'package:reaprime/src/models/device/impl/sensor/sensor_basket.dart';
@@ -100,7 +101,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     final transport = _DesktopSerialPort(port: port);
     // De1 shortcut
     if (port.productName == "DE1") {
-      return SerialDe1(transport: transport);
+      return UnifiedDe1(transport: transport);
     }
 
     if (port.name != null) {
@@ -173,7 +174,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
 
         if (isDE1(messages.join().split('\n'), combined)) {
           _log.info("Detected: DE1 Machine");
-          return SerialDe1(transport: transport);
+          return UnifiedDe1(transport: transport);
         }
       }
 

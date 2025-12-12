@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale_serial.dart';
 import 'package:reaprime/src/models/device/impl/sensor/debug_port.dart';
 import 'package:reaprime/src/models/device/impl/sensor/sensor_basket.dart';
@@ -128,7 +129,7 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
     // yay, shortcuts
     if (device.productName == "DE1") {
       _log.info("short circuit to de1");
-      return SerialDe1(transport: transport);
+      return UnifiedDe1(transport: transport);
     }
 
     final List<Uint8List> rawData = [];
@@ -178,7 +179,7 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
         final List<String> lines = messages.join().split('\n');
         if (isDE1(lines, combined)) {
           _log.info("Detected: DE1 Machine");
-          return SerialDe1(transport: transport);
+          return UnifiedDe1(transport: transport);
         }
       }
 
