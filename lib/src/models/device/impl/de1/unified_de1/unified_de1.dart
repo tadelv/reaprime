@@ -15,6 +15,7 @@ import 'package:rxdart/transformers.dart';
 
 part 'unified_de1.mmr.dart';
 part 'unified_de1.parsing.dart';
+part 'unified_de1.profile.dart';
 
 // Add this configuration class
 class _MMRConfig {
@@ -23,7 +24,7 @@ class _MMRConfig {
   final double writeScale;
   final int? minValue;
   final int? maxValue;
-  
+
   const _MMRConfig({
     required this.item,
     this.readScale = 1.0,
@@ -38,94 +39,8 @@ class UnifiedDe1 implements De1Interface {
 
   final Logger _log = Logger("DE1");
 
-  // Add MMR configuration map
-  static const Map<MMRItem, _MMRConfig> _mmrConfigs = {
-    MMRItem.fanThreshold: _MMRConfig(
-      item: MMRItem.fanThreshold,
-      minValue: 0,
-      maxValue: 50,
-    ),
-    MMRItem.flushFlowRate: _MMRConfig(
-      item: MMRItem.flushFlowRate,
-      readScale: 0.1,
-      writeScale: 10.0,
-    ),
-    MMRItem.flushTemp: _MMRConfig(
-      item: MMRItem.flushTemp,
-      readScale: 0.1,
-      writeScale: 10.0,
-    ),
-    MMRItem.flushTimeout: _MMRConfig(
-      item: MMRItem.flushTimeout,
-      readScale: 0.1,
-      writeScale: 10.0,
-    ),
-    MMRItem.waterHeaterIdleTemp: _MMRConfig(
-      item: MMRItem.waterHeaterIdleTemp,
-      readScale: 0.1,
-      writeScale: 10.0,
-    ),
-    MMRItem.heaterUp1Flow: _MMRConfig(
-      item: MMRItem.heaterUp1Flow,
-      readScale: 0.1,
-      writeScale: 10.0,
-    ),
-    MMRItem.heaterUp2Flow: _MMRConfig(
-      item: MMRItem.heaterUp2Flow,
-      readScale: 0.1,
-      writeScale: 10.0,
-    ),
-    MMRItem.heaterUp2Timeout: _MMRConfig(
-      item: MMRItem.heaterUp2Timeout,
-      readScale: 0.1,
-      writeScale: 10.0,
-    ),
-    MMRItem.hotWaterFlowRate: _MMRConfig(
-      item: MMRItem.hotWaterFlowRate,
-      readScale: 0.1,
-      writeScale: 10.0,
-    ),
-    MMRItem.targetSteamFlow: _MMRConfig(
-      item: MMRItem.targetSteamFlow,
-      readScale: 0.01,
-      writeScale: 100.0,
-    ),
-    MMRItem.tankTemp: _MMRConfig(
-      item: MMRItem.tankTemp,
-    ),
-    MMRItem.allowUSBCharging: _MMRConfig(
-      item: MMRItem.allowUSBCharging,
-    ),
-  };
-
   UnifiedDe1({required DataTransport transport})
     : _transport = UnifiedDe1Transport(transport: transport);
-
-  // MMR helper methods
-  Future<int> _readMMRInt(MMRItem item) async {
-    final result = await _mmrRead(item);
-    return _unpackMMRInt(result);
-  }
-
-  Future<double> _readMMRScaled(MMRItem item) async {
-    final config = _mmrConfigs[item]!;
-    final rawValue = await _readMMRInt(item);
-    return rawValue.toDouble() * config.readScale;
-  }
-
-  Future<void> _writeMMRInt(MMRItem item, int value) async {
-    final config = _mmrConfigs[item];
-    final clampedValue = config?.minValue != null && config?.maxValue != null
-        ? min(config!.maxValue!, max(config.minValue!, value))
-        : value;
-    await _mmrWrite(item, _packMMRInt(clampedValue));
-  }
-
-  Future<void> _writeMMRScaled(MMRItem item, double value) async {
-    final config = _mmrConfigs[item]!;
-    final scaledValue = (value * config.writeScale).toInt();
-    await _writeMMRInt(item, scaledValue);
-  }
 
   @override
   Stream<ConnectionState> get connectionState => _transport.connectionState.map(
@@ -134,7 +49,7 @@ class UnifiedDe1 implements De1Interface {
 
   @override
   Stream<MachineSnapshot> get currentSnapshot =>
-      _transport.state.withLatestFrom(_transport.shotSample, (st, snp) {
+      _transport.shotSample.withLatestFrom(_transport.state, (snp, st) {
         return _parseStateAndShotSample(st, snp);
       });
 
@@ -227,7 +142,7 @@ class UnifiedDe1 implements De1Interface {
   Future<void> requestState(MachineState newState) async {
     Uint8List data = Uint8List(1);
     data[0] = De1StateEnum.fromMachineState(newState).hexValue;
-    await _transport.write(Endpoint.requestedState, data);
+    await _transport.writeWithResponse(Endpoint.requestedState, data);
   }
 
   @override
@@ -281,9 +196,8 @@ class UnifiedDe1 implements De1Interface {
   }
 
   @override
-  Future<void> setProfile(Profile profile) {
-    // TODO: implement setProfile
-    throw UnimplementedError();
+  Future<void> setProfile(Profile profile) async {
+    await _sendProfile(profile);
   }
 
   @override
@@ -308,8 +222,8 @@ class UnifiedDe1 implements De1Interface {
   }
 
   @override
-  // TODO: implement shotSettings
-  Stream<De1ShotSettings> get shotSettings => Stream.empty();
+  Stream<De1ShotSettings> get shotSettings =>
+      _transport.waterLevels.map(_parseShotSettings);
 
   @override
   DeviceType get type => DeviceType.machine;
@@ -330,6 +244,6 @@ class UnifiedDe1 implements De1Interface {
   }
 
   @override
-  // TODO: implement waterLevels
-  Stream<De1WaterLevels> get waterLevels => throw UnimplementedError();
+  Stream<De1WaterLevels> get waterLevels =>
+      _transport.waterLevels.map(_parseWaterLevels);
 }

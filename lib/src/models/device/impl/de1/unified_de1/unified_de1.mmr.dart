@@ -54,6 +54,62 @@ extension UnifiedDe1MMR on UnifiedDe1 {
     );
   }
 
+  // Add MMR configuration map
+  static const Map<MMRItem, _MMRConfig> _mmrConfigs = {
+    MMRItem.fanThreshold: _MMRConfig(
+      item: MMRItem.fanThreshold,
+      minValue: 0,
+      maxValue: 50,
+    ),
+    MMRItem.flushFlowRate: _MMRConfig(
+      item: MMRItem.flushFlowRate,
+      readScale: 0.1,
+      writeScale: 10.0,
+    ),
+    MMRItem.flushTemp: _MMRConfig(
+      item: MMRItem.flushTemp,
+      readScale: 0.1,
+      writeScale: 10.0,
+    ),
+    MMRItem.flushTimeout: _MMRConfig(
+      item: MMRItem.flushTimeout,
+      readScale: 0.1,
+      writeScale: 10.0,
+    ),
+    MMRItem.waterHeaterIdleTemp: _MMRConfig(
+      item: MMRItem.waterHeaterIdleTemp,
+      readScale: 0.1,
+      writeScale: 10.0,
+    ),
+    MMRItem.heaterUp1Flow: _MMRConfig(
+      item: MMRItem.heaterUp1Flow,
+      readScale: 0.1,
+      writeScale: 10.0,
+    ),
+    MMRItem.heaterUp2Flow: _MMRConfig(
+      item: MMRItem.heaterUp2Flow,
+      readScale: 0.1,
+      writeScale: 10.0,
+    ),
+    MMRItem.heaterUp2Timeout: _MMRConfig(
+      item: MMRItem.heaterUp2Timeout,
+      readScale: 0.1,
+      writeScale: 10.0,
+    ),
+    MMRItem.hotWaterFlowRate: _MMRConfig(
+      item: MMRItem.hotWaterFlowRate,
+      readScale: 0.1,
+      writeScale: 10.0,
+    ),
+    MMRItem.targetSteamFlow: _MMRConfig(
+      item: MMRItem.targetSteamFlow,
+      readScale: 0.01,
+      writeScale: 100.0,
+    ),
+    MMRItem.tankTemp: _MMRConfig(item: MMRItem.tankTemp),
+    MMRItem.allowUSBCharging: _MMRConfig(item: MMRItem.allowUSBCharging),
+  };
+
   int _unpackMMRInt(List<int> buffer) {
     ByteData bytes = ByteData(20);
     var i = 0;
@@ -68,5 +124,32 @@ extension UnifiedDe1MMR on UnifiedDe1 {
     var bytes = ByteData(4);
     bytes.setUint32(0, number, Endian.little);
     return bytes.buffer.asUint8List();
+  }
+
+  // MMR helper methods
+  Future<int> _readMMRInt(MMRItem item) async {
+    final result = await _mmrRead(item);
+    return _unpackMMRInt(result);
+  }
+
+  Future<double> _readMMRScaled(MMRItem item) async {
+    final config = _mmrConfigs[item]!;
+    final rawValue = await _readMMRInt(item);
+    return rawValue.toDouble() * config.readScale;
+  }
+
+  Future<void> _writeMMRInt(MMRItem item, int value) async {
+    final config = _mmrConfigs[item];
+    final clampedValue =
+        config?.minValue != null && config?.maxValue != null
+            ? min(config!.maxValue!, max(config.minValue!, value))
+            : value;
+    await _mmrWrite(item, _packMMRInt(clampedValue));
+  }
+
+  Future<void> _writeMMRScaled(MMRItem item, double value) async {
+    final config = _mmrConfigs[item]!;
+    final scaledValue = (value * config.writeScale).toInt();
+    await _writeMMRInt(item, scaledValue);
   }
 }

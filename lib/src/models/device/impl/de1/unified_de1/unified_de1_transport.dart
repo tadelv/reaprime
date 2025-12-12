@@ -8,18 +8,21 @@ import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
 import 'package:rxdart/rxdart.dart';
 
+enum TransportType { ble, serial, unknown }
+
 class UnifiedDe1Transport {
-  // TODO: enum for both serial and ble transports,
-  // eventually allow switching between them
   final DataTransport _transport;
+  final TransportType _transportType;
   final Logger _log;
 
   late StreamSubscription<String> _transportSubscription;
 
   Stream<bool> get connectionState => _transport.connectionState;
 
+  String get id => _transport.id;
+
   final BehaviorSubject<ByteData> _stateSubject = BehaviorSubject.seeded(
-    ByteData(2)..setUint32(0, 0),
+    ByteData(4)..setUint32(0, 0),
   );
   final BehaviorSubject<ByteData> _shotSampleSubject = BehaviorSubject.seeded(
     ByteData(19),
@@ -49,82 +52,110 @@ class UnifiedDe1Transport {
 
   UnifiedDe1Transport({required DataTransport transport})
     : _transport = transport,
+      _transportType =
+          transport is BLETransport
+              ? TransportType.ble
+              : transport is SerialTransport
+              ? TransportType.serial
+              : TransportType.unknown,
       _log = Logger("UnifiedDe1Transport-${transport.id}");
   Future<void> connect() async {
     await _transport.connect();
 
-    if (_transport is BLETransport) {
-      await _transport.discoverServices();
-
-      await _transport.subscribe(de1ServiceUUID, Endpoint.stateInfo.uuid, (d) {
-        _parseState(ByteData.view(d.buffer));
-      });
-      await _transport.subscribe(de1ServiceUUID, Endpoint.shotSample.uuid, (d) {
-        _parseShotSample(ByteData.view(d.buffer));
-      });
-      await _transport.subscribe(de1ServiceUUID, Endpoint.waterLevels.uuid, (d) {
-        _parseWaterLevels(ByteData.view(d.buffer));
-      });
-      await _transport.subscribe(de1ServiceUUID, Endpoint.shotSettings.uuid, (d) {
-        _parseShotSettings(ByteData.view(d.buffer));
-      });
-      await _transport.subscribe(de1ServiceUUID, Endpoint.readFromMMR.uuid, (d) {
-        _mmrNotification(ByteData.view(d.buffer));
-      });
-      await _transport.subscribe(de1ServiceUUID, Endpoint.fwMapRequest.uuid, (d) {
-        _parseFWMapRequest(ByteData.view(d.buffer));
-      });
-    }
-    if (_transport is SerialTransport) {
-      // Start notifications - regular setup
-      // await _transport.writeCommand("<-N>");
-      // await _transport.writeCommand("<-M>");
-      // await _transport.writeCommand("<-Q>");
-      // await _transport.writeCommand("<-K>");
-      // await _transport.writeCommand("<-E>");
-
-      _transportSubscription = _transport.readStream.listen(
-        _processSerialInput,
-      );
-
-      await _transport.writeCommand("<+${Endpoint.stateInfo.representation}>");
-      await _transport.writeCommand("<+${Endpoint.shotSample.representation}>");
-      await _transport.writeCommand(
-        "<+${Endpoint.waterLevels.representation}>",
-      );
-      await _transport.writeCommand(
-        "<+${Endpoint.shotSettings.representation}>",
-      );
-      await _transport.writeCommand(
-        "<+${Endpoint.readFromMMR.representation}>",
-      );
-      await _transport.writeCommand(
-        "<+${Endpoint.fwMapRequest.representation}>",
-      );
-
-      // needed to know which state we're at - request idle state
-      await _transport.writeCommand("<B>02");
+    switch (_transportType) {
+      case TransportType.ble:
+        await _bleConnect();
+        break;
+      case TransportType.serial:
+        await _serialConnect();
+        break;
+      default:
+        throw StateError('Unknown transport type: $_transportType');
     }
   }
 
+  Future<void> _bleConnect() async {
+    if (_transport is! BLETransport) {
+      throw "wrong transport type";
+    }
+    await _transport.discoverServices();
+
+    await _transport.subscribe(de1ServiceUUID, Endpoint.stateInfo.uuid, (d) {
+      _stateNotification(ByteData.view(d.buffer));
+    });
+    await _transport.subscribe(de1ServiceUUID, Endpoint.shotSample.uuid, (d) {
+      _shotSampleNotification(ByteData.view(d.buffer));
+    });
+    await _transport.subscribe(de1ServiceUUID, Endpoint.waterLevels.uuid, (d) {
+      _waterLevelsNotification(ByteData.view(d.buffer));
+    });
+    await _transport.subscribe(de1ServiceUUID, Endpoint.shotSettings.uuid, (d) {
+      _shotSettingsNotification(ByteData.view(d.buffer));
+    });
+    await _transport.subscribe(de1ServiceUUID, Endpoint.readFromMMR.uuid, (d) {
+      _mmrNotification(ByteData.view(d.buffer));
+    });
+    await _transport.subscribe(de1ServiceUUID, Endpoint.fwMapRequest.uuid, (d) {
+      _fwMapNotification(ByteData.view(d.buffer));
+    });
+  }
+
+  Future<void> _serialConnect() async {
+    if (_transport is! SerialTransport) {
+      throw "Wrong transport type";
+    }
+    // Start notifications - regular setup
+    // await _transport.writeCommand("<-N>");
+    // await _transport.writeCommand("<-M>");
+    // await _transport.writeCommand("<-Q>");
+    // await _transport.writeCommand("<-K>");
+    // await _transport.writeCommand("<-E>");
+
+    _transportSubscription = _transport.readStream.listen(_processSerialInput);
+
+    await _transport.writeCommand("<+${Endpoint.stateInfo.representation}>");
+    await _transport.writeCommand("<+${Endpoint.shotSample.representation}>");
+    await _transport.writeCommand("<+${Endpoint.waterLevels.representation}>");
+    await _transport.writeCommand("<+${Endpoint.shotSettings.representation}>");
+    await _transport.writeCommand("<+${Endpoint.readFromMMR.representation}>");
+    await _transport.writeCommand("<+${Endpoint.fwMapRequest.representation}>");
+
+    // needed to know which state we're at - request idle state
+    await _transport.writeCommand("<B>02");
+  }
+
   Future<void> disconnect() async {
-    if (_transport is SerialTransport) {
-      _transportSubscription.cancel();
-      // Start notifications - regular setup
-      await _transport.writeCommand("<-${Endpoint.stateInfo.representation}>");
-      await _transport.writeCommand("<-${Endpoint.shotSample.representation}>");
-      await _transport.writeCommand(
-        "<-${Endpoint.waterLevels.representation}>",
-      );
-      await _transport.writeCommand(
-        "<-${Endpoint.shotSettings.representation}>",
-      );
-      await _transport.writeCommand(
-        "<-${Endpoint.readFromMMR.representation}>",
-      );
-      await _transport.writeCommand(
-        "<-${Endpoint.fwMapRequest.representation}>",
-      );
+    switch (_transportType) {
+      case TransportType.serial:
+        if (_transport is! SerialTransport) {
+          throw "Wrong transport type";
+        }
+        _transportSubscription.cancel();
+        // Start notifications - regular setup
+        await _transport.writeCommand(
+          "<-${Endpoint.stateInfo.representation}>",
+        );
+        await _transport.writeCommand(
+          "<-${Endpoint.shotSample.representation}>",
+        );
+        await _transport.writeCommand(
+          "<-${Endpoint.waterLevels.representation}>",
+        );
+        await _transport.writeCommand(
+          "<-${Endpoint.shotSettings.representation}>",
+        );
+        await _transport.writeCommand(
+          "<-${Endpoint.readFromMMR.representation}>",
+        );
+        await _transport.writeCommand(
+          "<-${Endpoint.fwMapRequest.representation}>",
+        );
+        break;
+      case TransportType.ble:
+        // BLE doesn't need special disconnect handling
+        break;
+      default:
+        throw StateError('Unknown transport type: $_transportType');
     }
 
     await _transport.disconnect();
@@ -157,17 +188,17 @@ class UnifiedDe1Transport {
     final ByteData data = ByteData.sublistView(payload);
     switch (input.substring(0, 3)) {
       case "[M]":
-        _parseShotSample(data);
+        _shotSampleNotification(data);
       case "[N]":
-        _parseState(data);
+        _stateNotification(data);
       case "[Q]":
-        _parseWaterLevels(data);
+        _waterLevelsNotification(data);
       case "[K]":
-        _parseShotSettings(data);
+        _shotSettingsNotification(data);
       case "[E]":
         _mmrNotification(data);
       case "[I]":
-        _parseFWMapRequest(data);
+        _fwMapNotification(data);
       default:
         _log.warning("unhandled de1 message: $input");
         break;
@@ -187,23 +218,23 @@ class UnifiedDe1Transport {
     return result;
   }
 
-  void _parseShotSample(ByteData d) {
+  void _shotSampleNotification(ByteData d) {
     _shotSampleSubject.add(d);
   }
 
-  void _parseState(ByteData d) {
+  void _stateNotification(ByteData d) {
     _stateSubject.add(d);
   }
 
-  void _parseWaterLevels(ByteData d) {
+  void _waterLevelsNotification(ByteData d) {
     _waterLevelsSubject.add(d);
   }
 
-  void _parseShotSettings(ByteData d) {
+  void _shotSettingsNotification(ByteData d) {
     _shotSettingsSubject.add(d);
   }
 
-  void _parseFWMapRequest(ByteData d) {
+  void _fwMapNotification(ByteData d) {
     _fwMapRequestSubject.add(d);
   }
 
@@ -216,19 +247,19 @@ class UnifiedDe1Transport {
       throw ("de1 not connected");
     }
 
-    switch (_transport.runtimeType) {
-      case const (BLETransport):
+    switch (_transportType) {
+      case TransportType.ble:
         return _bleRead(e);
-      case const (SerialTransport):
+      case TransportType.serial:
         return _serialRead(e);
       default:
-        throw ("Unkown transport");
+        throw ("Unknown transport type: $_transportType");
     }
   }
 
   Future<ByteData> _bleRead(Endpoint e) async {
     if (_transport is! BLETransport) {
-      throw "Invalid transport type";
+      throw "Invalid transport type, expected BLE";
     }
     var data = await _transport.read(de1ServiceUUID, e.uuid);
     ByteData response = ByteData.sublistView(Uint8List.fromList(data));
@@ -236,8 +267,8 @@ class UnifiedDe1Transport {
   }
 
   Future<ByteData> _serialRead(Endpoint e) async {
-    if (_transport is! SerialTransport) {
-      throw "Invalid transport type";
+    if (_transportType != TransportType.serial) {
+      throw "Invalid transport type, expected Serial";
     }
 
     switch (e) {
@@ -287,14 +318,19 @@ class UnifiedDe1Transport {
     }
     try {
       _log.fine('about to write to ${e.name}');
-      _log.fine('payload: ${data.map((el) => el.toRadixString(16)).join(' ')}');
+      _log.fine(
+        'payload: ${data.map((el) => el.toRadixString(16).padLeft(2, '0')).join(' ')}',
+      );
 
-      switch (_transport.runtimeType) {
-        case const (BLETransport):
+      switch (_transportType) {
+        case TransportType.ble:
           await _bleWrite(e, data, false);
           break;
-        case const (SerialTransport):
+        case TransportType.serial:
           await _serialWrite(e, data);
+          break;
+        default:
+          throw ("Unknown transport type: $_transportType");
       }
     } catch (e, st) {
       _log.severe("failed to write", e, st);
@@ -308,13 +344,18 @@ class UnifiedDe1Transport {
     }
     try {
       _log.fine('about to write to ${e.name}');
-      _log.fine('payload: ${data.map((el) => el.toRadixString(16)).join(' ')}');
-      switch (_transport.runtimeType) {
-        case const (BLETransport):
+      _log.fine(
+        'payload: ${data.map((el) => el.toRadixString(16).padLeft(2, '0')).join(' ')}',
+      );
+      switch (_transportType) {
+        case TransportType.ble:
           await _bleWrite(e, data, true);
           break;
-        case const (SerialTransport):
+        case TransportType.serial:
           await _serialWrite(e, data);
+          break;
+        default:
+          throw ("Unknown transport type: $_transportType");
       }
     } catch (e, st) {
       _log.severe("failed to write", e, st);
@@ -324,17 +365,22 @@ class UnifiedDe1Transport {
 
   Future<void> _serialWrite(Endpoint e, Uint8List data) async {
     if (_transport is! SerialTransport) {
-      throw "Invalid transport type";
+      throw "Invalid transport type, expected Serial";
     }
     final payload = data.map((e) => e.toRadixString(16)).join('');
-    _transport.writeCommand('<${e.representation}>$payload');
+    await _transport.writeCommand('<${e.representation}>$payload');
   }
 
   Future<void> _bleWrite(Endpoint e, Uint8List data, bool withResponse) async {
     if (_transport is! BLETransport) {
-      throw "Invalid transport type";
+      throw "Invalid transport type, expected BLE";
     }
 
-    _transport.write(de1ServiceUUID, e.uuid, data, withResponse: withResponse);
+    await _transport.write(
+      de1ServiceUUID,
+      e.uuid,
+      data,
+      withResponse: withResponse,
+    );
   }
 }

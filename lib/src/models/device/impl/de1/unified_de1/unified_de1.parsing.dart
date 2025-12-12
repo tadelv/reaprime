@@ -2,8 +2,8 @@ part of 'unified_de1.dart';
 
 extension MessageParsing on UnifiedDe1 {
   MachineSnapshot _parseStateAndShotSample(
-    ByteData shotSample,
     ByteData stateSample,
+    ByteData shotSample,
   ) {
     final groupPressure = shotSample.getUint16(2) / (1 << 12);
     final groupFlow = shotSample.getUint16(4) / (1 << 12);
@@ -43,29 +43,28 @@ extension MessageParsing on UnifiedDe1 {
     );
   }
 
-
-  _parseWaterLevels(ByteData data) {
+  De1WaterLevels _parseWaterLevels(ByteData data) {
     try {
       // notifyFrom(Endpoint.waterLevels, data.buffer.asUint8List());
       var waterlevel = data.getUint16(0, Endian.big);
       var waterThreshold = data.getUint16(2, Endian.big);
 
-      //De1WaterLevelData wlData = De1WaterLevelData(
-      //  currentLevel: waterlevel,
-      //  currentLimit: waterThreshold,
-      //);
-      //_waterSubject.add(
-      //  De1WaterLevels(
-      //    currentPercentage: wlData.getLevelPercent(),
-      //    warningThresholdPercentage: 0,
-      //  ),
-      //);
+      final l = waterlevel - waterThreshold;
+      final percent = l * 100 ~/ 8300;
+
+      // TODO: proper mapping
+      return De1WaterLevels(
+        currentPercentage: percent,
+        warningThresholdPercentage: waterThreshold,
+      );
     } catch (e) {
       _log.severe("waternotify", e);
     }
+
+    return De1WaterLevels(currentPercentage: 0, warningThresholdPercentage: 0);
   }
 
-  _parseShotSettings(ByteData data) {
+  De1ShotSettings _parseShotSettings(ByteData data) {
     var steamBits = data.getUint8(0);
     var targetSteamTemp = data.getUint8(1);
     var targetSteamLength = data.getUint8(2);
@@ -84,17 +83,15 @@ extension MessageParsing on UnifiedDe1 {
     _log.info('TargetEspressoVolume = $targetEspressoVolume');
     _log.info('TargetGroupTemp = $targetGroupTemp');
 
-    //_shotSettingsController.add(
-    //  De1ShotSettings(
-    //    steamSetting: steamBits,
-    //    targetSteamTemp: targetSteamTemp,
-    //    targetSteamDuration: targetSteamLength,
-    //    targetHotWaterTemp: targetWaterTemp,
-    //    targetHotWaterVolume: targetWaterVolume,
-    //    targetHotWaterDuration: targetWaterLength,
-    //    targetShotVolume: targetEspressoVolume,
-    //    groupTemp: targetGroupTemp,
-    //  ),
-    //);
+    return De1ShotSettings(
+      steamSetting: steamBits,
+      targetSteamTemp: targetSteamTemp,
+      targetSteamDuration: targetSteamLength,
+      targetHotWaterTemp: targetWaterTemp,
+      targetHotWaterVolume: targetWaterVolume,
+      targetHotWaterDuration: targetWaterLength,
+      targetShotVolume: targetEspressoVolume,
+      groupTemp: targetGroupTemp,
+    );
   }
 }
