@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:collection/collection.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -165,6 +166,10 @@ void main() async {
     onDetach: () {
       signalHandler(ProcessSignal.sigint);
     },
+    onExitRequested: () async {
+        signalHandler(ProcessSignal.sigint);
+        return AppExitResponse.exit;
+      },
   );
 
   runApp(

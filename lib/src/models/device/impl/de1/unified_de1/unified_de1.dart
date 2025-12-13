@@ -52,7 +52,9 @@ class UnifiedDe1 implements De1Interface {
   @override
   Stream<MachineSnapshot> get currentSnapshot =>
       _transport.shotSample.withLatestFrom(_transport.state, (snp, st) {
-        return _parseStateAndShotSample(st, snp);
+        final snapshot = _parseStateAndShotSample(st, snp);
+        _log.finest("new state: ${snapshot.toJson()}");
+        return snapshot;
       }).asBroadcastStream();
 
   @override

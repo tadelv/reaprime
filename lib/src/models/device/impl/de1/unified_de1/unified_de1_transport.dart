@@ -81,6 +81,12 @@ class UnifiedDe1Transport {
     }
     await _transport.discoverServices();
 
+    _stateNotification(
+      ByteData.sublistView(
+        await _transport.read(de1ServiceUUID, Endpoint.stateInfo.uuid),
+      ),
+    );
+
     await _transport.subscribe(de1ServiceUUID, Endpoint.stateInfo.uuid, (d) {
       _stateNotification(ByteData.sublistView(Uint8List.fromList(d)));
     });
@@ -156,7 +162,7 @@ class UnifiedDe1Transport {
       case TransportType.ble:
         // BLE doesn't need special disconnect handling
         break;
-      default:
+      case TransportType.unknown:
         throw StateError('Unknown transport type: $_transportType');
     }
 
