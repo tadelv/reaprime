@@ -5,7 +5,7 @@
 
 
 ## API
-read more about the api in [v1 api doc](./api_v1.md) or use the [OpenApi yaml](./api_v1.yaml).
+To browse the REA API, start REA and then point your browser to [localhost:4001](http://localhost:4001).
 
 ## Supported platforms
 The primary platform for ReaPrime is Android, as it runs on the tablet the DE1 ships with.
@@ -34,4 +34,12 @@ Currently, R1 supports the most basic of features, but enough to support the mai
 
 ### Build for Linux arm64 in container:
 
-`docker compose run --rm flutter-build flutter build linux --release`
+Have Colima installed. Then `make build-arm`
+
+
+## Reasons and credits:
+
+REA stands for "Reasonable Espresso App". Provided you use it with a Decent Espresso machine, it might help you brew a reasonably decent espresso.  
+
+Credit for the name and thanks for all the support, goes to [@randomcoffeesnob](https://github.com/randomcoffeesnob).  
+Also thanks to [@mimoja](https://github.com/mimoja) for the first Flutter app version.

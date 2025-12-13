@@ -369,7 +369,9 @@ class UnifiedDe1Transport {
     if (_transport is! SerialTransport) {
       throw "Invalid transport type, expected Serial";
     }
-    final payload = data.map((e) => e.toRadixString(16)).join('');
+    final payload = data
+        .map((e) => e.toRadixString(16).padLeft(2, '0'))
+        .join('');
     await _transport.writeCommand('<${e.representation}>$payload');
   }
 
