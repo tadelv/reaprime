@@ -21,6 +21,7 @@ import 'package:reaprime/src/models/device/impl/bookoo/miniscale.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
 import 'package:reaprime/src/models/device/impl/felicita/arc.dart';
 import 'package:reaprime/src/models/device/impl/machine_parser.dart';
+import 'package:reaprime/src/services/blue_plus_discovery_service.dart';
 import 'package:reaprime/src/services/universal_ble_discovery_service.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
 import 'package:reaprime/src/services/storage/file_storage_service.dart';
@@ -65,23 +66,45 @@ void main() async {
 
   Logger.root.info("==== REA PRIME starting ====");
 
-  final List<DeviceDiscoveryService> services = [
-    UniversalBleDiscoveryService(
-      mappings: {
-        De1.advertisingUUID.toUpperCase():
-            (t) => MachineParser.machineFrom(transport: t),
-        FelicitaArc.serviceUUID.toUpperCase(): (t) async {
-          return FelicitaArc(transport: t);
+  final List<DeviceDiscoveryService> services = [];
+  if (Platform.isIOS || Platform.isMacOS || Platform.isAndroid) {
+    services.add(
+      BluePlusDiscoveryService(
+        mappings: {
+          De1.advertisingUUID.toUpperCase():
+              (t) => MachineParser.machineFrom(transport: t),
+          FelicitaArc.serviceUUID.toUpperCase(): (t) async {
+            return FelicitaArc(transport: t);
+          },
+          DecentScale.serviceUUID.toUpperCase(): (t) async {
+            return DecentScale(transport: t);
+          },
+          BookooScale.serviceUUID.toUpperCase(): (t) async {
+            return BookooScale(transport: t);
+          },
         },
-        DecentScale.serviceUUID.toUpperCase(): (t) async {
-          return DecentScale(transport: t);
+      ),
+    );
+  } else {
+    services.add(
+      UniversalBleDiscoveryService(
+        mappings: {
+          De1.advertisingUUID.toUpperCase():
+              (t) => MachineParser.machineFrom(transport: t),
+          FelicitaArc.serviceUUID.toUpperCase(): (t) async {
+            return FelicitaArc(transport: t);
+          },
+          DecentScale.serviceUUID.toUpperCase(): (t) async {
+            return DecentScale(transport: t);
+          },
+          BookooScale.serviceUUID.toUpperCase(): (t) async {
+            return BookooScale(transport: t);
+          },
         },
-        BookooScale.serviceUUID.toUpperCase(): (t) async {
-          return BookooScale(transport: t);
-        },
-      },
-    ),
-  ];
+      ),
+    );
+  }
+  
 
   services.add(createSerialService());
 

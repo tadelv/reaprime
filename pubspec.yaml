@@ -54,6 +54,7 @@ dependencies:
   hive_ce: ^2.15.1
   hive_ce_flutter: ^2.3.3
   ansi_escape_codes: ^2.1.0
+  flutter_blue_plus: ^2.0.2
     # path: ../flutter_libserialport
     # git:
     #   url: https://github.com/tadelv/flutter_libserialport.git
