@@ -149,8 +149,8 @@ class De1 implements De1Interface {
   }
 
   @override
-  disconnect() {
-    _device.disconnect();
+  disconnect() async {
+    await _device.disconnect();
   }
 
   @override

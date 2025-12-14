@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -61,9 +62,8 @@ class UnifiedDe1 implements De1Interface {
   String get deviceId => _transport.id;
 
   @override
-  disconnect() {
-    // TODO: Future.sync?
-    _transport.disconnect();
+  Future<void> disconnect() async {
+    await _transport.disconnect();
   }
 
   @override

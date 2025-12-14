@@ -87,6 +87,12 @@ class UnifiedDe1Transport {
       ),
     );
 
+    _shotSettingsNotification(
+      ByteData.sublistView(
+        await _transport.read(de1ServiceUUID, Endpoint.shotSettings.uuid),
+      ),
+    );
+
     await _transport.subscribe(de1ServiceUUID, Endpoint.stateInfo.uuid, (d) {
       _stateNotification(ByteData.sublistView(Uint8List.fromList(d)));
     });

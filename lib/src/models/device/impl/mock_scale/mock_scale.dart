@@ -16,7 +16,7 @@ class MockScale implements Scale {
   String get deviceId => "Mock Scale";
 
   @override
-  disconnect() {}
+  disconnect() async {}
 
   @override
   String get name => "Mock Scale";

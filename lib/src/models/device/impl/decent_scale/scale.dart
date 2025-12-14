@@ -85,16 +85,15 @@ class DecentScale implements Scale {
   }
 
   @override
-  disconnect() {
+  disconnect() async {
     subscription?.cancel();
     _connectionStateController.add(ConnectionState.disconnected);
     _notificationsSubscription?.cancel();
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
-    _device.connectionState.first.then((connected) {
-      if (!connected) return;
-      _device.disconnect();
-    });
+    final connected = await _device.connectionState.first;
+    if (!connected) return;
+    await _device.disconnect();
   }
 
   @override

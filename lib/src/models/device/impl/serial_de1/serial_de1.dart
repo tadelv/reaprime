@@ -61,11 +61,11 @@ class SerialDe1 implements De1Interface {
   String get deviceId => _transport.name;
 
   @override
-  disconnect() {
+  disconnect() async {
     _connectionStateSubject.add(ConnectionState.disconnecting);
     try {
       _transportSubscription.cancel();
-      _transport.disconnect();
+      await _transport.disconnect();
     } catch (e, st) {
       _log.warning("failed to close transport:", e, st);
     }

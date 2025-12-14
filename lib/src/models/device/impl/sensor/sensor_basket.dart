@@ -28,10 +28,10 @@ class SensorBasket implements Sensor {
   String get deviceId => "${_transport.id}";
 
   @override
-  disconnect() {
+  disconnect() async {
     _connectionSubject.add(ConnectionState.disconnected);
     _transportSubscription.cancel();
-    _transport.disconnect();
+    await _transport.disconnect();
   }
 
   @override

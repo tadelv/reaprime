@@ -153,23 +153,23 @@ void main() async {
     ForegroundTaskService.init();
   }
 
-  void signalHandler(ProcessSignal signal) {
+  Future<void> signalHandler(ProcessSignal signal) async {
     Logger.root.warning("Signal received: ${signal.name}");
     for (var device in deviceController.devices) {
-      device.disconnect();
+      await device.disconnect();
     }
   }
 
   // ProcessSignal.sigkill.watch().listen(signalHandler);
   ProcessSignal.sigint.watch().listen(signalHandler);
   final lifecycleObserver = AppLifecycleListener(
-    onDetach: () {
-      signalHandler(ProcessSignal.sigint);
+    onDetach: () async {
+      await signalHandler(ProcessSignal.sigint);
     },
     onExitRequested: () async {
-        signalHandler(ProcessSignal.sigint);
-        return AppExitResponse.exit;
-      },
+      await signalHandler(ProcessSignal.sigint);
+      return AppExitResponse.exit;
+    },
   );
 
   runApp(

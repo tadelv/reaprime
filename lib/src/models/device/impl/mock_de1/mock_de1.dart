@@ -81,7 +81,7 @@ class MockDe1 implements De1Interface {
   }
 
   @override
-  disconnect() {}
+  disconnect() async {} 
 
   @override
   DeviceType get type => DeviceType.machine;

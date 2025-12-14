@@ -120,9 +120,11 @@ class SettingsTile extends StatelessWidget {
                   onPressed: () async {
                     await de1.requestState(MachineState.idle);
                   },
-                  child: Text("Cancel cleaning"),
+                  child: Text("Cancel ${snapshot.state.state.name}"),
                 ),
-                Text("${snapshot.state.state.name} status: ${snapshot.state.substate.name}"),
+                Text(
+                  "${snapshot.state.state.name} status: ${snapshot.state.substate.name}",
+                ),
               ],
             );
           },

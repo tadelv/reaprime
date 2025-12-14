@@ -19,7 +19,7 @@ class MockSensorBasket implements Sensor {
   String get deviceId => "mockSensorBasket";
 
   @override
-  disconnect() {
+  disconnect() async {
     _timer.cancel();
   }
 

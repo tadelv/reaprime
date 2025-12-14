@@ -20,7 +20,7 @@ class MockDebugPort implements Sensor {
   bool _ignoreTimer = false;
 
   @override
-  disconnect() {
+  disconnect() async {
     _timer.cancel();
   }
 

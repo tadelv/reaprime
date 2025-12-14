@@ -65,8 +65,8 @@ class FelicitaArc implements Scale {
   }
 
   @override
-  disconnect() {
-    _transport.disconnect();
+  disconnect() async {
+    await _transport.disconnect();
   }
 
   @override

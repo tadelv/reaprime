@@ -29,10 +29,10 @@ class HDSSerial implements Scale {
   String get deviceId => _transport.name;
 
   @override
-  disconnect() {
+  disconnect() async {
     _connectionSubject.add(ConnectionState.disconnected);
     _transportSubscription.cancel();
-    _transport.disconnect();
+    await _transport.disconnect();
   }
 
   @override
