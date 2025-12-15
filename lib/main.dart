@@ -67,7 +67,7 @@ void main() async {
   Logger.root.info("==== REA PRIME starting ====");
 
   final List<DeviceDiscoveryService> services = [];
-  if (Platform.isIOS || Platform.isMacOS || Platform.isAndroid) {
+  if (!Platform.isWindows) {
     services.add(
       BluePlusDiscoveryService(
         mappings: {

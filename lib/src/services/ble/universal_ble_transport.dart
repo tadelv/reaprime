@@ -121,4 +121,9 @@ class UniversalBleTransport implements BLETransport {
       withoutResponse: !withResponse,
     );
   }
+
+  @override
+  Future<void> setTransportPriority(bool prioritized) async {
+    // no implementation (for now)
+  }
 }

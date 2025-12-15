@@ -101,7 +101,12 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
           deviceMappings.keys
               .map((e) => Guid(e))
               .toList(), // match any of the specified services
-      timeout: Duration(seconds: 15),
     );
+
+    await Future.delayed(Duration(seconds: 15), () async {
+      await FlutterBluePlus.stopScan();
+      _deviceStreamController.add(_devices.toList());
+    });
+
   }
 }

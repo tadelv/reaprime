@@ -112,6 +112,9 @@ class UnifiedDe1Transport {
     await _transport.subscribe(de1ServiceUUID, Endpoint.fwMapRequest.uuid, (d) {
       _fwMapNotification(ByteData.sublistView(Uint8List.fromList(d)));
     });
+
+    _log.info("requesting priority for $this");
+    await _transport.setTransportPriority(true);
   }
 
   Future<void> _serialConnect() async {

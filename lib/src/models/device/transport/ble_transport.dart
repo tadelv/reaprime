@@ -18,4 +18,6 @@ abstract class BLETransport extends DataTransport {
     Uint8List data, {
     bool withResponse = true,
   });
+
+  Future<void> setTransportPriority(bool prioritized);
 }

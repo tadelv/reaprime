@@ -83,4 +83,9 @@ class BluePlusTransport implements BLETransport {
     );
     await characteristic.write(data.toList(), withoutResponse: !withResponse);
   }
+
+  @override
+    Future<void> setTransportPriority(bool prioritized) async {
+      await _device.requestConnectionPriority(connectionPriorityRequest: prioritized ? ConnectionPriority.high : ConnectionPriority.balanced);
+    }
 }

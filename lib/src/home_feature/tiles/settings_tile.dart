@@ -1,4 +1,7 @@
-import 'package:flutter/cupertino.dart';
+import 'dart:io';
+import 'dart:ui';
+
+import 'package:flutter/services.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/settings/settings_view.dart';
@@ -106,6 +109,15 @@ class SettingsTile extends StatelessWidget {
                       _showDialog(context, AuxDialogType.descale, de1);
                     },
                     child: Text("Descale"),
+                  ),
+                  Spacer(),
+                  ShadButton.secondary(
+                    onPressed: () async {
+                      // TODO: clean exit
+                      await (await controller.de1.first)?.disconnect();
+                      exit(0);
+                    },
+                    child: Text("Quit"),
                   ),
                 ],
               );
