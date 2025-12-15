@@ -16,14 +16,17 @@ AMD_PROFILE := flutter-amd
 colima-stop:
 	@echo "🛑 Stopping Colima..."
 	@colima stop || true
+	@sleep 2
 
 colima-arm: colima-stop
-	@echo "🐧 Starting Colima (ARM64 mode)..."
-	@colima start --profile $(ARM_PROFILE) --arch aarch64 --vm-type=qemu --cpu 4 --memory 8
+	@echo "🐧 Starting Colima (ARM64)..."
+	@colima start --profile flutter-arm --arch aarch64 --vm-type=qemu --cpu 4 --memory 8
+	@docker info | grep Architecture
 
 colima-amd: colima-stop
-	@echo "💻 Starting Colima (x86_64 mode)..."
-	@colima start --profile $(AMD_PROFILE) --arch x86_64 --vm-type=qemu --cpu 4 --memory 8
+	@echo "💻 Starting Colima (x86_64)..."
+	@colima start --profile flutter-amd --arch x86_64 --vm-type=qemu --cpu 4 --memory 8
+	@docker info | grep Architecture
 
 # Convenience shortcuts
 arm: colima-arm
@@ -47,11 +50,11 @@ image-amd: amd
 
 build-arm: arm
 	@echo "🚀 Building Flutter Linux ARM64..."
-	TARGETARCH=arm64 docker compose run --rm $(SERVICE) bash -c "flutter pub get && flutter build linux --release"
+	TARGETARCH=arm64 docker compose run --rm $(SERVICE) bash -c "flutter pub get && ./flutter_with_commit.sh build linux --release"
 
 build-amd: amd
 	@echo "🚀 Building Flutter Linux x86_64..."
-	TARGETARCH=amd64 docker compose run --rm $(SERVICE) bash -c "flutter pub get && flutter build linux --release"
+	TARGETARCH=amd64 docker compose run --rm $(SERVICE) bash -c "flutter pub get && ./flutter_with_commit build linux --release"
 
 dual-build: build-arm build-amd
 	@echo "🎉 Dual build complete!"
