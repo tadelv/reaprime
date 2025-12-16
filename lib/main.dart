@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 import 'package:collection/collection.dart';
@@ -22,8 +21,6 @@ import 'package:reaprime/src/models/device/impl/bookoo/miniscale.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
 import 'package:reaprime/src/models/device/impl/felicita/arc.dart';
 import 'package:reaprime/src/models/device/impl/machine_parser.dart';
-import 'package:reaprime/src/plugins/plugin_manager.dart';
-import 'package:reaprime/src/plugins/plugin_manifest.dart';
 import 'package:reaprime/src/services/blue_plus_discovery_service.dart';
 import 'package:reaprime/src/services/universal_ble_discovery_service.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
@@ -107,25 +104,7 @@ void main() async {
       ),
     );
   }
-
-  try {
-    final PluginManager pluginManager = PluginManager();
-    final pluginManifest = PluginManifest.fromJson(
-      jsonDecode(
-        (await rootBundle.loadString('assets/plugins/example.plugin/manifest.json')),
-      ),
-    );
-    final plugin = (await rootBundle.loadString(
-      'assets/plugins/example.plugin/plugin.js',
-    ));
-    pluginManager.loadPlugin(
-      id: pluginManifest.id,
-      manifest: pluginManifest,
-      jsCode: plugin,
-    );
-  } catch (e) {
-    Logger.root.warning("failed to load plugin", e);
-  }
+  
 
   services.add(createSerialService());
 

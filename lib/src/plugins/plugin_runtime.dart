@@ -68,7 +68,6 @@ class PluginRuntime {
   }
 
   Map<String, dynamic> _safeDecode(dynamic raw) {
-    _log.fine("decoding");
     if (raw is Map<String, dynamic>) {
       return raw;
     }
