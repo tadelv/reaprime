@@ -1,0 +1,12 @@
+{
+  "id": "example.plugin",
+  "name": "Example Plugin",
+  "version": "1.0.0",
+  "apiVersion": 1,
+
+  "permissions": [
+    "log",
+    "emit:events",
+    "receive:tick"
+  ]
+}
