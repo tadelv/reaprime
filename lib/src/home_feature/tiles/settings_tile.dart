@@ -28,7 +28,7 @@ class SettingsTile extends StatelessWidget {
             color: Theme.of(context).colorScheme.primary,
           ),
         ),
-        _auxFunctions(),
+        Expanded(child: _auxFunctions()),
       ],
     );
   }
@@ -80,7 +80,7 @@ class SettingsTile extends StatelessWidget {
             de1State.data == null) {
           return Text("Waiting to connect");
         }
-        var de1 = de1State.data!;
+        final de1 = de1State.data!;
         return StreamBuilder(
           stream: de1.currentSnapshot,
           builder: (context, snapshotData) {
