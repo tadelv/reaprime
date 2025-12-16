@@ -145,6 +145,7 @@ class UnifiedDe1 implements De1Interface {
 
   @override
   Future<void> onConnect() async {
+    initRawStream();
     await _transport.connect();
   }
 
