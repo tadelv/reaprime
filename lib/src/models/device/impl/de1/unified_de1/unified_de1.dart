@@ -19,6 +19,7 @@ part 'unified_de1.mmr.dart';
 part 'unified_de1.parsing.dart';
 part 'unified_de1.profile.dart';
 part 'unified_de1.firmware.dart';
+part 'unified_de1.raw.dart';
 
 // Add this configuration class
 class _MMRConfig {
@@ -52,11 +53,23 @@ class UnifiedDe1 implements De1Interface {
 
   @override
   Stream<MachineSnapshot> get currentSnapshot =>
-      _transport.shotSample.withLatestFrom(_transport.state, (snp, st) {
-        final snapshot = _parseStateAndShotSample(st, snp);
-        _log.finest("new state: ${snapshot.toJson()}");
-        return snapshot;
-      }).asBroadcastStream();
+      _transport.shotSample
+          .map((d) {
+            notifyFrom(Endpoint.shotSample, d.buffer.asUint8List());
+            return d;
+          })
+          .withLatestFrom(
+            _transport.state.map((d) {
+              notifyFrom(Endpoint.stateInfo, d.buffer.asUint8List());
+              return d;
+            }),
+            (snp, st) {
+              final snapshot = _parseStateAndShotSample(st, snp);
+              _log.finest("new state: ${snapshot.toJson()}");
+              return snapshot;
+            },
+          )
+          .asBroadcastStream();
 
   @override
   String get deviceId => _transport.id;
@@ -135,9 +148,11 @@ class UnifiedDe1 implements De1Interface {
     await _transport.connect();
   }
 
+  final StreamController<De1RawMessage> _rawMessageController =
+      StreamController.broadcast();
+
   @override
-  // TODO: implement rawOutStream
-  Stream<De1RawMessage> get rawOutStream => Stream.empty();
+  Stream<De1RawMessage> get rawOutStream => _rawMessageController.stream;
 
   @override
   Stream<bool> get ready => _transport.connectionState.asBroadcastStream();
@@ -149,9 +164,11 @@ class UnifiedDe1 implements De1Interface {
     await _transport.writeWithResponse(Endpoint.requestedState, data);
   }
 
+
+  final StreamController<De1RawMessage> _rawInputController = StreamController();
   @override
   void sendRawMessage(De1RawMessage message) {
-    // TODO: implement sendRawMessage
+    _rawInputController.add(message);
   }
 
   @override
@@ -238,8 +255,12 @@ class UnifiedDe1 implements De1Interface {
   }
 
   @override
-  Stream<De1ShotSettings> get shotSettings =>
-      _transport.shotSettings.map(_parseShotSettings);
+  Stream<De1ShotSettings> get shotSettings => _transport.shotSettings
+      .map((d) {
+        notifyFrom(Endpoint.shotSettings, d.buffer.asUint8List());
+        return d;
+      })
+      .map(_parseShotSettings);
 
   @override
   DeviceType get type => DeviceType.machine;
@@ -284,6 +305,10 @@ class UnifiedDe1 implements De1Interface {
   }
 
   @override
-  Stream<De1WaterLevels> get waterLevels =>
-      _transport.waterLevels.map(_parseWaterLevels);
+  Stream<De1WaterLevels> get waterLevels => _transport.waterLevels
+      .map((d) {
+        notifyFrom(Endpoint.waterLevels, d.buffer.asUint8List());
+        return d;
+      })
+      .map(_parseWaterLevels);
 }

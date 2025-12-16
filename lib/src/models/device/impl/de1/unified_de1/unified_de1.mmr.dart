@@ -18,6 +18,10 @@ extension UnifiedDe1MMR on UnifiedDe1 {
     );
 
     var result = await _transport.mmr
+        .map((d) {
+          notifyFrom(Endpoint.readFromMMR, d.buffer.asUint8List());
+          return d;
+        })
         .map((d) => d.buffer.asUint8List().toList())
         .firstWhere((element) {
           // log.info("listen where event  ${element.map(toHexString).toList()}");
