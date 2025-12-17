@@ -94,4 +94,9 @@ class PluginManager {
   void _handlePluginEvent(String pluginId, String event, dynamic payload) {
     _log.fine('Handling event from $pluginId → $event ($payload)');
   }
+
+  /// Get a list of currently loaded plugins
+  List<PluginRuntime> get loadedPlugins {
+    return _plugins.values.toList();
+  }
 }
