@@ -25,7 +25,9 @@ import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/home_feature/home_feature.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/sample_feature/scale_debug_view.dart';
+import 'package:reaprime/src/settings/plugins_settings_view.dart';
 import 'sample_feature/sample_item_details_view.dart';
 
 import 'sample_feature/sample_item_list_view.dart';
@@ -53,6 +55,7 @@ class MyApp extends StatelessWidget {
     required this.scaleController,
     required this.workflowController,
     required this.persistenceController,
+    required this.pluginLoaderService,
   });
 
   final SettingsController settingsController;
@@ -61,6 +64,7 @@ class MyApp extends StatelessWidget {
   final ScaleController scaleController;
   final WorkflowController workflowController;
   final PersistenceController persistenceController;
+  final PluginLoaderService pluginLoaderService;
 
   @override
   Widget build(BuildContext context) {
@@ -147,137 +151,143 @@ class MyApp extends StatelessWidget {
       }
     });
 
-    return ListenableBuilder(
-      listenable: settingsController,
-      builder: (BuildContext context, Widget? child) {
-        return ShadApp(
-          // Providing a restorationScopeId allows the Navigator built by the
-          // MaterialApp to restore the navigation stack when a user leaves and
-          // returns to the app after it has been killed while running in the
-          // background.
-          restorationScopeId: 'app',
+    return ScaffoldMessenger(
+      child: ListenableBuilder(
+        listenable: settingsController,
+        builder: (BuildContext context, Widget? child) {
+          return ShadApp(
+            // Providing a restorationScopeId allows the Navigator built by the
+            // MaterialApp to restore the navigation stack when a user leaves and
+            // returns to the app after it has been killed while running in the
+            // background.
+            restorationScopeId: 'app',
 
-          // Provide the generated AppLocalizations to the MaterialApp. This
-          // allows descendant Widgets to display the correct translations
-          // depending on the user's locale.
-          // localizationsDelegates: const [
-          //   GlobalMaterialLocalizations.delegate,
-          //   GlobalWidgetsLocalizations.delegate,
-          //   GlobalCupertinoLocalizations.delegate,
-          // ],
-          supportedLocales: const [
-            Locale('en', ''), // English, no country code
-          ],
+            // Provide the generated AppLocalizations to the MaterialApp. This
+            // allows descendant Widgets to display the correct translations
+            // depending on the user's locale.
+            // localizationsDelegates: const [
+            //   GlobalMaterialLocalizations.delegate,
+            //   GlobalWidgetsLocalizations.delegate,
+            //   GlobalCupertinoLocalizations.delegate,
+            // ],
+            supportedLocales: const [
+              Locale('en', ''), // English, no country code
+            ],
 
-          // Use AppLocalizations to configure the correct application title
-          // depending on the user's locale.
-          //
-          // The appTitle is defined in .arb files found in the localization
-          // directory.
-          onGenerateTitle: (BuildContext context) => "ReaPrime",
+            // Use AppLocalizations to configure the correct application title
+            // depending on the user's locale.
+            //
+            // The appTitle is defined in .arb files found in the localization
+            // directory.
+            onGenerateTitle: (BuildContext context) => "ReaPrime",
 
-          // Define a light and dark color theme. Then, read the user's
-          // preferred ThemeMode (light, dark, or system default) from the
-          // SettingsController to display the correct theme.
-          theme: ShadThemeData(
-            colorScheme: ShadColorScheme.fromName(
-              themeColor,
+            // Define a light and dark color theme. Then, read the user's
+            // preferred ThemeMode (light, dark, or system default) from the
+            // SettingsController to display the correct theme.
+            theme: ShadThemeData(
+              colorScheme: ShadColorScheme.fromName(
+                themeColor,
+                brightness: Brightness.light,
+              ),
               brightness: Brightness.light,
             ),
-            brightness: Brightness.light,
-          ),
-          darkTheme: ShadThemeData(
-            colorScheme: ShadColorScheme.fromName(
-              themeColor,
+            darkTheme: ShadThemeData(
+              colorScheme: ShadColorScheme.fromName(
+                themeColor,
+                brightness: Brightness.dark,
+              ),
               brightness: Brightness.dark,
             ),
-            brightness: Brightness.dark,
-          ),
-          themeMode: settingsController.themeMode,
+            themeMode: settingsController.themeMode,
 
-          navigatorKey: NavigationService.navigatorKey,
-          // Define a function to handle named routes in order to support
-          // Flutter web url navigation and deep linking.
-          onGenerateRoute: (RouteSettings routeSettings) {
-            return MaterialPageRoute<void>(
-              settings: routeSettings,
-              builder: (BuildContext context) {
-                switch (routeSettings.name) {
-                  case SettingsView.routeName:
-                    return SettingsView(
-                      controller: settingsController,
-                      persistenceController: persistenceController,
-                    );
-                  case De1DebugView.routeName:
-                    var device = deviceController.devices.firstWhere(
-                      (e) => e.deviceId == routeSettings.arguments as String,
-                    );
-                    if (device is De1Interface) {
-                      try {
-                        de1Controller.connectedDe1();
-                      } catch (_) {
-                        // De1 controller has no connected de1, connect to this one
-                        de1Controller.connectToDe1(device);
-                      }
-                      return De1DebugView(
-                        machine:
-                            deviceController.devices.firstWhere(
-                                  (e) =>
-                                      e.deviceId ==
-                                      (routeSettings.arguments as String),
-                                )
-                                as De1Interface,
-                      );
-                    }
-                    if (device is Scale) {
-                      return ScaleDebugView(scale: device);
-                    }
-                    return Text("No mapping for ${device.name}");
-                  case SampleItemListView.routeName:
-                    return SampleItemListView(controller: deviceController);
-                  case RealtimeShotFeature.routeName:
-                    return RealtimeShotFeature(
-                      shotController: ShotController(
-                        scaleController: scaleController,
-                        de1controller: de1Controller,
+            navigatorKey: NavigationService.navigatorKey,
+            // Define a function to handle named routes in order to support
+            // Flutter web url navigation and deep linking.
+            onGenerateRoute: (RouteSettings routeSettings) {
+              return MaterialPageRoute<void>(
+                settings: routeSettings,
+                builder: (BuildContext context) {
+                  switch (routeSettings.name) {
+                    case SettingsView.routeName:
+                      return SettingsView(
+                        controller: settingsController,
                         persistenceController: persistenceController,
-                        targetProfile:
-                            workflowController.currentWorkflow.profile,
-                        doseData: workflowController.currentWorkflow.doseData,
-                      ),
-                      workflowController: workflowController,
-                    );
-                  case HomeScreen.routeName:
-                    return HomeScreen(
-                      de1controller: de1Controller,
-                      workflowController: workflowController,
-                      scaleController: scaleController,
-                      deviceController: deviceController,
-                      persistenceController: persistenceController,
-                      settingsController: settingsController,
-                    );
-                  case HistoryFeature.routeName:
-                    final possibleShot = routeSettings.arguments as String;
-                    return HistoryFeature(
-                      persistenceController: persistenceController,
-                      workflowController: workflowController,
-                      selectedShot: possibleShot,
-                    );
-                  case WebUIView.routeName:
-                    return WebUIView(
-                      indexPath: routeSettings.arguments as String,
-                    );
-                  default:
-                    return PermissionsView(
-                      deviceController: deviceController,
-                      de1controller: de1Controller,
-                    );
-                }
-              },
-            );
-          },
-        );
-      },
+                      );
+                    case De1DebugView.routeName:
+                      var device = deviceController.devices.firstWhere(
+                        (e) => e.deviceId == routeSettings.arguments as String,
+                      );
+                      if (device is De1Interface) {
+                        try {
+                          de1Controller.connectedDe1();
+                        } catch (_) {
+                          // De1 controller has no connected de1, connect to this one
+                          de1Controller.connectToDe1(device);
+                        }
+                        return De1DebugView(
+                          machine:
+                              deviceController.devices.firstWhere(
+                                    (e) =>
+                                        e.deviceId ==
+                                        (routeSettings.arguments as String),
+                                  )
+                                  as De1Interface,
+                        );
+                      }
+                      if (device is Scale) {
+                        return ScaleDebugView(scale: device);
+                      }
+                      return Text("No mapping for ${device.name}");
+                    case SampleItemListView.routeName:
+                      return SampleItemListView(controller: deviceController);
+                    case RealtimeShotFeature.routeName:
+                      return RealtimeShotFeature(
+                        shotController: ShotController(
+                          scaleController: scaleController,
+                          de1controller: de1Controller,
+                          persistenceController: persistenceController,
+                          targetProfile:
+                              workflowController.currentWorkflow.profile,
+                          doseData: workflowController.currentWorkflow.doseData,
+                        ),
+                        workflowController: workflowController,
+                      );
+                    case HomeScreen.routeName:
+                      return HomeScreen(
+                        de1controller: de1Controller,
+                        workflowController: workflowController,
+                        scaleController: scaleController,
+                        deviceController: deviceController,
+                        persistenceController: persistenceController,
+                        settingsController: settingsController,
+                      );
+                    case HistoryFeature.routeName:
+                      final possibleShot = routeSettings.arguments as String;
+                      return HistoryFeature(
+                        persistenceController: persistenceController,
+                        workflowController: workflowController,
+                        selectedShot: possibleShot,
+                      );
+                    case WebUIView.routeName:
+                      return WebUIView(
+                        indexPath: routeSettings.arguments as String,
+                      );
+                    case PluginsSettingsView.routeName:
+                      return PluginsSettingsView(
+                        pluginLoaderService: pluginLoaderService,
+                      );
+                    default:
+                      return PermissionsView(
+                        deviceController: deviceController,
+                        de1controller: de1Controller,
+                      );
+                  }
+                },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

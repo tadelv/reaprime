@@ -9,6 +9,7 @@ import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/sample_feature/sample_item_list_view.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
+import 'package:reaprime/src/settings/plugins_settings_view.dart';
 import 'package:reaprime/src/util/shot_exporter.dart';
 import 'package:reaprime/src/util/shot_importer.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
@@ -226,6 +227,12 @@ class SettingsView extends StatelessWidget {
                 },
                 child: Text("To Web UI"),
               ),
+            ShadButton.secondary(
+              onPressed: () {
+                Navigator.of(context).pushNamed(PluginsSettingsView.routeName);
+              },
+              child: Text("Plugins"),
+            ),
 
             Expanded(
               child: Column(

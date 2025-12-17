@@ -105,7 +105,6 @@ void main() async {
       ),
     );
   }
-  
 
   services.add(createSerialService());
 
@@ -213,6 +212,7 @@ void main() async {
         scaleController: scaleController,
         workflowController: workflowController,
         persistenceController: persistenceController,
+        pluginLoaderService: pluginService,
       ),
     ),
   );
