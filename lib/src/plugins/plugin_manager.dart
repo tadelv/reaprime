@@ -28,7 +28,11 @@ class PluginManager {
   }
 
   void unloadPlugin(String id) {
-    _plugins.remove(id)?.dispose();
+    final plugin = _plugins[id];
+    plugin?.dispose();
+    if (plugin != null) {
+      _plugins.remove(id);
+    }
   }
 
   void broadcastEvent(String name, dynamic payload) {
@@ -62,7 +66,11 @@ class PluginManager {
   void _handleMessage(String pluginId, Map<String, dynamic> msg) {
     _log.finest("handling: $pluginId, $msg");
     try {
-      final plugin = _plugins[pluginId]!;
+      final plugin = _plugins[pluginId];
+      if (plugin == null) {
+        _log.warning("received from unloaded plugin: $pluginId, msg: $msg");
+        return;
+      }
       final manifest = plugin.manifest;
 
       switch (msg['type']) {
