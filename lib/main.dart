@@ -21,6 +21,7 @@ import 'package:reaprime/src/models/device/impl/bookoo/miniscale.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
 import 'package:reaprime/src/models/device/impl/felicita/arc.dart';
 import 'package:reaprime/src/models/device/impl/machine_parser.dart';
+import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/services/blue_plus_discovery_service.dart';
 import 'package:reaprime/src/services/universal_ble_discovery_service.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
@@ -194,6 +195,14 @@ void main() async {
       return AppExitResponse.exit;
     },
   );
+
+  // load plugins last
+  final PluginLoaderService pluginService = PluginLoaderService();
+  try {
+    await pluginService.initialize();
+  } catch (e) {
+    Logger.root.warning("failed to load plugins", e);
+  }
 
   runApp(
     WithForegroundTask(
