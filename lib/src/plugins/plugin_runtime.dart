@@ -28,7 +28,6 @@ class PluginRuntime {
     (function () {
 
       function sendJson(obj) {
-        // FORCE string materialization via concatenation
         sendMessage(
           'default',
           JSON.stringify(obj)
@@ -79,9 +78,9 @@ class PluginRuntime {
     }
   }
 
-  void load(String jsCode) {
-    js.evaluate(jsCode);
-    js.evaluate(r'''
+  Future<void> load(String jsCode) async {
+    await js.evaluateAsync(jsCode);
+    await js.evaluateAsync(r'''
       if (!globalThis.Plugin) {
         throw new Error("Plugin not found");
       }
@@ -90,6 +89,7 @@ class PluginRuntime {
   }
 
   void dispatchEvent(String name, dynamic payload) {
+    _log.shout("dispatch: $name");
     js.evaluate('''
       if (Plugin?.onEvent) {
         Plugin.onEvent({

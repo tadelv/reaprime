@@ -22,7 +22,7 @@ class PluginManager {
     );
 
     _plugins[id] = runtime;
-    runtime.load(jsCode);
+    await runtime.load(jsCode);
     _log.info("loaded: ${runtime.pluginId}");
     _log.finest("loaded plugins ${_plugins.keys.toList()}");
   }
@@ -32,8 +32,9 @@ class PluginManager {
   }
 
   void broadcastEvent(String name, dynamic payload) {
+    _log.fine("broadcast $name, $payload");
     for (final plugin in _plugins.values) {
-      plugin.dispatchEvent(name, payload);
+      sendEventToPlugin(plugin.pluginId, name, payload);
     }
   }
 
@@ -41,6 +42,23 @@ class PluginManager {
     _plugins[pluginId]?.dispatchEvent(name, payload);
   }
 
+  //
+  // looking for the following format:
+  // {
+  //   type: log | emit
+  //   payload: logPayload | emitPayload
+  // }
+  //
+  // logPayload
+  // {
+  //   message: String
+  // }
+  //
+  // emitPayload
+  // {
+  //   event: String
+  //   data: Object
+  // }
   void _handleMessage(String pluginId, Map<String, dynamic> msg) {
     _log.finest("handling: $pluginId, $msg");
     try {
