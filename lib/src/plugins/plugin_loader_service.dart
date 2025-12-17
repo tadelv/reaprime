@@ -242,6 +242,18 @@ class PluginLoaderService {
     return '${_pluginsDir.path}/$pluginId';
   }
 
+  /// Check if a plugin is bundled with the app (from assets)
+  Future<bool> isPluginBundled(String pluginId) async {
+    final bundledPlugins = await _getBundledPluginPaths();
+    for (final pluginPath in bundledPlugins) {
+      final pluginName = pluginPath.split('/').last;
+      if (pluginName == pluginId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /// Get a list of currently loaded plugins
   /// from PluginManager
   List<PluginRuntime> get loadedPlugins {
@@ -259,23 +271,23 @@ class PluginLoaderService {
         final pluginName = pluginPath.split('/').last;
         final destDir = Directory('${_pluginsDir.path}/$pluginName');
         
-        // Skip if already exists
-        if (destDir.existsSync()) {
-          continue;
+        // Check if plugin already exists in destination
+        final isNewPlugin = !destDir.existsSync();
+        
+        if (isNewPlugin) {
+          // Create destination directory
+          destDir.createSync(recursive: true);
+          
+          // Copy manifest.json
+          final manifestAsset = await rootBundle.loadString('$pluginPath/manifest.json');
+          File('${destDir.path}/manifest.json').writeAsStringSync(manifestAsset);
+          
+          // Copy plugin.js
+          final pluginAsset = await rootBundle.loadString('$pluginPath/plugin.js');
+          File('${destDir.path}/plugin.js').writeAsStringSync(pluginAsset);
+          
+          _log.fine('Copied bundled plugin: $pluginName');
         }
-        
-        // Create destination directory
-        destDir.createSync(recursive: true);
-        
-        // Copy manifest.json
-        final manifestAsset = await rootBundle.loadString('$pluginPath/manifest.json');
-        File('${destDir.path}/manifest.json').writeAsStringSync(manifestAsset);
-        
-        // Copy plugin.js
-        final pluginAsset = await rootBundle.loadString('$pluginPath/plugin.js');
-        File('${destDir.path}/plugin.js').writeAsStringSync(pluginAsset);
-        
-        _log.fine('Copied bundled plugin: $pluginName');
       }
     } catch (e) {
       _log.warning('Failed to copy bundled plugins', e);
@@ -284,8 +296,17 @@ class PluginLoaderService {
   
   Future<List<String>> _getBundledPluginPaths() async {
     // This is a simplified implementation
-    // In a real app, you might want to read from pubspec.yaml or have a registry
-    return ['assets/plugins/example.plugin'];
+    // In a real app, you might want to:
+    // 1. Read from a registry file in assets
+    // 2. Scan the assets/plugins directory
+    // 3. Read from pubspec.yaml
+    
+    // For now, return hardcoded list
+    // You can extend this by adding more plugins as needed
+    return [
+      'assets/plugins/example.plugin',
+      // Add more bundled plugins here as they are added to the app
+    ];
   }
   
   Future<void> _scanAvailablePlugins() async {
@@ -316,6 +337,10 @@ class PluginLoaderService {
   }
   
   Future<void> _loadAutoLoadPlugins() async {
+    // First, ensure bundled plugins have auto-load enabled by default
+    await _ensureBundledPluginsAutoLoadEnabled();
+    
+    // Then load all plugins with auto-load enabled
     for (final pluginId in _availablePluginsCache.keys) {
       final shouldLoad = await shouldAutoLoad(pluginId);
       if (shouldLoad) {
@@ -325,6 +350,42 @@ class PluginLoaderService {
           _log.warning('Failed to auto-load plugin $pluginId', e);
         }
       }
+    }
+  }
+  
+  Future<void> _ensureBundledPluginsAutoLoadEnabled() async {
+    try {
+      // Get list of bundled plugins from assets
+      final bundledPlugins = await _getBundledPluginPaths();
+      
+      for (final pluginPath in bundledPlugins) {
+        final pluginName = pluginPath.split('/').last;
+        final pluginDir = Directory('${_pluginsDir.path}/$pluginName');
+        
+        // Check if this is a bundled plugin directory
+        if (!pluginDir.existsSync()) {
+          continue;
+        }
+        
+        // Load manifest to get plugin ID
+        final manifestFile = File('${pluginDir.path}/manifest.json');
+        if (!manifestFile.existsSync()) {
+          continue;
+        }
+        
+        final manifestJson = jsonDecode(await manifestFile.readAsString());
+        final manifest = PluginManifest.fromJson(manifestJson);
+        
+        // For bundled plugins, set auto-load to true by default if not already set
+        final autoLoadKey = 'plugin.autoload.${manifest.id}';
+        if (!_prefs.containsKey(autoLoadKey)) {
+          // First time seeing this bundled plugin, enable auto-load by default
+          await _prefs.setBool(autoLoadKey, true);
+          _log.info('Set auto-load enabled by default for bundled plugin: ${manifest.id}');
+        }
+      }
+    } catch (e) {
+      _log.warning('Failed to ensure bundled plugins auto-load enabled', e);
     }
   }
   
