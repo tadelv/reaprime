@@ -94,7 +94,13 @@ class PluginManager {
   }
 
   void _require(PluginManifest manifest, String perm) {
-    if (!manifest.permissions.contains(perm)) {
+    final permission = PluginPermissions.fromString(perm);
+    if (permission == null) {
+      throw Exception(
+        'Plugin ${manifest.id} requires unknown permission: $perm',
+      );
+    }
+    if (!manifest.permissions.contains(permission)) {
       throw Exception('Plugin ${manifest.id} lacks permission: $perm');
     }
   }

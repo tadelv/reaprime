@@ -201,7 +201,7 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
                         plugin.permissions
                             .map(
                               (permission) => Chip(
-                                label: Text(permission),
+                                label: Text(permission.name),
                                 backgroundColor: Colors.blue[50],
                                 labelStyle: const TextStyle(fontSize: 12),
                               ),
@@ -228,6 +228,9 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
                             plugin.id,
                             value,
                           );
+                          if (context.mounted == false) {
+                              return;
+                            }
                           _showSnackBar(
                             context,
                             value
