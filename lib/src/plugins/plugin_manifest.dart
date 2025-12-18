@@ -9,6 +9,7 @@ class PluginManifest {
   final int apiVersion;
   final Set<PluginPermissions> permissions;
   final Map<String, dynamic> settings;
+  final PluginApi? api;
 
   PluginManifest({
     required this.id,
@@ -19,6 +20,7 @@ class PluginManifest {
     required this.apiVersion,
     required this.permissions,
     required this.settings,
+    required this.api,
   });
 
   factory PluginManifest.fromJson(Map<String, dynamic> json) {
@@ -31,7 +33,22 @@ class PluginManifest {
       apiVersion: json['apiVersion'],
       permissions: PluginPermissionsFromJson.fromJson(json['permissions']),
       settings: json['settings'] ?? {},
+      api: json['api'] != null ? PluginApi.fromJsonList(json['api']) : null,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'author': author,
+      'description': description,
+      'version': version,
+      'apiVersion': apiVersion,
+      'permissions': permissions.map((e) => e.name).toList(),
+      'settings': settings,
+      'api': api?.toJson(),
+    };
   }
 }
 
@@ -60,5 +77,16 @@ extension PluginPermissionsFromJson on PluginPermissions {
       }
       return acc;
     }).toSet();
+  }
+}
+
+final class PluginApi {
+  PluginApi();
+  factory PluginApi.fromJsonList(List<dynamic> json) {
+    return PluginApi();
+  }
+
+  Map<String, dynamic> toJson() {
+    return {};
   }
 }

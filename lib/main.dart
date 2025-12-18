@@ -138,6 +138,15 @@ void main() async {
   final de1Controller = De1Controller(controller: deviceController);
   final scaleController = ScaleController(controller: deviceController);
   final sensorController = SensorController(controller: deviceController);
+
+  final PluginLoaderService pluginService = PluginLoaderService();
+  try {
+    await pluginService.initialize();
+    pluginService.pluginManager.de1Controller = de1Controller;
+  } catch (e) {
+    Logger.root.warning("failed to load plugins", e);
+  }
+
   try {
     await startWebServer(
       deviceController,
@@ -147,6 +156,7 @@ void main() async {
       sensorController,
       workflowController,
       persistenceController,
+      pluginService.pluginManager,
     );
   } catch (e, st) {
     log.severe('failed to start web server', e, st);
@@ -194,20 +204,6 @@ void main() async {
       return AppExitResponse.exit;
     },
   );
-
-  // load plugins last
-  final PluginLoaderService pluginService = PluginLoaderService();
-  try {
-    await pluginService.initialize();
-
-    Future.delayed(Duration(seconds: 5), () {
-      Logger.root.shout("firing!");
-      pluginService.pluginManager.broadcastEvent("tick", {"data": "test"});
-    });
-  } catch (e) {
-    Logger.root.warning("failed to load plugins", e);
-  }
-  pluginService.pluginManager.de1Controller = de1Controller;
 
   runApp(
     WithForegroundTask(

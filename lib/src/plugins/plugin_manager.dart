@@ -32,6 +32,11 @@ class PluginManager {
     });
   }
 
+  StreamController<Map<String, dynamic>> _emitController =
+      StreamController.broadcast();
+
+  Stream<Map<String, dynamic>> get emitStream => _emitController.stream;
+
   Future<void> loadPlugin({
     required String id,
     required PluginManifest manifest,
@@ -134,6 +139,11 @@ class PluginManager {
 
   void _handlePluginEvent(String pluginId, String event, dynamic payload) {
     _log.fine('Handling event from $pluginId → $event ($payload)');
+    _emitController.add({
+        'id': pluginId,
+        'event': event,
+        'payload': payload
+      });
   }
 
   /// Get a list of currently loaded plugins

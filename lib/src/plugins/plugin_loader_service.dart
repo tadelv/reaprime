@@ -134,11 +134,17 @@ class PluginLoaderService {
     final jsCode = await pluginFile.readAsString();
 
     // Load plugin using PluginManager
-    await pluginManager.loadPlugin(
-      id: pluginId,
-      manifest: manifest,
-      jsCode: jsCode,
-    );
+    // FIXME: add watchdog so we don't break the app with unloadable plugins
+    await Future.any([
+      pluginManager.loadPlugin(
+        id: pluginId,
+        manifest: manifest,
+        jsCode: jsCode,
+      ),
+      Future.delayed(Duration(seconds: 1), () {
+        throw Exception("load timeout occured");
+      }),
+    ]);
 
     _log.info('Plugin loaded: $pluginId');
   }

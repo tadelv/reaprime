@@ -196,39 +196,47 @@
 
   /**
    * Calculate current heating rate (temperature change per second)
-   * Uses simple linear regression on recent data points
+   * Uses difference between current and recent past temperature over a fixed time window
    * @param {Array} history - Array of {timestamp, temperature} objects
-   * @returns {number} Heating rate in °C per second (positive = heating up)
+   * @returns {number} Heating rate in °C per second
    */
   function calculateHeatingRate(history) {
-    const n = history.length;
+    if (history.length < 2) return 0;
 
-    // Use only recent data for better accuracy (last 10 points or all if less)
-    const recentPoints = history.slice(-Math.min(10, n));
-    const m = recentPoints.length;
+    // Look back 2-3 seconds worth of data
+    const currentTime = history[history.length - 1].timestamp;
+    const lookbackTime = 2000; // 2 seconds in milliseconds
 
-    if (m < 2) return 0;
-
-    // Calculate sums for linear regression
-    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-
-    for (const point of recentPoints) {
-      const x = point.timestamp / 1000; // Convert to seconds for better numerical stability
-      const y = point.temperature;
-
-      sumX += x;
-      sumY += y;
-      sumXY += x * y;
-      sumX2 += x * x;
+    // Find a point approximately 2 seconds ago
+    let pastIndex = history.length - 2;
+    while (pastIndex >= 0 &&
+      currentTime - history[pastIndex].timestamp < lookbackTime) {
+      pastIndex--;
     }
 
-    // Calculate slope (heating rate in °C per second)
-    const denominator = m * sumX2 - sumX * sumX;
-    if (Math.abs(denominator) < 1e-10) return 0;
+    // If we found a suitable past point
+    if (pastIndex >= 0) {
+      const pastPoint = history[pastIndex];
+      const currentPoint = history[history.length - 1];
 
-    const slope = (m * sumXY - sumX * sumY) / denominator;
+      const timeDiffSec = (currentPoint.timestamp - pastPoint.timestamp) / 1000;
 
-    return slope;
+      // Ensure reasonable time difference (at least 0.5 seconds)
+      if (timeDiffSec >= 0.5) {
+        return (currentPoint.temperature - pastPoint.temperature) / timeDiffSec;
+      }
+    }
+
+    // Fallback: use last two points
+    const lastTwo = history.slice(-2);
+    if (lastTwo.length === 2) {
+      const timeDiffSec = (lastTwo[1].timestamp - lastTwo[0].timestamp) / 1000;
+      if (timeDiffSec > 0) {
+        return (lastTwo[1].temperature - lastTwo[0].temperature) / timeDiffSec;
+      }
+    }
+
+    return 0;
   }
 
   /**

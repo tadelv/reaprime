@@ -138,6 +138,10 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
                         'by ${plugin.author} • v${plugin.version}',
                         style: TextStyle(color: Colors.grey[600]),
                       ),
+                      Text(
+                        plugin.description,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
                     ],
                   ),
                 ),
@@ -229,8 +233,8 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
                             value,
                           );
                           if (context.mounted == false) {
-                              return;
-                            }
+                            return;
+                          }
                           _showSnackBar(
                             context,
                             value

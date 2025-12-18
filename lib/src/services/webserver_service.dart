@@ -30,6 +30,7 @@ import 'package:shelf/shelf_io.dart' as io;
 import 'package:shelf_web_socket/shelf_web_socket.dart' as sws;
 import 'package:shelf_cors_headers/shelf_cors_headers.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
+import 'package:reaprime/src/plugins/plugin_manager.dart';
 
 part 'webserver/de1handler.dart';
 part 'webserver/scale_handler.dart';
@@ -37,6 +38,7 @@ part 'webserver/devices_handler.dart';
 part 'webserver/settings_handler.dart';
 part 'webserver/sensors_handler.dart';
 part 'webserver/kv_store_handler.dart';
+part 'webserver/plugins_handler.dart';
 
 final log = Logger("Webservice");
 
@@ -48,6 +50,7 @@ Future<void> startWebServer(
   SensorController sensorController,
   WorkflowController workflowController,
   PersistenceController persistenceController,
+  PluginManager pluginManager,
 ) async {
   log.info("starting webserver");
   final de1Handler = De1Handler(controller: de1Controller);
@@ -67,6 +70,10 @@ Future<void> startWebServer(
     controller: persistenceController,
   );
 
+  final PluginsHandler pluginsHandler = PluginsHandler(
+    pluginManager: pluginManager,
+  );
+
   final kvStoreHandler = KvStoreHandler();
   await kvStoreHandler.store.initialize();
   // Start server
@@ -80,6 +87,7 @@ Future<void> startWebServer(
       workflowHandler,
       shotsHandler,
       kvStoreHandler,
+      pluginsHandler,
     ),
     '0.0.0.0',
     8080,
@@ -100,6 +108,7 @@ Handler _init(
   WorkflowHandler workflowHandler,
   ShotsHandler shotsHandler,
   KvStoreHandler kvStoreHandler,
+  PluginsHandler pluginsHandler,
 ) {
   log.info("called _init");
   var app = Router().plus;
@@ -136,6 +145,7 @@ Handler _init(
   workflowHandler.addRoutes(app);
   shotsHandler.addRoutes(app);
   kvStoreHandler.addRoutes(app);
+  pluginsHandler.addRoutes(app);
 
   final handler = const Pipeline()
       .addMiddleware(logRequests())
