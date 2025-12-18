@@ -31,6 +31,21 @@ Currently, R1 supports the most basic of features, but enough to support the mai
 - Decent Scale
 - Bookoo
 
+### Plugins
+
+REA features a plugin system, for dynamic expansion of the user experience.
+More details coming soon.
+
+
+## Building
+
+I'll skip through Flutter SDK install for now, google has all the answers.  
+
+### Build on your machine
+
+For versioning purposes, a build script is included, that injects certain environment vars into the build process.  
+If you want to take advantage of that, make sure you run:
+`./flutter_with_commit.sh run`
 
 ### Build for Linux arm64 in container:
 
