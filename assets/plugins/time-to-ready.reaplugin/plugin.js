@@ -74,7 +74,6 @@
      * @param {*} event.payload
      */
     onEvent(event) {
-      console.log("evt", event);
       if (!event || typeof event.name !== "string") {
         return;
       }
@@ -136,8 +135,7 @@
     host.emit("example.tick.report", {
       ticksSeen: state.ticksSeen,
       uptimeMs: now - state.loadedAt,
-      payload,
-      estimation: estimation
+      estimation
     });
   }
 
