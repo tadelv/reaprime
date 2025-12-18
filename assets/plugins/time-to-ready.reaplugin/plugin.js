@@ -132,11 +132,10 @@
     state.lastEstimation = estimation;
 
     // Emit the estimation along with other data
-    host.emit("example.tick.report", {
-      ticksSeen: state.ticksSeen,
-      uptimeMs: now - state.loadedAt,
+    host.emit(
+      "timeToReady",
       estimation
-    });
+    );
   }
 
   /**

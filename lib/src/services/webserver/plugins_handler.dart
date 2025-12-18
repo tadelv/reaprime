@@ -27,11 +27,18 @@ final class PluginsHandler {
     if (manifest == null) {
       return Response.notFound('plugin with $id not loaded');
     }
-    // if (manifest.api?.endpoints.contains(endpoint) == false) {
-    //   return Response.notFound('endpoint $endpoint not available');
-    // }
-    //
-    //
+    final apiEndpoint = manifest.api?.endpoints.firstWhereOrNull(
+      (e) => e.id == endpoint,
+    );
+    if (apiEndpoint == null) {
+      return Response.notFound('endpoint $endpoint not available');
+    }
+    if (apiEndpoint.type != ApiEndpointType.websocket) {
+      return Response.badRequest(
+        body: {'error': 'endpoint $endpoint is not a websocket type'},
+      );
+    }
+
     return sws.webSocketHandler((WebSocketChannel socket) {
       StreamSubscription<Map<String, dynamic>>? sub;
       sub = pluginManager.emitStream
