@@ -138,7 +138,7 @@ class PluginManager {
   }
 
   void _handlePluginEvent(String pluginId, String event, dynamic payload) {
-    _log.fine('Handling event from $pluginId → $event ($payload)');
+    _log.finest('Handling event from $pluginId → $event ($payload)');
     _emitController.add({
         'id': pluginId,
         'event': event,

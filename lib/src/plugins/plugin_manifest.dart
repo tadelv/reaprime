@@ -33,7 +33,7 @@ class PluginManifest {
       apiVersion: json['apiVersion'],
       permissions: PluginPermissionsFromJson.fromJson(json['permissions']),
       settings: json['settings'] ?? {},
-      api: json['api'] != null ? PluginApi.fromJsonList(json['api']) : null,
+      api: PluginApi.fromJsonList(json['api']),
     );
   }
 
@@ -81,12 +81,39 @@ extension PluginPermissionsFromJson on PluginPermissions {
 }
 
 final class PluginApi {
-  PluginApi();
+  final List<ApiEndpoint> endpoints;
+  PluginApi({required this.endpoints});
   factory PluginApi.fromJsonList(List<dynamic> json) {
-    return PluginApi();
+    return PluginApi(
+      endpoints: json.map((e) => ApiEndpoint.fromJson(e)).toList(),
+    );
+  }
+
+  List<dynamic> toJson() {
+    return endpoints.map((e) {
+      return e.toJson();
+    }).toList();
+  }
+}
+
+final class ApiEndpoint {
+  final String id;
+  final ApiEndpointType type;
+  final Map<String, dynamic> data;
+
+  ApiEndpoint({required this.id, required this.type, required this.data});
+
+  factory ApiEndpoint.fromJson(Map<String, dynamic> json) {
+    return ApiEndpoint(
+      id: json['id'],
+      type: ApiEndpointType.values.firstWhere((e) => e.name == json['type']),
+      data: json['data'],
+    );
   }
 
   Map<String, dynamic> toJson() {
-    return {};
+    return {'id': id, 'type': type.name, 'data': data};
   }
 }
+
+enum ApiEndpointType { websocket, http }

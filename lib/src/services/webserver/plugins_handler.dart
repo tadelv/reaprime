@@ -32,20 +32,36 @@ final class PluginsHandler {
     // }
     //
     //
-    return sws.webSocketHandler((socket) {
-      final sub = pluginManager.emitStream
+    return sws.webSocketHandler((WebSocketChannel socket) {
+      StreamSubscription<Map<String, dynamic>>? sub;
+      sub = pluginManager.emitStream
           .where((e) {
             return e['id'] == id && e['event'] == endpoint;
           })
-          .listen((data) {
-            socket.sink.add(jsonEncode(data['payload']));
-          });
+          .listen(
+            (data) {
+              socket.sink.add(jsonEncode(data['payload']));
+            },
+            onDone: () {
+              socket.sink.close();
+              sub?.cancel();
+            },
+            onError: (e) {
+              _log.warning("plugin $id listen errored out:", e);
+              sub?.cancel();
+            },
+          );
       socket.stream.listen(
         (msg) {
           // handle incoming messages if needed
         },
-        onDone: sub.cancel,
-        onError: (_, _) => sub.cancel(),
+        onDone: () {
+          sub?.cancel();
+        },
+        onError: (e, _) {
+          sub?.cancel();
+          _log.warning("socket connection error: ", e);
+        },
       );
     })(req);
   }
