@@ -1,10 +1,36 @@
+import 'dart:async';
+
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/controllers/de1_controller.dart';
+import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/plugins/plugin_manifest.dart';
 import 'package:reaprime/src/plugins/plugin_runtime.dart';
 
 class PluginManager {
   final _log = Logger("PluginManager");
   final Map<String, PluginRuntime> _plugins = {};
+
+  De1Controller? _de1controller;
+  StreamSubscription<De1Interface?>? _de1Subscription;
+  StreamSubscription<MachineSnapshot>? _snapshotSubscription;
+  De1Controller? get de1Controller => _de1controller;
+  set de1Controller(De1Controller? controller) {
+    _log.info("subscribing to $controller");
+    _de1Subscription?.cancel();
+    _de1controller = controller;
+    if (controller == null) {
+      return;
+    }
+    _de1Subscription = controller.de1.listen((de1) {
+      if (de1 != null) {
+        _snapshotSubscription?.cancel();
+        _snapshotSubscription = de1.currentSnapshot.listen((e) {
+          broadcastEvent('stateUpdate', e.toJson());
+        });
+      }
+    });
+  }
 
   Future<void> loadPlugin({
     required String id,
@@ -73,14 +99,14 @@ class PluginManager {
       }
       final manifest = plugin.manifest;
 
+      _require(manifest, msg['type']);
+
       switch (msg['type']) {
         case 'log':
-          _require(manifest, 'log');
           _log.fine('[PLUGIN:$pluginId] ${msg['payload']['message']}');
           break;
 
         case 'emit':
-          _require(manifest, 'emit:events');
           _handlePluginEvent(
             pluginId,
             msg['payload']['event'],
@@ -101,6 +127,7 @@ class PluginManager {
       );
     }
     if (!manifest.permissions.contains(permission)) {
+      _log.warning("perms: ${manifest.permissions}");
       throw Exception('Plugin ${manifest.id} lacks permission: $perm');
     }
   }

@@ -49,7 +49,7 @@ enum PluginPermissions {
 
 extension PluginPermissionsFromJson on PluginPermissions {
   static Set<PluginPermissions> fromJson(dynamic json) {
-    if (json is! List<String>) {
+    if (json is! List<dynamic>) {
       return <PluginPermissions>{};
     }
     final rawPermissions = Set<String>.from(json);

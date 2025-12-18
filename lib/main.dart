@@ -199,9 +199,15 @@ void main() async {
   final PluginLoaderService pluginService = PluginLoaderService();
   try {
     await pluginService.initialize();
+
+    Future.delayed(Duration(seconds: 5), () {
+      Logger.root.shout("firing!");
+      pluginService.pluginManager.broadcastEvent("tick", {"data": "test"});
+    });
   } catch (e) {
     Logger.root.warning("failed to load plugins", e);
   }
+  pluginService.pluginManager.de1Controller = de1Controller;
 
   runApp(
     WithForegroundTask(

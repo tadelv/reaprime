@@ -78,4 +78,4 @@ flutter:
     - assets/images/
     - assets/web/
     - assets/api/
-    - assets/plugins/example.plugin/
+    - assets/plugins/time-to-ready.reaplugin/

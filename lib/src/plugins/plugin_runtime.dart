@@ -89,7 +89,7 @@ class PluginRuntime {
   }
 
   void dispatchEvent(String name, dynamic payload) {
-    _log.shout("dispatch: $name");
+    _log.finest("dispatch: $name");
     js.evaluate('''
       if (Plugin?.onEvent) {
         Plugin.onEvent({
