@@ -141,7 +141,7 @@ void main() async {
   final sensorController = SensorController(controller: deviceController);
 
   final PluginLoaderService pluginService = PluginLoaderService(
-    kvStore: HiveStoreService()..initialize(),
+    kvStore: HiveStoreService(defaultNamespace: "plugins")..initialize(),
   );
   try {
     await pluginService.initialize();

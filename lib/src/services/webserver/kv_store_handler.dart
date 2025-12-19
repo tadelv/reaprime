@@ -1,7 +1,7 @@
 part of '../webserver_service.dart';
 
 final class KvStoreHandler {
-  final store = HiveStoreService();
+  final store = HiveStoreService(defaultNamespace: "kvStore");
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/store/<namespace>', (Request req) async {

@@ -64,7 +64,7 @@ class Profile extends Equatable {
     return {
       'version': version,
       'title': title,
-      'notes': notes,
+      'notes': notes.replaceAll('\n', '\\n'),
       'author': author,
       'beverage_type': beverageType.name,
       'steps': steps.map((step) => step.toJson()).toList(),

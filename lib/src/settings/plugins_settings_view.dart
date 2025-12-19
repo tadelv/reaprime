@@ -192,10 +192,7 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
                 children: [
                   Text(
                     'Permissions:',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[700],
-                    ),
+                    style: Theme.of(context).textTheme.labelMedium,
                   ),
                   const SizedBox(height: 4),
                   Wrap(
@@ -206,8 +203,8 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
                             .map(
                               (permission) => Chip(
                                 label: Text(permission.name),
-                                backgroundColor: Colors.blue[50],
-                                labelStyle: const TextStyle(fontSize: 12),
+                                backgroundColor: Theme.of(context).colorScheme.tertiary,
+                                labelStyle: Theme.of(context).textTheme.labelSmall,
                               ),
                             )
                             .toList(),
