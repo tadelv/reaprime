@@ -15,6 +15,7 @@ class ShotsHandler {
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/shots', _getShots);
     app.get('/api/v1/shots/ids', _getIds);
+    app.get('/api/v1/shots/latest', _getLatestShot);
   }
 
   Future<Response> _getShots(Request req) async {
@@ -37,5 +38,10 @@ class ShotsHandler {
     List<ShotRecord> shots = await _controller.shots.first;
     final ids = shots.map((e) => e.id);
     return Response.ok(jsonEncode(ids.toList()));
+  }
+
+  Future<Response> _getLatestShot(Request req) async {
+    List<ShotRecord> shots = await _controller.shots.first;
+    return Response.ok(jsonEncode(shots.lastOrNull?.toJson()));
   }
 }

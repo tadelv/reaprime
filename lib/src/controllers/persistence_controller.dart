@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
@@ -28,7 +29,11 @@ class PersistenceController {
     _log.fine("shots loaded: ${loadedShots.length}");
     _shots.clear();
     _log.fine("shots cleared: ${_shots.length}");
-    _shots.addAll(loadedShots);
+    _shots.addAll(
+      loadedShots.sortedBy((element) {
+        return element.timestamp;
+      }),
+    );
     _shotsController.add(_shots);
     _log.fine("shots changed: ${_shots.length}");
     return _shots;
@@ -40,27 +45,21 @@ class PersistenceController {
   Stream<List<ShotRecord>> get shots => _shotsController.stream;
 
   List<GrinderData> grinderOptions() {
-    return _shots.fold(
-      <GrinderData>[],
-      (res, el) {
-        if (el.workflow.grinderData != null) {
-          res.add(el.workflow.grinderData!);
-        }
-        return res;
-      },
-    ).toList();
+    return _shots.fold(<GrinderData>[], (res, el) {
+      if (el.workflow.grinderData != null) {
+        res.add(el.workflow.grinderData!);
+      }
+      return res;
+    }).toList();
   }
 
   List<CoffeeData> coffeeOptions() {
-    return _shots.fold(
-      <CoffeeData>[],
-      (res, el) {
-        if (el.workflow.coffeeData != null) {
-          res.add(el.workflow.coffeeData!);
-        }
-        return res;
-      },
-    ).toList();
+    return _shots.fold(<CoffeeData>[], (res, el) {
+      if (el.workflow.coffeeData != null) {
+        res.add(el.workflow.coffeeData!);
+      }
+      return res;
+    }).toList();
   }
 
   Future<void> saveWorkflow(Workflow workflow) async {

@@ -23,6 +23,7 @@ import 'package:reaprime/src/models/device/impl/felicita/arc.dart';
 import 'package:reaprime/src/models/device/impl/machine_parser.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/services/blue_plus_discovery_service.dart';
+import 'package:reaprime/src/services/storage/hive_store_service.dart';
 import 'package:reaprime/src/services/universal_ble_discovery_service.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
 import 'package:reaprime/src/services/storage/file_storage_service.dart';
@@ -139,7 +140,9 @@ void main() async {
   final scaleController = ScaleController(controller: deviceController);
   final sensorController = SensorController(controller: deviceController);
 
-  final PluginLoaderService pluginService = PluginLoaderService();
+  final PluginLoaderService pluginService = PluginLoaderService(
+    kvStore: HiveStoreService()..initialize(),
+  );
   try {
     await pluginService.initialize();
     pluginService.pluginManager.de1Controller = de1Controller;

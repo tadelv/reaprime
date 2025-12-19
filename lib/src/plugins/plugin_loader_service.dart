@@ -4,18 +4,22 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:reaprime/src/services/storage/kv_store_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:reaprime/src/plugins/plugin_manager.dart';
 import 'package:reaprime/src/plugins/plugin_manifest.dart';
 import 'package:reaprime/src/plugins/plugin_runtime.dart';
 
 class PluginLoaderService {
-  final PluginManager pluginManager = PluginManager();
+  final PluginManager pluginManager;
   final _log = Logger('PluginLoaderService');
 
   late Directory _pluginsDir;
   late SharedPreferences _prefs;
   final Map<String, PluginManifest> _availablePluginsCache = {};
+
+  PluginLoaderService({required KeyValueStoreService kvStore})
+    : pluginManager = PluginManager(kvStore: kvStore);
 
   Future<void> initialize() async {
     // Get application documents directory

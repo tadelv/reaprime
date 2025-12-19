@@ -55,9 +55,8 @@ class PluginManifest {
 enum PluginPermissions {
   log,
   emit,
-  api,
   pluginStorage,
-  shotsStorage;
+  pluginNotify;
 
   static PluginPermissions? fromString(String value) {
     return PluginPermissions.values.firstWhereOrNull((e) => e.name == value);

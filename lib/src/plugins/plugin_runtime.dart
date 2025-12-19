@@ -38,9 +38,7 @@ class PluginRuntime {
         log(message) {
           sendJson({
             type: "log",
-            payload: {
-              message: String(message)
-            }
+            payload: { message: String(message) }
           });
         },
 
@@ -52,17 +50,55 @@ class PluginRuntime {
               data: payload
             }
           });
+        },
+
+        storage(payload) {
+          sendJson({
+            type: "pluginStorage",
+            payload: payload
+          });
         }
       };
+
+      // ---- Base64 ----
+
+      const _b64chars =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+
+      globalThis.base64Encode = function (str) {
+        let output = "";
+        let i = 0;
+
+        while (i < str.length) {
+          const chr1 = str.charCodeAt(i++);
+          const chr2 = str.charCodeAt(i++);
+          const chr3 = str.charCodeAt(i++);
+
+          const enc1 = chr1 >> 2;
+          const enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
+          const enc3 = isNaN(chr2)
+            ? 64
+            : (((chr2 & 15) << 2) | (chr3 >> 6));
+          const enc4 = isNaN(chr3) ? 64 : (chr3 & 63);
+
+          output +=
+            _b64chars.charAt(enc1) +
+            _b64chars.charAt(enc2) +
+            _b64chars.charAt(enc3) +
+            _b64chars.charAt(enc4);
+        }
+
+        return output;
+      };
+
     })();
-  ''');
+    ''');
 
     js.onMessage('default', (raw) {
       _log.finest("recv: $raw");
 
       final decoded = _safeDecode(raw);
       onMessage(pluginId, decoded);
-
     });
   }
 

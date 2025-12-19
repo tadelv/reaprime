@@ -6,6 +6,8 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/plugins/plugin_manifest.dart';
 import 'package:reaprime/src/plugins/plugin_runtime.dart';
+import 'package:reaprime/src/plugins/plugin_types.dart';
+import 'package:reaprime/src/services/storage/kv_store_service.dart';
 
 class PluginManager {
   final _log = Logger("PluginManager");
@@ -31,6 +33,10 @@ class PluginManager {
       }
     });
   }
+
+  KeyValueStoreService kvStore;
+
+  PluginManager({required this.kvStore});
 
   StreamController<Map<String, dynamic>> _emitController =
       StreamController.broadcast();
@@ -67,7 +73,7 @@ class PluginManager {
   }
 
   void broadcastEvent(String name, dynamic payload) {
-    _log.fine("broadcast $name, $payload");
+    _log.finest("broadcast $name, $payload");
     for (final plugin in _plugins.values) {
       sendEventToPlugin(plugin.pluginId, name, payload);
     }
@@ -95,7 +101,7 @@ class PluginManager {
   //   data: Object
   // }
   void _handleMessage(String pluginId, Map<String, dynamic> msg) {
-    _log.finest("handling: $pluginId, $msg");
+    _log.shout("handling: $pluginId, $msg");
     try {
       final plugin = _plugins[pluginId];
       if (plugin == null) {
@@ -106,6 +112,7 @@ class PluginManager {
 
       _require(manifest, msg['type']);
 
+      // TODO: map to PluginPermissions first and then switch over that
       switch (msg['type']) {
         case 'log':
           _log.fine('[PLUGIN:$pluginId] ${msg['payload']['message']}');
@@ -118,6 +125,10 @@ class PluginManager {
             msg['payload']['data'],
           );
           break;
+        case 'pluginStorage':
+          final command = PluginStorageCommand.fromPlugin(msg['payload']);
+          _log.shout("decoded: $command");
+          _handlePluginStorageRequest(pluginId, command);
       }
     } catch (e) {
       _log.warning("failed to handle message", e);
@@ -139,11 +150,25 @@ class PluginManager {
 
   void _handlePluginEvent(String pluginId, String event, dynamic payload) {
     _log.finest('Handling event from $pluginId → $event ($payload)');
-    _emitController.add({
-        'id': pluginId,
-        'event': event,
-        'payload': payload
-      });
+    _emitController.add({'id': pluginId, 'event': event, 'payload': payload});
+  }
+
+  Future<void> _handlePluginStorageRequest (
+    String pluginId,
+    PluginStorageCommand command,
+  ) async {
+    _log.shout('Handling storage from $pluginId → $command');
+    switch (command.type) {
+      case PluginStorageCommandType.read:
+        final data = await kvStore.get(key: command.key, namespace: pluginId);
+        sendEventToPlugin(pluginId, "storageRead", {
+          "key": command.key,
+          "data": data,
+        });
+      case PluginStorageCommandType.write:
+        kvStore.set(key: command.key, namespace: pluginId, value: command.data);
+        sendEventToPlugin(pluginId, "storageWrite", command.data);
+    }
   }
 
   /// Get a list of currently loaded plugins
