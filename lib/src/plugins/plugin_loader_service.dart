@@ -137,6 +137,8 @@ class PluginLoaderService {
 
     final jsCode = await pluginFile.readAsString();
 
+    final settings = await pluginSettings(pluginId);
+
     // Load plugin using PluginManager
     // FIXME: add watchdog so we don't break the app with unloadable plugins
     await Future.any([
@@ -144,6 +146,7 @@ class PluginLoaderService {
         id: pluginId,
         manifest: manifest,
         jsCode: jsCode,
+        settings: settings,
       ),
       Future.delayed(Duration(seconds: 1), () {
         throw Exception("load timeout occured");
@@ -156,7 +159,7 @@ class PluginLoaderService {
   /// Unload a plugin
   /// by using the PluginManager unloadPlugin method
   Future<void> unloadPlugin(String pluginId) async {
-    pluginManager.unloadPlugin(pluginId);
+    await pluginManager.unloadPlugin(pluginId);
     _log.info('Plugin unloaded: $pluginId');
   }
 

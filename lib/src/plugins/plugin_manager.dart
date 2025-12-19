@@ -47,6 +47,7 @@ class PluginManager {
     required String id,
     required PluginManifest manifest,
     required String jsCode,
+    required Map<String, dynamic> settings,
   }) async {
     if (_plugins.containsKey(id)) {
       throw Exception('Plugin already loaded: $id');
@@ -59,14 +60,14 @@ class PluginManager {
     );
 
     _plugins[id] = runtime;
-    await runtime.load(jsCode);
+    await runtime.load(jsCode, settings);
     _log.info("loaded: ${runtime.pluginId}");
     _log.finest("loaded plugins ${_plugins.keys.toList()}");
   }
 
-  void unloadPlugin(String id) {
+  Future<void> unloadPlugin(String id) async {
     final plugin = _plugins[id];
-    plugin?.dispose();
+    await plugin?.dispose();
     if (plugin != null) {
       _plugins.remove(id);
     }
@@ -101,7 +102,7 @@ class PluginManager {
   //   data: Object
   // }
   void _handleMessage(String pluginId, Map<String, dynamic> msg) {
-    _log.shout("handling: $pluginId, $msg");
+    _log.finest("handling: $pluginId, $msg");
     try {
       final plugin = _plugins[pluginId];
       if (plugin == null) {
@@ -127,7 +128,6 @@ class PluginManager {
           break;
         case 'pluginStorage':
           final command = PluginStorageCommand.fromPlugin(msg['payload']);
-          _log.shout("decoded: $command");
           _handlePluginStorageRequest(pluginId, command);
       }
     } catch (e) {
@@ -153,11 +153,11 @@ class PluginManager {
     _emitController.add({'id': pluginId, 'event': event, 'payload': payload});
   }
 
-  Future<void> _handlePluginStorageRequest (
+  Future<void> _handlePluginStorageRequest(
     String pluginId,
     PluginStorageCommand command,
   ) async {
-    _log.shout('Handling storage from $pluginId → $command');
+    _log.finest('Handling storage from $pluginId → $command');
     switch (command.type) {
       case PluginStorageCommandType.read:
         final data = await kvStore.get(key: command.key, namespace: pluginId);

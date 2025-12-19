@@ -114,14 +114,22 @@ class PluginRuntime {
     }
   }
 
-  Future<void> load(String jsCode) async {
+  Future<void> load(String jsCode, Map<String, dynamic> settings) async {
+    // 1. Load plugin code
     await js.evaluateAsync(jsCode);
-    await js.evaluateAsync(r'''
+
+    // 2. Serialize settings to JSON
+    final settingsJson = jsonEncode(settings);
+
+    // 3. Call onLoad with real JS object
+    await js.evaluateAsync('''
+    (function () {
       if (!globalThis.Plugin) {
         throw new Error("Plugin not found");
       }
-      Plugin.onLoad({});
-    ''');
+      Plugin.onLoad($settingsJson);
+    })();
+  ''');
   }
 
   void dispatchEvent(String name, dynamic payload) {
@@ -136,11 +144,12 @@ class PluginRuntime {
     ''');
   }
 
-  void dispose() {
-    js.evaluate(r'''
+  Future<void> dispose() async {
+    await js.evaluateAsync(r'''
       Plugin?.onUnload?.();
       Plugin = null;
     ''');
+    js.executePendingJob();
     js.dispose();
   }
 }
