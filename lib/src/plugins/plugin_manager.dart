@@ -14,8 +14,11 @@ class PluginManager {
   final Map<String, PluginRuntime> _plugins = {};
 
   De1Controller? _de1controller;
+
   StreamSubscription<De1Interface?>? _de1Subscription;
+
   StreamSubscription<MachineSnapshot>? _snapshotSubscription;
+
   De1Controller? get de1Controller => _de1controller;
   set de1Controller(De1Controller? controller) {
     _log.info("subscribing to $controller");
@@ -25,8 +28,8 @@ class PluginManager {
       return;
     }
     _de1Subscription = controller.de1.listen((de1) {
+      _snapshotSubscription?.cancel();
       if (de1 != null) {
-        _snapshotSubscription?.cancel();
         _snapshotSubscription = de1.currentSnapshot.listen((e) {
           broadcastEvent('stateUpdate', e.toJson());
         });
@@ -38,7 +41,7 @@ class PluginManager {
 
   PluginManager({required this.kvStore});
 
-  StreamController<Map<String, dynamic>> _emitController =
+  final StreamController<Map<String, dynamic>> _emitController =
       StreamController.broadcast();
 
   Stream<Map<String, dynamic>> get emitStream => _emitController.stream;
@@ -74,9 +77,13 @@ class PluginManager {
   }
 
   void broadcastEvent(String name, dynamic payload) {
-    _log.finest("broadcast $name, $payload");
-    for (final plugin in _plugins.values) {
-      sendEventToPlugin(plugin.pluginId, name, payload);
+    if (_plugins.isEmpty) return;
+
+    final plugins = List.of(_plugins.values);
+    for (final plugin in plugins) {
+      if (plugin.isAlive) {
+        plugin.dispatchEvent(name, payload);
+      }
     }
   }
 
@@ -102,36 +109,39 @@ class PluginManager {
   //   data: Object
   // }
   void _handleMessage(String pluginId, Map<String, dynamic> msg) {
-    _log.finest("handling: $pluginId, $msg");
     try {
       final plugin = _plugins[pluginId];
-      if (plugin == null) {
-        _log.warning("received from unloaded plugin: $pluginId, msg: $msg");
+      if (plugin == null || !plugin.isAlive) {
         return;
       }
-      final manifest = plugin.manifest;
 
-      _require(manifest, msg['type']);
+      final type = msg['type'];
+      if (type is! String) {
+        throw Exception("Invalid message type");
+      }
 
-      // TODO: map to PluginPermissions first and then switch over that
-      switch (msg['type']) {
+      _require(plugin.manifest, type);
+
+      switch (type) {
         case 'log':
-          _log.fine('[PLUGIN:$pluginId] ${msg['payload']['message']}');
+          _log.fine('[PLUGIN:$pluginId] ${msg['payload']?['message']}');
           break;
 
         case 'emit':
           _handlePluginEvent(
             pluginId,
-            msg['payload']['event'],
-            msg['payload']['data'],
+            msg['payload']?['event'],
+            msg['payload']?['data'],
           );
           break;
+
         case 'pluginStorage':
           final command = PluginStorageCommand.fromPlugin(msg['payload']);
           _handlePluginStorageRequest(pluginId, command);
+          break;
       }
-    } catch (e) {
-      _log.warning("failed to handle message", e);
+    } catch (e, st) {
+      _log.warning("Plugin message rejected", e, st);
     }
   }
 
@@ -165,9 +175,11 @@ class PluginManager {
           "key": command.key,
           "data": data,
         });
+        break;
       case PluginStorageCommandType.write:
         kvStore.set(key: command.key, namespace: pluginId, value: command.data);
         sendEventToPlugin(pluginId, "storageWrite", command.data);
+        break;
     }
   }
 

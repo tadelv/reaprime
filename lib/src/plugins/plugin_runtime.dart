@@ -7,12 +7,18 @@ import 'package:reaprime/src/plugins/plugin_manifest.dart';
 typedef PluginMessageHandler =
     void Function(String pluginId, Map<String, dynamic> message);
 
+enum PluginRuntimeState { loading, running, disposing, disposed }
+
 class PluginRuntime {
   final String pluginId;
   final JavascriptRuntime js;
   final PluginMessageHandler onMessage;
   final PluginManifest manifest;
+
   late Logger _log;
+  PluginRuntimeState _state = PluginRuntimeState.loading;
+
+  bool get isAlive => _state == PluginRuntimeState.running;
 
   PluginRuntime({
     required this.pluginId,
@@ -29,7 +35,7 @@ class PluginRuntime {
 
       function sendJson(obj) {
         sendMessage(
-          'default',
+          "default",
           JSON.stringify(obj)
         );
       }
@@ -95,6 +101,8 @@ class PluginRuntime {
     ''');
 
     js.onMessage('default', (raw) {
+      if (_state != PluginRuntimeState.running) return;
+
       _log.finest("recv: $raw");
 
       final decoded = _safeDecode(raw);
@@ -115,41 +123,87 @@ class PluginRuntime {
   }
 
   Future<void> load(String jsCode, Map<String, dynamic> settings) async {
-    // 1. Load plugin code
-    await js.evaluateAsync(jsCode);
+    if (_state != PluginRuntimeState.loading) return;
 
-    // 2. Serialize settings to JSON
-    final settingsJson = jsonEncode(settings);
+    try {
+      js.evaluate(jsCode);
 
-    // 3. Call onLoad with real JS object
-    await js.evaluateAsync('''
-    (function () {
-      if (!globalThis.Plugin) {
-        throw new Error("Plugin not found");
+      final settingsJson = jsonEncode(settings);
+
+      js.evaluate('''
+      try {
+        if (!globalThis.Plugin) {
+          throw new Error("Plugin not found");
+        }
+        Plugin.onLoad($settingsJson);
+      } catch (e) {
+        host.log("onLoad error: " + e);
       }
-      Plugin.onLoad($settingsJson);
-    })();
-  ''');
+    ''');
+    } catch (e, st) {
+      _log.severe("Plugin load failed", e, st);
+      rethrow;
+    }
+
+    _state = PluginRuntimeState.running;
   }
 
   void dispatchEvent(String name, dynamic payload) {
-    _log.finest("dispatch: $name");
-    js.evaluate('''
-      if (Plugin?.onEvent) {
-        Plugin.onEvent({
-          name: "$name",
-          payload: ${jsonEncode(payload)}
-        });
+    if (!isAlive) {
+      _log.finest("Skipping dispatch to dead plugin $pluginId");
+      return;
+    }
+
+    final safePayload = _safeJson(payload);
+
+    try {
+      js.evaluate('''
+      try {
+        if (Plugin?.onEvent) {
+          Plugin.onEvent({
+            name: "$name",
+            payload: $safePayload
+          });
+        }
+      } catch (e) {
+        host.log("onEvent error: " + e);
       }
     ''');
+    } catch (e, st) {
+      _log.warning("dispatchEvent failed", e, st);
+    }
+  }
+
+  String _safeJson(dynamic value) {
+    try {
+      return jsonEncode(value);
+    } catch (e) {
+      return jsonEncode({
+        "_error": "non_json_payload",
+        "string": value.toString(),
+      });
+    }
   }
 
   Future<void> dispose() async {
-    await js.evaluateAsync(r'''
-      Plugin?.onUnload?.();
-      Plugin = null;
+    if (_state == PluginRuntimeState.disposed ||
+        _state == PluginRuntimeState.disposing) {
+      return;
+    }
+
+    _state = PluginRuntimeState.disposing;
+
+    try {
+      js.evaluate(r'''
+      try {
+        Plugin?.onUnload?.();
+        Plugin = null;
+      } catch (e) {}
     ''');
-    js.executePendingJob();
+      js.executePendingJob();
+    } catch (_) {}
+
     js.dispose();
+    _state = PluginRuntimeState.disposed;
   }
 }
