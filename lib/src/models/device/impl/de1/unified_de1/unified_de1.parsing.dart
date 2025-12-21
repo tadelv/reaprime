@@ -65,7 +65,6 @@ extension MessageParsing on UnifiedDe1 {
   }
 
   De1ShotSettings _parseShotSettings(ByteData data) {
-    _log.shout("got data: ${data.lengthInBytes}");
     var steamBits = data.getUint8(0);
     var targetSteamTemp = data.getUint8(1);
     var targetSteamLength = data.getUint8(2);

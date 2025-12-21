@@ -103,7 +103,6 @@ class UnifiedDe1Transport {
       _waterLevelsNotification(ByteData.sublistView(Uint8List.fromList(d)));
     });
     await _transport.subscribe(de1ServiceUUID, Endpoint.shotSettings.uuid, (d) {
-      _log.shout("recv shot settings: ${d.lengthInBytes}");
       _shotSettingsNotification(ByteData.sublistView(Uint8List.fromList(d)));
     });
     await _transport.subscribe(de1ServiceUUID, Endpoint.readFromMMR.uuid, (d) {

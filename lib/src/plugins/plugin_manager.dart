@@ -118,7 +118,7 @@ class PluginManager {
 
     js.onMessage("host", (raw) {
       try {
-        _log.shout("recieving: $raw");
+        _log.finest("receiving: $raw");
         // final msg = jsonDecode(raw);
         final msg = raw as Map<String, dynamic>;
         final pluginId = msg['pluginId'] as String?;
@@ -273,7 +273,7 @@ class PluginManager {
   // ─────────────────────────────────────────────
 
   void _handleMessage(String pluginId, Map<String, dynamic> msg) {
-    _log.info("handle message: $msg");
+    _log.finest("handle message: $msg");
     final type = msg['type'];
     final payload = msg['payload'];
 
@@ -284,7 +284,7 @@ class PluginManager {
           'event': msg['event'],
           'payload': payload,
         };
-        _log.info("emitting: $eventData");
+        _log.finest("emitting: $eventData");
         _emitController.add(eventData);
         break;
 

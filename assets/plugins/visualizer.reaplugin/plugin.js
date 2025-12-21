@@ -51,25 +51,134 @@ function createPlugin(host) {
     return "Basic " + btoa(state.username + ":" + state.password);
   }
 
-  async function uploadShot(shot) {
-    const res = await fetch(
-      `${VISUALIZER_API_URL}/shots/upload`,
-      {
+  function buildMultipartBody({ fieldName, filename, contentType, data }) {
+  const boundary = "----reaBoundary" + Math.random().toString(16).slice(2);
+
+  const body =
+    `--${boundary}\r\n` +
+    `Content-Disposition: form-data; name="${fieldName}"; filename="${filename}"\r\n` +
+    `Content-Type: ${contentType}\r\n\r\n` +
+    data + `\r\n` +
+    `--${boundary}--\r\n`;
+
+  return {
+    body,
+    boundary,
+  };
+}
+  /// FormData and Blob not available in Flutter_JS
+async function uploadShot(shotData, onRetry) {
+  const retries = 3;
+  const delay = 2000;
+  const url = `${VISUALIZER_API_URL}/shots/upload`;
+
+  const payload = buildMultipartBody({
+    fieldName: "file",
+    filename: "file.shot",
+    contentType: "application/json",
+    data: JSON.stringify(shotData),
+  });
+
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, {
         method: "POST",
         headers: {
-          Authorization: getAuthHeader(),
-          "Content-Type": "application/json",
+          "Authorization": getAuthHeader(),
+          "Content-Type": `multipart/form-data; boundary=${payload.boundary}`,
         },
-        body: JSON.stringify(shot),
-      }
-    );
+        body: payload.body,
+      });
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(`Upload failed: ${res.status} ${res.statusText} - ${errorText}`);
+      if (response.ok) {
+        return await response.json();
+      }
+
+      const errorText = await response.text();
+
+      // 4xx → fail fast
+      if (response.status >= 400 && response.status < 500) {
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+
+    } catch (error) {
+      // console.error(`Upload attempt ${i + 1}/${retries} failed:`, error.message);
+
+      if (i === retries - 1) {
+        throw error;
+      }
+
+      if (onRetry) {
+        onRetry(i + 1, retries);
+      }
+
+      await new Promise(res => setTimeout(res, delay));
+    }
+  }
+}
+
+  function convertReaToVisualizerFormat(reaShot) {
+    if (!reaShot || !reaShot.measurements || reaShot.measurements.length === 0) {
+      throw new Error("Invalid or empty REA shot data for conversion.");
     }
 
-    return await res.json();
+    const firstTimestamp = new Date(reaShot.measurements[0].machine.timestamp).getTime();
+    const lastMeasurement = reaShot.measurements[reaShot.measurements.length - 1];
+    const lastTimestamp = new Date(lastMeasurement.machine.timestamp).getTime();
+    let totalWaterDispensed = 0;
+
+    const visualizerShot = {
+      timestamp: Math.floor(firstTimestamp / 1000),
+      duration: (lastTimestamp - firstTimestamp) / 1000,
+      elapsed: [],
+      pressure: { pressure: [], goal: [] },
+      flow: { flow: [], goal: [], by_weight: [] },
+      temperature: { mix: [], basket: [], goal: [] },
+      totals: {},
+      state_change: [],
+      profile: reaShot.workflow.profile,
+      app: {
+        data: {
+          settings: {
+            bean_weight: String(reaShot.workflow.doseData.doseIn),
+            drink_weight: String(lastMeasurement.scale?.weight ?? 0),
+            target_weight: String(reaShot.workflow.profile.target_weight),
+          }
+        }
+      }
+    };
+
+    for (let i = 0; i < reaShot.measurements.length; i++) {
+      const m = reaShot.measurements[i];
+      const machine = m.machine;
+      const scale = m.scale;
+
+      const currentTimestamp = new Date(machine.timestamp).getTime();
+      const elapsed = (currentTimestamp - firstTimestamp) / 1000;
+      visualizerShot.elapsed.push(elapsed);
+
+      visualizerShot.pressure.pressure.push(machine.pressure);
+      visualizerShot.pressure.goal.push(machine.targetPressure);
+      visualizerShot.flow.flow.push(machine.flow);
+      visualizerShot.flow.goal.push(machine.targetFlow);
+      visualizerShot.flow.by_weight.push(scale?.weightFlow ?? 0);
+      visualizerShot.temperature.mix.push(machine.mixTemperature);
+      visualizerShot.temperature.basket.push(machine.groupTemperature);
+      visualizerShot.temperature.goal.push(machine.targetMixTemperature);
+      visualizerShot.state_change.push(machine.state.substate);
+
+      if (i > 0) {
+        const prevMachine = reaShot.measurements[i - 1].machine;
+        const timeDelta = elapsed - visualizerShot.elapsed[i - 1];
+        totalWaterDispensed += prevMachine.flow * timeDelta;
+      }
+    }
+
+    visualizerShot.totals.water_dispensed = totalWaterDispensed;
+
+    return visualizerShot;
   }
 
   async function checkForNewShots() {
@@ -88,7 +197,7 @@ function createPlugin(host) {
         log(`Shot ${shot.id} already checked`);
         return;
       }
-      
+
       state.lastCheckedShotId = shot.id;
 
       // Check if credentials are configured
@@ -97,7 +206,7 @@ function createPlugin(host) {
         return;
       }
 
-      const result = await uploadShot(shot);
+      const result = await uploadShot(convertReaToVisualizerFormat(shot), null);
       state.lastUploadedShot = shot.id;
       state.lastVisualizerId = result.id;
 
@@ -117,7 +226,7 @@ function createPlugin(host) {
       });
 
       log(`Uploaded ${shot.id} → ${result.id}`);
-      
+
       // Emit success event
       host.emit("shotUploaded", {
         shotId: shot.id,
@@ -138,17 +247,17 @@ function createPlugin(host) {
 
   function scheduleNextCheck() {
     if (!isRunning) return;
-    
+
     // Clear any existing timeout
     // if (timeoutId !== null) {
     //   clearTimeout(timeoutId);
     // }
-    
+
     // Schedule next check
     timeoutId = setTimeout(() => {
       checkForNewShots();
     }, CHECK_INTERVAL_MS);
-    
+
     log(`Next check scheduled in ${CHECK_INTERVAL_MS / 1000} seconds`);
   }
 
@@ -192,14 +301,14 @@ function createPlugin(host) {
       state.password = settings.Password;
 
       log(`Loaded with username: ${state.username ? 'configured' : 'not configured'}`);
-      
+
       // Load saved state from storage
       host.storage({
         type: "read",
         key: "lastUploadedShot",
         namespace: "visualizer.reaplugin"
       });
-      
+
       host.storage({
         type: "read",
         key: "lastVisualizerId",
@@ -212,7 +321,7 @@ function createPlugin(host) {
     onUnload() {
       log("Unloaded");
       stop();
-      
+
       // Save current state to storage
       if (state.lastUploadedShot) {
         host.storage({
@@ -222,7 +331,7 @@ function createPlugin(host) {
           data: state.lastUploadedShot
         });
       }
-      
+
       if (state.lastVisualizerId) {
         host.storage({
           type: "write",

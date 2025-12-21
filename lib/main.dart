@@ -113,7 +113,7 @@ void main() async {
   services.add(simulatedDevicesService);
   if (const String.fromEnvironment("simulate") == "1") {
     simulatedDevicesService.simulationEnabled = true;
-    log.shout("enabling Simulated Service");
+    log.info("enabling Simulated Service");
   }
   final storagePath = await getApplicationDocumentsDirectory();
   final persistenceController = PersistenceController(
