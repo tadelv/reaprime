@@ -25,7 +25,7 @@ class PluginStorageCommand {
     }
     return PluginStorageCommand(
       type: PluginStorageCommandType.values.firstWhere(
-        (e) => e.name == data['command'],
+        (e) => e.name == data['type'],
       ),
       key: data['key'],
       data: data['data'],

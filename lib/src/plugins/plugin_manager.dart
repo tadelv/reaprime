@@ -1,50 +1,148 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:flutter_js/flutter_js.dart';
 import 'package:logging/logging.dart';
-import 'package:reaprime/src/controllers/de1_controller.dart';
-import 'package:reaprime/src/models/device/de1_interface.dart';
-import 'package:reaprime/src/models/device/machine.dart';
-import 'package:reaprime/src/plugins/plugin_manifest.dart';
-import 'package:reaprime/src/plugins/plugin_runtime.dart';
-import 'package:reaprime/src/plugins/plugin_types.dart';
-import 'package:reaprime/src/services/storage/kv_store_service.dart';
+
+import 'plugin_manifest.dart';
+import 'plugin_runtime.dart';
+import 'plugin_types.dart';
+import '../services/storage/kv_store_service.dart';
+import '../controllers/de1_controller.dart';
+import '../models/device/de1_interface.dart';
+import '../models/device/machine.dart';
 
 class PluginManager {
   final _log = Logger("PluginManager");
+
   final Map<String, PluginRuntime> _plugins = {};
-
-  De1Controller? _de1controller;
-
-  StreamSubscription<De1Interface?>? _de1Subscription;
-
-  StreamSubscription<MachineSnapshot>? _snapshotSubscription;
-
-  De1Controller? get de1Controller => _de1controller;
-  set de1Controller(De1Controller? controller) {
-    _log.info("subscribing to $controller");
-    _de1Subscription?.cancel();
-    _de1controller = controller;
-    if (controller == null) {
-      return;
-    }
-    _de1Subscription = controller.de1.listen((de1) {
-      _snapshotSubscription?.cancel();
-      if (de1 != null) {
-        _snapshotSubscription = de1.currentSnapshot.listen((e) {
-          broadcastEvent('stateUpdate', e.toJson());
-        });
-      }
-    });
-  }
-
-  KeyValueStoreService kvStore;
-
-  PluginManager({required this.kvStore});
+  final JavascriptRuntime js;
+  final KeyValueStoreService kvStore;
 
   final StreamController<Map<String, dynamic>> _emitController =
       StreamController.broadcast();
 
   Stream<Map<String, dynamic>> get emitStream => _emitController.stream;
+
+  De1Controller? _de1controller;
+  StreamSubscription<De1Interface?>? _de1Subscription;
+  StreamSubscription<MachineSnapshot>? _snapshotSubscription;
+
+  De1Controller? get de1Controller => _de1controller;
+
+  PluginManager({required this.kvStore}) : js = getJavascriptRuntime() {
+    _bootstrapJs();
+  }
+
+  // ─────────────────────────────────────────────
+  // JS bootstrap (ONCE)
+  // ─────────────────────────────────────────────
+
+  void _bootstrapJs() {
+    js.evaluate(r'''
+      (function () {
+        if (globalThis.__plugins__) return;
+
+        globalThis.__plugins__ = Object.create(null);
+
+        // Provide btoa function if not available
+        if (typeof globalThis.btoa === 'undefined') {
+          globalThis.btoa = function(str) {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+            let output = '';
+            let i = 0;
+            const input = encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+              return String.fromCharCode('0x' + p1);
+            });
+            
+            while (i < input.length) {
+              const chr1 = input.charCodeAt(i++);
+              const chr2 = input.charCodeAt(i++);
+              const chr3 = input.charCodeAt(i++);
+              
+              const enc1 = chr1 >> 2;
+              const enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
+              const enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
+              const enc4 = chr3 & 63;
+              
+              if (isNaN(chr2)) {
+                enc3 = enc4 = 64;
+              } else if (isNaN(chr3)) {
+                enc4 = 64;
+              }
+              
+              output = output +
+                chars.charAt(enc1) + chars.charAt(enc2) +
+                chars.charAt(enc3) + chars.charAt(enc4);
+            }
+            return output;
+          };
+        }
+
+        globalThis.__dispatchToPlugin = function (pluginId, evt) {
+          const plugin = __plugins__[pluginId];
+          if (!plugin || typeof plugin.onEvent !== "function") return;
+          try {
+            plugin.onEvent(evt);
+          } catch (e) {
+            console.error("Plugin error", pluginId, e);
+          }
+        };
+
+        globalThis.host = {
+          log(pluginId, message) {
+            sendMessage("host", JSON.stringify({
+              pluginId: pluginId,
+              type: "log",
+              payload: { message: String(message) }
+            }));
+          },
+          emit(pluginId, eventName, payload) {
+            sendMessage("host", JSON.stringify({
+              pluginId: pluginId,
+              type: "emit",
+              event: eventName,
+              payload: payload
+            }));
+          },
+          storage(pluginId, command) {
+            sendMessage("host", JSON.stringify({
+              pluginId: pluginId,
+              type: "pluginStorage",
+              payload: command
+            }));
+          }
+        };
+      })();
+    ''');
+
+    js.onMessage("host", (raw) {
+      try {
+        _log.shout("recieving: $raw");
+        // final msg = jsonDecode(raw);
+        final msg = raw as Map<String, dynamic>;
+        final pluginId = msg['pluginId'] as String?;
+        final type = msg['type'];
+
+        if (pluginId == null) {
+          _log.warning("JS message missing pluginId");
+          return;
+        }
+
+        if (type == 'log') {
+          _log.fine("[JS:$pluginId] ${msg['payload']?['message']}");
+        } else {
+          _handleMessage(pluginId, msg);
+        }
+      } catch (e, st) {
+        _log.warning("Invalid JS message", e, st);
+      }
+    });
+  }
+
+  // ─────────────────────────────────────────────
+  // Plugin lifecycle
+  // ─────────────────────────────────────────────
 
   Future<void> loadPlugin({
     required String id,
@@ -52,139 +150,194 @@ class PluginManager {
     required String jsCode,
     required Map<String, dynamic> settings,
   }) async {
-    if (_plugins.containsKey(id)) {
-      throw Exception('Plugin already loaded: $id');
-    }
+    await unloadPlugin(id);
 
-    final runtime = PluginRuntime(
-      pluginId: id,
-      onMessage: _handleMessage,
-      manifest: manifest,
-    );
+    final runtime = PluginRuntime(pluginId: id, manifest: manifest);
 
     _plugins[id] = runtime;
-    await runtime.load(jsCode, settings);
-    _log.info("loaded: ${runtime.pluginId}");
-    _log.finest("loaded plugins ${_plugins.keys.toList()}");
+
+    try {
+      // Direct injection approach with standard factory name
+      final wrapperCode = '''
+        (function () {
+          const pluginId = "$id";
+          
+          // Create the host object for this plugin
+          const host = {
+            log: (msg) => globalThis.host.log(pluginId, msg),
+            emit: (type, payload) => globalThis.host.emit(pluginId, type, payload),
+            storage: (cmd) => globalThis.host.storage(pluginId, cmd)
+          };
+          
+          // Inject and evaluate the plugin code
+          ${jsCode}
+          
+          // The plugin must export a function named 'createPlugin'
+          if (typeof createPlugin !== 'function') {
+            throw new Error("Plugin must export a 'createPlugin' function. Got: " + typeof createPlugin);
+          }
+          
+          // Call the factory function with the host object
+          const plugin = createPlugin(host);
+          
+          if (!plugin || typeof plugin !== "object") {
+            throw new Error("createPlugin did not return an object, got: " + typeof plugin);
+          }
+          
+          // Verify the plugin has the required id
+          if (plugin.id !== pluginId) {
+            throw new Error("Plugin ID mismatch. Expected: " + pluginId + ", Got: " + plugin.id);
+          }
+          
+          // Store the plugin object
+          __plugins__[pluginId] = plugin;
+          
+          // Call onLoad if it exists
+          if (typeof plugin.onLoad === "function") {
+            plugin.onLoad(${jsonEncode(settings)});
+          }
+          
+          return plugin;
+        })();
+      ''';
+
+      final result = js.evaluate(wrapperCode);
+      _log.fine("Plugin evaluation result: ${result.stringResult}");
+      _log.fine("Is error: ${result.isError}");
+
+      if (result.isError) {
+        throw Exception("JS evaluation error: ${result.stringResult}");
+      }
+
+      runtime.markRunning();
+      _log.info("loaded: $id");
+    } catch (e, st) {
+      _plugins.remove(id);
+      js.evaluate('''
+        delete __plugins__["$id"];
+      ''');
+      _log.severe("Failed to load plugin $id", e, st);
+      rethrow;
+    }
   }
 
   Future<void> unloadPlugin(String id) async {
-    final plugin = _plugins[id];
-    await plugin?.dispose();
-    if (plugin != null) {
-      _plugins.remove(id);
+    final runtime = _plugins.remove(id);
+    if (runtime == null) return;
+
+    try {
+      js.evaluate('''
+        (function () {
+          try {
+            const plugin = __plugins__["$id"];
+            plugin?.onUnload?.();
+            delete __plugins__["$id"];
+          } catch (e) {
+            console.error("Unload failed ($id)", e);
+          }
+        })();
+      ''');
+    } catch (e, st) {
+      _log.warning("Error during plugin unload: $id", e, st);
     }
+
+    runtime.markDisposed();
+    _log.info("unloaded: $id");
   }
+
+  // ─────────────────────────────────────────────
+  // Dart → JS events
+  // ─────────────────────────────────────────────
 
   void broadcastEvent(String name, dynamic payload) {
-    if (_plugins.isEmpty) return;
-
-    final plugins = List.of(_plugins.values);
-    for (final plugin in plugins) {
+    for (final plugin in _plugins.values) {
       if (plugin.isAlive) {
-        plugin.dispatchEvent(name, payload);
+        dispatchEvent(plugin.pluginId, name, payload);
       }
     }
   }
 
-  void sendEventToPlugin(String pluginId, String name, dynamic payload) {
-    _plugins[pluginId]?.dispatchEvent(name, payload);
+  void dispatchEvent(String pluginId, String name, dynamic payload) {
+    if (!_plugins.containsKey(pluginId)) return;
+
+    js.evaluate('''
+      __dispatchToPlugin("$pluginId", {
+        name: "$name",
+        payload: ${jsonEncode(payload)}
+      });
+    ''');
   }
 
-  //
-  // looking for the following format:
-  // {
-  //   type: log | emit
-  //   payload: logPayload | emitPayload
-  // }
-  //
-  // logPayload
-  // {
-  //   message: String
-  // }
-  //
-  // emitPayload
-  // {
-  //   event: String
-  //   data: Object
-  // }
+  // ─────────────────────────────────────────────
+  // JS → Dart messages
+  // ─────────────────────────────────────────────
+
   void _handleMessage(String pluginId, Map<String, dynamic> msg) {
-    try {
-      final plugin = _plugins[pluginId];
-      if (plugin == null || !plugin.isAlive) {
-        return;
-      }
+    _log.info("handle message: $msg");
+    final type = msg['type'];
+    final payload = msg['payload'];
 
-      final type = msg['type'];
-      if (type is! String) {
-        throw Exception("Invalid message type");
-      }
+    switch (type) {
+      case 'emit':
+        final Map<String, dynamic> eventData = {
+          'pluginId': pluginId,
+          'event': msg['event'],
+          'payload': payload,
+        };
+        _log.info("emitting: $eventData");
+        _emitController.add(eventData);
+        break;
 
-      _require(plugin.manifest, type);
-
-      switch (type) {
-        case 'log':
-          _log.fine('[PLUGIN:$pluginId] ${msg['payload']?['message']}');
-          break;
-
-        case 'emit':
-          _handlePluginEvent(
-            pluginId,
-            msg['payload']?['event'],
-            msg['payload']?['data'],
-          );
-          break;
-
-        case 'pluginStorage':
-          final command = PluginStorageCommand.fromPlugin(msg['payload']);
-          _handlePluginStorageRequest(pluginId, command);
-          break;
-      }
-    } catch (e, st) {
-      _log.warning("Plugin message rejected", e, st);
+      case 'pluginStorage':
+        final cmd = PluginStorageCommand.fromPlugin(payload);
+        _handlePluginStorage(pluginId, cmd);
+        break;
     }
   }
 
-  void _require(PluginManifest manifest, String perm) {
-    final permission = PluginPermissions.fromString(perm);
-    if (permission == null) {
-      throw Exception(
-        'Plugin ${manifest.id} requires unknown permission: $perm',
-      );
-    }
-    if (!manifest.permissions.contains(permission)) {
-      _log.warning("perms: ${manifest.permissions}");
-      throw Exception('Plugin ${manifest.id} lacks permission: $perm');
-    }
-  }
-
-  void _handlePluginEvent(String pluginId, String event, dynamic payload) {
-    _log.finest('Handling event from $pluginId → $event ($payload)');
-    _emitController.add({'id': pluginId, 'event': event, 'payload': payload});
-  }
-
-  Future<void> _handlePluginStorageRequest(
+  Future<void> _handlePluginStorage(
     String pluginId,
-    PluginStorageCommand command,
+    PluginStorageCommand cmd,
   ) async {
-    _log.finest('Handling storage from $pluginId → $command');
-    switch (command.type) {
+    // Use pluginId as namespace for storage isolation
+    final namespace = pluginId;
+
+    switch (cmd.type) {
       case PluginStorageCommandType.read:
-        final data = await kvStore.get(key: command.key, namespace: pluginId);
-        sendEventToPlugin(pluginId, "storageRead", {
-          "key": command.key,
-          "data": data,
+        final value = await kvStore.get(key: cmd.key, namespace: namespace);
+        dispatchEvent(pluginId, "storageRead", {
+          "key": cmd.key,
+          "value": value,
         });
         break;
+
       case PluginStorageCommandType.write:
-        kvStore.set(key: command.key, namespace: pluginId, value: command.data);
-        sendEventToPlugin(pluginId, "storageWrite", command.data);
+        await kvStore.set(key: cmd.key, namespace: namespace, value: cmd.data);
+        dispatchEvent(pluginId, "storageWrite", cmd.data);
         break;
     }
   }
 
-  /// Get a list of currently loaded plugins
-  List<PluginRuntime> get loadedPlugins {
-    return _plugins.values.toList();
+  // ─────────────────────────────────────────────
+  // External API (UNCHANGED)
+  // ─────────────────────────────────────────────
+
+  List<PluginRuntime> get loadedPlugins => _plugins.values.toList();
+
+  set de1Controller(De1Controller? controller) {
+    _de1Subscription?.cancel();
+    _snapshotSubscription?.cancel();
+
+    _de1controller = controller;
+    if (controller == null) return;
+
+    _de1Subscription = controller.de1.listen((de1) {
+      _snapshotSubscription?.cancel();
+      if (de1 != null) {
+        _snapshotSubscription = de1.currentSnapshot.listen((snap) {
+          broadcastEvent('stateUpdate', snap.toJson());
+        });
+      }
+    });
   }
 }

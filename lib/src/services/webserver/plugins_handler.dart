@@ -43,7 +43,7 @@ final class PluginsHandler {
       StreamSubscription<Map<String, dynamic>>? sub;
       sub = pluginManager.emitStream
           .where((e) {
-            return e['id'] == id && e['event'] == endpoint;
+            return e['pluginId'] == id && e['event'] == endpoint;
           })
           .listen(
             (data) {

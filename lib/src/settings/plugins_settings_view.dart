@@ -503,6 +503,7 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
                                         newSettings[key] = value;
                                       });
                                     },
+                                    obscureText: schema['secure'] ?? false,
                                   ),
                               ],
                             ),

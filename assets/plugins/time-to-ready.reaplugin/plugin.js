@@ -1,14 +1,13 @@
-/* plugin.js
+/* time-to-ready.reaplugin
  *
- * Runtime expectations:
- * - global `host` object injected by Flutter
- * - host.log(message)
- * - host.emit(eventName, payload)
- *
- * This file must define a global `Plugin` object.
+ * Contract:
+ * - This file must define a function named 'createPlugin'
+ * - Factory function receives 'host' object as parameter
+ * - Returns a plugin object with onLoad, onUnload, onEvent methods
  */
 
-(function () {
+// Standard factory function - receives host object from PluginManager
+function createPlugin(host) {
   "use strict";
 
   // Internal state (private to this plugin instance)
@@ -20,89 +19,15 @@
     lastEstimation: null,
   };
 
-  function assertHostApi() {
-    if (
-      typeof host !== "object" ||
-      typeof host.log !== "function" ||
-      typeof host.emit !== "function"
-    ) {
-      throw new Error("Host API not available");
-    }
+  function log(msg) {
+    host.log(`[time-to-ready] ${msg}`);
   }
-
-  globalThis.Plugin = {
-    id: "time-to-ready.reaplugin",
-    version: "1.0.0",
-
-    /**
-     * Called once when the plugin is loaded
-     * @param {Object} ctx
-     */
-    onLoad(ctx) {
-      assertHostApi();
-
-      state.loadedAt = Date.now();
-
-      host.log(
-        `[example.plugin] Loaded (apiVersion=${ctx.apiVersion})`
-      );
-
-      host.emit("plugin.loaded", {
-        plugin: this.id,
-        version: this.version,
-      });
-    },
-
-    /**
-     * Called when the plugin is unloaded
-     */
-    onUnload() {
-      host.log(
-        `[example.plugin] Unloaded after ${state.ticksSeen} ticks`
-      );
-
-      state = {
-        ticksSeen: 0,
-        loadedAt: null,
-      };
-    },
-
-    /**
-     * Called for every event dispatched by the host
-     * @param {Object} event
-     * @param {string} event.name
-     * @param {*} event.payload
-     */
-    onEvent(event) {
-      if (!event || typeof event.name !== "string") {
-        return;
-      }
-
-      switch (event.name) {
-        case "stateUpdate":
-          handleStateUpdate(event.payload);
-          break;
-
-        case "shutdown":
-          handleShutdown();
-          break;
-
-        default:
-          // Ignore unknown events (important for forward compatibility)
-          break;
-      }
-    },
-  };
-
-  // ─────────────────────────────────────────────
-  // Event handlers
-  // ─────────────────────────────────────────────
 
   function handleStateUpdate(payload) {
     state.ticksSeen++;
 
     if (payload['groupTemperature'] == undefined || payload['targetGroupTemperature'] == undefined) {
-      host.log(`missing fields in ${payload}`)
+      log(`missing fields in ${JSON.stringify(payload)}`)
       return
     }
 
@@ -134,8 +59,31 @@
     // Emit the estimation along with other data
     host.emit(
       "timeToReady",
-      estimation
+      {
+        ...estimation,
+        currentTemp: currentTemp,
+        targetTemp: targetTemp,
+        timestamp: now
+      }
     );
+  }
+
+  function handleStorageRead(payload) {
+    if (payload.key === "lastEstimation") {
+      log(`Loaded last estimation from storage: ${JSON.stringify(payload.value)}`);
+      // You could use this to restore state
+      if (payload.value) {
+        state.lastEstimation = payload.value;
+      }
+    }
+  }
+
+  function handleStorageWrite(payload) {
+    log(`Saved to storage: ${JSON.stringify(payload)}`);
+  }
+
+  function handleShutdown() {
+    log("Shutdown requested");
   }
 
   /**
@@ -251,7 +199,75 @@
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   }
 
-  function handleShutdown() {
-    host.log("[example.plugin] Shutdown requested");
-  }
-})();
+  // Return the plugin object
+  return {
+    id: "time-to-ready.reaplugin",
+    version: "1.0.0",
+
+    onLoad(settings) {
+      state.loadedAt = Date.now();
+
+      log(`Loaded with settings: ${JSON.stringify(settings)}`);
+
+      host.emit("plugin.loaded", {
+        plugin: this.id,
+        version: this.version,
+        settings: settings
+      });
+
+      // Example: Load saved state from storage
+      host.storage({
+        type: "read",
+        key: "lastEstimation",
+        namespace: "time-to-ready.reaplugin"
+      });
+    },
+
+    onUnload() {
+      log(`Unloaded after ${state.ticksSeen} ticks`);
+
+      // Save last estimation to storage
+      if (state.lastEstimation) {
+        host.storage({
+          type: "write",
+          key: "lastEstimation",
+          namespace: "time-to-ready.reaplugin",
+          data: state.lastEstimation
+        });
+      }
+
+      state = {
+        ticksSeen: 0,
+        loadedAt: null,
+      };
+    },
+
+    onEvent(event) {
+      if (!event || typeof event.name !== "string") {
+        return;
+      }
+
+      switch (event.name) {
+        case "stateUpdate":
+          handleStateUpdate(event.payload);
+          break;
+
+        case "shutdown":
+          handleShutdown();
+          break;
+
+        case "storageRead":
+          handleStorageRead(event.payload);
+          break;
+
+        case "storageWrite":
+          handleStorageWrite(event.payload);
+          break;
+
+        default:
+          // Ignore unknown events (important for forward compatibility)
+          break;
+      }
+    },
+  };
+}

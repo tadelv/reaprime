@@ -1,0 +1,26 @@
+{
+  "id": "visualizer.reaplugin",
+  "author": "Decent",
+  "name": "Visualizer upload",
+  "description": "Uploads the latest shot to Visualizer",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "permissions": [
+    "log",
+    "api",
+    "emit",
+    "pluginStorage"
+  ],
+  "settings": {
+    "Username": {
+      "type": "string",
+      "description": "Visualiser username"
+    },
+    "Password": {
+      "type": "string",
+      "secure": true,
+      "description": "Visualiser password"
+    }
+  },
+  "api": []
+}

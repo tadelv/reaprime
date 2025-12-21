@@ -325,6 +325,7 @@ class PluginLoaderService {
     // You can extend this by adding more plugins as needed
     return [
       'assets/plugins/time-to-ready.reaplugin',
+      'assets/plugins/visualizer.reaplugin',
       // Add more bundled plugins here as they are added to the app
     ];
   }
