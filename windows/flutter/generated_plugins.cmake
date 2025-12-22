@@ -4,7 +4,6 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   battery_plus
-  flutter_inappwebview_windows
   flutter_js
   flutter_libserialport
   permission_handler_windows

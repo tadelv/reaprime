@@ -13,8 +13,8 @@ import 'package:reaprime/src/settings/plugins_settings_view.dart';
 import 'package:reaprime/src/util/shot_exporter.dart';
 import 'package:reaprime/src/util/shot_importer.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
-import 'package:reaprime/src/webui_support/webui_view.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'settings_controller.dart';
 
@@ -216,16 +216,15 @@ class SettingsView extends StatelessWidget {
               onPressed: () {
                 _pickFolderAndLoadHtml(context);
               },
-              child: Text("Load and show web"),
+              child: Text("Load WebUI"),
             ),
             if (WebUIService.isServing)
-              ShadButton.secondary(
-                onPressed: () {
-                  Navigator.of(
-                    context,
-                  ).pushNamed(WebUIView.routeName, arguments: "index.html");
+              ShadButton(
+                child: Text("Open UI in browser"),
+                onPressed: () async {
+                  final url = Uri.parse('http://localhost:3000');
+                  await launchUrl(url);
                 },
-                child: Text("To Web UI"),
               ),
             ShadButton.secondary(
               onPressed: () {
@@ -254,7 +253,9 @@ class SettingsView extends StatelessWidget {
 
     if (selectedDirectory != null) {
       final dir = Directory(selectedDirectory);
-      Logger("Settings").shout("list dir: ${dir.listSync(recursive: true)}");
+      Logger(
+        "Settings",
+      ).finest('list dir: ${dir.listSync(recursive: true).join("\n")}');
       final indexFile = File('$selectedDirectory/index.html');
       final itExists = await indexFile.exists();
       await WebUIService.serveFolderAtPath(selectedDirectory);
@@ -262,9 +263,23 @@ class SettingsView extends StatelessWidget {
         return;
       }
       if (itExists) {
-        Navigator.of(
-          context,
-        ).pushNamed(WebUIView.routeName, arguments: selectedDirectory);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Text('WebUI from $selectedDirectory loaded'),
+                Spacer(),
+                ShadButton.outline(
+                  child: Text("Open"),
+                  onPressed: () async {
+                    final url = Uri.parse('http://localhost:3000');
+                    await launchUrl(url);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
