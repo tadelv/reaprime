@@ -52,72 +52,73 @@ function createPlugin(host) {
   }
 
   function buildMultipartBody({ fieldName, filename, contentType, data }) {
-  const boundary = "----reaBoundary" + Math.random().toString(16).slice(2);
+    const boundary = "----reaBoundary" + Math.random().toString(16).slice(2);
 
-  const body =
-    `--${boundary}\r\n` +
-    `Content-Disposition: form-data; name="${fieldName}"; filename="${filename}"\r\n` +
-    `Content-Type: ${contentType}\r\n\r\n` +
-    data + `\r\n` +
-    `--${boundary}--\r\n`;
+    const body =
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="${fieldName}"; filename="${filename}"\r\n` +
+      `Content-Type: ${contentType}\r\n\r\n` +
+      data + `\r\n` +
+      `--${boundary}--\r\n`;
 
-  return {
-    body,
-    boundary,
-  };
-}
+    return {
+      body,
+      boundary,
+    };
+  }
   /// FormData and Blob not available in Flutter_JS
-async function uploadShot(shotData, onRetry) {
-  const retries = 3;
-  const delay = 2000;
-  const url = `${VISUALIZER_API_URL}/shots/upload`;
+  async function uploadShot(shotData, onRetry) {
+    const retries = 3;
+    const delay = 2000;
+    const url = `${VISUALIZER_API_URL}/shots/upload`;
 
-  const payload = buildMultipartBody({
-    fieldName: "file",
-    filename: "file.shot",
-    contentType: "application/json",
-    data: JSON.stringify(shotData),
-  });
+    const payload = buildMultipartBody({
+      fieldName: "file",
+      filename: "file.shot",
+      contentType: "application/json",
+      data: JSON.stringify(shotData),
+    });
 
-  for (let i = 0; i < retries; i++) {
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Authorization": getAuthHeader(),
-          "Content-Type": `multipart/form-data; boundary=${payload.boundary}`,
-        },
-        body: payload.body,
-      });
+    for (let i = 0; i < retries; i++) {
+      try {
+        const authHeader = getAuthHeader();
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": authHeader,
+            "Content-Type": `multipart/form-data; boundary=${payload.boundary}`,
+          },
+          body: payload.body,
+        });
 
-      if (response.ok) {
-        return await response.json();
-      }
+        if (response.ok) {
+          return await response.json();
+        }
 
-      const errorText = await response.text();
+        const errorText = await response.text();
 
-      // 4xx → fail fast
-      if (response.status >= 400 && response.status < 500) {
+        // 4xx → fail fast
+        if (response.status >= 400 && response.status < 500) {
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+
         throw new Error(`HTTP ${response.status}: ${errorText}`);
+
+      } catch (error) {
+        console.error(`Upload attempt ${i + 1}/${retries} failed:`, error.message, error.stack);
+
+        if (i === retries - 1) {
+          throw error;
+        }
+
+        if (onRetry) {
+          onRetry(i + 1, retries);
+        }
+
+        await new Promise(res => setTimeout(res, delay));
       }
-
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
-
-    } catch (error) {
-      // console.error(`Upload attempt ${i + 1}/${retries} failed:`, error.message);
-
-      if (i === retries - 1) {
-        throw error;
-      }
-
-      if (onRetry) {
-        onRetry(i + 1, retries);
-      }
-
-      await new Promise(res => setTimeout(res, delay));
     }
   }
-}
 
   function convertReaToVisualizerFormat(reaShot) {
     if (!reaShot || !reaShot.measurements || reaShot.measurements.length === 0) {
@@ -130,6 +131,7 @@ async function uploadShot(shotData, onRetry) {
     let totalWaterDispensed = 0;
 
     const visualizerShot = {
+      // start_time: reaShot.measurements[0].machine.timestamp,
       timestamp: Math.floor(firstTimestamp / 1000),
       duration: (lastTimestamp - firstTimestamp) / 1000,
       elapsed: [],
@@ -145,9 +147,13 @@ async function uploadShot(shotData, onRetry) {
             bean_weight: String(reaShot.workflow.doseData.doseIn),
             drink_weight: String(lastMeasurement.scale?.weight ?? 0),
             target_weight: String(reaShot.workflow.profile.target_weight),
+            grinder_model: reaShot.workflow.grinderData?.model,
+            grinder_setting: reaShot.workflow.grinderData?.setting,
+            bean_brand: reaShot.workflow.coffeeData?.roaster,
+            bean_type: reaShot.workflow.coffeeData?.name,
           }
         }
-      }
+      },
     };
 
     for (let i = 0; i < reaShot.measurements.length; i++) {

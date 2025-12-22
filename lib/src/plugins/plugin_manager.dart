@@ -47,34 +47,44 @@ class PluginManager {
 
         // Provide btoa function if not available
         if (typeof globalThis.btoa === 'undefined') {
-          globalThis.btoa = function(str) {
-            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-            let output = '';
-            let i = 0;
-            const input = encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
-              return String.fromCharCode('0x' + p1);
-            });
-            
-            while (i < input.length) {
-              const chr1 = input.charCodeAt(i++);
-              const chr2 = input.charCodeAt(i++);
-              const chr3 = input.charCodeAt(i++);
-              
-              const enc1 = chr1 >> 2;
-              const enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
-              const enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
-              const enc4 = chr3 & 63;
-              
-              if (isNaN(chr2)) {
-                enc3 = enc4 = 64;
-              } else if (isNaN(chr3)) {
-                enc4 = 64;
+          globalThis.btoa = function (input) {
+            // 1. Convert to string (per spec)
+            const str = String(input);
+
+            // 2. Reject non-Latin-1 characters
+            for (let i = 0; i < str.length; i++) {
+              if (str.charCodeAt(i) > 0xFF) {
+                throw new DOMException(
+                  "The string to be encoded contains characters outside of the Latin1 range.",
+                  "InvalidCharacterError"
+                );
               }
-              
-              output = output +
-                chars.charAt(enc1) + chars.charAt(enc2) +
-                chars.charAt(enc3) + chars.charAt(enc4);
             }
+
+            const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+            let output = "";
+            let i = 0;
+
+            // 3. Encode
+            while (i < str.length) {
+              const byte1 = str.charCodeAt(i++);
+              const byte2 = i < str.length ? str.charCodeAt(i++) : undefined;
+              const byte3 = i < str.length ? str.charCodeAt(i++) : undefined;
+
+              const enc1 = byte1 >> 2;
+              const enc2 = ((byte1 & 0x03) << 4) | (byte2 !== undefined ? byte2 >> 4 : 0);
+              const enc3 = byte2 !== undefined
+                ? ((byte2 & 0x0f) << 2) | (byte3 !== undefined ? byte3 >> 6 : 0)
+                : 64;
+              const enc4 = byte3 !== undefined ? (byte3 & 0x3f) : 64;
+
+              output +=
+                chars.charAt(enc1) +
+                chars.charAt(enc2) +
+                (enc3 === 64 ? "=" : chars.charAt(enc3)) +
+                (enc4 === 64 ? "=" : chars.charAt(enc4));
+            }
+
             return output;
           };
         }
