@@ -159,7 +159,8 @@ void main() async {
       sensorController,
       workflowController,
       persistenceController,
-      pluginService.pluginManager,
+      pluginService,
+
     );
   } catch (e, st) {
     log.severe('failed to start web server', e, st);

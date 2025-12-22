@@ -13,6 +13,7 @@ import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/utils.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/plugins/plugin_manifest.dart';
 import 'package:reaprime/src/services/storage/hive_store_service.dart';
 import 'package:reaprime/src/services/webserver/shots_handler.dart';
@@ -51,7 +52,7 @@ Future<void> startWebServer(
   SensorController sensorController,
   WorkflowController workflowController,
   PersistenceController persistenceController,
-  PluginManager pluginManager,
+  PluginLoaderService pluginService,
 ) async {
   log.info("starting webserver");
   final de1Handler = De1Handler(controller: de1Controller);
@@ -72,7 +73,8 @@ Future<void> startWebServer(
   );
 
   final PluginsHandler pluginsHandler = PluginsHandler(
-    pluginManager: pluginManager,
+    pluginManager: pluginService.pluginManager,
+    pluginService: pluginService,
   );
 
   final kvStoreHandler = KvStoreHandler();
