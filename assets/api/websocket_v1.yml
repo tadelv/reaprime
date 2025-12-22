@@ -58,6 +58,18 @@ channels:
     messages:
       sensorSnapshotMessage:
         $ref: '#/components/messages/SensorSnapshot'
+  Plugins:
+    description: Outgoing messages from Rea plugins.
+    address: ws/v1/plugins/{id}/{endpoint}
+    parameters:
+      id:
+        description: Unique plugin identifier.
+      endpoint:
+        description: Plugin specific endpoint.
+    messages:
+      pluginMessage:
+        $ref: '#/components/messages/PluginMessage'
+
 operations:
   de1Snapshot:
     action: receive
@@ -83,6 +95,11 @@ operations:
     action: receive
     channel:
       $ref: '#/channels/SensorSnapshot'
+  pluginMessage:
+    action: receive
+    channel:
+      $ref: '#/channels/Plugins'
+
 components:
   messages:
     Error:
@@ -120,6 +137,11 @@ components:
       title: Sensor Snapshot
       payload:
         $ref: '#/components/schemas/SensorSnapshot'
+    PluginMessage:
+      name: PluginMessage
+      title: Message from plugin
+      payload:
+        $ref: '#/components/schemas/PluginMessage'
   schemas:
     Error:
       type: object
@@ -275,3 +297,7 @@ components:
         values:
           type: object
           additionalProperties: true
+
+    PluginMessage:
+      type: object
+      additionalProperties: true
