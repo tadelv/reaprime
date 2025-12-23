@@ -139,7 +139,7 @@ class PluginManager {
         const _pendingFetches = new Map();
 
         function makeHeaders(headersObj) {
-          console.log("making headers", JSON.stringify(headersObj))
+          // console.log("making headers", JSON.stringify(headersObj))
           const map = new Map();
           for (const k in headersObj || {}) {
             map.set(k.toLowerCase(), String(headersObj[k]));
@@ -168,10 +168,10 @@ class PluginManager {
         };
 
         globalThis.__handleFetchResponse = function (msg) {
-          console.log("getting fetch back!", msg.headers['x-powered-by']);
+          // console.log("getting fetch back!", msg.headers['x-powered-by']);
           const pending = _pendingFetches.get(msg.id);
           if (!pending) return;
-          console.log("found pending");
+          // console.log("found pending");
 
           _pendingFetches.delete(msg.id);
 
@@ -189,10 +189,10 @@ class PluginManager {
             text: async () => msg.body ?? "",
             json: async () => JSON.parse(msg.body ?? "null")
           };
-          console.log('resolving!');
+          // console.log('resolving!');
 
           pending.resolve(response);
-          console.log('resolved');
+          // console.log('resolved');
         };
 
         // globalThis.onMessage("__fetchResponse__", function (msg) {
