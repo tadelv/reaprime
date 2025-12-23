@@ -203,8 +203,10 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
                             .map(
                               (permission) => Chip(
                                 label: Text(permission.name),
-                                backgroundColor: Theme.of(context).colorScheme.tertiary,
-                                labelStyle: Theme.of(context).textTheme.labelSmall,
+                                backgroundColor:
+                                    Theme.of(context).colorScheme.tertiary,
+                                labelStyle:
+                                    Theme.of(context).textTheme.labelSmall,
                               ),
                             )
                             .toList(),
@@ -330,31 +332,64 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
     }
   }
 
+  // TODO: unify with PluginLoaderService _copyDirectoryRecursively - maybe as a Directory extension?
+  Future<void> _copyDirectoryRecursively(Directory source, Directory destination) async {
+    // Create destination directory if it doesn't exist
+    if (!destination.existsSync()) {
+      destination.createSync(recursive: true);
+    }
+
+    // List all entries in the source directory
+    final entries = source.listSync(recursive: false);
+
+    for (final entry in entries) {
+      final newPath = '${destination.path}/${entry.path.split('/').last}';
+
+      if (entry is File) {
+        // Copy file
+        await entry.copy(newPath);
+      } else if (entry is Directory) {
+        // Recursively copy directory
+        final newDir = Directory(newPath);
+        await _copyDirectoryRecursively(entry, newDir);
+      }
+    }
+  }
+
   Future<void> _installPlugin(BuildContext context) async {
     final logger = Logger('PluginsSettingsView');
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['zip'],
-        allowMultiple: false,
+      final result = await FilePicker.platform.getDirectoryPath(
+        // type: FileType.custom,
+        // allowedExtensions: ['reaplugin'],
+        // allowMultiple: false,
       );
 
-      if (result != null && result.files.isNotEmpty) {
-        // file variable is not used yet since installation is not implemented
-        // final file = result.files.first;
-        final tempDir = await Directory.systemTemp.createTemp();
-        // zipFile variable is not used yet, commented out for now
-        // final zipFile = File(file.path!);
-
-        // TODO: Extract zip file and install plugin
-        // For now, we'll just show a message
-        if (context.mounted) {
-          _showSnackBar(context, 'Plugin installation not yet implemented');
-        }
-
-        // Clean up temp directory
-        await tempDir.delete(recursive: true);
+      if (result == null) {
+        return;
       }
+      if (result.endsWith(".reaplugin") == false) {
+        throw Exception("selection is not a .reaplugin");
+      }
+      final tempDir = await Directory.systemTemp.createTemp();
+
+      final srcDir = Directory(result);
+
+      // Recursively copy the plugin directory to temp directory
+      await _copyDirectoryRecursively(srcDir, tempDir);
+
+      // Install the plugin from the temp directory
+      await widget.pluginLoaderService.addPlugin(tempDir.path);
+
+      if (context.mounted) {
+        _showSnackBar(context, 'Plugin installed successfully');
+      }
+
+      // Refresh the plugin list
+      _refreshPlugins();
+
+      // Clean up temp directory
+      await tempDir.delete(recursive: true);
     } catch (e, st) {
       logger.warning('Failed to install plugin', e, st);
       if (context.mounted) {
