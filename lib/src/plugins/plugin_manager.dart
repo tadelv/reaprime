@@ -226,7 +226,6 @@ class PluginManager {
     });
 
     js.onMessage("fetch", (raw) async {
-      _log.shout("receive fetch: ${raw}");
       try {
         final msg = raw as Map<String, dynamic>;
         await _handleFetch(msg);
@@ -438,7 +437,6 @@ class PluginManager {
   }
 
   Future<void> _handleFetch(Map<String, dynamic> msg) async {
-    _log.shout("handling fetch");
     final int id = msg['id'];
     final String url = msg['url'];
     final String method = (msg['method'] ?? 'GET').toUpperCase();

@@ -38,7 +38,7 @@ class _HistoryTileState extends State<HistoryTile> {
       setState(() {
         _shotHistory = data.sortedBy((el) => el.timestamp);
         Logger("History")
-            .shout("shots: ${_shotHistory.map((e) => e.timestamp)}");
+            .fine("shots: ${_shotHistory.map((e) => e.timestamp)}");
         _selectedShotIndex = _shotHistory.length - 1;
       });
     });

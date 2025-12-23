@@ -99,7 +99,7 @@ class MyApp extends StatelessWidget {
               return;
             case GatewayMode.tracking:
               if (!isRealtimeShotFeatureActive) {
-                logger.shout("new shot controller");
+                logger.info("new shot controller");
                 isRealtimeShotFeatureActive = true;
                 final controller = ShotController(
                   scaleController: scaleController,
