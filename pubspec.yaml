@@ -2,7 +2,7 @@ name: reaprime
 description: "Reasonable Espresso App"
 
 # Prevent accidental publishing to pub.dev.
-publish_to: 'none'
+publish_to: "none"
 
 version: 1.0.0+1
 
@@ -36,7 +36,8 @@ dependencies:
   universal_ble: ^0.21.0
   shared_preferences: ^2.5.3
   # maybe one day? https://github.com/AurelienBallier/flutter_libserialport
-  flutter_libserialport: ^0.6.0
+  flutter_libserialport:
+    ^0.6.0
     # git:
     #    url: https://github.com/NeariX67/flutter_libserialport.git
     #    ref: main
@@ -54,12 +55,16 @@ dependencies:
   hive_ce_flutter: ^2.3.3
   ansi_escape_codes: ^2.1.0
   flutter_blue_plus: ^2.0.2
-  flutter_js: ^0.8.5
-    # path: ../flutter_libserialport
-    # git:
-    #   url: https://github.com/tadelv/flutter_libserialport.git
-    #   ref: main
-  
+  flutter_js:
+    # path: ../flutter_js
+    git:
+      url: https://github.com/poviur/dart_js
+      ref: master
+  # path: ../flutter_libserialport
+  # git:
+  #   url: https://github.com/tadelv/flutter_libserialport.git
+  #   ref: main
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

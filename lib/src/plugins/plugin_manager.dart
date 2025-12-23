@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_js/flutter_js.dart';
 import 'package:logging/logging.dart';
@@ -30,7 +31,11 @@ class PluginManager {
 
   De1Controller? get de1Controller => _de1controller;
 
-  PluginManager({required this.kvStore}) : js = getJavascriptRuntime() {
+  PluginManager({required this.kvStore})
+    : js = getJavascriptRuntime(xhr: false) {
+    // js.enableHandlePromises();
+    // js.enableXhr();
+    // js.enableFetch();
     _bootstrapJs();
   }
 
@@ -126,6 +131,77 @@ class PluginManager {
       })();
     ''');
 
+    js.evaluate(r'''
+      (function () {
+        if (globalThis.fetch) return;
+
+        let _fetchSeq = 0;
+        const _pendingFetches = new Map();
+
+        function makeHeaders(headersObj) {
+          console.log("making headers", JSON.stringify(headersObj))
+          const map = new Map();
+          for (const k in headersObj || {}) {
+            map.set(k.toLowerCase(), String(headersObj[k]));
+          }
+          return {
+            get(name) {
+              return map.get(name.toLowerCase()) ?? null;
+            }
+          };
+        }
+
+        globalThis.fetch = function fetch(input, init = {}) {
+          const id = ++_fetchSeq;
+
+          return new Promise((resolve, reject) => {
+            _pendingFetches.set(id, { resolve, reject });
+
+            sendMessage("fetch", JSON.stringify({
+              id,
+              url: String(input),
+              method: init.method || "GET",
+              headers: init.headers || {},
+              body: init.body ?? null
+            }));
+          });
+        };
+
+        globalThis.__handleFetchResponse = function (msg) {
+          console.log("getting fetch back!", msg.headers['x-powered-by']);
+          const pending = _pendingFetches.get(msg.id);
+          if (!pending) return;
+          console.log("found pending");
+
+          _pendingFetches.delete(msg.id);
+
+          if (msg.error) {
+            pending.reject(new Error(msg.error));
+            return;
+          }
+
+          const headers = makeHeaders(msg.headers);
+
+          const response = {
+            status: msg.status,
+            ok: msg.status >= 200 && msg.status < 300,
+            headers,
+            text: async () => msg.body ?? "",
+            json: async () => JSON.parse(msg.body ?? "null")
+          };
+          console.log('resolving!');
+
+          pending.resolve(response);
+          console.log('resolved');
+        };
+
+        // globalThis.onMessage("__fetchResponse__", function (msg) {
+        //   console.log("got fetch response in js", msg);
+        //   __handleFetchResponse(msg);
+        // });
+      })();
+    ''');
+
     js.onMessage("host", (raw) {
       try {
         _log.finest("receiving: $raw");
@@ -146,6 +222,16 @@ class PluginManager {
         }
       } catch (e, st) {
         _log.warning("Invalid JS message", e, st);
+      }
+    });
+
+    js.onMessage("fetch", (raw) async {
+      _log.shout("receive fetch: ${raw}");
+      try {
+        final msg = raw as Map<String, dynamic>;
+        await _handleFetch(msg);
+      } catch (e, st) {
+        _log.warning("Invalid fetch message", e, st);
       }
     });
   }
@@ -349,5 +435,66 @@ class PluginManager {
         });
       }
     });
+  }
+
+  Future<void> _handleFetch(Map<String, dynamic> msg) async {
+    _log.shout("handling fetch");
+    final int id = msg['id'];
+    final String url = msg['url'];
+    final String method = (msg['method'] ?? 'GET').toUpperCase();
+    final Map headers = msg['headers'] ?? {};
+    final dynamic body = msg['body'];
+
+    try {
+      final client = HttpClient();
+      final uri = Uri.parse(url);
+
+      final request = await client.openUrl(method, uri);
+
+      headers.forEach((k, v) {
+        request.headers.set(k.toString(), v.toString());
+      });
+
+      if (body != null) {
+        if (body is String) {
+          request.add(utf8.encode(body));
+        } else {
+          request.add(utf8.encode(jsonEncode(body)));
+        }
+      }
+
+      final response = await request.close();
+      final bytes = await response.fold<List<int>>([], (a, b) => a..addAll(b));
+
+      final responseBody = utf8.decode(bytes);
+
+      final Map<String, dynamic> responseHeaders = {};
+      response.headers.forEach((name, values) {
+        responseHeaders[name] = values.join(", ");
+      });
+      js.evaluate('''
+  __handleFetchResponse(${jsonEncode({'id': id, 'status': response.statusCode, 'headers': responseHeaders, 'body': responseBody})});
+''');
+      // js.sendMessage(
+      //   channelName: "__fetchResponse__",
+      //   args: [
+      //     jsonEncode({
+      //       'id': id,
+      //       'status': response.statusCode,
+      //       'headers': responseHeaders,
+      //       'body': responseBody,
+      //     }),
+      //   ],
+      // );
+      js.executePendingJob();
+    } catch (e) {
+      js.sendMessage(
+        channelName: "__fetchResponse__",
+        args: [
+          jsonEncode({'id': id, 'error': e.toString()}),
+        ],
+      );
+      js.executePendingJob();
+    }
   }
 }

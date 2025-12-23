@@ -353,10 +353,11 @@ packages:
   flutter_js:
     dependency: "direct main"
     description:
-      name: flutter_js
-      sha256: a04966b102967891ee4947d6e52b450676f16204876ba936e394008ca26db04b
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: master
+      resolved-ref: ff15e77ca376e71e3611ca68f62b20efa56d3981
+      url: "https://github.com/poviur/dart_js"
+    source: git
     version: "0.8.5"
   flutter_launcher_icons:
     dependency: "direct main"
