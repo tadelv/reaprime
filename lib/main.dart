@@ -143,12 +143,9 @@ void main() async {
   final PluginLoaderService pluginService = PluginLoaderService(
     kvStore: HiveStoreService(defaultNamespace: "plugins")..initialize(),
   );
-  try {
-    await pluginService.initialize();
-    pluginService.pluginManager.de1Controller = de1Controller;
-  } catch (e) {
-    Logger.root.warning("failed to load plugins", e);
-  }
+  // Don't initialize plugins yet - wait for permissions to be granted
+  // pluginService.initialize() will be called from PermissionsView after permissions are granted
+  pluginService.pluginManager.de1Controller = de1Controller;
 
   try {
     await startWebServer(

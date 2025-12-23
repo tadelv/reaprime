@@ -21,7 +21,14 @@ class PluginLoaderService {
   PluginLoaderService({required KeyValueStoreService kvStore})
     : pluginManager = PluginManager(kvStore: kvStore);
 
+  bool _initialized = false;
+
   Future<void> initialize() async {
+    if (_initialized) {
+      _log.fine('PluginLoaderService already initialized');
+      return;
+    }
+
     // Get application documents directory
     final appDocDir = await getApplicationDocumentsDirectory();
     _pluginsDir = Directory('${appDocDir.path}/plugins');
@@ -43,6 +50,8 @@ class PluginLoaderService {
 
     // Load auto-load enabled plugins
     await _loadAutoLoadPlugins();
+
+    _initialized = true;
   }
 
   /// Add plugin to REA plugins folder

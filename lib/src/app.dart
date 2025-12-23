@@ -275,6 +275,7 @@ class MyApp extends StatelessWidget {
                       return PermissionsView(
                         deviceController: deviceController,
                         de1controller: de1Controller,
+                        pluginLoaderService: pluginLoaderService,
                       );
                   }
                 },

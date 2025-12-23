@@ -10,14 +10,19 @@ import 'package:reaprime/src/home_feature/home_feature.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 
 class PermissionsView extends StatelessWidget {
   final DeviceController deviceController;
-
   final De1Controller de1controller;
+  final PluginLoaderService? pluginLoaderService;
 
-  const PermissionsView(
-      {super.key, required this.deviceController, required this.de1controller});
+  const PermissionsView({
+    super.key,
+    required this.deviceController,
+    required this.de1controller,
+    this.pluginLoaderService,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -78,6 +83,17 @@ class PermissionsView extends StatelessWidget {
           .firstWhere((e) => e == AvailabilityState.poweredOn);
     }
     deviceController.initialize();
+
+    // Initialize plugins after permissions are granted
+    if (pluginLoaderService != null) {
+      try {
+        await pluginLoaderService!.initialize();
+      } catch (e) {
+        // Log error but don't fail the permissions check
+        debugPrint('Failed to initialize plugins: $e');
+      }
+    }
+
     return true;
   }
 
