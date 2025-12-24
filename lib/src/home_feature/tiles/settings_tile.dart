@@ -5,6 +5,7 @@ import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/settings/settings_view.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SettingsTile extends StatelessWidget {
   final De1Controller controller;
@@ -179,19 +180,49 @@ class SettingsTile extends StatelessWidget {
             ],
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Instructions:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 8),
-                Text('1. Prepare the machine as instructed above'),
-                Text('2. Press Start to begin the process'),
-                Text('3. The machine will transition to the appropriate state'),
-              ],
+              children:
+                  type == AuxDialogType.descale
+                      ? _descalingBody(context)
+                      : _cleaningBody(context),
             ),
           ),
     );
+  }
+
+  List<Widget> _descalingBody(BuildContext context) {
+    return [
+      // Text(
+      //   'Instructions:',
+      //   style: TextStyle(fontWeight: FontWeight.bold),
+      // ),
+      ShadButton.link(
+        child: Text("Follow the guide on Basecamp"),
+        onPressed: () async {
+          //
+          final url = Uri.parse(
+            'https://3.basecamp.com/3671212/buckets/7351439/documents/7743429669#__recording_9357315560',
+          );
+          await launchUrl(url);
+        },
+      ),
+      Text("- Use a 5% citric acid solution"),
+      Text("- Remove drip tray cover"),
+      Text("- Remove the portafilter"),
+      Text("- Remove the steam wand tip"),
+      SizedBox(height: 8),
+      Text('1. Prepare the machine as instructed above'),
+      Text('2. Press Start to begin the process'),
+      Text('3. The machine will transition to the appropriate state'),
+    ];
+  }
+
+  List<Widget> _cleaningBody(BuildContext context) {
+    return [
+      Text("Prepare blind basket"),
+      Text("Add cafiza if needed"),
+      Text('2. Press Start to begin the process'),
+      Text('3. The machine will transition to the appropriate state'),
+    ];
   }
 }
 
