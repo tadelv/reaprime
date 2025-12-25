@@ -12,6 +12,7 @@ import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:reaprime/src/util/shot_chart.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:uuid/uuid.dart';
 
 class RealtimeShotFeature extends StatefulWidget {
   static const routeName = '/shot';
@@ -59,10 +60,13 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
         } else {
           backEnabled = true;
         }
-        if (state == ShotState.finished && _gatewayMode == false) {
+        final beverageType = widget.workflowController.currentWorkflow.profile.beverageType;
+        final shouldPersistShot = state == ShotState.finished && _gatewayMode == false &&
+        beverageType != BeverageType.cleaning && beverageType != BeverageType.calibrate;
+        if (shouldPersistShot) {
           _shotController.persistenceController.persistShot(
             ShotRecord(
-              id: DateTime.now().toIso8601String(),
+              id: Uuid().v4(),
               timestamp: _shotController.shotStartTime,
               measurements: _shotSnapshots,
               workflow: widget.workflowController.currentWorkflow,

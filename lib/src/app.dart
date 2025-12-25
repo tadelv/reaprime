@@ -10,6 +10,7 @@ import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/shot_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/history_feature/history_feature.dart';
+import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/device/machine.dart';
@@ -27,6 +28,7 @@ import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/sample_feature/scale_debug_view.dart';
 import 'package:reaprime/src/settings/plugins_settings_view.dart';
+import 'package:uuid/uuid.dart';
 import 'sample_feature/sample_item_details_view.dart';
 
 import 'sample_feature/sample_item_list_view.dart';
@@ -119,14 +121,19 @@ class MyApp extends StatelessWidget {
                   if (st == ShotState.finished) {
                     logger.fine("cancelling shot controller");
                     controller.dispose();
-                    controller.persistenceController.persistShot(
-                      ShotRecord(
-                        id: DateTime.now().toIso8601String(),
-                        timestamp: controller.shotStartTime,
-                        measurements: snapshots,
-                        workflow: workflowController.currentWorkflow,
-                      ),
-                    );
+                    final beverageType =
+                        workflowController.currentWorkflow.profile.beverageType;
+                    if (beverageType != BeverageType.cleaning &&
+                        beverageType != BeverageType.calibrate) {
+                      controller.persistenceController.persistShot(
+                        ShotRecord(
+                          id: Uuid().v4(),
+                          timestamp: controller.shotStartTime,
+                          measurements: snapshots,
+                          workflow: workflowController.currentWorkflow,
+                        ),
+                      );
+                    }
                     snapshotsSub.cancel();
                     sub?.cancel();
                     isRealtimeShotFeatureActive = false;
