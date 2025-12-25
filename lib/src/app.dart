@@ -67,6 +67,11 @@ class MyApp extends StatelessWidget {
   final PersistenceController persistenceController;
   final PluginLoaderService pluginLoaderService;
 
+
+  void _handleEspressoGlobalState() {
+
+    }
+
   @override
   Widget build(BuildContext context) {
     // Glue the SettingsController to the MaterialApp.
