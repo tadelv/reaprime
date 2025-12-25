@@ -51,7 +51,8 @@ class _ProfileState extends State<ProfileTile> {
     setState(() {
       if (loadedProfile != widget.workflowController.currentWorkflow.profile) {
         _log.info(
-            "Changing profile to: ${widget.workflowController.currentWorkflow.profile.title}");
+          "Changing profile to: ${widget.workflowController.currentWorkflow.profile.title}",
+        );
         loadedProfile = widget.workflowController.currentWorkflow.profile;
         widget.de1controller.connectedDe1().setProfile(loadedProfile!);
         _log.fine('Loaded profile: ${loadedProfile!.title}');
@@ -62,9 +63,7 @@ class _ProfileState extends State<ProfileTile> {
 
   @override
   Widget build(BuildContext context) {
-    return ShadCard(
-      child: _body(context),
-    );
+    return ShadCard(child: _body(context));
   }
 
   Widget _body(BuildContext context) {
@@ -92,17 +91,19 @@ class _ProfileState extends State<ProfileTile> {
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           onPressed: () async {
-            FilePickerResult? result = await FilePicker.platform.pickFiles();
+            FilePickerResult? result = await FilePicker.platform.pickFiles(
+              type: FileType.custom,
+              allowedExtensions: ['json'],
+              allowMultiple: false,
+            );
             if (result != null) {
               File file = File(result.files.single.path!);
               var json = jsonDecode(await file.readAsString());
               setState(() {
                 var newProfile = Profile.fromJson(json);
                 //widget.de1controller.connectedDe1().setProfile(loadedProfile!);
-                final newWorkflow =
-                    widget.workflowController.currentWorkflow.copyWith(
-                  profile: newProfile,
-                );
+                final newWorkflow = widget.workflowController.currentWorkflow
+                    .copyWith(profile: newProfile);
                 newWorkflow.doseData.doseOut = newProfile.targetWeight ?? 36.0;
 
                 widget.workflowController.setWorkflow(newWorkflow);
@@ -120,9 +121,7 @@ class _ProfileState extends State<ProfileTile> {
       return [];
     }
     var profile = loadedProfile!;
-    return [
-      Text(profile.author),
-    ];
+    return [Text(profile.author)];
   }
 
   List<Widget> _profileChart(BuildContext context) {
@@ -132,22 +131,23 @@ class _ProfileState extends State<ProfileTile> {
     var profile = loadedProfile!;
     var profileTime = profile.steps.fold(0.0, (d, s) => d + s.seconds);
     var profileMaxVal = profile.steps.fold(
-        0.0, (m, s) => max(m, max(s.getTarget(), s.limiter?.value ?? 0.0)));
+      0.0,
+      (m, s) => max(m, max(s.getTarget(), s.limiter?.value ?? 0.0)),
+    );
     return [
       SizedBox(
         height: 250,
         child: LineChart(
           LineChartData(
-            lineBarsData: [
-              ..._profileChartData(profile),
-            ],
+            lineBarsData: [..._profileChartData(profile)],
             minY: 0,
             maxY: profileMaxVal > 10 ? 12 : 10,
             titlesData: FlTitlesData(
               // Hide the top and left/right titles if not needed.
               topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              rightTitles:
-                  AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              rightTitles: AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
               bottomTitles: AxisTitles(
                 sideTitles: SideTitles(
                   showTitles: true,
@@ -305,7 +305,7 @@ class _ProfileState extends State<ProfileTile> {
             _coffeeDialog(context),
           ],
         ),
-      )
+      ),
     ];
   }
 
@@ -315,53 +315,54 @@ class _ProfileState extends State<ProfileTile> {
     final profile = widget.workflowController.currentWorkflow.profile;
     final startTemp = profile.steps.first.temperature;
     var endTemp = startTemp;
-    var textController =
-        TextEditingController(text: endTemp.toStringAsFixed(1));
+    var textController = TextEditingController(
+      text: endTemp.toStringAsFixed(1),
+    );
     return ShadPopover(
       controller: temperaturePopoverController,
-      popover: (context) => SizedBox(
-        width: 288,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            ShadInput(
-              textAlign: TextAlign.center,
-              decoration: ShadDecoration(),
-              controller: textController,
-              keyboardType: TextInputType.number,
-              leading: ShadButton.ghost(
-                child: Text("-"),
-                onPressed: () {
-                  endTemp -= 1.0;
-                  textController.text = endTemp.toStringAsFixed(1);
-                },
-              ),
-              trailing: ShadButton.ghost(
-                child: Text("+"),
-                onPressed: () {
-                  endTemp += 1.0;
-                  textController.text = endTemp.toStringAsFixed(1);
-                },
-              ),
+      popover:
+          (context) => SizedBox(
+            width: 288,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                ShadInput(
+                  textAlign: TextAlign.center,
+                  decoration: ShadDecoration(),
+                  controller: textController,
+                  keyboardType: TextInputType.number,
+                  leading: ShadButton.ghost(
+                    child: Text("-"),
+                    onPressed: () {
+                      endTemp -= 1.0;
+                      textController.text = endTemp.toStringAsFixed(1);
+                    },
+                  ),
+                  trailing: ShadButton.ghost(
+                    child: Text("+"),
+                    onPressed: () {
+                      endTemp += 1.0;
+                      textController.text = endTemp.toStringAsFixed(1);
+                    },
+                  ),
+                ),
+                ShadButton(
+                  onPressed: () {
+                    var workflow = widget.workflowController.currentWorkflow;
+                    workflow = workflow.copyWith(
+                      profile: profile.adjustTemperature(endTemp - startTemp),
+                    );
+                    widget.workflowController.setWorkflow(workflow);
+                    temperaturePopoverController.toggle();
+                  },
+                  child: Text("Apply"),
+                ),
+              ],
             ),
-            ShadButton(
-              onPressed: () {
-                var workflow = widget.workflowController.currentWorkflow;
-                workflow = workflow.copyWith(
-                    profile: profile.adjustTemperature(endTemp - startTemp));
-                widget.workflowController.setWorkflow(workflow);
-                temperaturePopoverController.toggle();
-              },
-              child: Text("Apply"),
-            )
-          ],
-        ),
-      ),
+          ),
       child: ShadButton.link(
-        child: Text(
-          "${startTemp.toStringAsFixed(1)}℃",
-        ),
+        child: Text("${startTemp.toStringAsFixed(1)}℃"),
         onPressed: () {
           temperaturePopoverController.toggle();
         },
@@ -377,108 +378,157 @@ class _ProfileState extends State<ProfileTile> {
     var doseOut = widget.workflowController.currentWorkflow.doseData.doseOut
         .toStringAsFixed(1);
     return ShadPopover(
-      anchor: ShadAnchorAuto(
-          offset: Offset(0, 0), followTargetOnResize: true),
+      anchor: ShadAnchorAuto(offset: Offset(0, 0), followTargetOnResize: true),
       controller: weightPopoverController,
-      popover: (context) => SizedBox(
-        width: 288,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
+      popover:
+          (context) => SizedBox(
+            width: 288,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text("Input dose"),
-                Expanded(
-                  child: ShadInput(
-                    key: Key(widget
-                        .workflowController.currentWorkflow.doseData.doseIn
-                        .toString()),
-                    keyboardType:
-                        TextInputType.numberWithOptions(decimal: true),
-                    initialValue: widget
-                        .workflowController.currentWorkflow.doseData.doseIn
-                        .toStringAsFixed(1),
-                    onSubmitted: (val) {
-                      setState(() {
-                        var ratio = widget
-                            .workflowController.currentWorkflow.doseData.ratio;
-                        widget.workflowController.currentWorkflow.doseData
-                            .doseIn = double.parse(val);
-                        widget.workflowController.currentWorkflow.doseData
-                            .setRatio(ratio);
-                        var doseData =
-                            widget.workflowController.currentWorkflow.doseData;
-                        var newWorkflow = widget
-                            .workflowController.currentWorkflow
-                            .copyWith(doseData: doseData);
-                        widget.workflowController.setWorkflow(newWorkflow);
-                      });
-                    },
-                  ),
+                Row(
+                  children: [
+                    Text("Input dose"),
+                    Expanded(
+                      child: ShadInput(
+                        key: Key(
+                          widget
+                              .workflowController
+                              .currentWorkflow
+                              .doseData
+                              .doseIn
+                              .toString(),
+                        ),
+                        keyboardType: TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        initialValue: widget
+                            .workflowController
+                            .currentWorkflow
+                            .doseData
+                            .doseIn
+                            .toStringAsFixed(1),
+                        onSubmitted: (val) {
+                          setState(() {
+                            var ratio =
+                                widget
+                                    .workflowController
+                                    .currentWorkflow
+                                    .doseData
+                                    .ratio;
+                            widget
+                                .workflowController
+                                .currentWorkflow
+                                .doseData
+                                .doseIn = double.parse(val);
+                            widget.workflowController.currentWorkflow.doseData
+                                .setRatio(ratio);
+                            var doseData =
+                                widget
+                                    .workflowController
+                                    .currentWorkflow
+                                    .doseData;
+                            var newWorkflow = widget
+                                .workflowController
+                                .currentWorkflow
+                                .copyWith(doseData: doseData);
+                            widget.workflowController.setWorkflow(newWorkflow);
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Text("Ratio 1:"),
+                    Expanded(
+                      child: ShadInput(
+                        key: Key(
+                          widget
+                              .workflowController
+                              .currentWorkflow
+                              .doseData
+                              .ratio
+                              .toString(),
+                        ),
+                        keyboardType: TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        initialValue: widget
+                            .workflowController
+                            .currentWorkflow
+                            .doseData
+                            .ratio
+                            .toStringAsFixed(1),
+                        onSubmitted: (val) {
+                          setState(() {
+                            widget.workflowController.currentWorkflow.doseData
+                                .setRatio(double.parse(val));
+                            var doseData =
+                                widget
+                                    .workflowController
+                                    .currentWorkflow
+                                    .doseData;
+                            var newWorkflow = widget
+                                .workflowController
+                                .currentWorkflow
+                                .copyWith(doseData: doseData);
+                            widget.workflowController.setWorkflow(newWorkflow);
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Text("Target weight"),
+                    Expanded(
+                      child: ShadInput(
+                        key: Key(
+                          widget
+                              .workflowController
+                              .currentWorkflow
+                              .doseData
+                              .doseOut
+                              .toString(),
+                        ),
+                        keyboardType: TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        initialValue: widget
+                            .workflowController
+                            .currentWorkflow
+                            .doseData
+                            .doseOut
+                            .toStringAsFixed(1),
+                        onSubmitted: (val) {
+                          setState(() {
+                            widget
+                                .workflowController
+                                .currentWorkflow
+                                .doseData
+                                .doseOut = double.parse(val);
+                            var doseData =
+                                widget
+                                    .workflowController
+                                    .currentWorkflow
+                                    .doseData;
+                            var newWorkflow = widget
+                                .workflowController
+                                .currentWorkflow
+                                .copyWith(doseData: doseData);
+                            widget.workflowController.setWorkflow(newWorkflow);
+                          });
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            Row(
-              children: [
-                Text("Ratio 1:"),
-                Expanded(
-                  child: ShadInput(
-                    key: Key(widget
-                        .workflowController.currentWorkflow.doseData.ratio
-                        .toString()),
-                    keyboardType:
-                        TextInputType.numberWithOptions(decimal: true),
-                    initialValue: widget
-                        .workflowController.currentWorkflow.doseData.ratio
-                        .toStringAsFixed(1),
-                    onSubmitted: (val) {
-                      setState(() {
-                        widget.workflowController.currentWorkflow.doseData
-                            .setRatio(double.parse(val));
-                        var doseData =
-                            widget.workflowController.currentWorkflow.doseData;
-                        var newWorkflow = widget
-                            .workflowController.currentWorkflow
-                            .copyWith(doseData: doseData);
-                        widget.workflowController.setWorkflow(newWorkflow);
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Text("Target weight"),
-                Expanded(
-                  child: ShadInput(
-                    key: Key(widget
-                        .workflowController.currentWorkflow.doseData.doseOut
-                        .toString()),
-                    keyboardType:
-                        TextInputType.numberWithOptions(decimal: true),
-                    initialValue: widget
-                        .workflowController.currentWorkflow.doseData.doseOut
-                        .toStringAsFixed(1),
-                    onSubmitted: (val) {
-                      setState(() {
-                        widget.workflowController.currentWorkflow.doseData
-                            .doseOut = double.parse(val);
-                        var doseData =
-                            widget.workflowController.currentWorkflow.doseData;
-                        var newWorkflow = widget
-                            .workflowController.currentWorkflow
-                            .copyWith(doseData: doseData);
-                        widget.workflowController.setWorkflow(newWorkflow);
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
+          ),
       child: ShadButton.link(
         onPressed: () {
           weightPopoverController.toggle();
@@ -494,24 +544,25 @@ class _ProfileState extends State<ProfileTile> {
       onPressed: () {
         showShadDialog(
           context: context,
-          builder: (context) => ShadDialog(
-            title: const Text("Grinder Settings"),
-            child: Dialog(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                spacing: 16,
-                children: [
-                  grinderDataForm(context),
-                  ShadButton(
-                    child: Text("Done"),
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
-                  )
-                ],
+          builder:
+              (context) => ShadDialog(
+                title: const Text("Grinder Settings"),
+                child: Dialog(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    spacing: 16,
+                    children: [
+                      grinderDataForm(context),
+                      ShadButton(
+                        child: Text("Done"),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
         );
       },
       child: Text(
@@ -533,27 +584,38 @@ class _ProfileState extends State<ProfileTile> {
             Expanded(
               child: Autocomplete(
                 optionsBuilder: (TextEditingValue val) {
-                  final options = widget.persistenceController
-                      .grinderOptions()
-                      .where((el) => el.setting
-                          .toLowerCase()
-                          .contains(val.text.toLowerCase()))
-                      .map((e) => e.setting)
-                      .toSet();
+                  final options =
+                      widget.persistenceController
+                          .grinderOptions()
+                          .where(
+                            (el) => el.setting.toLowerCase().contains(
+                              val.text.toLowerCase(),
+                            ),
+                          )
+                          .map((e) => e.setting)
+                          .toSet();
                   if (options.isEmpty) {
                     return [val.text];
                   }
                   return options;
                 },
                 key: Key(
-                  widget.workflowController.currentWorkflow.grinderData
+                  widget
+                          .workflowController
+                          .currentWorkflow
+                          .grinderData
                           ?.setting ??
                       "",
                 ),
                 initialValue: TextEditingValue(
-                    text: widget.workflowController.currentWorkflow.grinderData
-                            ?.setting ??
-                        ""),
+                  text:
+                      widget
+                          .workflowController
+                          .currentWorkflow
+                          .grinderData
+                          ?.setting ??
+                      "",
+                ),
                 onSelected: (val) {
                   //_log.shout("selected: $val");
                   setState(() {
@@ -561,16 +623,16 @@ class _ProfileState extends State<ProfileTile> {
                         null) {
                       widget.workflowController.setWorkflow(
                         widget.workflowController.currentWorkflow.copyWith(
-                          grinderData: GrinderData(
-                            setting: val,
-                          ),
+                          grinderData: GrinderData(setting: val),
                         ),
                       );
                     } else {
                       widget.workflowController.setWorkflow(
                         widget.workflowController.currentWorkflow.copyWith(
                           grinderData: widget
-                              .workflowController.currentWorkflow.grinderData!
+                              .workflowController
+                              .currentWorkflow
+                              .grinderData!
                               .copyWith(setting: val),
                         ),
                       );
@@ -588,47 +650,61 @@ class _ProfileState extends State<ProfileTile> {
             Expanded(
               child: Autocomplete(
                 optionsBuilder: (TextEditingValue val) {
-                  final options = widget.persistenceController
-                      .grinderOptions()
-                      .where((e) =>
-                          e.model
-                              ?.toLowerCase()
-                              .contains(val.text.toLowerCase()) ??
-                          false)
-                      .fold(<String>[], (r, e) {
-                    if (e.model != null) {
-                      r.add(e.model!);
-                    }
-                    return r;
-                  }).toSet();
+                  final options =
+                      widget.persistenceController
+                          .grinderOptions()
+                          .where(
+                            (e) =>
+                                e.model?.toLowerCase().contains(
+                                  val.text.toLowerCase(),
+                                ) ??
+                                false,
+                          )
+                          .fold(<String>[], (r, e) {
+                            if (e.model != null) {
+                              r.add(e.model!);
+                            }
+                            return r;
+                          })
+                          .toSet();
                   if (options.isEmpty) {
                     return [val.text];
                   }
                   return options;
                 },
-                key: Key(widget.workflowController.currentWorkflow.grinderData
-                        ?.model ??
-                    ""),
+                key: Key(
+                  widget
+                          .workflowController
+                          .currentWorkflow
+                          .grinderData
+                          ?.model ??
+                      "",
+                ),
                 initialValue: TextEditingValue(
-                    text: widget.workflowController.currentWorkflow.grinderData
-                            ?.model ??
-                        ""),
+                  text:
+                      widget
+                          .workflowController
+                          .currentWorkflow
+                          .grinderData
+                          ?.model ??
+                      "",
+                ),
                 onSelected: (val) {
                   setState(() {
                     if (widget.workflowController.currentWorkflow.grinderData ==
                         null) {
                       widget.workflowController.setWorkflow(
                         widget.workflowController.currentWorkflow.copyWith(
-                          grinderData: GrinderData(
-                            model: val,
-                          ),
+                          grinderData: GrinderData(model: val),
                         ),
                       );
                     } else {
                       widget.workflowController.setWorkflow(
                         widget.workflowController.currentWorkflow.copyWith(
                           grinderData: widget
-                              .workflowController.currentWorkflow.grinderData!
+                              .workflowController
+                              .currentWorkflow
+                              .grinderData!
                               .copyWith(model: val),
                         ),
                       );
@@ -646,47 +722,61 @@ class _ProfileState extends State<ProfileTile> {
             Expanded(
               child: Autocomplete(
                 optionsBuilder: (TextEditingValue val) {
-                  final options = widget.persistenceController
-                      .grinderOptions()
-                      .where((e) =>
-                          e.manufacturer
-                              ?.toLowerCase()
-                              .contains(val.text.toLowerCase()) ??
-                          false)
-                      .fold(<String>[], (r, e) {
-                    if (e.manufacturer != null) {
-                      r.add(e.manufacturer!);
-                    }
-                    return r;
-                  }).toSet();
+                  final options =
+                      widget.persistenceController
+                          .grinderOptions()
+                          .where(
+                            (e) =>
+                                e.manufacturer?.toLowerCase().contains(
+                                  val.text.toLowerCase(),
+                                ) ??
+                                false,
+                          )
+                          .fold(<String>[], (r, e) {
+                            if (e.manufacturer != null) {
+                              r.add(e.manufacturer!);
+                            }
+                            return r;
+                          })
+                          .toSet();
                   if (options.isEmpty) {
                     return [val.text];
                   }
                   return options;
                 },
-                key: Key(widget.workflowController.currentWorkflow.grinderData
-                        ?.manufacturer ??
-                    ""),
+                key: Key(
+                  widget
+                          .workflowController
+                          .currentWorkflow
+                          .grinderData
+                          ?.manufacturer ??
+                      "",
+                ),
                 initialValue: TextEditingValue(
-                    text: widget.workflowController.currentWorkflow.grinderData
-                            ?.manufacturer ??
-                        ""),
+                  text:
+                      widget
+                          .workflowController
+                          .currentWorkflow
+                          .grinderData
+                          ?.manufacturer ??
+                      "",
+                ),
                 onSelected: (val) {
                   setState(() {
                     if (widget.workflowController.currentWorkflow.grinderData ==
                         null) {
                       widget.workflowController.setWorkflow(
                         widget.workflowController.currentWorkflow.copyWith(
-                          grinderData: GrinderData(
-                            manufacturer: val,
-                          ),
+                          grinderData: GrinderData(manufacturer: val),
                         ),
                       );
                     } else {
                       widget.workflowController.setWorkflow(
                         widget.workflowController.currentWorkflow.copyWith(
                           grinderData: widget
-                              .workflowController.currentWorkflow.grinderData!
+                              .workflowController
+                              .currentWorkflow
+                              .grinderData!
                               .copyWith(manufacturer: val),
                         ),
                       );
@@ -708,23 +798,25 @@ class _ProfileState extends State<ProfileTile> {
       onPressed: () {
         showShadDialog(
           context: context,
-          builder: (context) => ShadDialog(
-            title: const Text("Cofee data"),
-            child: Dialog(
-                child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              spacing: 16,
-              children: [
-                _coffeeDataForm(),
-                ShadButton(
-                  child: Text("Done"),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                )
-              ],
-            )),
-          ),
+          builder:
+              (context) => ShadDialog(
+                title: const Text("Cofee data"),
+                child: Dialog(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    spacing: 16,
+                    children: [
+                      _coffeeDataForm(),
+                      ShadButton(
+                        child: Text("Done"),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
         );
       },
       child: Text(data == null ? "Coffee settings" : "${data.name}"),
@@ -742,12 +834,16 @@ class _ProfileState extends State<ProfileTile> {
             Expanded(
               child: Autocomplete<String>(
                 optionsBuilder: (TextEditingValue val) {
-                  final options = widget.persistenceController
-                      .coffeeOptions()
-                      .where((e) =>
-                          e.name.toLowerCase().contains(val.text.toLowerCase()))
-                      .map((e) => e.name)
-                      .toSet();
+                  final options =
+                      widget.persistenceController
+                          .coffeeOptions()
+                          .where(
+                            (e) => e.name.toLowerCase().contains(
+                              val.text.toLowerCase(),
+                            ),
+                          )
+                          .map((e) => e.name)
+                          .toSet();
                   if (options.isEmpty) {
                     return [val.text];
                   }
@@ -758,29 +854,33 @@ class _ProfileState extends State<ProfileTile> {
                       "",
                 ),
                 initialValue: TextEditingValue(
-                    text: widget.workflowController.currentWorkflow.coffeeData
-                            ?.name ??
-                        ""),
+                  text:
+                      widget
+                          .workflowController
+                          .currentWorkflow
+                          .coffeeData
+                          ?.name ??
+                      "",
+                ),
                 onSelected: (val) {
                   setState(() {
                     if (widget.workflowController.currentWorkflow.coffeeData ==
                         null) {
                       widget.workflowController.setWorkflow(
                         widget.workflowController.currentWorkflow.copyWith(
-                          coffeeData: CoffeeData(
-                            name: val,
-                          ),
+                          coffeeData: CoffeeData(name: val),
                         ),
                       );
                     } else {
                       widget.workflowController.setWorkflow(
-                          widget.workflowController.currentWorkflow.copyWith(
-                        coffeeData: widget
-                            .workflowController.currentWorkflow.coffeeData!
-                            .copyWith(
-                          name: val,
+                        widget.workflowController.currentWorkflow.copyWith(
+                          coffeeData: widget
+                              .workflowController
+                              .currentWorkflow
+                              .coffeeData!
+                              .copyWith(name: val),
                         ),
-                      ));
+                      );
                     }
                   });
                 },
@@ -795,50 +895,62 @@ class _ProfileState extends State<ProfileTile> {
             Expanded(
               child: Autocomplete<String>(
                 optionsBuilder: (TextEditingValue val) {
-                  final options = widget.persistenceController
-                      .coffeeOptions()
-                      .where((e) =>
-                          e.roaster
-                              ?.toLowerCase()
-                              .contains(val.text.toLowerCase()) ??
-                          false)
-                      .fold(<String>[], (r, e) {
-                    if (e.roaster != null) {
-                      r.add(e.roaster!);
-                    }
-                    return r;
-                  }).toSet();
+                  final options =
+                      widget.persistenceController
+                          .coffeeOptions()
+                          .where(
+                            (e) =>
+                                e.roaster?.toLowerCase().contains(
+                                  val.text.toLowerCase(),
+                                ) ??
+                                false,
+                          )
+                          .fold(<String>[], (r, e) {
+                            if (e.roaster != null) {
+                              r.add(e.roaster!);
+                            }
+                            return r;
+                          })
+                          .toSet();
                   if (options.isEmpty) {
                     return [val.text];
                   }
                   return options;
                 },
-                key: Key(widget.workflowController.currentWorkflow.coffeeData
-                        ?.roaster ??
-                    ""),
+                key: Key(
+                  widget
+                          .workflowController
+                          .currentWorkflow
+                          .coffeeData
+                          ?.roaster ??
+                      "",
+                ),
                 initialValue: TextEditingValue(
-                    text: widget.workflowController.currentWorkflow.coffeeData
-                            ?.roaster ??
-                        ""),
+                  text:
+                      widget
+                          .workflowController
+                          .currentWorkflow
+                          .coffeeData
+                          ?.roaster ??
+                      "",
+                ),
                 onSelected: (val) {
                   setState(() {
                     if (widget.workflowController.currentWorkflow.coffeeData ==
                         null) {
                       widget.workflowController.setWorkflow(
                         widget.workflowController.currentWorkflow.copyWith(
-                          coffeeData: CoffeeData(
-                            roaster: val,
-                          ),
+                          coffeeData: CoffeeData(roaster: val),
                         ),
                       );
                     } else {
                       widget.workflowController.setWorkflow(
                         widget.workflowController.currentWorkflow.copyWith(
                           coffeeData: widget
-                              .workflowController.currentWorkflow.coffeeData!
-                              .copyWith(
-                            roaster: val,
-                          ),
+                              .workflowController
+                              .currentWorkflow
+                              .coffeeData!
+                              .copyWith(roaster: val),
                         ),
                       );
                     }
