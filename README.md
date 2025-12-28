@@ -34,8 +34,8 @@ Currently, R1 supports the most basic of features, but enough to support the mai
 ### Plugins
 
 REA features a plugin system, for dynamic expansion of the user experience.
-More details coming soon.
 
+[Read here](/Plugins.md) for more information.
 
 ## Building
 

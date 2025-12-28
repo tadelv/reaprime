@@ -41,7 +41,7 @@ final WebUIService webUIService = WebUIService();
 
 /// The Widget that configures your application.
 class MyApp extends StatefulWidget {
-  MyApp({
+  const MyApp({
     super.key,
     required this.settingsController,
     required this.deviceController,
