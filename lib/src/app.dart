@@ -191,11 +191,13 @@ class _MyAppState extends State<MyApp> {
                           widget.de1Controller.connectToDe1(device);
                         }
                         return De1DebugView(
-                          machine: widget.deviceController.devices.firstWhere(
-                                (e) =>
-                                    e.deviceId ==
-                                    (routeSettings.arguments as String),
-                              ) as De1Interface,
+                          machine:
+                              widget.deviceController.devices.firstWhere(
+                                    (e) =>
+                                        e.deviceId ==
+                                        (routeSettings.arguments as String),
+                                  )
+                                  as De1Interface,
                         );
                       }
                       if (device is Scale) {
@@ -219,7 +221,10 @@ class _MyAppState extends State<MyApp> {
                           targetProfile:
                               widget.workflowController.currentWorkflow.profile,
                           doseData:
-                              widget.workflowController.currentWorkflow.doseData,
+                              widget
+                                  .workflowController
+                                  .currentWorkflow
+                                  .doseData,
                         );
                       }
                       return RealtimeShotFeature(
@@ -227,15 +232,14 @@ class _MyAppState extends State<MyApp> {
                         workflowController: widget.workflowController,
                       );
                     case RealtimeSteamFeature.routeName:
-                      final args = routeSettings.arguments;
-                      De1Controller de1Controller;
-                      if (args is De1Controller) {
-                        de1Controller = args;
-                      } else {
-                        de1Controller = widget.de1Controller;
-                      }
+                      final args =
+                          routeSettings.arguments as Map<String, dynamic>;
+                      De1Controller de1Controller = args['controller'];
+                      De1ControllerSteamSettings steamSettings = args['data'];
                       return RealtimeSteamFeature(
                         de1Controller: de1Controller,
+                        initialSteamSettings: steamSettings,
+                        gatewayMode: widget.settingsController.gatewayMode,
                       );
                     case HomeScreen.routeName:
                       return HomeScreen(

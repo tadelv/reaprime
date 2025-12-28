@@ -6,7 +6,6 @@ import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
-import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:reaprime/src/util/shot_chart.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -14,10 +13,14 @@ class RealtimeSteamFeature extends StatefulWidget {
   static const routeName = '/steam';
 
   final De1Controller de1Controller;
+  final De1ControllerSteamSettings initialSteamSettings;
+  final GatewayMode gatewayMode;
 
   const RealtimeSteamFeature({
     super.key,
     required this.de1Controller,
+    required this.initialSteamSettings,
+    required this.gatewayMode,
   });
 
   @override
@@ -40,21 +43,52 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
   void initState() {
     super.initState();
     _de1Controller = widget.de1Controller;
+    _steamFlow = widget.initialSteamSettings.flow;
+    _steamDuration = widget.initialSteamSettings.duration;
+    _remainingTime = _steamDuration;
+    _steamStartTime = DateTime.now();
 
-    // Check gateway mode
-    SettingsService().gatewayMode().then((mode) {
-      setState(() {
-        _gatewayMode = mode == GatewayMode.full;
-      });
-    });
+    _gatewayMode = widget.gatewayMode == GatewayMode.full;
 
     // Subscribe to DE1 data
-    _steamSubscription = _de1Controller.connectedDe1().currentSnapshot
+    _steamSubscription = _de1Controller
+        .connectedDe1()
+        .currentSnapshot
         .map((snapshot) => ShotSnapshot(machine: snapshot))
         .listen((snapshot) {
+          final bool isMachineSteaming =
+              snapshot.machine.state.state == MachineState.steam;
+
+          if (mounted) {
+            setState(() {
+              // Update active state only when it changes
+              if (_steamActive != isMachineSteaming) {
+                _steamActive = isMachineSteaming;
+
+                // Clear snapshots when steam stops
+                if (!_steamActive) {
+                  _steamSnapshots.clear();
+                }
+              }
+
+              // Add snapshot only when actively steaming
+              if (_steamActive) {
+                print("adding snap");
+                _steamSnapshots.add(snapshot);
+              }
+            });
+          }
+        });
+
+    _steamTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
         setState(() {
-          _steamSnapshots.add(snapshot);
+          if (_remainingTime > 0) {
+            _remainingTime--;
+          } else {
+            // _stopSteam();
+            timer.cancel();
+          }
         });
       }
     });
@@ -67,47 +101,8 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
     super.dispose();
   }
 
-  void _startSteam() async {
-    if (!_steamActive) {
-      setState(() {
-        _steamActive = true;
-        _remainingTime = _steamDuration;
-        _steamStartTime = DateTime.now();
-        _steamSnapshots.clear();
-      });
-
-      // Get current shot settings and update steam settings
-      final currentSettings = await _de1Controller.connectedDe1().shotSettings.first;
-      await _de1Controller.connectedDe1().updateShotSettings(
-        currentSettings.copyWith(
-          targetSteamTemp: 150, // Default steam temperature
-          targetSteamDuration: _steamDuration,
-        ),
-      );
-
-      // Set steam flow
-      await _de1Controller.connectedDe1().setSteamFlow(_steamFlow);
-
-      // Start steam mode
-      _de1Controller.connectedDe1().requestState(MachineState.steam);
-
-      // Start countdown timer
-      _steamTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        if (mounted) {
-          setState(() {
-            if (_remainingTime > 0) {
-              _remainingTime--;
-            } else {
-              _stopSteam();
-              timer.cancel();
-            }
-          });
-        }
-      });
-    }
-  }
-
   void _stopSteam() {
+    print("stop steam ${_steamActive}");
     if (_steamActive) {
       setState(() {
         _steamActive = false;
@@ -124,15 +119,14 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
   void _extendSteam() async {
     if (_steamActive) {
       setState(() {
-        _remainingTime += 10;
+        _steamDuration += 10;
       });
 
       // Update steam duration
-      final currentSettings = await _de1Controller.connectedDe1().shotSettings.first;
+      final currentSettings =
+          await _de1Controller.connectedDe1().shotSettings.first;
       await _de1Controller.connectedDe1().updateShotSettings(
-        currentSettings.copyWith(
-          targetSteamDuration: _remainingTime,
-        ),
+        currentSettings.copyWith(targetSteamDuration: _steamDuration),
       );
     }
   }
@@ -182,11 +176,19 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
                 shotSnapshots: _steamSnapshots,
                 shotStartTime: _steamStartTime ?? DateTime.now(),
               ),
-              _steamControls(context),
-              _countdownBar(context),
-              _flowSlider(context),
-              _durationControls(context),
-              _actionButtons(context),
+              Row(
+                spacing: 16.0,
+                children: [
+                SizedBox(width: 16.0,),
+                  _countdownBar(context),
+                  _steamControls(context),
+                  _flowSlider(context),
+                ],
+              ),
+              Row(
+                spacing: 16.0,
+                children: [_durationControls(context), Spacer(), _actionButtons(context)],
+              ),
             ],
           ),
         ),
@@ -232,14 +234,6 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
             ),
           ),
           const Spacer(),
-          SizedBox(
-            width: 150,
-            child: Text(
-              "MT: ${_steamSnapshots.lastOrNull?.machine.mixTemperature.toStringAsFixed(1)}℃",
-              style: const TextStyle(color: Colors.orange),
-            ),
-          ),
-          const Spacer(),
         ],
       ),
     );
@@ -249,13 +243,10 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        ShadButton(
-          onPressed: _steamActive ? null : _startSteam,
-          child: const Text('Start Steam'),
-        ),
-        const SizedBox(width: 16),
         ShadButton.destructive(
-          onPressed: _steamActive ? _stopSteam : null,
+          onPressed: () {
+            _stopSteam();
+          },
           child: const Text('Stop Steam'),
         ),
       ],
@@ -263,8 +254,8 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
   }
 
   Widget _countdownBar(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
+    return Flexible(
+      flex: 2,
       child: Column(
         children: [
           LinearProgressIndicator(
@@ -285,27 +276,32 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
   }
 
   Widget _flowSlider(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
+    return Flexible(
+      flex: 3,
       child: Column(
+      spacing: 12.0,
         children: [
           Text(
             'Steam Flow: ${_steamFlow.toStringAsFixed(1)} ml/s',
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          Slider(
-            value: _steamFlow,
-            min: 0.5,
-            max: 5.0,
-            divisions: 45,
-            label: _steamFlow.toStringAsFixed(1),
-            onChanged: _steamActive
-                ? null
-                : (value) {
-                    setState(() {
-                      _steamFlow = value;
-                    });
-                  },
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: ShadSlider(
+              initialValue: _steamFlow,
+              min: 0.4,
+              max: 2.0,
+              divisions: 16,
+              thumbRadius: 16.0,
+              trackHeight: 24.0,
+              label: _steamFlow.toStringAsFixed(1),
+              onChanged: (value) async {
+                await _de1Controller.connectedDe1().setSteamFlow(value);
+                setState(() {
+                  _steamFlow = value;
+                });
+              },
+            ),
           ),
         ],
       ),
@@ -319,35 +315,38 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           ShadButton.outline(
-            onPressed: _steamActive
-                ? null
-                : () {
-                    setState(() {
-                      _steamDuration = 15;
-                    });
-                  },
+            onPressed:
+                _steamActive
+                    ? null
+                    : () {
+                      setState(() {
+                        _steamDuration = 15;
+                      });
+                    },
             child: const Text('15s'),
           ),
           const SizedBox(width: 8),
           ShadButton.outline(
-            onPressed: _steamActive
-                ? null
-                : () {
-                    setState(() {
-                      _steamDuration = 30;
-                    });
-                  },
+            onPressed:
+                _steamActive
+                    ? null
+                    : () {
+                      setState(() {
+                        _steamDuration = 30;
+                      });
+                    },
             child: const Text('30s'),
           ),
           const SizedBox(width: 8),
           ShadButton.outline(
-            onPressed: _steamActive
-                ? null
-                : () {
-                    setState(() {
-                      _steamDuration = 60;
-                    });
-                  },
+            onPressed:
+                _steamActive
+                    ? null
+                    : () {
+                      setState(() {
+                        _steamDuration = 60;
+                      });
+                    },
             child: const Text('60s'),
           ),
           const SizedBox(width: 16),

@@ -95,7 +95,8 @@ class De1StateManager {
         break;
       default:
         // For other states, ensure we clean up if we were tracking a shot
-        if (_currentShotController != null && gatewayMode == GatewayMode.tracking) {
+        if (_currentShotController != null &&
+            gatewayMode == GatewayMode.tracking) {
           _cleanupShotController();
         }
         break;
@@ -180,13 +181,17 @@ class De1StateManager {
     if (context != null && context.mounted) {
       _logger.info('Navigating to RealtimeSteamFeature in disabled mode');
       _isRealtimeFeatureActive = true;
-
-      Navigator.pushNamed(
-        context,
-        RealtimeSteamFeature.routeName,
-        arguments: _de1Controller,
-      ).then((_) {
-        _isRealtimeFeatureActive = false;
+      _de1Controller.steamData.first.then((steamData) {
+        if (!context.mounted) {
+          return;
+        }
+        Navigator.pushNamed(
+          context,
+          RealtimeSteamFeature.routeName,
+          arguments: {'controller': _de1Controller, 'data': steamData},
+        ).then((_) {
+          _isRealtimeFeatureActive = false;
+        });
       });
     }
   }
@@ -206,11 +211,11 @@ class De1StateManager {
     _currentShotSnapshots.clear();
 
     // Listen to shot snapshots
-    _shotSnapshotsSubscription = _currentShotController!.shotData.listen(
-      (snapshot) {
-        _currentShotSnapshots.add(snapshot);
-      },
-    );
+    _shotSnapshotsSubscription = _currentShotController!.shotData.listen((
+      snapshot,
+    ) {
+      _currentShotSnapshots.add(snapshot);
+    });
 
     // Listen to shot state changes
     _shotStateSubscription = _currentShotController!.state.listen((state) {
@@ -224,7 +229,8 @@ class De1StateManager {
 
   /// Persists the shot if it's not a cleaning or calibration shot.
   void _persistShotIfNeeded() {
-    final beverageType = _workflowController.currentWorkflow.profile.beverageType;
+    final beverageType =
+        _workflowController.currentWorkflow.profile.beverageType;
     if (beverageType != BeverageType.cleaning &&
         beverageType != BeverageType.calibrate &&
         _currentShotController != null) {
@@ -268,4 +274,3 @@ class De1StateManager {
     _de1Subscription = null;
   }
 }
-
