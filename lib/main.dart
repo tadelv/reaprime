@@ -157,7 +157,6 @@ void main() async {
       workflowController,
       persistenceController,
       pluginService,
-
     );
   } catch (e, st) {
     log.severe('failed to start web server', e, st);
@@ -203,6 +202,10 @@ void main() async {
     onExitRequested: () async {
       await signalHandler(ProcessSignal.sigint);
       return AppExitResponse.exit;
+    },
+    onRestart: () async {
+      await signalHandler(ProcessSignal.sigint);
+      pluginService.pluginManager.js.dispose();
     },
   );
 

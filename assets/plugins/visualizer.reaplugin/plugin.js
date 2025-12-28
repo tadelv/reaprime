@@ -348,6 +348,47 @@ function createPlugin(host) {
       }
     },
 
+    // HTTP request handler (optional - can also handle via onEvent)
+    __httpRequestHandler(request) {
+      host.log(`Received HTTP request for ${request.endpoint}: ${request.method}`);
+
+      if (request.endpoint === "status") {
+        return {
+          requestId: request.requestId,
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Custom-Header': 'Plugin-Response'
+          },
+          body: JSON.stringify({
+            status: "online",
+            timestamp: Date.now(),
+          })
+        };
+      }
+
+      if (request.endpoint === "echo") {
+        return {
+          requestId: request.requestId,
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: "Echo response",
+            yourData: request.body,
+            yourQuery: request.query
+          })
+        };
+      }
+
+      // Default 404 response
+      return {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: "Endpoint not found" })
+      };
+    },
+
+
     onEvent(event) {
       if (!event || !event.name) return;
 
@@ -358,6 +399,13 @@ function createPlugin(host) {
           //   checkForNewShots();
           // }
           break;
+        // case "httpRequest":
+        //   const handled = this.__httpRequestHandler(event.password);
+        //   host.emit("httpResponse", {
+        //     requestId: event.requestId,
+        //     ...handled,
+        //   });
+        //   break;
 
         case "shutdown":
           stop();

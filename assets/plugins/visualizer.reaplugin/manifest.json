@@ -22,5 +22,11 @@
       "description": "Visualiser password"
     }
   },
-  "api": []
+  "api": [
+    {
+      "id": "status",
+      "type": "http",
+      "data": {}
+    }
+  ]
 }

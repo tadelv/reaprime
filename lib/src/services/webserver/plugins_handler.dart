@@ -6,6 +6,8 @@ final class PluginsHandler {
 
   final Logger _log = Logger("PluginsHandler");
 
+  final Random _random = Random();
+
   PluginsHandler({required this.pluginManager, required this.pluginService});
 
   void addRoutes(RouterPlus app) {
@@ -20,7 +22,6 @@ final class PluginsHandler {
 
     app.get('/ws/v1/plugins/<id>/<endpoint>', _handlePluginSocketEndpoint);
     app.get('/api/v1/plugins/<id>/<endpoint>', _handlePluginApiEndpoint);
-
   }
 
   Future<Response> _handlePluginSocketEndpoint(Request req) async {
@@ -81,7 +82,7 @@ final class PluginsHandler {
   }
 
   Future<Response> _handlePluginApiEndpoint(Request req) async {
-    _log.info("handling $req");
+    _log.info("handling ${req.toString()}");
 
     final id = req.params['id'];
     final endpoint = req.params['endpoint'];
@@ -89,37 +90,104 @@ final class PluginsHandler {
     if (id == null || endpoint == null) {
       return Response.badRequest(body: "id and endpoint required");
     }
+
     final manifest =
         pluginManager.loadedPlugins
             .firstWhereOrNull((e) => e.pluginId == id)
             ?.manifest;
+
     if (manifest == null) {
       return Response.notFound('plugin with $id not loaded');
     }
+
     final apiEndpoint = manifest.api?.endpoints.firstWhereOrNull(
       (e) => e.id == endpoint,
     );
+
     if (apiEndpoint == null) {
       return Response.notFound('endpoint $endpoint not available');
     }
+
     if (apiEndpoint.type != ApiEndpointType.http) {
       return Response.badRequest(
         body: {'error': 'endpoint $endpoint is not a http type'},
       );
     }
 
+    // Read request details
+    final method = req.method;
+    final headers = <String, String>{};
+    req.headers.forEach((name, values) {
+      headers[name] = values;
+    });
+
     final body = await req.readAsString();
+
+    // Generate a unique request ID
+    final requestId =
+        '${id}_${endpoint}_${DateTime.now().millisecondsSinceEpoch}_${_random.nextInt(100000)}';
+
     try {
-      final payload = jsonDecode(body);
-      pluginManager.dispatchEvent(id, 'api', {
+      // Prepare the request data to send to the plugin
+      final requestData = {
+        'requestId': requestId,
         'endpoint': endpoint,
-        ...payload,
-      });
-      return Response.ok({});
+        'method': method,
+        'headers': headers,
+        'body': body.isNotEmpty ? jsonDecode(body) : null,
+        'query': req.url.queryParameters,
+      };
+
+      // Dispatch the event to the plugin
+      pluginManager.dispatchEvent(id, 'httpRequest', requestData);
+
+      // Wait for the plugin's response (with timeout)
+      final response = await _waitForPluginResponse(requestId);
+
+      if (response == null) {
+        return Response.internalServerError(
+          body: 'Plugin did not respond in time',
+        );
+      }
+
+      // Parse the plugin's response
+      final status = response['status'] as int? ?? 200;
+      final responseHeaders = (response['headers'] as Map<String, dynamic>? ??
+              {})
+          .map((k, v) => MapEntry(k, v.toString()));
+      final responseBody = response['body'];
+
+      // Send the response back to the client
+      return Response(status, body: responseBody, headers: responseHeaders);
     } catch (e) {
-      _log.warning("invalid payload", e);
-      return Response.badRequest(body: "body must be json");
+      _log.warning("Error handling HTTP request for plugin $id", e);
+      return Response.internalServerError(
+        body: "Error processing request: ${e.toString()}",
+      );
     }
+  }
+
+  Future<Map<String, dynamic>?> _waitForPluginResponse(String requestId) async {
+    final Completer<Map<String, dynamic>?> completer = Completer();
+    final stopwatch = Stopwatch()..start();
+
+    // Check every 100ms for up to 30 seconds
+    Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (stopwatch.elapsed > const Duration(seconds: 30)) {
+        timer.cancel();
+        completer.complete(null);
+        return;
+      }
+
+      // Check if the plugin has responded
+      final response = pluginManager.getPendingHttpResponse(requestId);
+      if (response != null) {
+        timer.cancel();
+        completer.complete(response);
+      }
+    });
+
+    return completer.future;
   }
 
   Future<Response> _extractPluginId(

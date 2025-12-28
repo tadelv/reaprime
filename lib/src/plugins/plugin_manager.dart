@@ -49,53 +49,84 @@ class PluginManager {
         if (globalThis.__plugins__) return;
 
         globalThis.__plugins__ = Object.create(null);
+        
+        // Add HTTP response handling
+        globalThis.__pendingHttpRequests = new Map();
+        
+        globalThis.__registerHttpRequest = function (pluginId, requestId) {
+          if (!globalThis.__pendingHttpRequests.has(pluginId)) {
+            globalThis.__pendingHttpRequests.set(pluginId, new Map());
+          }
+          return new Promise((resolve) => {
+            globalThis.__pendingHttpRequests.get(pluginId).set(requestId, resolve);
+          });
+        };
+        
+        globalThis.__sendHttpResponse = function (pluginId, requestId, response) {
+          sendMessage("host", JSON.stringify({
+            pluginId: pluginId,
+            type: "httpResponse",
+            requestId: requestId,
+            payload: response
+          }));
+        };
+
+        globalThis.__sendApiResponse = function (pluginId, requestId, response) {
+          console.log("sending plugin api response", pluginId);
+          sendMessage("host", JSON.stringify({
+            pluginId: pluginId,
+            type: "httpResponse",
+            requestId: requestId,
+            payload: response
+          }));
+        };
 
         // Provide btoa function if not available
         if (typeof globalThis.btoa === 'undefined') {
-          globalThis.btoa = function (input) {
-            // 1. Convert to string (per spec)
-            const str = String(input);
+            globalThis.btoa = function (input) {
+              // 1. Convert to string (per spec)
+              const str = String(input);
 
-            // 2. Reject non-Latin-1 characters
-            for (let i = 0; i < str.length; i++) {
-              if (str.charCodeAt(i) > 0xFF) {
-                throw new DOMException(
-                  "The string to be encoded contains characters outside of the Latin1 range.",
-                  "InvalidCharacterError"
-                );
+              // 2. Reject non-Latin-1 characters
+              for (let i = 0; i < str.length; i++) {
+                if (str.charCodeAt(i) > 0xFF) {
+                  throw new DOMException(
+                    "The string to be encoded contains characters outside of the Latin1 range.",
+                    "InvalidCharacterError"
+                  );
+                }
               }
-            }
 
-            const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-            let output = "";
-            let i = 0;
+              const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+              let output = "";
+              let i = 0;
 
-            // 3. Encode
-            while (i < str.length) {
-              const byte1 = str.charCodeAt(i++);
-              const byte2 = i < str.length ? str.charCodeAt(i++) : undefined;
-              const byte3 = i < str.length ? str.charCodeAt(i++) : undefined;
+              // 3. Encode
+              while (i < str.length) {
+                const byte1 = str.charCodeAt(i++);
+                const byte2 = i < str.length ? str.charCodeAt(i++) : undefined;
+                const byte3 = i < str.length ? str.charCodeAt(i++) : undefined;
 
-              const enc1 = byte1 >> 2;
-              const enc2 = ((byte1 & 0x03) << 4) | (byte2 !== undefined ? byte2 >> 4 : 0);
-              const enc3 = byte2 !== undefined
-                ? ((byte2 & 0x0f) << 2) | (byte3 !== undefined ? byte3 >> 6 : 0)
-                : 64;
-              const enc4 = byte3 !== undefined ? (byte3 & 0x3f) : 64;
+                const enc1 = byte1 >> 2;
+                const enc2 = ((byte1 & 0x03) << 4) | (byte2 !== undefined ? byte2 >> 4 : 0);
+                const enc3 = byte2 !== undefined
+                  ? ((byte2 & 0x0f) << 2) | (byte3 !== undefined ? byte3 >> 6 : 0)
+                  : 64;
+                const enc4 = byte3 !== undefined ? (byte3 & 0x3f) : 64;
 
-              output +=
-                chars.charAt(enc1) +
-                chars.charAt(enc2) +
-                (enc3 === 64 ? "=" : chars.charAt(enc3)) +
-                (enc4 === 64 ? "=" : chars.charAt(enc4));
-            }
+                output +=
+                  chars.charAt(enc1) +
+                  chars.charAt(enc2) +
+                  (enc3 === 64 ? "=" : chars.charAt(enc3)) +
+                  (enc4 === 64 ? "=" : chars.charAt(enc4));
+              }
 
-            return output;
-          };
+              return output;
+            };
         }
 
         globalThis.__dispatchToPlugin = function (pluginId, evt) {
-          const plugin = __plugins__[pluginId];
+          const plugin = globalThis.__plugins__[pluginId];
           if (!plugin || typeof plugin.onEvent !== "function") return;
           try {
             plugin.onEvent(evt);
@@ -126,10 +157,21 @@ class PluginManager {
               type: "pluginStorage",
               payload: command
             }));
+          },
+          httpRequest(pluginId, requestId, endpoint, method, headers, body) {
+            sendMessage("host", JSON.stringify({
+              pluginId: pluginId,
+              type: "httpRequest",
+              requestId: requestId,
+              endpoint: endpoint,
+              method: method,
+              headers: headers,
+              body: body
+            }));
           }
         };
       })();
-    ''');
+  ''');
 
     js.evaluate(r'''
       (function () {
@@ -205,7 +247,6 @@ class PluginManager {
     js.onMessage("host", (raw) {
       try {
         _log.finest("receiving: $raw");
-        // final msg = jsonDecode(raw);
         final msg = raw as Map<String, dynamic>;
         final pluginId = msg['pluginId'] as String?;
         final type = msg['type'];
@@ -217,6 +258,9 @@ class PluginManager {
 
         if (type == 'log') {
           _log.fine("[JS:$pluginId] ${msg['payload']?['message']}");
+        } else if (type == 'httpResponse') {
+          // Handle HTTP responses from plugin
+          _handlePluginApiResponse(pluginId, msg);
         } else {
           _handleMessage(pluginId, msg);
         }
@@ -233,6 +277,7 @@ class PluginManager {
         _log.warning("Invalid fetch message", e, st);
       }
     });
+
   }
 
   // ─────────────────────────────────────────────
@@ -254,47 +299,65 @@ class PluginManager {
     try {
       // Direct injection approach with standard factory name
       final wrapperCode = '''
-        (function () {
-          const pluginId = "$id";
-          
-          // Create the host object for this plugin
-          const host = {
-            log: (msg) => globalThis.host.log(pluginId, msg),
-            emit: (type, payload) => globalThis.host.emit(pluginId, type, payload),
-            storage: (cmd) => globalThis.host.storage(pluginId, cmd)
-          };
-          
-          // Inject and evaluate the plugin code
-          ${jsCode}
-          
-          // The plugin must export a function named 'createPlugin'
-          if (typeof createPlugin !== 'function') {
-            throw new Error("Plugin must export a 'createPlugin' function. Got: " + typeof createPlugin);
+      (function () {
+        const pluginId = "$id";
+        
+        // Create the host object for this plugin
+        const host = {
+          log: (msg) => globalThis.host.log(pluginId, msg),
+          emit: (type, payload) => globalThis.host.emit(pluginId, type, payload),
+          storage: (cmd) => globalThis.host.storage(pluginId, cmd),
+          // Add HTTP request capability
+          httpRequest: (endpoint, method, headers, body) => {
+            const requestId = pluginId + "_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+            return new Promise((resolve) => {
+              // Register the request
+              if (globalThis.__registerHttpRequest) {
+                globalThis.__registerHttpRequest(pluginId, requestId).then(resolve);
+              }
+              // Send the request to Dart
+              globalThis.host.httpRequest(pluginId, requestId, endpoint, method, headers, body);
+            });
           }
-          
-          // Call the factory function with the host object
-          const plugin = createPlugin(host);
-          
-          if (!plugin || typeof plugin !== "object") {
-            throw new Error("createPlugin did not return an object, got: " + typeof plugin);
-          }
-          
-          // Verify the plugin has the required id
-          if (plugin.id !== pluginId) {
-            throw new Error("Plugin ID mismatch. Expected: " + pluginId + ", Got: " + plugin.id);
-          }
-          
-          // Store the plugin object
-          __plugins__[pluginId] = plugin;
-          
-          // Call onLoad if it exists
-          if (typeof plugin.onLoad === "function") {
-            plugin.onLoad(${jsonEncode(settings)});
-          }
-          
-          return plugin;
-        })();
-      ''';
+        };
+        
+        // Inject and evaluate the plugin code
+        ${jsCode}
+        
+        // The plugin must export a function named 'createPlugin'
+        if (typeof createPlugin !== 'function') {
+          throw new Error("Plugin must export a 'createPlugin' function. Got: " + typeof createPlugin);
+        }
+        
+        // Call the factory function with the host object
+        const plugin = createPlugin(host);
+        
+        if (!plugin || typeof plugin !== "object") {
+          throw new Error("createPlugin did not return an object, got: " + typeof plugin);
+        }
+        
+        // Verify the plugin has the required id
+        if (plugin.id !== pluginId) {
+          throw new Error("Plugin ID mismatch. Expected: " + pluginId + ", Got: " + plugin.id);
+        }
+        
+        // Store the plugin object
+        globalThis.__plugins__[pluginId] = plugin;
+        
+        // Add HTTP API handler if the plugin defines one
+        if (typeof plugin.handleHttpRequest === "function") {
+          // Register HTTP request handler
+          plugin.__httpRequestHandler = plugin.handleHttpRequest;
+        }
+        
+        // Call onLoad if it exists
+        if (typeof plugin.onLoad === "function") {
+          plugin.onLoad(${jsonEncode(settings)});
+        }
+        
+        return plugin;
+      })();
+    ''';
 
       final result = js.evaluate(wrapperCode);
       _log.fine("Plugin evaluation result: ${result.stringResult}");
@@ -309,8 +372,8 @@ class PluginManager {
     } catch (e, st) {
       _plugins.remove(id);
       js.evaluate('''
-        delete __plugins__["$id"];
-      ''');
+      delete globalThis.__plugins__["$id"];
+    ''');
       _log.severe("Failed to load plugin $id", e, st);
       rethrow;
     }
@@ -324,9 +387,9 @@ class PluginManager {
       js.evaluate('''
         (function () {
           try {
-            const plugin = __plugins__["$id"];
+            const plugin = globalThis.__plugins__["$id"];
             plugin?.onUnload?.();
-            delete __plugins__["$id"];
+            delete globalThis.__plugins__["$id"];
           } catch (e) {
             console.error("Unload failed ($id)", e);
           }
@@ -355,12 +418,66 @@ class PluginManager {
   void dispatchEvent(String pluginId, String name, dynamic payload) {
     if (!_plugins.containsKey(pluginId)) return;
 
+    final requestId = payload['requestId'];
+
     js.evaluate('''
-      __dispatchToPlugin("$pluginId", {
-        name: "$name",
-        payload: ${jsonEncode(payload)}
-      });
-    ''');
+    __dispatchToPlugin("$pluginId", {
+      name: "$name",
+      payload: ${jsonEncode(payload)}
+    });
+    
+    // Special handling for HTTP requests
+    if ("$name" === "httpRequest") {
+      const plugin = globalThis.__plugins__["$pluginId"];
+      if (plugin && typeof plugin.__httpRequestHandler === "function") {
+        try {
+          const response = plugin.__httpRequestHandler(${jsonEncode(payload)});
+          console.log("resp:", JSON.stringify(response));
+          console.log("type", typeof response.then);
+          const responseThen = response.then;
+          console.log("resp then", responseThen);
+          if (response &&  responseThen) {
+            console.log("thinking it's async")
+            // Handle async response
+            response.then((res) => {
+              console.log("in then")
+              if (globalThis.__sendApiResponse) {
+                globalThis.__sendApiResponse("$pluginId", "$requestId", res);
+              }
+            }).catch((err) => {
+              console.log("somehow got to err")
+              console.error("HTTP request handler error:", err);
+              if (globalThis.__sendApiResponse) {
+                globalThis.__sendApiResponse("$pluginId", "$requestId", {
+                  status: 500,
+                  headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify({error: err.toString()})
+                });
+              }
+            });
+          } else if (response) {
+            // Handle sync response
+            console.log("syncing response!!!!", typeof globalThis.__sendApiResponse)
+            console.log("sending response%%%%", response)
+            if (globalThis.__sendApiResponse) {
+            console.log("sending response%%%%", "$requestId")
+              globalThis.__sendApiResponse("$pluginId", "$requestId", response);
+            }
+          }
+        } catch (e) {
+          console.log("somehow exceptioned")
+          console.error("HTTP request handler error:", e);
+          if (globalThis.__sendApiResponse) {
+            globalThis.__sendApiResponse("$pluginId", payload.requestId, {
+              status: 500,
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({error: e.toString()})
+            });
+          }
+        }
+      }
+    }
+  ''');
   }
 
   // ─────────────────────────────────────────────
@@ -411,6 +528,24 @@ class PluginManager {
         dispatchEvent(pluginId, "storageWrite", cmd.data);
         break;
     }
+  }
+
+  final Map<String, Map<String, dynamic>> _pendingHttpResponses = {};
+
+  void _handlePluginApiResponse(String pluginId, Map<String, dynamic> msg) {
+    final requestId = msg['requestId'] as String?;
+    final response = msg['payload'] as Map<String, dynamic>?;
+
+    if (requestId == null || response == null) {
+      _log.warning("Invalid HTTP response from plugin $pluginId");
+      return;
+    }
+
+    // This will be used by the HTTP request handler
+    _pendingHttpResponses[requestId] = response;
+    _log.fine(
+      "HTTP response received for request $requestId from plugin $pluginId",
+    );
   }
 
   // ─────────────────────────────────────────────
@@ -494,5 +629,9 @@ class PluginManager {
       );
       js.executePendingJob();
     }
+  }
+
+  Map<String, dynamic>? getPendingHttpResponse(String requestId) {
+    return _pendingHttpResponses.remove(requestId);
   }
 }
