@@ -223,7 +223,7 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
                 final shouldAutoLoad = snapshot.data ?? false;
                 return Row(
                   children: [
-                    Switch(
+                    ShadSwitch(
                       value: shouldAutoLoad,
                       onChanged: (value) async {
                         try {
@@ -333,7 +333,10 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
   }
 
   // TODO: unify with PluginLoaderService _copyDirectoryRecursively - maybe as a Directory extension?
-  Future<void> _copyDirectoryRecursively(Directory source, Directory destination) async {
+  Future<void> _copyDirectoryRecursively(
+    Directory source,
+    Directory destination,
+  ) async {
     // Create destination directory if it doesn't exist
     if (!destination.existsSync()) {
       destination.createSync(recursive: true);
@@ -480,9 +483,24 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
                           final key = entry.key;
                           final schema = entry.value;
                           final currentValue = newSettings[key];
+                          final defaultValue = schema['default'];
+
+                          // Helper function to get display value
+                          String getDisplayValue(dynamic value) {
+                            if (value == null) return '';
+                            return value.toString();
+                          }
+
+                          // Helper function to parse value based on type
+                          dynamic parseValue(String value, String type) {
+                            if (type == 'number') {
+                              return num.tryParse(value);
+                            }
+                            return value;
+                          }
 
                           return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.only(bottom: 16),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -490,16 +508,28 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
                                   key,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
+                                    fontSize: 14,
                                   ),
                                 ),
+                                if (schema['description'] != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: Text(
+                                      schema['description']!,
+                                      style: TextStyle(
+                                        color: Colors.grey[600],
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
                                 const SizedBox(height: 4),
                                 if (schema['type'] == 'boolean')
                                   Row(
                                     children: [
-                                      Switch(
+                                      ShadSwitch(
                                         value:
                                             currentValue ??
-                                            schema['default'] ??
+                                            defaultValue ??
                                             false,
                                         onChanged: (value) {
                                           setState(() {
@@ -508,37 +538,67 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
                                         },
                                       ),
                                       const SizedBox(width: 8),
-                                      Text(schema['description'] ?? ''),
+                                      Text(
+                                        currentValue ?? defaultValue ?? false
+                                            ? 'Enabled'
+                                            : 'Disabled',
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
                                     ],
                                   )
                                 else if (schema['type'] == 'number')
-                                  TextField(
-                                    decoration: InputDecoration(
-                                      hintText: schema['description'] ?? '',
-                                      border: const OutlineInputBorder(),
+                                  ShadInput(
+                                    placeholder: Text('Enter a number...'),
+                                    initialValue: getDisplayValue(
+                                      currentValue ?? defaultValue,
                                     ),
                                     keyboardType: TextInputType.number,
                                     onChanged: (value) {
-                                      final numValue = num.tryParse(value);
-                                      if (numValue != null) {
+                                      final parsedValue = parseValue(
+                                        value,
+                                        'number',
+                                      );
+                                      if (parsedValue != null) {
                                         setState(() {
-                                          newSettings[key] = numValue;
+                                          newSettings[key] = parsedValue;
                                         });
                                       }
                                     },
                                   )
-                                else
-                                  TextField(
-                                    decoration: InputDecoration(
-                                      hintText: schema['description'] ?? '',
-                                      border: const OutlineInputBorder(),
+                                else if (schema['secure'] == true)
+                                  ShadInput(
+                                    placeholder: Text('Enter secure value...'),
+                                    initialValue: getDisplayValue(
+                                      currentValue ?? defaultValue,
                                     ),
                                     onChanged: (value) {
                                       setState(() {
                                         newSettings[key] = value;
                                       });
                                     },
-                                    obscureText: schema['secure'] ?? false,
+                                    obscureText: true,
+                                  )
+                                else
+                                  ShadInput(
+                                    placeholder: Text('Enter value...'),
+                                    initialValue: getDisplayValue(
+                                      currentValue ?? defaultValue,
+                                    ),
+                                    onChanged: (value) {
+                                      setState(() {
+                                        newSettings[key] = value;
+                                      });
+                                    },
+                                  ),
+                                const SizedBox(height: 4),
+                                if (defaultValue != null)
+                                  Text(
+                                    'Default: ${getDisplayValue(defaultValue)}',
+                                    style: TextStyle(
+                                      color: Colors.grey[500],
+                                      fontSize: 11,
+                                      fontStyle: FontStyle.italic,
+                                    ),
                                   ),
                               ],
                             ),
@@ -547,11 +607,11 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
                   ),
                 ),
                 actions: [
-                  TextButton(
+                  ShadButton.secondary(
                     onPressed: () => Navigator.pop(context),
                     child: const Text('Cancel'),
                   ),
-                  TextButton(
+                  ShadButton(
                     onPressed: () async {
                       try {
                         await widget.pluginLoaderService.savePluginSettings(
@@ -561,7 +621,6 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
                         if (context.mounted == false) {
                           return;
                         }
-                        // The dialog context is still valid here since we're in the dialog
                         _showSnackBar(context, 'Settings saved');
                         Navigator.pop(context);
                       } catch (e, st) {
