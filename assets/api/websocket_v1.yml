@@ -69,6 +69,12 @@ channels:
     messages:
       pluginMessage:
         $ref: '#/components/messages/PluginMessage'
+  Logs:
+    description: Subscribe to Rea logs
+    address: ws/v1/logs
+    messages:
+      logMessage:
+        $ref: '#/components/messages/LogMessage'
 
 operations:
   de1Snapshot:
@@ -99,6 +105,10 @@ operations:
     action: receive
     channel:
       $ref: '#/channels/Plugins'
+  logMessage:
+    action: receive
+    channel:
+      $ref: '#/channels/Logs'
 
 components:
   messages:
@@ -142,6 +152,11 @@ components:
       title: Message from plugin
       payload:
         $ref: '#/components/schemas/PluginMessage'
+    LogMessage:
+      name: LogMessage
+      title: Log message from Rea
+      payload:
+        $ref: '#/components/schemas/LogMessage'
   schemas:
     Error:
       type: object
@@ -301,3 +316,15 @@ components:
     PluginMessage:
       type: object
       additionalProperties: true
+
+    LogMessage:
+      type: object
+      properties:
+        timestamp: 
+          type: string
+          format: date-time
+        level:
+          type: string
+        message:
+          type: string
+

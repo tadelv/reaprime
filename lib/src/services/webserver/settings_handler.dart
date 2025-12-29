@@ -43,5 +43,34 @@ class SettingsHandler {
       }
       return Response.ok('');
     });
+
+    // Adding logs here, even though they aren't part of Settings
+    app.get('/ws/v1/logs', _handleLogsRequest);
+  }
+
+  Future<Response> _handleLogsRequest(Request req) async {
+    return sws.webSocketHandler((WebSocketChannel socket) {
+      StreamSubscription? sub;
+      sub = Logger.root.onRecord.listen((logRecord) {
+        socket.sink.add(
+          jsonEncode({
+            'level': logRecord.level.name,
+            'timestamp': logRecord.time.toIso8601String(),
+            'message': logRecord.message,
+          }),
+        );
+      });
+      socket.stream.listen(
+        (msg) {
+          // handle incoming messages if needed
+        },
+        onDone: () {
+          sub?.cancel();
+        },
+        onError: (e, _) {
+          sub?.cancel();
+        },
+      );
+    })(req);
   }
 }
