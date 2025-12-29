@@ -17,11 +17,15 @@ final class PluginsHandler {
       return Response.ok(jsonEncode(list));
     });
 
+    app.get('/api/v1/plugins/admin', (Request req) {
+      return Response.ok("todo: plugin administration");
+    });
+
     app.get('/api/v1/plugins/<id>/settings', _handlePluginSettingsGet);
     app.post('/api/v1/plugins/<id>/settings', _handlePluginSettingsPost);
 
     app.get('/ws/v1/plugins/<id>/<endpoint>', _handlePluginSocketEndpoint);
-    app.get('/api/v1/plugins/<id>/<endpoint>', _handlePluginApiEndpoint);
+    app.all('/api/v1/plugins/<id>/<endpoint>', _handlePluginApiEndpoint);
   }
 
   Future<Response> _handlePluginSocketEndpoint(Request req) async {
@@ -213,6 +217,7 @@ final class PluginsHandler {
       final body = await req.readAsString();
       final json = await jsonDecode(body);
       await pluginService.savePluginSettings(id, json);
+      await pluginService.reloadPlugin(id);
       return Response.ok(body);
     });
   }

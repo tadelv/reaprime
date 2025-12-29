@@ -24,6 +24,8 @@ function createPlugin(host) {
     username: null,
     password: null,
     ticks: 0,
+    autoUpload: true,
+    lengthThreshold: 5,
   };
 
   function log(msg) {
@@ -71,6 +73,11 @@ function createPlugin(host) {
     const retries = 3;
     const delay = 2000;
     const url = `${VISUALIZER_API_URL}/shots/upload`;
+
+    if (shotData.duration < state.lengthThreshold) {
+      log(`Not uploading shot because it's too short: ${shotData.duration}`);
+      throw new Error(`Not uploading shot because it's too short: ${shotData.duration}`);
+    }
 
     const payload = buildMultipartBody({
       fieldName: "file",
@@ -125,7 +132,12 @@ function createPlugin(host) {
       throw new Error("Invalid or empty REA shot data for conversion.");
     }
 
-    const firstTimestamp = new Date(reaShot.measurements[0].machine.timestamp).getTime();
+    const firstEspressoIndex = reaShot.measurements.findIndex((element) => {
+      return element.machine.state.substate == 'preinfusion' ||
+        element.machine.state.substate == 'pouring';
+    });
+
+    const firstTimestamp = new Date(reaShot.measurements[firstEspressoIndex].machine.timestamp).getTime();
     const lastMeasurement = reaShot.measurements[reaShot.measurements.length - 1];
     const lastTimestamp = new Date(lastMeasurement.machine.timestamp).getTime();
     let totalWaterDispensed = 0;
@@ -156,7 +168,7 @@ function createPlugin(host) {
       },
     };
 
-    for (let i = 0; i < reaShot.measurements.length; i++) {
+    for (let i = firstEspressoIndex; i < reaShot.measurements.length; i++) {
       const m = reaShot.measurements[i];
       const machine = m.machine;
       const scale = m.scale;
@@ -193,6 +205,10 @@ function createPlugin(host) {
 
     try {
       log("Checking for new shots...");
+      if (!state.autoUpload) {
+        log("Auto upload disabled, not checking ...");
+        return
+      }
       const shot = await fetchLatestShot();
       if (!shot || !shot.id) {
         log("No shot data available");
@@ -305,6 +321,8 @@ function createPlugin(host) {
     onLoad(settings) {
       state.username = settings.Username;
       state.password = settings.Password;
+      state.autoUpload = settings.AutoUpload ?? true;
+      state.lengthThreshold = settings.Length ?? 5;
 
       log(`Loaded with username: ${state.username ? 'configured' : 'not configured'}`);
 
@@ -367,17 +385,26 @@ function createPlugin(host) {
         };
       }
 
-      if (request.endpoint === "echo") {
-        return {
-          requestId: request.requestId,
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: "Echo response",
-            yourData: request.body,
-            yourQuery: request.query
-          })
-        };
+      if (request.endpoint === "upload") {
+        console.log("body: ", JSON.stringify(request.body));
+        const shotId = request.body.shotId;
+        if (!shotId) {
+          return {
+            requestId: request.requestId,
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: 'shotId is required'
+            })
+
+          }
+        }
+        return fetch(`http://localhost:8080/api/v1/shots?ids=${shotId}`)
+          .then((res) => {
+            return res.json();
+          }).then((json) => {
+            return uploadShot(convertReaToVisualizerFormat(json[0]), null);
+          });
       }
 
       // Default 404 response
