@@ -188,9 +188,12 @@ void main() async {
 
   Future<void> signalHandler(ProcessSignal signal) async {
     Logger.root.warning("Signal received: ${signal.name}");
-    for (var device in deviceController.devices) {
-      await device.disconnect();
-    }
+    // if (signal != ProcessSignal.sigstop) {
+    //     return;
+    //   }
+    // for (var device in deviceController.devices) {
+    //   await device.disconnect();
+    // }
   }
 
   // ProcessSignal.sigkill.watch().listen(signalHandler);
@@ -200,11 +203,11 @@ void main() async {
       await signalHandler(ProcessSignal.sigint);
     },
     onExitRequested: () async {
-      await signalHandler(ProcessSignal.sigint);
+      await signalHandler(ProcessSignal.sigstop);
       return AppExitResponse.exit;
     },
     onRestart: () async {
-      await signalHandler(ProcessSignal.sigint);
+      await signalHandler(ProcessSignal.sigstop);
       pluginService.pluginManager.js.dispose();
     },
   );
