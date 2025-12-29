@@ -45,7 +45,19 @@
         "shotId": {
           "type": "string"
         },
-      "description": "Send POST with shotID to upload in body"
+        "description": "Send POST with shotID to upload in body"
+      }
+    },
+    {
+      "id": "verifyCredentials",
+      "type": "http",
+      "data": {
+        "username": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        }
       }
     }
   ]

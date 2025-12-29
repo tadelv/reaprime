@@ -432,20 +432,14 @@ class PluginManager {
       if (plugin && typeof plugin.__httpRequestHandler === "function") {
         try {
           const response = plugin.__httpRequestHandler(${jsonEncode(payload)});
-          console.log("resp:", JSON.stringify(response));
-          console.log("type", typeof response.then);
           const responseThen = response.then;
-          console.log("resp then", responseThen);
           if (response &&  responseThen) {
-            console.log("thinking it's async")
             // Handle async response
             response.then((res) => {
-              console.log("in then")
               if (globalThis.__sendApiResponse) {
                 globalThis.__sendApiResponse("$pluginId", "$requestId", res);
               }
             }).catch((err) => {
-              console.log("somehow got to err")
               console.error("HTTP request handler error:", err);
               if (globalThis.__sendApiResponse) {
                 globalThis.__sendApiResponse("$pluginId", "$requestId", {
@@ -457,18 +451,14 @@ class PluginManager {
             });
           } else if (response) {
             // Handle sync response
-            console.log("syncing response!!!!", typeof globalThis.__sendApiResponse)
-            console.log("sending response%%%%", response)
             if (globalThis.__sendApiResponse) {
-            console.log("sending response%%%%", "$requestId")
               globalThis.__sendApiResponse("$pluginId", "$requestId", response);
             }
           }
         } catch (e) {
-          console.log("somehow exceptioned")
           console.error("HTTP request handler error:", e);
           if (globalThis.__sendApiResponse) {
-            globalThis.__sendApiResponse("$pluginId", payload.requestId, {
+            globalThis.__sendApiResponse("$pluginId", "$requestId", {
               status: 500,
               headers: {'Content-Type': 'application/json'},
               body: JSON.stringify({error: e.toString()})

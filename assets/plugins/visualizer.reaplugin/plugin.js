@@ -46,11 +46,15 @@ function createPlugin(host) {
     }
   }
 
-  function getAuthHeader() {
-    if (!state.username || !state.password) {
+  function getAuthHeader(authState) {
+    if (authState == null) {
+      authState = state;
+    }
+
+    if (!authState.username || !authState.password) {
       throw new Error("Username or password not configured");
     }
-    return "Basic " + btoa(state.username + ":" + state.password);
+    return "Basic " + btoa(authState.username + ":" + authState.password);
   }
 
   function buildMultipartBody({ fieldName, filename, contentType, data }) {
@@ -74,6 +78,7 @@ function createPlugin(host) {
     const delay = 2000;
     const url = `${VISUALIZER_API_URL}/shots/upload`;
 
+    log(`shot duration: ${shotData.duration}`);
     if (shotData.duration < state.lengthThreshold) {
       log(`Not uploading shot because it's too short: ${shotData.duration}`);
       throw new Error(`Not uploading shot because it's too short: ${shotData.duration}`);
@@ -313,6 +318,25 @@ function createPlugin(host) {
     log(`Saved to storage: ${payload.key} = ${payload.value}`);
   }
 
+  async function checkCredentials(body) {
+    log(`checking creds: ${JSON.stringify(body)}`)
+    const url = `${VISUALIZER_API_URL}/me`;
+    const headers = {
+      'Authorization': getAuthHeader(body)
+    };
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: headers
+      });
+
+      return response.ok;
+    } catch (error) {
+      log('Error checking Visualizer credentials:', error);
+      return false;
+    }
+  }
   // Return the plugin object
   return {
     id: "visualizer.reaplugin",
@@ -404,7 +428,23 @@ function createPlugin(host) {
             return res.json();
           }).then((json) => {
             return uploadShot(convertReaToVisualizerFormat(json[0]), null);
+          }).then((shotResponse) => {
+            return shotResponse.id;
           });
+      }
+
+      if (request.endpoint === "verifyCredentials") {
+        log(`verifying ${JSON.stringify(request.body)}`)
+        return checkCredentials(request.body).then((verified) => {
+          return {
+            status: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+              'valid': verified
+            })
+          }
+          
+        });
       }
 
       // Default 404 response
