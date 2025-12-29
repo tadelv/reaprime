@@ -410,7 +410,6 @@ function createPlugin(host) {
       }
 
       if (request.endpoint === "upload") {
-        console.log("body: ", JSON.stringify(request.body));
         const shotId = request.body.shotId;
         if (!shotId) {
           return {
@@ -429,7 +428,13 @@ function createPlugin(host) {
           }).then((json) => {
             return uploadShot(convertReaToVisualizerFormat(json[0]), null);
           }).then((shotResponse) => {
-            return shotResponse.id;
+            return {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                'visualizer_id': shotResponse.id
+              })
+            };
           });
       }
 
@@ -438,12 +443,12 @@ function createPlugin(host) {
         return checkCredentials(request.body).then((verified) => {
           return {
             status: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
               'valid': verified
             })
           }
-          
+
         });
       }
 

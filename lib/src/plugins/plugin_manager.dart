@@ -277,7 +277,6 @@ class PluginManager {
         _log.warning("Invalid fetch message", e, st);
       }
     });
-
   }
 
   // ─────────────────────────────────────────────
@@ -418,7 +417,10 @@ class PluginManager {
   void dispatchEvent(String pluginId, String name, dynamic payload) {
     if (!_plugins.containsKey(pluginId)) return;
 
-    final requestId = payload['requestId'];
+    String requestId = "";
+    if (payload is Map<String, dynamic> && payload['requestId'] is String) {
+      requestId = payload['requestId'];
+    }
 
     js.evaluate('''
     __dispatchToPlugin("$pluginId", {
