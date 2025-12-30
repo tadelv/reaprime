@@ -355,8 +355,8 @@ packages:
     description:
       path: "."
       ref: master
-      resolved-ref: ff15e77ca376e71e3611ca68f62b20efa56d3981
-      url: "https://github.com/poviur/dart_js"
+      resolved-ref: "19cb9c7f29890f43951b8cdc85211e3ccfd17afe"
+      url: "https://github.com/tadelv/dart_js"
     source: git
     version: "0.8.5"
   flutter_launcher_icons:

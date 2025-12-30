@@ -56,9 +56,9 @@ dependencies:
   ansi_escape_codes: ^2.1.0
   flutter_blue_plus: ^2.0.2
   flutter_js:
-    # path: ../flutter_js
+    # path: ../dart_js
     git:
-      url: https://github.com/poviur/dart_js
+      url: https://github.com/tadelv/dart_js
       ref: master
   # path: ../flutter_libserialport
   # git:
