@@ -345,8 +345,8 @@ function createPlugin(host) {
     onLoad(settings) {
       state.username = settings.Username;
       state.password = settings.Password;
-      state.autoUpload = settings.AutoUpload ?? true;
-      state.lengthThreshold = settings.Length ?? 5;
+      state.autoUpload = settings.AutoUpload != undefined ? settings.AutoUpload : true;
+      state.lengthThreshold = settings.Length != undefined ? settings.Length : 5;
 
       log(`Loaded with username: ${state.username ? 'configured' : 'not configured'}`);
 
