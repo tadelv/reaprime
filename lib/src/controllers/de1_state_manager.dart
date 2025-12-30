@@ -94,11 +94,6 @@ class De1StateManager {
         _handleSteamState(snapshot, gatewayMode);
         break;
       default:
-        // For other states, ensure we clean up if we were tracking a shot
-        if (_currentShotController != null &&
-            gatewayMode == GatewayMode.tracking) {
-          _cleanupShotController();
-        }
         break;
     }
   }
