@@ -452,6 +452,18 @@ function createPlugin(host) {
         });
       }
 
+      if (request.endpoint === 'lastUpload') {
+
+        return {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reaId: state.lastUploadedShot,
+            visId: state.lastVisualizerId,
+          })
+        };
+      }
+
       // Default 404 response
       return {
         status: 404,
