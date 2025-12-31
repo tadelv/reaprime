@@ -186,32 +186,6 @@ void main() async {
     ForegroundTaskService.init();
   }
 
-  Future<void> signalHandler(ProcessSignal signal) async {
-    Logger.root.warning("Signal received: ${signal.name}");
-    // if (signal != ProcessSignal.sigstop) {
-    //     return;
-    //   }
-    // for (var device in deviceController.devices) {
-    //   await device.disconnect();
-    // }
-  }
-
-  // ProcessSignal.sigkill.watch().listen(signalHandler);
-  ProcessSignal.sigint.watch().listen(signalHandler);
-  final lifecycleObserver = AppLifecycleListener(
-    onDetach: () async {
-      await signalHandler(ProcessSignal.sigint);
-    },
-    onExitRequested: () async {
-      await signalHandler(ProcessSignal.sigstop);
-      return AppExitResponse.exit;
-    },
-    onRestart: () async {
-      await signalHandler(ProcessSignal.sigstop);
-      pluginService.pluginManager.js.dispose();
-    },
-  );
-
   runApp(
     WithForegroundTask(
       child: MyApp(
