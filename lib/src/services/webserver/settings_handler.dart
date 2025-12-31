@@ -56,6 +56,7 @@ class SettingsHandler {
           jsonEncode({
             'level': logRecord.level.name,
             'timestamp': logRecord.time.toIso8601String(),
+            'name': logRecord.loggerName,
             'message': logRecord.message,
           }),
         );
