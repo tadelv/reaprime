@@ -316,7 +316,34 @@ class PluginLoaderService {
           File('${destDir.path}/plugin.js').writeAsStringSync(pluginAsset);
 
           _log.fine('Copied bundled plugin: $pluginName');
+          return;
         }
+
+        // Read version from manifest, overwrite if our version is newer
+        final manifestAsset = await rootBundle.loadString(
+          '$pluginPath/manifest.json',
+        );
+        final newManifest = PluginManifest.fromJson(jsonDecode(manifestAsset));
+        final existingManifestFile = File('${destDir.path}/manifest.json');
+        final existingManifest = PluginManifest.fromJson(
+          jsonDecode(await existingManifestFile.readAsString()),
+        );
+        if (newManifest.version.compareTo(existingManifest.version) < 0) {
+          // existing plugin has same or newer version
+          _log.fine(
+            "not overriding bundled plugin: [bundled: ${newManifest.version}], [existing: ${existingManifest.version}]",
+          );
+          return;
+        }
+        File('${destDir.path}/manifest.json').writeAsStringSync(manifestAsset);
+
+        // Copy plugin.js
+        final pluginAsset = await rootBundle.loadString(
+          '$pluginPath/plugin.js',
+        );
+        File('${destDir.path}/plugin.js').writeAsStringSync(pluginAsset);
+
+        _log.fine('Copied bundled plugin: $pluginName');
       }
     } catch (e) {
       _log.warning('Failed to copy bundled plugins', e);
