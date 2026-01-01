@@ -78,7 +78,8 @@ function createPlugin(host) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>REA Settings</title>
+    <meta name="description" content="REA Prime Settings Dashboard - Configure application and DE1 machine settings">
+    <title>REA Settings Dashboard</title>
     <style>
         * {
             margin: 0;
@@ -150,11 +151,16 @@ function createPlugin(host) {
         }
         input[type="number"], input[type="text"], select {
             padding: 6px 10px;
-            border: 1px solid #ddd;
+            border: 2px solid #999;
             border-radius: 4px;
             font-family: 'Courier New', monospace;
             font-size: 14px;
             width: 120px;
+        }
+        input[type="number"]:focus, input[type="text"]:focus, select:focus {
+            outline: 3px solid #3498db;
+            outline-offset: 2px;
+            border-color: #3498db;
         }
         select {
             width: 140px;
@@ -166,21 +172,43 @@ function createPlugin(host) {
             border-radius: 4px;
             cursor: pointer;
             font-size: 14px;
-            transition: background 0.2s;
+            font-weight: 600;
+            transition: background 0.2s, transform 0.1s;
+        }
+        .btn:focus {
+            outline: 3px solid #2c3e50;
+            outline-offset: 2px;
+        }
+        .btn:active {
+            transform: translateY(1px);
         }
         .btn-primary {
-            background: #3498db;
+            background: #2980b9;
             color: white;
         }
-        .btn-primary:hover {
-            background: #2980b9;
+        .btn-primary:hover, .btn-primary:focus {
+            background: #1f5f8b;
         }
         .btn-refresh {
-            background: #2ecc71;
+            background: #27ae60;
             color: white;
         }
-        .btn-refresh:hover {
-            background: #27ae60;
+        .btn-refresh:hover, .btn-refresh:focus {
+            background: #1e8449;
+        }
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: #2c3e50;
+            color: white;
+            padding: 8px 16px;
+            text-decoration: none;
+            border-radius: 0 0 4px 0;
+            z-index: 100;
+        }
+        .skip-link:focus {
+            top: 0;
         }
         .error {
             background: #fee;
@@ -231,42 +259,56 @@ function createPlugin(host) {
             background: #e74c3c;
         }
         .readonly {
-            color: #888;
+            color: #555;
             font-family: 'Courier New', monospace;
+        }
+        .visually-hidden {
+            position: absolute;
+            left: -10000px;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
         }
     </style>
 </head>
 <body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
     <div class="container">
-        <div class="header">
-            <h1>REA Settings Dashboard</h1>
-            <button class="btn btn-refresh" onclick="location.reload()">Refresh</button>
-        </div>
-        <div class="timestamp">
-            <span class="status-indicator ${reaSettings && de1Settings ? 'status-ok' : 'status-error'}"></span>
+        <header class="header">
+            <h1 id="page-title">REA Settings Dashboard</h1>
+            <button class="btn btn-refresh" onclick="location.reload()" aria-label="Refresh all settings from server">
+                Refresh
+            </button>
+        </header>
+        <div class="timestamp" role="status" aria-live="polite" aria-atomic="true">
+            <span class="status-indicator ${reaSettings && de1Settings ? 'status-ok' : 'status-error'}" 
+                  role="img" 
+                  aria-label="${reaSettings && de1Settings ? 'Settings loaded successfully' : 'Error loading settings'}"></span>
             Last updated: <span id="timestamp">${new Date().toLocaleString()}</span>
         </div>
 
-        <!-- REA Application Settings -->
-        <div class="section">
-            <h2>REA Application Settings</h2>
+        <main id="main-content">
+            <!-- REA Application Settings -->
+            <section class="section" aria-labelledby="rea-settings-heading">
+                <h2 id="rea-settings-heading">REA Application Settings</h2>
             ${reaSettings ? `
-                <div class="settings-grid">
+                <div class="settings-grid" role="group" aria-label="REA application settings controls">
                     <div class="setting-item">
-                        <span class="setting-label">Gateway Mode</span>
+                        <label class="setting-label" for="gatewayMode">Gateway Mode</label>
                         <div class="setting-control">
-                            <select id="gatewayMode">
+                            <select id="gatewayMode" aria-describedby="gatewayMode-desc">
                                 <option value="disabled" ${reaSettings.gatewayMode === 'disabled' ? 'selected' : ''}>Disabled</option>
                                 <option value="tracking" ${reaSettings.gatewayMode === 'tracking' ? 'selected' : ''}>Tracking</option>
                                 <option value="full" ${reaSettings.gatewayMode === 'full' ? 'selected' : ''}>Full</option>
                             </select>
-                            <button class="btn btn-primary" onclick="updateReaSetting('gatewayMode', document.getElementById('gatewayMode').value)">Save</button>
+                            <span id="gatewayMode-desc" class="visually-hidden">Controls how the gateway monitors and controls the espresso machine</span>
+                            <button class="btn btn-primary" onclick="updateReaSetting('gatewayMode', document.getElementById('gatewayMode').value)" aria-label="Save gateway mode setting">Save</button>
                         </div>
                     </div>
                     <div class="setting-item">
-                        <span class="setting-label">Log Level</span>
+                        <label class="setting-label" for="logLevel">Log Level</label>
                         <div class="setting-control">
-                            <select id="logLevel">
+                            <select id="logLevel" aria-describedby="logLevel-desc">
                                 <option value="ALL" ${reaSettings.logLevel === 'ALL' ? 'selected' : ''}>ALL</option>
                                 <option value="FINEST" ${reaSettings.logLevel === 'FINEST' ? 'selected' : ''}>FINEST</option>
                                 <option value="FINER" ${reaSettings.logLevel === 'FINER' ? 'selected' : ''}>FINER</option>
@@ -278,37 +320,38 @@ function createPlugin(host) {
                                 <option value="SHOUT" ${reaSettings.logLevel === 'SHOUT' ? 'selected' : ''}>SHOUT</option>
                                 <option value="OFF" ${reaSettings.logLevel === 'OFF' ? 'selected' : ''}>OFF</option>
                             </select>
-                            <button class="btn btn-primary" onclick="updateReaSetting('logLevel', document.getElementById('logLevel').value)">Save</button>
+                            <span id="logLevel-desc" class="visually-hidden">Sets the verbosity of application logging output</span>
+                            <button class="btn btn-primary" onclick="updateReaSetting('logLevel', document.getElementById('logLevel').value)" aria-label="Save log level setting">Save</button>
                         </div>
                     </div>
                     <div class="setting-item">
                         <span class="setting-label">Web UI Path</span>
-                        <span class="readonly">${reaSettings.webUiPath || 'N/A'}</span>
+                        <span class="readonly" aria-label="Web UI path is read-only">${reaSettings.webUiPath || 'N/A'}</span>
                     </div>
                 </div>
-            ` : '<div class="error">Failed to load REA settings</div>'}
-        </div>
+            ` : '<div class="error" role="alert" aria-live="assertive">Failed to load REA settings</div>'}
+            </section>
 
-        <!-- DE1 Machine Settings -->
-        <div class="section">
-            <h2>DE1 Machine Settings</h2>
+            <!-- DE1 Machine Settings -->
+            <section class="section" aria-labelledby="de1-settings-heading">
+                <h2 id="de1-settings-heading">DE1 Machine Settings</h2>
             ${de1Settings ? `
-                <div class="settings-grid">
+                <div class="settings-grid" role="group" aria-label="DE1 machine settings controls">
                     <div class="setting-item">
-                        <span class="setting-label">Fan Threshold (°C)</span>
+                        <label class="setting-label" for="fan">Fan Threshold (°C)</label>
                         <div class="setting-control">
-                            <input type="number" id="fan" value="${de1Settings.fan !== undefined ? de1Settings.fan : ''}" step="1" min="0" max="100">
-                            <button class="btn btn-primary" onclick="updateDe1Setting('fan', parseInt(document.getElementById('fan').value))">Save</button>
+                            <input type="number" id="fan" value="${de1Settings.fan !== undefined ? de1Settings.fan : ''}" step="1" min="0" max="100" aria-label="Fan threshold temperature in degrees Celsius">
+                            <button class="btn btn-primary" onclick="updateDe1Setting('fan', parseInt(document.getElementById('fan').value))" aria-label="Save fan threshold setting">Save</button>
                         </div>
                     </div>
                     <div class="setting-item">
-                        <span class="setting-label">USB Charger Mode</span>
+                        <label class="setting-label" for="usb">USB Charger Mode</label>
                         <div class="setting-control">
-                            <select id="usb">
+                            <select id="usb" aria-label="USB charger mode enabled or disabled">
                                 <option value="enable" ${de1Settings.usb ? 'selected' : ''}>Enabled</option>
                                 <option value="disable" ${!de1Settings.usb ? 'selected' : ''}>Disabled</option>
                             </select>
-                            <button class="btn btn-primary" onclick="updateDe1Setting('usb', document.getElementById('usb').value)">Save</button>
+                            <button class="btn btn-primary" onclick="updateDe1Setting('usb', document.getElementById('usb').value)" aria-label="Save USB charger mode setting">Save</button>
                         </div>
                     </div>
                     <div class="setting-item">
@@ -354,12 +397,12 @@ function createPlugin(host) {
                         </div>
                     </div>
                 </div>
-            ` : '<div class="error">Failed to load DE1 settings (machine may not be connected)</div>'}
-        </div>
+            ` : '<div class="error" role="alert">Failed to load DE1 settings (machine may not be connected)</div>'}
+            </section>
 
-        <!-- DE1 Advanced Settings -->
-        <div class="section">
-            <h2>DE1 Advanced Settings</h2>
+            <!-- DE1 Advanced Settings -->
+            <section class="section" aria-labelledby="de1-advanced-settings-heading">
+                <h2 id="de1-advanced-settings-heading">DE1 Advanced Settings</h2>
             ${de1AdvancedSettings ? `
                 <div class="settings-grid">
                     <div class="setting-item">
@@ -391,28 +434,49 @@ function createPlugin(host) {
                         </div>
                     </div>
                 </div>
-            ` : '<div class="error">Failed to load DE1 advanced settings (machine may not be connected)</div>'}
-        </div>
+            ` : '<div class="error" role="alert">Failed to load DE1 advanced settings (machine may not be connected)</div>'}
+            </section>
+        </main>
     </div>
 
+    <!-- Screen reader announcements -->
+    <div id="sr-announcements" role="status" aria-live="polite" aria-atomic="true" class="visually-hidden"></div>
+
     <script>
+        // Announce messages to screen readers
+        function announceToScreenReader(message) {
+            const announcer = document.getElementById('sr-announcements');
+            announcer.textContent = message;
+            // Clear after announcement
+            setTimeout(() => {
+                announcer.textContent = '';
+            }, 1000);
+        }
+
         function showToast(message, isError = false) {
             const toast = document.createElement('div');
             toast.className = isError ? 'error-toast' : 'success-toast';
+            toast.setAttribute('role', isError ? 'alert' : 'status');
+            toast.setAttribute('aria-live', isError ? 'assertive' : 'polite');
             toast.textContent = message;
             document.body.appendChild(toast);
+            
+            // Also announce to screen readers
+            announceToScreenReader(message);
             
             setTimeout(() => {
                 toast.remove();
             }, 3000);
         }
 
+        const baseUrl = window.location.protocol + '//' + window.location.host;
+
         async function updateReaSetting(key, value) {
             try {
                 const payload = {};
                 payload[key] = value;
                 
-                const response = await fetch('http://localhost:8080/api/v1/settings', {
+                const response = await fetch(baseUrl + '/api/v1/settings', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -437,7 +501,7 @@ function createPlugin(host) {
                 const payload = {};
                 payload[key] = value;
                 
-                const response = await fetch('http://localhost:8080/api/v1/de1/settings', {
+                const response = await fetch(baseUrl + '/api/v1/de1/settings', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -462,7 +526,7 @@ function createPlugin(host) {
                 const payload = {};
                 payload[key] = value;
                 
-                const response = await fetch('http://localhost:8080/api/v1/de1/settings/advanced', {
+                const response = await fetch(baseUrl + '/api/v1/de1/settings/advanced', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -481,6 +545,30 @@ function createPlugin(host) {
                 showToast('Error updating DE1 advanced setting: ' + e.message, true);
             }
         }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Alt+R to refresh
+            if (e.altKey && e.key === 'r') {
+                e.preventDefault();
+                location.reload();
+                announceToScreenReader('Refreshing settings');
+            }
+        });
+
+        // Improve form submission on Enter key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && (e.target.tagName === 'SELECT' || e.target.type === 'number')) {
+                e.preventDefault();
+                const settingItem = e.target.closest('.setting-item');
+                if (settingItem) {
+                    const saveButton = settingItem.querySelector('.btn-primary');
+                    if (saveButton) {
+                        saveButton.click();
+                    }
+                }
+            }
+        });
     </script>
 </body>
 </html>`;
@@ -489,7 +577,7 @@ function createPlugin(host) {
   // Return the plugin object
   return {
     id: "settings.reaplugin",
-    version: "1.0.0",
+    version: "0.0.2",
 
     onLoad(settings) {
       state.refreshInterval = settings.RefreshInterval !== undefined ? settings.RefreshInterval : 5;
@@ -500,7 +588,7 @@ function createPlugin(host) {
       log("Unloaded");
     },
 
-    // HTTP request handler for the 'settings' endpoint
+    // HTTP request handler for the 'ui' endpoint
     __httpRequestHandler(request) {
       log(`Received HTTP request for ${request.endpoint}: ${request.method}`);
 
@@ -556,4 +644,16 @@ function createPlugin(host) {
     },
   };
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
