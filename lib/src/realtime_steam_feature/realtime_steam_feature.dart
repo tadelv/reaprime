@@ -63,12 +63,12 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
             setState(() {
               // Update active state only when it changes
               if (_steamActive != isMachineSteaming) {
-                _steamActive = isMachineSteaming;
-
-                // Clear snapshots when steam stops
-                if (!_steamActive) {
+                // Clear snapshots when transitioning from idle to steam
+                if (!_steamActive && isMachineSteaming) {
                   _steamSnapshots.clear();
                 }
+                
+                _steamActive = isMachineSteaming;
               }
 
               // Add snapshot only when actively steaming
@@ -374,3 +374,4 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
     );
   }
 }
+
