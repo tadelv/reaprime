@@ -15,20 +15,20 @@
       "type": "number",
       "description": "Time in minutes after machine has heated up, to be considered truly ready. Only shown here as example"
     }
-  }, 
+  },
   "api": [
     {
       "id": "timeToReady",
       "type": "websocket",
       "data": {
-"remainingTimeMs": {
+        "remainingTimeMs": {
           "type": "number",
           "description": "number of milliseconds estimated until the machine is ready to brew."
         },
         "heatingRate": {
-        "type": "number",
-        "description": "The rade at which the machine is heating up."
-      },
+          "type": "number",
+          "description": "The rade at which the machine is heating up."
+        },
         "status": {
           "type": "enum",
           "values": "reached | insufficient_data | not_heating | heating",

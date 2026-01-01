@@ -130,6 +130,11 @@ Handler _init(
         return response;
       }
 
+      if (request.requestedUri.path.startsWith('/api/v1/plugins/')) {
+        // Plugins determine their own response content type
+        return response;
+      }
+
       // Option 2: Alternatively, check if the request has an Upgrade header
       // if ((request.headers['upgrade']?.toLowerCase() ?? '') == 'websocket') {
       //   return response;

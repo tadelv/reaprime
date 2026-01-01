@@ -84,3 +84,4 @@ flutter:
     - assets/api/
     - assets/plugins/time-to-ready.reaplugin/
     - assets/plugins/visualizer.reaplugin/
+    - assets/plugins/settings.reaplugin/

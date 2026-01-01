@@ -295,7 +295,7 @@ class PluginLoaderService {
         final destDir = Directory('${_pluginsDir.path}/$pluginName');
 
         // Check if plugin already exists in destination
-        final isNewPlugin = !destDir.existsSync();
+        final isNewPlugin = !destDir.existsSync() || destDir.listSync().isEmpty;
 
         if (isNewPlugin) {
           // Create destination directory
@@ -343,7 +343,7 @@ class PluginLoaderService {
         );
         File('${destDir.path}/plugin.js').writeAsStringSync(pluginAsset);
 
-        _log.fine('Copied bundled plugin: $pluginName');
+        _log.fine('Updated bundled plugin: $pluginName');
       }
     } catch (e) {
       _log.warning('Failed to copy bundled plugins', e);
@@ -362,6 +362,7 @@ class PluginLoaderService {
     return [
       'assets/plugins/time-to-ready.reaplugin',
       'assets/plugins/visualizer.reaplugin',
+      'assets/plugins/settings.reaplugin',
       // Add more bundled plugins here as they are added to the app
     ];
   }
