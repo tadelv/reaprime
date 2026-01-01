@@ -9,9 +9,6 @@ import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart
 import 'package:reaprime/src/models/device/impl/decent_scale/scale_serial.dart';
 import 'package:reaprime/src/models/device/impl/sensor/debug_port.dart';
 import 'package:reaprime/src/models/device/impl/sensor/sensor_basket.dart';
-import 'package:reaprime/src/models/device/impl/serial_de1/serial_de1.dart';
-import 'package:reaprime/src/models/device/machine.dart';
-import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
 import 'utils.dart';
 import 'package:rxdart/subjects.dart';
@@ -21,30 +18,12 @@ import 'package:usb_serial/usb_serial.dart';
 class SerialServiceAndroid implements DeviceDiscoveryService {
   final _log = Logger("Android Serial service");
 
-  @override
-  Future<Machine> connectToMachine({String? deviceId}) {
-    // TODO: implement connectToMachine
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<Scale> connectToScale({String? deviceId}) {
-    // TODO: implement connectToScale
-    throw UnimplementedError();
-  }
-
   List<Device> _devices = [];
   final BehaviorSubject<List<Device>> _machineSubject = BehaviorSubject.seeded(
     <Device>[],
   );
   @override
   Stream<List<Device>> get devices => _machineSubject.stream;
-
-  @override
-  Future<void> disconnect(Device device) {
-    // TODO: implement disconnect
-    throw UnimplementedError();
-  }
 
   @override
   Future<void> initialize() async {

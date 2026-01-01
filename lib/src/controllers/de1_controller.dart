@@ -106,7 +106,7 @@ class De1Controller {
     _subscriptions.clear();
   }
 
-  _initializeData() async {
+  Future<void> _initializeData() async {
     await connectedDe1().shotSettings.first.then(_shotSettingsUpdate);
     _subscriptions.add(
       connectedDe1().shotSettings.listen(
@@ -116,7 +116,7 @@ class De1Controller {
     await _setDe1Defaults();
   }
 
-  _shotSettingsUpdate(De1ShotSettings data) async {
+  Future<void> _shotSettingsUpdate(De1ShotSettings data) async {
     _log.info('received shot settings');
     var steamFlow = await connectedDe1().getSteamFlow();
     _steamDataController.add(

@@ -4,8 +4,6 @@ import 'package:collection/collection.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
-import 'package:reaprime/src/models/device/machine.dart';
-import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/services/ble/blue_plus_transport.dart';
 
@@ -23,26 +21,8 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
        });
 
   @override
-  Future<Machine> connectToMachine({String? deviceId}) {
-    // TODO: implement connectToMachine
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<Scale> connectToScale({String? deviceId}) {
-    // TODO: implement connectToScale
-    throw UnimplementedError();
-  }
-
-  @override
   // TODO: implement devices
   Stream<List<Device>> get devices => _deviceStreamController.stream;
-
-  @override
-  Future<void> disconnect(Device device) {
-    // TODO: implement disconnect
-    throw UnimplementedError();
-  }
 
   @override
   Future<void> initialize() async {
