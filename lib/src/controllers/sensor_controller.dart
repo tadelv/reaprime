@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/device.dart';
@@ -9,10 +11,12 @@ class SensorController {
   Map<String, Sensor> _sensors = {};
 
   final Logger _log = Logger("SensorController");
+  
+  StreamSubscription<List<Device>>? _deviceStreamSubscription;
 
   SensorController({required DeviceController controller})
       : _deviceController = controller {
-    _deviceController.deviceStream.listen(_processDevices);
+    _deviceStreamSubscription = _deviceController.deviceStream.listen(_processDevices);
   }
 
   Future<void> _processDevices(List<Device> devices) async {
@@ -26,4 +30,9 @@ class SensorController {
   }
 
   Map<String, Sensor> get sensors => _sensors;
+
+  void dispose() {
+    _deviceStreamSubscription?.cancel();
+    _deviceStreamSubscription = null;
+  }
 }

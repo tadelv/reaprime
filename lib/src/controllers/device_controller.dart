@@ -13,6 +13,8 @@ class DeviceController {
   final BehaviorSubject<List<Device>> _deviceStream = BehaviorSubject.seeded(
     [],
   );
+  
+  final List<StreamSubscription> _serviceSubscriptions = [];
 
   Stream<List<Device>> get deviceStream => _deviceStream.stream;
 
@@ -30,7 +32,8 @@ class DeviceController {
     for (var service in _services) {
       try {
         await service.initialize();
-        service.devices.listen((devices) => _serviceUpdate(service, devices));
+        final subscription = service.devices.listen((devices) => _serviceUpdate(service, devices));
+        _serviceSubscriptions.add(subscription);
       } catch (e) {
         _log.warning("Service ${service} failed to init:", e);
       }
@@ -84,5 +87,13 @@ class DeviceController {
   _serviceUpdate(DeviceDiscoveryService service, List<Device> devices) {
     _devices[service] = devices;
     _deviceStream.add(this.devices);
+  }
+
+  void dispose() {
+    for (var subscription in _serviceSubscriptions) {
+      subscription.cancel();
+    }
+    _serviceSubscriptions.clear();
+    _deviceStream.close();
   }
 }
