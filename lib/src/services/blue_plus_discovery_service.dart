@@ -44,15 +44,20 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
       _deviceStreamController.add(_devices);
       _log.info("Device $deviceId added successfully");
       
-      // NOTE: We intentionally do NOT remove devices on disconnect.
-      // Once a device is discovered and successfully created, it stays in the
-      // list so users can reconnect to it. Devices should only be removed when:
-      // - They are out of range for an extended period (TODO: implement timeout)
-      // - The user explicitly removes them (TODO: implement removal API)
-      // - A new scan is started (clears old devices)
-      // 
-      // This prevents the issue where MachineParser or other inspection logic
-      // temporarily disconnects, causing the device to be removed prematurely.
+      // Set up cleanup listener for when device disconnects.
+      // We use skip(1) to ignore the current connection state that was set during
+      // device creation/inspection (e.g., MachineParser connecting and inspecting).
+      // This way we only react to FUTURE disconnection events, not the state that
+      // existed when the device was first created.
+      StreamSubscription? sub;
+      sub = device.connectionState.skip(1).listen((event) {
+        if (event == ConnectionState.disconnected) {
+          _log.info("Device $deviceId disconnected, removing from discovery list");
+          _devices.removeWhere((d) => d.deviceId == deviceId);
+          _deviceStreamController.add(_devices);
+          sub?.cancel();
+        }
+      });
     } catch (e) {
       _log.severe("Error creating device $deviceId: $e");
       // Don't add device to list if creation failed
@@ -142,6 +147,7 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
     });
   }
 }
+
 
 
 
