@@ -44,6 +44,7 @@ class FelicitaArc implements Scale {
     if (await _transport.connectionState.first == true) {
       return;
     }
+    _connectionStateController.add(ConnectionState.connecting);
     StreamSubscription<bool>? subscription;
     subscription = _transport.connectionState.listen((bool state) async {
       switch (state) {

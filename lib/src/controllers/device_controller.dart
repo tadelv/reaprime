@@ -16,7 +16,7 @@ class DeviceController {
   
   final List<StreamSubscription> _serviceSubscriptions = [];
 
-  Stream<List<Device>> get deviceStream => _deviceStream.stream;
+  Stream<List<Device>> get deviceStream => _deviceStream.asBroadcastStream();
 
   List<Device> get devices =>
       _devices.values.fold(List<Device>.empty(growable: true), (res, el) {

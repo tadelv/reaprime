@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:logging/logging.dart';
 import 'package:logging_appenders/logging_appenders.dart';
+import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/battery_controller.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
@@ -66,6 +67,8 @@ void main() async {
   ).attachToLogger(Logger.root);
 
   Logger.root.info("==== REA PRIME starting ====");
+
+  Logger.root.info("build: ${BuildInfo.commitShort}, branch: ${BuildInfo.branch}");
 
   final List<DeviceDiscoveryService> services = [];
   if (!Platform.isWindows) {

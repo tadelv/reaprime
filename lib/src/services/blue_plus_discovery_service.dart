@@ -61,10 +61,12 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
         }
         final transport = BluePlusTransport(remoteId: r.device.remoteId.str);
         final d = await device(transport);
-        r.device.connectionState.listen((event) {
-          if (event != BluetoothConnectionState.disconnected) {
+        StreamSubscription? sub;
+        sub = d.connectionState.listen((event) {
+          if (event == ConnectionState.disconnected) {
             _devices.removeWhere((d) => d.deviceId == r.device.remoteId.str);
             _deviceStreamController.add(_devices);
+            sub?.cancel();
           }
         });
         _devices.add(d);

@@ -55,6 +55,7 @@ class DecentScale implements Scale {
     if (await _device.connectionState.first == true) {
       return;
     }
+    _connectionStateController.add(ConnectionState.connecting);
     subscription = _device.connectionState.listen((bool state) async {
       _log.info("state: $state");
       switch (state) {
