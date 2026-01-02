@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
@@ -112,8 +113,10 @@ class UnifiedDe1Transport {
       _fwMapNotification(ByteData.sublistView(Uint8List.fromList(d)));
     });
 
-    _log.info("requesting priority for $this");
-    await _transport.setTransportPriority(true);
+    if (Platform.isAndroid) {
+      _log.info("requesting priority for $this");
+      await _transport.setTransportPriority(true);
+    }
   }
 
   Future<void> _serialConnect() async {
