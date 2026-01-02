@@ -52,6 +52,13 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
         if (device == null) {
           return;
         }
+        if (_devices.singleWhereOrNull(
+              (test) => test.deviceId == r.device.remoteId.str,
+            ) !=
+            null) {
+          _log.fine("already have scanned ${r.device}");
+          return;
+        }
         final transport = BluePlusTransport(remoteId: r.device.remoteId.str);
         final d = await device(transport);
         r.device.connectionState.listen((event) {
@@ -87,6 +94,5 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
       await FlutterBluePlus.stopScan();
       _deviceStreamController.add(_devices.toList());
     });
-
   }
 }

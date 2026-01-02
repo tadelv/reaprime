@@ -73,6 +73,7 @@ class DecentScale implements Scale {
             }
             await _sendHeartBeat();
           });
+          _sendOledOn();
           _sendHeartBeat();
         case false:
           if (await _connectionStateController.stream.first !=
@@ -120,6 +121,7 @@ class DecentScale implements Scale {
     _log.finest("${hashCode} recv: ${data[1].toHex()}");
     switch (data[1]) {
       case 0xCE:
+      case 0xCA:
         // weight
         _parseWeight(data);
       case 0x0A:
@@ -147,5 +149,10 @@ class DecentScale implements Scale {
     final level = data[4];
     _log.fine("heartbeat: ${data.map((e) => e.toRadixString(16))}");
     _batteryLevel = min(level, 100);
+  }
+
+  Future<void> _sendOledOn() async {
+    List<int> payload = [0x03, 0x0A, 0x01, 0x01, 0x00, 0x01, 0x08];
+    await _device.write(serviceUUID, writeUUID, Uint8List.fromList(payload));
   }
 }
