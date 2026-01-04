@@ -19,6 +19,7 @@ class ShotChart extends StatefulWidget {
 }
 
 class _ShotChartState extends State<ShotChart> {
+  late List<LineChartBarData> _bars;
 
   @override
   void dispose() {
@@ -28,13 +29,29 @@ class _ShotChartState extends State<ShotChart> {
   }
 
   @override
-    void initState() {
-      super.initState();
-    }
+  void initState() {
+    super.initState();
+    _rebuildBars();
+  }
 
   @override
   Widget build(BuildContext context) {
     return _shotChart(context);
+  }
+
+  @override
+  void didUpdateWidget(covariant ShotChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Rebuild ONLY if the shot actually changed
+    if (!identical(oldWidget.shotSnapshots, widget.shotSnapshots) ||
+        oldWidget.shotStartTime != widget.shotStartTime) {
+      _rebuildBars();
+    }
+  }
+
+  void _rebuildBars() {
+    _bars = _shotChartData();
   }
 
   Padding _shotChart(BuildContext context) {
@@ -48,63 +65,66 @@ class _ShotChartState extends State<ShotChart> {
               lineBarsData: _shotChartData(),
               minY: 0,
               maxY: 11,
-              titlesData: FlTitlesData(
-                topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    //interval: 5,
-                    getTitlesWidget: (double value, TitleMeta meta) {
-                      final int seconds = (value / 1000).toInt();
-                      String text;
-          
-                      if (value / 1000 < 60) {
-                        // For less than 60 seconds, show ticks every 5 seconds with just seconds.
-                        if (value.toInt() % 1000 == 0) {
-                          text = '$seconds s';
-                        } else {
-                          return Container(); // return an empty widget for non-tick values
-                        }
-                      } else if (value / 1000 <= 120) {
-                        // For 60 seconds or more, display minutes and seconds.
-                        final int minutes = seconds ~/ 60;
-                        final int remainingSeconds = seconds % 60;
-                        if (seconds % 15 == 0) {
-                          // Format the seconds with two digits.
-                          text =
-                              '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
-                        } else {
-                          return Container();
-                        }
-                      } else {
-                        final int minutes = seconds ~/ 60;
-                        if (seconds % 60 == 0) {
-                          text = '$minutes:00';
-                        } else {
-                          return Container();
-                        }
-                      }
-                      // Style the text as needed.
-                      return SideTitleWidget(
-                        meta: meta,
-                        space: 8.0,
-                        child: Text(
-                          text,
-                          style: Theme.of(context).textTheme.labelMedium,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              // clipData: FlClipData.all(),
+              titlesData: _titles(context), // clipData: FlClipData.all(),
             ),
-            duration: widget.isLiveShot ? Duration(milliseconds: 300) : Duration.zero,
+            duration:
+                widget.isLiveShot ? Duration(milliseconds: 300) : Duration.zero,
             // curve: Curves.fastLinearToSlowEaseIn,
           ),
         ),
       ),
+    );
+  }
+
+  FlTitlesData _titles(BuildContext context) {
+    return FlTitlesData(
+      topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+      leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+      bottomTitles: AxisTitles(
+        sideTitles: SideTitles(
+          showTitles: true,
+          //interval: 5,
+          getTitlesWidget:
+              (value, meta) => _buildBottomTitle(value, meta, context),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomTitle(double value, TitleMeta meta, BuildContext context) {
+    final int seconds = (value / 1000).toInt();
+    String text;
+
+    if (value / 1000 < 60) {
+      // For less than 60 seconds, show ticks every 5 seconds with just seconds.
+      if (value.toInt() % 1000 == 0) {
+        text = '$seconds s';
+      } else {
+        return Container(); // return an empty widget for non-tick values
+      }
+    } else if (value / 1000 <= 120) {
+      // For 60 seconds or more, display minutes and seconds.
+      final int minutes = seconds ~/ 60;
+      final int remainingSeconds = seconds % 60;
+      if (seconds % 15 == 0) {
+        // Format the seconds with two digits.
+        text = '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
+      } else {
+        return Container();
+      }
+    } else {
+      final int minutes = seconds ~/ 60;
+      if (seconds % 60 == 0) {
+        text = '$minutes:00';
+      } else {
+        return Container();
+      }
+    }
+    // Style the text as needed.
+    return SideTitleWidget(
+      meta: meta,
+      space: 8.0,
+      child: Text(text, style: Theme.of(context).textTheme.labelMedium),
     );
   }
 

@@ -37,8 +37,9 @@ class _HistoryTileState extends State<HistoryTile> {
     _recordsSubscription = widget.persistenceController.shots.listen((data) {
       setState(() {
         _shotHistory = data.sortedBy((el) => el.timestamp);
-        Logger("History")
-            .fine("shots: ${_shotHistory.map((e) => e.timestamp)}");
+        Logger(
+          "History",
+        ).fine("shots: ${_shotHistory.map((e) => e.timestamp)}");
         _selectedShotIndex = _shotHistory.length - 1;
       });
     });
@@ -60,7 +61,6 @@ class _HistoryTileState extends State<HistoryTile> {
     }
   }
 
-
   Widget _body(BuildContext context) {
     var shot = _shotHistory[_selectedShotIndex];
     var canGoBack = _selectedShotIndex > 0;
@@ -68,92 +68,91 @@ class _HistoryTileState extends State<HistoryTile> {
     return Column(
       //key: Key(shot.timestamp.toIso8601String()),
       children: [
-        Text(
-          shot.shotTime(),
-        ),
+        Text(shot.shotTime()),
         TapRegion(
           child: _shotDetails(context, shot),
           onTapInside: (cb) {
-            Navigator.pushNamed(context, HistoryFeature.routeName,
-                arguments: jsonEncode(shot.toJson()));
+            Navigator.pushNamed(
+              context,
+              HistoryFeature.routeName,
+              arguments: jsonEncode(shot.toJson()),
+            );
           },
         ),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          ShadButton(
-            onPressed: () {
-              setState(() {
-                _selectedShotIndex -= 1;
-              });
-            },
-            enabled: canGoBack,
-            child: Icon(LucideIcons.moveLeft),
-          ),
-          ShadButton(
-            onPressed: () {
-              widget.workflowController.setWorkflow(shot.workflow);
-            },
-            child: Text("Repeat"),
-          ),
-          ShadButton(
-            onPressed: () {
-              setState(() {
-                _selectedShotIndex += 1;
-              });
-            },
-            enabled: canGoForward,
-            child: Icon(LucideIcons.moveRight),
-          )
-        ])
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            ShadButton(
+              onPressed: () {
+                setState(() {
+                  _selectedShotIndex -= 1;
+                });
+              },
+              enabled: canGoBack,
+              child: Icon(LucideIcons.moveLeft),
+            ),
+            ShadButton(
+              onPressed: () {
+                widget.workflowController.setWorkflow(shot.workflow);
+              },
+              child: Text("Repeat"),
+            ),
+            ShadButton(
+              onPressed: () {
+                setState(() {
+                  _selectedShotIndex += 1;
+                });
+              },
+              enabled: canGoForward,
+              child: Icon(LucideIcons.moveRight),
+            ),
+          ],
+        ),
       ],
     );
   }
 
   Widget _shotDetails(BuildContext context, ShotRecord shot) {
-    var shotStart = shot.measurements
-        .firstWhere(
-            (el) =>
-                el.machine.state.substate == MachineSubstate.preinfusion ||
-                el.machine.state.substate == MachineSubstate.pouring,
-            orElse: () => shot.measurements.first)
-        .machine
-        .timestamp;
-    return Hero(
-      tag: "shotHistory",
-      child: Column(
-        children: [
-          SizedBox(
-            height: 200,
-            child: ShotChart(
-              shotSnapshots: shot.measurements,
-              shotStartTime: shotStart,
-            ),
+    var shotStart =
+        shot.measurements
+            .firstWhere(
+              (el) =>
+                  el.machine.state.substate == MachineSubstate.preinfusion ||
+                  el.machine.state.substate == MachineSubstate.pouring,
+              orElse: () => shot.measurements.first,
+            )
+            .machine
+            .timestamp;
+    return Column(
+      children: [
+        SizedBox(
+          height: 200,
+          child: ShotChart(
+            shotSnapshots: shot.measurements,
+            shotStartTime: shotStart,
           ),
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text("${shot.workflow.profile.title}"),
+            Text(
+              "${shot.workflow.doseData.doseIn.toStringAsFixed(1)} : ${shot.workflow.doseData.doseOut.toStringAsFixed(1)}",
+            ),
+            Text("${shot.measurements.last.scale?.weight.toStringAsFixed(1)}g"),
+          ],
+        ),
+        if (shot.workflow.coffeeData != null)
+          Row(children: [Text("${shot.workflow.coffeeData!.name}")]),
+        if (shot.workflow.grinderData != null)
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              Text("${shot.workflow.profile.title}"),
-              Text(
-                  "${shot.workflow.doseData.doseIn.toStringAsFixed(1)} : ${shot.workflow.doseData.doseOut.toStringAsFixed(1)}"),
-              Text(
-                  "${shot.measurements.last.scale?.weight.toStringAsFixed(1)}g")
+              Text("${shot.workflow.grinderData!.model}"),
+              Text("${shot.workflow.grinderData!.setting}"),
             ],
           ),
-          if (shot.workflow.coffeeData != null)
-            Row(
-              children: [
-                Text("${shot.workflow.coffeeData!.name}"),
-              ],
-            ),
-          if (shot.workflow.grinderData != null)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                Text("${shot.workflow.grinderData!.model}"),
-                Text("${shot.workflow.grinderData!.setting}"),
-              ],
-            ),
-        ],
-      ),
+      ],
     );
   }
 }
