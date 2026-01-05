@@ -61,6 +61,10 @@ class SerialDe1 implements De1Interface {
   String get deviceId => _transport.name;
 
   @override
+    // TODO: implement machineInfo
+    MachineInfo get machineInfo => throw UnimplementedError();
+
+  @override
   disconnect() async {
     _connectionStateSubject.add(ConnectionState.disconnecting);
     try {
