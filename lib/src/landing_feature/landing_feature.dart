@@ -384,7 +384,7 @@ class _LandingState extends State<LandingFeature> {
         const SizedBox(height: 8),
         SizedBox(
           width: 200,
-          child: LinearProgressIndicator(value: _remainingSeconds / 10),
+          child: LinearProgressIndicator(value: _remainingSeconds / 30),
         ),
       ],
     );

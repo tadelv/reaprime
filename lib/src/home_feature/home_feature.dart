@@ -1,4 +1,3 @@
-import 'package:reaprime/src/app.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
@@ -41,8 +40,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final double _leftColumWidth = 400;
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -54,48 +51,84 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _home(BuildContext context) {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: EdgeInsets.only(top: 12, bottom: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.max,
-          children: [
-            SizedBox(width: 16),
-            _leftColumn(context),
-            SizedBox(width: 16),
-            _rightColumn(context),
-            SizedBox(width: 16),
-          ],
-        ),
-      ),
+    // Use LayoutBuilder to adapt to screen size
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWideScreen = constraints.maxWidth > 900;
+        
+        if (isWideScreen) {
+          // Desktop/tablet layout: two columns side by side
+          return SingleChildScrollView(
+            child: Padding(
+              padding: EdgeInsets.only(top: 12, bottom: 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.max,
+                children: [
+                  SizedBox(width: 16),
+                  Flexible(
+                    flex: 2,
+                    child: _leftColumn(context),
+                  ),
+                  SizedBox(width: 16),
+                  Flexible(
+                    flex: 3,
+                    child: _rightColumn(context),
+                  ),
+                  SizedBox(width: 16),
+                ],
+              ),
+            ),
+          );
+        } else {
+          // Mobile/narrow layout: single column, stacked vertically
+          return SingleChildScrollView(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: 12,
+                children: [
+                  ..._rightColumnWidgets(context),
+                  ..._leftColumnWidgets(context),
+                ],
+              ),
+            ),
+          );
+        }
+      },
     );
+  }
+
+  // Helper methods to get widgets as lists for mobile layout
+  List<Widget> _leftColumnWidgets(BuildContext context) {
+    return [_historyCard(context), _quickSettingsCard(context)];
+  }
+
+  List<Widget> _rightColumnWidgets(BuildContext context) {
+    return [
+      ProfileTile(
+        de1controller: widget.de1controller,
+        workflowController: widget.workflowController,
+        persistenceController: widget.persistenceController,
+      ),
+      _statusCard(context),
+      _settingsCard(context),
+    ];
   }
 
   Widget _leftColumn(BuildContext context) {
     return Column(
       spacing: 12,
-      children: [_historyCard(context), _quickSettingsCard(context)],
+      children: _leftColumnWidgets(context),
     );
   }
 
   Widget _rightColumn(BuildContext context) {
-    return Expanded(
-      child: Column(
-        spacing: 12,
-        children: [
-          SizedBox(
-            width: double.infinity,
-            child: ProfileTile(
-              de1controller: widget.de1controller,
-              workflowController: widget.workflowController,
-              persistenceController: widget.persistenceController,
-            ),
-          ),
-          _statusCard(context),
-          _settingsCard(context),
-        ],
-      ),
+    return Column(
+      spacing: 12,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: _rightColumnWidgets(context),
     );
   }
 
@@ -136,7 +169,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _historyCard(BuildContext context) {
     final theme = ShadTheme.of(context);
     return ShadCard(
-      width: _leftColumWidth,
       title: Text('Last shot', style: theme.textTheme.h4),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 16),
@@ -171,7 +203,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _quickSettingsCard(BuildContext context) {
     final theme = ShadTheme.of(context);
     return ShadCard(
-      width: _leftColumWidth,
       title: Text('Quick Glance', style: theme.textTheme.h4),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 16),
@@ -183,13 +214,14 @@ class _HomeScreenState extends State<HomeScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text("IP Address:"),
-                Text(widget.webUIService.deviceIp()),
+                Flexible(child: Text("IP Address:")),
+                Flexible(child: Text(widget.webUIService.deviceIp())),
               ],
             ),
             Text("Gateway mode"),
             DropdownButton<GatewayMode>(
               isDense: true,
+              isExpanded: true,
               value: widget.settingsController.gatewayMode,
               onChanged: (v) {
                 if (v != null) {
@@ -211,13 +243,18 @@ class _HomeScreenState extends State<HomeScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text("WebUI loaded:"),
-                ShadButton.link(
-                  child: Text(widget.webUIService.serverPath().split('/').last),
-                  onPressed: () async {
-                    final url = Uri.parse('http://localhost:3000');
-                    await launchUrl(url);
-                  },
+                Flexible(child: Text("WebUI loaded:")),
+                Flexible(
+                  child: ShadButton.link(
+                    child: Text(
+                      widget.webUIService.serverPath().split('/').last,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onPressed: () async {
+                      final url = Uri.parse('http://localhost:3000');
+                      await launchUrl(url);
+                    },
+                  ),
                 ),
               ],
             ),
@@ -227,3 +264,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
+
+
+
