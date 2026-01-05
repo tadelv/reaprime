@@ -74,6 +74,18 @@ class UnifiedDe1 implements De1Interface {
   @override
   String get deviceId => _transport.id;
 
+  MachineInfo? _info;
+  @override
+  MachineInfo get machineInfo =>
+      _info ??
+      MachineInfo(
+        version: "0",
+        model: "Unknown",
+        serialNumber: "0",
+        groupHeadControllerPresent: false,
+        extra: {},
+      );
+
   @override
   Future<void> disconnect() async {
     await _transport.disconnect();
@@ -147,6 +159,27 @@ class UnifiedDe1 implements De1Interface {
   Future<void> onConnect() async {
     initRawStream();
     await _transport.connect();
+
+    if (_info != null) {
+      return;
+    }
+
+    final model = _unpackMMRInt(await _mmrRead(MMRItem.v13Model));
+    final ghcInfo = _unpackMMRInt(await _mmrRead(MMRItem.ghcInfo));
+    final serial = _unpackMMRInt(await _mmrRead(MMRItem.serialN));
+    final firmware = _unpackMMRInt(await _mmrRead(MMRItem.cpuFirmwareBuild));
+    final voltage = _unpackMMRInt(await _mmrRead(MMRItem.heaterV));
+    final refillKit = _unpackMMRInt(await _mmrRead(MMRItem.refillKitPresent));
+
+    _info = MachineInfo(
+      version: "$firmware",
+      model: DecentMachineModel.fromInt(model).name,
+      serialNumber: "$serial",
+      groupHeadControllerPresent: (ghcInfo & 0x04) > 1,
+      extra: {'refillKit': (refillKit & 0x01) != 0, 'voltage': voltage},
+    );
+
+    _log.info("Info: ${_info!.toJson()}");
   }
 
   final StreamController<De1RawMessage> _rawMessageController =
@@ -165,8 +198,8 @@ class UnifiedDe1 implements De1Interface {
     await _transport.writeWithResponse(Endpoint.requestedState, data);
   }
 
-
-  final StreamController<De1RawMessage> _rawInputController = StreamController();
+  final StreamController<De1RawMessage> _rawInputController =
+      StreamController();
   @override
   void sendRawMessage(De1RawMessage message) {
     _rawInputController.add(message);

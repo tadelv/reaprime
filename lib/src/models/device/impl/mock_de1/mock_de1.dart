@@ -42,7 +42,7 @@ class MockDe1 implements De1Interface {
 
   MachineState _currentState = MachineState.booting;
   _SimulationType _simulationType = _SimulationType.idle;
-  
+
   // Add profile tracking fields
   Profile? _currentProfile;
   int _currentProfileStepIndex = 0;
@@ -59,6 +59,15 @@ class MockDe1 implements De1Interface {
 
   @override
   String get name => "MockDe1";
+
+  @override
+  MachineInfo get machineInfo => MachineInfo(
+    version: "1337",
+    model: "3",
+    serialNumber: "0001",
+    groupHeadControllerPresent: false,
+    extra: {},
+  );
 
   @override
   Future<void> requestState(MachineState newState) async {
@@ -81,7 +90,7 @@ class MockDe1 implements De1Interface {
   }
 
   @override
-  disconnect() async {} 
+  disconnect() async {}
 
   @override
   DeviceType get type => DeviceType.machine;
@@ -114,19 +123,19 @@ class MockDe1 implements De1Interface {
   MachineSnapshot _simulateIdle() {
     // Use profile target temperature or default
     final targetTemp = _profileTargetTemperature;
-    
+
     // Faster heating when far from target, slower when close
     double tempChangeRate = 0.5; // degrees per 500ms
     if ((_lastSnapshot.mixTemperature - targetTemp).abs() < 5) {
       tempChangeRate = 0.2;
     }
-    
+
     final newMixTemp = _calculateTemperature(
       current: _lastSnapshot.mixTemperature,
       target: targetTemp,
       rate: tempChangeRate,
     );
-    
+
     final newGroupTemp = _calculateTemperature(
       current: _lastSnapshot.groupTemperature,
       target: targetTemp,
@@ -156,7 +165,7 @@ class MockDe1 implements De1Interface {
 
   _simulateEspresso() {
     MachineSubstate substate = _lastSnapshot.state.substate;
-    
+
     // Determine substate based on pressure
     switch (_lastSnapshot.pressure) {
       case < 0.5:
@@ -167,14 +176,16 @@ class MockDe1 implements De1Interface {
       default:
         break;
     }
-    
-    shotTime += DateTime.now().millisecondsSinceEpoch - _lastSnapshot.timestamp.millisecondsSinceEpoch;
-    
+
+    shotTime +=
+        DateTime.now().millisecondsSinceEpoch -
+        _lastSnapshot.timestamp.millisecondsSinceEpoch;
+
     // If we have a profile, use it for simulation
     if (_currentProfile != null && _currentProfile!.steps.isNotEmpty) {
       return _simulateWithProfile();
     }
-    
+
     // Fallback to original simulation if no profile
     if (shotTime > 30000) {
       _simulationType = _SimulationType.idle;
@@ -182,18 +193,18 @@ class MockDe1 implements De1Interface {
     }
     return _fallbackEspressoSimulation(substate);
   }
-  
+
   MachineSnapshot _simulateWithProfile() {
     if (_currentProfile == null) {
       return _fallbackEspressoSimulation(_lastSnapshot.state.substate);
     }
-    
+
     // Update elapsed time for current step
     _profileStepElapsedTime += 100; // Timer runs every 100ms
-    
+
     // Get current step
     final currentStep = _currentProfile!.steps[_currentProfileStepIndex];
-    
+
     // Check if we should move to next step
     final stepDurationMs = currentStep.seconds * 1000;
     if (_profileStepElapsedTime >= stepDurationMs) {
@@ -209,12 +220,13 @@ class MockDe1 implements De1Interface {
         _log.fine("Profile completed, returning to idle");
       }
     }
-    
+
     // Calculate progress through current step (0.0 to 1.0)
-    final stepProgress = stepDurationMs > 0 
-        ? min(_profileStepElapsedTime / stepDurationMs, 1.0)
-        : 0.0;
-    
+    final stepProgress =
+        stepDurationMs > 0
+            ? min(_profileStepElapsedTime / stepDurationMs, 1.0)
+            : 0.0;
+
     // Calculate temperature movement toward target
     final targetTemp = currentStep.temperature;
     // Adjust heating rate based on step progress - slower near target
@@ -224,19 +236,19 @@ class MockDe1 implements De1Interface {
       target: targetTemp,
       rate: heatingRate, // degrees per 100ms
     );
-    
+
     final newGroupTemp = _calculateTemperature(
       current: _lastSnapshot.groupTemperature,
       target: targetTemp,
       rate: heatingRate,
     );
-    
+
     // Calculate pressure/flow based on step type
     double newPressure = _lastSnapshot.pressure;
     double newFlow = _lastSnapshot.flow;
     double targetPressure = 0;
     double targetFlow = 0;
-    
+
     if (currentStep is ProfileStepPressure) {
       targetPressure = currentStep.pressure;
       // Ramp up pressure faster at start of step, slower toward end
@@ -266,7 +278,7 @@ class MockDe1 implements De1Interface {
       final pressureBuildRate = 0.01 * newFlow;
       newPressure = min(_lastSnapshot.pressure + pressureBuildRate, 9.0);
     }
-    
+
     // Update substate based on pressure
     MachineSubstate substate = _lastSnapshot.state.substate;
     if (newPressure < 0.5) {
@@ -274,13 +286,10 @@ class MockDe1 implements De1Interface {
     } else if (newPressure > 1.0) {
       substate = MachineSubstate.pouring;
     }
-    
+
     return MachineSnapshot(
       timestamp: DateTime.now(),
-      state: MachineStateSnapshot(
-        state: _currentState,
-        substate: substate,
-      ),
+      state: MachineStateSnapshot(state: _currentState, substate: substate),
       flow: newFlow,
       pressure: newPressure,
       targetFlow: targetFlow,
@@ -290,21 +299,19 @@ class MockDe1 implements De1Interface {
       targetMixTemperature: targetTemp,
       targetGroupTemperature: targetTemp,
       profileFrame: _currentProfileStepIndex,
-      steamTemperature: _calculateTemperature(
-        current: _lastSnapshot.steamTemperature.toDouble(),
-        target: 150.0,
-        rate: 0.2,
-      ).toInt(),
+      steamTemperature:
+          _calculateTemperature(
+            current: _lastSnapshot.steamTemperature.toDouble(),
+            target: 150.0,
+            rate: 0.2,
+          ).toInt(),
     );
   }
-  
+
   MachineSnapshot _fallbackEspressoSimulation(MachineSubstate substate) {
     return MachineSnapshot(
       timestamp: DateTime.now(),
-      state: MachineStateSnapshot(
-        state: _currentState,
-        substate: substate,
-      ),
+      state: MachineStateSnapshot(state: _currentState, substate: substate),
       flow: min(_lastSnapshot.flow + 0.05, 4.0),
       pressure: min(_lastSnapshot.pressure + 0.04, 9.0),
       targetFlow: 4.5,
@@ -325,7 +332,7 @@ class MockDe1 implements De1Interface {
       steamTemperature: min(_lastSnapshot.steamTemperature + 1, 150),
     );
   }
-  
+
   double _calculateTemperature({
     required double current,
     required double target,
@@ -340,7 +347,7 @@ class MockDe1 implements De1Interface {
       return max(current - rate, target);
     }
   }
-  
+
   double _calculateValueTowardTarget({
     required double current,
     required double target,
@@ -377,19 +384,21 @@ class MockDe1 implements De1Interface {
   @override
   Future<void> setProfile(Profile profile) async {
     _log.info("set profile: ${profile.title}");
-    
+
     // Store the profile and extract target temperature
     _currentProfile = profile;
-    
+
     if (profile.steps.isNotEmpty) {
       // Use first step's temperature as target
       _profileTargetTemperature = profile.steps.first.temperature;
       _log.fine("Target temperature set to: $_profileTargetTemperature");
-      
+
       // Log step durations for debugging
       for (var i = 0; i < profile.steps.length; i++) {
         final step = profile.steps[i];
-        _log.fine("Step $i: ${step.name} - ${step.seconds}s, Temp: ${step.temperature}°C");
+        _log.fine(
+          "Step $i: ${step.name} - ${step.seconds}s, Temp: ${step.temperature}°C",
+        );
         if (step is ProfileStepPressure) {
           _log.fine("  Pressure: ${step.pressure} bar");
         } else if (step is ProfileStepFlow) {
@@ -397,7 +406,7 @@ class MockDe1 implements De1Interface {
         }
       }
     }
-    
+
     // Reset profile tracking
     _currentProfileStepIndex = 0;
     _profileStepElapsedTime = 0.0;

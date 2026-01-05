@@ -3,7 +3,35 @@ import 'package:reaprime/src/models/device/device.dart';
 abstract class Machine extends Device {
   Stream<MachineSnapshot> get currentSnapshot;
 
+  MachineInfo get machineInfo;
+
   Future<void> requestState(MachineState newState);
+}
+
+class MachineInfo {
+  final String version;
+  final String model;
+  final String serialNumber;
+  final bool groupHeadControllerPresent;
+  final Map<String, dynamic> extra;
+
+  MachineInfo({
+    required this.version,
+    required this.model,
+    required this.serialNumber,
+    required this.groupHeadControllerPresent,
+    required this.extra,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'version': version,
+      'model': model,
+      'serialNumber': serialNumber,
+      'GHC': groupHeadControllerPresent,
+      'extra': extra,
+    };
+  }
 }
 
 class MachineSnapshot {
@@ -88,10 +116,12 @@ class MachineSnapshot {
     return MachineSnapshot(
       timestamp: DateTime.parse(json["timestamp"]),
       state: MachineStateSnapshot(
-        state: MachineState.values
-            .firstWhere((e) => e.name == json["state"]["state"]),
-        substate: MachineSubstate.values
-            .firstWhere((e) => e.name == json["state"]["substate"]),
+        state: MachineState.values.firstWhere(
+          (e) => e.name == json["state"]["state"],
+        ),
+        substate: MachineSubstate.values.firstWhere(
+          (e) => e.name == json["state"]["substate"],
+        ),
       ),
       flow: json["flow"],
       pressure: json["pressure"],

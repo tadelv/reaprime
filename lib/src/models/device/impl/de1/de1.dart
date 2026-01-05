@@ -65,6 +65,10 @@ class De1 implements De1Interface {
   @override
   DeviceType get type => DeviceType.machine;
 
+  @override
+    // TODO: implement machineInfo
+    MachineInfo get machineInfo => throw UnimplementedError();
+
   MachineSnapshot _currentSnapshot = MachineSnapshot(
     flow: 0,
     state: MachineStateSnapshot(

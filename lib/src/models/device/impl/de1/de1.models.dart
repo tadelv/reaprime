@@ -262,3 +262,29 @@ enum MMRItem {
 
   const MMRItem(this.address, this.length, this.description);
 }
+
+enum DecentMachineModel {
+  DE1Pro,
+  DE1XL,
+  DE1XXL,
+  DE1XXXL,
+  Bengle,
+  Unknown;
+
+  static DecentMachineModel fromInt(int model) {
+    switch (model) {
+      case 3:
+        return DecentMachineModel.DE1Pro;
+      case 4:
+        return DecentMachineModel.DE1XL;
+      case 5:
+        return DecentMachineModel.DE1XXL;
+      case 6:
+        return DecentMachineModel.DE1XXXL;
+      case 128:
+        return DecentMachineModel.Bengle;
+      default:
+        return DecentMachineModel.Unknown;
+    }
+  }
+}
