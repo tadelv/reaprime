@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/landing_feature/landing_feature.dart';
+import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:universal_ble/universal_ble.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
@@ -16,12 +18,14 @@ class PermissionsView extends StatelessWidget {
   final DeviceController deviceController;
   final De1Controller de1controller;
   final PluginLoaderService? pluginLoaderService;
+  final WebUIStorage webUIStorage;
 
   const PermissionsView({
     super.key,
     required this.deviceController,
     required this.de1controller,
     this.pluginLoaderService,
+    required this.webUIStorage,
   });
 
   @override
@@ -94,6 +98,8 @@ class PermissionsView extends StatelessWidget {
       }
     }
 
+    await webUIStorage.initialize();
+
     return true;
   }
 
@@ -154,7 +160,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       _timeoutReached = true;
       if (mounted && _discoveredDevices.length == 1) {
         widget.de1controller.connectToDe1(_discoveredDevices.first);
-        Navigator.popAndPushNamed(context, HomeScreen.routeName);
+        Navigator.popAndPushNamed(context, LandingFeature.routeName);
       } else if (mounted && _discoveredDevices.isEmpty) {
         Navigator.popAndPushNamed(context, HomeScreen.routeName);
       }
@@ -207,13 +213,13 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                 child: SizedBox(
                   width: 200,
                   child: ShadCard(
-                    title: Text("De1"),
-                    description: Text("${de1.deviceId}"),
+                    title: Text(de1.name),
+                    description: Text("Identifier: ${de1.deviceId}"),
                   ),
                 ),
                 onTapUpInside: (_) {
                   widget.de1controller.connectToDe1(de1);
-                  Navigator.popAndPushNamed(context, HomeScreen.routeName);
+                  Navigator.popAndPushNamed(context, LandingFeature.routeName);
                 },
               );
             },

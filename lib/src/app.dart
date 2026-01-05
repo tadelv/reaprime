@@ -9,10 +9,12 @@ import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/shot_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/history_feature/history_feature.dart';
+import 'package:reaprime/src/landing_feature/landing_feature.dart';
 import 'package:reaprime/src/permissions_feature/permissions_view.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
 import 'package:reaprime/src/realtime_steam_feature/realtime_steam_feature.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
+import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
@@ -51,6 +53,7 @@ class MyApp extends StatefulWidget {
     required this.persistenceController,
     required this.pluginLoaderService,
     required this.webUIService,
+    required this.webUIStorage,
   });
 
   final SettingsController settingsController;
@@ -61,6 +64,7 @@ class MyApp extends StatefulWidget {
   final PersistenceController persistenceController;
   final PluginLoaderService pluginLoaderService;
   final WebUIService webUIService;
+  final WebUIStorage webUIStorage;
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -264,11 +268,17 @@ class _MyAppState extends State<MyApp> {
                       return PluginsSettingsView(
                         pluginLoaderService: widget.pluginLoaderService,
                       );
+                    case LandingFeature.routeName:
+                      return LandingFeature(
+                        webUIStorage: widget.webUIStorage,
+                        webUIService: widget.webUIService,
+                      );
                     default:
                       return PermissionsView(
                         deviceController: widget.deviceController,
                         de1controller: widget.de1Controller,
                         pluginLoaderService: widget.pluginLoaderService,
+                        webUIStorage: widget.webUIStorage,
                       );
                   }
                 },

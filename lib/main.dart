@@ -29,6 +29,7 @@ import 'package:reaprime/src/services/simulated_device_service.dart';
 import 'package:reaprime/src/services/storage/file_storage_service.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
+import 'package:reaprime/src/webui_support/webui_storage.dart';
 
 import 'src/app.dart';
 import 'src/services/foreground_service.dart';
@@ -158,6 +159,7 @@ void main() async {
 
 
   final WebUIService webUIService = WebUIService();
+  final WebUIStorage webUIStorage = WebUIStorage();
 
   try {
     await startWebServer(
@@ -210,6 +212,7 @@ void main() async {
         persistenceController: persistenceController,
         pluginLoaderService: pluginService,
         webUIService: webUIService,
+        webUIStorage: webUIStorage,
       ),
     ),
   );
