@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:logging/logging.dart';
+import 'package:network_info_plus/network_info_plus.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_cors_headers/shelf_cors_headers.dart';
@@ -10,12 +11,14 @@ class WebUIService {
   HttpServer? _server;
   int port = 3000;
   String _path = "";
+  String? _localIP;
 
 
   // WebUI server methods
 
   Future<void> serveFolderAtPath(String path, {int port = 3000}) async {
     await _server?.close(force: true);
+    _localIP ??= await NetworkInfo().getWifiIP();
 
     // 1. Get system temp directory
     // final documents = await getApplicationDocumentsDirectory();
@@ -102,6 +105,10 @@ class WebUIService {
         ? _server?.address.address ?? "localhost"
         : "localhost";
   }
+
+  String deviceIp() {
+      return _localIP ?? "";
+    }
 
   String serverPath() {
     return _path;

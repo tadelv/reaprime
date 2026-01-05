@@ -39,7 +39,6 @@ class NavigationService {
   static String? get currentRoute => ModalRoute.of(context!)?.settings.name;
 }
 
-final WebUIService webUIService = WebUIService();
 
 /// The Widget that configures your application.
 class MyApp extends StatefulWidget {
@@ -184,7 +183,7 @@ class _MyAppState extends State<MyApp> {
                       return SettingsView(
                         controller: widget.settingsController,
                         persistenceController: widget.persistenceController,
-                        webUIService: webUIService,
+                        webUIService: widget.webUIService,
                       );
                     case De1DebugView.routeName:
                       var device = widget.deviceController.devices.firstWhere(
@@ -256,6 +255,7 @@ class _MyAppState extends State<MyApp> {
                         deviceController: widget.deviceController,
                         persistenceController: widget.persistenceController,
                         settingsController: widget.settingsController,
+                        webUIService: widget.webUIService,
                       );
                     case HistoryFeature.routeName:
                       final possibleShot = routeSettings.arguments as String;

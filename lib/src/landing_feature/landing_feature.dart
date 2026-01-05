@@ -131,7 +131,7 @@ class _LandingState extends State<LandingFeature> {
   void _startAutoNavigateTimer() {
     _autoNavigateTimer?.cancel();
     setState(() {
-      _remainingSeconds = 10;
+      _remainingSeconds = 30;
     });
 
     _autoNavigateTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
