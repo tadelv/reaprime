@@ -37,12 +37,16 @@ import 'src/settings/settings_service.dart';
 import 'src/models/device/impl/de1/de1.dart';
 import 'src/services/serial/serial_service.dart';
 
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(
     SystemUiMode.manual,
     overlays: [SystemUiOverlay.top], // Only keep the top bar
   );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   Logger.root.level = Level.FINE;
   Logger.root.clearListeners();
   PrintAppender(formatter: ColorFormatter()).attachToLogger(Logger.root);
@@ -68,7 +72,9 @@ void main() async {
 
   Logger.root.info("==== REA PRIME starting ====");
 
-  Logger.root.info("build: ${BuildInfo.commitShort}, branch: ${BuildInfo.branch}");
+  Logger.root.info(
+    "build: ${BuildInfo.commitShort}, branch: ${BuildInfo.branch}",
+  );
 
   final List<DeviceDiscoveryService> services = [];
   if (!Platform.isWindows) {
