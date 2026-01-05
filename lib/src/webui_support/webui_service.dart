@@ -6,12 +6,15 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_cors_headers/shelf_cors_headers.dart';
 
 class WebUIService {
-  static final _log = Logger("WebUIService");
-  static HttpServer? _server;
-  static final int port = 3000;
-  static String _path = "";
+  final _log = Logger("WebUIService");
+  HttpServer? _server;
+  int port = 3000;
+  String _path = "";
 
-  static Future<void> serveFolderAtPath(String path) async {
+
+  // WebUI server methods
+
+  Future<void> serveFolderAtPath(String path, {int port = 3000}) async {
     await _server?.close(force: true);
 
     // 1. Get system temp directory
@@ -93,16 +96,16 @@ class WebUIService {
     _path = path;
   }
 
-  static String serverIP() {
+  String serverIP() {
     _log.fine("server ip: ${_server?.address.address}");
     return Platform.isAndroid
         ? _server?.address.address ?? "localhost"
         : "localhost";
   }
 
-  static String serverPath() {
+  String serverPath() {
     return _path;
   }
 
-  static bool get isServing => _server != null;
+  bool get isServing => _server != null;
 }

@@ -55,6 +55,7 @@ Future<void> startWebServer(
   WorkflowController workflowController,
   PersistenceController persistenceController,
   PluginLoaderService pluginService,
+  WebUIService webUIService,
 ) async {
   log.info("starting webserver");
   final de1Handler = De1Handler(controller: de1Controller);
@@ -64,7 +65,7 @@ Future<void> startWebServer(
     de1Controller: de1Controller,
     scaleController: scaleController,
   );
-  final settingsHandler = SettingsHandler(controller: settingsController);
+  final settingsHandler = SettingsHandler(controller: settingsController, service: webUIService);
   final sensorsHandler = SensorsHandler(controller: sensorController);
   final workflowHandler = WorkflowHandler(
     controller: workflowController,

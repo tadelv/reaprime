@@ -28,6 +28,7 @@ import 'package:reaprime/src/services/universal_ble_discovery_service.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
 import 'package:reaprime/src/services/storage/file_storage_service.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
+import 'package:reaprime/src/webui_support/webui_service.dart';
 
 import 'src/app.dart';
 import 'src/services/foreground_service.dart';
@@ -155,6 +156,9 @@ void main() async {
   // pluginService.initialize() will be called from PermissionsView after permissions are granted
   pluginService.pluginManager.de1Controller = de1Controller;
 
+
+  final WebUIService webUIService = WebUIService();
+
   try {
     await startWebServer(
       deviceController,
@@ -165,6 +169,7 @@ void main() async {
       workflowController,
       persistenceController,
       pluginService,
+      webUIService,
     );
   } catch (e, st) {
     log.severe('failed to start web server', e, st);
@@ -204,6 +209,7 @@ void main() async {
         workflowController: workflowController,
         persistenceController: persistenceController,
         pluginLoaderService: pluginService,
+        webUIService: webUIService,
       ),
     ),
   );

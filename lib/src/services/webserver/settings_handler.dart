@@ -2,15 +2,16 @@ part of '../webserver_service.dart';
 
 class SettingsHandler {
   final SettingsController _controller;
+  final WebUIService _webUIService;
 
-  SettingsHandler({required SettingsController controller})
-    : _controller = controller;
+  SettingsHandler({required SettingsController controller, required WebUIService service})
+    : _controller = controller, _webUIService = service;
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/settings', () async {
       log.info("handling settings");
       final gatewayMode = _controller.gatewayMode.name;
-      final webPath = WebUIService.serverPath();
+      final webPath = _webUIService.serverPath();
       final logLevel = _controller.logLevel;
       return {
         'gatewayMode': gatewayMode,
@@ -36,7 +37,7 @@ class SettingsHandler {
         final webUiPath = json['webUiPath'].toString();
         // Check path is valid
         final _ = File.fromUri(Uri.file(webUiPath));
-        await WebUIService.serveFolderAtPath(webUiPath);
+        await _webUIService.serveFolderAtPath(webUiPath);
       }
       if (json.containsKey('logLevel')) {
         await _controller.updateLogLevel(json['logLevel']);

@@ -50,6 +50,7 @@ class MyApp extends StatefulWidget {
     required this.workflowController,
     required this.persistenceController,
     required this.pluginLoaderService,
+    required this.webUIService,
   });
 
   final SettingsController settingsController;
@@ -59,6 +60,7 @@ class MyApp extends StatefulWidget {
   final WorkflowController workflowController;
   final PersistenceController persistenceController;
   final PluginLoaderService pluginLoaderService;
+  final WebUIService webUIService;
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -178,6 +180,7 @@ class _MyAppState extends State<MyApp> {
                       return SettingsView(
                         controller: widget.settingsController,
                         persistenceController: widget.persistenceController,
+                        webUIService: webUIService,
                       );
                     case De1DebugView.routeName:
                       var device = widget.deviceController.devices.firstWhere(

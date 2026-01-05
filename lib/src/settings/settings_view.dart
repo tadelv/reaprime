@@ -27,12 +27,14 @@ class SettingsView extends StatelessWidget {
     super.key,
     required this.controller,
     required this.persistenceController,
+    required this.webUIService,
   });
 
   static const routeName = '/settings';
 
   final SettingsController controller;
   final PersistenceController persistenceController;
+  final WebUIService webUIService;
 
   @override
   Widget build(BuildContext context) {
@@ -218,7 +220,7 @@ class SettingsView extends StatelessWidget {
               },
               child: Text("Load WebUI"),
             ),
-            if (WebUIService.isServing)
+            if (webUIService.isServing)
               ShadButton(
                 child: Text("Open UI in browser"),
                 onPressed: () async {
@@ -258,7 +260,7 @@ class SettingsView extends StatelessWidget {
       ).finest('list dir: ${dir.listSync(recursive: true).join("\n")}');
       final indexFile = File('$selectedDirectory/index.html');
       final itExists = await indexFile.exists();
-      await WebUIService.serveFolderAtPath(selectedDirectory);
+      await webUIService.serveFolderAtPath(selectedDirectory);
       if (context.mounted == false) {
         return;
       }
