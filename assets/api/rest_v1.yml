@@ -85,6 +85,19 @@ paths:
 
 
   # DE1 specific API
+  
+  /api/v1/de1/info:
+    get:
+      summary: Retrieves the current Machine information
+      tags: [DE1]
+      responses:
+        "200":
+          description: Information about the currently connected machine or an error if not connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MachineInfo"
+
   /api/v1/de1/state:
     get:
       summary: Get DE1 State
@@ -591,6 +604,26 @@ components:
           type: string
         st:
           type: string
+
+    MachineInfo:
+      type: object
+      properties:
+        version:
+          type: string
+          description: Machine Firmware version
+        model:
+          type: string
+          description: Machine Model name
+        serialNumber:
+          type: string
+          description: Machine serial number
+        GHC:
+          type: boolean
+          description: Whether GroupHeadController is present and active
+        extra:
+          type: object
+          description: various extra information
+
     ScaleSnapshot:
       type: object
       properties:

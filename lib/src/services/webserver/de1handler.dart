@@ -7,6 +7,7 @@ class De1Handler {
   De1Handler({required De1Controller controller}) : _controller = controller;
 
   void addRoutes(RouterPlus app) {
+    app.get('/api/v1/de1/info', _infoHandler);
     app.get('/api/v1/de1/state', _stateHandler);
     app.put('/api/v1/de1/state/<newState>', _requestStateHandler);
     app.post('/api/v1/de1/profile', _profileHandler);
@@ -157,6 +158,12 @@ class De1Handler {
         body: jsonEncode({'error': e.toString(), 'st': st.toString()}),
       );
     }
+  }
+
+  Future<Response> _infoHandler(Request request) async {
+    return withDe1((De1Interface de1) async {
+      return Response.ok(jsonEncode(de1.machineInfo.toJson()));
+    });
   }
 
   Future<Response> _stateHandler(Request request) async {
