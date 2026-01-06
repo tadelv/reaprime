@@ -10,6 +10,7 @@ import 'package:reaprime/src/controllers/shot_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/history_feature/history_feature.dart';
 import 'package:reaprime/src/landing_feature/landing_feature.dart';
+import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/permissions_feature/permissions_view.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
 import 'package:reaprime/src/realtime_steam_feature/realtime_steam_feature.dart';
@@ -241,7 +242,7 @@ class _MyAppState extends State<MyApp> {
                       final args =
                           routeSettings.arguments as Map<String, dynamic>;
                       De1Controller de1Controller = args['controller'];
-                      De1ControllerSteamSettings steamSettings = args['data'];
+                      SteamSettings steamSettings = args['data'];
                       return RealtimeSteamFeature(
                         de1Controller: de1Controller,
                         initialSteamSettings: steamSettings,

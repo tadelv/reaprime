@@ -4,6 +4,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
+import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/util/shot_chart.dart';
@@ -13,7 +14,7 @@ class RealtimeSteamFeature extends StatefulWidget {
   static const routeName = '/steam';
 
   final De1Controller de1Controller;
-  final De1ControllerSteamSettings initialSteamSettings;
+  final SteamSettings initialSteamSettings;
   final GatewayMode gatewayMode;
 
   const RealtimeSteamFeature({

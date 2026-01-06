@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:reaprime/src/controllers/de1_controller.dart';
+import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class RinseForm extends StatefulWidget {
-  final Function(De1ControllerRinseData) apply;
-  final De1ControllerRinseData rinseSettings;
+  final Function(RinseData) apply;
+  final RinseData rinseSettings;
 
   const RinseForm({
     super.key,
@@ -17,7 +17,7 @@ class RinseForm extends StatefulWidget {
 }
 
 class _RinseFormState extends State<RinseForm> {
-  late De1ControllerRinseData settings;
+  late RinseData settings;
 
   @override
   void initState() {

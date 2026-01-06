@@ -12,6 +12,9 @@ class WorkflowController extends ChangeNotifier {
     description: "Description",
     profile: Defaults.createDefaultProfile(),
     doseData: DoseData(doseIn: 18.0, doseOut: 36.0),
+    steamSettings: SteamSettings.defaults(),
+    hotWaterData: HotWaterData.defaults(),
+    rinseData: RinseData.defaults(),
   );
 
   Workflow newWorkflow() {
@@ -21,6 +24,9 @@ class WorkflowController extends ChangeNotifier {
       description: "Description",
       profile: Defaults.createDefaultProfile(),
       doseData: DoseData(doseIn: 18.0, doseOut: 36.0),
+      steamSettings: SteamSettings.defaults(),
+      hotWaterData: HotWaterData.defaults(),
+      rinseData: RinseData.defaults(),
     );
   }
 
@@ -35,23 +41,24 @@ class WorkflowController extends ChangeNotifier {
 extension Defaults on Profile {
   static Profile createDefaultProfile() {
     return Profile(
-        version: "1.0",
-        title: "Default",
-        notes: "Default notes",
-        author: "Vid",
-        beverageType: BeverageType.espresso,
-        steps: [
-          ProfileStepPressure(
-            name: "run wild",
-            transition: TransitionType.fast,
-            volume: 0.0,
-            seconds: 120,
-            temperature: 90.0,
-            sensor: TemperatureSensor.coffee,
-            pressure: 7.5,
-          )
-        ],
-        targetVolumeCountStart: 0,
-        tankTemperature: 0);
+      version: "1.0",
+      title: "Default",
+      notes: "Default notes",
+      author: "Decent",
+      beverageType: BeverageType.espresso,
+      steps: [
+        ProfileStepPressure(
+          name: "Free flow",
+          transition: TransitionType.fast,
+          volume: 0.0,
+          seconds: 120,
+          temperature: 90.0,
+          sensor: TemperatureSensor.coffee,
+          pressure: 7.5,
+        ),
+      ],
+      targetVolumeCountStart: 0,
+      tankTemperature: 0,
+    );
   }
 }

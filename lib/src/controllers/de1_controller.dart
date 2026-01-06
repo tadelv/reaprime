@@ -24,37 +24,37 @@ class De1Controller {
 
   Stream<De1Interface?> get de1 => _de1Controller.stream;
 
-  final BehaviorSubject<De1ControllerSteamSettings> _steamDataController =
-      BehaviorSubject.seeded(De1ControllerSteamSettings(
+  final BehaviorSubject<SteamSettings> _steamDataController =
+      BehaviorSubject.seeded(SteamSettings(
     targetTemperature: 0,
     flow: 0,
     duration: 0,
   ));
 
-  Stream<De1ControllerSteamSettings> get steamData =>
+  Stream<SteamSettings> get steamData =>
       _steamDataController.stream;
 
-  final BehaviorSubject<De1ControllerHotWaterData> _hotWaterDataController =
-      BehaviorSubject.seeded(De1ControllerHotWaterData(
+  final BehaviorSubject<HotWaterData> _hotWaterDataController =
+      BehaviorSubject.seeded(HotWaterData(
     targetTemperature: 0,
     flow: 0,
     duration: 0,
     volume: 0,
   ));
 
-  Stream<De1ControllerHotWaterData> get hotWaterData =>
+  Stream<HotWaterData> get hotWaterData =>
       _hotWaterDataController.stream;
 
-  final BehaviorSubject<De1ControllerRinseData> _rinseStream =
+  final BehaviorSubject<RinseData> _rinseStream =
       BehaviorSubject.seeded(
-    De1ControllerRinseData(
+    RinseData(
       duration: 5,
       targetTemperature: 90,
       flow: 2.5,
     ),
   );
 
-  Stream<De1ControllerRinseData> get rinseData => _rinseStream.stream;
+  Stream<RinseData> get rinseData => _rinseStream.stream;
 
   final List<StreamSubscription<dynamic>> _subscriptions = [];
 
@@ -123,7 +123,7 @@ class De1Controller {
     _log.info('received shot settings');
     var steamFlow = await connectedDe1().getSteamFlow();
     _steamDataController.add(
-      De1ControllerSteamSettings(
+      SteamSettings(
         duration: data.targetSteamDuration,
         targetTemperature: data.targetSteamTemp,
         flow: steamFlow,
@@ -131,7 +131,7 @@ class De1Controller {
     );
     var hwFlow = await connectedDe1().getHotWaterFlow();
     _hotWaterDataController.add(
-      De1ControllerHotWaterData(
+      HotWaterData(
         volume: data.targetHotWaterVolume,
         flow: hwFlow,
         targetTemperature: data.targetHotWaterTemp,
@@ -142,7 +142,7 @@ class De1Controller {
       var flow = await connectedDe1().getFlushFlow();
       var time = await connectedDe1().getFlushTimeout();
       var temp = await connectedDe1().getFlushTemperature();
-      _rinseStream.add(De1ControllerRinseData(
+      _rinseStream.add(RinseData(
         flow: flow,
         duration: time.toInt(),
         targetTemperature: temp.toInt(),
@@ -211,7 +211,7 @@ class De1Controller {
     });
   }
 
-  Future<void> updateFlushSettings(De1ControllerRinseData settings) async {
+  Future<void> updateFlushSettings(RinseData settings) async {
     await connectedDe1().setFlushTimeout(settings.duration.toDouble());
     await connectedDe1().setFlushFlow(settings.flow);
     await connectedDe1()
@@ -221,64 +221,3 @@ class De1Controller {
   }
 }
 
-class De1ControllerSteamSettings {
-  int targetTemperature;
-  int duration;
-  double flow;
-
-  De1ControllerSteamSettings({
-    required this.targetTemperature,
-    required this.duration,
-    required this.flow,
-  });
-
-  De1ControllerSteamSettings copyWith({
-    int? targetTemperature,
-    int? duration,
-    double? flow,
-  }) {
-    return De1ControllerSteamSettings(
-        targetTemperature: targetTemperature ?? this.targetTemperature,
-        duration: duration ?? this.duration,
-        flow: flow ?? this.flow);
-  }
-}
-
-class De1ControllerHotWaterData {
-  int targetTemperature;
-  int duration;
-  int volume;
-  double flow;
-
-  De1ControllerHotWaterData(
-      {required this.targetTemperature,
-      required this.duration,
-      required this.volume,
-      required this.flow});
-
-  De1ControllerHotWaterData copyWith({
-    int? targetTemperature,
-    int? duration,
-    int? volume,
-    double? flow,
-  }) {
-    return De1ControllerHotWaterData(
-      targetTemperature: targetTemperature ?? this.targetTemperature,
-      duration: duration ?? this.duration,
-      volume: volume ?? this.volume,
-      flow: flow ?? this.flow,
-    );
-  }
-}
-
-class De1ControllerRinseData {
-  int targetTemperature;
-  int duration;
-  double flow;
-
-  De1ControllerRinseData({
-    required this.targetTemperature,
-    required this.duration,
-    required this.flow,
-  });
-}

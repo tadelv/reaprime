@@ -6,6 +6,7 @@ import 'package:reaprime/src/home_feature/forms/hot_water_form.dart';
 import 'package:reaprime/src/home_feature/forms/rinse_form.dart';
 import 'package:reaprime/src/home_feature/forms/steam_form.dart';
 import 'package:reaprime/src/home_feature/forms/water_levels_form.dart';
+import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:rxdart/rxdart.dart';
@@ -43,9 +44,9 @@ class StatusTile extends StatelessWidget {
               return Text("Waiting");
             }
             var settings = settingsSnapshot.data!;
-            var steamSettings = settings[0] as De1ControllerSteamSettings;
-            var hotWaterSettings = settings[1] as De1ControllerHotWaterData;
-            var rinseSettings = settings[2] as De1ControllerRinseData;
+            var steamSettings = settings[0] as SteamSettings;
+            var hotWaterSettings = settings[1] as HotWaterData;
+            var rinseSettings = settings[2] as RinseData;
             return Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               spacing: 5,

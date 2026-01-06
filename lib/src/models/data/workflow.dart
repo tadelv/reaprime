@@ -9,17 +9,22 @@ class Workflow {
   final DoseData doseData;
   final GrinderData? grinderData;
   final CoffeeData? coffeeData;
-  // TODO: add steam, flush, hotwater settings
-  // would heater phases be added here too?
+  final SteamSettings steamSettings;
+  final HotWaterData hotWaterData;
+  final RinseData rinseData;
 
-  const Workflow(
-      {required this.id,
-      required this.name,
-      this.description = '',
-      required this.profile,
-      required this.doseData,
-      this.grinderData,
-      this.coffeeData});
+  const Workflow({
+    required this.id,
+    required this.name,
+    this.description = '',
+    required this.profile,
+    required this.doseData,
+    this.grinderData,
+    this.coffeeData,
+    required this.steamSettings,
+    required this.hotWaterData,
+    required this.rinseData,
+  });
 
   factory Workflow.fromJson(Map<String, dynamic> json) {
     return Workflow(
@@ -28,14 +33,26 @@ class Workflow {
       description: json['description'],
       profile: Profile.fromJson(json['profile']),
       doseData: DoseData.fromJson(json['doseData']),
-      coffeeData: json['coffeeData'] != null
-          ? CoffeeData.fromJson(json['coffeeData'])
-          : null,
-      grinderData: json['grinderData'] != null
-          ? GrinderData.fromJson(
-              json['grinderData'],
-            )
-          : null,
+      coffeeData:
+          json['coffeeData'] != null
+              ? CoffeeData.fromJson(json['coffeeData'])
+              : null,
+      grinderData:
+          json['grinderData'] != null
+              ? GrinderData.fromJson(json['grinderData'])
+              : null,
+      steamSettings:
+          json['steamSettings'] != null
+              ? SteamSettings.fromJson(json['steamSettings'])
+              : SteamSettings.defaults(),
+      hotWaterData:
+          json['hotWaterData'] != null
+              ? HotWaterData.fromJson(json['hotWaterData'])
+              : HotWaterData.defaults(),
+      rinseData:
+          json['rinseData'] != null
+              ? RinseData.fromJson(json['rinseData'])
+              : RinseData.defaults(),
     );
   }
   Map<String, dynamic> toJson() {
@@ -47,6 +64,9 @@ class Workflow {
       'doseData': doseData.toJson(),
       'coffeeData': coffeeData?.toJson(),
       'grinderData': grinderData?.toJson(),
+      'steamSettings': steamSettings.toJson(),
+      'hotWaterData': hotWaterData.toJson(),
+      'rinseData': rinseData.toJson(),
     };
   }
 
@@ -57,6 +77,9 @@ class Workflow {
     DoseData? doseData,
     GrinderData? grinderData,
     CoffeeData? coffeeData,
+    SteamSettings? steamSettings,
+    HotWaterData? hotWaterData,
+    RinseData? rinseData,
   }) {
     return Workflow(
       id: Uuid().v4(),
@@ -66,6 +89,9 @@ class Workflow {
       doseData: doseData ?? this.doseData,
       grinderData: grinderData ?? this.grinderData,
       coffeeData: coffeeData ?? this.coffeeData,
+      steamSettings: steamSettings ?? this.steamSettings,
+      hotWaterData: hotWaterData ?? this.hotWaterData,
+      rinseData: rinseData ?? this.rinseData,
     );
   }
 }
@@ -75,10 +101,7 @@ class DoseData {
   double doseIn;
   double doseOut;
 
-  DoseData({
-    this.doseIn = 16.0,
-    this.doseOut = 36.0,
-  });
+  DoseData({this.doseIn = 16.0, this.doseOut = 36.0});
 
   double get ratio => doseOut / doseIn;
   void setRatio(double ratio) {
@@ -93,16 +116,10 @@ class DoseData {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'doseIn': doseIn,
-      'doseOut': doseOut,
-    };
+    return {'doseIn': doseIn, 'doseOut': doseOut};
   }
 
-  DoseData copyWith({
-    double? doseIn,
-    double? doseOut,
-  }) {
+  DoseData copyWith({double? doseIn, double? doseOut}) {
     return DoseData(
       doseIn: doseIn ?? this.doseIn,
       doseOut: doseOut ?? this.doseOut,
@@ -126,18 +143,10 @@ class GrinderData {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'setting': setting,
-      'manufacturer': manufacturer,
-      'model': model,
-    };
+    return {'setting': setting, 'manufacturer': manufacturer, 'model': model};
   }
 
-  GrinderData copyWith({
-    String? setting,
-    String? manufacturer,
-    String? model,
-  }) {
+  GrinderData copyWith({String? setting, String? manufacturer, String? model}) {
     return GrinderData(
       model: model ?? this.model,
       manufacturer: manufacturer ?? this.manufacturer,
@@ -153,26 +162,148 @@ class CoffeeData {
   const CoffeeData({this.name = '', this.roaster});
 
   factory CoffeeData.fromJson(Map<String, dynamic> json) {
+    return CoffeeData(name: json['name'], roaster: json['roaster']);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'name': name, 'roaster': roaster};
+  }
+
+  CoffeeData copyWith({String? name, String? roaster}) {
     return CoffeeData(
-      name: json['name'],
-      roaster: json['roaster'],
+      name: name ?? this.name,
+      roaster: roaster ?? this.roaster,
+    );
+  }
+}
+
+class SteamSettings {
+  int targetTemperature;
+  int duration;
+  double flow;
+
+  SteamSettings({
+    required this.targetTemperature,
+    required this.duration,
+    required this.flow,
+  });
+
+  SteamSettings copyWith({
+    int? targetTemperature,
+    int? duration,
+    double? flow,
+  }) {
+    return SteamSettings(
+      targetTemperature: targetTemperature ?? this.targetTemperature,
+      duration: duration ?? this.duration,
+      flow: flow ?? this.flow,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'name': name,
-      'roaster': roaster,
+      'targetTemperature': targetTemperature,
+      'duration': duration,
+      'flow': flow,
     };
   }
 
-  CoffeeData copyWith({
-    String? name,
-    String? roaster,
-  }) {
-    return CoffeeData(
-      name: name ?? this.name,
-      roaster: roaster ?? this.roaster,
+  factory SteamSettings.fromJson(Map<String, dynamic> json) {
+    return SteamSettings(
+      targetTemperature: json['targetTemperature'],
+      duration: json['duration'],
+      flow: json['flow'],
     );
+  }
+
+  factory SteamSettings.defaults() {
+    return SteamSettings(targetTemperature: 150, duration: 50, flow: 0.8);
+  }
+}
+
+class HotWaterData {
+  int targetTemperature;
+  int duration;
+  int volume;
+  double flow;
+
+  HotWaterData({
+    required this.targetTemperature,
+    required this.duration,
+    required this.volume,
+    required this.flow,
+  });
+
+  HotWaterData copyWith({
+    int? targetTemperature,
+    int? duration,
+    int? volume,
+    double? flow,
+  }) {
+    return HotWaterData(
+      targetTemperature: targetTemperature ?? this.targetTemperature,
+      duration: duration ?? this.duration,
+      volume: volume ?? this.volume,
+      flow: flow ?? this.flow,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'targetTemperature': targetTemperature,
+      'duration': duration,
+      'volume': volume,
+      'flow': flow,
+    };
+  }
+
+  factory HotWaterData.fromJson(Map<String, dynamic> json) {
+    return HotWaterData(
+      targetTemperature: json['targetTemperature'],
+      duration: json['duration'],
+      volume: json['volume'],
+      flow: json['flow'],
+    );
+  }
+
+  factory HotWaterData.defaults() {
+    return HotWaterData(
+      targetTemperature: 75,
+      duration: 30,
+      volume: 50,
+      flow: 5.5,
+    );
+  }
+}
+
+class RinseData {
+  int targetTemperature;
+  int duration;
+  double flow;
+
+  RinseData({
+    required this.targetTemperature,
+    required this.duration,
+    required this.flow,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'targetTemperature': targetTemperature,
+      'duration': duration,
+      'flow': flow,
+    };
+  }
+
+  factory RinseData.fromJson(Map<String, dynamic> json) {
+    return RinseData(
+      targetTemperature: json['targetTemperature'],
+      duration: json['duration'],
+      flow: json['flow'],
+    );
+  }
+
+  factory RinseData.defaults() {
+    return RinseData(targetTemperature: 90, duration: 10, flow: 6.0);
   }
 }
