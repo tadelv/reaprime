@@ -157,6 +157,7 @@ class _HomeScreenState extends State<HomeScreen> {
               controller: widget.de1controller,
               scaleController: widget.scaleController,
               deviceController: widget.deviceController,
+              workflowController: widget.workflowController,
             ),
           );
         } else {

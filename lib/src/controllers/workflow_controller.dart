@@ -36,6 +36,31 @@ class WorkflowController extends ChangeNotifier {
     _currentWorkflow = newWorkflow;
     notifyListeners();
   }
+
+  void updateWorkflow({
+    String? name,
+    String? description,
+    Profile? profile,
+    DoseData? doseData,
+    GrinderData? grinderData,
+    CoffeeData? coffeeData,
+    SteamSettings? steamSettings,
+    HotWaterData? hotWaterData,
+    RinseData? rinseData,
+  }) {
+    _currentWorkflow = _currentWorkflow.copyWith(
+      name: name,
+      description: description,
+      profile: profile,
+      doseData: doseData,
+      grinderData: grinderData,
+      coffeeData: coffeeData,
+      steamSettings: steamSettings,
+      hotWaterData: hotWaterData,
+      rinseData: rinseData,
+    );
+    notifyListeners();
+  }
 }
 
 extension Defaults on Profile {

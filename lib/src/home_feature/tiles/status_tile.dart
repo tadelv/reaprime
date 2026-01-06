@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/home_feature/forms/hot_water_form.dart';
 import 'package:reaprime/src/home_feature/forms/rinse_form.dart';
 import 'package:reaprime/src/home_feature/forms/steam_form.dart';
@@ -17,12 +18,14 @@ class StatusTile extends StatelessWidget {
   final De1Controller controller;
   final ScaleController scaleController;
   final DeviceController deviceController;
+  final WorkflowController workflowController;
   const StatusTile({
     super.key,
     required this.de1,
     required this.controller,
     required this.scaleController,
     required this.deviceController,
+    required this.workflowController,
   });
 
   @override
@@ -161,6 +164,13 @@ class StatusTile extends StatelessWidget {
               apply: (settings) {
                 Navigator.of(context).pop();
                 controller.updateSteamSettings(settings);
+                workflowController.updateWorkflow(
+                  steamSettings: SteamSettings(
+                    targetTemperature: settings.targetTemp,
+                    duration: settings.targetDuration,
+                    flow: settings.targetFlow,
+                  ),
+                );
               },
             ),
           ),
@@ -185,6 +195,14 @@ class StatusTile extends StatelessWidget {
               apply: (settings) {
                 Navigator.of(context).pop();
                 controller.updateHotWaterSettings(settings);
+                workflowController.updateWorkflow(
+                  hotWaterData: HotWaterData(
+                    targetTemperature: settings.targetTemperature,
+                    duration: settings.duration,
+                    volume: settings.volume,
+                    flow: settings.flow,
+                  ),
+                );
               },
             ),
           ),
@@ -209,6 +227,13 @@ class StatusTile extends StatelessWidget {
               apply: (settings) {
                 Navigator.of(context).pop();
                 controller.updateFlushSettings(settings);
+                workflowController.updateWorkflow(
+                  rinseData: RinseData(
+                    targetTemperature: settings.targetTemperature,
+                    duration: settings.duration,
+                    flow: settings.flow,
+                  ),
+                );
               },
             ),
           ),
