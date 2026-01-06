@@ -64,6 +64,9 @@ jobs:
         with:
           channel: 'stable'
 
+      - name: Install FlutterFire CLI
+        run: dart pub global activate flutterfire_cli
+
       - name: Install dependencies
         run: flutter pub get
 
