@@ -141,7 +141,7 @@ class _LandingState extends State<LandingFeature> {
 
       if (_remainingSeconds <= 0) {
         timer.cancel();
-        // _navigateToHome();
+        _navigateToHome();
       }
     });
   }
