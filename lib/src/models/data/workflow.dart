@@ -9,6 +9,8 @@ class Workflow {
   final DoseData doseData;
   final GrinderData? grinderData;
   final CoffeeData? coffeeData;
+  // TODO: add steam, flush, hotwater settings
+  // would heater phases be added here too?
 
   const Workflow(
       {required this.id,

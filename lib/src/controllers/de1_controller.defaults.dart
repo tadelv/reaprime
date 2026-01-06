@@ -6,6 +6,14 @@ extension Defaults on De1Controller {
 
     // TODO: set flush, steam and hotwater defaults
     // TODO: set heater defaults
-    // TODO: send default/last profile
+
+    if (defaultWorkflow == null) {
+      return;
+    }
+    final defaultProfile = defaultWorkflow?.profile;
+    if (defaultProfile == null) {
+      return;
+    }
+    await _de1?.setProfile(defaultProfile);
   }
 }

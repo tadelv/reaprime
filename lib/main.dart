@@ -146,7 +146,7 @@ void main() async {
 
   final settingsController = SettingsController(SettingsService());
   final deviceController = DeviceController(services);
-  final de1Controller = De1Controller(controller: deviceController);
+  final de1Controller = De1Controller(controller: deviceController)..defaultWorkflow = workflowController.currentWorkflow;
   final scaleController = ScaleController(controller: deviceController);
   final sensorController = SensorController(controller: deviceController);
 

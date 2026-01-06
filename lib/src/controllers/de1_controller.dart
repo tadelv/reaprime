@@ -4,6 +4,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/home_feature/forms/hot_water_form.dart';
 import 'package:reaprime/src/home_feature/forms/steam_form.dart';
+import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:rxdart/subjects.dart';
@@ -12,6 +13,8 @@ part 'de1_controller.defaults.dart';
 
 class De1Controller {
   final DeviceController _deviceController;
+
+  Workflow? defaultWorkflow;
 
   De1Interface? _de1;
   final Logger _log = Logger("De1Controller");
