@@ -140,9 +140,6 @@ void main() async {
   } catch (e) {
     log.warning("loading default workflow failed", e);
   }
-  workflowController.addListener(() {
-    persistenceController.saveWorkflow(workflowController.currentWorkflow);
-  });
 
   final settingsController = SettingsController(SettingsService());
   final deviceController = DeviceController(services);
@@ -150,6 +147,10 @@ void main() async {
   final scaleController = ScaleController(controller: deviceController);
   final sensorController = SensorController(controller: deviceController);
 
+  workflowController.addListener(() {
+    persistenceController.saveWorkflow(workflowController.currentWorkflow);
+    de1Controller.defaultWorkflow = workflowController.currentWorkflow;
+  });
   final PluginLoaderService pluginService = PluginLoaderService(
     kvStore: HiveStoreService(defaultNamespace: "plugins")..initialize(),
   );
