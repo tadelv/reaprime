@@ -97,3 +97,377 @@ a user might wish to traverse and inspect how a certain profile has
 evolved. It is also a real possibility that eventually the `ProfileRecord`
 library will be synced with an actual Web API, allowing users to sign
 in to multiple devices and share their library across all of them.
+
+---
+
+## Implementation
+
+The Profiles API has been fully implemented following the requirements above. This section documents the architecture, usage, and available endpoints.
+
+### Architecture
+
+The implementation follows REA's standard layered architecture with clear separation of concerns:
+
+```
+┌─────────────────────────────────────┐
+│      REST API (ProfileHandler)      │  ← 11 endpoints
+├─────────────────────────────────────┤
+│   Business Logic (ProfileController)│  ← Validation, versioning, defaults
+├─────────────────────────────────────┤
+│  Storage Interface                  │  ← Abstract interface
+│  (ProfileStorageService)            │
+├─────────────────────────────────────┤
+│  Storage Implementation             │  ← Concrete Hive implementation
+│  (HiveProfileStorageService)        │
+└─────────────────────────────────────┘
+```
+
+#### Key Components
+
+**ProfileRecord** (`lib/src/models/data/profile_record.dart`)
+- Envelope around `Profile` with metadata
+- Fields: `id`, `profile`, `parentId`, `visibility`, `isDefault`, `createdAt`, `updatedAt`, `metadata`
+- Immutable with `copyWith` support
+- Full JSON serialization
+
+**Visibility Enum**
+- `visible`: Normal state, shown in UI
+- `hidden`: Hidden from UI but not deleted (used for default profiles)
+- `deleted`: Soft delete state (user profiles only, can be purged)
+
+**ProfileStorageService** (`lib/src/services/storage/profile_storage_service.dart`)
+- Abstract interface defining all storage operations
+- Allows swapping implementations (Hive, SQLite, etc.)
+- Methods: `store`, `get`, `getAll`, `update`, `delete`, `getByParentId`, `storeAll`, `count`
+
+**HiveProfileStorageService** (`lib/src/services/storage/hive_profile_storage.dart`)
+- Concrete implementation using Hive NoSQL storage
+- Box name: `'profiles'`
+- Fast key-value operations with filtering support
+- Batch operations for import/export
+
+**ProfileController** (`lib/src/controllers/profile_controller.dart`)
+- Business logic and validation layer
+- Auto-loads default profiles from `assets/defaultProfiles/` on first startup
+- Enforces default profile protection (cannot be deleted, only hidden)
+- Validates parent profile existence before creating children
+- Profile lineage tracking via `getLineage()`
+- Import/export with detailed results (imported/skipped/failed counts)
+- Exposes `profileCount` stream for UI updates
+
+**ProfileHandler** (`lib/src/services/webserver/profile_handler.dart`)
+- REST API endpoints with comprehensive error handling
+- Request validation and proper HTTP status codes
+- Logging for all operations
+
+### Default Profiles
+
+Default profiles are bundled in `assets/defaultProfiles/`:
+- `manifest.json`: Lists all default profile filenames
+- Individual `.json` files for each profile
+- Loaded automatically on first startup
+- Marked with `isDefault: true`
+- Cannot be permanently deleted (only hidden)
+- Can be restored via `/api/v1/profiles/restore/{filename}` endpoint
+
+### Profile Versioning
+
+Profiles support version tracking through parent-child relationships:
+
+```
+Original Profile (id: A, parentId: null)
+  ├── Modified v1 (id: B, parentId: A)
+  └── Modified v2 (id: C, parentId: A)
+        └── Modified v2.1 (id: D, parentId: C)
+```
+
+Use the `/api/v1/profiles/{id}/lineage` endpoint to retrieve the full version tree (all parents and children).
+
+### API Endpoints
+
+All endpoints return JSON and use appropriate HTTP status codes.
+
+#### List Profiles
+```http
+GET /api/v1/profiles
+```
+
+Query parameters:
+- `visibility`: Filter by visibility state (`visible`, `hidden`, `deleted`)
+- `includeHidden`: Include hidden profiles (boolean)
+- `parentId`: Filter by parent ID (for version tracking)
+
+Response: Array of `ProfileRecord` objects
+
+#### Get Single Profile
+```http
+GET /api/v1/profiles/{id}
+```
+
+Response: Single `ProfileRecord` object or 404 if not found
+
+#### Create Profile
+```http
+POST /api/v1/profiles
+Content-Type: application/json
+
+{
+  "profile": { /* Profile object */ },
+  "parentId": "optional-parent-uuid",
+  "metadata": { /* optional metadata */ }
+}
+```
+
+Response: Created `ProfileRecord` (201) or validation error (400)
+
+#### Update Profile
+```http
+PUT /api/v1/profiles/{id}
+Content-Type: application/json
+
+{
+  "profile": { /* Updated Profile object */ },
+  "metadata": { /* optional metadata */ }
+}
+```
+
+Note: Cannot modify the `profile` field of default profiles (only metadata).
+
+Response: Updated `ProfileRecord` (200) or error (400/404)
+
+#### Delete Profile
+```http
+DELETE /api/v1/profiles/{id}
+```
+
+Behavior:
+- Default profiles: Changes visibility to `hidden`
+- User profiles: Changes visibility to `deleted` (soft delete)
+
+Response: Success message with profile ID (200) or error (404)
+
+#### Change Visibility
+```http
+PUT /api/v1/profiles/{id}/visibility
+Content-Type: application/json
+
+{
+  "visibility": "visible" | "hidden" | "deleted"
+}
+```
+
+Note: Cannot set default profiles to `deleted` state.
+
+Response: Updated `ProfileRecord` (200) or error (400/404)
+
+#### Get Profile Lineage
+```http
+GET /api/v1/profiles/{id}/lineage
+```
+
+Returns the full version history/tree (all parents and children).
+
+Response: Array of `ProfileRecord` objects in lineage order
+
+#### Permanently Delete Profile
+```http
+DELETE /api/v1/profiles/{id}/purge
+```
+
+**Warning**: Permanently removes profile from storage. Cannot purge default profiles.
+
+Response: Success message (200) or error (400/404)
+
+#### Import Profiles
+```http
+POST /api/v1/profiles/import
+Content-Type: application/json
+
+[
+  { /* ProfileRecord */ },
+  { /* ProfileRecord */ },
+  ...
+]
+```
+
+Batch import from backup. Skips profiles that already exist.
+
+Response:
+```json
+{
+  "imported": 10,
+  "skipped": 2,
+  "failed": 0,
+  "errors": []
+}
+```
+
+#### Export Profiles
+```http
+GET /api/v1/profiles/export?includeHidden=false&includeDeleted=false
+```
+
+Query parameters:
+- `includeHidden`: Include hidden profiles (boolean, default: false)
+- `includeDeleted`: Include deleted profiles (boolean, default: false)
+
+Response: JSON array of all `ProfileRecord` objects
+
+#### Restore Default Profile
+```http
+POST /api/v1/profiles/restore/{filename}
+```
+
+Restores a bundled default profile from assets by filename (e.g., `best_practice.json`).
+
+Response: Restored `ProfileRecord` (200) or error (404)
+
+### Usage Examples
+
+**Create a new profile:**
+```bash
+curl -X POST http://localhost:8080/api/v1/profiles \
+  -H "Content-Type: application/json" \
+  -d '{
+    "profile": {
+      "version": "2",
+      "title": "My Custom Profile",
+      "author": "Jane Doe",
+      "beverage_type": "espresso",
+      "steps": [...],
+      "tank_temperature": 93
+    }
+  }'
+```
+
+**Create a modified version (child profile):**
+```bash
+curl -X POST http://localhost:8080/api/v1/profiles \
+  -H "Content-Type: application/json" \
+  -d '{
+    "profile": {...},
+    "parentId": "parent-profile-uuid"
+  }'
+```
+
+**Hide a default profile:**
+```bash
+curl -X DELETE http://localhost:8080/api/v1/profiles/{id}
+```
+
+**Restore a hidden default profile:**
+```bash
+curl -X PUT http://localhost:8080/api/v1/profiles/{id}/visibility \
+  -H "Content-Type: application/json" \
+  -d '{"visibility": "visible"}'
+```
+
+**Export all profiles for backup:**
+```bash
+curl http://localhost:8080/api/v1/profiles/export > profiles_backup.json
+```
+
+**Import profiles from backup:**
+```bash
+curl -X POST http://localhost:8080/api/v1/profiles/import \
+  -H "Content-Type: application/json" \
+  -d @profiles_backup.json
+```
+
+### Testing
+
+Unit tests are located in `test/profile_test.dart` and cover:
+- ProfileRecord serialization/deserialization
+- Storage CRUD operations
+- Default profile protection
+- Profile versioning and lineage tracking
+- Import/export functionality
+- Visibility state management
+
+Run tests with:
+```bash
+flutter test test/profile_test.dart
+```
+
+### Storage Details
+
+**Why Hive?**
+- Already integrated in REA
+- Native Dart/Flutter support
+- Excellent for document-oriented JSON storage
+- Fast key-value operations
+- No SQL migration complexity
+- Cross-platform support (all required platforms except web)
+
+**Performance Characteristics:**
+- Hive is fast for < 10,000 records
+- Profile libraries unlikely to exceed 1,000 profiles
+- No in-memory caching needed initially
+- Filtering by visibility is efficient enough
+- Batch operations optimize import/export
+
+**Future Considerations:**
+If storage needs change (e.g., complex queries, relationships), the abstract `ProfileStorageService` interface allows easy migration to SQLite or other systems without changing controller or API code.
+
+### Integration with Workflow API
+
+To use a profile with the DE1 machine, either:
+
+1. **Direct upload to machine:**
+```bash
+curl -X POST http://localhost:8080/api/v1/de1/profile \
+  -H "Content-Type: application/json" \
+  -d '{...profile...}'
+```
+
+2. **Via Workflow API (recommended):**
+```bash
+# Get the profile
+PROFILE=$(curl http://localhost:8080/api/v1/profiles/{id})
+
+# Update workflow with the profile
+curl -X PUT http://localhost:8080/api/v1/workflow \
+  -H "Content-Type: application/json" \
+  -d "{\"profile\": $(echo $PROFILE | jq '.profile')}"
+```
+
+The Workflow API approach updates the entire workflow context (profile + dose + grinder + coffee data).
+
+### Error Handling
+
+All endpoints follow consistent error handling:
+
+**400 Bad Request:**
+- Invalid visibility value
+- Missing required fields
+- Invalid parent ID
+- Attempting to delete/modify default profile incorrectly
+
+**404 Not Found:**
+- Profile ID doesn't exist
+- Default profile filename not found
+
+**500 Internal Server Error:**
+- Storage failures
+- Unexpected exceptions
+- Includes error message and stack trace in logs
+
+Example error response:
+```json
+{
+  "error": "Profile not found",
+  "id": "profile-uuid"
+}
+```
+
+### Future Enhancements
+
+- **Cloud Sync**: Sync profiles across devices via cloud API
+- **Change Tracking**: Detailed diff between profile versions
+- **Tags/Categories**: Organize profiles by category, beverage type, etc.
+- **Search**: Full-text search in profile metadata and content
+- **Sharing**: Share profiles with other users (export as shareable link)
+- **Auto-cleanup**: Configurable purge of old deleted profiles (e.g., 30 days)
+- **Conflict Resolution**: Handle sync conflicts when using multiple devices
+- **Profile Templates**: Pre-configured templates for common brewing styles
+

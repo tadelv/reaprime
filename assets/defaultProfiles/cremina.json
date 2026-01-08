@@ -1,0 +1,92 @@
+{
+  "title": "Cremina lever machine",
+  "author": "Decent",
+  "notes": "Aim for a 50 second shot time to have a thick espresso in the style of the much-loved Cremina manual lever machine. By Denis from KafaTek.\n\nDownloaded from Visualizer",
+  "beverage_type": "espresso",
+  "steps": [
+    {
+      "flow": "4",
+      "name": "preinfusion start",
+      "pump": "pressure",
+      "sensor": "coffee",
+      "volume": "100",
+      "weight": "0.0",
+      "limiter": {
+        "range": "0.6",
+        "value": "0"
+      },
+      "seconds": "2",
+      "pressure": "1.1",
+      "transition": "fast",
+      "temperature": "91.5"
+    },
+    {
+      "exit": {
+        "type": "pressure",
+        "value": "3.0",
+        "condition": "over"
+      },
+      "flow": "4",
+      "name": "preinfusion",
+      "pump": "pressure",
+      "sensor": "coffee",
+      "volume": "100",
+      "weight": "0.0",
+      "limiter": {
+        "range": "0.6",
+        "value": "0"
+      },
+      "seconds": "3",
+      "pressure": "1.1",
+      "transition": "fast",
+      "temperature": "91.5"
+    },
+    {
+      "flow": "0.0",
+      "name": "soak",
+      "pump": "pressure",
+      "sensor": "coffee",
+      "volume": "100",
+      "weight": "0",
+      "seconds": "10.0",
+      "pressure": "1.1",
+      "transition": "fast",
+      "temperature": "91.5"
+    },
+    {
+      "flow": "",
+      "name": "ramp",
+      "pump": "pressure",
+      "sensor": "coffee",
+      "volume": "100",
+      "weight": "0",
+      "seconds": "10.0",
+      "pressure": "9.0",
+      "transition": "smooth",
+      "temperature": "91.5"
+    },
+    {
+      "flow": "",
+      "name": "ramp-down",
+      "pump": "pressure",
+      "sensor": "coffee",
+      "volume": "100",
+      "weight": "0",
+      "seconds": "50.0",
+      "pressure": "3.0",
+      "transition": "smooth",
+      "temperature": "92.0"
+    }
+  ],
+  "tank_temperature": "0",
+  "target_weight": "0.0",
+  "target_volume": "0",
+  "target_volume_count_start": "0",
+  "legacy_profile_type": "settings_2c",
+  "type": "advanced",
+  "lang": "en",
+  "hidden": "0",
+  "reference_file": "Cremina_lever_machine",
+  "changes_since_last_espresso": "",
+  "version": "2"
+}

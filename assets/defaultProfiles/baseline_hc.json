@@ -1,0 +1,77 @@
+{
+  "title": "Espresso/Baseline HC",
+  "author": "longpvo",
+  "notes": "Reference shot was 19.6g in, 36g out. Might decrease step 2 timeout from 6 to 4 or 2, lower ratio if too acidic at that point.\n\nDownloaded from Visualizer",
+  "beverage_type": "espresso",
+  "steps": [
+    {
+      "exit": {
+        "type": "pressure",
+        "value": "5.0",
+        "condition": "over"
+      },
+      "flow": "12.0",
+      "name": "Fill (fast)",
+      "pump": "flow",
+      "sensor": "water",
+      "volume": "0",
+      "weight": "0.0",
+      "limiter": {
+        "range": "0",
+        "value": "0"
+      },
+      "seconds": "15.0",
+      "pressure": "0",
+      "transition": "fast",
+      "temperature": "83.5"
+    },
+    {
+      "exit": {
+        "type": "pressure",
+        "value": "3.0",
+        "condition": "under"
+      },
+      "flow": "0",
+      "name": "Soak (zero flow)",
+      "pump": "flow",
+      "sensor": "coffee",
+      "volume": "0",
+      "weight": "20.0",
+      "limiter": {
+        "range": "0",
+        "value": "0"
+      },
+      "seconds": "6.0",
+      "pressure": "0",
+      "transition": "fast",
+      "temperature": "63.5"
+    },
+    {
+      "flow": "0.0",
+      "name": "Percolation (flat)",
+      "pump": "pressure",
+      "sensor": "coffee",
+      "volume": "0",
+      "weight": "0.0",
+      "limiter": {
+        "range": "1.5",
+        "value": "0.75"
+      },
+      "seconds": "90.0",
+      "pressure": "8.0",
+      "transition": "fast",
+      "temperature": "63.5"
+    }
+  ],
+  "tank_temperature": "0",
+  "target_weight": "35.0",
+  "target_volume": "0",
+  "target_volume_count_start": "2",
+  "legacy_profile_type": "settings_2c",
+  "type": "advanced",
+  "lang": "en",
+  "hidden": "0",
+  "reference_file": "Baseline HC",
+  "changes_since_last_espresso": "",
+  "version": "2"
+}

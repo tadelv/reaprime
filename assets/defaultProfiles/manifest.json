@@ -1,0 +1,23 @@
+{
+  "version": "1.0.0",
+  "description": "Default espresso profiles bundled with REA Prime",
+  "profiles": [
+    "advanced_spring_lever.json",
+    "baseline_hc.json",
+    "baseline_lc.json",
+    "baseline_ulc.json",
+    "best_practice.json",
+    "Cleaning__Forward_Flush_x5_2.json",
+    "cremina.json",
+    "D-Flow____default.json",
+    "Default1.json",
+    "Gentle_and_sweet1.json",
+    "icbinf.json",
+    "manual_flow.json",
+    "manual_pressure.json",
+    "psph.json",
+    "Rao_Allongé_3.json",
+    "rohan-soup.json"
+  ]
+}
+

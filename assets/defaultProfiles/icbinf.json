@@ -1,0 +1,120 @@
+{
+  "title": "I Can't Believe It's Not Filter",
+  "author": "Decent",
+  "notes": "Dynamic bloom into pressure extraction. Based on the 'easy blooming' profile structure from Luca and Stephane and modified to primarily target high extraction grinders at high flow rates, typically ending around 3-4.5ml/s. Dial with ratio once grind is giving an ending flowrate in the range. Includes a significant temperature drop that reduces harshness (although the actual temperature drop is much less than programmed). By Joe D.\n\nDownloaded from Visualizer",
+  "beverage_type": "espresso",
+  "steps": [
+    {
+      "exit": {
+        "type": "pressure",
+        "value": "5.00",
+        "condition": "over"
+      },
+      "flow": "1.0",
+      "name": "saturation",
+      "pump": "flow",
+      "sensor": "water",
+      "volume": "50.00",
+      "weight": "10.00",
+      "limiter": {
+        "range": "3.0",
+        "value": "0"
+      },
+      "seconds": "20.00",
+      "pressure": "8.0",
+      "transition": "fast",
+      "temperature": "96.0"
+    },
+    {
+      "flow": "0",
+      "name": "bloom",
+      "pump": "flow",
+      "sensor": "water",
+      "volume": "0",
+      "weight": "0",
+      "limiter": {
+        "range": "5.0",
+        "value": "0"
+      },
+      "seconds": "1",
+      "pressure": "6.0",
+      "transition": "fast",
+      "temperature": "96.0"
+    },
+    {
+      "flow": "1.0",
+      "name": "percolation",
+      "pump": "flow",
+      "sensor": "water",
+      "volume": "0.00",
+      "weight": "0.0",
+      "limiter": {
+        "range": "5.0",
+        "value": "0"
+      },
+      "seconds": "127",
+      "pressure": "6.0000000000000036",
+      "transition": "fast",
+      "temperature": "96.0"
+    },
+    {
+      "flow": "1.0",
+      "name": "percolation",
+      "pump": "flow",
+      "sensor": "water",
+      "volume": "0.00",
+      "weight": "0.0",
+      "limiter": {
+        "range": "5.0",
+        "value": "0"
+      },
+      "seconds": "127",
+      "pressure": "6.0000000000000036",
+      "transition": "fast",
+      "temperature": "96.0"
+    },
+    {
+      "flow": "1.0",
+      "name": "percolation",
+      "pump": "flow",
+      "sensor": "water",
+      "volume": "0.00",
+      "weight": "0.0",
+      "limiter": {
+        "range": "5.0",
+        "value": "0"
+      },
+      "seconds": "127",
+      "pressure": "6.0000000000000036",
+      "transition": "fast",
+      "temperature": "96.0"
+    },
+    {
+      "flow": "1.0",
+      "name": "percolation",
+      "pump": "flow",
+      "sensor": "water",
+      "volume": "0.00",
+      "weight": "0.0",
+      "limiter": {
+        "range": "5.0",
+        "value": "0"
+      },
+      "seconds": "127",
+      "pressure": "6.0000000000000036",
+      "transition": "fast",
+      "temperature": "96.0"
+    }
+  ],
+  "tank_temperature": "0",
+  "target_weight": "225.0",
+  "target_volume": "0",
+  "target_volume_count_start": "2",
+  "legacy_profile_type": "settings_2c",
+  "type": "advanced",
+  "lang": "en",
+  "hidden": "0",
+  "reference_file": "I_Cant_Believe_Its_Not_Filter",
+  "changes_since_last_espresso": "",
+  "version": "2"
+}

@@ -1,0 +1,77 @@
+{
+  "title": "Visualizer/Baseline LC",
+  "author": "longpvo",
+  "notes": "Baseline • Low Contact • 4 Bar 1. The extraction ratio is 20g:50g–60g, taste the shot and assess the mouthfeel and acidity balance of the shot: - adjust your final desire shot weight accordingly to your dose - dial a base ratio to enjoyable perceived acidity according to your current water buffer capacity and how your grinder/burr behaves - if the shot is too heavy, increase the yield (it should be more juicy and light) - if the shot is too light, decrease the yield (it should be more denser and heavy) 2. Fast Fill: - prioritize filling the available headspace quickly with a 2.5 bar pressure-target cutoff (pressure-drop exit is 1.5 bar or 2 seconds contact maximum) - consider the basket volume and puck volume relationship (more headspace means a longer fill time while the puck is losing solubles) 3. Zero Flow Soak: - the goal is to push water through the puck and evenly saturate it quickly, then wait (the duration in which pressure drops from peak to exit determines the contact time, the profile has time-out clutch if there is too much resistance from the puck) - a fast puck generally outflows more and decline from initial peak pressure sooner and vice versa - higher packing density from finer grind and more puck compaction takes longer to fully saturate - ideally the goal of zero flow soak is to saturate the puck fully in the shortest time (the longer it \"dwells\" the more it accentuates fuller notes and at the same time the puck will have lost solubles and back-pressure so it will fall apart drastically upon percolation) - if you would like to reduce the acidity of your shot while keeping everything else the same, you can extend contact time by decreasing the soak exit pressure or increasing the time-out at this point 4. Declining Pressure and Temperature: - as the percolation progresses, the pressure declines as flow rate increases upto 4.5–6 mL/s - the profile is programmed to saturate the puck during fill and progressive soak at a fixed flat temperature agnostic of the thermal loss from puck absorption - once saturation is completed, temperature is programmed to track the equalized temperature of the puck and the water above it at the shower screen. Temperature decreases towards the end of percolation to reduce extraction efficiency - the nature of temperature decline is based on ambient conditions and your workflow (cold vs hot preparation) - recommended temperature targets for different roast and solubility levels: - Extremely Light–Light: 86°C→66°C to 82°C→62°C - Medium Light–Medium Dark: 82°C→62°C to 78°C→58°C - Dark–Extremely Dark: 78°C→58°C to 74°C→54°C By longpvo.\n\nDownloaded from Visualizer",
+  "beverage_type": "espresso",
+  "steps": [
+    {
+      "exit": {
+        "type": "pressure",
+        "value": "2.5",
+        "condition": "over"
+      },
+      "flow": "12.0",
+      "name": "Fill (fast)",
+      "pump": "flow",
+      "sensor": "water",
+      "volume": "0",
+      "weight": "0.0",
+      "limiter": {
+        "range": "0",
+        "value": "0"
+      },
+      "seconds": "10.0",
+      "pressure": "0",
+      "transition": "fast",
+      "temperature": "85.0"
+    },
+    {
+      "exit": {
+        "type": "pressure",
+        "value": "1.5",
+        "condition": "under"
+      },
+      "flow": "0",
+      "name": "Soak (zero flow)",
+      "pump": "flow",
+      "sensor": "coffee",
+      "volume": "0",
+      "weight": "10.0",
+      "limiter": {
+        "range": "0",
+        "value": "0"
+      },
+      "seconds": "2.0",
+      "pressure": "0",
+      "transition": "fast",
+      "temperature": "65.0"
+    },
+    {
+      "flow": "0.0",
+      "name": "Percolation (flat)",
+      "pump": "pressure",
+      "sensor": "coffee",
+      "volume": "0",
+      "weight": "0.0",
+      "limiter": {
+        "range": "3.5",
+        "value": "2.5"
+      },
+      "seconds": "90.0",
+      "pressure": "4.0",
+      "transition": "fast",
+      "temperature": "65.0"
+    }
+  ],
+  "tank_temperature": "0",
+  "target_weight": "54",
+  "target_volume": "0",
+  "target_volume_count_start": "2",
+  "legacy_profile_type": "settings_2c",
+  "type": "advanced",
+  "lang": "en",
+  "hidden": "0",
+  "reference_file": "Visualizer__Baseline_LC",
+  "changes_since_last_espresso": "",
+  "version": "2"
+}

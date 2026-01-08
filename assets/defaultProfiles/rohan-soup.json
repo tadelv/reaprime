@@ -1,0 +1,77 @@
+{
+  "title": "Soup 58",
+  "author": "Decent",
+  "notes": "Dynamic bloom into pressure extraction. Based on the 'easy blooming' profile structure from Luca and Stephane and modified to primarily target high extraction grinders at high flow rates, typically ending around 3-4.5ml/s. Dial with ratio once grind is giving an ending flowrate in the range. Includes a significant temperature drop that reduces harshness (although the actual temperature drop is much less than programmed). By Joe D.\n\nDownloaded from Visualizer",
+  "beverage_type": "espresso",
+  "steps": [
+    {
+      "exit": {
+        "type": "pressure",
+        "value": "5.00",
+        "condition": "over"
+      },
+      "flow": "2.0",
+      "name": "temp comp",
+      "pump": "flow",
+      "sensor": "coffee",
+      "volume": "100",
+      "weight": "0.0",
+      "limiter": {
+        "range": "3.0",
+        "value": "0"
+      },
+      "seconds": "2.00",
+      "pressure": "8.0",
+      "transition": "fast",
+      "temperature": "86.5"
+    },
+    {
+      "exit": {
+        "type": "pressure",
+        "value": "5.00",
+        "condition": "over"
+      },
+      "flow": "2.0",
+      "name": "puck wetting",
+      "pump": "flow",
+      "sensor": "water",
+      "volume": "200",
+      "weight": "20.0",
+      "limiter": {
+        "range": "3.0",
+        "value": "0"
+      },
+      "seconds": "60",
+      "pressure": "8.0",
+      "transition": "fast",
+      "temperature": "81.5"
+    },
+    {
+      "flow": "3.0",
+      "name": "4 mlps",
+      "pump": "flow",
+      "sensor": "coffee",
+      "volume": "500",
+      "weight": "0",
+      "limiter": {
+        "range": "5.0",
+        "value": "2.0"
+      },
+      "seconds": "60.00",
+      "pressure": "6.0000000000000036",
+      "transition": "fast",
+      "temperature": "10.0"
+    }
+  ],
+  "tank_temperature": "0",
+  "target_weight": "90.0",
+  "target_volume": "0",
+  "target_volume_count_start": "2",
+  "legacy_profile_type": "settings_2c",
+  "type": "advanced",
+  "lang": "en",
+  "hidden": "0",
+  "reference_file": "Soup_58",
+  "changes_since_last_espresso": "",
+  "version": "2"
+}

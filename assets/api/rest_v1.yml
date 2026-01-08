@@ -595,6 +595,369 @@ paths:
               schema:
                 type: object
 
+  # Profiles API
+  /api/v1/profiles:
+    get:
+      summary: Get all profiles
+      description: Retrieves all profiles, optionally filtered by visibility or parent ID
+      tags: [Profiles]
+      parameters:
+        - name: visibility
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [visible, hidden, deleted]
+          description: Filter profiles by visibility state
+        - name: includeHidden
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Include hidden profiles in results
+        - name: parentId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter profiles by parent ID (for version tracking)
+      responses:
+        "200":
+          description: Array of profile records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProfileRecord'
+        "400":
+          description: Bad Request (invalid visibility value)
+        "500":
+          description: Internal Server Error
+    
+    post:
+      summary: Create new profile
+      description: Creates a new profile record with optional parent reference
+      tags: [Profiles]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - profile
+              properties:
+                profile:
+                  $ref: '#/components/schemas/Profile'
+                parentId:
+                  type: string
+                  nullable: true
+                  description: ID of parent profile (for versioning)
+                metadata:
+                  type: object
+                  nullable: true
+                  description: Additional metadata
+      responses:
+        "201":
+          description: Profile created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileRecord'
+        "400":
+          description: Bad Request (missing required fields or invalid parent ID)
+        "500":
+          description: Internal Server Error
+
+  /api/v1/profiles/{id}:
+    get:
+      summary: Get profile by ID
+      description: Retrieves a single profile record by its ID
+      tags: [Profiles]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Profile ID
+      responses:
+        "200":
+          description: Profile found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileRecord'
+        "404":
+          description: Profile not found
+        "500":
+          description: Internal Server Error
+    
+    put:
+      summary: Update profile
+      description: Updates an existing profile. Cannot modify default profiles' content, only metadata.
+      tags: [Profiles]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Profile ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                profile:
+                  $ref: '#/components/schemas/Profile'
+                  nullable: true
+                metadata:
+                  type: object
+                  nullable: true
+      responses:
+        "200":
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileRecord'
+        "400":
+          description: Bad Request (profile not found or cannot modify default profile)
+        "500":
+          description: Internal Server Error
+    
+    delete:
+      summary: Delete profile
+      description: Soft deletes a user profile or hides a default profile
+      tags: [Profiles]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Profile ID
+      responses:
+        "200":
+          description: Profile deleted/hidden successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  id:
+                    type: string
+        "404":
+          description: Profile not found
+        "500":
+          description: Internal Server Error
+
+  /api/v1/profiles/{id}/visibility:
+    put:
+      summary: Change profile visibility
+      description: Changes the visibility state of a profile (visible, hidden, deleted)
+      tags: [Profiles]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Profile ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - visibility
+              properties:
+                visibility:
+                  type: string
+                  enum: [visible, hidden, deleted]
+                  description: New visibility state
+      responses:
+        "200":
+          description: Visibility changed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileRecord'
+        "400":
+          description: Bad Request (invalid visibility or cannot delete default profile)
+        "404":
+          description: Profile not found
+        "500":
+          description: Internal Server Error
+
+  /api/v1/profiles/{id}/lineage:
+    get:
+      summary: Get profile lineage
+      description: Retrieves the full version history/lineage of a profile (parents and children)
+      tags: [Profiles]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Profile ID
+      responses:
+        "200":
+          description: Profile lineage retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProfileRecord'
+        "404":
+          description: Profile not found
+        "500":
+          description: Internal Server Error
+
+  /api/v1/profiles/{id}/purge:
+    delete:
+      summary: Permanently delete profile
+      description: Permanently removes a profile from storage. Cannot purge default profiles. Use with caution.
+      tags: [Profiles]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Profile ID
+      responses:
+        "200":
+          description: Profile permanently deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  id:
+                    type: string
+        "400":
+          description: Bad Request (cannot purge default profiles)
+        "404":
+          description: Profile not found
+        "500":
+          description: Internal Server Error
+
+  /api/v1/profiles/import:
+    post:
+      summary: Import profiles
+      description: Batch import profiles from JSON array (e.g., from backup)
+      tags: [Profiles]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/ProfileRecord'
+      responses:
+        "200":
+          description: Import completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  imported:
+                    type: integer
+                    description: Number of profiles successfully imported
+                  skipped:
+                    type: integer
+                    description: Number of profiles skipped (already exist)
+                  failed:
+                    type: integer
+                    description: Number of profiles that failed to import
+                  errors:
+                    type: array
+                    items:
+                      type: string
+                    description: Error messages for failed imports
+        "500":
+          description: Internal Server Error
+
+  /api/v1/profiles/export:
+    get:
+      summary: Export profiles
+      description: Exports all profiles as JSON array for backup
+      tags: [Profiles]
+      parameters:
+        - name: includeHidden
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Include hidden profiles in export
+        - name: includeDeleted
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Include deleted profiles in export
+      responses:
+        "200":
+          description: Profiles exported successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProfileRecord'
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              description: 'attachment; filename="profiles_export.json"'
+        "500":
+          description: Internal Server Error
+
+  /api/v1/profiles/restore/{filename}:
+    post:
+      summary: Restore default profile
+      description: Restores a bundled default profile from assets by filename
+      tags: [Profiles]
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Filename of the default profile in assets
+      responses:
+        "200":
+          description: Default profile restored successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileRecord'
+        "404":
+          description: Default profile not found
+        "500":
+          description: Internal Server Error
+
 components:
   schemas:
     Error:
@@ -1163,3 +1526,50 @@ components:
                 enum: ['websocket']
               data:
                 type: object
+
+    ProfileRecord:
+      type: object
+      required:
+        - id
+        - profile
+        - visibility
+        - isDefault
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the profile record
+        profile:
+          $ref: '#/components/schemas/Profile'
+          description: The actual profile data
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID of the parent profile for version tracking
+        visibility:
+          $ref: '#/components/schemas/Visibility'
+          description: Current visibility state of the profile
+        isDefault:
+          type: boolean
+          description: Whether this is a bundled default profile (cannot be permanently deleted)
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the profile was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the profile was last updated
+        metadata:
+          type: object
+          nullable: true
+          description: Additional metadata for the profile (e.g., tags, categories)
+          additionalProperties: true
+
+    Visibility:
+      type: string
+      enum: [visible, hidden, deleted]
+      description: Visibility state of a profile. 'visible' = shown in UI, 'hidden' = hidden from UI but not deleted, 'deleted' = soft-deleted (user profiles only)

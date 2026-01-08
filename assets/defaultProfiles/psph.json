@@ -1,0 +1,77 @@
+{
+  "title": "PSPH",
+  "author": "Decent",
+  "notes": "Dynamic bloom into pressure extraction. Based on the 'easy blooming' profile structure from Luca and Stephane and modified to primarily target high extraction grinders at high flow rates, typically ending around 3-4.5ml/s. Dial with ratio once grind is giving an ending flowrate in the range. Includes a significant temperature drop that reduces harshness (although the actual temperature drop is much less than programmed). By Joe D.\n\nDownloaded from Visualizer",
+  "beverage_type": "espresso",
+  "steps": [
+    {
+      "exit": {
+        "type": "pressure",
+        "value": "5.00",
+        "condition": "over"
+      },
+      "flow": "4.0",
+      "name": "temp comp",
+      "pump": "flow",
+      "sensor": "coffee",
+      "volume": "100",
+      "weight": "0.0",
+      "limiter": {
+        "range": "3.0",
+        "value": "0"
+      },
+      "seconds": "2.00",
+      "pressure": "8.0",
+      "transition": "fast",
+      "temperature": "86.5"
+    },
+    {
+      "exit": {
+        "type": "pressure",
+        "value": "5.00",
+        "condition": "over"
+      },
+      "flow": "4.0",
+      "name": "puck wetting",
+      "pump": "flow",
+      "sensor": "water",
+      "volume": "100",
+      "weight": "4.00",
+      "limiter": {
+        "range": "3.0",
+        "value": "0"
+      },
+      "seconds": "20.00",
+      "pressure": "8.0",
+      "transition": "fast",
+      "temperature": "81.5"
+    },
+    {
+      "flow": "7.0",
+      "name": "6 mlps",
+      "pump": "flow",
+      "sensor": "coffee",
+      "volume": "120.00",
+      "weight": "0",
+      "limiter": {
+        "range": "5.0",
+        "value": "2.0"
+      },
+      "seconds": "60.00",
+      "pressure": "6.0000000000000036",
+      "transition": "fast",
+      "temperature": "61.5"
+    }
+  ],
+  "tank_temperature": "0",
+  "target_weight": "45.0",
+  "target_volume": "0",
+  "target_volume_count_start": "2",
+  "legacy_profile_type": "settings_2c",
+  "type": "advanced",
+  "lang": "en",
+  "hidden": "0",
+  "reference_file": "PSPH",
+  "changes_since_last_espresso": "",
+  "version": "2"
+}
