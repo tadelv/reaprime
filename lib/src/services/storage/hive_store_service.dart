@@ -21,7 +21,6 @@ class HiveStoreService implements KeyValueStoreService {
 
   @override
   Future<void> initialize() async {
-    await Hive.initFlutter("store");
     _boxes["default"] = await Hive.openBox(defaultNamespace);
   }
 

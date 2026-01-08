@@ -91,3 +91,4 @@ flutter:
     - assets/plugins/time-to-ready.reaplugin/
     - assets/plugins/visualizer.reaplugin/
     - assets/plugins/settings.reaplugin/
+    - assets/defaultProfiles/
