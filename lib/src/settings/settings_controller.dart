@@ -28,12 +28,15 @@ class SettingsController with ChangeNotifier {
 
   late double _weightFlowMultiplier;
 
+  late double _volumeFlowMultiplier;
+
   // Allow Widgets to read the user's preferred ThemeMode.
   ThemeMode get themeMode => _themeMode;
   GatewayMode get gatewayMode => _gatewayMode;
   String get logLevel => _logLevel;
   bool get simulatedDevices => _simulatedDevices;
   double get weightFlowMultiplier => _weightFlowMultiplier;
+  double get volumeFlowMultiplier => _volumeFlowMultiplier;
 
   /// Load the user's settings from the SettingsService. It may load from a
   /// local database or the internet. The controller only knows it can load the
@@ -44,6 +47,7 @@ class SettingsController with ChangeNotifier {
     _logLevel = await _settingsService.logLevel();
     _simulatedDevices = await _settingsService.simulateDevices();
     _weightFlowMultiplier = await _settingsService.weightFlowMultiplier();
+    _volumeFlowMultiplier = await _settingsService.volumeFlowMultiplier();
 
     // Important! Inform listeners a change has occurred.
     notifyListeners();
@@ -116,6 +120,15 @@ class SettingsController with ChangeNotifier {
     }
     _weightFlowMultiplier = value;
     await _settingsService.setWeightFlowMultiplier(value);
+    notifyListeners();
+  }
+
+  Future<void> setVolumeFlowMultiplier(double value) async {
+    if (value == _volumeFlowMultiplier) {
+      return;
+    }
+    _volumeFlowMultiplier = value;
+    await _settingsService.setVolumeFlowMultiplier(value);
     notifyListeners();
   }
 }

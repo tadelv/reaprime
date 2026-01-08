@@ -17,11 +17,13 @@ class SettingsHandler {
       final webPath = _webUIService.serverPath();
       final logLevel = _controller.logLevel;
       final weightFlowMultiplier = _controller.weightFlowMultiplier;
+      final volumeFlowMultiplier = _controller.volumeFlowMultiplier;
       return {
         'gatewayMode': gatewayMode,
         'webUiPath': webPath,
         'logLevel': logLevel,
         'weightFlowMultiplier': weightFlowMultiplier,
+        'volumeFlowMultiplier': volumeFlowMultiplier,
       };
     });
     app.post('/api/v1/settings', (Request request) async {
@@ -54,6 +56,16 @@ class SettingsHandler {
         } else {
           return Response.badRequest(
             body: {'message': 'weightFlowMultiplier must be a number'},
+          );
+        }
+      }
+      if (json.containsKey('volumeFlowMultiplier')) {
+        final value = json['volumeFlowMultiplier'];
+        if (value is num) {
+          await _controller.setVolumeFlowMultiplier(value.toDouble());
+        } else {
+          return Response.badRequest(
+            body: {'message': 'volumeFlowMultiplier must be a number'},
           );
         }
       }

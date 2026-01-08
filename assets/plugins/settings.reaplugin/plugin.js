@@ -328,6 +328,22 @@ function createPlugin(host) {
                         <span class="setting-label">Web UI Path</span>
                         <span class="readonly" aria-label="Web UI path is read-only">${reaSettings.webUiPath || 'N/A'}</span>
                     </div>
+                    <div class="setting-item">
+                        <label class="setting-label" for="weightFlowMultiplier">Weight Flow Multiplier</label>
+                        <div class="setting-control">
+                            <input type="number" id="weightFlowMultiplier" value="${reaSettings.weightFlowMultiplier !== undefined ? reaSettings.weightFlowMultiplier : 1.0}" step="0.1" min="0" max="5" aria-describedby="weightFlowMultiplier-desc">
+                            <span id="weightFlowMultiplier-desc" class="visually-hidden">Multiplier for projected weight calculation. Higher values stop shots earlier.</span>
+                            <button class="btn btn-primary" onclick="updateReaSetting('weightFlowMultiplier', parseFloat(document.getElementById('weightFlowMultiplier').value))" aria-label="Save weight flow multiplier setting">Save</button>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label" for="volumeFlowMultiplier">Volume Flow Multiplier (s)</label>
+                        <div class="setting-control">
+                            <input type="number" id="volumeFlowMultiplier" value="${reaSettings.volumeFlowMultiplier !== undefined ? reaSettings.volumeFlowMultiplier : 0.3}" step="0.05" min="0" max="2" aria-describedby="volumeFlowMultiplier-desc">
+                            <span id="volumeFlowMultiplier-desc" class="visually-hidden">Look-ahead time in seconds for projected volume calculation. Accounts for system lag.</span>
+                            <button class="btn btn-primary" onclick="updateReaSetting('volumeFlowMultiplier', parseFloat(document.getElementById('volumeFlowMultiplier').value))" aria-label="Save volume flow multiplier setting">Save</button>
+                        </div>
+                    </div>
                 </div>
             ` : '<div class="error" role="alert" aria-live="assertive">Failed to load REA settings</div>'}
             </section>
@@ -577,7 +593,7 @@ function createPlugin(host) {
   // Return the plugin object
   return {
     id: "settings.reaplugin",
-    version: "0.0.2",
+    version: "0.0.3",
 
     onLoad(settings) {
       state.refreshInterval = settings.RefreshInterval !== undefined ? settings.RefreshInterval : 5;

@@ -66,6 +66,14 @@ class SettingsService {
   Future<void> setWeightFlowMultiplier(double value) async {
     await prefs.setDouble(SettingsKeys.weightFlowMultiplier.name, value);
   }
+
+  Future<double> volumeFlowMultiplier() async {
+    return await prefs.getDouble(SettingsKeys.volumeFlowMultiplier.name) ?? 0.3;
+  }
+
+  Future<void> setVolumeFlowMultiplier(double value) async {
+    await prefs.setDouble(SettingsKeys.volumeFlowMultiplier.name, value);
+  }
 }
 
 enum SettingsKeys {
@@ -75,4 +83,5 @@ enum SettingsKeys {
   recordShotPreheat,
   simulateDevices,
   weightFlowMultiplier,
+  volumeFlowMultiplier,
 }

@@ -918,6 +918,18 @@ components:
           type: string
           enum: [ALL,FINEST,FINER,FINE,CONFIG,INFO,WARNING,SEVERE,SHOUT,OFF]
           nullable: true
+        weightFlowMultiplier:
+          description: Multiplier factor applied to weight flow for projected weight calculation when stopping shots by weight. Default is 1.0. Higher values stop the shot earlier, lower values stop later.
+          type: number
+          format: double
+          nullable: true
+          example: 1.0
+        volumeFlowMultiplier:
+          description: Multiplier factor (in seconds) applied to machine flow for projected volume calculation when stopping shots by volume. Default is 0.3. This accounts for system lag between stop command and actual flow stop.
+          type: number
+          format: double
+          nullable: true
+          example: 0.3
 
     ReaSettings:
       type: object
@@ -933,6 +945,16 @@ components:
           description: Current REA log level
           type: string
           enum: [ALL,FINEST,FINER,FINE,CONFIG,INFO,WARNING,SEVERE,SHOUT,OFF]
+        weightFlowMultiplier:
+          description: Multiplier factor applied to weight flow for projected weight calculation when stopping shots by weight. Default is 1.0. Higher values stop the shot earlier, lower values stop later.
+          type: number
+          format: double
+          example: 1.0
+        volumeFlowMultiplier:
+          description: Multiplier factor (in seconds) applied to machine flow for projected volume calculation when stopping shots by volume. Default is 0.3. This accounts for system lag between stop command and actual flow stop.
+          type: number
+          format: double
+          example: 0.3
 
     SensorManifest:
       type: object
@@ -1088,6 +1110,11 @@ components:
           $ref: "#/components/schemas/MachineSnapshot"
         scale:
           $ref: "#/components/schemas/WeightSnapshot"
+        volume:
+          type: number
+          format: double
+          nullable: true
+          description: Accumulated volume in milliliters (ml) since shot start, calculated by integrating machine flow over time. Only counted from profile frame specified in targetVolumeCountStart.
 
     WeightSnapshot:
       type: object

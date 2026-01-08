@@ -23,6 +23,7 @@ class ShotController {
 
   late bool _bypassSAW;
   late double _weightFlowMultiplier;
+  late double _volumeFlowMultiplier;
 
   // Skip step on weight specific
   List<int> skippedSteps = [];
@@ -47,8 +48,9 @@ class ShotController {
   Future<void> _initialize() async {
     _bypassSAW = await SettingsService().gatewayMode() == GatewayMode.full;
     _weightFlowMultiplier = await SettingsService().weightFlowMultiplier();
+    _volumeFlowMultiplier = await SettingsService().volumeFlowMultiplier();
     _log.info(
-      "Initializing ShotController (weightFlowMultiplier: $_weightFlowMultiplier)",
+      "Initializing ShotController (weightFlowMultiplier: $_weightFlowMultiplier, volumeFlowMultiplier: $_volumeFlowMultiplier)",
     );
     try {
       final state = await scaleController.connectionState.first;
@@ -256,8 +258,9 @@ class ShotController {
         if (!_bypassSAW &&
             scale == null &&
             (targetProfile.targetVolume ?? 0) > 0) {
-          // Account for about a 300ms delay until next frame, might as well stop here
-          final projectedVolume = _accumulatedVolume + (machine.flow * 0.3);
+          // Use volumeFlowMultiplier to project future volume and stop at the right time
+          final projectedVolume =
+              _accumulatedVolume + (machine.flow * _volumeFlowMultiplier);
           if (projectedVolume > targetProfile.targetVolume!) {
             _log.info(
               "Target volume ${targetProfile.targetVolume}ml reached (projected: $projectedVolume). Stopping shot.",
