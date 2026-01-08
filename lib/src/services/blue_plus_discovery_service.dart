@@ -15,6 +15,8 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
       StreamController.broadcast();
   final Set<String> _devicesBeingCreated = {};
 
+  StreamSubscription<String>? _logSubscription;
+
   BluePlusDiscoveryService({
     required Map<String, Future<Device> Function(BLETransport)> mappings,
   }) : deviceMappings = mappings.map((k, v) {
@@ -32,18 +34,18 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
     try {
       final transport = BluePlusTransport(remoteId: deviceId);
       final device = await deviceFactory(transport);
-      
+
       // Double-check device wasn't added while we were creating it
       if (_devices.firstWhereOrNull((d) => d.deviceId == deviceId) != null) {
         _log.fine("Device $deviceId already added, skipping duplicate");
         return;
       }
-      
+
       // Add device to list
       _devices.add(device);
       _deviceStreamController.add(_devices);
       _log.info("Device $deviceId added successfully");
-      
+
       // Set up cleanup listener for when device disconnects.
       // We use skip(1) to ignore the current connection state that was set during
       // device creation/inspection (e.g., MachineParser connecting and inspecting).
@@ -52,7 +54,9 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
       StreamSubscription? sub;
       sub = device.connectionState.skip(1).listen((event) {
         if (event == ConnectionState.disconnected) {
-          _log.info("Device $deviceId disconnected, removing from discovery list");
+          _log.info(
+            "Device $deviceId disconnected, removing from discovery list",
+          );
           _devices.removeWhere((d) => d.deviceId == deviceId);
           _deviceStreamController.add(_devices);
           sub?.cancel();
@@ -68,6 +72,9 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
 
   @override
   Future<void> initialize() async {
+    _logSubscription = FlutterBluePlus.logs.listen((logMessage) {
+      _log.fine("BP Native: $logMessage");
+    });
     await FlutterBluePlus.setOptions(showPowerAlert: true);
     _log.info("initialized");
   }
@@ -83,41 +90,44 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
       }
       ScanResult r = results.last; // the most recently found device
       final deviceId = r.device.remoteId.str;
-      
+
       // Check if device already exists or is being created
-      if (_devices.firstWhereOrNull((element) => element.deviceId == deviceId) != null) {
+      if (_devices.firstWhereOrNull(
+            (element) => element.deviceId == deviceId,
+          ) !=
+          null) {
         _log.fine(
           "duplicate device scanned ${r.device.remoteId}, ${r.advertisementData.advName}",
         );
         return;
       }
-      
+
       if (_devicesBeingCreated.contains(deviceId)) {
         _log.fine(
           "device already being created ${r.device.remoteId}, ${r.advertisementData.advName}",
         );
         return;
       }
-      
+
       _log.fine(
         '${r.device.remoteId}: "${r.advertisementData.advName}" found!',
       );
-      
+
       final s = r.advertisementData.serviceUuids.firstWhereOrNull(
         (adv) => deviceMappings.keys.map((e) => Guid(e)).toList().contains(adv),
       );
       if (s == null) {
         return;
       }
-      
+
       final deviceFactory = deviceMappings[s.str];
       if (deviceFactory == null) {
         return;
       }
-      
+
       // Mark device as being created to prevent duplicates
       _devicesBeingCreated.add(deviceId);
-      
+
       // Create device asynchronously without blocking the listener
       _createDevice(deviceId, deviceFactory);
     }, onError: (e) => _log.warning(e));
@@ -147,10 +157,3 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
     });
   }
 }
-
-
-
-
-
-
-

@@ -1,6 +1,5 @@
 part of 'unified_de1.dart';
 
-
 extension UnifiedDe1Profile on UnifiedDe1 {
   Future<void> _sendProfile(Profile profile) async {
     await _writeHeader(profile);
@@ -32,9 +31,9 @@ extension UnifiedDe1Profile on UnifiedDe1 {
     // write frames
     for (var i = 0; i < profile.steps.length; i++) {
       var step = profile.steps[i];
-			_log.fine("encoding step ${step.name}");
-			_log.fine("limiter: ${step.limiter?.toJson()}");
-			_log.fine("exit: ${step.exit?.toJson()}");
+      _log.fine("encoding step ${step.name}");
+      _log.fine("limiter: ${step.limiter?.toJson()}");
+      _log.fine("exit: ${step.exit?.toJson()}");
       Uint8List data = Uint8List(8);
 
       int index = 0;
@@ -63,8 +62,8 @@ extension UnifiedDe1Profile on UnifiedDe1 {
 
       data[0] = stepIndex;
 
-      if (step.limiter == null) {
-        await _transport.writeWithResponse(Endpoint.frameWrite, data);
+      if (step.limiter == null || step.limiter?.value == 0) {
+        // await _transport.writeWithResponse(Endpoint.frameWrite, data);
         continue;
       }
       double limiterValue = step.limiter!.value;
@@ -88,7 +87,8 @@ extension UnifiedDe1Profile on UnifiedDe1 {
 
     data[0] = profile.steps.length;
 
-    Helper.convert_float_to_U10P0_for_tail(profile.targetVolume ?? 0, data, 1);
+    // Ignore writing shot vol limit, it's not compatible with active scale and breaks with high PI flows.
+    // Helper.convert_float_to_U10P0_for_tail(profile.targetVolume ?? 0, data, 1);
 
     data[3] = 0;
     data[4] = 0;
@@ -111,6 +111,9 @@ class Helper {
 
   // ignore: non_constant_identifier_names
   static int convert_float_to_F8_1_7(double x) {
+    if (x == 0) {
+      return 0;
+    }
     var ret = 0;
     if (x >= 12.75) // need to set the high bit on (0x80);
     {
@@ -131,6 +134,9 @@ class Helper {
     Uint8List data,
     int index,
   ) {
+    if (maxTotalVolume == 0) {
+      return;
+    }
     int ix = maxTotalVolume.toInt();
 
     if (ix > 1023) {
