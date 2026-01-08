@@ -26,11 +26,14 @@ class SettingsController with ChangeNotifier {
 
   late bool _simulatedDevices;
 
+  late double _weightFlowMultiplier;
+
   // Allow Widgets to read the user's preferred ThemeMode.
   ThemeMode get themeMode => _themeMode;
   GatewayMode get gatewayMode => _gatewayMode;
   String get logLevel => _logLevel;
   bool get simulatedDevices => _simulatedDevices;
+  double get weightFlowMultiplier => _weightFlowMultiplier;
 
   /// Load the user's settings from the SettingsService. It may load from a
   /// local database or the internet. The controller only knows it can load the
@@ -40,6 +43,7 @@ class SettingsController with ChangeNotifier {
     _gatewayMode = await _settingsService.gatewayMode();
     _logLevel = await _settingsService.logLevel();
     _simulatedDevices = await _settingsService.simulateDevices();
+    _weightFlowMultiplier = await _settingsService.weightFlowMultiplier();
 
     // Important! Inform listeners a change has occurred.
     notifyListeners();
@@ -82,8 +86,9 @@ class SettingsController with ChangeNotifier {
     if (newLogLevel == _logLevel) {
       return;
     }
-    final loggerLevel =
-        Level.LEVELS.firstWhereOrNull((e) => e.name == newLogLevel);
+    final loggerLevel = Level.LEVELS.firstWhereOrNull(
+      (e) => e.name == newLogLevel,
+    );
     if (loggerLevel == null) {
       return;
     }
@@ -102,6 +107,15 @@ class SettingsController with ChangeNotifier {
     }
     _simulatedDevices = value;
     await _settingsService.setSimulatedDevices(value);
+    notifyListeners();
+  }
+
+  Future<void> setWeightFlowMultiplier(double value) async {
+    if (value == _weightFlowMultiplier) {
+      return;
+    }
+    _weightFlowMultiplier = value;
+    await _settingsService.setWeightFlowMultiplier(value);
     notifyListeners();
   }
 }

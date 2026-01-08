@@ -12,7 +12,8 @@ class SettingsService {
 
   /// Loads the User's preferred ThemeMode from local or remote storage.
   Future<ThemeMode> themeMode() async {
-    final stored = await prefs.getString(SettingsKeys.themeMode.name) ??
+    final stored =
+        await prefs.getString(SettingsKeys.themeMode.name) ??
         ThemeMode.system.name;
     return ThemeMode.values.firstWhere((e) => e.name == stored);
   }
@@ -24,8 +25,9 @@ class SettingsService {
 
   Future<GatewayMode> gatewayMode() async {
     return GatewayModeFromString.fromString(
-            await prefs.getString(SettingsKeys.gatewayMode.name) ??
-                GatewayMode.disabled.name) ??
+          await prefs.getString(SettingsKeys.gatewayMode.name) ??
+              GatewayMode.disabled.name,
+        ) ??
         GatewayMode.disabled;
   }
 
@@ -56,6 +58,14 @@ class SettingsService {
   Future<void> setSimulatedDevices(bool value) async {
     await prefs.setBool(SettingsKeys.simulateDevices.name, value);
   }
+
+  Future<double> weightFlowMultiplier() async {
+    return await prefs.getDouble(SettingsKeys.weightFlowMultiplier.name) ?? 1.0;
+  }
+
+  Future<void> setWeightFlowMultiplier(double value) async {
+    await prefs.setDouble(SettingsKeys.weightFlowMultiplier.name, value);
+  }
 }
 
 enum SettingsKeys {
@@ -63,5 +73,6 @@ enum SettingsKeys {
   gatewayMode,
   logLevel,
   recordShotPreheat,
-  simulateDevices
+  simulateDevices,
+  weightFlowMultiplier,
 }

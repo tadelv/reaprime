@@ -4,8 +4,11 @@ class SettingsHandler {
   final SettingsController _controller;
   final WebUIService _webUIService;
 
-  SettingsHandler({required SettingsController controller, required WebUIService service})
-    : _controller = controller, _webUIService = service;
+  SettingsHandler({
+    required SettingsController controller,
+    required WebUIService service,
+  }) : _controller = controller,
+       _webUIService = service;
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/settings', () async {
@@ -13,10 +16,12 @@ class SettingsHandler {
       final gatewayMode = _controller.gatewayMode.name;
       final webPath = _webUIService.serverPath();
       final logLevel = _controller.logLevel;
+      final weightFlowMultiplier = _controller.weightFlowMultiplier;
       return {
         'gatewayMode': gatewayMode,
         'webUiPath': webPath,
         'logLevel': logLevel,
+        'weightFlowMultiplier': weightFlowMultiplier,
       };
     });
     app.post('/api/v1/settings', (Request request) async {
@@ -41,6 +46,16 @@ class SettingsHandler {
       }
       if (json.containsKey('logLevel')) {
         await _controller.updateLogLevel(json['logLevel']);
+      }
+      if (json.containsKey('weightFlowMultiplier')) {
+        final value = json['weightFlowMultiplier'];
+        if (value is num) {
+          await _controller.setWeightFlowMultiplier(value.toDouble());
+        } else {
+          return Response.badRequest(
+            body: {'message': 'weightFlowMultiplier must be a number'},
+          );
+        }
       }
       return Response.ok('');
     });

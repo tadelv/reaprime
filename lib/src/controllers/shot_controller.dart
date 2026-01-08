@@ -22,9 +22,15 @@ class ShotController {
   final Logger _log = Logger("ShotController");
 
   late bool _bypassSAW;
+  late double _weightFlowMultiplier;
 
   // Skip step on weight specific
   List<int> skippedSteps = [];
+
+  // Volume counting state
+  double _accumulatedVolume = 0.0;
+  DateTime? _lastVolumeUpdateTime;
+  bool _volumeCountingActive = false;
 
   ShotController({
     required this.scaleController,
@@ -40,7 +46,10 @@ class ShotController {
 
   Future<void> _initialize() async {
     _bypassSAW = await SettingsService().gatewayMode() == GatewayMode.full;
-    _log.info("Initializing ShotController");
+    _weightFlowMultiplier = await SettingsService().weightFlowMultiplier();
+    _log.info(
+      "Initializing ShotController (weightFlowMultiplier: $_weightFlowMultiplier)",
+    );
     try {
       final state = await scaleController.connectionState.first;
       _log.info("Scale state: $state");
@@ -49,17 +58,19 @@ class ShotController {
       }
 
       // Combine DE1 and scale data if the scale is connected
-      final combinedStream =
-          de1controller.connectedDe1().currentSnapshot.withLatestFrom(
-                scaleController.weightSnapshot,
-                (machine, weight) =>
-                    ShotSnapshot(machine: machine, scale: weight),
-              );
+      final combinedStream = de1controller
+          .connectedDe1()
+          .currentSnapshot
+          .withLatestFrom(
+            scaleController.weightSnapshot,
+            (machine, weight) => ShotSnapshot(machine: machine, scale: weight),
+          );
 
       _snapshotSubscription = combinedStream.listen(
         _processSnapshot,
-        onError: (error) =>
-            _log.warning("Error processing combined snapshot: $error"),
+        onError:
+            (error) =>
+                _log.warning("Error processing combined snapshot: $error"),
       );
     } catch (e) {
       _log.warning("Continuing without scale: $e");
@@ -71,8 +82,9 @@ class ShotController {
           .map((snapshot) => ShotSnapshot(machine: snapshot))
           .listen(
             _processSnapshot,
-            onError: (error) =>
-                _log.warning("Error processing DE1 snapshot: $error"),
+            onError:
+                (error) =>
+                    _log.warning("Error processing DE1 snapshot: $error"),
           );
     }
   }
@@ -98,8 +110,9 @@ class ShotController {
   final StreamController<bool> _resetCommand = StreamController.broadcast();
   Stream<bool> get resetCommand => _resetCommand.stream;
 
-  final BehaviorSubject<ShotState> _stateStream =
-      BehaviorSubject.seeded(ShotState.idle);
+  final BehaviorSubject<ShotState> _stateStream = BehaviorSubject.seeded(
+    ShotState.idle,
+  );
   Stream<ShotState> get state => _stateStream.stream;
 
   DateTime _shotStartTime = DateTime.now();
@@ -110,11 +123,47 @@ class ShotController {
 
   _processSnapshot(ShotSnapshot snapshot) {
     _log.finest("Processing snapshot");
-    _rawShotDataStream.add(snapshot);
-    _handleStateTransition(snapshot);
+
+    // Update volume calculation
+    final snapshotWithVolume = _updateVolume(snapshot);
+
+    _rawShotDataStream.add(snapshotWithVolume);
+    _handleStateTransition(snapshotWithVolume);
     if (dataCollectionEnabled) {
-      _shotDataStream.add(snapshot);
+      _shotDataStream.add(snapshotWithVolume);
     }
+  }
+
+  ShotSnapshot _updateVolume(ShotSnapshot snapshot) {
+    final MachineSnapshot machine = snapshot.machine;
+    final int currentFrame = machine.profileFrame;
+
+    // Check if we should be counting volume
+    if (_volumeCountingActive &&
+        currentFrame >= targetProfile.targetVolumeCountStart) {
+      final now = snapshot.machine.timestamp;
+
+      if (_lastVolumeUpdateTime != null) {
+        // Calculate time delta in seconds
+        final timeDelta =
+            now.difference(_lastVolumeUpdateTime!).inMilliseconds / 1000.0;
+
+        // Integrate flow over time to get volume
+        // Flow is in ml/s, timeDelta is in seconds
+        final volumeDelta = machine.flow * timeDelta;
+        _accumulatedVolume += volumeDelta;
+
+        _log.finest(
+          "Volume update: flow=${machine.flow} ml/s, delta=${timeDelta}s, "
+          "volumeDelta=${volumeDelta}ml, total=${_accumulatedVolume}ml",
+        );
+      }
+
+      _lastVolumeUpdateTime = now;
+    }
+
+    // Return snapshot with volume data
+    return snapshot.copyWith(volume: _accumulatedVolume);
   }
 
   bool dataCollectionEnabled = false;
@@ -125,7 +174,8 @@ class ShotController {
     final WeightSnapshot? scale = snapshot.scale;
 
     _log.finest(
-        "recv: ${machine.state.substate.name}, ${machine.state.state.name}");
+      "recv: ${machine.state.substate.name}, ${machine.state.state.name}",
+    );
 
     _log.finest("State in: ${_state.name}");
     switch (_state) {
@@ -134,6 +184,13 @@ class ShotController {
             machine.state.substate == MachineSubstate.preparingForShot) {
           _resetCommand.add(true);
           _shotStartTime = DateTime.now();
+
+          // Reset volume counting for new shot
+          _accumulatedVolume = 0.0;
+          _lastVolumeUpdateTime = null;
+          _volumeCountingActive = false;
+          skippedSteps.clear();
+
           if (_bypassSAW == false && scale != null) {
             _log.info("Machine getting ready. Taring scale...");
             scaleController.connectedScale().tare();
@@ -151,6 +208,13 @@ class ShotController {
             _log.info("Taring scale again.");
             scaleController.connectedScale().tare();
           }
+
+          // Start volume counting when shot begins
+          _volumeCountingActive = true;
+          _log.info(
+            "Volume counting activated. Will start from frame ${targetProfile.targetVolumeCountStart}",
+          );
+
           // TODO: Settings control, whether reset should happen here or not
           //_resetCommand.add(true);
           _state = ShotState.pouring;
@@ -162,7 +226,9 @@ class ShotController {
         if (_bypassSAW == false && scale != null) {
           double currentWeight = scale.weight;
           double weightFlow = scale.weightFlow;
-          double projectedWeight = currentWeight + weightFlow;
+          double projectedWeight =
+              currentWeight + (weightFlow * _weightFlowMultiplier);
+
           if (targetProfile.steps.length > machine.profileFrame &&
               skippedSteps.contains(machine.profileFrame) == false &&
               targetProfile.steps[machine.profileFrame].weight != null &&
@@ -177,9 +243,28 @@ class ShotController {
           }
           if (doseData.doseOut > 0 && projectedWeight >= doseData.doseOut) {
             _log.info(
-                "Target weight ${doseData.doseOut}g reached. Stopping shot.");
+              "Target weight ${doseData.doseOut}g reached (projected: $projectedWeight). Stopping shot.",
+            );
             de1controller.connectedDe1().requestState(
-                MachineState.idle); // Send stop command to machine
+              MachineState.idle,
+            ); // Send stop command to machine
+            _state = ShotState.stopping;
+            _stateStream.add(_state);
+            break;
+          }
+        }
+        if (!_bypassSAW &&
+            scale == null &&
+            (targetProfile.targetVolume ?? 0) > 0) {
+          // Account for about a 300ms delay until next frame, might as well stop here
+          final projectedVolume = _accumulatedVolume + (machine.flow * 0.3);
+          if (projectedVolume > targetProfile.targetVolume!) {
+            _log.info(
+              "Target volume ${targetProfile.targetVolume}ml reached (projected: $projectedVolume). Stopping shot.",
+            );
+            de1controller.connectedDe1().requestState(
+              MachineState.idle,
+            ); // Send stop command to machine
             _state = ShotState.stopping;
             _stateStream.add(_state);
             break;
@@ -193,11 +278,16 @@ class ShotController {
         break;
 
       case ShotState.stopping:
+        // Stop volume counting
+        _volumeCountingActive = false;
+
         if (_stoppingStateFuture != null) {
           break;
         }
         _stoppingStateFuture = Future.delayed(Duration(seconds: 4), () {
-          _log.info("Recording finished.");
+          _log.info(
+            "Recording finished. Final volume: ${_accumulatedVolume}ml",
+          );
           _state = ShotState.finished;
           _stateStream.add(_state);
         });
@@ -215,10 +305,4 @@ class ShotController {
   }
 }
 
-enum ShotState {
-  idle,
-  preheating,
-  pouring,
-  stopping,
-  finished,
-}
+enum ShotState { idle, preheating, pouring, stopping, finished }
