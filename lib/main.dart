@@ -12,6 +12,7 @@ import 'package:reaprime/src/controllers/battery_controller.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
+import 'package:reaprime/src/controllers/profile_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/sensor_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
@@ -24,6 +25,7 @@ import 'package:reaprime/src/models/device/impl/machine_parser.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/services/blue_plus_discovery_service.dart';
 import 'package:reaprime/src/services/storage/hive_store_service.dart';
+import 'package:reaprime/src/services/storage/hive_profile_storage.dart';
 import 'package:reaprime/src/services/universal_ble_discovery_service.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
 import 'package:reaprime/src/services/storage/file_storage_service.dart';
@@ -142,8 +144,16 @@ void main() async {
   }
 
   final settingsController = SettingsController(SettingsService());
+
+  // Initialize profile storage and controller
+  final profileController = ProfileController(
+    storage: HiveProfileStorageService(),
+  );
+  await profileController.initialize();
+
   final deviceController = DeviceController(services);
-  final de1Controller = De1Controller(controller: deviceController)..defaultWorkflow = workflowController.currentWorkflow;
+  final de1Controller = De1Controller(controller: deviceController)
+    ..defaultWorkflow = workflowController.currentWorkflow;
   final scaleController = ScaleController(controller: deviceController);
   final sensorController = SensorController(controller: deviceController);
 
@@ -157,7 +167,6 @@ void main() async {
   // Don't initialize plugins yet - wait for permissions to be granted
   // pluginService.initialize() will be called from PermissionsView after permissions are granted
   pluginService.pluginManager.de1Controller = de1Controller;
-
 
   final WebUIService webUIService = WebUIService();
   final WebUIStorage webUIStorage = WebUIStorage();
@@ -173,6 +182,7 @@ void main() async {
       persistenceController,
       pluginService,
       webUIService,
+      profileController,
     );
   } catch (e, st) {
     log.severe('failed to start web server', e, st);

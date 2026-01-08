@@ -7,7 +7,7 @@ import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 class HiveProfileStorageService implements ProfileStorageService {
   static const String _boxName = 'profiles';
   final Logger _log = Logger('HiveProfileStorageService');
-  
+
   Box<dynamic>? _box;
 
   Box<dynamic> get box {
@@ -21,7 +21,9 @@ class HiveProfileStorageService implements ProfileStorageService {
   Future<void> initialize() async {
     try {
       _box = await Hive.openBox(_boxName);
-      _log.info('HiveProfileStorageService initialized with ${box.length} profiles');
+      _log.info(
+        'HiveProfileStorageService initialized with ${box.length} profiles',
+      );
     } catch (e, st) {
       _log.severe('Failed to initialize HiveProfileStorageService', e, st);
       rethrow;
@@ -57,7 +59,7 @@ class HiveProfileStorageService implements ProfileStorageService {
   Future<List<ProfileRecord>> getAll({Visibility? visibility}) async {
     try {
       final records = <ProfileRecord>[];
-      
+
       for (final key in box.keys) {
         try {
           final data = box.get(key);
@@ -65,7 +67,7 @@ class HiveProfileStorageService implements ProfileStorageService {
             final record = ProfileRecord.fromJson(
               Map<String, dynamic>.from(data as Map),
             );
-            
+
             // Filter by visibility if specified
             if (visibility == null || record.visibility == visibility) {
               records.add(record);
@@ -75,11 +77,13 @@ class HiveProfileStorageService implements ProfileStorageService {
           _log.warning('Failed to parse profile record with key: $key', e);
         }
       }
-      
+
       // Sort by updatedAt descending (most recent first)
       records.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-      
-      _log.fine('Retrieved ${records.length} profiles (visibility: ${visibility?.name ?? "all"})');
+
+      _log.fine(
+        'Retrieved ${records.length} profiles (visibility: ${visibility?.name ?? "all"})',
+      );
       return records;
     } catch (e, st) {
       _log.severe('Failed to get all profiles', e, st);
@@ -125,7 +129,7 @@ class HiveProfileStorageService implements ProfileStorageService {
   Future<List<ProfileRecord>> getByParentId(String parentId) async {
     try {
       final records = <ProfileRecord>[];
-      
+
       for (final key in box.keys) {
         try {
           final data = box.get(key);
@@ -133,7 +137,7 @@ class HiveProfileStorageService implements ProfileStorageService {
             final record = ProfileRecord.fromJson(
               Map<String, dynamic>.from(data as Map),
             );
-            
+
             if (record.parentId == parentId) {
               records.add(record);
             }
@@ -142,11 +146,13 @@ class HiveProfileStorageService implements ProfileStorageService {
           _log.warning('Failed to parse profile record with key: $key', e);
         }
       }
-      
+
       // Sort by createdAt (chronological order)
       records.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-      
-      _log.fine('Retrieved ${records.length} profiles with parentId: $parentId');
+
+      _log.fine(
+        'Retrieved ${records.length} profiles with parentId: $parentId',
+      );
       return records;
     } catch (e, st) {
       _log.severe('Failed to get profiles by parentId: $parentId', e, st);
@@ -185,7 +191,7 @@ class HiveProfileStorageService implements ProfileStorageService {
     if (visibility == null) {
       return box.length;
     }
-    
+
     int count = 0;
     for (final key in box.keys) {
       try {

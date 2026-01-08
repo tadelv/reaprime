@@ -9,9 +9,11 @@ import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
+import 'package:reaprime/src/controllers/profile_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/sensor_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
+import 'package:reaprime/src/models/data/profile_record.dart';
 import 'package:reaprime/src/models/data/utils.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scale.dart';
@@ -43,6 +45,7 @@ part 'webserver/settings_handler.dart';
 part 'webserver/sensors_handler.dart';
 part 'webserver/kv_store_handler.dart';
 part 'webserver/plugins_handler.dart';
+part 'webserver/profile_handler.dart';
 
 final log = Logger("Webservice");
 
@@ -56,6 +59,7 @@ Future<void> startWebServer(
   PersistenceController persistenceController,
   PluginLoaderService pluginService,
   WebUIService webUIService,
+  ProfileController profileController,
 ) async {
   log.info("starting webserver");
   final de1Handler = De1Handler(controller: de1Controller);
@@ -65,7 +69,10 @@ Future<void> startWebServer(
     de1Controller: de1Controller,
     scaleController: scaleController,
   );
-  final settingsHandler = SettingsHandler(controller: settingsController, service: webUIService);
+  final settingsHandler = SettingsHandler(
+    controller: settingsController,
+    service: webUIService,
+  );
   final sensorsHandler = SensorsHandler(controller: sensorController);
   final workflowHandler = WorkflowHandler(
     controller: workflowController,
@@ -79,6 +86,8 @@ Future<void> startWebServer(
     pluginManager: pluginService.pluginManager,
     pluginService: pluginService,
   );
+
+  final profileHandler = ProfileHandler(controller: profileController);
 
   final kvStoreHandler = KvStoreHandler();
   await kvStoreHandler.store.initialize();
@@ -94,6 +103,7 @@ Future<void> startWebServer(
       shotsHandler,
       kvStoreHandler,
       pluginsHandler,
+      profileHandler,
     ),
     '0.0.0.0',
     8080,
@@ -115,6 +125,7 @@ Handler _init(
   ShotsHandler shotsHandler,
   KvStoreHandler kvStoreHandler,
   PluginsHandler pluginsHandler,
+  ProfileHandler profileHandler,
 ) {
   log.info("called _init");
   var app = Router().plus;
@@ -157,6 +168,7 @@ Handler _init(
   shotsHandler.addRoutes(app);
   kvStoreHandler.addRoutes(app);
   pluginsHandler.addRoutes(app);
+  profileHandler.addRoutes(app);
 
   final handler = const Pipeline()
       .addMiddleware(logRequests())

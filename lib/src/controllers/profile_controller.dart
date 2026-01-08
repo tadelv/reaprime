@@ -17,7 +17,7 @@ class ProfileController {
   Stream<int> get profileCount => _profileCountStream.stream;
 
   ProfileController({required ProfileStorageService storage})
-      : _storage = storage;
+    : _storage = storage;
 
   /// Initialize the controller and load default profiles if needed
   Future<void> initialize() async {
@@ -62,10 +62,7 @@ class ProfileController {
           final record = ProfileRecord.create(
             profile: profile,
             isDefault: true,
-            metadata: {
-              'source': 'bundled',
-              'filename': filename,
-            },
+            metadata: {'source': 'bundled', 'filename': filename},
           );
 
           await _storage.store(record);
@@ -78,7 +75,10 @@ class ProfileController {
 
       _log.info('Loaded $loaded default profiles');
     } catch (e) {
-      _log.warning('Failed to load default profiles (this is okay if manifest doesn\'t exist yet)', e);
+      _log.warning(
+        'Failed to load default profiles (this is okay if manifest doesn\'t exist yet)',
+        e,
+      );
     }
   }
 
@@ -96,9 +96,7 @@ class ProfileController {
     if (includeHidden) {
       return await _storage.getAll();
     }
-    return await _storage.getAll(
-      visibility: visibility ?? Visibility.visible,
-    );
+    return await _storage.getAll(visibility: visibility ?? Visibility.visible);
   }
 
   /// Get a single profile by ID
@@ -303,7 +301,9 @@ class ProfileController {
 
     await _updateProfileCount();
 
-    _log.info('Import complete: $imported imported, $skipped skipped, $failed failed');
+    _log.info(
+      'Import complete: $imported imported, $skipped skipped, $failed failed',
+    );
 
     return {
       'imported': imported,
@@ -324,9 +324,8 @@ class ProfileController {
       profiles = await _storage.getAll();
     } else if (includeHidden) {
       profiles = await _storage.getAll();
-      profiles = profiles
-          .where((p) => p.visibility != Visibility.deleted)
-          .toList();
+      profiles =
+          profiles.where((p) => p.visibility != Visibility.deleted).toList();
     } else {
       profiles = await _storage.getAll(visibility: Visibility.visible);
     }
@@ -341,7 +340,8 @@ class ProfileController {
         'assets/defaultProfiles/$filename',
       );
       final profileJson = jsonDecode(profileData) as Map<String, dynamic>;
-      final profile = Profile.fromJson(profileJson);
+      // Profile loaded but not used since we restore from existing record
+      Profile.fromJson(profileJson);
 
       // Check if this default profile already exists
       final existingProfiles = await _storage.getAll();

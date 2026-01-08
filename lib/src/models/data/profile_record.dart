@@ -153,13 +153,13 @@ class ProfileRecord extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        profile,
-        parentId,
-        visibility,
-        isDefault,
-        createdAt,
-        updatedAt,
-        metadata,
-      ];
+    id,
+    profile,
+    parentId,
+    visibility,
+    isDefault,
+    createdAt,
+    updatedAt,
+    metadata,
+  ];
 }
