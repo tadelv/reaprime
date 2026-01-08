@@ -271,7 +271,7 @@ class HotWaterData {
       targetTemperature: 75,
       duration: 30,
       volume: 50,
-      flow: 5.5,
+      flow: 10,
     );
   }
 }
