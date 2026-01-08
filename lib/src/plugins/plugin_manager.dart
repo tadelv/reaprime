@@ -257,7 +257,7 @@ class PluginManager {
         }
 
         if (type == 'log') {
-          _log.fine("[JS:$pluginId] ${msg['payload']?['message']}");
+          _log.finest("[JS:$pluginId] ${msg['payload']?['message']}");
         } else if (type == 'httpResponse') {
           // Handle HTTP responses from plugin
           _handlePluginApiResponse(pluginId, msg);
