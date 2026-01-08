@@ -180,6 +180,11 @@ class UnifiedDe1 implements De1Interface {
     );
 
     _log.info("Info: ${_info!.toJson()}");
+
+
+    // TODO: User configurable setting
+    // Set refill kit to autodetect
+    await _mmrWrite(MMRItem.refillKitPresent, [0x02]);
   }
 
   final StreamController<De1RawMessage> _rawMessageController =
