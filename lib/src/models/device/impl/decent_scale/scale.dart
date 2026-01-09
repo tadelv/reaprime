@@ -163,13 +163,6 @@ class DecentScale implements Scale {
   }
 
   @override
-  Future<void> powerDown() async {
-    // For BLE Decent Scale, power down means disconnect
-    _log.info('Powering down Decent Scale (disconnect)');
-    await disconnect();
-  }
-
-  @override
   Future<void> sleepDisplay() async {
     _log.info('Putting Decent Scale display to sleep');
     await _sendOledOff();

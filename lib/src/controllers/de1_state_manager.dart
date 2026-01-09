@@ -132,7 +132,7 @@ class De1StateManager {
     try {
       final scale = _scaleController.connectedScale();
 
-      // Transition from idle/schedIdle to sleeping -> put scale to sleep
+      // Transition from idle to sleeping -> put scale to sleep
       if ((_previousMachineState == MachineState.idle) &&
           currentState == MachineState.sleeping) {
         _logger.info(
@@ -143,9 +143,9 @@ class De1StateManager {
           scale.sleepDisplay().catchError((e) {
             _logger.warning('Failed to sleep scale display: $e');
           });
-        } else if (scalePowerMode == ScalePowerMode.powerOff) {
-          scale.powerDown().catchError((e) {
-            _logger.warning('Failed to power down scale: $e');
+        } else if (scalePowerMode == ScalePowerMode.disconnect) {
+          scale.disconnect().catchError((e) {
+            _logger.warning('Failed to disconnect scale: $e');
           });
         }
       }
@@ -153,9 +153,10 @@ class De1StateManager {
       // Transition from sleeping to idle -> wake scale display
       if (_previousMachineState == MachineState.sleeping &&
           currentState == MachineState.idle) {
-        _logger.info('Machine waking up, waking scale display');
+        _logger.info('Machine waking up from sleep');
 
-        // Only wake display if mode was displayOff (if powerOff, scale is disconnected)
+        // Only wake display if mode was displayOff
+        // If mode was disconnect, scale is disconnected and requires manual reconnection
         if (scalePowerMode == ScalePowerMode.displayOff) {
           scale.wakeDisplay().catchError((e) {
             _logger.warning('Failed to wake scale display: $e');
@@ -339,6 +340,7 @@ class De1StateManager {
     _de1Subscription = null;
   }
 }
+
 
 
 

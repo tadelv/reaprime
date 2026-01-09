@@ -344,6 +344,18 @@ function createPlugin(host) {
                             <button class="btn btn-primary" onclick="updateReaSetting('volumeFlowMultiplier', parseFloat(document.getElementById('volumeFlowMultiplier').value))" aria-label="Save volume flow multiplier setting">Save</button>
                         </div>
                     </div>
+                    <div class="setting-item">
+                        <label class="setting-label" for="scalePowerMode">Scale Power Management</label>
+                        <div class="setting-control">
+                            <select id="scalePowerMode" aria-describedby="scalePowerMode-desc">
+                                <option value="disabled" ${reaSettings.scalePowerMode === 'disabled' ? 'selected' : ''}>Disabled</option>
+                                <option value="displayOff" ${reaSettings.scalePowerMode === 'displayOff' ? 'selected' : ''}>Display Off</option>
+                                <option value="disconnect" ${reaSettings.scalePowerMode === 'disconnect' ? 'selected' : ''}>Disconnect</option>
+                            </select>
+                            <span id="scalePowerMode-desc" class="visually-hidden">Controls automatic scale power management when machine sleeps. Display Off: turn off scale display. Disconnect: disconnect scale completely.</span>
+                            <button class="btn btn-primary" onclick="updateReaSetting('scalePowerMode', document.getElementById('scalePowerMode').value)" aria-label="Save scale power mode setting">Save</button>
+                        </div>
+                    </div>
                 </div>
             ` : '<div class="error" role="alert" aria-live="assertive">Failed to load REA settings</div>'}
             </section>

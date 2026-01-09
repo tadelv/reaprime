@@ -14,7 +14,7 @@
       "type": "number",
       "description": "Auto-refresh interval in seconds (0 to disable)",
       "default": 5
-    }
+    },
   },
   "api": [
     {

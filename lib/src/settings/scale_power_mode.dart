@@ -5,10 +5,11 @@ enum ScalePowerMode {
   disabled,
 
   /// Put scale display to sleep when machine sleeps
+  /// Scales that don't support display control will disconnect instead
   displayOff,
 
-  /// Power down / disconnect scale completely when machine sleeps
-  powerOff,
+  /// Disconnect scale when machine sleeps
+  disconnect,
 }
 
 extension ScalePowerModeExtension on ScalePowerMode {
@@ -18,8 +19,8 @@ extension ScalePowerModeExtension on ScalePowerMode {
         return 'Disabled';
       case ScalePowerMode.displayOff:
         return 'Display Off';
-      case ScalePowerMode.powerOff:
-        return 'Power Off';
+      case ScalePowerMode.disconnect:
+        return 'Disconnect';
     }
   }
 
@@ -29,8 +30,8 @@ extension ScalePowerModeExtension on ScalePowerMode {
         return 'Manual control only, no automatic power management';
       case ScalePowerMode.displayOff:
         return 'Turn off scale display when machine sleeps';
-      case ScalePowerMode.powerOff:
-        return 'Power down scale completely when machine sleeps';
+      case ScalePowerMode.disconnect:
+        return 'Disconnect scale completely when machine sleeps';
     }
   }
 }
@@ -43,9 +44,8 @@ extension ScalePowerModeFromString on ScalePowerMode {
       case 'displayoff':
       case 'display_off':
         return ScalePowerMode.displayOff;
-      case 'poweroff':
-      case 'power_off':
-        return ScalePowerMode.powerOff;
+      case 'disconnect':
+        return ScalePowerMode.disconnect;
       default:
         return null;
     }

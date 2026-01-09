@@ -67,18 +67,6 @@ class HDSSerial implements Scale {
   }
 
   @override
-  Future<void> powerDown() async {
-    // For serial scale, we can send oledoff command then disconnect
-    _log.info('Powering down serial Decent Scale');
-    try {
-      await _sendOledOff();
-    } catch (e) {
-      _log.warning('Failed to send OLED off command: $e');
-    }
-    await disconnect();
-  }
-
-  @override
   Future<void> sleepDisplay() async {
     _log.info('Putting serial Decent Scale display to sleep');
     await _sendOledOff();

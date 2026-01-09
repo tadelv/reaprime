@@ -18,12 +18,14 @@ class SettingsHandler {
       final logLevel = _controller.logLevel;
       final weightFlowMultiplier = _controller.weightFlowMultiplier;
       final volumeFlowMultiplier = _controller.volumeFlowMultiplier;
+      final scalePowerMode = _controller.scalePowerMode.name;
       return {
         'gatewayMode': gatewayMode,
         'webUiPath': webPath,
         'logLevel': logLevel,
         'weightFlowMultiplier': weightFlowMultiplier,
         'volumeFlowMultiplier': volumeFlowMultiplier,
+        'scalePowerMode': scalePowerMode,
       };
     });
     app.post('/api/v1/settings', (Request request) async {
@@ -68,6 +70,17 @@ class SettingsHandler {
             body: {'message': 'volumeFlowMultiplier must be a number'},
           );
         }
+      }
+      if (json.containsKey('scalePowerMode')) {
+        final ScalePowerMode? mode = ScalePowerModeFromString.fromString(
+          json['scalePowerMode'],
+        );
+        if (mode == null) {
+          return Response.badRequest(
+            body: {'message': '${json["scalePowerMode"]} is not a valid scale power mode'},
+          );
+        }
+        await _controller.setScalePowerMode(mode);
       }
       return Response.ok('');
     });

@@ -23,6 +23,7 @@ import 'package:reaprime/src/services/storage/hive_store_service.dart';
 import 'package:reaprime/src/services/webserver/shots_handler.dart';
 import 'package:reaprime/src/services/webserver/workflow_handler.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
+import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';

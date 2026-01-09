@@ -1306,6 +1306,12 @@ components:
           format: double
           nullable: true
           example: 0.3
+        scalePowerMode:
+          description: Automatic scale power management tied to machine state. Disabled means no automatic action. displayOff turns off scale display when machine sleeps (scales without display control will disconnect). disconnect disconnects scale completely when machine sleeps.
+          type: string
+          enum: ["disabled", "displayOff", "disconnect"]
+          nullable: true
+          example: "disabled"
 
     ReaSettings:
       type: object
@@ -1331,6 +1337,11 @@ components:
           type: number
           format: double
           example: 0.3
+        scalePowerMode:
+          description: Automatic scale power management tied to machine state. Disabled means no automatic action. displayOff turns off scale display when machine sleeps (scales without display control will disconnect). disconnect disconnects scale completely when machine sleeps.
+          type: string
+          enum: ["disabled", "displayOff", "disconnect"]
+          example: "disabled"
 
     SensorManifest:
       type: object

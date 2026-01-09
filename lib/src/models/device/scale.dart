@@ -5,15 +5,12 @@ abstract class Scale extends Device {
 
   Future<void> tare();
 
-  /// Will most likely cause a disconnect event as well.
-  Future<void> powerDown();
-
-  /// Tell scale to go to sleep (i.e. turn off display)
-  /// Some scales might not implement this and choose to implement only powerDown 
-  /// or disconnect
+  /// Tell scale to go to sleep (turn off display)
+  /// If scale doesn't support display control, should disconnect instead
   Future<void> sleepDisplay();
 
-  /// Tell the scale to wake the display (if supported)
+  /// Tell the scale to wake the display
+  /// If scale doesn't support display control, this is a no-op
   Future<void> wakeDisplay();
 
   // TODO: commands for timer
@@ -39,3 +36,4 @@ class ScaleSnapshot {
     };
   }
 }
+
