@@ -10,6 +10,35 @@ class HiveProfileStorageService implements ProfileStorageService {
 
   Box<dynamic>? _box;
 
+  /// Deep cast a Map from Hive storage to Map\<String, dynamic\>
+  /// 
+  /// Hive returns Map\<dynamic, dynamic\> which needs to be recursively
+  /// converted to Map\<String, dynamic\> for JSON deserialization.
+  static Map<String, dynamic> _deepCastMap(Map map) {
+    return map.map((key, value) {
+      if (value is Map) {
+        return MapEntry(key.toString(), _deepCastMap(value));
+      } else if (value is List) {
+        return MapEntry(key.toString(), _deepCastList(value));
+      } else {
+        return MapEntry(key.toString(), value);
+      }
+    });
+  }
+
+  /// Deep cast a List from Hive storage
+  static List<dynamic> _deepCastList(List list) {
+    return list.map((item) {
+      if (item is Map) {
+        return _deepCastMap(item);
+      } else if (item is List) {
+        return _deepCastList(item);
+      } else {
+        return item;
+      }
+    }).toList();
+  }
+
   Box<dynamic> get box {
     if (_box == null || !_box!.isOpen) {
       throw StateError('HiveProfileStorageService not initialized');
@@ -48,7 +77,7 @@ class HiveProfileStorageService implements ProfileStorageService {
       if (data == null) {
         return null;
       }
-      return ProfileRecord.fromJson(Map<String, dynamic>.from(data as Map));
+      return ProfileRecord.fromJson(_deepCastMap(data as Map));
     } catch (e, st) {
       _log.severe('Failed to get profile: $id', e, st);
       rethrow;
@@ -65,7 +94,7 @@ class HiveProfileStorageService implements ProfileStorageService {
           final data = box.get(key);
           if (data != null) {
             final record = ProfileRecord.fromJson(
-              Map<String, dynamic>.from(data as Map),
+              _deepCastMap(data as Map),
             );
 
             // Filter by visibility if specified
@@ -135,7 +164,7 @@ class HiveProfileStorageService implements ProfileStorageService {
           final data = box.get(key);
           if (data != null) {
             final record = ProfileRecord.fromJson(
-              Map<String, dynamic>.from(data as Map),
+              _deepCastMap(data as Map),
             );
 
             if (record.parentId == parentId) {
@@ -198,7 +227,7 @@ class HiveProfileStorageService implements ProfileStorageService {
         final data = box.get(key);
         if (data != null) {
           final record = ProfileRecord.fromJson(
-            Map<String, dynamic>.from(data as Map),
+            _deepCastMap(data as Map),
           );
           if (record.visibility == visibility) {
             count++;
