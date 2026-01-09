@@ -3,7 +3,7 @@
   "author": "Decent",
   "name": "Settings Viewer",
   "description": "Displays REA application and DE1 machine settings in an embeddable HTML page",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "apiVersion": 1,
   "permissions": [
     "log",
@@ -14,7 +14,7 @@
       "type": "number",
       "description": "Auto-refresh interval in seconds (0 to disable)",
       "default": 5
-    },
+    }
   },
   "api": [
     {
