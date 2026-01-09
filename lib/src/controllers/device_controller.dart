@@ -38,7 +38,7 @@ class DeviceController {
         _log.warning("Service ${service} failed to init:", e);
       }
     }
-    await scanForDevices(autoConnect: false);
+    await scanForDevices(autoConnect: true);
   }
 
   bool _autoConnect = true;

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
+import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/shot_controller.dart';
@@ -9,6 +10,7 @@ import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
+import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
 import 'package:reaprime/src/realtime_steam_feature/realtime_steam_feature.dart';
@@ -27,6 +29,7 @@ class De1StateManager {
   final Logger _logger = Logger('De1StateManager');
 
   final De1Controller _de1Controller;
+  final DeviceController _deviceController;
   final ScaleController _scaleController;
   final WorkflowController _workflowController;
   final PersistenceController _persistenceController;
@@ -44,15 +47,20 @@ class De1StateManager {
   
   // Track previous machine state for scale power management
   MachineState? _previousMachineState;
+  
+  // Track if we're currently scanning for scales
+  bool _isScanningSscales = false;
 
   De1StateManager({
     required De1Controller de1Controller,
+    required DeviceController deviceController,
     required ScaleController scaleController,
     required WorkflowController workflowController,
     required PersistenceController persistenceController,
     required SettingsController settingsController,
     required GlobalKey<NavigatorState> navigatorKey,
   }) : _de1Controller = de1Controller,
+       _deviceController = deviceController,
        _scaleController = scaleController,
        _workflowController = workflowController,
        _persistenceController = persistenceController,
@@ -129,15 +137,15 @@ class De1StateManager {
       return;
     }
 
-    try {
-      final scale = _scaleController.connectedScale();
+    // Transition from idle to sleeping -> put scale to sleep
+    if ((_previousMachineState == MachineState.idle) &&
+        currentState == MachineState.sleeping) {
+      _logger.info(
+        'Machine going to sleep, managing scale power (mode: ${scalePowerMode.name})',
+      );
 
-      // Transition from idle to sleeping -> put scale to sleep
-      if ((_previousMachineState == MachineState.idle) &&
-          currentState == MachineState.sleeping) {
-        _logger.info(
-          'Machine going to sleep, managing scale power (mode: ${scalePowerMode.name})',
-        );
+      try {
+        final scale = _scaleController.connectedScale();
 
         if (scalePowerMode == ScalePowerMode.displayOff) {
           scale.sleepDisplay().catchError((e) {
@@ -148,24 +156,85 @@ class De1StateManager {
             _logger.warning('Failed to disconnect scale: $e');
           });
         }
+      } catch (e) {
+        // Scale not connected, skip
+        _logger.finest('Scale not connected, skipping power management: $e');
+      }
+    }
+
+    // Transition from sleeping to idle -> wake scale or trigger scan
+    if (_previousMachineState == MachineState.sleeping &&
+        currentState == MachineState.idle) {
+      _logger.info('Machine waking up from sleep');
+
+      // Check if scale is connected
+      bool scaleConnected = false;
+      try {
+        _scaleController.connectedScale();
+        scaleConnected = true;
+      } catch (e) {
+        scaleConnected = false;
       }
 
-      // Transition from sleeping to idle -> wake scale display
-      if (_previousMachineState == MachineState.sleeping &&
-          currentState == MachineState.idle) {
-        _logger.info('Machine waking up from sleep');
-
-        // Only wake display if mode was displayOff
-        // If mode was disconnect, scale is disconnected and requires manual reconnection
-        if (scalePowerMode == ScalePowerMode.displayOff) {
+      // If scale is connected and mode is displayOff, wake the display
+      if (scaleConnected && scalePowerMode == ScalePowerMode.displayOff) {
+        try {
+          final scale = _scaleController.connectedScale();
           scale.wakeDisplay().catchError((e) {
             _logger.warning('Failed to wake scale display: $e');
           });
+        } catch (e) {
+          _logger.warning('Failed to get scale for wake: $e');
         }
       }
+
+      // If scale is not connected and mode is disconnect, trigger device scan
+      if (!scaleConnected && scalePowerMode == ScalePowerMode.disconnect) {
+        _logger.info('Scale disconnected after sleep, triggering device scan');
+        _triggerScaleScan();
+      }
+    }
+  }
+
+  /// Triggers a device scan with 30s timeout to find and connect scales
+  Future<void> _triggerScaleScan() async {
+    // Prevent multiple concurrent scans
+    if (_isScanningSscales) {
+      _logger.fine('Scale scan already in progress, skipping');
+      return;
+    }
+
+    _isScanningSscales = true;
+    _logger.info('Starting device scan to find scales (30s timeout)');
+
+    try {
+      // Start the scan with autoConnect enabled
+      await _deviceController.scanForDevices(autoConnect: true);
+
+      // Wait up to 30 seconds for a scale to be found and connected
+      final timeout = Duration(seconds: 30);
+      final scaleConnected = await _scaleController.connectionState
+          .firstWhere(
+            (state) => state == dev.ConnectionState.connected,
+            orElse: () => dev.ConnectionState.disconnected,
+          )
+          .timeout(
+            timeout,
+            onTimeout: () {
+              _logger.info('Scale scan timed out after 30 seconds');
+              return dev.ConnectionState.disconnected;
+            },
+          );
+
+      if (scaleConnected == dev.ConnectionState.connected) {
+        _logger.info('Scale found and connected successfully');
+      } else {
+        _logger.info('No scale found within timeout period');
+      }
     } catch (e) {
-      // Scale not connected, skip
-      _logger.finest('Scale not connected, skipping power management: $e');
+      _logger.warning('Error during scale scan: $e');
+    } finally {
+      _isScanningSscales = false;
     }
   }
 
@@ -340,6 +409,11 @@ class De1StateManager {
     _de1Subscription = null;
   }
 }
+
+
+
+
+
 
 
 
