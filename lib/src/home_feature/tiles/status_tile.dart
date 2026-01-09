@@ -256,8 +256,8 @@ class StatusTile extends StatelessWidget {
             child: WaterLevelsForm(
               apply: (newLevels) {
                 Navigator.of(context).pop();
-                controller.connectedDe1().setWaterLevelWarning(
-                  newLevels.warningThresholdPercentage,
+                controller.connectedDe1().setRefillLevel(
+                  newLevels.refillLevel,
                 );
               },
               levels: waterLevels,
@@ -392,12 +392,12 @@ class StatusTile extends StatelessWidget {
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
                     Text(
-                      "${snapshot.currentPercentage}%",
+                      "${snapshot.currentLevel}mm",
                       style: TextStyle(
                         color:
-                            snapshot.currentPercentage > 50
+                            snapshot.currentLevel > 50
                                 ? theme.colorScheme.primary
-                                : snapshot.currentPercentage > 20
+                                : snapshot.currentLevel > 20
                                 ? theme.colorScheme.onSurface
                                 : theme.colorScheme.error,
                       ),

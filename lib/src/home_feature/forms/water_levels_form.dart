@@ -37,9 +37,9 @@ class _WaterLevelsFormState extends State<WaterLevelsForm> {
         mainAxisSize: MainAxisSize.min,
         spacing: 16,
         children: [
-          Text("Refill warning level: ${settings.warningThresholdPercentage}%"),
+          Text("Refill warning level: ${settings.refillLevel}%"),
           ShadSlider(
-            initialValue: settings.warningThresholdPercentage.toDouble(),
+            initialValue: settings.refillLevel.toDouble(),
             min: 0,
             max: 30,
 						divisions: 6,
@@ -48,8 +48,8 @@ class _WaterLevelsFormState extends State<WaterLevelsForm> {
             onChanged: (val) {
               setState(() {
                 settings = De1WaterLevels(
-                  currentPercentage: settings.currentPercentage,
-                  warningThresholdPercentage: val.toInt(),
+                  currentLevel: settings.currentLevel,
+                  refillLevel: val.toInt(),
                 );
               });
             },

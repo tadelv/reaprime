@@ -49,19 +49,15 @@ extension MessageParsing on UnifiedDe1 {
       var waterlevel = data.getUint16(0, Endian.big);
       var waterThreshold = data.getUint16(2, Endian.big);
 
-      final l = waterlevel - waterThreshold;
-      final percent = l * 100 ~/ 8300;
-
-      // TODO: proper mapping
       return De1WaterLevels(
-        currentPercentage: percent,
-        warningThresholdPercentage: waterThreshold,
+        currentLevel: (waterlevel / 256).toInt(),
+        refillLevel: (waterThreshold / 256).toInt(),
       );
     } catch (e) {
       _log.severe("waternotify", e);
     }
 
-    return De1WaterLevels(currentPercentage: 0, warningThresholdPercentage: 0);
+    return De1WaterLevels(currentLevel: 0, refillLevel: 0);
   }
 
   De1ShotSettings _parseShotSettings(ByteData data) {

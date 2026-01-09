@@ -226,7 +226,7 @@ class SerialDe1 implements De1Interface {
   }
 
   @override
-  Future<void> setWaterLevelWarning(int newThresholdPercentage) {
+  Future<void> setRefillLevel(int newThresholdPercentage) {
     ByteData value = ByteData(4);
     try {
       // 00 00 0c 00

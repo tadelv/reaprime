@@ -413,7 +413,7 @@ class MockDe1 implements De1Interface {
   }
 
   @override
-  Future<void> setWaterLevelWarning(int newThresholdPercentage) async {}
+  Future<void> setRefillLevel(int newThresholdPercentage) async {}
 
   final StreamController<De1ShotSettings> _shotSettingsController =
       BehaviorSubject.seeded(
@@ -441,8 +441,8 @@ class MockDe1 implements De1Interface {
   Stream<De1WaterLevels> get waterLevels =>
       Stream.periodic(Duration(seconds: 1), (_) {
         return De1WaterLevels(
-          currentPercentage: 50,
-          warningThresholdPercentage: 5,
+          currentLevel: 50,
+          refillLevel: 5,
         );
       });
 

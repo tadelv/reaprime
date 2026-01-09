@@ -283,9 +283,9 @@ class _De1DebugViewState extends State<De1DebugView> {
           return Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text("water level: ${snapshot.data!.currentPercentage}"),
+              Text("water level: ${snapshot.data!.currentLevel}"),
               Text(
-                  "threshold level: ${snapshot.data!.warningThresholdPercentage}"),
+                  "threshold level: ${snapshot.data!.refillLevel}"),
             ],
           );
         }

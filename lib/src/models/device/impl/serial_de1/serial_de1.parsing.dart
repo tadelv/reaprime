@@ -55,8 +55,8 @@ extension SerialDe1Parsing on SerialDe1 {
       );
       _waterSubject.add(
         De1WaterLevels(
-          currentPercentage: wlData.getLevelPercent(),
-          warningThresholdPercentage: 0,
+          currentLevel: wlData.getLevelPercent(),
+          refillLevel: 0,
         ),
       );
     } catch (e) {

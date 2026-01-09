@@ -117,8 +117,8 @@ extension De1Subscriptions on De1 {
       );
       _waterLevelsController.add(
         De1WaterLevels(
-          currentPercentage: wlData.getLevelPercent(),
-          warningThresholdPercentage: 0,
+          currentLevel: wlData.getLevelPercent(),
+          refillLevel: 0,
         ),
       );
     } catch (e) {

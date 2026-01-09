@@ -14,7 +14,7 @@ abstract class De1Interface extends Machine {
   Future<void> updateShotSettings(De1ShotSettings newSettings);
 
   Stream<De1WaterLevels> get waterLevels;
-  Future<void> setWaterLevelWarning(int newThresholdPercentage);
+  Future<void> setRefillLevel(int newRefillLevel);
 
   Future<void> setProfile(Profile profile);
   // TODO: also heater timeouts and others? (check mmr for options)
@@ -159,18 +159,18 @@ final class De1ShotSettings {
 }
 
 final class De1WaterLevels {
-  final int currentPercentage;
-  final int warningThresholdPercentage;
+  final int currentLevel;
+  final int refillLevel;
 
   De1WaterLevels({
-    required this.currentPercentage,
-    required this.warningThresholdPercentage,
+    required this.currentLevel,
+    required this.refillLevel,
   });
 
   Map<String, dynamic> toJson() {
     return {
-      'currentPercentage': currentPercentage,
-      'warningThresholdPercentage': warningThresholdPercentage,
+      'currentLevel': currentLevel,
+      'refillLevel': refillLevel,
     };
   }
 }

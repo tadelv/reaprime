@@ -263,9 +263,9 @@ components:
     WaterLevels:
       type: object
       properties:
-        currentPercentage:
+        currentLevel:
           type: integer
-        warningThresholdPercentage:
+        refillLevel:
           type: integer
     De1RawMessage:
       type: object
