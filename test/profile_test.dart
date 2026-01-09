@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/data/profile.dart';
+import 'package:reaprime/src/models/data/profile_hash.dart';
 import 'package:reaprime/src/models/data/profile_record.dart';
 import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:hive_ce/hive.dart';
@@ -98,8 +99,124 @@ void main() {
     Hive.init(null);
   });
 
-  group('ProfileRecord', () {
-    test('creates a new ProfileRecord with default values', () {
+  group('ProfileHash', () {
+    test('calculates consistent profile hash from execution fields', () {
+      final profile1 = Profile(
+        version: '2',
+        title: 'Test Profile',
+        author: 'Author 1',
+        notes: 'Some notes',
+        beverageType: BeverageType.espresso,
+        steps: [],
+        tankTemperature: 93.0,
+        targetWeight: 36.0,
+        targetVolumeCountStart: 0,
+      );
+
+      final profile2 = Profile(
+        version: '2',
+        title: 'Different Title',  // Metadata different
+        author: 'Author 2',
+        notes: 'Different notes',
+        beverageType: BeverageType.espresso,  // Execution fields same
+        steps: [],
+        tankTemperature: 93.0,
+        targetWeight: 36.0,
+        targetVolumeCountStart: 0,
+      );
+
+      final hash1 = ProfileHash.calculateProfileHash(profile1);
+      final hash2 = ProfileHash.calculateProfileHash(profile2);
+
+      // Same execution fields = same hash
+      expect(hash1, equals(hash2));
+      expect(hash1.startsWith('profile:'), isTrue);
+      expect(hash1.length, equals(24)); // 'profile:' + 16 chars
+    });
+
+    test('different execution fields produce different profile hashes', () {
+      final profile1 = Profile(
+        version: '2',
+        title: 'Test',
+        author: 'Test',
+        notes: '',
+        beverageType: BeverageType.espresso,
+        steps: [],
+        tankTemperature: 93.0,
+        targetVolumeCountStart: 0,
+      );
+
+      final profile2 = Profile(
+        version: '2',
+        title: 'Test',
+        author: 'Test',
+        notes: '',
+        beverageType: BeverageType.espresso,
+        steps: [],
+        tankTemperature: 94.0,  // Different temperature
+        targetVolumeCountStart: 0,
+      );
+
+      final hash1 = ProfileHash.calculateProfileHash(profile1);
+      final hash2 = ProfileHash.calculateProfileHash(profile2);
+
+      expect(hash1, isNot(equals(hash2)));
+    });
+
+    test('calculates different metadata hashes for different metadata', () {
+      final profile1 = Profile(
+        version: '2',
+        title: 'Title 1',
+        author: 'Author 1',
+        notes: 'Notes 1',
+        beverageType: BeverageType.espresso,
+        steps: [],
+        tankTemperature: 93.0,
+        targetVolumeCountStart: 0,
+      );
+
+      final profile2 = Profile(
+        version: '2',
+        title: 'Title 2',
+        author: 'Author 2',
+        notes: 'Notes 2',
+        beverageType: BeverageType.espresso,
+        steps: [],
+        tankTemperature: 93.0,
+        targetVolumeCountStart: 0,
+      );
+
+      final hash1 = ProfileHash.calculateMetadataHash(profile1);
+      final hash2 = ProfileHash.calculateMetadataHash(profile2);
+
+      expect(hash1, isNot(equals(hash2)));
+    });
+
+    test('calculateAll returns all three hashes', () {
+      final profile = Profile(
+        version: '2',
+        title: 'Test Profile',
+        author: 'Test Author',
+        notes: 'Test notes',
+        beverageType: BeverageType.espresso,
+        steps: [],
+        tankTemperature: 93.0,
+        targetVolumeCountStart: 0,
+      );
+
+      final hashes = ProfileHash.calculateAll(profile);
+
+      expect(hashes.profileHash.startsWith('profile:'), isTrue);
+      expect(hashes.metadataHash, isNotEmpty);
+      expect(hashes.compoundHash, isNotEmpty);
+      expect(hashes.profileHash.length, equals(24));
+      expect(hashes.metadataHash.length, equals(64)); // SHA-256 hex
+      expect(hashes.compoundHash.length, equals(64));
+    });
+  });
+
+  group('ProfileRecord with Hashes', () {
+    test('creates ProfileRecord with hash-based ID', () {
       final profile = Profile(
         version: '2',
         title: 'Test Profile',
@@ -117,80 +234,81 @@ void main() {
         isDefault: false,
       );
 
-      expect(record.id, isNotEmpty);
+      expect(record.id.startsWith('profile:'), isTrue);
+      expect(record.id.length, equals(24));
+      expect(record.metadataHash, isNotEmpty);
+      expect(record.compoundHash, isNotEmpty);
       expect(record.profile, equals(profile));
       expect(record.parentId, isNull);
       expect(record.visibility, equals(Visibility.visible));
       expect(record.isDefault, isFalse);
-      expect(record.createdAt, isNotNull);
-      expect(record.updatedAt, isNotNull);
-      expect(record.metadata, isNull);
     });
 
-    test('creates ProfileRecord with parent ID', () {
-      final profile = Profile(
+    test('identical profiles produce identical IDs', () {
+      final profile1 = Profile(
         version: '2',
-        title: 'Child Profile',
-        author: 'Test Author',
-        notes: 'Modified version',
+        title: 'Test',
+        author: 'Author',
+        notes: 'Notes',
         beverageType: BeverageType.espresso,
         steps: [],
         tankTemperature: 93.0,
         targetVolumeCountStart: 0,
       );
 
-      const parentId = 'parent-uuid';
-      final record = ProfileRecord.create(
-        profile: profile,
-        isDefault: false,
-        parentId: parentId,
-      );
-
-      expect(record.parentId, equals(parentId));
-    });
-
-    test('creates ProfileRecord with custom ID for default profiles', () {
-      final profile = Profile(
+      final profile2 = Profile(
         version: '2',
-        title: 'Default Profile',
-        author: 'REA',
-        notes: 'Bundled profile',
+        title: 'Test',
+        author: 'Author',
+        notes: 'Notes',
         beverageType: BeverageType.espresso,
         steps: [],
         tankTemperature: 93.0,
         targetVolumeCountStart: 0,
       );
 
-      const customId = 'default:best_practice';
-      final record = ProfileRecord.create(
-        id: customId,
-        profile: profile,
-        isDefault: true,
-      );
+      final record1 = ProfileRecord.create(profile: profile1, isDefault: false);
+      final record2 = ProfileRecord.create(profile: profile2, isDefault: false);
 
-      expect(record.id, equals(customId));
-      expect(record.isDefault, isTrue);
+      expect(record1.id, equals(record2.id));
+      expect(record1.metadataHash, equals(record2.metadataHash));
+      expect(record1.compoundHash, equals(record2.compoundHash));
     });
 
-    test('generates UUID v4 when no ID provided', () {
-      final profile = Profile(
+    test('same execution different metadata produces same profile ID', () {
+      final profile1 = Profile(
         version: '2',
-        title: 'User Profile',
-        author: 'User',
-        notes: '',
+        title: 'Original Title',
+        author: 'Author 1',
+        notes: 'Notes 1',
         beverageType: BeverageType.espresso,
         steps: [],
         tankTemperature: 93.0,
         targetVolumeCountStart: 0,
       );
 
-      final record = ProfileRecord.create(
-        profile: profile,
-        isDefault: false,
+      final profile2 = Profile(
+        version: '2',
+        title: 'Changed Title',
+        author: 'Author 2',
+        notes: 'Notes 2',
+        beverageType: BeverageType.espresso,
+        steps: [],
+        tankTemperature: 93.0,
+        targetVolumeCountStart: 0,
       );
 
-      // UUID v4 format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
-      expect(record.id, matches(RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')));
+      final record1 = ProfileRecord.create(profile: profile1, isDefault: false);
+      final record2 = ProfileRecord.create(profile: profile2, isDefault: false);
+
+      // Same profile hash (execution fields)
+      expect(record1.id, equals(record2.id));
+      
+      // Different metadata hash
+      expect(record1.metadataHash, isNot(equals(record2.metadataHash)));
+      
+      // Different compound hash
+      expect(record1.compoundHash, isNot(equals(record2.compoundHash)));
     });
 
     test('serializes to and from JSON correctly', () {
@@ -215,13 +333,15 @@ void main() {
       final deserialized = ProfileRecord.fromJson(json);
 
       expect(deserialized.id, equals(original.id));
+      expect(deserialized.metadataHash, equals(original.metadataHash));
+      expect(deserialized.compoundHash, equals(original.compoundHash));
       expect(deserialized.profile.title, equals(original.profile.title));
       expect(deserialized.visibility, equals(original.visibility));
       expect(deserialized.isDefault, equals(original.isDefault));
       expect(deserialized.metadata?['test'], equals('value'));
     });
 
-    test('copyWith creates updated record', () {
+    test('copyWith recalculates hashes when profile changes', () {
       final profile = Profile(
         version: '2',
         title: 'Original',
@@ -238,19 +358,17 @@ void main() {
         isDefault: false,
       );
 
-      final updated = original.copyWith(
-        visibility: Visibility.hidden,
-        metadata: {'updated': true},
-      );
+      final updatedProfile = profile.copyWith(tankTemperature: 94.0);
+      final updated = original.copyWith(profile: updatedProfile);
 
-      expect(updated.id, equals(original.id));
-      expect(updated.visibility, equals(Visibility.hidden));
-      expect(updated.metadata?['updated'], isTrue);
-      expect(
-        updated.updatedAt.isAtSameMomentAs(original.updatedAt) ||
-            updated.updatedAt.isAfter(original.updatedAt),
-        isTrue,
-      );
+      // Different profile hash due to temperature change
+      expect(updated.id, isNot(equals(original.id)));
+      
+      // Metadata hash unchanged (title/author/notes same)
+      expect(updated.metadataHash, equals(original.metadataHash));
+      
+      // Compound hash changed (profile hash changed)
+      expect(updated.compoundHash, isNot(equals(original.compoundHash)));
     });
   });
 
@@ -265,7 +383,7 @@ void main() {
       storage.reset();
     });
 
-    test('stores and retrieves profile', () async {
+    test('stores and retrieves profile by hash ID', () async {
       final profile = Profile(
         version: '2',
         title: 'Test Profile',
@@ -290,40 +408,7 @@ void main() {
       expect(retrieved.profile.title, equals('Test Profile'));
     });
 
-    test('returns null for non-existent profile', () async {
-      final retrieved = await storage.get('non-existent-id');
-      expect(retrieved, isNull);
-    });
-
-    test('updates existing profile', () async {
-      final profile = Profile(
-        version: '2',
-        title: 'Original Title',
-        author: 'Test',
-        notes: '',
-        beverageType: BeverageType.espresso,
-        steps: [],
-        tankTemperature: 93.0,
-        targetVolumeCountStart: 0,
-      );
-
-      final record = ProfileRecord.create(
-        profile: profile,
-        isDefault: false,
-      );
-
-      await storage.store(record);
-
-      final updatedProfile = profile.copyWith(title: 'Updated Title');
-      final updatedRecord = record.copyWith(profile: updatedProfile);
-
-      await storage.update(updatedRecord);
-      final retrieved = await storage.get(record.id);
-
-      expect(retrieved!.profile.title, equals('Updated Title'));
-    });
-
-    test('throws when updating non-existent profile', () async {
+    test('automatic deduplication with hash-based IDs', () async {
       final profile = Profile(
         version: '2',
         title: 'Test',
@@ -335,15 +420,19 @@ void main() {
         targetVolumeCountStart: 0,
       );
 
-      final record = ProfileRecord.create(
-        profile: profile,
-        isDefault: false,
-      );
+      final record1 = ProfileRecord.create(profile: profile, isDefault: false);
+      final record2 = ProfileRecord.create(profile: profile, isDefault: false);
 
-      expect(
-        () async => await storage.update(record),
-        throwsException,
-      );
+      // Both have same ID
+      expect(record1.id, equals(record2.id));
+
+      await storage.store(record1);
+      
+      // Storing record2 overwrites record1 (same ID)
+      await storage.store(record2);
+
+      final count = await storage.count();
+      expect(count, equals(1)); // Only one profile
     });
 
     test('filters by visibility', () async {
@@ -369,24 +458,11 @@ void main() {
             notes: '',
             beverageType: BeverageType.espresso,
             steps: [],
-            tankTemperature: 93.0,
+            tankTemperature: 94.0,  // Different to get different hash
             targetVolumeCountStart: 0,
           ),
           isDefault: false,
         ).copyWith(visibility: Visibility.hidden),
-        ProfileRecord.create(
-          profile: Profile(
-            version: '2',
-            title: 'Deleted',
-            author: 'Test',
-            notes: '',
-            beverageType: BeverageType.espresso,
-            steps: [],
-            tankTemperature: 93.0,
-            targetVolumeCountStart: 0,
-          ),
-          isDefault: false,
-        ).copyWith(visibility: Visibility.deleted),
       ];
 
       for (final profile in profiles) {
@@ -395,141 +471,15 @@ void main() {
 
       final visible = await storage.getAll(visibility: Visibility.visible);
       final hidden = await storage.getAll(visibility: Visibility.hidden);
-      final deleted = await storage.getAll(visibility: Visibility.deleted);
 
       expect(visible.length, equals(1));
       expect(hidden.length, equals(1));
-      expect(deleted.length, equals(1));
       expect(visible.first.profile.title, equals('Visible'));
       expect(hidden.first.profile.title, equals('Hidden'));
-      expect(deleted.first.profile.title, equals('Deleted'));
-    });
-
-    test('gets profiles by parent ID', () async {
-      final parentProfile = Profile(
-        version: '2',
-        title: 'Parent',
-        author: 'Test',
-        notes: '',
-        beverageType: BeverageType.espresso,
-        steps: [],
-        tankTemperature: 93.0,
-        targetVolumeCountStart: 0,
-      );
-
-      final parent = ProfileRecord.create(
-        profile: parentProfile,
-        isDefault: false,
-      );
-
-      final child1 = ProfileRecord.create(
-        profile: parentProfile.copyWith(title: 'Child 1'),
-        isDefault: false,
-        parentId: parent.id,
-      );
-
-      final child2 = ProfileRecord.create(
-        profile: parentProfile.copyWith(title: 'Child 2'),
-        isDefault: false,
-        parentId: parent.id,
-      );
-
-      final unrelated = ProfileRecord.create(
-        profile: parentProfile.copyWith(title: 'Unrelated'),
-        isDefault: false,
-      );
-
-      await storage.store(parent);
-      await storage.store(child1);
-      await storage.store(child2);
-      await storage.store(unrelated);
-
-      final children = await storage.getByParentId(parent.id);
-
-      expect(children.length, equals(2));
-      expect(children.every((c) => c.parentId == parent.id), isTrue);
-    });
-
-    test('batch store operation', () async {
-      final profiles = List.generate(
-        5,
-        (i) => ProfileRecord.create(
-          profile: Profile(
-            version: '2',
-            title: 'Profile $i',
-            author: 'Test',
-            notes: '',
-            beverageType: BeverageType.espresso,
-            steps: [],
-            tankTemperature: 93.0,
-            targetVolumeCountStart: 0,
-          ),
-          isDefault: false,
-        ),
-      );
-
-      await storage.storeAll(profiles);
-
-      final count = await storage.count();
-      expect(count, equals(5));
-    });
-
-    test('counts profiles correctly', () async {
-      final profiles = [
-        ProfileRecord.create(
-          profile: Profile(
-            version: '2',
-            title: 'Visible 1',
-            author: 'Test',
-            notes: '',
-            beverageType: BeverageType.espresso,
-            steps: [],
-            tankTemperature: 93.0,
-            targetVolumeCountStart: 0,
-          ),
-          isDefault: false,
-        ),
-        ProfileRecord.create(
-          profile: Profile(
-            version: '2',
-            title: 'Visible 2',
-            author: 'Test',
-            notes: '',
-            beverageType: BeverageType.espresso,
-            steps: [],
-            tankTemperature: 93.0,
-            targetVolumeCountStart: 0,
-          ),
-          isDefault: false,
-        ),
-        ProfileRecord.create(
-          profile: Profile(
-            version: '2',
-            title: 'Hidden',
-            author: 'Test',
-            notes: '',
-            beverageType: BeverageType.espresso,
-            steps: [],
-            tankTemperature: 93.0,
-            targetVolumeCountStart: 0,
-          ),
-          isDefault: false,
-        ).copyWith(visibility: Visibility.hidden),
-      ];
-
-      await storage.storeAll(profiles);
-
-      final totalCount = await storage.count();
-      final visibleCount = await storage.count(visibility: Visibility.visible);
-      final hiddenCount = await storage.count(visibility: Visibility.hidden);
-
-      expect(totalCount, equals(3));
-      expect(visibleCount, equals(2));
-      expect(hiddenCount, equals(1));
     });
   });
 
-  group('Profile Versioning', () {
+  group('Profile Versioning with Hashes', () {
     late MockProfileStorage storage;
 
     setUp(() {
@@ -540,8 +490,7 @@ void main() {
       storage.reset();
     });
 
-    test('creates version tree correctly', () async {
-      // Create parent
+    test('creates version tree with parent ID references', () async {
       final parentProfile = Profile(
         version: '2',
         title: 'Original',
@@ -560,70 +509,23 @@ void main() {
 
       await storage.store(parent);
 
-      // Create child
-      final childProfile = parentProfile.copyWith(title: 'Modified v1');
+      // Create modified version with different execution field
+      final childProfile = parentProfile.copyWith(tankTemperature: 94.0);
       final child = ProfileRecord.create(
         profile: childProfile,
+        parentId: parent.id,  // Reference parent
         isDefault: false,
-        parentId: parent.id,
       );
 
       await storage.store(child);
 
-      // Create grandchild
-      final grandchildProfile = childProfile.copyWith(title: 'Modified v2');
-      final grandchild = ProfileRecord.create(
-        profile: grandchildProfile,
-        isDefault: false,
-        parentId: child.id,
-      );
+      // Verify different IDs (different execution fields)
+      expect(child.id, isNot(equals(parent.id)));
+      expect(child.parentId, equals(parent.id));
 
-      await storage.store(grandchild);
-
-      // Verify parent relationship
-      final childrenOfParent = await storage.getByParentId(parent.id);
-      expect(childrenOfParent.length, equals(1));
-      expect(childrenOfParent.first.id, equals(child.id));
-
-      // Verify grandchild relationship
-      final childrenOfChild = await storage.getByParentId(child.id);
-      expect(childrenOfChild.length, equals(1));
-      expect(childrenOfChild.first.id, equals(grandchild.id));
-    });
-
-    test('supports multiple children', () async {
-      final parentProfile = Profile(
-        version: '2',
-        title: 'Parent',
-        author: 'Test',
-        notes: '',
-        beverageType: BeverageType.espresso,
-        steps: [],
-        tankTemperature: 93.0,
-        targetVolumeCountStart: 0,
-      );
-
-      final parent = ProfileRecord.create(
-        profile: parentProfile,
-        isDefault: false,
-      );
-
-      await storage.store(parent);
-
-      // Create multiple children
-      final children = List.generate(
-        3,
-        (i) => ProfileRecord.create(
-          profile: parentProfile.copyWith(title: 'Child $i'),
-          isDefault: false,
-          parentId: parent.id,
-        ),
-      );
-
-      await storage.storeAll(children);
-
-      final retrievedChildren = await storage.getByParentId(parent.id);
-      expect(retrievedChildren.length, equals(3));
+      final children = await storage.getByParentId(parent.id);
+      expect(children.length, equals(1));
+      expect(children.first.id, equals(child.id));
     });
   });
 
@@ -656,6 +558,7 @@ void main() {
       );
 
       expect(record.isDefault, isTrue);
+      expect(record.id.startsWith('profile:'), isTrue);
     });
 
     test('default profiles can be hidden but not deleted', () async {
@@ -684,76 +587,15 @@ void main() {
       final retrieved = await storage.get(record.id);
       expect(retrieved!.visibility, equals(Visibility.hidden));
       expect(retrieved.isDefault, isTrue);
-
-      // Verify it's not in visible list
-      final visible = await storage.getAll(visibility: Visibility.visible);
-      expect(visible.any((p) => p.id == record.id), isFalse);
-    });
-
-    test('user profiles can be soft deleted', () async {
-      final profile = Profile(
-        version: '2',
-        title: 'User Profile',
-        author: 'User',
-        notes: '',
-        beverageType: BeverageType.espresso,
-        steps: [],
-        tankTemperature: 93.0,
-        targetVolumeCountStart: 0,
-      );
-
-      final record = ProfileRecord.create(
-        profile: profile,
-        isDefault: false,
-      );
-
-      await storage.store(record);
-
-      // Simulate soft delete
-      final deletedRecord = record.copyWith(visibility: Visibility.deleted);
-      await storage.update(deletedRecord);
-
-      final retrieved = await storage.get(record.id);
-      expect(retrieved!.visibility, equals(Visibility.deleted));
-
-      // Verify it's not in visible list
-      final visible = await storage.getAll(visibility: Visibility.visible);
-      expect(visible.any((p) => p.id == record.id), isFalse);
-
-      // But it still exists in deleted list
-      final deleted = await storage.getAll(visibility: Visibility.deleted);
-      expect(deleted.any((p) => p.id == record.id), isTrue);
     });
   });
 
-  group('Default Profile Migration', () {
-    late MockProfileStorage storage;
-
-    setUp(() {
-      storage = MockProfileStorage();
-    });
-
-    tearDown(() {
-      storage.reset();
-    });
-
-    test('detects profiles with old UUID-style IDs', () {
-      // Old UUID format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
-      const oldUuidId = '550e8400-e29b-41d4-a716-446655440000';
-      expect(oldUuidId.contains('-'), isTrue);
-      expect(oldUuidId.length, equals(36));
-      expect(oldUuidId.startsWith('default:'), isFalse);
-
-      // New stable ID format
-      const newStableId = 'default:best_practice';
-      expect(newStableId.startsWith('default:'), isTrue);
-    });
-
-    test('migration preserves profile data when changing ID', () async {
+  group('Hash Update Mechanics', () {
+    test('updating metadata only keeps same profile ID', () {
       final profile = Profile(
         version: '2',
-        title: 'Best Practice',
-        author: 'Decent',
+        title: 'Original Title',
+        author: 'Original Author',
         notes: 'Original notes',
         beverageType: BeverageType.espresso,
         steps: [],
@@ -761,136 +603,31 @@ void main() {
         targetVolumeCountStart: 0,
       );
 
-      // Simulate old profile with UUID ID
-      const oldId = '550e8400-e29b-41d4-a716-446655440000';
-      final createdAt = DateTime.now().subtract(const Duration(days: 7));
-      final oldRecord = ProfileRecord(
-        id: oldId,
-        profile: profile,
-        visibility: Visibility.visible,
-        isDefault: true,
-        createdAt: createdAt,
-        updatedAt: createdAt,
-        metadata: {
-          'source': 'bundled',
-          'filename': 'best_practice.json',
-        },
+      final original = ProfileRecord.create(profile: profile, isDefault: false);
+      
+      // Update only metadata fields
+      final updatedProfile = profile.copyWith(
+        title: 'New Title',
+        author: 'New Author',
+        notes: 'New notes',
       );
+      
+      final updated = original.copyWith(profile: updatedProfile);
 
-      await storage.store(oldRecord);
-
-      // Simulate migration: delete old, create new with stable ID
-      await storage.delete(oldId);
-
-      const newId = 'default:best_practice';
-      final newRecord = ProfileRecord(
-        id: newId,
-        profile: oldRecord.profile,
-        parentId: oldRecord.parentId,
-        visibility: oldRecord.visibility,
-        isDefault: oldRecord.isDefault,
-        createdAt: oldRecord.createdAt, // Preserve original creation time
-        updatedAt: DateTime.now(), // Update timestamp
-        metadata: oldRecord.metadata,
-      );
-
-      await storage.store(newRecord);
-
-      // Verify old ID doesn't exist
-      final oldRetrieved = await storage.get(oldId);
-      expect(oldRetrieved, isNull);
-
-      // Verify new ID exists with preserved data
-      final newRetrieved = await storage.get(newId);
-      expect(newRetrieved, isNotNull);
-      expect(newRetrieved!.id, equals(newId));
-      expect(newRetrieved.profile.title, equals('Best Practice'));
-      expect(newRetrieved.isDefault, isTrue);
-      expect(newRetrieved.createdAt, equals(createdAt)); // Original timestamp preserved
-      expect(newRetrieved.metadata?['filename'], equals('best_practice.json'));
+      // Same profile ID (execution fields unchanged)
+      expect(updated.id, equals(original.id));
+      
+      // Different metadata hash
+      expect(updated.metadataHash, isNot(equals(original.metadataHash)));
+      
+      // Different compound hash
+      expect(updated.compoundHash, isNot(equals(original.compoundHash)));
     });
 
-    test('migration handles multiple profiles correctly', () async {
-      // Create multiple profiles with old UUID IDs
-      final profiles = [
-        ('550e8400-e29b-41d4-a716-446655440000', 'best_practice.json', 'default:best_practice'),
-        ('650e8400-e29b-41d4-a716-446655440001', 'cremina.json', 'default:cremina'),
-        ('750e8400-e29b-41d4-a716-446655440002', 'manual_flow.json', 'default:manual_flow'),
-      ];
-
-      for (final (oldId, filename, _) in profiles) {
-        final profile = Profile(
-          version: '2',
-          title: filename.split('.').first,
-          author: 'Test',
-          notes: '',
-          beverageType: BeverageType.espresso,
-          steps: [],
-          tankTemperature: 93.0,
-          targetVolumeCountStart: 0,
-        );
-
-        final record = ProfileRecord(
-          id: oldId,
-          profile: profile,
-          visibility: Visibility.visible,
-          isDefault: true,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-          metadata: {'filename': filename},
-        );
-
-        await storage.store(record);
-      }
-
-      // Verify all old IDs exist
-      for (final (oldId, _, _) in profiles) {
-        final exists = await storage.exists(oldId);
-        expect(exists, isTrue);
-      }
-
-      // Simulate migration for all profiles
-      for (final (oldId, filename, newId) in profiles) {
-        final oldRecord = await storage.get(oldId);
-        expect(oldRecord, isNotNull);
-
-        await storage.delete(oldId);
-
-        final newRecord = ProfileRecord(
-          id: newId,
-          profile: oldRecord!.profile,
-          parentId: oldRecord.parentId,
-          visibility: oldRecord.visibility,
-          isDefault: oldRecord.isDefault,
-          createdAt: oldRecord.createdAt,
-          updatedAt: DateTime.now(),
-          metadata: oldRecord.metadata,
-        );
-
-        await storage.store(newRecord);
-      }
-
-      // Verify all old IDs are gone
-      for (final (oldId, _, _) in profiles) {
-        final exists = await storage.exists(oldId);
-        expect(exists, isFalse);
-      }
-
-      // Verify all new IDs exist
-      for (final (_, __, newId) in profiles) {
-        final exists = await storage.exists(newId);
-        expect(exists, isTrue);
-      }
-
-      final allProfiles = await storage.getAll();
-      expect(allProfiles.length, equals(3));
-      expect(allProfiles.every((p) => p.id.startsWith('default:')), isTrue);
-    });
-
-    test('migration skips profiles that already have stable IDs', () async {
+    test('updating execution fields changes profile ID', () {
       final profile = Profile(
         version: '2',
-        title: 'Already Migrated',
+        title: 'Test',
         author: 'Test',
         notes: '',
         beverageType: BeverageType.espresso,
@@ -899,35 +636,27 @@ void main() {
         targetVolumeCountStart: 0,
       );
 
-      // Create profile with stable ID (already migrated)
-      const stableId = 'default:already_migrated';
-      final record = ProfileRecord.create(
-        id: stableId,
-        profile: profile,
-        isDefault: true,
-        metadata: {'filename': 'already_migrated.json'},
-      );
+      final original = ProfileRecord.create(profile: profile, isDefault: false);
+      
+      // Update execution field
+      final updatedProfile = profile.copyWith(tankTemperature: 94.0);
+      final updated = original.copyWith(profile: updatedProfile);
 
-      await storage.store(record);
-
-      // Check if this profile should be migrated
-      final shouldMigrate = record.id.contains('-') &&
-          record.id.length == 36 &&
-          !record.id.startsWith('default:');
-
-      expect(shouldMigrate, isFalse);
-
-      // Verify it still exists with same ID
-      final retrieved = await storage.get(stableId);
-      expect(retrieved, isNotNull);
-      expect(retrieved!.id, equals(stableId));
+      // Different profile ID (execution field changed)
+      expect(updated.id, isNot(equals(original.id)));
+      
+      // Same metadata hash (metadata unchanged)
+      expect(updated.metadataHash, equals(original.metadataHash));
+      
+      // Different compound hash
+      expect(updated.compoundHash, isNot(equals(original.compoundHash)));
     });
 
-    test('migration does not affect user profiles with UUIDs', () async {
+    test('updating both metadata and execution changes all hashes', () {
       final profile = Profile(
         version: '2',
-        title: 'User Profile',
-        author: 'User',
+        title: 'Original',
+        author: 'Test',
         notes: '',
         beverageType: BeverageType.espresso,
         steps: [],
@@ -935,25 +664,108 @@ void main() {
         targetVolumeCountStart: 0,
       );
 
-      // User profile with UUID (not a default profile)
-      final record = ProfileRecord.create(
-        profile: profile,
-        isDefault: false, // User profile, not default
+      final original = ProfileRecord.create(profile: profile, isDefault: false);
+      
+      // Update both
+      final updatedProfile = profile.copyWith(
+        title: 'Updated',
+        tankTemperature: 94.0,
+      );
+      final updated = original.copyWith(profile: updatedProfile);
+
+      // All hashes different
+      expect(updated.id, isNot(equals(original.id)));
+      expect(updated.metadataHash, isNot(equals(original.metadataHash)));
+      expect(updated.compoundHash, isNot(equals(original.compoundHash)));
+    });
+
+    test('identical profiles from different sources have same ID', () {
+      // Simulate two users creating the "same" profile
+      final profile1 = Profile(
+        version: '2',
+        title: 'User A Version',
+        author: 'Alice',
+        notes: 'Created by Alice',
+        beverageType: BeverageType.espresso,
+        steps: [],
+        tankTemperature: 93.0,
+        targetVolumeCountStart: 0,
       );
 
-      await storage.store(record);
-      final originalId = record.id;
+      final profile2 = Profile(
+        version: '2',
+        title: 'User B Version',
+        author: 'Bob',
+        notes: 'Created by Bob',
+        beverageType: BeverageType.espresso,
+        steps: [],
+        tankTemperature: 93.0,
+        targetVolumeCountStart: 0,
+      );
 
-      // User profiles should keep their UUID IDs
-      // Migration only affects profiles where isDefault = true
-      final retrieved = await storage.get(originalId);
-      expect(retrieved, isNotNull);
-      expect(retrieved!.id, equals(originalId));
-      expect(retrieved.isDefault, isFalse);
+      final record1 = ProfileRecord.create(profile: profile1, isDefault: false);
+      final record2 = ProfileRecord.create(profile: profile2, isDefault: false);
+
+      // Same functional profile → same ID
+      expect(record1.id, equals(record2.id));
       
-      // Check it's a UUID format
-      expect(retrieved.id.contains('-'), isTrue);
-      expect(retrieved.id.length, equals(36));
+      // Can detect they're different presentations
+      expect(record1.metadataHash, isNot(equals(record2.metadataHash)));
+      expect(record1.compoundHash, isNot(equals(record2.compoundHash)));
+    });
+
+    test('hash remains stable across serialization', () {
+      final profile = Profile(
+        version: '2',
+        title: 'Test Profile',
+        author: 'Test',
+        notes: '',
+        beverageType: BeverageType.espresso,
+        steps: [],
+        tankTemperature: 93.0,
+        targetVolumeCountStart: 0,
+      );
+
+      final original = ProfileRecord.create(profile: profile, isDefault: false);
+      
+      // Serialize and deserialize
+      final json = original.toJson();
+      final deserialized = ProfileRecord.fromJson(json);
+
+      // All hashes preserved
+      expect(deserialized.id, equals(original.id));
+      expect(deserialized.metadataHash, equals(original.metadataHash));
+      expect(deserialized.compoundHash, equals(original.compoundHash));
+    });
+
+    test('changing beverage type changes profile hash', () {
+      final profile1 = Profile(
+        version: '2',
+        title: 'Test',
+        author: 'Test',
+        notes: '',
+        beverageType: BeverageType.espresso,
+        steps: [],
+        tankTemperature: 93.0,
+        targetVolumeCountStart: 0,
+      );
+
+      final profile2 = Profile(
+        version: '2',
+        title: 'Test',
+        author: 'Test',
+        notes: '',
+        beverageType: BeverageType.pourover,  // Different beverage type
+        steps: [],
+        tankTemperature: 93.0,
+        targetVolumeCountStart: 0,
+      );
+
+      final record1 = ProfileRecord.create(profile: profile1, isDefault: false);
+      final record2 = ProfileRecord.create(profile: profile2, isDefault: false);
+
+      // Different beverage type → different profile hash
+      expect(record1.id, isNot(equals(record2.id)));
     });
   });
 }

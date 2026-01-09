@@ -2,69 +2,21 @@
   "version": "1.0.0",
   "description": "Default espresso profiles bundled with REA Prime",
   "profiles": [
-    {
-      "id": "default:advanced_spring_lever",
-      "filename": "advanced_spring_lever.json"
-    },
-    {
-      "id": "default:baseline_hc",
-      "filename": "baseline_hc.json"
-    },
-    {
-      "id": "default:baseline_lc",
-      "filename": "baseline_lc.json"
-    },
-    {
-      "id": "default:baseline_ulc",
-      "filename": "baseline_ulc.json"
-    },
-    {
-      "id": "default:best_practice",
-      "filename": "best_practice.json"
-    },
-    {
-      "id": "default:cleaning_forward_flush",
-      "filename": "Cleaning__Forward_Flush_x5_2.json"
-    },
-    {
-      "id": "default:cremina",
-      "filename": "cremina.json"
-    },
-    {
-      "id": "default:d_flow",
-      "filename": "D-Flow____default.json"
-    },
-    {
-      "id": "default:default1",
-      "filename": "Default1.json"
-    },
-    {
-      "id": "default:gentle_and_sweet",
-      "filename": "Gentle_and_sweet1.json"
-    },
-    {
-      "id": "default:icbinf",
-      "filename": "icbinf.json"
-    },
-    {
-      "id": "default:manual_flow",
-      "filename": "manual_flow.json"
-    },
-    {
-      "id": "default:manual_pressure",
-      "filename": "manual_pressure.json"
-    },
-    {
-      "id": "default:psph",
-      "filename": "psph.json"
-    },
-    {
-      "id": "default:rao_allonge",
-      "filename": "Rao_Allongé_3.json"
-    },
-    {
-      "id": "default:rohan_soup",
-      "filename": "rohan-soup.json"
-    }
+    "advanced_spring_lever.json",
+    "baseline_hc.json",
+    "baseline_lc.json",
+    "baseline_ulc.json",
+    "best_practice.json",
+    "Cleaning__Forward_Flush_x5_2.json",
+    "cremina.json",
+    "D-Flow____default.json",
+    "Default1.json",
+    "Gentle_and_sweet1.json",
+    "icbinf.json",
+    "manual_flow.json",
+    "manual_pressure.json",
+    "psph.json",
+    "Rao_Allongé_3.json",
+    "rohan-soup.json"
   ]
 }

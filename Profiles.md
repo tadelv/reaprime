@@ -126,9 +126,11 @@ The implementation follows REA's standard layered architecture with clear separa
 
 **ProfileRecord** (`lib/src/models/data/profile_record.dart`)
 - Envelope around `Profile` with metadata
-- Fields: `id`, `profile`, `parentId`, `visibility`, `isDefault`, `createdAt`, `updatedAt`, `metadata`
+- Fields: `id` (profile hash), `profile`, `metadataHash`, `compoundHash`, `parentId`, `visibility`, `isDefault`, `createdAt`, `updatedAt`, `metadata`
+- Uses content-based hashing for ID (see "Content-Based Hash IDs" section below)
 - Immutable with `copyWith` support
 - Full JSON serialization
+- Hash recalculation on profile changes
 
 **Visibility Enum**
 - `visible`: Normal state, shown in UI
@@ -149,8 +151,10 @@ The implementation follows REA's standard layered architecture with clear separa
 **ProfileController** (`lib/src/controllers/profile_controller.dart`)
 - Business logic and validation layer
 - Auto-loads default profiles from `assets/defaultProfiles/` on first startup
-- Enforces default profile protection (cannot be deleted, only hidden)
+- Enforces default profile protection (cannot be deleted, only hidden; cannot modify execution fields)
 - Validates parent profile existence before creating children
+- **Automatic deduplication**: Identical profiles share the same hash-based ID
+- **Smart updates**: When execution fields change, old record is deleted and new one is stored with new hash
 - Profile lineage tracking via `getLineage()`
 - Import/export with detailed results (imported/skipped/failed counts)
 - Exposes `profileCount` stream for UI updates
@@ -433,7 +437,7 @@ curl -X POST http://localhost:8080/api/v1/profiles \
   -H "Content-Type: application/json" \
   -d '{
     "profile": {...},
-    "parentId": "parent-profile-uuid"
+    "parentId": "profile:a3f2c8b4d1e6f9a2"
   }'
 ```
 
@@ -463,18 +467,49 @@ curl -X POST http://localhost:8080/api/v1/profiles/import \
 
 ### Testing
 
-Unit tests are located in `test/profile_test.dart` and cover:
-- ProfileRecord serialization/deserialization
-- Storage CRUD operations
-- Default profile protection
-- Profile versioning and lineage tracking
-- Import/export functionality
-- Visibility state management
+Unit tests are located in `test/profile_test.dart` with 21 comprehensive tests covering:
+
+**Hash Mechanism Tests:**
+- Consistent hash calculation from execution fields
+- Different execution fields produce different hashes
+- Metadata hash calculation and consistency
+- All three hashes calculated together
+- Hash stability across serialization
+
+**ProfileRecord Tests:**
+- Hash-based ID generation
+- Identical profiles produce identical IDs (deduplication)
+- Same execution + different metadata = same profile ID
+- JSON serialization/deserialization with hashes
+- Hash recalculation in copyWith()
+
+**Storage Tests:**
+- Store and retrieve by hash ID
+- Automatic deduplication with hash-based IDs
+- Visibility filtering
+
+**Versioning Tests:**
+- Version tree creation with parent ID references
+- Profile lineage tracking
+
+**Default Profile Protection:**
+- isDefault flag persistence
+- Soft delete vs hide behavior
+
+**Hash Update Mechanics:**
+- Metadata-only updates keep same profile ID
+- Execution field updates change profile ID
+- Combined updates change all hashes
+- Cross-user/device deduplication
+- Serialization stability
+- Beverage type changes update profile hash
 
 Run tests with:
 ```bash
 flutter test test/profile_test.dart
 ```
+
+All 21 tests pass successfully.
 
 ### Storage Details
 
@@ -549,12 +584,18 @@ Example error response:
 
 ### Future Enhancements
 
-- **Cloud Sync**: Sync profiles across devices via cloud API
+- **Cloud Sync**: Hash-based IDs make conflict-free cloud sync straightforward
+  - Same content = same ID everywhere (no merge conflicts)
+  - Sync compound hashes to detect any changes
+  - Implement three-way merge using parent IDs
 - **Change Tracking**: Detailed diff between profile versions
+  - Use metadata hash to detect cosmetic-only changes
+  - Show execution vs presentation changes separately
 - **Tags/Categories**: Organize profiles by category, beverage type, etc.
 - **Search**: Full-text search in profile metadata and content
 - **Sharing**: Share profiles with other users (export as shareable link)
+  - Hash ID proves authenticity (content hasn't been tampered)
 - **Auto-cleanup**: Configurable purge of old deleted profiles (e.g., 30 days)
-- **Conflict Resolution**: Handle sync conflicts when using multiple devices
 - **Profile Templates**: Pre-configured templates for common brewing styles
+- **Smart Import**: When importing, use compound hash to detect duplicates with different IDs from old UUID-based exports
 

@@ -596,6 +596,18 @@ paths:
                 type: object
 
   # Profiles API
+  # 
+  # REA uses content-based hashing for profile identification:
+  # - Profile Hash (ID): Calculated from execution-relevant fields (beverage_type, steps, tank_temperature, 
+  #   target_weight, target_volume, target_volume_count_start, legacy_profile_type, type, version)
+  # - Metadata Hash: Calculated from presentation fields (title, author, notes)
+  # - Compound Hash: Combined hash of both, used for full change detection
+  #
+  # Benefits:
+  # - Automatic deduplication: Identical profiles have identical IDs across all devices
+  # - Cloud sync friendly: No ID conflicts when syncing between devices
+  # - Version tracking: Changes to execution fields create new profile IDs
+  #
   /api/v1/profiles:
     get:
       summary: Get all profiles
@@ -1533,6 +1545,8 @@ components:
       required:
         - id
         - profile
+        - metadataHash
+        - compoundHash
         - visibility
         - isDefault
         - createdAt
@@ -1540,16 +1554,24 @@ components:
       properties:
         id:
           type: string
-          format: uuid
-          description: Unique identifier for the profile record
+          description: Content-based hash ID (profile hash) calculated from execution-relevant fields. Format 'profile:<16_hex_chars>'. Identical profile content produces identical IDs across all devices, enabling automatic deduplication.
+          example: "profile:a1b2c3d4e5f6g7h8"
         profile:
           $ref: '#/components/schemas/Profile'
           description: The actual profile data
+        metadataHash:
+          type: string
+          description: SHA-256 hash of metadata fields (title, author, notes). Used to detect presentation-only changes.
+          example: "3f4e5d6c7b8a9..."
+        compoundHash:
+          type: string
+          description: Combined hash of profile hash + metadata hash. Changes whenever any field changes, used for full change detection.
+          example: "9a8b7c6d5e4f3..."
         parentId:
           type: string
-          format: uuid
           nullable: true
-          description: ID of the parent profile for version tracking
+          description: ID (profile hash) of the parent profile for version tracking
+          example: "profile:9z8y7x6w5v4u3t2"
         visibility:
           $ref: '#/components/schemas/Visibility'
           description: Current visibility state of the profile
