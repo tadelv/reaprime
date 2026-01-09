@@ -66,6 +66,42 @@ class HDSSerial implements Scale {
     await _transport.writeHexCommand(cmd);
   }
 
+  @override
+  Future<void> powerDown() async {
+    // For serial scale, we can send oledoff command then disconnect
+    _log.info('Powering down serial Decent Scale');
+    try {
+      await _sendOledOff();
+    } catch (e) {
+      _log.warning('Failed to send OLED off command: $e');
+    }
+    await disconnect();
+  }
+
+  @override
+  Future<void> sleepDisplay() async {
+    _log.info('Putting serial Decent Scale display to sleep');
+    await _sendOledOff();
+  }
+
+  @override
+  Future<void> wakeDisplay() async {
+    _log.info('Waking serial Decent Scale display');
+    await _sendOledOn();
+  }
+
+  Future<void> _sendOledOn() async {
+    // Send "oledon" command as ASCII
+    final cmd = Uint8List.fromList('oledon\n'.codeUnits);
+    await _transport.writeHexCommand(cmd);
+  }
+
+  Future<void> _sendOledOff() async {
+    // Send "oledoff" command as ASCII
+    final cmd = Uint8List.fromList('oledoff\n'.codeUnits);
+    await _transport.writeHexCommand(cmd);
+  }
+
   final BehaviorSubject<ScaleSnapshot> _snapshotHandler = BehaviorSubject();
 
   @override

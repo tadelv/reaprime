@@ -2,6 +2,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
+import 'package:reaprime/src/settings/scale_power_mode.dart';
 
 import 'settings_service.dart';
 
@@ -30,6 +31,8 @@ class SettingsController with ChangeNotifier {
 
   late double _volumeFlowMultiplier;
 
+  late ScalePowerMode _scalePowerMode;
+
   // Allow Widgets to read the user's preferred ThemeMode.
   ThemeMode get themeMode => _themeMode;
   GatewayMode get gatewayMode => _gatewayMode;
@@ -37,6 +40,7 @@ class SettingsController with ChangeNotifier {
   bool get simulatedDevices => _simulatedDevices;
   double get weightFlowMultiplier => _weightFlowMultiplier;
   double get volumeFlowMultiplier => _volumeFlowMultiplier;
+  ScalePowerMode get scalePowerMode => _scalePowerMode;
 
   /// Load the user's settings from the SettingsService. It may load from a
   /// local database or the internet. The controller only knows it can load the
@@ -48,6 +52,7 @@ class SettingsController with ChangeNotifier {
     _simulatedDevices = await _settingsService.simulateDevices();
     _weightFlowMultiplier = await _settingsService.weightFlowMultiplier();
     _volumeFlowMultiplier = await _settingsService.volumeFlowMultiplier();
+    _scalePowerMode = await _settingsService.scalePowerMode();
 
     // Important! Inform listeners a change has occurred.
     notifyListeners();
@@ -129,6 +134,15 @@ class SettingsController with ChangeNotifier {
     }
     _volumeFlowMultiplier = value;
     await _settingsService.setVolumeFlowMultiplier(value);
+    notifyListeners();
+  }
+
+  Future<void> setScalePowerMode(ScalePowerMode mode) async {
+    if (mode == _scalePowerMode) {
+      return;
+    }
+    _scalePowerMode = mode;
+    await _settingsService.setScalePowerMode(mode);
     notifyListeners();
   }
 }

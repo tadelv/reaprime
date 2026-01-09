@@ -30,6 +30,22 @@ class MockScale implements Scale {
   }
 
   @override
+  Future<void> powerDown() async {
+    // Mock scale power down - just disconnect
+    await disconnect();
+  }
+
+  @override
+  Future<void> sleepDisplay() async {
+    // Mock scale - no-op
+  }
+
+  @override
+  Future<void> wakeDisplay() async {
+    // Mock scale - no-op
+  }
+
+  @override
   DeviceType get type => DeviceType.scale;
 
   final StreamController<ScaleSnapshot> _snapshotStream =

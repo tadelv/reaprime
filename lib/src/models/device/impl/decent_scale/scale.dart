@@ -119,7 +119,7 @@ class DecentScale implements Scale {
 
   void _parseNotification(List<int> data) {
     if (data.length < 4) return;
-    _log.finest("${hashCode} recv: ${data[1].toHex()}");
+    _log.finest("$hashCode recv: ${data[1].toHex()}");
     switch (data[1]) {
       case 0xCE:
       case 0xCA:
@@ -155,5 +155,29 @@ class DecentScale implements Scale {
   Future<void> _sendOledOn() async {
     List<int> payload = [0x03, 0x0A, 0x01, 0x01, 0x00, 0x01, 0x08];
     await _device.write(serviceUUID, writeUUID, Uint8List.fromList(payload));
+  }
+
+  Future<void> _sendOledOff() async {
+    List<int> payload = [0x03, 0x0A, 0x01, 0x00, 0x00, 0x01, 0x09];
+    await _device.write(serviceUUID, writeUUID, Uint8List.fromList(payload));
+  }
+
+  @override
+  Future<void> powerDown() async {
+    // For BLE Decent Scale, power down means disconnect
+    _log.info('Powering down Decent Scale (disconnect)');
+    await disconnect();
+  }
+
+  @override
+  Future<void> sleepDisplay() async {
+    _log.info('Putting Decent Scale display to sleep');
+    await _sendOledOff();
+  }
+
+  @override
+  Future<void> wakeDisplay() async {
+    _log.info('Waking Decent Scale display');
+    await _sendOledOn();
   }
 }

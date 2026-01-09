@@ -76,6 +76,24 @@ class BookooScale implements Scale {
     );
   }
 
+  @override
+  Future<void> powerDown() async {
+    // Bookoo scale doesn't have documented power down command
+    // Best we can do is disconnect
+    await disconnect();
+  }
+
+  @override
+  Future<void> sleepDisplay() async {
+    // Bookoo scale doesn't have documented display sleep commands
+    // This is a no-op for now
+  }
+
+  @override
+  Future<void> wakeDisplay() async {
+    // Bookoo scale doesn't have documented wake display commands
+    // This is a no-op for now
+  }
 
   void _registerNotifications() async {
     await _transport.subscribe(serviceUUID, dataUUID, _parseNotification);

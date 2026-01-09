@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
+import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// A service that stores and retrieves user settings.
@@ -74,6 +75,18 @@ class SettingsService {
   Future<void> setVolumeFlowMultiplier(double value) async {
     await prefs.setDouble(SettingsKeys.volumeFlowMultiplier.name, value);
   }
+
+  Future<ScalePowerMode> scalePowerMode() async {
+    return ScalePowerModeFromString.fromString(
+          await prefs.getString(SettingsKeys.scalePowerMode.name) ??
+              ScalePowerMode.disabled.name,
+        ) ??
+        ScalePowerMode.disabled;
+  }
+
+  Future<void> setScalePowerMode(ScalePowerMode mode) async {
+    await prefs.setString(SettingsKeys.scalePowerMode.name, mode.name);
+  }
 }
 
 enum SettingsKeys {
@@ -84,4 +97,5 @@ enum SettingsKeys {
   simulateDevices,
   weightFlowMultiplier,
   volumeFlowMultiplier,
+  scalePowerMode,
 }

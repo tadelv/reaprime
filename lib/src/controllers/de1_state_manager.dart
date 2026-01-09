@@ -13,6 +13,7 @@ import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
 import 'package:reaprime/src/realtime_steam_feature/realtime_steam_feature.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
+import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:uuid/uuid.dart';
 
@@ -21,6 +22,7 @@ import 'package:uuid/uuid.dart';
 ///
 /// This class separates the concern of handling DE1 state changes from
 /// the main app widget, providing better memory management and cleaner code.
+///
 class De1StateManager {
   final Logger _logger = Logger('De1StateManager');
 
@@ -39,6 +41,9 @@ class De1StateManager {
 
   bool _isRealtimeFeatureActive = false;
   final List<ShotSnapshot> _currentShotSnapshots = [];
+  
+  // Track previous machine state for scale power management
+  MachineState? _previousMachineState;
 
   De1StateManager({
     required De1Controller de1Controller,
@@ -81,12 +86,16 @@ class De1StateManager {
   /// based on the machine state and gateway mode.
   void _handleSnapshot(MachineSnapshot snapshot) {
     final gatewayMode = _settingsController.gatewayMode;
+    final currentState = snapshot.state.state;
 
     _logger.finest(
-      'Handling state: ${snapshot.state.state} in mode: ${gatewayMode.name}',
+      'Handling state: $currentState in mode: ${gatewayMode.name}',
     );
 
-    switch (snapshot.state.state) {
+    // Handle scale power management based on state transitions
+    _handleScalePowerManagement(currentState);
+
+    switch (currentState) {
       case MachineState.espresso:
         _handleEspressoState(snapshot, gatewayMode);
         break;
@@ -95,6 +104,67 @@ class De1StateManager {
         break;
       default:
         break;
+    }
+
+    // Update previous state for next transition
+    _previousMachineState = currentState;
+  }
+
+  /// Handles scale power management based on machine state transitions
+  void _handleScalePowerManagement(MachineState currentState) {
+    final scalePowerMode = _settingsController.scalePowerMode;
+
+    // Skip if power management is disabled
+    if (scalePowerMode == ScalePowerMode.disabled) {
+      return;
+    }
+
+    // Skip if no previous state (first snapshot)
+    if (_previousMachineState == null) {
+      return;
+    }
+
+    // Skip if state hasn't changed
+    if (_previousMachineState == currentState) {
+      return;
+    }
+
+    try {
+      final scale = _scaleController.connectedScale();
+
+      // Transition from idle/schedIdle to sleeping -> put scale to sleep
+      if ((_previousMachineState == MachineState.idle) &&
+          currentState == MachineState.sleeping) {
+        _logger.info(
+          'Machine going to sleep, managing scale power (mode: ${scalePowerMode.name})',
+        );
+
+        if (scalePowerMode == ScalePowerMode.displayOff) {
+          scale.sleepDisplay().catchError((e) {
+            _logger.warning('Failed to sleep scale display: $e');
+          });
+        } else if (scalePowerMode == ScalePowerMode.powerOff) {
+          scale.powerDown().catchError((e) {
+            _logger.warning('Failed to power down scale: $e');
+          });
+        }
+      }
+
+      // Transition from sleeping to idle -> wake scale display
+      if (_previousMachineState == MachineState.sleeping &&
+          currentState == MachineState.idle) {
+        _logger.info('Machine waking up, waking scale display');
+
+        // Only wake display if mode was displayOff (if powerOff, scale is disconnected)
+        if (scalePowerMode == ScalePowerMode.displayOff) {
+          scale.wakeDisplay().catchError((e) {
+            _logger.warning('Failed to wake scale display: $e');
+          });
+        }
+      }
+    } catch (e) {
+      // Scale not connected, skip
+      _logger.finest('Scale not connected, skipping power management: $e');
     }
   }
 
@@ -269,3 +339,7 @@ class De1StateManager {
     _de1Subscription = null;
   }
 }
+
+
+
+

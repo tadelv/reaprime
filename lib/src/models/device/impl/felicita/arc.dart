@@ -84,6 +84,27 @@ class FelicitaArc implements Scale {
     );
   }
 
+  @override
+  Future<void> powerDown() async {
+    // Felicita Arc doesn't have a documented power down command
+    // Best we can do is disconnect
+    await disconnect();
+  }
+
+  @override
+  Future<void> sleepDisplay() async {
+    // Felicita Arc doesn't have documented display sleep commands
+    // The scale auto-sleeps after inactivity
+    // This is a no-op for now
+  }
+
+  @override
+  Future<void> wakeDisplay() async {
+    // Felicita Arc doesn't have documented wake display commands
+    // The scale wakes on weight change or button press
+    // This is a no-op for now
+  }
+
   late StreamSubscription<Uint8List>? _notificationsSubscription;
 
   void _registerNotifications() async {
