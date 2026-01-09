@@ -37,7 +37,7 @@ class _WaterLevelsFormState extends State<WaterLevelsForm> {
         mainAxisSize: MainAxisSize.min,
         spacing: 16,
         children: [
-          Text("Refill warning level: ${settings.refillLevel}%"),
+          Text("Refill level: ${settings.refillLevel}mm"),
           ShadSlider(
             initialValue: settings.refillLevel.toDouble(),
             min: 0,

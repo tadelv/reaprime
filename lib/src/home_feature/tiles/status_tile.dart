@@ -395,9 +395,9 @@ class StatusTile extends StatelessWidget {
                       "${snapshot.currentLevel}mm",
                       style: TextStyle(
                         color:
-                            snapshot.currentLevel > 50
+                            snapshot.currentLevel > 10
                                 ? theme.colorScheme.primary
-                                : snapshot.currentLevel > 20
+                                : snapshot.currentLevel > 5
                                 ? theme.colorScheme.onSurface
                                 : theme.colorScheme.error,
                       ),

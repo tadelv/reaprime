@@ -40,8 +40,8 @@ class De1Handler {
     app.post('/api/v1/de1/waterLevels', (Request r) async {
       return withDe1((de1) async {
         var json = jsonDecode(await r.readAsString());
-        if (json['warningThresholdPercentage'] != null) {
-          await de1.setWaterLevelWarning(json['warningThresholdPercentage']);
+        if (json['refillLevel'] != null) {
+          await de1.setRefillLevel(json['refillLevel']);
         }
         return Response(202);
       });
