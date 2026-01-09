@@ -107,8 +107,10 @@ class DecentScale implements Scale {
   Future<void> _sendHeartBeat() async {
     _log.finest("send hb");
     // List<int> payload = [0x03, 0x0A, 0x03, 0xFF, 0xFF, 0x00, 0x0A];
-    List<int> payload = [0x03, 0x0A, 0xFF, 0xFF, 0x00, 0x0A];
+    // Send OLed off command (will return battery %)
+    List<int> payload = [0x03, 0x0A, 0x00, 0x00, 0x00, 0x07];
     if (!_isSleeping) {
+      // Send OLed on command (will return battery %)
       payload = [0x03, 0x0A, 0x01, 0x00, 0x00, 0x01, 0x08];
     }
     await _device.write(serviceUUID, writeUUID, Uint8List.fromList(payload));

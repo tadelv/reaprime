@@ -188,8 +188,8 @@ class De1StateManager {
         }
       }
 
-      // If scale is not connected and mode is disconnect, trigger device scan
-      if (!scaleConnected && scalePowerMode == ScalePowerMode.disconnect) {
+      // Trigger device scan if no scale connected.
+      if (!scaleConnected) {
         _logger.info('Scale disconnected after sleep, triggering device scan');
         _triggerScaleScan();
       }
