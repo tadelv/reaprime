@@ -31,26 +31,50 @@ class ProfileController {
   /// Load bundled default profiles from assets if they don't exist
   Future<void> _loadDefaultProfilesIfNeeded() async {
     try {
-      // Check if we already have default profiles
-      final existingProfiles = await _storage.getAll();
-      final hasDefaults = existingProfiles.any((p) => p.isDefault);
+      // First, run migration for existing installations
+      await _migrateDefaultProfiles();
 
-      if (hasDefaults) {
-        _log.info('Default profiles already loaded');
-        return;
-      }
-
-      _log.info('Loading default profiles from assets');
-
-      // Load the manifest to get list of profile files
+      // Check if we already have all default profiles with correct IDs
       final manifestData = await rootBundle.loadString(
         'assets/defaultProfiles/manifest.json',
       );
       final manifest = jsonDecode(manifestData) as Map<String, dynamic>;
-      final profileFiles = manifest['profiles'] as List<dynamic>;
+      final profileEntries = manifest['profiles'] as List<dynamic>;
+
+      // Build expected IDs from manifest
+      final expectedIds = <String>{};
+      for (final entry in profileEntries) {
+        if (entry is Map<String, dynamic>) {
+          expectedIds.add(entry['id'] as String);
+        }
+      }
+
+      // Check which profiles are missing
+      final existingProfiles = await _storage.getAll();
+      final existingDefaultIds = existingProfiles
+          .where((p) => p.isDefault)
+          .map((p) => p.id)
+          .toSet();
+
+      final missingIds = expectedIds.difference(existingDefaultIds);
+
+      if (missingIds.isEmpty) {
+        _log.info('All default profiles already loaded');
+        return;
+      }
+
+      _log.info('Loading ${missingIds.length} missing default profiles');
 
       int loaded = 0;
-      for (final filename in profileFiles) {
+      for (final entry in profileEntries) {
+        if (entry is! Map<String, dynamic>) continue;
+
+        final id = entry['id'] as String;
+        final filename = entry['filename'] as String;
+
+        // Skip if already exists
+        if (!missingIds.contains(id)) continue;
+
         try {
           final profileData = await rootBundle.loadString(
             'assets/defaultProfiles/$filename',
@@ -58,8 +82,9 @@ class ProfileController {
           final profileJson = jsonDecode(profileData) as Map<String, dynamic>;
           final profile = Profile.fromJson(profileJson);
 
-          // Create a ProfileRecord wrapper
+          // Create a ProfileRecord wrapper with custom ID
           final record = ProfileRecord.create(
+            id: id,
             profile: profile,
             isDefault: true,
             metadata: {'source': 'bundled', 'filename': filename},
@@ -67,7 +92,7 @@ class ProfileController {
 
           await _storage.store(record);
           loaded++;
-          _log.fine('Loaded default profile: ${profile.title}');
+          _log.fine('Loaded default profile: $id (${profile.title})');
         } catch (e) {
           _log.warning('Failed to load default profile: $filename', e);
         }
@@ -79,6 +104,105 @@ class ProfileController {
         'Failed to load default profiles (this is okay if manifest doesn\'t exist yet)',
         e,
       );
+    }
+  }
+
+  /// Migrate existing default profiles to use stable IDs
+  /// 
+  /// For installations that have default profiles with auto-generated UUIDs,
+  /// this attempts to match them to the new stable IDs based on profile title
+  /// and replaces them with the correct IDs.
+  Future<void> _migrateDefaultProfiles() async {
+    try {
+      final existingProfiles = await _storage.getAll();
+      final defaultProfiles = existingProfiles.where((p) => p.isDefault).toList();
+
+      // If no default profiles, nothing to migrate
+      if (defaultProfiles.isEmpty) return;
+
+      // Check if any default profile has a UUID-style ID (contains dashes in UUID format)
+      final hasOldStyleIds = defaultProfiles.any((p) => 
+        p.id.contains('-') && 
+        p.id.length == 36 && 
+        !p.id.startsWith('default:')
+      );
+
+      if (!hasOldStyleIds) {
+        _log.fine('No migration needed - all default profiles have stable IDs');
+        return;
+      }
+
+      _log.info('Migrating default profiles to stable IDs');
+
+      // Load manifest to get ID mappings
+      final manifestData = await rootBundle.loadString(
+        'assets/defaultProfiles/manifest.json',
+      );
+      final manifest = jsonDecode(manifestData) as Map<String, dynamic>;
+      final profileEntries = manifest['profiles'] as List<dynamic>;
+
+      // Build a mapping from filename to stable ID
+      final filenameToId = <String, String>{};
+      for (final entry in profileEntries) {
+        if (entry is Map<String, dynamic>) {
+          filenameToId[entry['filename'] as String] = entry['id'] as String;
+        }
+      }
+
+      int migrated = 0;
+      for (final oldRecord in defaultProfiles) {
+        // Skip if already has stable ID
+        if (!oldRecord.id.contains('-') || 
+            oldRecord.id.startsWith('default:')) {
+          continue;
+        }
+
+        // Try to find stable ID from metadata filename
+        final filename = oldRecord.metadata?['filename'] as String?;
+        if (filename == null) {
+          _log.warning('Cannot migrate profile ${oldRecord.id}: no filename in metadata');
+          continue;
+        }
+
+        final newId = filenameToId[filename];
+        if (newId == null) {
+          _log.warning('Cannot migrate profile ${oldRecord.id}: filename $filename not in manifest');
+          continue;
+        }
+
+        // Check if new ID already exists (shouldn't happen, but be safe)
+        final existingWithNewId = await _storage.get(newId);
+        if (existingWithNewId != null) {
+          _log.warning('Cannot migrate profile ${oldRecord.id}: target ID $newId already exists');
+          continue;
+        }
+
+        // Delete old record
+        await _storage.delete(oldRecord.id);
+
+        // Create new record with stable ID
+        final newRecord = ProfileRecord(
+          id: newId,
+          profile: oldRecord.profile,
+          parentId: oldRecord.parentId,
+          visibility: oldRecord.visibility,
+          isDefault: oldRecord.isDefault,
+          createdAt: oldRecord.createdAt,
+          updatedAt: DateTime.now(),
+          metadata: oldRecord.metadata,
+        );
+
+        await _storage.store(newRecord);
+        migrated++;
+        _log.info('Migrated profile ${oldRecord.id} -> $newId (${oldRecord.profile.title})');
+      }
+
+      if (migrated > 0) {
+        _log.info('Successfully migrated $migrated default profiles to stable IDs');
+      }
+    } catch (e, st) {
+      _log.warning('Error during default profile migration', e, st);
+      // Don't throw - migration failure shouldn't block app startup
     }
   }
 

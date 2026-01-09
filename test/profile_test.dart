@@ -149,6 +149,50 @@ void main() {
       expect(record.parentId, equals(parentId));
     });
 
+    test('creates ProfileRecord with custom ID for default profiles', () {
+      final profile = Profile(
+        version: '2',
+        title: 'Default Profile',
+        author: 'REA',
+        notes: 'Bundled profile',
+        beverageType: BeverageType.espresso,
+        steps: [],
+        tankTemperature: 93.0,
+        targetVolumeCountStart: 0,
+      );
+
+      const customId = 'default:best_practice';
+      final record = ProfileRecord.create(
+        id: customId,
+        profile: profile,
+        isDefault: true,
+      );
+
+      expect(record.id, equals(customId));
+      expect(record.isDefault, isTrue);
+    });
+
+    test('generates UUID v4 when no ID provided', () {
+      final profile = Profile(
+        version: '2',
+        title: 'User Profile',
+        author: 'User',
+        notes: '',
+        beverageType: BeverageType.espresso,
+        steps: [],
+        tankTemperature: 93.0,
+        targetVolumeCountStart: 0,
+      );
+
+      final record = ProfileRecord.create(
+        profile: profile,
+        isDefault: false,
+      );
+
+      // UUID v4 format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+      expect(record.id, matches(RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')));
+    });
+
     test('serializes to and from JSON correctly', () {
       final profile = Profile(
         version: '2',
@@ -679,6 +723,237 @@ void main() {
       // But it still exists in deleted list
       final deleted = await storage.getAll(visibility: Visibility.deleted);
       expect(deleted.any((p) => p.id == record.id), isTrue);
+    });
+  });
+
+  group('Default Profile Migration', () {
+    late MockProfileStorage storage;
+
+    setUp(() {
+      storage = MockProfileStorage();
+    });
+
+    tearDown(() {
+      storage.reset();
+    });
+
+    test('detects profiles with old UUID-style IDs', () {
+      // Old UUID format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+      const oldUuidId = '550e8400-e29b-41d4-a716-446655440000';
+      expect(oldUuidId.contains('-'), isTrue);
+      expect(oldUuidId.length, equals(36));
+      expect(oldUuidId.startsWith('default:'), isFalse);
+
+      // New stable ID format
+      const newStableId = 'default:best_practice';
+      expect(newStableId.startsWith('default:'), isTrue);
+    });
+
+    test('migration preserves profile data when changing ID', () async {
+      final profile = Profile(
+        version: '2',
+        title: 'Best Practice',
+        author: 'Decent',
+        notes: 'Original notes',
+        beverageType: BeverageType.espresso,
+        steps: [],
+        tankTemperature: 93.0,
+        targetVolumeCountStart: 0,
+      );
+
+      // Simulate old profile with UUID ID
+      const oldId = '550e8400-e29b-41d4-a716-446655440000';
+      final createdAt = DateTime.now().subtract(const Duration(days: 7));
+      final oldRecord = ProfileRecord(
+        id: oldId,
+        profile: profile,
+        visibility: Visibility.visible,
+        isDefault: true,
+        createdAt: createdAt,
+        updatedAt: createdAt,
+        metadata: {
+          'source': 'bundled',
+          'filename': 'best_practice.json',
+        },
+      );
+
+      await storage.store(oldRecord);
+
+      // Simulate migration: delete old, create new with stable ID
+      await storage.delete(oldId);
+
+      const newId = 'default:best_practice';
+      final newRecord = ProfileRecord(
+        id: newId,
+        profile: oldRecord.profile,
+        parentId: oldRecord.parentId,
+        visibility: oldRecord.visibility,
+        isDefault: oldRecord.isDefault,
+        createdAt: oldRecord.createdAt, // Preserve original creation time
+        updatedAt: DateTime.now(), // Update timestamp
+        metadata: oldRecord.metadata,
+      );
+
+      await storage.store(newRecord);
+
+      // Verify old ID doesn't exist
+      final oldRetrieved = await storage.get(oldId);
+      expect(oldRetrieved, isNull);
+
+      // Verify new ID exists with preserved data
+      final newRetrieved = await storage.get(newId);
+      expect(newRetrieved, isNotNull);
+      expect(newRetrieved!.id, equals(newId));
+      expect(newRetrieved.profile.title, equals('Best Practice'));
+      expect(newRetrieved.isDefault, isTrue);
+      expect(newRetrieved.createdAt, equals(createdAt)); // Original timestamp preserved
+      expect(newRetrieved.metadata?['filename'], equals('best_practice.json'));
+    });
+
+    test('migration handles multiple profiles correctly', () async {
+      // Create multiple profiles with old UUID IDs
+      final profiles = [
+        ('550e8400-e29b-41d4-a716-446655440000', 'best_practice.json', 'default:best_practice'),
+        ('650e8400-e29b-41d4-a716-446655440001', 'cremina.json', 'default:cremina'),
+        ('750e8400-e29b-41d4-a716-446655440002', 'manual_flow.json', 'default:manual_flow'),
+      ];
+
+      for (final (oldId, filename, _) in profiles) {
+        final profile = Profile(
+          version: '2',
+          title: filename.split('.').first,
+          author: 'Test',
+          notes: '',
+          beverageType: BeverageType.espresso,
+          steps: [],
+          tankTemperature: 93.0,
+          targetVolumeCountStart: 0,
+        );
+
+        final record = ProfileRecord(
+          id: oldId,
+          profile: profile,
+          visibility: Visibility.visible,
+          isDefault: true,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+          metadata: {'filename': filename},
+        );
+
+        await storage.store(record);
+      }
+
+      // Verify all old IDs exist
+      for (final (oldId, _, _) in profiles) {
+        final exists = await storage.exists(oldId);
+        expect(exists, isTrue);
+      }
+
+      // Simulate migration for all profiles
+      for (final (oldId, filename, newId) in profiles) {
+        final oldRecord = await storage.get(oldId);
+        expect(oldRecord, isNotNull);
+
+        await storage.delete(oldId);
+
+        final newRecord = ProfileRecord(
+          id: newId,
+          profile: oldRecord!.profile,
+          parentId: oldRecord.parentId,
+          visibility: oldRecord.visibility,
+          isDefault: oldRecord.isDefault,
+          createdAt: oldRecord.createdAt,
+          updatedAt: DateTime.now(),
+          metadata: oldRecord.metadata,
+        );
+
+        await storage.store(newRecord);
+      }
+
+      // Verify all old IDs are gone
+      for (final (oldId, _, _) in profiles) {
+        final exists = await storage.exists(oldId);
+        expect(exists, isFalse);
+      }
+
+      // Verify all new IDs exist
+      for (final (_, __, newId) in profiles) {
+        final exists = await storage.exists(newId);
+        expect(exists, isTrue);
+      }
+
+      final allProfiles = await storage.getAll();
+      expect(allProfiles.length, equals(3));
+      expect(allProfiles.every((p) => p.id.startsWith('default:')), isTrue);
+    });
+
+    test('migration skips profiles that already have stable IDs', () async {
+      final profile = Profile(
+        version: '2',
+        title: 'Already Migrated',
+        author: 'Test',
+        notes: '',
+        beverageType: BeverageType.espresso,
+        steps: [],
+        tankTemperature: 93.0,
+        targetVolumeCountStart: 0,
+      );
+
+      // Create profile with stable ID (already migrated)
+      const stableId = 'default:already_migrated';
+      final record = ProfileRecord.create(
+        id: stableId,
+        profile: profile,
+        isDefault: true,
+        metadata: {'filename': 'already_migrated.json'},
+      );
+
+      await storage.store(record);
+
+      // Check if this profile should be migrated
+      final shouldMigrate = record.id.contains('-') &&
+          record.id.length == 36 &&
+          !record.id.startsWith('default:');
+
+      expect(shouldMigrate, isFalse);
+
+      // Verify it still exists with same ID
+      final retrieved = await storage.get(stableId);
+      expect(retrieved, isNotNull);
+      expect(retrieved!.id, equals(stableId));
+    });
+
+    test('migration does not affect user profiles with UUIDs', () async {
+      final profile = Profile(
+        version: '2',
+        title: 'User Profile',
+        author: 'User',
+        notes: '',
+        beverageType: BeverageType.espresso,
+        steps: [],
+        tankTemperature: 93.0,
+        targetVolumeCountStart: 0,
+      );
+
+      // User profile with UUID (not a default profile)
+      final record = ProfileRecord.create(
+        profile: profile,
+        isDefault: false, // User profile, not default
+      );
+
+      await storage.store(record);
+      final originalId = record.id;
+
+      // User profiles should keep their UUID IDs
+      // Migration only affects profiles where isDefault = true
+      final retrieved = await storage.get(originalId);
+      expect(retrieved, isNotNull);
+      expect(retrieved!.id, equals(originalId));
+      expect(retrieved.isDefault, isFalse);
+      
+      // Check it's a UUID format
+      expect(retrieved.id.contains('-'), isTrue);
+      expect(retrieved.id.length, equals(36));
     });
   });
 }

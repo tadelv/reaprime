@@ -80,8 +80,12 @@ class ProfileRecord extends Equatable {
     this.metadata,
   });
 
-  /// Create a new profile record with generated ID and timestamps
+  /// Create a new profile record with generated or custom ID and timestamps
+  /// 
+  /// If [id] is provided, it will be used as-is (useful for default profiles).
+  /// Otherwise, a UUID v4 will be generated.
   factory ProfileRecord.create({
+    String? id,
     required Profile profile,
     String? parentId,
     bool isDefault = false,
@@ -89,7 +93,7 @@ class ProfileRecord extends Equatable {
   }) {
     final now = DateTime.now();
     return ProfileRecord(
-      id: const Uuid().v4(),
+      id: id ?? const Uuid().v4(),
       profile: profile,
       parentId: parentId,
       visibility: Visibility.visible,
