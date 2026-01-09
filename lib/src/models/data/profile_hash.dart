@@ -38,8 +38,8 @@ class ProfileHash {
     final bytes = utf8.encode(jsonStr);
     final hash = sha256.convert(bytes);
     
-    // Return first 16 characters prefixed with 'profile:'
-    return 'profile:${hash.toString().substring(0, 16)}';
+    // Return first 20 characters prefixed with 'profile:'
+    return 'profile:${hash.toString().substring(0, 20)}';
   }
 
   /// Calculate hash of metadata/presentation fields

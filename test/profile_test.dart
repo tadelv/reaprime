@@ -131,7 +131,7 @@ void main() {
       // Same execution fields = same hash
       expect(hash1, equals(hash2));
       expect(hash1.startsWith('profile:'), isTrue);
-      expect(hash1.length, equals(24)); // 'profile:' + 16 chars
+      expect(hash1.length, equals(28)); // 'profile:' + 20 chars
     });
 
     test('different execution fields produce different profile hashes', () {
@@ -209,7 +209,7 @@ void main() {
       expect(hashes.profileHash.startsWith('profile:'), isTrue);
       expect(hashes.metadataHash, isNotEmpty);
       expect(hashes.compoundHash, isNotEmpty);
-      expect(hashes.profileHash.length, equals(24));
+      expect(hashes.profileHash.length, equals(28));
       expect(hashes.metadataHash.length, equals(64)); // SHA-256 hex
       expect(hashes.compoundHash.length, equals(64));
     });
@@ -235,7 +235,7 @@ void main() {
       );
 
       expect(record.id.startsWith('profile:'), isTrue);
-      expect(record.id.length, equals(24));
+      expect(record.id.length, equals(28));
       expect(record.metadataHash, isNotEmpty);
       expect(record.compoundHash, isNotEmpty);
       expect(record.profile, equals(profile));

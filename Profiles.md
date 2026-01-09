@@ -179,8 +179,8 @@ Profiles use three SHA-256 hashes:
 **1. Profile Hash (Primary ID)**
 - Calculated from execution-relevant fields:
   - `beverage_type`, `steps`, `tank_temperature`, `target_weight`, `target_volume`, `target_volume_count_start`, `version`
-- Format: `profile:<first_16_chars_of_hash>`
-- Example: `profile:a3f2c8b4d1e6f9a2`
+- Format: `profile:<first_20_chars_of_hash>`
+- Example: `profile:a3f2c8b4d1e6f9a21c7d`
 - Used as the profile record's unique ID
 
 **2. Metadata Hash**

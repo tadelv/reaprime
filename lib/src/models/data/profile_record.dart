@@ -51,7 +51,7 @@ extension VisibilityExtension on Visibility {
 @immutable
 class ProfileRecord extends Equatable {
   /// Unique identifier based on profile content hash
-  /// Format: profile:<first_16_chars_of_hash>
+  /// Format: profile:<first_20_chars_of_hash>
   final String id;
 
   /// The actual profile data
