@@ -160,15 +160,102 @@ The implementation follows REA's standard layered architecture with clear separa
 - Request validation and proper HTTP status codes
 - Logging for all operations
 
-### Default Profiles
+### Content-Based Hash IDs
+
+REA uses **content-based hashing** for profile identification instead of random UUIDs or custom IDs. This provides:
+- **Automatic deduplication**: Identical profiles have identical IDs across all installations
+- **Cloud sync support**: Same profile content = same ID everywhere
+- **Conflict-free merging**: No manual conflict resolution needed
+- **Provable identity**: ID proves the profile content hasn't changed
+
+#### Hash Types
+
+Profiles use three SHA-256 hashes:
+
+**1. Profile Hash (Primary ID)**
+- Calculated from execution-relevant fields:
+  - `beverage_type`, `steps`, `tank_temperature`, `target_weight`, `target_volume`, `target_volume_count_start`, `version`
+- Format: `profile:<first_16_chars_of_hash>`
+- Example: `profile:a3f2c8b4d1e6f9a2`
+- Used as the profile record's unique ID
+
+**2. Metadata Hash**
+- Calculated from presentation fields:
+  - `title`, `author`, `notes`
+- Full 64-character SHA-256 hash
+- Detects cosmetic changes (title translations, author attribution, etc.)
+
+**3. Compound Hash**
+- Hash of (profile_hash + metadata_hash)
+- Detects ANY changes to the profile
+- Useful for sync conflict detection
+
+#### How It Works
+
+```dart
+// Two profiles with same execution but different metadata
+Profile profile1 = Profile(
+  title: "Espresso",
+  author: "Alice",
+  steps: [...],
+  tankTemperature: 93.0,
+  ...
+);
+
+Profile profile2 = Profile(
+  title: "Espresso Classico",  // Different title
+  author: "Bob",                // Different author
+  steps: [...],                 // Same execution
+  tankTemperature: 93.0,        // Same settings
+  ...
+);
+
+// Both get the SAME profile hash (ID)
+record1.id == record2.id  // true! 
+
+// But different metadata hashes
+record1.metadataHash != record2.metadataHash  // true
+
+// And different compound hashes
+record1.compoundHash != record2.compoundHash  // true
+```
+
+This enables REA to:
+- Identify functionally identical profiles regardless of name/author
+- Detect cosmetic changes without creating duplicate entries
+- Merge profile libraries from multiple sources automatically
+
+#### Default Profiles
 
 Default profiles are bundled in `assets/defaultProfiles/`:
-- `manifest.json`: Lists all default profile filenames
+- `manifest.json`: Simple list of filenames
 - Individual `.json` files for each profile
 - Loaded automatically on first startup
+- IDs calculated from content (same calculation everywhere)
 - Marked with `isDefault: true`
 - Cannot be permanently deleted (only hidden)
 - Can be restored via `/api/v1/profiles/restore/{filename}` endpoint
+
+Manifest structure:
+```json
+{
+  "version": "1.0.0",
+  "description": "Default espresso profiles bundled with REA Prime",
+  "profiles": [
+    "best_practice.json",
+    "cremina.json",
+    "manual_flow.json"
+  ]
+}
+```
+
+#### Migration from Old Installations
+
+**Clean slate approach**: Existing installations with UUID-based profiles should either:
+1. **Reinstall** - Fresh install with hash-based IDs
+2. **Database reset** - Clear profiles (shot history preserved separately)
+
+No automatic migration is provided since hash-based IDs fundamentally change the identity model.
 
 ### Profile Versioning
 

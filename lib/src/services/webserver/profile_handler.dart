@@ -172,7 +172,7 @@ class ProfileHandler {
       final metadata = json['metadata'] as Map<String, dynamic>?;
 
       final record = await _controller.update(
-        id: id,
+        id,
         profile: profile,
         metadata: metadata,
       );
@@ -382,3 +382,4 @@ class ProfileHandler {
     }
   }
 }
+

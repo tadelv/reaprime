@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter/widgets.dart';
 import 'package:reaprime/src/models/data/profile.dart';
-import 'package:uuid/uuid.dart';
+import 'package:reaprime/src/models/data/profile_hash.dart';
 
 /// Visibility state of a profile record
 enum Visibility {
@@ -43,13 +43,25 @@ extension VisibilityExtension on Visibility {
 }
 
 /// Envelope around Profile with metadata for storage and versioning
+/// 
+/// Uses content-based hashing for profile identification:
+/// - `id`: Hash of execution-relevant fields (profile hash)
+/// - `metadataHash`: Hash of presentation fields
+/// - `compoundHash`: Combined hash of both
 @immutable
 class ProfileRecord extends Equatable {
-  /// Unique identifier for this profile record
+  /// Unique identifier based on profile content hash
+  /// Format: profile:<first_16_chars_of_hash>
   final String id;
 
   /// The actual profile data
   final Profile profile;
+
+  /// Hash of metadata fields (title, author, notes)
+  final String metadataHash;
+
+  /// Combined hash of profile hash + metadata hash
+  final String compoundHash;
 
   /// Reference to the parent profile this was derived from (for versioning)
   final String? parentId;
@@ -72,6 +84,8 @@ class ProfileRecord extends Equatable {
   const ProfileRecord({
     required this.id,
     required this.profile,
+    required this.metadataHash,
+    required this.compoundHash,
     this.parentId,
     this.visibility = Visibility.visible,
     this.isDefault = false,
@@ -80,21 +94,24 @@ class ProfileRecord extends Equatable {
     this.metadata,
   });
 
-  /// Create a new profile record with generated or custom ID and timestamps
+  /// Create a new profile record with content-based hash ID
   /// 
-  /// If [id] is provided, it will be used as-is (useful for default profiles).
-  /// Otherwise, a UUID v4 will be generated.
+  /// The ID is automatically calculated from the profile's execution-relevant
+  /// fields, ensuring identical profiles have identical IDs across all installations.
   factory ProfileRecord.create({
-    String? id,
     required Profile profile,
     String? parentId,
     bool isDefault = false,
     Map<String, dynamic>? metadata,
   }) {
     final now = DateTime.now();
+    final hashes = ProfileHash.calculateAll(profile);
+    
     return ProfileRecord(
-      id: id ?? const Uuid().v4(),
+      id: hashes.profileHash,
       profile: profile,
+      metadataHash: hashes.metadataHash,
+      compoundHash: hashes.compoundHash,
       parentId: parentId,
       visibility: Visibility.visible,
       isDefault: isDefault,
@@ -105,9 +122,13 @@ class ProfileRecord extends Equatable {
   }
 
   /// Create a copy with updated fields
+  /// 
+  /// Note: If the profile is updated, hashes will be recalculated automatically.
   ProfileRecord copyWith({
     String? id,
     Profile? profile,
+    String? metadataHash,
+    String? compoundHash,
     String? parentId,
     Visibility? visibility,
     bool? isDefault,
@@ -115,23 +136,44 @@ class ProfileRecord extends Equatable {
     DateTime? updatedAt,
     Map<String, dynamic>? metadata,
   }) {
+    final newProfile = profile ?? this.profile;
+    final hashes = ProfileHash.calculateAll(newProfile);
+    
     return ProfileRecord(
-      id: id ?? this.id,
-      profile: profile ?? this.profile,
+      id: id ?? hashes.profileHash,
+      profile: newProfile,
+      metadataHash: metadataHash ?? hashes.metadataHash,
+      compoundHash: compoundHash ?? hashes.compoundHash,
       parentId: parentId ?? this.parentId,
       visibility: visibility ?? this.visibility,
       isDefault: isDefault ?? this.isDefault,
       createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
+      updatedAt: updatedAt ?? DateTime.now(),
       metadata: metadata ?? this.metadata,
     );
   }
 
-  /// Convert to JSON
+  @override
+  List<Object?> get props => [
+        id,
+        profile,
+        metadataHash,
+        compoundHash,
+        parentId,
+        visibility,
+        isDefault,
+        createdAt,
+        updatedAt,
+        metadata,
+      ];
+
+  /// Convert to JSON for storage
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'profile': profile.toJson(),
+      'metadataHash': metadataHash,
+      'compoundHash': compoundHash,
       'parentId': parentId,
       'visibility': visibility.name,
       'isDefault': isDefault,
@@ -146,24 +188,14 @@ class ProfileRecord extends Equatable {
     return ProfileRecord(
       id: json['id'] as String,
       profile: Profile.fromJson(json['profile'] as Map<String, dynamic>),
+      metadataHash: json['metadataHash'] as String,
+      compoundHash: json['compoundHash'] as String,
       parentId: json['parentId'] as String?,
       visibility: VisibilityExtension.fromString(json['visibility'] as String),
-      isDefault: json['isDefault'] as bool? ?? false,
+      isDefault: json['isDefault'] as bool,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
       metadata: json['metadata'] as Map<String, dynamic>?,
     );
   }
-
-  @override
-  List<Object?> get props => [
-    id,
-    profile,
-    parentId,
-    visibility,
-    isDefault,
-    createdAt,
-    updatedAt,
-    metadata,
-  ];
 }
