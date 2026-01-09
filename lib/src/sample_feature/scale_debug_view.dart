@@ -15,7 +15,7 @@ class _ScaleDebugViewState extends State<ScaleDebugView> {
 
   @override
   Widget build(BuildContext context) {
-	widget.scale.onConnect();
+    widget.scale.onConnect();
     return Scaffold(
       appBar: AppBar(title: const Text('Scale debug')),
       body: Center(
@@ -31,6 +31,7 @@ class _ScaleDebugViewState extends State<ScaleDebugView> {
                       Duration.zero;
                   _lastDate = snapshot.data?.timestamp ?? DateTime.now();
                   return Column(
+                    spacing: 12,
                     children: [
                       Text(
                         '${snapshot.data?.weight.toStringAsFixed(1)}g',
@@ -43,6 +44,24 @@ class _ScaleDebugViewState extends State<ScaleDebugView> {
                           await widget.scale.tare();
                         },
                         child: Text("Tare"),
+                      ),
+                      FilledButton(
+                        onPressed: () async {
+                          await widget.scale.wakeDisplay();
+                        },
+                        child: Text("Wake"),
+                      ),
+                      FilledButton(
+                        onPressed: () async {
+                          await widget.scale.sleepDisplay();
+                        },
+                        child: Text("Sleep"),
+                      ),
+                      FilledButton(
+                        onPressed: () async {
+                          await widget.scale.disconnect();
+                        },
+                        child: Text("Disconnect"),
                       ),
                     ],
                   );

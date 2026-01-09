@@ -88,9 +88,9 @@ class DecentScale implements Scale {
 
   @override
   disconnect() async {
+    await _sendPowerOff();
     subscription?.cancel();
     _connectionStateController.add(ConnectionState.disconnected);
-    _notificationsSubscription?.cancel();
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
     final connected = await _device.connectionState.first;
@@ -107,11 +107,12 @@ class DecentScale implements Scale {
   Future<void> _sendHeartBeat() async {
     _log.finest("send hb");
     // List<int> payload = [0x03, 0x0A, 0x03, 0xFF, 0xFF, 0x00, 0x0A];
-    List<int> payload = [0x03, 0x0A, 0x01];
+    List<int> payload = [0x03, 0x0A, 0xFF, 0xFF, 0x00, 0x0A];
+    if (!_isSleeping) {
+      payload = [0x03, 0x0A, 0x01, 0x00, 0x00, 0x01, 0x08];
+    }
     await _device.write(serviceUUID, writeUUID, Uint8List.fromList(payload));
   }
-
-  late StreamSubscription<Uint8List>? _notificationsSubscription;
 
   void _registerNotifications() async {
     await _device.subscribe(serviceUUID, dataUUID, _parseNotification);
@@ -153,23 +154,39 @@ class DecentScale implements Scale {
   }
 
   Future<void> _sendOledOn() async {
-    List<int> payload = [0x03, 0x0A, 0x01, 0x01, 0x00, 0x01, 0x08];
+    List<int> payload = [];
+    payload = [0x03, 0x0A, 0x01, 0x00, 0x00, 0x01, 0x08];
+    await _device.write(serviceUUID, writeUUID, Uint8List.fromList(payload));
+    payload = [0x03, 0x0A, 0x04, 0x00, 0x00, 0x01, 0x08];
     await _device.write(serviceUUID, writeUUID, Uint8List.fromList(payload));
   }
 
   Future<void> _sendOledOff() async {
-    List<int> payload = [0x03, 0x0A, 0x01, 0x00, 0x00, 0x01, 0x09];
+    List<int> payload = [];
+    payload = [0x03, 0x0A, 0x04, 0x01, 0x00, 0x01, 0x09];
+    await _device.write(serviceUUID, writeUUID, Uint8List.fromList(payload));
+    payload = [0x03, 0x0A, 0x00, 0x01, 0x00, 0x01, 0x09];
     await _device.write(serviceUUID, writeUUID, Uint8List.fromList(payload));
   }
 
+  bool _isSleeping = false;
+
   @override
   Future<void> sleepDisplay() async {
+    _isSleeping = true;
     _log.info('Putting Decent Scale display to sleep');
     await _sendOledOff();
   }
 
+  Future<void> _sendPowerOff() async {
+    _log.info("sending power off");
+    List<int> payload = [0x03, 0x0A, 0x02, 0x00, 0x00, 0x00, 0x00];
+    await _device.write(serviceUUID, writeUUID, Uint8List.fromList(payload));
+  }
+
   @override
   Future<void> wakeDisplay() async {
+    _isSleeping = false;
     _log.info('Waking Decent Scale display');
     await _sendOledOn();
   }
