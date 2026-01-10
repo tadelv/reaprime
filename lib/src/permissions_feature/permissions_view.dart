@@ -53,16 +53,10 @@ class PermissionsView extends StatelessWidget {
                 case ConnectionState.none:
                   return Text("Unknown");
                 case ConnectionState.waiting:
-                  return Text("Checking, make sure Bluetooth is turned on");
+                  return _initializingView(context);
                 case ConnectionState.active:
                   return Text("Done");
                 case ConnectionState.done:
-                  // Future.delayed(Duration(milliseconds: 300), () {
-                  //   if (context.mounted) {
-                  //     Navigator.pushReplacementNamed(
-                  //         context, HomeScreen.routeName);
-                  //   }
-                  // });
                   return _de1Picker(context);
               }
               return Text("Done");
@@ -71,6 +65,44 @@ class PermissionsView extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _initializingView(BuildContext context) {
+    return Column(
+      spacing: 16,
+      children: [
+        SizedBox(width: 200, child: ShadProgress()),
+        Text(
+          PermissionsView.getRandomCoffeeMessage(),
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+      ],
+    );
+  }
+
+  static String getRandomCoffeeMessage() {
+    final messages = [
+      "Dialing in the grinder...",
+      "Preheating the portafilter...",
+      "Calibrating the tamp pressure...",
+      "Blooming the coffee bed...",
+      "Checking water hardness...",
+      "Polishing the shower screen...",
+      "Degassing freshly roasted beans...",
+      "Leveling the distribution tool...",
+      "Priming the group head...",
+      "Adjusting brew temperature to 0.1°C...",
+      "Consulting the barista championship rules...",
+      "Measuring TDS with lab precision...",
+      "Perfecting the WDT technique...",
+      "Activating bluetooth (please turn it on)...",
+      "Weighing beans to 0.01g accuracy...",
+      "Cleaning the espresso altar...",
+      "Channeling positive vibes (not water)...",
+      "Waiting for third wave to arrive...",
+      "Updating espresso definitions...",
+    ];
+    return messages[DateTime.now().millisecondsSinceEpoch % messages.length];
   }
 
   Future<bool> checkPermissions() async {
@@ -190,7 +222,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       children: [
         SizedBox(width: 200, child: ShadProgress()),
         Text(
-          "Getting things ready",
+          PermissionsView.getRandomCoffeeMessage(),
           style: Theme.of(context).textTheme.titleMedium,
         ),
       ],
@@ -236,3 +268,7 @@ enum DiscoveryState {
   foundOne,
   foundMany,
 }
+
+
+
+
