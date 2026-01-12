@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:collection/collection.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
@@ -214,6 +216,13 @@ void main() async {
   // SettingsView.
   if (Platform.isAndroid) {
     ForegroundTaskService.init();
+
+    Timer(Duration(minutes: 5), () {
+      final rss = ProcessInfo.currentRss / (1024 * 1024);
+      Logger("MEM").info("RSS=${rss.toStringAsFixed(1)}MB");
+    });
+
+    WidgetsBinding.instance.addObserver(AppLifecycleObserver());
   }
 
   runApp(
@@ -231,4 +240,19 @@ void main() async {
       ),
     ),
   );
+}
+
+class AppLifecycleObserver with WidgetsBindingObserver {
+  final _log = Logger("App Lifecycle");
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      // STOP charts, timers, streams
+      _log.info("state: paused");
+    }
+    if (state == AppLifecycleState.resumed) {
+      // Resume if needed
+      _log.info("state: resumed");
+    }
+  }
 }
