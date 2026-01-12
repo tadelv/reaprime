@@ -1,23 +1,35 @@
 import 'dart:typed_data';
 
+import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 class BluePlusTransport implements BLETransport {
+  final Logger _log;
   final BluetoothDevice _device;
 
   BluePlusTransport({required String remoteId})
-    : _device = BluetoothDevice(remoteId: DeviceIdentifier(remoteId));
+    : _device = BluetoothDevice(remoteId: DeviceIdentifier(remoteId)),
+      _log = Logger("BPTransport-$remoteId");
 
   @override
   Future<void> connect() async {
-    await _device.connect(license: License.free);
+    try {
+      await _device.connect(license: License.free, mtu: 517);
+    } on FlutterBluePlusException catch (e) {
+      if (e.platform == ErrorPlatform.android && e.code == 133) {
+        // try auto re-connect again
+        _log.warning("MTU negotiation failed, attempting re-connect");
+        await _device.connect(license: License.free);
+      }
+    }
   }
 
   @override
-  Stream<bool> get connectionState => _device.connectionState.map(
-    (e) => e == BluetoothConnectionState.connected,
-  ).asBroadcastStream();
+  Stream<bool> get connectionState =>
+      _device.connectionState
+          .map((e) => e == BluetoothConnectionState.connected)
+          .asBroadcastStream();
 
   @override
   Future<void> disconnect() async {
@@ -85,7 +97,10 @@ class BluePlusTransport implements BLETransport {
   }
 
   @override
-    Future<void> setTransportPriority(bool prioritized) async {
-      await _device.requestConnectionPriority(connectionPriorityRequest: prioritized ? ConnectionPriority.high : ConnectionPriority.balanced);
-    }
+  Future<void> setTransportPriority(bool prioritized) async {
+    await _device.requestConnectionPriority(
+      connectionPriorityRequest:
+          prioritized ? ConnectionPriority.high : ConnectionPriority.balanced,
+    );
+  }
 }

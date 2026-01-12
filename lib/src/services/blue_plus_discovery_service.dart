@@ -72,6 +72,7 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
 
   @override
   Future<void> initialize() async {
+    await FlutterBluePlus.setLogLevel(LogLevel.warning);
     _logSubscription = FlutterBluePlus.logs.listen((logMessage) {
       _log.fine("BP Native: $logMessage");
     });

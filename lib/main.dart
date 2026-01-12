@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:collection/collection.dart';
-import 'package:flutter/scheduler.dart';
+// import 'package:flutter/scheduler.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
@@ -211,18 +211,14 @@ void main() async {
       ) ??
       Level.INFO;
 
-  // Run the app and pass in the SettingsController. The app listens to the
-  // SettingsController for changes, then passes it further down to the
-  // SettingsView.
   if (Platform.isAndroid) {
     ForegroundTaskService.init();
-
-    Timer(Duration(minutes: 5), () {
-      final rss = ProcessInfo.currentRss / (1024 * 1024);
-      Logger("MEM").info("RSS=${rss.toStringAsFixed(1)}MB");
-    });
-
     WidgetsBinding.instance.addObserver(AppLifecycleObserver());
+    // SchedulerBinding.instance.addTimingsCallback((timings) {
+    //   // If this keeps firing while app is "backgrounded",
+    //   // something is forcing frames.
+    //   print("timings callback");
+    // });
   }
 
   runApp(
@@ -244,6 +240,16 @@ void main() async {
 
 class AppLifecycleObserver with WidgetsBindingObserver {
   final _log = Logger("App Lifecycle");
+  late Timer _memTimer;
+
+  AppLifecycleObserver() {
+    _memTimer = Timer.periodic(Duration(minutes: 5), (t) {
+      final rss = ProcessInfo.currentRss / (1024 * 1024);
+      _log.info("[MEM] RSS=${rss.toStringAsFixed(1)}MB");
+    });
+
+    }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
@@ -255,4 +261,8 @@ class AppLifecycleObserver with WidgetsBindingObserver {
       _log.info("state: resumed");
     }
   }
+
+  void dispose() {
+      _memTimer.cancel();
+    }
 }

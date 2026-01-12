@@ -24,6 +24,7 @@ class _ShotChartState extends State<ShotChart> {
   @override
   void dispose() {
     // Forces repaint boundaries to drop cached layers
+    _bars = [];
     PaintingBinding.instance.imageCache.clearLiveImages();
     super.dispose();
   }
