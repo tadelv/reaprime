@@ -2,13 +2,14 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/home_feature/home_feature.dart';
+import 'package:reaprime/src/home_feature/widgets/device_selection_widget.dart';
 import 'package:reaprime/src/landing_feature/landing_feature.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:universal_ble/universal_ble.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
-import 'package:reaprime/src/home_feature/home_feature.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -158,43 +159,37 @@ class DeviceDiscoveryView extends StatefulWidget {
 class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   DiscoveryState _state = DiscoveryState.searching;
 
-  List<De1Interface> _discoveredDevices = [];
-
   late StreamSubscription<List<dev.Device>> _discoverySubscription;
 
   final Duration _timeoutDuration = Duration(seconds: 10);
-  bool _timeoutReached = false;
 
   @override
   void initState() {
+    super.initState();
+    
     _discoverySubscription =
         widget.deviceController.deviceStream.listen((data) {
-      _discoveredDevices.clear();
+      final discoveredDevices = data.whereType<De1Interface>().toList();
       setState(() {
-        _discoveredDevices.addAll(data.whereType<De1Interface>());
-        _state = _discoveredDevices.length > 1
+        _state = discoveredDevices.length > 1
             ? DiscoveryState.foundMany
             : DiscoveryState.searching;
       });
-      // If it took more than 10 seconds to find the first de1, or the second de1
-      // appeared after the timeout,
-      // connect to first one automatically
-      // if (_timeoutReached && _discoveredDevices.isNotEmpty && mounted) {
-      //   widget.de1controller.connectToDe1(_discoveredDevices.first);
-      //   Navigator.popAndPushNamed(context, HomeScreen.routeName);
-      // }
     });
-    _discoveredDevices
-        .addAll(widget.deviceController.devices.whereType<De1Interface>());
-    super.initState();
+    
     // If 10 seconds elapsed without finding a second de1, continue automatically
     Future.delayed(_timeoutDuration, () {
-      _timeoutReached = true;
-      if (mounted && _discoveredDevices.length == 1) {
-        widget.de1controller.connectToDe1(_discoveredDevices.first);
-        Navigator.popAndPushNamed(context, LandingFeature.routeName);
-      } else if (mounted && _discoveredDevices.isEmpty) {
-        Navigator.popAndPushNamed(context, HomeScreen.routeName);
+      if (mounted) {
+        final discoveredDevices = widget.deviceController.devices
+            .whereType<De1Interface>()
+            .toList();
+        
+        if (discoveredDevices.length == 1) {
+          widget.de1controller.connectToDe1(discoveredDevices.first);
+          Navigator.popAndPushNamed(context, LandingFeature.routeName);
+        } else if (discoveredDevices.isEmpty) {
+          Navigator.popAndPushNamed(context, HomeScreen.routeName);
+        }
       }
     });
   }
@@ -230,35 +225,14 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   }
 
   Widget _resultsView(BuildContext context) {
-    return Column(
-      spacing: 16,
-      children: [
-        Text(
-          "Select De1 from the list",
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        Expanded(
-          child: ListView.builder(
-            itemBuilder: (context, index) {
-              final de1 = _discoveredDevices[index];
-              return TapRegion(
-                child: SizedBox(
-                  width: 200,
-                  child: ShadCard(
-                    title: Text(de1.name),
-                    description: Text("Identifier: ${de1.deviceId}"),
-                  ),
-                ),
-                onTapUpInside: (_) {
-                  widget.de1controller.connectToDe1(de1);
-                  Navigator.popAndPushNamed(context, LandingFeature.routeName);
-                },
-              );
-            },
-            itemCount: _discoveredDevices.length,
-          ),
-        ),
-      ],
+    return DeviceSelectionWidget(
+      deviceController: widget.deviceController,
+      de1Controller: widget.de1controller,
+      showHeader: true,
+      headerText: "Select DE1 from the list",
+      onDeviceSelected: (de1) {
+        Navigator.popAndPushNamed(context, LandingFeature.routeName);
+      },
     );
   }
 }
@@ -268,6 +242,10 @@ enum DiscoveryState {
   foundOne,
   foundMany,
 }
+
+
+
+
 
 
 

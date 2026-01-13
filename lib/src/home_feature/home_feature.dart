@@ -143,7 +143,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _settingsCard(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      child: ShadCard(child: SettingsTile(controller: widget.de1controller)),
+      child: ShadCard(
+        child: SettingsTile(
+          controller: widget.de1controller,
+          deviceController: widget.deviceController,
+        ),
+      ),
     );
   }
 
@@ -267,6 +272,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
 
 
 

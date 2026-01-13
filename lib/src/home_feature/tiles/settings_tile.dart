@@ -2,7 +2,10 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
+import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/home_feature/widgets/device_selection_widget.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/settings/settings_view.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -10,8 +13,13 @@ import 'package:url_launcher/url_launcher.dart';
 
 class SettingsTile extends StatelessWidget {
   final De1Controller controller;
+  final DeviceController deviceController;
 
-  const SettingsTile({super.key, required this.controller});
+  const SettingsTile({
+    super.key,
+    required this.controller,
+    required this.deviceController,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +56,16 @@ class SettingsTile extends StatelessWidget {
       builder: (context, de1State) {
         // Check for active connection and non-null data
         if (!de1State.hasData || de1State.data == null) {
-          return Text("Waiting to connect");
+          return ShadButton.secondary(
+            onPressed: () => _handleScan(context),
+            child: Row(
+              spacing: 4,
+              children: [
+                Icon(LucideIcons.radar, size: 16),
+                Text("Scan"),
+              ],
+            ),
+          );
         }
         var de1 = de1State.data!;
         return StreamBuilder(
@@ -225,6 +242,67 @@ class SettingsTile extends StatelessWidget {
       Text('3. The machine will transition to the appropriate state'),
     ];
   }
+
+  Future<void> _handleScan(BuildContext context) async {
+    // Trigger scan
+    await deviceController.scanForDevices(autoConnect: false);
+    
+    // Wait for devices to be discovered and interrogated (10 seconds)
+    // DE1 machines need to be connected to and interrogated for model type
+    await Future.delayed(Duration(seconds: 10));
+    
+    // Get all DE1 machines
+    final de1Machines = deviceController.devices
+        .where((device) => device.type == dev.DeviceType.machine)
+        .cast<De1Interface>()
+        .toList();
+    
+    if (de1Machines.isEmpty) {
+      // No DE1s found, show message
+      if (!context.mounted) return;
+      showShadDialog(
+        context: context,
+        builder: (context) => ShadDialog(
+          title: Text('No DE1 Found'),
+          description: Text('No DE1 machines were found during the scan. Make sure your DE1 is powered on and Bluetooth is enabled.'),
+          actions: [
+            ShadButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } else if (de1Machines.length == 1) {
+      // Single DE1 found, auto-connect
+      final de1 = de1Machines.first;
+      await controller.connectToDe1(de1);
+    } else {
+      // Multiple DE1s found, show selection dialog
+      if (!context.mounted) return;
+      showShadDialog(
+        context: context,
+        builder: (context) => ShadDialog(
+          title: Text('Select DE1'),
+          description: Text('Multiple DE1 machines found. Select one to connect:'),
+          child: DeviceSelectionWidget(
+            deviceController: deviceController,
+            de1Controller: controller,
+            onDeviceSelected: (de1) {
+              Navigator.of(context).pop();
+            },
+          ),
+        ),
+      );
+    }
+  }
 }
 
 enum AuxDialogType { clean, descale }
+
+
+
+
+
+
+
