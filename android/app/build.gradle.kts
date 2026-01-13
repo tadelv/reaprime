@@ -43,11 +43,20 @@ android {
                 keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: "androiddebugkey"
                 keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: "android"
             }
+            create("debug") {
+                storeFile = file("debug.keystore")
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
         }
 
     buildTypes {
         getByName("release") {
             signingConfig = signingConfigs.getByName("release")
+        }
+        getByName("debug") {
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 }
@@ -55,3 +64,4 @@ android {
 flutter {
     source = "../.."
 }
+
