@@ -54,7 +54,6 @@ void main() async {
     SystemUiMode.manual,
     overlays: [SystemUiOverlay.top], // Only keep the top bar
   );
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   Logger.root.level = Level.FINE;
   Logger.root.clearListeners();
   PrintAppender(formatter: ColorFormatter()).attachToLogger(Logger.root);
@@ -83,6 +82,14 @@ void main() async {
   Logger.root.info(
     "build: ${BuildInfo.commitShort}, branch: ${BuildInfo.branch}",
   );
+
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e, st) {
+    log.warning(e, st);
+  }
 
   final List<DeviceDiscoveryService> services = [];
   if (!Platform.isWindows) {
@@ -247,8 +254,7 @@ class AppLifecycleObserver with WidgetsBindingObserver {
       final rss = ProcessInfo.currentRss / (1024 * 1024);
       _log.info("[MEM] RSS=${rss.toStringAsFixed(1)}MB");
     });
-
-    }
+  }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -263,6 +269,6 @@ class AppLifecycleObserver with WidgetsBindingObserver {
   }
 
   void dispose() {
-      _memTimer.cancel();
-    }
+    _memTimer.cancel();
+  }
 }

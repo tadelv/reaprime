@@ -38,7 +38,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
 
   @override
   Future<void> scanForDevices() async {
-    final ports = SerialPort.availablePorts;
+    final ports = await SerialPort.availablePorts;
     _log.info("Found ports: $ports");
 
     List<Device> connected = [];
@@ -209,7 +209,7 @@ class _DesktopSerialPort implements SerialTransport {
       _log.warning("already open");
       return;
     }
-    await Future.microtask(() {
+    await Future.microtask(() async {
       if (_port.open(mode: 3) == false) {
         _log.warning("could not open port");
         throw "failed to open port: ${SerialPort.lastError}";
@@ -225,7 +225,7 @@ class _DesktopSerialPort implements SerialTransport {
       cfg.dsr = 0;
       cfg.xonXoff = 0;
       cfg.setFlowControl(0);
-      _port.config = cfg;
+      await _port.setConfig(cfg);
       // _port.config = cfg;
       _log.finest("current config: ${_port.config.bits}");
       _log.finest("current config: ${_port.config.parity}");
