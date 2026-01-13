@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -160,35 +161,7 @@ class SettingsView extends StatelessWidget {
                   ),
                   ShadButton(
                     child: Text("Import shots"),
-                    onPressed: () async {
-                      Logger log = Logger("ShotImport");
-                      // TODO: folder, bkp file
-                      final importer = ShotImporter(
-                        storage: persistenceController.storageService,
-                      );
-
-                      final sourceDirPath =
-                          await FilePicker.platform.getDirectoryPath();
-
-                      log.fine("importing from $sourceDirPath");
-                      if (sourceDirPath == null) {
-                        return;
-                      }
-                      final Directory sourceDir = Directory(sourceDirPath);
-                      final files = await sourceDir.list().toList();
-                      log.info("listing: ${files}");
-                      for (final file in files) {
-                        final f = File(file.path);
-                        final content = await f.readAsString();
-                        try {
-                          log.fine("Importing: ${f.path}");
-                          importer.importShotJson(content);
-                        } catch (e, st) {
-                          log.warning("shot import failed:", e, st);
-                        }
-                      }
-                      persistenceController.loadShots();
-                    },
+                    onPressed: () => _showImportDialog(context),
                   ),
                   ShadButton(
                     child: Text("Debug view"),
@@ -339,6 +312,237 @@ class SettingsView extends StatelessWidget {
     }
   }
 
+  Future<void> _showImportDialog(BuildContext context) async {
+    final result = await showShadDialog<String>(
+      context: context,
+      builder: (context) => ShadDialog(
+        title: const Text('Import Shots'),
+        description: const Text(
+          'Choose how you want to import your shots',
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 16,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ShadButton(
+              child: Text('Import from JSON file'),
+              onPressed: () {
+                Navigator.of(context).pop('file');
+              },
+            ),
+            ShadButton.secondary(
+              child: Text('Import from folder'),
+              onPressed: () {
+                Navigator.of(context).pop('folder');
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == 'file') {
+      await _importFromFile(context);
+    } else if (result == 'folder') {
+      await _importFromFolder(context);
+    }
+  }
+
+  Future<void> _showProgressDialog(BuildContext context, String message) async {
+    showShadDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => ShadDialog(
+        title: Text(message),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 16),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            const Text('Please wait...'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _importFromFile(BuildContext context) async {
+    final log = Logger("ShotImport");
+    final importer = ShotImporter(
+      storage: persistenceController.storageService,
+    );
+
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+      dialogTitle: "Select shots JSON file",
+    );
+
+    if (result == null || result.files.isEmpty) {
+      return;
+    }
+
+    final filePath = result.files.single.path;
+    if (filePath == null) {
+      log.warning("File path is null");
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to access file')),
+        );
+      }
+      return;
+    }
+
+    log.fine("importing from $filePath");
+
+    if (!context.mounted) return;
+
+    // Show progress dialog
+    _showProgressDialog(context, 'Importing shots');
+
+    try {
+      final file = File(filePath);
+      final content = await file.readAsString();
+
+      // Try to parse to determine if it's a single shot or array
+      final decoded = jsonDecode(content);
+
+      int count = 0;
+      if (decoded is List) {
+        // Multiple shots in array format
+        count = await importer.importShotsJson(content);
+        log.info("Imported $count shots");
+      } else {
+        // Single shot object
+        await importer.importShotJson(content);
+        count = 1;
+        log.info("Imported 1 shot");
+      }
+
+      persistenceController.loadShots();
+
+      // Close progress dialog
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+
+      // Show success message
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Successfully imported $count shot${count == 1 ? '' : 's'}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e, st) {
+      log.severe("Shot import failed:", e, st);
+      
+      // Close progress dialog
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+
+      // Show error message
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Import failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _importFromFolder(BuildContext context) async {
+    final log = Logger("ShotImport");
+    final importer = ShotImporter(
+      storage: persistenceController.storageService,
+    );
+
+    final sourceDirPath = await FilePicker.platform.getDirectoryPath();
+
+    log.fine("importing from $sourceDirPath");
+    if (sourceDirPath == null) {
+      return;
+    }
+
+    if (!context.mounted) return;
+
+    // Show progress dialog
+    _showProgressDialog(context, 'Importing shots from folder');
+
+    try {
+      final Directory sourceDir = Directory(sourceDirPath);
+      final files = await sourceDir.list().toList();
+      log.info("listing: $files");
+      
+      int successCount = 0;
+      int failCount = 0;
+      
+      for (final file in files) {
+        if (file is! File) continue;
+        
+        final f = File(file.path);
+        if (!f.path.endsWith('.json')) continue;
+        
+        try {
+          final content = await f.readAsString();
+          log.fine("Importing: ${f.path}");
+          await importer.importShotJson(content);
+          successCount++;
+        } catch (e, st) {
+          log.warning("shot import failed:", e, st);
+          failCount++;
+        }
+      }
+
+      persistenceController.loadShots();
+
+      // Close progress dialog
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+
+      // Show result message
+      if (context.mounted) {
+        final hasFailures = failCount > 0;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              successCount > 0 
+                ? 'Imported $successCount shot${successCount == 1 ? '' : 's'}${hasFailures ? ' ($failCount failed)' : ''}'
+                : 'No shots imported${hasFailures ? ' ($failCount files failed)' : ''}',
+            ),
+            backgroundColor: successCount > 0 
+              ? (hasFailures ? Colors.orange : Colors.green)
+              : Colors.red,
+          ),
+        );
+      }
+    } catch (e, st) {
+      log.severe("Folder import failed:", e, st);
+      
+      // Close progress dialog
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+
+      // Show error message
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Import failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _pickFolderAndLoadHtml(BuildContext context) async {
     String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
 
@@ -381,6 +585,14 @@ class SettingsView extends StatelessWidget {
     }
   }
 }
+
+
+
+
+
+
+
+
 
 
 

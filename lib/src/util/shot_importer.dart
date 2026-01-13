@@ -8,17 +8,35 @@ class ShotImporter {
 
   ShotImporter({required this.storage});
 
-  Future<void> importShotsJson(String data) async {
-    final shots = jsonDecode(data) as List<ShotRecord>;
-
-    for (var shot in shots) {
-      await storage.storeShot(shot);
+  Future<int> importShotsJson(String data) async {
+    final decoded = jsonDecode(data);
+    
+    if (decoded is! List) {
+      throw FormatException('Expected JSON array, got ${decoded.runtimeType}');
     }
+    
+    int count = 0;
+    for (var item in decoded) {
+      if (item is! Map<String, dynamic>) {
+        throw FormatException('Expected JSON object in array, got ${item.runtimeType}');
+      }
+      final shot = ShotRecord.fromJson(item);
+      await storage.storeShot(shot);
+      count++;
+    }
+    
+    return count;
   }
 
   Future<void> importShotJson(String data) async {
     final json = jsonDecode(data);
+    
+    if (json is! Map<String, dynamic>) {
+      throw FormatException('Expected JSON object, got ${json.runtimeType}');
+    }
+    
     final shot = ShotRecord.fromJson(json);
     await storage.storeShot(shot);
   }
 }
+

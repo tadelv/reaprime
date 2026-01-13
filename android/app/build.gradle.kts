@@ -43,7 +43,7 @@ android {
                 keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: "androiddebugkey"
                 keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: "android"
             }
-            create("debug") {
+            getByName("debug") {
                 storeFile = file("debug.keystore")
                 storePassword = "android"
                 keyAlias = "androiddebugkey"
@@ -64,4 +64,7 @@ android {
 flutter {
     source = "../.."
 }
+
+
+
 
