@@ -10,6 +10,8 @@ import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/sample_feature/sample_item_list_view.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/plugins_settings_view.dart';
+import 'package:reaprime/src/settings/update_dialog.dart';
+import 'package:reaprime/src/services/android_updater.dart';
 import 'package:reaprime/src/util/shot_exporter.dart';
 import 'package:reaprime/src/util/shot_importer.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
@@ -258,21 +260,14 @@ class SettingsView extends StatelessWidget {
                 child: Text("Plugins"),
               ),
               ShadButton.secondary(
-                onPressed: () async {
-                  await webUIStorage.downloadRemoteSkins();
-                  if (!context.mounted) {
-                    return;
-                  }
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Everything is up to date")),
-                  );
-                },
+                onPressed: () => _checkForUpdates(context),
                 child: Text("Check for updates"),
               ),
               SizedBox(height: 24),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text('Version: ${BuildInfo.version}'),
                   Text('Commit: ${BuildInfo.commitShort}'),
                   Text('Branch: ${BuildInfo.branch}'),
                 ],
@@ -282,6 +277,66 @@ class SettingsView extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _checkForUpdates(BuildContext context) async {
+    final log = Logger('SettingsView');
+
+    try {
+      // Show loading indicator
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Checking for updates...')),
+      );
+
+      // Check for app updates (Android only for now)
+      if (Platform.isAndroid) {
+        final updater = AndroidUpdater(
+          owner: 'tadelv',
+          repo: 'reaprime',
+        );
+
+        final updateInfo = await updater.checkForUpdate(
+          BuildInfo.version,
+          channel: UpdateChannel.stable, // TODO: Make this configurable
+        );
+
+        if (!context.mounted) return;
+
+        if (updateInfo != null) {
+          // Show update dialog
+          showDialog(
+            context: context,
+            builder: (context) => UpdateDialog(
+              updateInfo: updateInfo,
+              currentVersion: BuildInfo.version,
+              onDownload: (info) => updater.downloadUpdate(info),
+              onInstall: (path) => updater.installUpdate(path),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You are on the latest version')),
+          );
+        }
+
+        // Also check for WebUI updates
+        await webUIStorage.downloadRemoteSkins();
+      } else {
+        // Non-Android platforms: just check for WebUI updates
+        await webUIStorage.downloadRemoteSkins();
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('WebUI is up to date')),
+        );
+      }
+    } catch (e, stackTrace) {
+      log.severe('Error checking for updates', e, stackTrace);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to check for updates: $e')),
+      );
+    }
   }
 
   Future<void> _pickFolderAndLoadHtml(BuildContext context) async {
@@ -326,3 +381,7 @@ class SettingsView extends StatelessWidget {
     }
   }
 }
+
+
+
+

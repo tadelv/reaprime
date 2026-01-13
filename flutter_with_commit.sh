@@ -7,6 +7,16 @@ COMMIT_SHORT=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
 BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
+# --- Extract version from git tag ---
+# Get the most recent tag (if any), strip 'v' prefix if present
+TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+if [ -z "$TAG" ]; then
+  VERSION="0.0.0-dev"
+else
+  # Strip leading 'v' if present (v1.2.3 -> 1.2.3)
+  VERSION="${TAG#v}"
+fi
+
 # --- Command required ---
 if [ $# -lt 1 ]; then
   echo "Usage: $0 <flutter command> [arguments...]"
@@ -33,6 +43,7 @@ if [ "$COMMAND" = "build" ]; then
       --dart-define=COMMIT_SHORT="$COMMIT_SHORT" \
       --dart-define=BRANCH="$BRANCH" \
       --dart-define=BUILD_TIME="$BUILD_TIME" \
+      --dart-define=VERSION="$VERSION" \
       "${REMAINDER[@]}"
 
     exit $?
@@ -44,4 +55,5 @@ flutter "$COMMAND" \
   --dart-define=COMMIT_SHORT="$COMMIT_SHORT" \
   --dart-define=BRANCH="$BRANCH" \
   --dart-define=BUILD_TIME="$BUILD_TIME" \
+  --dart-define=VERSION="$VERSION" \
   "${EXTRA_ARGS[@]}"

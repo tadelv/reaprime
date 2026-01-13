@@ -1,0 +1,250 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers on tags like v1.0.0, v2.1.3, etc.
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Android SDK 35
+        uses: android-actions/setup-android@v2
+        with:
+          api-level: 35
+          build-tools: 35.0.0
+          ndk: 27.0.12077973
+
+      - name: Decode Android keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 --decode > android/app/debug.keystore
+
+      - name: Cache Flutter & Gradle
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.pub-cache
+            ~/.gradle
+          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.yaml') }}
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Android APK
+        run: ./flutter_with_commit.sh build apk --release
+
+      - name: Get version from tag
+        id: version
+        run: |
+          # Extract version from tag (v1.2.3 -> 1.2.3)
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Rename APK with version
+        run: |
+          mv build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/reaprime-android-${{ steps.version.outputs.version }}.apk
+
+      - name: Upload Android APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: build/app/outputs/flutter-apk/reaprime-android-${{ steps.version.outputs.version }}.apk
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Install automake and libtool
+        run: brew install automake libtool
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install FlutterFire CLI
+        run: dart pub global activate flutterfire_cli
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build macOS app (unsigned)
+        run: ./flutter_with_commit.sh build macos --release
+
+      - name: Get version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create macOS archive
+        run: |
+          cd build/macos/Build/Products/Release
+          zip -r ../../../../../reaprime-macos-${{ steps.version.outputs.version }}.zip *.app
+
+      - name: Upload macOS app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-app
+          path: reaprime-macos-${{ steps.version.outputs.version }}.zip
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Install GTK+ 3.0
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Linux app (unsigned)
+        run: ./flutter_with_commit.sh build linux --release
+
+      - name: Get version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create Linux archive
+        run: |
+          cd build/linux/x64/release
+          tar -czf ../../../../reaprime-linux-x64-${{ steps.version.outputs.version }}.tar.gz bundle
+
+      - name: Upload Linux app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-app
+          path: reaprime-linux-x64-${{ steps.version.outputs.version }}.tar.gz
+
+  build-raspberrypi:
+    name: Build for Raspberry Pi (ARM64 / Pi 4+)
+    runs-on: ubuntu-22.04-arm
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Install GTK+ 3.0
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: master
+          flutter-version: 3.38.5
+      
+      - name: Run git safe dir
+        run: git config --global --add safe.directory /opt/hostedtoolcache/flutter/${{ steps.flutter-action.outputs.CHANNEL }}-${{ steps.flutter-action.outputs.VERSION }}-${{ steps.flutter-action.outputs.ARCHITECTURE }}
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Linux app (ARM64)
+        run: ./flutter_with_commit.sh build linux --release 
+
+      - name: Get version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create Raspberry Pi archive
+        run: |
+          cd build/linux/arm64/release
+          tar -czf ../../../../reaprime-linux-arm64-${{ steps.version.outputs.version }}.tar.gz bundle
+
+      - name: Upload Raspberry Pi build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: raspberrypi-linux-arm64-app
+          path: reaprime-linux-arm64-${{ steps.version.outputs.version }}.tar.gz
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-android, build-macos, build-linux, build-raspberrypi]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Get version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -R release-artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            release-artifacts/android-apk/*
+            release-artifacts/macos-app/*
+            release-artifacts/linux-app/*
+            release-artifacts/raspberrypi-linux-arm64-app/*
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ReaPrime ${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'rc') }}
+          generate_release_notes: true
+          body: |
+            ## ReaPrime ${{ steps.version.outputs.version }}
+            
+            ### Downloads
+            
+            - **Android**: `reaprime-android-${{ steps.version.outputs.version }}.apk`
+            - **macOS**: `reaprime-macos-${{ steps.version.outputs.version }}.zip`
+            - **Linux x64**: `reaprime-linux-x64-${{ steps.version.outputs.version }}.tar.gz`
+            - **Linux ARM64 (Raspberry Pi)**: `reaprime-linux-arm64-${{ steps.version.outputs.version }}.tar.gz`
+            
+            ### Installation
+            
+            **Android**: Download the APK and install it on your device.
+            
+            **macOS**: Download the ZIP, extract it, and move the app to your Applications folder.
+            
+            **Linux**: Download the tar.gz, extract it, and run the executable inside the bundle directory.
+            
+            ### What's Changed
+            <!-- GitHub will auto-generate release notes here -->
+            
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.version.outputs.tag }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
