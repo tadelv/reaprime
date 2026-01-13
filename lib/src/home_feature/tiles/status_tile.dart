@@ -13,7 +13,7 @@ import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:rxdart/rxdart.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-class StatusTile extends StatelessWidget {
+class StatusTile extends StatefulWidget {
   final De1Interface de1;
   final De1Controller controller;
   final ScaleController scaleController;
@@ -29,6 +29,32 @@ class StatusTile extends StatelessWidget {
   });
 
   @override
+  State<StatusTile> createState() => _StatusTileState();
+}
+
+class _StatusTileState extends State<StatusTile> with WidgetsBindingObserver {
+  bool _isInForeground = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    setState(() {
+      _isInForeground = state == AppLifecycleState.resumed;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -36,12 +62,14 @@ class StatusTile extends StatelessWidget {
         _firstRow(),
         SizedBox(height: 8),
         StreamBuilder(
-          stream: Rx.combineLatest3(
-            controller.steamData,
-            controller.hotWaterData,
-            controller.rinseData,
-            (steam, hotWater, rinse) => [steam, hotWater, rinse],
-          ),
+          stream: _isInForeground
+              ? Rx.combineLatest3(
+                  widget.controller.steamData,
+                  widget.controller.hotWaterData,
+                  widget.controller.rinseData,
+                  (steam, hotWater, rinse) => [steam, hotWater, rinse],
+                )
+              : null,
           builder: (context, settingsSnapshot) {
             if (settingsSnapshot.connectionState != ConnectionState.active) {
               return Text("Waiting");
@@ -58,7 +86,7 @@ class StatusTile extends StatelessWidget {
                   width: 90,
                   child: GestureDetector(
                     onTap: () async {
-                      _showRinseSettingsDialog(context, controller);
+                      _showRinseSettingsDialog(context, widget.controller);
                     },
                     child: Row(
                       children: [
@@ -85,7 +113,7 @@ class StatusTile extends StatelessWidget {
                   width: 120,
                   child: GestureDetector(
                     onTap: () async {
-                      _showHotWaterSettingsDialog(context, controller);
+                      _showHotWaterSettingsDialog(context, widget.controller);
                     },
                     child: Row(
                       children: [
@@ -114,7 +142,7 @@ class StatusTile extends StatelessWidget {
                   width: 90,
                   child: GestureDetector(
                     onTap: () async {
-                      await _showSteamSettingsDialog(context, controller);
+                      await _showSteamSettingsDialog(context, widget.controller);
                     },
                     child: Row(
                       children: [
@@ -164,7 +192,7 @@ class StatusTile extends StatelessWidget {
               apply: (settings) {
                 Navigator.of(context).pop();
                 controller.updateSteamSettings(settings);
-                workflowController.updateWorkflow(
+                widget.workflowController.updateWorkflow(
                   steamSettings: SteamSettings(
                     targetTemperature: settings.targetTemp,
                     duration: settings.targetDuration,
@@ -195,7 +223,7 @@ class StatusTile extends StatelessWidget {
               apply: (settings) {
                 Navigator.of(context).pop();
                 controller.updateHotWaterSettings(settings);
-                workflowController.updateWorkflow(
+                widget.workflowController.updateWorkflow(
                   hotWaterData: HotWaterData(
                     targetTemperature: settings.targetTemperature,
                     duration: settings.duration,
@@ -227,7 +255,7 @@ class StatusTile extends StatelessWidget {
               apply: (settings) {
                 Navigator.of(context).pop();
                 controller.updateFlushSettings(settings);
-                workflowController.updateWorkflow(
+                widget.workflowController.updateWorkflow(
                   rinseData: RinseData(
                     targetTemperature: settings.targetTemperature,
                     duration: settings.duration,
@@ -279,27 +307,27 @@ class StatusTile extends StatelessWidget {
               color: Theme.of(context).colorScheme.onSurface,
             ),
             StreamBuilder(
-              stream: scaleController.connectionState,
+              stream: _isInForeground ? widget.scaleController.connectionState : null,
               builder: (context, state) {
                 if (state.connectionState != ConnectionState.active ||
                     state.data! != device.ConnectionState.connected) {
                   // call device controller scan?
                   return GestureDetector(
                     onTap: () async {
-                      await deviceController.scanForDevices(autoConnect: true);
+                      await widget.deviceController.scanForDevices(autoConnect: true);
                     },
                     child: Text("Waiting"),
                   );
                 }
                 return StreamBuilder(
-                  stream: scaleController.weightSnapshot,
+                  stream: _isInForeground ? widget.scaleController.weightSnapshot : null,
                   builder: (context, weight) {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         GestureDetector(
                           onTap: () {
-                            scaleController.connectedScale().tare();
+                            widget.scaleController.connectedScale().tare();
                           },
                           child: Text(
                             "W: ${weight.data?.weight.toStringAsFixed(1) ?? 0.0}g",
@@ -329,7 +357,7 @@ class StatusTile extends StatelessWidget {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         StreamBuilder(
-          stream: de1.currentSnapshot,
+          stream: _isInForeground ? widget.de1.currentSnapshot : null,
           builder: (context, snapshotData) {
             if (snapshotData.connectionState != ConnectionState.active) {
               return Text("Waiting");
@@ -372,7 +400,7 @@ class StatusTile extends StatelessWidget {
           },
         ),
         StreamBuilder(
-          stream: de1.waterLevels,
+          stream: _isInForeground ? widget.de1.waterLevels : null,
           builder: (context, waterSnapshot) {
             if (waterSnapshot.connectionState != ConnectionState.active) {
               return Text("Waiting");
@@ -383,7 +411,7 @@ class StatusTile extends StatelessWidget {
               width: boxWidth,
               child: GestureDetector(
                 onTap: () {
-                  _showWaterLevelsDialog(context, controller);
+                  _showWaterLevelsDialog(context, widget.controller);
                 },
                 child: Row(
                   children: [
@@ -412,3 +440,9 @@ class StatusTile extends StatelessWidget {
     );
   }
 }
+
+
+
+
+
+

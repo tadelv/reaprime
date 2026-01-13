@@ -1,10 +1,11 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
+import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/settings/settings_view.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class SettingsTile extends StatelessWidget {
@@ -42,11 +43,11 @@ class SettingsTile extends StatelessWidget {
   }
 
   Widget _powerButton() {
-    return StreamBuilder(
+    return StreamBuilder<De1Interface?>(
       stream: controller.de1,
       builder: (context, de1State) {
-        if (de1State.connectionState != ConnectionState.active ||
-            de1State.data == null) {
+        // Check for active connection and non-null data
+        if (!de1State.hasData || de1State.data == null) {
           return Text("Waiting to connect");
         }
         var de1 = de1State.data!;
@@ -81,11 +82,11 @@ class SettingsTile extends StatelessWidget {
   }
 
   Widget _auxFunctions() {
-    return StreamBuilder(
+    return StreamBuilder<De1Interface?>(
       stream: controller.de1,
       builder: (context, de1State) {
-        if (de1State.connectionState != ConnectionState.active ||
-            de1State.data == null) {
+        // Check for active connection and non-null data
+        if (!de1State.hasData || de1State.data == null) {
           return Text("Waiting to connect");
         }
         final de1 = de1State.data!;

@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
@@ -5,13 +7,12 @@ import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/home_feature/tiles/history_tile.dart';
 import 'package:reaprime/src/home_feature/tiles/profile_tile.dart';
 import 'package:reaprime/src/home_feature/tiles/settings_tile.dart';
+import 'package:reaprime/src/home_feature/tiles/status_tile.dart';
+import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:flutter/material.dart';
-import 'package:reaprime/src/controllers/de1_controller.dart';
-import 'package:reaprime/src/home_feature/tiles/status_tile.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -147,10 +148,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _de1Status(BuildContext context) {
-    return StreamBuilder(
+    return StreamBuilder<De1Interface?>(
       stream: widget.de1controller.de1,
       builder: (context, de1Available) {
-        if (de1Available.hasData) {
+        // Check both that we have data AND that the data is not null
+        if (de1Available.hasData && de1Available.data != null) {
           return SizedBox(
             child: StatusTile(
               de1: de1Available.data!,
@@ -265,6 +267,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
+
 
 
 
