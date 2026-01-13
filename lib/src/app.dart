@@ -187,6 +187,7 @@ class _MyAppState extends State<MyApp> {
                         controller: widget.settingsController,
                         persistenceController: widget.persistenceController,
                         webUIService: widget.webUIService,
+                        webUIStorage: widget.webUIStorage,
                       );
                     case De1DebugView.routeName:
                       var device = widget.deviceController.devices.firstWhere(

@@ -32,7 +32,7 @@ class PermissionsView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('ReaPrime'),
+        title: Text('Streamline'),
       ),
       body: SafeArea(
         child: _permissions(context),
@@ -45,7 +45,7 @@ class PermissionsView extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text('REAPrime is starting ...'),
+          Text('Streamline is starting ...'),
           FutureBuilder(
             future: checkPermissions(),
             builder: (context, result) {

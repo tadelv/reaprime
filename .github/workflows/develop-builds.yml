@@ -30,6 +30,10 @@ jobs:
           build-tools: 35.0.0
           ndk: 27.0.12077973
 
+      - name: Decode Android keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 --decode > android/app/debug.keystore
+
       - name: Cache Flutter & Gradle
         uses: actions/cache@v3
         with:

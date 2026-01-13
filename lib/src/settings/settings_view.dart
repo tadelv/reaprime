@@ -13,6 +13,7 @@ import 'package:reaprime/src/settings/plugins_settings_view.dart';
 import 'package:reaprime/src/util/shot_exporter.dart';
 import 'package:reaprime/src/util/shot_importer.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
+import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -28,6 +29,7 @@ class SettingsView extends StatelessWidget {
     required this.controller,
     required this.persistenceController,
     required this.webUIService,
+    required this.webUIStorage,
   });
 
   static const routeName = '/settings';
@@ -35,6 +37,7 @@ class SettingsView extends StatelessWidget {
   final SettingsController controller;
   final PersistenceController persistenceController;
   final WebUIService webUIService;
+  final WebUIStorage webUIStorage;
 
   @override
   Widget build(BuildContext context) {
@@ -253,6 +256,18 @@ class SettingsView extends StatelessWidget {
                   ).pushNamed(PluginsSettingsView.routeName);
                 },
                 child: Text("Plugins"),
+              ),
+              ShadButton.secondary(
+                onPressed: () async {
+                  await webUIStorage.downloadRemoteSkins();
+                  if (!context.mounted) {
+                    return;
+                  }
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Everything is up to date")),
+                  );
+                },
+                child: Text("Check for updates"),
               ),
               SizedBox(height: 24),
               Column(
