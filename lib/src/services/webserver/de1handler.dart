@@ -77,6 +77,9 @@ class De1Handler {
         if (json['tankTemp'] != null) {
           await de1.setTankTempThreshold(parseInt(json['tankTemp']));
         }
+        if (json['steamPurgeMode'] != null) {
+          await de1.setSteamPurgeMode(parseInt(json['steamPurgeMode']));
+        }
 
         return Response(202);
       });
@@ -93,6 +96,7 @@ class De1Handler {
         json['hotWaterFlow'] = await de1.getHotWaterFlow();
         json['steamFlow'] = await de1.getSteamFlow();
         json['tankTemp'] = await de1.getTankTempThreshold();
+        json['steamPurgeMode'] = await de1.getSteamPurgeMode();
         return Response.ok(jsonEncode(json));
       });
     });
@@ -281,3 +285,5 @@ class De1Handler {
     );
   }
 }
+
+

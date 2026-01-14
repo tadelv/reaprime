@@ -370,6 +370,7 @@ class MockDe1 implements De1Interface {
   }
 
   bool _chargerOn = false;
+  int _steamPurgeMode = 0; // 0 = normal, 1 = two tap stop
 
   @override
   Future<bool> getUsbChargerMode() async {
@@ -379,6 +380,16 @@ class MockDe1 implements De1Interface {
   @override
   Future<void> setUsbChargerMode(bool t) async {
     _chargerOn = t;
+  }
+
+  @override
+  Future<int> getSteamPurgeMode() async {
+    return _steamPurgeMode;
+  }
+
+  @override
+  Future<void> setSteamPurgeMode(int mode) async {
+    _steamPurgeMode = mode;
   }
 
   @override
@@ -591,3 +602,4 @@ class MockDe1 implements De1Interface {
     onProgress(1.0);
   }
 }
+

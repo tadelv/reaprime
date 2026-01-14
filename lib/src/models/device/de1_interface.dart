@@ -48,11 +48,11 @@ abstract class De1Interface extends Machine {
   //// USB and Charger Settings
   Future<bool> getUsbChargerMode();
   Future<void> setUsbChargerMode(bool t);
-  //
+  
   //// Steam Purge
-  //Future<void> setSteamPurgeMode(int t);
-  //Future<int> getSteamPurgeMode();
-  //
+  Future<void> setSteamPurgeMode(int mode);
+  Future<int> getSteamPurgeMode();
+  
   //// Device Info
   //Future<int> getFirmwareBuild();
   //Future<int> getSerialNumber();
@@ -174,3 +174,4 @@ final class De1WaterLevels {
     };
   }
 }
+

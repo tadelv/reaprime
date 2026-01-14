@@ -153,6 +153,11 @@ class UnifiedDe1 implements De1Interface {
   }
 
   @override
+  Future<int> getSteamPurgeMode() async {
+    return await _readMMRInt(MMRItem.steamPurgeMode);
+  }
+
+  @override
   String get name => "DE1";
 
   @override
@@ -285,6 +290,11 @@ class UnifiedDe1 implements De1Interface {
   }
 
   @override
+  Future<void> setSteamPurgeMode(int mode) async {
+    await _writeMMRInt(MMRItem.steamPurgeMode, mode);
+  }
+
+  @override
   Future<void> setRefillLevel(int newThresholdPercentage) async {
     ByteData value = ByteData(4);
     try {
@@ -361,3 +371,5 @@ class UnifiedDe1 implements De1Interface {
       })
       .map(_parseWaterLevels);
 }
+
+

@@ -424,6 +424,16 @@ function createPlugin(host) {
                             <button class="btn btn-primary" onclick="updateDe1Setting('tankTemp', parseInt(document.getElementById('tankTemp').value))">Save</button>
                         </div>
                     </div>
+                    <div class="setting-item">
+                        <label class="setting-label" for="steamPurgeMode">Steam Purge Mode</label>
+                        <div class="setting-control">
+                            <select id="steamPurgeMode" aria-label="Steam purge mode - normal or two tap stop">
+                                <option value="0" ${de1Settings.steamPurgeMode === 0 ? 'selected' : ''}>Normal</option>
+                                <option value="1" ${de1Settings.steamPurgeMode === 1 ? 'selected' : ''}>Two Tap Stop</option>
+                            </select>
+                            <button class="btn btn-primary" onclick="updateDe1Setting('steamPurgeMode', parseInt(document.getElementById('steamPurgeMode').value))" aria-label="Save steam purge mode setting">Save</button>
+                        </div>
+                    </div>
                 </div>
             ` : '<div class="error" role="alert">Failed to load DE1 settings (machine may not be connected)</div>'}
             </section>
@@ -605,7 +615,7 @@ function createPlugin(host) {
   // Return the plugin object
   return {
     id: "settings.reaplugin",
-    version: "0.0.3",
+    version: "0.0.5",
 
     onLoad(settings) {
       state.refreshInterval = settings.RefreshInterval !== undefined ? settings.RefreshInterval : 5;
