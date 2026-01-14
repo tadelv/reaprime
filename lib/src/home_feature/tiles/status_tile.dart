@@ -32,28 +32,7 @@ class StatusTile extends StatefulWidget {
   State<StatusTile> createState() => _StatusTileState();
 }
 
-class _StatusTileState extends State<StatusTile> with WidgetsBindingObserver {
-  bool _isInForeground = true;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    setState(() {
-      _isInForeground = state == AppLifecycleState.resumed;
-    });
-  }
-
+class _StatusTileState extends State<StatusTile> {
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -62,16 +41,15 @@ class _StatusTileState extends State<StatusTile> with WidgetsBindingObserver {
         _firstRow(),
         SizedBox(height: 8),
         StreamBuilder(
-          stream: _isInForeground
-              ? Rx.combineLatest3(
-                  widget.controller.steamData,
-                  widget.controller.hotWaterData,
-                  widget.controller.rinseData,
-                  (steam, hotWater, rinse) => [steam, hotWater, rinse],
-                )
-              : null,
+          stream: Rx.combineLatest3(
+            widget.controller.steamData,
+            widget.controller.hotWaterData,
+            widget.controller.rinseData,
+            (steam, hotWater, rinse) => [steam, hotWater, rinse],
+          ),
           builder: (context, settingsSnapshot) {
-            if (settingsSnapshot.connectionState != ConnectionState.active) {
+            if (settingsSnapshot.connectionState != ConnectionState.active ||
+                !settingsSnapshot.hasData) {
               return Text("Waiting");
             }
             var settings = settingsSnapshot.data!;
@@ -142,7 +120,10 @@ class _StatusTileState extends State<StatusTile> with WidgetsBindingObserver {
                   width: 90,
                   child: GestureDetector(
                     onTap: () async {
-                      await _showSteamSettingsDialog(context, widget.controller);
+                      await _showSteamSettingsDialog(
+                        context,
+                        widget.controller,
+                      );
                     },
                     child: Row(
                       children: [
@@ -284,9 +265,7 @@ class _StatusTileState extends State<StatusTile> with WidgetsBindingObserver {
             child: WaterLevelsForm(
               apply: (newLevels) {
                 Navigator.of(context).pop();
-                controller.connectedDe1().setRefillLevel(
-                  newLevels.refillLevel,
-                );
+                controller.connectedDe1().setRefillLevel(newLevels.refillLevel);
               },
               levels: waterLevels,
             ),
@@ -307,21 +286,30 @@ class _StatusTileState extends State<StatusTile> with WidgetsBindingObserver {
               color: Theme.of(context).colorScheme.onSurface,
             ),
             StreamBuilder(
-              stream: _isInForeground ? widget.scaleController.connectionState : null,
+              stream: widget.scaleController.connectionState,
               builder: (context, state) {
                 if (state.connectionState != ConnectionState.active ||
-                    state.data! != device.ConnectionState.connected) {
-                  // call device controller scan?
+                    !state.hasData ||
+                    state.data != device.ConnectionState.connected) {
                   return GestureDetector(
                     onTap: () async {
-                      await widget.deviceController.scanForDevices(autoConnect: true);
+                      await widget.deviceController.scanForDevices(
+                        autoConnect: true,
+                      );
                     },
                     child: Text("Waiting"),
                   );
                 }
                 return StreamBuilder(
-                  stream: _isInForeground ? widget.scaleController.weightSnapshot : null,
+                  stream: widget.scaleController.weightSnapshot,
                   builder: (context, weight) {
+                    if (weight.connectionState != ConnectionState.active ||
+                        !weight.hasData) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [Text("W: --g"), Text("B: --%")],
+                      );
+                    }
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
@@ -333,7 +321,7 @@ class _StatusTileState extends State<StatusTile> with WidgetsBindingObserver {
                             "W: ${weight.data?.weight.toStringAsFixed(1) ?? 0.0}g",
                           ),
                         ),
-                        Text("B: ${weight.data?.battery}%"),
+                        Text("B: ${weight.data?.battery ?? 0}%"),
                       ],
                     );
                   },
@@ -357,9 +345,10 @@ class _StatusTileState extends State<StatusTile> with WidgetsBindingObserver {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         StreamBuilder(
-          stream: _isInForeground ? widget.de1.currentSnapshot : null,
+          stream: widget.de1.currentSnapshot,
           builder: (context, snapshotData) {
-            if (snapshotData.connectionState != ConnectionState.active) {
+            if (snapshotData.connectionState != ConnectionState.active ||
+                !snapshotData.hasData) {
               return Text("Waiting");
             }
             var snapshot = snapshotData.data!;
@@ -400,9 +389,10 @@ class _StatusTileState extends State<StatusTile> with WidgetsBindingObserver {
           },
         ),
         StreamBuilder(
-          stream: _isInForeground ? widget.de1.waterLevels : null,
+          stream: widget.de1.waterLevels,
           builder: (context, waterSnapshot) {
-            if (waterSnapshot.connectionState != ConnectionState.active) {
+            if (waterSnapshot.connectionState != ConnectionState.active ||
+                !waterSnapshot.hasData) {
               return Text("Waiting");
             }
             var snapshot = waterSnapshot.data!;

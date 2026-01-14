@@ -40,7 +40,30 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // When app resumes from background, trigger a rebuild to reconnect StreamBuilders
+    if (state == AppLifecycleState.resumed) {
+      setState(() {
+        // This will cause the entire widget tree to rebuild,
+        // reconnecting all StreamBuilders to their streams
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -272,6 +295,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
 
 
 
