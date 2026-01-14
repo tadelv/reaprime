@@ -440,10 +440,7 @@ class MockDe1 implements De1Interface {
   @override
   Stream<De1WaterLevels> get waterLevels =>
       Stream.periodic(Duration(seconds: 1), (_) {
-        return De1WaterLevels(
-          currentLevel: 50,
-          refillLevel: 5,
-        );
+        return De1WaterLevels(currentLevel: 50, refillLevel: 5);
       });
 
   final BehaviorSubject<ConnectionState> _connectionState =
@@ -460,15 +457,19 @@ class MockDe1 implements De1Interface {
   @override
   Future<void> setFanThreshhold(int temp) async {}
 
+  double _steamFlow = 1.0;
   @override
   Future<double> getSteamFlow() {
     return Future(() {
-      return 1.0;
+      return _steamFlow;
     });
   }
 
   @override
-  Future<void> setSteamFlow(double newFlow) async {}
+  Future<void> setSteamFlow(double newFlow) async {
+    _steamFlow = newFlow;
+    _shotSettingsController.add(await _shotSettingsController.stream.first);
+  }
 
   double _hotWaterFlow = 1.0;
   @override
@@ -479,6 +480,7 @@ class MockDe1 implements De1Interface {
   @override
   Future<void> setHotWaterFlow(double newFlow) async {
     _hotWaterFlow = newFlow;
+    _shotSettingsController.add(await _shotSettingsController.stream.first);
   }
 
   double _flushFlow = 1.0;
@@ -490,6 +492,7 @@ class MockDe1 implements De1Interface {
   @override
   Future<void> setFlushFlow(double newFlow) async {
     _flushFlow = newFlow;
+    _shotSettingsController.add(await _shotSettingsController.stream.first);
   }
 
   @override

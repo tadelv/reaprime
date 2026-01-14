@@ -181,7 +181,6 @@ class UnifiedDe1 implements De1Interface {
 
     _log.info("Info: ${_info!.toJson()}");
 
-
     // TODO: User configurable setting
     // Set refill kit to autodetect
     await _mmrWrite(MMRItem.refillKitPresent, [0x02]);
@@ -253,6 +252,11 @@ class UnifiedDe1 implements De1Interface {
   @override
   Future<void> setHotWaterFlow(double newFlow) async {
     await _writeMMRScaled(MMRItem.hotWaterFlowRate, newFlow);
+    // Workaround for hot water flow not part of shot settings, will trigger
+    // DE1Controller refresh
+    _transport.shotSettingsSubject.add(
+      await _transport.shotSettingsSubject.first,
+    );
   }
 
   @override
@@ -263,6 +267,11 @@ class UnifiedDe1 implements De1Interface {
   @override
   Future<void> setSteamFlow(double newFlow) async {
     await _writeMMRScaled(MMRItem.targetSteamFlow, newFlow);
+    // Workaround for steam flow not part of shot settings, will trigger
+    // DE1Controller refresh
+    _transport.shotSettingsSubject.add(
+      await _transport.shotSettingsSubject.first,
+    );
   }
 
   @override

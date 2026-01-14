@@ -81,10 +81,10 @@ class De1StateManager {
     _snapshotSubscription = null;
 
     if (machine != null) {
-      _logger.fine('DE1 connected, starting to listen for state changes');
+      _logger.info('DE1 connected, starting to listen for state changes');
       _snapshotSubscription = machine.currentSnapshot.listen(_handleSnapshot);
     } else {
-      _logger.fine('DE1 disconnected');
+      _logger.info('DE1 disconnected');
       // Clean up any active shot controller
       _cleanupShotController();
     }
