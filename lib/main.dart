@@ -219,7 +219,9 @@ void main() async {
       Level.INFO;
 
   if (Platform.isAndroid) {
+    // Initialize and start foreground service as early as possible
     ForegroundTaskService.init();
+    await ForegroundTaskService.start();
     WidgetsBinding.instance.addObserver(AppLifecycleObserver());
     // SchedulerBinding.instance.addTimingsCallback((timings) {
     //   // If this keeps firing while app is "backgrounded",
@@ -272,3 +274,4 @@ class AppLifecycleObserver with WidgetsBindingObserver {
     _memTimer.cancel();
   }
 }
+

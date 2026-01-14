@@ -115,6 +115,12 @@ class PermissionsView extends StatelessWidget {
       await Permission.bluetooth.request();
       await Permission.locationWhenInUse.request();
       await Permission.locationAlways.request();
+      
+      // Request notification permission for Android 13+ (API 33+)
+      // This allows foreground service notification to appear in notification drawer
+      if (Platform.isAndroid) {
+        await Permission.notification.request();
+      }
     } else {
       await UniversalBle.availabilityStream
           .firstWhere((e) => e == AvailabilityState.poweredOn);
@@ -242,6 +248,7 @@ enum DiscoveryState {
   foundOne,
   foundMany,
 }
+
 
 
 

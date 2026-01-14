@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter/material.dart';
 // import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 // import 'package:flutter_localizations/flutter_localizations.dart';
@@ -115,14 +114,8 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    // Start foreground service for Android
-    if (Platform.isAndroid) {
-      FlutterForegroundTask.startService(
-        notificationTitle: "Reaprime talking to DE1",
-        notificationText: "Tap to return to Reaprime",
-      );
-    }
-
+    // Foreground service is now started in main.dart for Android
+    
     final themeColor = 'green';
 
     return ScaffoldMessenger(
@@ -294,3 +287,5 @@ class _MyAppState extends State<MyApp> {
     );
   }
 }
+
+

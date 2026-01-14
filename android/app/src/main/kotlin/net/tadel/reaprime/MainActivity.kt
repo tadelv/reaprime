@@ -1,5 +1,7 @@
 package net.tadel.reaprime
 
+import android.app.ActivityManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -13,6 +15,34 @@ import java.io.File
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.reaprime.updater/apk_installer"
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        // Check if another instance is already running
+        if (isAppAlreadyRunning()) {
+            // Bring existing instance to front and finish this one
+            moveTaskToBack(true)
+            finish()
+            return
+        }
+        super.onCreate(savedInstanceState)
+    }
+
+    private fun isAppAlreadyRunning(): Boolean {
+        val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val runningProcesses = activityManager.runningAppProcesses ?: return false
+        
+        var instanceCount = 0
+        for (processInfo in runningProcesses) {
+            if (processInfo.processName == packageName) {
+                instanceCount++
+                // If we find more than one instance (current one), another is already running
+                if (instanceCount > 1) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

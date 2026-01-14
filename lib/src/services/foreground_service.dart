@@ -4,7 +4,9 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:logging/logging.dart';
 
 class ForegroundTaskService {
-  static init() {
+  static final _log = Logger("ForegroundTaskService");
+  
+  static void init() {
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
         channelId: 'foreground_service',
@@ -22,6 +24,43 @@ class ForegroundTaskService {
         eventAction: ForegroundTaskEventAction.nothing(),
       ),
     );
+  }
+
+  static Future<void> start() async {
+    try {
+      final isRunning = await FlutterForegroundTask.isRunningService;
+      if (isRunning) {
+        _log.info("Foreground service already running");
+        return;
+      }
+
+      final started = await FlutterForegroundTask.startService(
+        notificationTitle: "Reaprime talking to DE1",
+        notificationText: "Tap to return to Reaprime",
+        callback: startCallback,
+      );
+      
+      if (started) {
+        _log.info("Foreground service started successfully");
+      } else {
+        _log.warning("Failed to start foreground service");
+      }
+    } catch (e, st) {
+      _log.severe("Error starting foreground service", e, st);
+    }
+  }
+
+  static Future<void> stop() async {
+    try {
+      final stopped = await FlutterForegroundTask.stopService();
+      if (stopped) {
+        _log.info("Foreground service stopped successfully");
+      } else {
+        _log.warning("Failed to stop foreground service");
+      }
+    } catch (e, st) {
+      _log.severe("Error stopping foreground service", e, st);
+    }
   }
 }
 
