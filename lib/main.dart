@@ -23,6 +23,7 @@ import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/bookoo/miniscale.dart';
+import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
 import 'package:reaprime/src/models/device/impl/felicita/arc.dart';
 import 'package:reaprime/src/models/device/impl/machine_parser.dart';
@@ -42,7 +43,6 @@ import 'src/services/foreground_service.dart';
 import 'src/settings/settings_controller.dart';
 import 'src/settings/settings_service.dart';
 
-import 'src/models/device/impl/de1/de1.dart';
 import 'src/services/serial/serial_service.dart';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -96,7 +96,7 @@ void main() async {
     services.add(
       BluePlusDiscoveryService(
         mappings: {
-          De1.advertisingUUID.toUpperCase():
+          UnifiedDe1.advertisingUUID.toUpperCase():
               (t) => MachineParser.machineFrom(transport: t),
           FelicitaArc.serviceUUID.toUpperCase(): (t) async {
             return FelicitaArc(transport: t);
@@ -114,7 +114,7 @@ void main() async {
     services.add(
       UniversalBleDiscoveryService(
         mappings: {
-          De1.advertisingUUID.toUpperCase():
+          UnifiedDe1.advertisingUUID.toUpperCase():
               (t) => MachineParser.machineFrom(transport: t),
           FelicitaArc.serviceUUID.toUpperCase(): (t) async {
             return FelicitaArc(transport: t);

@@ -39,6 +39,7 @@ class _MMRConfig {
 }
 
 class UnifiedDe1 implements De1Interface {
+  static String advertisingUUID = 'ffff';
   final UnifiedDe1Transport _transport;
 
   final Logger _log = Logger("DE1");

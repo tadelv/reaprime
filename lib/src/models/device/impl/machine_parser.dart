@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
-import 'package:reaprime/src/models/device/impl/de1/de1.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/machine.dart';
@@ -63,7 +62,7 @@ class MachineParser {
         // m = De1.fromId(transport.id);
         m = UnifiedDe1(transport: transport);
       } else {
-        m = Bengle(deviceId: transport.id);
+        m = Bengle(transport: transport);
       }
       await transport.disconnect();
       // TODO: not sure if disconnect will mess up bluetooth on Android?
@@ -85,4 +84,8 @@ class MachineParser {
     }
     return bytes.getInt32(4, Endian.little);
   }
+}
+
+String toHexString(int number) {
+  return "0x${number.toRadixString(16).padLeft(2, '0')}";
 }
