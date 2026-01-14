@@ -40,10 +40,10 @@ class ForegroundTaskService {
         callback: startCallback,
       );
       
-      if (started) {
+      if (started == const ServiceRequestSuccess()) {
         _log.info("Foreground service started successfully");
       } else {
-        _log.warning("Failed to start foreground service");
+        _log.warning("Failed to start foreground service, $started");
       }
     } catch (e, st) {
       _log.severe("Error starting foreground service", e, st);
@@ -53,10 +53,10 @@ class ForegroundTaskService {
   static Future<void> stop() async {
     try {
       final stopped = await FlutterForegroundTask.stopService();
-      if (stopped) {
+      if (stopped == ServiceRequestSuccess()) {
         _log.info("Foreground service stopped successfully");
       } else {
-        _log.warning("Failed to stop foreground service");
+        _log.warning("Failed to stop foreground service, $stopped");
       }
     } catch (e, st) {
       _log.severe("Error stopping foreground service", e, st);
