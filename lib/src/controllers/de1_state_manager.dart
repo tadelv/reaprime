@@ -25,7 +25,7 @@ import 'package:uuid/uuid.dart';
 /// This class separates the concern of handling DE1 state changes from
 /// the main app widget, providing better memory management and cleaner code.
 ///
-class De1StateManager {
+class De1StateManager with WidgetsBindingObserver {
   final Logger _logger = Logger('De1StateManager');
 
   final De1Controller _de1Controller;
@@ -44,12 +44,16 @@ class De1StateManager {
 
   bool _isRealtimeFeatureActive = false;
   final List<ShotSnapshot> _currentShotSnapshots = [];
-  
+
   // Track previous machine state for scale power management
   MachineState? _previousMachineState;
-  
+
   // Track if we're currently scanning for scales
   bool _isScanningSscales = false;
+
+  // App lifecycle tracking
+  bool _appIsInForeground = true;
+  bool _navigationContextReady = false;
 
   De1StateManager({
     required De1Controller de1Controller,
@@ -71,7 +75,44 @@ class De1StateManager {
 
   /// Initializes the state manager and starts listening to DE1 state changes.
   void _initialize() {
+    // Start observing app lifecycle
+    WidgetsBinding.instance.addObserver(this);
+
+    // Check if navigation context is available
+    _checkNavigationContext();
+
     _de1Subscription = _de1Controller.de1.listen(_handleDe1Change);
+
+    // Schedule a delayed check for navigation context
+    // This handles cases where the navigator key isn't ready immediately
+    Future.delayed(const Duration(milliseconds: 500), () {
+      _checkNavigationContext();
+    });
+  }
+
+  /// Checks if navigation context is available and ready
+  void _checkNavigationContext() {
+    final context = _navigatorKey.currentContext;
+    _navigationContextReady = context != null && context.mounted;
+    _logger.fine('Navigation context ready: $_navigationContextReady');
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _logger.fine('App lifecycle state changed: $state');
+
+    switch (state) {
+      case AppLifecycleState.resumed:
+        _appIsInForeground = true;
+        _checkNavigationContext();
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+        _appIsInForeground = false;
+        break;
+    }
   }
 
   /// Handles changes to the connected DE1 machine.
@@ -97,11 +138,17 @@ class De1StateManager {
     final currentState = snapshot.state.state;
 
     _logger.finest(
-      'Handling state: $currentState in mode: ${gatewayMode.name}',
+      'Handling state: $currentState in mode: ${gatewayMode.name} (app foreground: $_appIsInForeground)',
     );
 
     // Handle scale power management based on state transitions
+    // ALWAYS RUNS - regardless of app state
     _handleScalePowerManagement(currentState);
+
+    // Check navigation context before attempting any navigation
+    if (!_navigationContextReady) {
+      _checkNavigationContext();
+    }
 
     switch (currentState) {
       case MachineState.espresso:
@@ -273,7 +320,9 @@ class De1StateManager {
       return;
     }
 
-    _logger.info('Starting shot tracking in tracking mode');
+    _logger.info(
+      'Starting shot tracking in tracking mode (app foreground: $_appIsInForeground)',
+    );
     _startShotController();
   }
 
@@ -284,24 +333,50 @@ class De1StateManager {
       return;
     }
 
-    final context = _navigatorKey.currentContext;
-    if (context != null && context.mounted) {
-      _logger.info('Navigating to RealtimeShotFeature in disabled mode');
-      _isRealtimeFeatureActive = true;
+    // If we're already tracking a shot (maybe from a previous fallback)
+    if (_currentShotController != null) {
+      return;
+    }
 
-      Navigator.pushNamed(
-        context,
-        RealtimeShotFeature.routeName,
-        arguments: ShotController(
-          scaleController: _scaleController,
-          de1controller: _de1Controller,
-          persistenceController: _persistenceController,
-          targetProfile: _workflowController.currentWorkflow.profile,
-          doseData: _workflowController.currentWorkflow.doseData,
-        ),
-      ).then((_) {
-        _isRealtimeFeatureActive = false;
-      });
+    // Only attempt navigation if app is in foreground AND navigation context is ready
+    if (_appIsInForeground && _navigationContextReady) {
+      final context = _navigatorKey.currentContext;
+      if (context != null && context.mounted) {
+        _logger.info('Navigating to RealtimeShotFeature in disabled mode');
+        _isRealtimeFeatureActive = true;
+
+        Navigator.pushNamed(
+              context,
+              RealtimeShotFeature.routeName,
+              arguments: ShotController(
+                scaleController: _scaleController,
+                de1controller: _de1Controller,
+                persistenceController: _persistenceController,
+                targetProfile: _workflowController.currentWorkflow.profile,
+                doseData: _workflowController.currentWorkflow.doseData,
+              ),
+            )
+            .then((_) {
+              _isRealtimeFeatureActive = false;
+            })
+            .catchError((error) {
+              _logger.warning('Navigation failed: $error');
+              _isRealtimeFeatureActive = false;
+              // Fallback to tracking if navigation fails
+              _startShotController();
+            });
+      } else {
+        _logger.warning(
+          'Navigation context not available, falling back to tracking',
+        );
+        _navigationContextReady = false;
+        _startShotController(); // Fallback to tracking
+      }
+    } else {
+      _logger.info(
+        'App not in foreground or navigation not ready, starting shot tracking',
+      );
+      _startShotController(); // Fallback to tracking
     }
   }
 
@@ -312,22 +387,47 @@ class De1StateManager {
       return;
     }
 
+    // Only attempt navigation if app is in foreground AND navigation context is ready
+    if (!_appIsInForeground || !_navigationContextReady) {
+      _logger.fine(
+        'Skipping steam feature - app not in foreground or navigation not ready',
+      );
+      return;
+    }
+
     final context = _navigatorKey.currentContext;
     if (context != null && context.mounted) {
       _logger.info('Navigating to RealtimeSteamFeature in disabled mode');
       _isRealtimeFeatureActive = true;
-      _de1Controller.steamData.first.then((steamData) {
-        if (!context.mounted) {
-          return;
-        }
-        Navigator.pushNamed(
-          context,
-          RealtimeSteamFeature.routeName,
-          arguments: {'controller': _de1Controller, 'data': steamData},
-        ).then((_) {
-          _isRealtimeFeatureActive = false;
-        });
-      });
+
+      // Use a try-catch to handle any async issues
+      try {
+        _de1Controller.steamData.first
+            .then((steamData) {
+              if (!context.mounted) {
+                _logger.warning('Context no longer mounted');
+                _isRealtimeFeatureActive = false;
+                return;
+              }
+              Navigator.pushNamed(
+                context,
+                RealtimeSteamFeature.routeName,
+                arguments: {'controller': _de1Controller, 'data': steamData},
+              ).then((_) {
+                _isRealtimeFeatureActive = false;
+              });
+            })
+            .catchError((error, stackTrace) {
+              _logger.warning('Error getting steam data: $error');
+              _isRealtimeFeatureActive = false;
+            });
+      } catch (e) {
+        _logger.warning('Error in steam navigation: $e');
+        _isRealtimeFeatureActive = false;
+      }
+    } else {
+      _logger.warning('Navigation context is null or not mounted');
+      _navigationContextReady = false;
     }
   }
 
@@ -400,6 +500,9 @@ class De1StateManager {
   void dispose() {
     _logger.fine('Disposing De1StateManager');
 
+    // Remove app lifecycle observer
+    WidgetsBinding.instance.removeObserver(this);
+
     _cleanupShotController();
 
     _snapshotSubscription?.cancel();
@@ -409,13 +512,3 @@ class De1StateManager {
     _de1Subscription = null;
   }
 }
-
-
-
-
-
-
-
-
-
-
