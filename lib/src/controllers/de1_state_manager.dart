@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
@@ -51,7 +52,13 @@ class De1StateManager with WidgetsBindingObserver {
   // Track if we're currently scanning for scales
   bool _isScanningSscales = false;
 
-  // App lifecycle tracking
+  // Platform-specific background states
+  final Set<AppLifecycleState> _backgroundStates;
+
+  // Track current app lifecycle state
+  AppLifecycleState _currentAppState = AppLifecycleState.resumed;
+
+  // App foreground/background tracking
   bool _appIsInForeground = true;
   bool _navigationContextReady = false;
 
@@ -69,8 +76,30 @@ class De1StateManager with WidgetsBindingObserver {
        _workflowController = workflowController,
        _persistenceController = persistenceController,
        _settingsController = settingsController,
-       _navigatorKey = navigatorKey {
+       _navigatorKey = navigatorKey,
+       _backgroundStates = _getPlatformBackgroundStates() {
     _initialize();
+  }
+
+  /// Returns the set of AppLifecycleState values that should be considered
+  /// "background" states for the current platform.
+  static Set<AppLifecycleState> _getPlatformBackgroundStates() {
+    if (Platform.isAndroid || Platform.isIOS) {
+      // Mobile platforms: treat paused, inactive, hidden, and detached as background
+      return {
+        AppLifecycleState.paused,
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.detached,
+      };
+    } else if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+      // Desktop platforms: only treat detached as background
+      // Some desktop platforms may not have all lifecycle states
+      return {AppLifecycleState.detached};
+    } else {
+      // Web or other platforms: use conservative defaults
+      return {AppLifecycleState.paused, AppLifecycleState.detached};
+    }
   }
 
   /// Initializes the state manager and starts listening to DE1 state changes.
@@ -97,21 +126,36 @@ class De1StateManager with WidgetsBindingObserver {
     _logger.fine('Navigation context ready: $_navigationContextReady');
   }
 
+  /// Returns true if the current app state is considered "background" for the platform.
+  bool get _isAppInBackground => _backgroundStates.contains(_currentAppState);
+
+  /// Returns true if the current app state is considered "foreground" for the platform.
+  bool get _isAppInForeground => !_isAppInBackground;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    _logger.fine('App lifecycle state changed: $state');
+    _logger.fine(
+      'App lifecycle state changed: $state (platform: ${Platform.operatingSystem})',
+    );
 
-    switch (state) {
-      case AppLifecycleState.resumed:
-        _appIsInForeground = true;
-        _checkNavigationContext();
-        break;
-      case AppLifecycleState.paused:
-      case AppLifecycleState.inactive:
-      case AppLifecycleState.detached:
-      case AppLifecycleState.hidden:
-        _appIsInForeground = false;
-        break;
+    _currentAppState = state;
+
+    // Update foreground tracking based on platform-specific background states
+    final bool wasInForeground = _appIsInForeground;
+    _appIsInForeground = _isAppInForeground;
+
+    if (wasInForeground != _appIsInForeground) {
+      _logger.info('App foreground state changed: $_appIsInForeground');
+    }
+
+    // When app comes to foreground, check navigation context
+    if (state == AppLifecycleState.resumed) {
+      _checkNavigationContext();
+    }
+    // For desktop platforms, also check on other foreground transitions if needed
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      _logger.fine('Desktop platform state change: ${state.name}, ensuring navigation context');
+      _checkNavigationContext();
     }
   }
 
@@ -138,7 +182,7 @@ class De1StateManager with WidgetsBindingObserver {
     final currentState = snapshot.state.state;
 
     _logger.finest(
-      'Handling state: $currentState in mode: ${gatewayMode.name} (app foreground: $_appIsInForeground)',
+      'Handling state: $currentState in mode: ${gatewayMode.name} (app foreground: $_appIsInForeground, platform: ${Platform.operatingSystem})',
     );
 
     // Handle scale power management based on state transitions
@@ -338,11 +382,21 @@ class De1StateManager with WidgetsBindingObserver {
       return;
     }
 
-    // Only attempt navigation if app is in foreground AND navigation context is ready
-    if (_appIsInForeground && _navigationContextReady) {
+    // For mobile platforms, only attempt navigation if app is in foreground
+    // For desktop platforms, we can attempt navigation more liberally
+    bool canNavigate = _navigationContextReady;
+    
+    if (Platform.isAndroid || Platform.isIOS) {
+      // Mobile: require app to be in foreground
+      canNavigate = canNavigate && _appIsInForeground;
+    }
+    // Desktop platforms can attempt navigation even if app is "inactive" 
+    // but we still need a valid context
+
+    if (canNavigate) {
       final context = _navigatorKey.currentContext;
       if (context != null && context.mounted) {
-        _logger.info('Navigating to RealtimeShotFeature in disabled mode');
+        _logger.info('Navigating to RealtimeShotFeature in disabled mode (platform: ${Platform.operatingSystem})');
         _isRealtimeFeatureActive = true;
 
         Navigator.pushNamed(
@@ -374,7 +428,7 @@ class De1StateManager with WidgetsBindingObserver {
       }
     } else {
       _logger.info(
-        'App not in foreground or navigation not ready, starting shot tracking',
+        'Cannot navigate (foreground: $_appIsInForeground, context: $_navigationContextReady), starting shot tracking',
       );
       _startShotController(); // Fallback to tracking
     }
@@ -387,10 +441,17 @@ class De1StateManager with WidgetsBindingObserver {
       return;
     }
 
-    // Only attempt navigation if app is in foreground AND navigation context is ready
-    if (!_appIsInForeground || !_navigationContextReady) {
+    // Platform-specific navigation logic
+    bool canNavigate = _navigationContextReady;
+    
+    if (Platform.isAndroid || Platform.isIOS) {
+      // Mobile: require app to be in foreground
+      canNavigate = canNavigate && _appIsInForeground;
+    }
+
+    if (!canNavigate) {
       _logger.fine(
-        'Skipping steam feature - app not in foreground or navigation not ready',
+        'Skipping steam feature - cannot navigate (platform: ${Platform.operatingSystem}, foreground: $_appIsInForeground, context: $_navigationContextReady)',
       );
       return;
     }
