@@ -216,7 +216,7 @@ void main() async {
       Level.LEVELS.firstWhereOrNull(
         (e) => e.name == settingsController.logLevel,
       ) ??
-      Level.INFO;
+      Level.FINE;
 
   if (Platform.isAndroid) {
     // Initialize and start foreground service as early as possible

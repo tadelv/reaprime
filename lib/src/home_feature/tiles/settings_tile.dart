@@ -11,7 +11,7 @@ import 'package:reaprime/src/settings/settings_view.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class SettingsTile extends StatelessWidget {
+class SettingsTile extends StatefulWidget {
   final De1Controller controller;
   final DeviceController deviceController;
 
@@ -20,6 +20,13 @@ class SettingsTile extends StatelessWidget {
     required this.controller,
     required this.deviceController,
   });
+
+  @override
+  State<SettingsTile> createState() => _SettingsTileState();
+}
+
+class _SettingsTileState extends State<SettingsTile> {
+  bool _isScanning = false;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +48,7 @@ class SettingsTile extends StatelessWidget {
         ShadButton.secondary(
           onPressed: () async {
             // TODO: clean exit
-            await (await controller.de1.first)?.disconnect();
+            await (await widget.controller.de1.first)?.disconnect();
             exit(0);
           },
           child: Text("Quit"),
@@ -52,18 +59,31 @@ class SettingsTile extends StatelessWidget {
 
   Widget _powerButton() {
     return StreamBuilder<De1Interface?>(
-      stream: controller.de1,
+      stream: widget.controller.de1,
       builder: (context, de1State) {
         // Check for active connection and non-null data
         if (!de1State.hasData || de1State.data == null) {
+          if (_isScanning) {
+            return ShadButton.secondary(
+              onPressed: null,
+              child: Row(
+                spacing: 4,
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  Text("Scanning..."),
+                ],
+              ),
+            );
+          }
           return ShadButton.secondary(
             onPressed: () => _handleScan(context),
             child: Row(
               spacing: 4,
-              children: [
-                Icon(LucideIcons.radar, size: 16),
-                Text("Scan"),
-              ],
+              children: [Icon(LucideIcons.radar, size: 16), Text("Scan")],
             ),
           );
         }
@@ -100,7 +120,7 @@ class SettingsTile extends StatelessWidget {
 
   Widget _auxFunctions() {
     return StreamBuilder<De1Interface?>(
-      stream: controller.de1,
+      stream: widget.controller.de1,
       builder: (context, de1State) {
         // Check for active connection and non-null data
         if (!de1State.hasData || de1State.data == null) {
@@ -244,65 +264,105 @@ class SettingsTile extends StatelessWidget {
   }
 
   Future<void> _handleScan(BuildContext context) async {
-    // Trigger scan
-    await deviceController.scanForDevices(autoConnect: false);
-    
-    // Wait for devices to be discovered and interrogated (10 seconds)
-    // DE1 machines need to be connected to and interrogated for model type
-    await Future.delayed(Duration(seconds: 10));
-    
-    // Get all DE1 machines
-    final de1Machines = deviceController.devices
-        .where((device) => device.type == dev.DeviceType.machine)
-        .cast<De1Interface>()
-        .toList();
-    
-    if (de1Machines.isEmpty) {
-      // No DE1s found, show message
-      if (!context.mounted) return;
-      showShadDialog(
-        context: context,
-        builder: (context) => ShadDialog(
-          title: Text('No DE1 Found'),
-          description: Text('No DE1 machines were found during the scan. Make sure your DE1 is powered on and Bluetooth is enabled.'),
-          actions: [
-            ShadButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('OK'),
-            ),
-          ],
-        ),
-      );
-    } else if (de1Machines.length == 1) {
-      // Single DE1 found, auto-connect
+    // Step 1: Check if DE1 controller already has a connected device
+    final currentDe1 = await widget.controller.de1.first;
+    if (currentDe1 != null) {
+      final connectionState = await currentDe1.connectionState.first;
+      if (connectionState == dev.ConnectionState.connected) {
+        // Already connected, nothing to do
+        setState(() {});
+        return;
+      }
+    }
+
+    // Step 2: Check if there are already discovered DE1 devices in DeviceController
+    List<De1Interface> de1Machines =
+        widget.deviceController.devices
+            .where((device) => device.type == dev.DeviceType.machine)
+            .cast<De1Interface>()
+            .toList();
+
+    if (de1Machines.isNotEmpty) {
+      // Found available DE1(s), connect to first one
+      // TODO: In the future, check for preferred machine ID here
       final de1 = de1Machines.first;
-      await controller.connectToDe1(de1);
-    } else {
-      // Multiple DE1s found, show selection dialog
+      await widget.controller.connectToDe1(de1);
+      return;
+    }
+
+    // Step 3: No DE1 available, trigger device scan
+    setState(() {
+      _isScanning = true;
+    });
+
+    try {
+      // Trigger scan
+      await widget.deviceController.scanForDevices(autoConnect: false);
+
+      // Wait for devices to be discovered and interrogated (10 seconds)
+      // DE1 machines need to be connected to and interrogated for model type
+      await Future.delayed(Duration(seconds: 10));
+
+      // Get all DE1 machines
+      de1Machines =
+          widget.deviceController.devices
+              .where((device) => device.type == dev.DeviceType.machine)
+              .cast<De1Interface>()
+              .toList();
+
       if (!context.mounted) return;
-      showShadDialog(
-        context: context,
-        builder: (context) => ShadDialog(
-          title: Text('Select DE1'),
-          description: Text('Multiple DE1 machines found. Select one to connect:'),
-          child: DeviceSelectionWidget(
-            deviceController: deviceController,
-            de1Controller: controller,
-            onDeviceSelected: (de1) {
-              Navigator.of(context).pop();
-            },
-          ),
-        ),
-      );
+
+      if (de1Machines.isEmpty) {
+        // No DE1s found, show message
+        showShadDialog(
+          context: context,
+          builder:
+              (context) => ShadDialog(
+                title: Text('No DE1 Found'),
+                description: Text(
+                  'No DE1 machines were found during the scan. Make sure your DE1 is powered on and Bluetooth is enabled.',
+                ),
+                actions: [
+                  ShadButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('OK'),
+                  ),
+                ],
+              ),
+        );
+      } else if (de1Machines.length == 1) {
+        // Single DE1 found, auto-connect
+        final de1 = de1Machines.first;
+        await widget.controller.connectToDe1(de1);
+      } else {
+        // Multiple DE1s found, show selection dialog
+        // TODO: In the future, filter by preferred machine ID
+        showShadDialog(
+          context: context,
+          builder:
+              (context) => ShadDialog(
+                title: Text('Select DE1'),
+                description: Text(
+                  'Multiple DE1 machines found. Select one to connect:',
+                ),
+                child: DeviceSelectionWidget(
+                  deviceController: widget.deviceController,
+                  de1Controller: widget.controller,
+                  onDeviceSelected: (de1) {
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isScanning = false;
+        });
+      }
     }
   }
 }
 
 enum AuxDialogType { clean, descale }
-
-
-
-
-
-
-
