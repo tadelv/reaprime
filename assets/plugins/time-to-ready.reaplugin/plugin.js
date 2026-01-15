@@ -26,6 +26,16 @@ function createPlugin(host) {
   function handleStateUpdate(payload) {
     state.ticksSeen++;
 
+    if (payload['state']['state'] == 'sleeping') {
+      // machine is sleeping, exit early
+      try {
+        state.lastEstimation = null
+      } catch {
+
+      }
+      return
+    }
+
     if (payload['groupTemperature'] == undefined || payload['targetGroupTemperature'] == undefined) {
       log(`missing fields in ${JSON.stringify(payload)}`)
       return
@@ -54,13 +64,19 @@ function createPlugin(host) {
     );
 
     // Store last estimation for debugging/monitoring
-    state.lastEstimation = estimation;
-
+    if (state.lastEstimation != null &&
+      state.lastEstimation.remainingTimeMs != null &&
+      estimation.remainingTimeMs != null &&
+      state.lastEstimation.remainingTimeMs < estimation.remainingTimeMs) {
+      // keep previous estimation
+    } else {
+      state.lastEstimation = estimation;
+    }
     // Emit the estimation along with other data
     host.emit(
       "timeToReady",
       {
-        ...estimation,
+        ...state.lastEstimation,
         currentTemp: currentTemp,
         targetTemp: targetTemp,
         timestamp: now
@@ -129,13 +145,14 @@ function createPlugin(host) {
     // Calculate remaining time in milliseconds
     const tempDifference = targetTemp - currentTemp;
     const remainingTimeMs = (tempDifference / heatingRate) * 1000; // Convert to ms
+    const adjustedRemainingTimeMs = Math.min(remainingTimeMs, 300000); // Clamp to 5 minutes
 
     return {
-      remainingTimeMs: Math.round(remainingTimeMs),
+      remainingTimeMs: Math.round(adjustedRemainingTimeMs),
       heatingRate: heatingRate,
       status: 'heating',
-      message: `Estimated ${formatTime(remainingTimeMs)} remaining`,
-      formattedTime: formatTime(remainingTimeMs)
+      message: `Estimated ${formatTime(adjustedRemainingTimeMs)} remaining`,
+      formattedTime: formatTime(adjustedRemainingTimeMs)
     };
   }
 
