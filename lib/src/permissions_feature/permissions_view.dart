@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/src/home_feature/home_feature.dart';
 import 'package:reaprime/src/home_feature/widgets/device_selection_widget.dart';
 import 'package:reaprime/src/landing_feature/landing_feature.dart';
@@ -32,12 +34,8 @@ class PermissionsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Streamline'),
-      ),
-      body: SafeArea(
-        child: _permissions(context),
-      ),
+      appBar: AppBar(title: Text('Streamline')),
+      body: SafeArea(child: _permissions(context)),
     );
   }
 
@@ -56,11 +54,9 @@ class PermissionsView extends StatelessWidget {
                 case ConnectionState.waiting:
                   return _initializingView(context);
                 case ConnectionState.active:
-                  return Text("Done");
                 case ConnectionState.done:
                   return _de1Picker(context);
               }
-              return Text("Done");
             },
           ),
         ],
@@ -115,15 +111,16 @@ class PermissionsView extends StatelessWidget {
       await Permission.bluetooth.request();
       await Permission.locationWhenInUse.request();
       await Permission.locationAlways.request();
-      
+
       // Request notification permission for Android 13+ (API 33+)
       // This allows foreground service notification to appear in notification drawer
       if (Platform.isAndroid) {
         await Permission.notification.request();
       }
     } else {
-      await UniversalBle.availabilityStream
-          .firstWhere((e) => e == AvailabilityState.poweredOn);
+      await UniversalBle.availabilityStream.firstWhere(
+        (e) => e == AvailabilityState.poweredOn,
+      );
     }
     deviceController.initialize();
 
@@ -155,8 +152,11 @@ class PermissionsView extends StatelessWidget {
 class DeviceDiscoveryView extends StatefulWidget {
   final DeviceController deviceController;
   final De1Controller de1controller;
-  const DeviceDiscoveryView(
-      {super.key, required this.deviceController, required this.de1controller});
+  const DeviceDiscoveryView({
+    super.key,
+    required this.deviceController,
+    required this.de1controller,
+  });
 
   @override
   State<StatefulWidget> createState() => _DeviceDiscoveryState();
@@ -164,6 +164,7 @@ class DeviceDiscoveryView extends StatefulWidget {
 
 class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   DiscoveryState _state = DiscoveryState.searching;
+  bool _isScanning = false;
 
   late StreamSubscription<List<dev.Device>> _discoverySubscription;
 
@@ -172,29 +173,33 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   @override
   void initState() {
     super.initState();
-    
-    _discoverySubscription =
-        widget.deviceController.deviceStream.listen((data) {
+
+    _discoverySubscription = widget.deviceController.deviceStream.listen((
+      data,
+    ) {
       final discoveredDevices = data.whereType<De1Interface>().toList();
       setState(() {
-        _state = discoveredDevices.length > 1
-            ? DiscoveryState.foundMany
-            : DiscoveryState.searching;
+        _state =
+            discoveredDevices.length > 1
+                ? DiscoveryState.foundMany
+                : DiscoveryState.searching;
       });
     });
-    
+
     // If 10 seconds elapsed without finding a second de1, continue automatically
     Future.delayed(_timeoutDuration, () {
       if (mounted) {
-        final discoveredDevices = widget.deviceController.devices
-            .whereType<De1Interface>()
-            .toList();
-        
+        final discoveredDevices =
+            widget.deviceController.devices.whereType<De1Interface>().toList();
+
         if (discoveredDevices.length == 1) {
           widget.de1controller.connectToDe1(discoveredDevices.first);
           Navigator.popAndPushNamed(context, LandingFeature.routeName);
         } else if (discoveredDevices.isEmpty) {
-          Navigator.popAndPushNamed(context, HomeScreen.routeName);
+          // Show no devices found screen instead of auto-navigating
+          setState(() {
+            _state = DiscoveryState.foundNone;
+          });
         }
       }
     });
@@ -214,6 +219,8 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       case DiscoveryState.foundOne:
       case DiscoveryState.foundMany:
         return SizedBox(height: 500, width: 300, child: _resultsView(context));
+      case DiscoveryState.foundNone:
+        return _noDevicesFoundView(context);
     }
   }
 
@@ -241,19 +248,278 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       },
     );
   }
+
+  Widget _noDevicesFoundView(BuildContext context) {
+    final theme = ShadTheme.of(context);
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: 600),
+      child: ShadCard(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            spacing: 24,
+            children: [
+              Icon(
+                LucideIcons.searchX,
+                size: 64,
+                color: theme.colorScheme.primary.withValues(alpha: 0.7),
+              ),
+              Column(
+                spacing: 8,
+                children: [
+                  Text(
+                    'No DE1 Machines Found',
+                    style: theme.textTheme.h3,
+                    textAlign: TextAlign.center,
+                  ),
+                  Text(
+                    'The scan completed but no DE1 machines were discovered.',
+                    style: theme.textTheme.muted,
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+              ShadCard(
+                backgroundColor: theme.colorScheme.secondary.withValues(
+                  alpha: 0.1,
+                ),
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 12,
+                    children: [
+                      Text(
+                        'Troubleshooting Tips:',
+                        style: theme.textTheme.small.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      _troubleshootingItem(
+                        context,
+                        LucideIcons.power,
+                        'Ensure your DE1 machine is powered on',
+                      ),
+                      _troubleshootingItem(
+                        context,
+                        LucideIcons.bluetooth,
+                        'Check that Bluetooth is enabled on your device',
+                      ),
+                      _troubleshootingItem(
+                        context,
+                        LucideIcons.mapPin,
+                        'Verify location permissions are granted (required for BLE)',
+                      ),
+                      _troubleshootingItem(
+                        context,
+                        LucideIcons.signal,
+                        'Move closer to your DE1 machine',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Column(
+                spacing: 12,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_isScanning)
+                    ShadButton(
+                      onPressed: null,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        spacing: 8,
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          Text('Scanning...'),
+                        ],
+                      ),
+                    )
+                  else
+                    ShadButton(
+                      onPressed: _retryScan,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        spacing: 8,
+                        children: [
+                          Icon(LucideIcons.refreshCw, size: 16),
+                          Text('Scan Again'),
+                        ],
+                      ),
+                    ),
+                  Row(
+                    spacing: 12,
+                    children: [
+                      Expanded(
+                        child: ShadButton.outline(
+                          onPressed: _exportLogs,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            spacing: 8,
+                            children: [
+                              Icon(LucideIcons.fileText, size: 16),
+                              Text('Export Logs'),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: ShadButton.secondary(
+                          onPressed: () {
+                            Navigator.popAndPushNamed(
+                              context,
+                              HomeScreen.routeName,
+                            );
+                          },
+                          child: Text('Continue to Dashboard'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _troubleshootingItem(
+    BuildContext context,
+    IconData icon,
+    String text,
+  ) {
+    final theme = ShadTheme.of(context);
+    return Row(
+      spacing: 8,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: theme.colorScheme.primary),
+        Expanded(child: Text(text, style: theme.textTheme.small)),
+      ],
+    );
+  }
+
+  Future<void> _retryScan() async {
+    setState(() {
+      _isScanning = true;
+      _state = DiscoveryState.searching;
+    });
+
+    try {
+      await widget.deviceController.scanForDevices(autoConnect: false);
+
+      // Wait for scan to complete
+      await Future.delayed(_timeoutDuration);
+
+      if (mounted) {
+        final discoveredDevices =
+            widget.deviceController.devices.whereType<De1Interface>().toList();
+
+        setState(() {
+          _isScanning = false;
+          if (discoveredDevices.isEmpty) {
+            _state = DiscoveryState.foundNone;
+          } else if (discoveredDevices.length == 1) {
+            widget.de1controller.connectToDe1(discoveredDevices.first);
+            Navigator.popAndPushNamed(context, LandingFeature.routeName);
+          } else {
+            _state = DiscoveryState.foundMany;
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isScanning = false;
+          _state = DiscoveryState.foundNone;
+        });
+      }
+    }
+  }
+
+  Future<void> _exportLogs() async {
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      final logFile = File('${docs.path}/log.txt');
+
+      if (!await logFile.exists()) {
+        if (mounted) {
+          showShadDialog(
+            context: context,
+            builder:
+                (context) => ShadDialog(
+                  title: Text('No Logs Found'),
+                  description: Text('Log file does not exist yet.'),
+                  actions: [
+                    ShadButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text('OK'),
+                    ),
+                  ],
+                ),
+          );
+        }
+        return;
+      }
+
+      final bytes = await logFile.readAsBytes();
+      final outputFile = await FilePicker.platform.saveFile(
+        fileName: 'R1-logs-${DateTime.now().millisecondsSinceEpoch}.txt',
+        dialogTitle: 'Choose where to save logs',
+        bytes: bytes,
+      );
+
+      if (outputFile != null) {
+        final destination = File(outputFile);
+        await destination.writeAsBytes(bytes);
+
+        if (mounted) {
+          showShadDialog(
+            context: context,
+            builder:
+                (context) => ShadDialog(
+                  title: Text('Logs Exported'),
+                  description: Text(
+                    'Logs have been successfully exported to:\n$outputFile',
+                  ),
+                  actions: [
+                    ShadButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text('OK'),
+                    ),
+                  ],
+                ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        showShadDialog(
+          context: context,
+          builder:
+              (context) => ShadDialog(
+                title: Text('Export Failed'),
+                description: Text('Failed to export logs: $e'),
+                actions: [
+                  ShadButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('OK'),
+                  ),
+                ],
+              ),
+        );
+      }
+    }
+  }
 }
 
-enum DiscoveryState {
-  searching,
-  foundOne,
-  foundMany,
-}
-
-
-
-
-
-
-
-
-
+enum DiscoveryState { searching, foundOne, foundMany, foundNone }
