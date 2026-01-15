@@ -172,7 +172,13 @@ Handler _init(
   profileHandler.addRoutes(app);
 
   final handler = const Pipeline()
-      .addMiddleware(logRequests())
+      .addMiddleware(
+        logRequests(
+          logger: (msg, isError) {
+            isError ? log.warning(msg) : log.info(msg);
+          },
+        ),
+      )
       .addMiddleware(corsHeaders())
       .addMiddleware(jsonContentTypeMiddleware)
       .addHandler(app.call);
