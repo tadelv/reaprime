@@ -64,6 +64,10 @@ class De1Controller {
   }
 
   Future<void> connectToDe1(De1Interface de1Interface) async {
+    if (de1Interface == _de1) {
+        _log.fine("trying to connect to existing de1, exit early");
+        return;
+      }
     _onDisconnect(); // just in case
     _de1 = de1Interface;
     _log.fine("found de1, connecting");
