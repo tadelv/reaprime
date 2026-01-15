@@ -8,6 +8,8 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
+import android.app.Activity
+import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -84,6 +86,19 @@ class MainActivity: FlutterActivity() {
                 }
             }
         }
+
+        MethodChannel(
+                    flutterEngine.dartExecutor.binaryMessenger,
+                    "app/lifecycle"
+                ).setMethodCallHandler { call, result ->
+                    when (call.method) {
+                        "recreateActivity" -> {
+                            recreateSafely()
+                            result.success(null)
+                        }
+                        else -> result.notImplemented()
+                    }
+                }
     }
 
     private fun installApk(apkPath: String) {
@@ -111,6 +126,20 @@ class MainActivity: FlutterActivity() {
         }
 
         startActivity(intent)
+    }
+
+    private fun recreateSafely() {
+        val activity: Activity = this
+
+        // Ensure this runs on UI thread
+        activity.runOnUiThread {
+            try {
+                activity.recreate()
+            } catch (e: Exception) {
+                // Never crash here — just log
+                e.printStackTrace()
+            }
+        }
     }
 }
 

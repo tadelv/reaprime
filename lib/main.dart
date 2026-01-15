@@ -232,7 +232,7 @@ void main() async {
 
   runApp(
     WithForegroundTask(
-      child: MyApp(
+      child: AppRoot(
         settingsController: settingsController,
         deviceController: deviceController,
         de1Controller: de1Controller,
@@ -275,3 +275,77 @@ class AppLifecycleObserver with WidgetsBindingObserver {
   }
 }
 
+class AppRoot extends StatefulWidget {
+  final SettingsController settingsController;
+  final DeviceController deviceController;
+  final De1Controller de1Controller;
+  final ScaleController scaleController;
+  final WorkflowController workflowController;
+  final PersistenceController persistenceController;
+  final PluginLoaderService pluginLoaderService;
+  final WebUIService webUIService;
+  final WebUIStorage webUIStorage;
+
+  const AppRoot({
+    super.key,
+    required this.settingsController,
+    required this.deviceController,
+    required this.de1Controller,
+    required this.scaleController,
+    required this.workflowController,
+    required this.persistenceController,
+    required this.pluginLoaderService,
+    required this.webUIService,
+    required this.webUIStorage,
+  });
+
+  static void restart(BuildContext context) {
+    context.findAncestorStateOfType<_AppRootState>()?.restart();
+  }
+
+  @override
+  State<AppRoot> createState() => _AppRootState();
+}
+
+class _AppRootState extends State<AppRoot> {
+  final Logger _log = Logger("AppRoot");
+  Key _key = UniqueKey();
+
+  Future<void> restart() async {
+    _log.info("recreating App Root");
+    // TODO: need better app base logic for recreate activity
+    // await recreateActivity();
+    setState(() {
+      _key = UniqueKey();
+    });
+  }
+
+  static const _channel = MethodChannel('app/lifecycle');
+
+  Future<void> recreateActivity() async {
+    try {
+      await _channel.invokeMethod('recreateActivity');
+    } catch (e) {
+      // Log but never crash
+      _log.severe('[ActivityControl] recreate failed: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return KeyedSubtree(
+      key: _key,
+      child: MyApp(
+        settingsController: widget.settingsController,
+        deviceController: widget.deviceController,
+        de1Controller: widget.de1Controller,
+        scaleController: widget.scaleController,
+        workflowController: widget.workflowController,
+        persistenceController: widget.persistenceController,
+        pluginLoaderService: widget.pluginLoaderService,
+        webUIService: widget.webUIService,
+        webUIStorage: widget.webUIStorage,
+      ),
+    );
+  }
+}

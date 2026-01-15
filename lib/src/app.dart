@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:reaprime/main.dart';
 // import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 // import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:reaprime/src/controllers/de1_state_manager.dart';
@@ -39,7 +41,6 @@ class NavigationService {
   static String? get currentRoute => ModalRoute.of(context!)?.settings.name;
 }
 
-
 /// The Widget that configures your application.
 class MyApp extends StatefulWidget {
   const MyApp({
@@ -71,6 +72,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   De1StateManager? _de1StateManager;
+  Timer? _restartTimer;
 
   @override
   void initState() {
@@ -109,13 +111,22 @@ class _MyAppState extends State<MyApp> {
   @override
   void dispose() {
     _de1StateManager?.dispose();
+    _restartTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    _restartTimer?.cancel();
+    _restartTimer = Timer.periodic(Duration(hours: 1), (_) {
+    // _restartTimer = Timer.periodic(Duration(seconds: 40), (_) {
+      final now = DateTime.now();
+      if (now.hour == 1) {
+        AppRoot.restart(context);
+      }
+    });
     // Foreground service is now started in main.dart for Android
-    
+
     final themeColor = 'green';
 
     return ScaffoldMessenger(
@@ -127,7 +138,7 @@ class _MyAppState extends State<MyApp> {
             // MaterialApp to restore the navigation stack when a user leaves and
             // returns to the app after it has been killed while running in the
             // background.
-            restorationScopeId: 'app',
+            restorationScopeId: null,
 
             // Provide the generated AppLocalizations to the MaterialApp. This
             // allows descendant Widgets to display the correct translations
@@ -146,7 +157,7 @@ class _MyAppState extends State<MyApp> {
             //
             // The appTitle is defined in .arb files found in the localization
             // directory.
-            onGenerateTitle: (BuildContext context) => "ReaPrime",
+            onGenerateTitle: (BuildContext context) => "Streamline",
 
             // Define a light and dark color theme. Then, read the user's
             // preferred ThemeMode (light, dark, or system default) from the
@@ -287,5 +298,3 @@ class _MyAppState extends State<MyApp> {
     );
   }
 }
-
-
