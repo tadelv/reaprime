@@ -76,11 +76,12 @@ class UniversalBleTransport implements BLETransport {
   String get name => _device.name ?? "Unknown";
 
   @override
-  Future<Uint8List> read(String serviceUUID, String characteristicUUID) async {
+  Future<Uint8List> read(String serviceUUID, String characteristicUUID, {Duration? timeout}) async {
     return await UniversalBle.read(
       _device.deviceId,
       serviceUUID,
       characteristicUUID,
+      timeout: timeout
     );
   }
 
@@ -112,6 +113,7 @@ class UniversalBleTransport implements BLETransport {
     String characteristicUUID,
     Uint8List data, {
     bool withResponse = true,
+    Duration? timeout,
   }) async {
     await UniversalBle.write(
       _device.deviceId,
@@ -119,6 +121,7 @@ class UniversalBleTransport implements BLETransport {
       BleUuidParser.string(characteristicUUID),
       data,
       withoutResponse: !withResponse,
+      timeout: timeout
     );
   }
 

@@ -50,14 +50,20 @@ class BluePlusTransport implements BLETransport {
   String get name => _device.advName;
 
   @override
-  Future<Uint8List> read(String serviceUUID, String characteristicUUID) async {
+  Future<Uint8List> read(
+    String serviceUUID,
+    String characteristicUUID, {
+    Duration? timeout,
+  }) async {
     final service = _device.servicesList.firstWhere(
       (s) => s.serviceUuid == Guid(serviceUUID),
     );
     final characteristic = service.characteristics.firstWhere(
       (c) => c.characteristicUuid == Guid(characteristicUUID),
     );
-    return Uint8List.fromList(await characteristic.read());
+    return Uint8List.fromList(
+      await characteristic.read(timeout: timeout?.inSeconds ?? 15),
+    );
   }
 
   @override
@@ -86,6 +92,7 @@ class BluePlusTransport implements BLETransport {
     String characteristicUUID,
     Uint8List data, {
     bool withResponse = true,
+    Duration? timeout,
   }) async {
     final service = _device.servicesList.firstWhere(
       (s) => s.serviceUuid == Guid(serviceUUID),
@@ -93,7 +100,7 @@ class BluePlusTransport implements BLETransport {
     final characteristic = service.characteristics.firstWhere(
       (c) => c.characteristicUuid == Guid(characteristicUUID),
     );
-    await characteristic.write(data.toList(), withoutResponse: !withResponse);
+    await characteristic.write(data.toList(), withoutResponse: !withResponse, timeout: timeout?.inSeconds ?? 15);
   }
 
   @override

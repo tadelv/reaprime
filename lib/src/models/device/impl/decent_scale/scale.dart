@@ -183,7 +183,12 @@ class DecentScale implements Scale {
   Future<void> _sendPowerOff() async {
     _log.info("sending power off");
     List<int> payload = [0x03, 0x0A, 0x02, 0x00, 0x00, 0x00, 0x00];
-    await _device.write(serviceUUID, writeUUID, Uint8List.fromList(payload));
+    await _device.write(
+      serviceUUID,
+      writeUUID,
+      Uint8List.fromList(payload),
+      timeout: Duration(seconds: 10),
+    );
   }
 
   @override

@@ -10,13 +10,18 @@ abstract class BLETransport extends DataTransport {
     void Function(Uint8List) callback,
   );
 
-  Future<Uint8List> read(String serviceUUID, String characteristicUUID);
+  Future<Uint8List> read(
+    String serviceUUID,
+    String characteristicUUID, {
+    Duration? timeout,
+  });
 
   Future<void> write(
     String serviceUUID,
     String characteristicUUID,
     Uint8List data, {
     bool withResponse = true,
+    Duration? timeout,
   });
 
   Future<void> setTransportPriority(bool prioritized);
