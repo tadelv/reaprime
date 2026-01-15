@@ -1,15 +1,14 @@
 package net.tadel.reaprime
 
-import android.app.ActivityManager
-import android.content.Context
+import android.app.Activity
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import android.provider.Settings
-import androidx.core.content.FileProvider
-import android.app.Activity
 import android.os.Bundle
+import android.provider.Settings
+import android.util.Log
+import android.widget.Toast
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -17,33 +16,56 @@ import java.io.File
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.reaprime.updater/apk_installer"
+    private val TAG = "MainActivity"
 
-    override fun onCreate(savedInstanceState: android.os.Bundle?) {
-        // Check if another instance is already running
-        if (isAppAlreadyRunning()) {
-            // Bring existing instance to front and finish this one
-            moveTaskToBack(true)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        // FIRST: Check for cloned environment (Parallel Space, Island, etc.)
+        if (isRunningInClonedEnvironment()) {
+            Log.w(TAG, "App running in cloned environment - not supported")
+            Toast.makeText(this, "App cloning is not supported for security reasons", 
+                Toast.LENGTH_LONG).show()
             finish()
             return
         }
+        
+        // SECOND: Prevent duplicate instances from launcher
+        if (!isTaskRoot && intent.hasCategory(Intent.CATEGORY_LAUNCHER) && 
+            intent.action == Intent.ACTION_MAIN) {
+            Log.w(TAG, "Duplicate launcher instance detected - finishing")
+            finish()
+            return
+        }
+        
+        Log.d(TAG, "onCreate - valid instance starting")
         super.onCreate(savedInstanceState)
     }
 
-    private fun isAppAlreadyRunning(): Boolean {
-        val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        val runningProcesses = activityManager.runningAppProcesses ?: return false
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
         
-        var instanceCount = 0
-        for (processInfo in runningProcesses) {
-            if (processInfo.processName == packageName) {
-                instanceCount++
-                // If we find more than one instance (current one), another is already running
-                if (instanceCount > 1) {
-                    return true
-                }
-            }
+        Log.d(TAG, "onNewIntent - action: ${intent.action}, categories: ${intent.categories}")
+        
+        // App was relaunched - already handled by bringing existing instance to front
+        // Could notify Flutter layer here if needed via MethodChannel
+    }
+
+    /**
+     * Detects if app is running in a cloned environment (Parallel Space, Island, etc.)
+     * Normal path: /data/user/0/com.example.app/files
+     * Cloned path: /data/data/com.ludashi.dualspace/virtual/data/user/0/com.example.app/files
+     * OEM clone: /data/user/999/com.example.app/files
+     */
+    private fun isRunningInClonedEnvironment(): Boolean {
+        val normalPath = "/data/user/0/$packageName"
+        val actualPath = filesDir.absolutePath
+        val isCloned = !actualPath.startsWith(normalPath)
+        
+        if (isCloned) {
+            Log.w(TAG, "Clone detected - expected: $normalPath, actual: $actualPath")
         }
-        return false
+        
+        return isCloned
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
