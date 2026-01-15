@@ -12,7 +12,9 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
+import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -26,6 +28,7 @@ class HomeScreen extends StatefulWidget {
     required this.persistenceController,
     required this.settingsController,
     required this.webUIService,
+    required this.webUIStorage,
   });
 
   final DeviceController deviceController;
@@ -35,12 +38,18 @@ class HomeScreen extends StatefulWidget {
   final PersistenceController persistenceController;
   final SettingsController settingsController;
   final WebUIService webUIService;
+  final WebUIStorage webUIStorage;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  bool _isServingUI = false;
+  String? _errorMessage;
+
+  static const String _selectedSkinPrefKey = 'selected_webui_skin_id';
+
   @override
   void initState() {
     super.initState();
@@ -79,7 +88,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWideScreen = constraints.maxWidth > 900;
-        
+
         if (isWideScreen) {
           // Desktop/tablet layout: two columns side by side
           return SingleChildScrollView(
@@ -90,15 +99,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 mainAxisSize: MainAxisSize.max,
                 children: [
                   SizedBox(width: 16),
-                  Flexible(
-                    flex: 2,
-                    child: _leftColumn(context),
-                  ),
+                  Flexible(flex: 2, child: _leftColumn(context)),
                   SizedBox(width: 16),
-                  Flexible(
-                    flex: 3,
-                    child: _rightColumn(context),
-                  ),
+                  Flexible(flex: 3, child: _rightColumn(context)),
                   SizedBox(width: 16),
                 ],
               ),
@@ -142,10 +145,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _leftColumn(BuildContext context) {
-    return Column(
-      spacing: 12,
-      children: _leftColumnWidgets(context),
-    );
+    return Column(spacing: 12, children: _leftColumnWidgets(context));
   }
 
   Widget _rightColumn(BuildContext context) {
@@ -271,35 +271,156 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               ],
             ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Flexible(child: Text("WebUI loaded:")),
-                Flexible(
-                  child: ShadButton.link(
-                    child: Text(
-                      widget.webUIService.serverPath().split('/').last,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    onPressed: () async {
-                      final url = Uri.parse('http://localhost:3000');
-                      await launchUrl(url);
-                    },
-                  ),
-                ),
-              ],
-            ),
+            _buildWebUIControl(context),
           ],
         ),
       ),
     );
   }
+
+  Widget _buildWebUIControl(BuildContext context) {
+    return StreamBuilder<De1Interface?>(
+      stream: widget.de1controller.de1,
+      builder: (context, de1State) {
+        // Hide control if no DE1 is connected
+        if (!de1State.hasData || de1State.data == null) {
+          return SizedBox.shrink();
+        }
+
+        // Show error message if there was an error
+        if (_errorMessage != null) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 4,
+            children: [
+              Text(
+                "WebUI Error:",
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              Text(
+                _errorMessage!,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              ShadButton.secondary(
+                onPressed: () {
+                  setState(() {
+                    _errorMessage = null;
+                  });
+                },
+                child: Text("Dismiss"),
+              ),
+            ],
+          );
+        }
+
+        // Show loading state while serving
+        if (_isServingUI) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(child: Text("WebUI:")),
+              Flexible(
+                child: Row(
+                  spacing: 8,
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    Text("Starting..."),
+                  ],
+                ),
+              ),
+            ],
+          );
+        }
+
+        // Show status when serving, or start button when not serving
+        if (widget.webUIService.isServing) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(child: Text("WebUI loaded:")),
+              Flexible(
+                child: ShadButton.link(
+                  child: Text(
+                    widget.webUIService.serverPath().split('/').last,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onPressed: () async {
+                    final url = Uri.parse('http://localhost:3000');
+                    await launchUrl(url);
+                  },
+                ),
+              ),
+            ],
+          );
+        } else {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(child: Text("WebUI:")),
+              Flexible(
+                child: ShadButton(
+                  onPressed: _startWebUI,
+                  child: Text("Start WebUI"),
+                ),
+              ),
+            ],
+          );
+        }
+      },
+    );
+  }
+
+  Future<void> _startWebUI() async {
+    setState(() {
+      _isServingUI = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // Load previously selected skin preference
+      final prefs = await SharedPreferences.getInstance();
+      final savedSkinId = prefs.getString(_selectedSkinPrefKey);
+
+      // Get available skins
+      final skins = widget.webUIStorage.installedSkins;
+
+      if (skins.isEmpty) {
+        throw Exception('No WebUI skins available. Please install a skin.');
+      }
+
+      // Try to use saved preference, otherwise use default skin
+      WebUISkin? skinToUse;
+      if (savedSkinId != null) {
+        skinToUse = widget.webUIStorage.getSkin(savedSkinId);
+      }
+      skinToUse ??= widget.webUIStorage.defaultSkin;
+
+      if (skinToUse == null) {
+        throw Exception('No default WebUI skin found.');
+      }
+
+      // Serve the selected skin
+      await widget.webUIService.serveFolderAtPath(skinToUse.path, port: 3000);
+
+      // Save preference
+      await prefs.setString(_selectedSkinPrefKey, skinToUse.id);
+
+      if (mounted) {
+        setState(() {
+          _isServingUI = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isServingUI = false;
+        });
+      }
+    }
+  }
 }
-
-
-
-
-
-
-
-

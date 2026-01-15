@@ -264,6 +264,7 @@ class _MyAppState extends State<MyApp> {
                         persistenceController: widget.persistenceController,
                         settingsController: widget.settingsController,
                         webUIService: widget.webUIService,
+                        webUIStorage: widget.webUIStorage,
                       );
                     case HistoryFeature.routeName:
                       final possibleShot = routeSettings.arguments as String;
@@ -298,3 +299,4 @@ class _MyAppState extends State<MyApp> {
     );
   }
 }
+
