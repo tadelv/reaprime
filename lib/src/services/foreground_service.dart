@@ -21,7 +21,12 @@ class ForegroundTaskService {
         playSound: false,
       ),
       foregroundTaskOptions: ForegroundTaskOptions(
-        eventAction: ForegroundTaskEventAction.nothing(),
+        // Set up recurring event to keep service alive (interval in milliseconds)
+        eventAction: ForegroundTaskEventAction.repeat(60000), // 1 minute
+        autoRunOnBoot: false,
+        autoRunOnMyPackageReplaced: false,
+        allowWakeLock: true,
+        allowWifiLock: true,
       ),
     );
   }
@@ -72,20 +77,48 @@ void startCallback() {
 }
 
 class FirstTaskHandler extends TaskHandler {
+  final _log = Logger("ForegroundTaskHandler");
+  int _eventCount = 0;
+
   // Called when the task is started.
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter sendPort) async {
-    Logger("Foreground").info("starting foreground");
+    _log.info("Foreground service started at $timestamp");
   }
 
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
-    // TODO: implement onDestroy
-    // throw UnimplementedError();
+    _log.info("Foreground service destroyed. Timeout: $isTimeout");
   }
 
+  // This method is called periodically based on the interval set in ForegroundTaskOptions
+  // It's critical to keep the service alive - if this doesn't run, Android will kill the service
   @override
   void onRepeatEvent(DateTime timestamp) {
-    // TODO: implement onRepeatEvent
+    _eventCount++;
+    
+    // Update notification to show the service is alive
+    FlutterForegroundTask.updateService(
+      notificationTitle: 'Streamline Active',
+      notificationText: 'Maintaining connections (${_formatUptime()})',
+    );
+    
+    // Log periodically to confirm service is running
+    if (_eventCount % 5 == 0) {
+      _log.fine('Foreground service heartbeat: $_eventCount events, uptime: ${_formatUptime()}');
+    }
+  }
+
+  String _formatUptime() {
+    final minutes = _eventCount;
+    if (minutes < 60) {
+      return '${minutes}m';
+    }
+    final hours = minutes ~/ 60;
+    final remainingMinutes = minutes % 60;
+    return '${hours}h ${remainingMinutes}m';
   }
 }
+
+
+

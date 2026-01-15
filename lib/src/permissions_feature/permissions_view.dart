@@ -116,6 +116,13 @@ class PermissionsView extends StatelessWidget {
       // This allows foreground service notification to appear in notification drawer
       if (Platform.isAndroid) {
         await Permission.notification.request();
+        
+        // CRITICAL: Request battery optimization exemption
+        // This prevents Android from killing the app in the background
+        final batteryOptStatus = await Permission.ignoreBatteryOptimizations.status;
+        if (!batteryOptStatus.isGranted) {
+          await Permission.ignoreBatteryOptimizations.request();
+        }
       }
     } else {
       await UniversalBle.availabilityStream.firstWhere(
@@ -523,3 +530,4 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 }
 
 enum DiscoveryState { searching, foundOne, foundMany, foundNone }
+

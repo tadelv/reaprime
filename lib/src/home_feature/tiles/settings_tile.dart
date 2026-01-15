@@ -7,6 +7,7 @@ import 'package:reaprime/src/home_feature/widgets/device_selection_widget.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/services/foreground_service.dart';
 import 'package:reaprime/src/settings/settings_view.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -49,6 +50,8 @@ class _SettingsTileState extends State<SettingsTile> {
           onPressed: () async {
             // TODO: clean exit
             await (await widget.controller.de1.first)?.disconnect();
+            // stop foreground service
+            await ForegroundTaskService.stop();
             exit(0);
           },
           child: Text("Quit"),
