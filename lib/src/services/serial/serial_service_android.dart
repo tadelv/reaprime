@@ -132,8 +132,13 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
 
       // Combine all chunks into one buffer
       final combined = rawData.expand((e) => e).toList();
-      final strings = rawData.map(utf8.decode).toList().join().split('\n');
-      _log.info("Collected serial data: ${utf8.decode(combined)}");
+      List<String> strings = [];
+      try {
+        strings = rawData.map(utf8.decode).toList().join().split('\n');
+      } catch (_) {}
+      _log.info(
+        "Collected serial data: ${combined.map((e) => e.toRadixString(16).padLeft(2, '0'))}",
+      );
       _log.info("parsed into strings: ${strings}");
 
       // Heuristic checks for device type
