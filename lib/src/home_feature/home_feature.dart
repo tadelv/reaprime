@@ -191,7 +191,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           );
         } else {
-          return Text("Connecting to DE1");
+          return Text("Connecting to Machine");
         }
       },
     );

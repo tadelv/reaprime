@@ -2,8 +2,8 @@
   "id": "settings.reaplugin",
   "author": "Decent",
   "name": "Settings Viewer",
-  "description": "Displays REA application and DE1 machine settings in an embeddable HTML page",
-  "version": "0.0.5",
+  "description": "Displays REA application and machine settings in an embeddable HTML page",
+  "version": "0.0.6",
   "apiVersion": 1,
   "permissions": [
     "log",

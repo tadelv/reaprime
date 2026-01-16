@@ -84,12 +84,12 @@ paths:
           description: "Device connected successfully"
 
 
-  # DE1 specific API
+  # Machine specific API
   
-  /api/v1/de1/info:
+  /api/v1/machine/info:
     get:
       summary: Retrieves the current Machine information
-      tags: [DE1]
+      tags: [Machine]
       responses:
         "200":
           description: Information about the currently connected machine or an error if not connected
@@ -98,11 +98,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/MachineInfo"
 
-  /api/v1/de1/state:
+  /api/v1/machine/state:
     get:
-      summary: Get DE1 State
-      description: Retrieves the current DE1 machine state.
-      tags: [DE1]
+      summary: Get Machine State
+      description: Retrieves the current machine state.
+      tags: [Machine]
       responses:
         "200":
           description: Successful response
@@ -110,11 +110,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MachineSnapshot"
-  /api/v1/de1/state/{newState}:
+  /api/v1/machine/state/{newState}:
     put:
-      summary: Request DE1 State Change
-      description: Requests a state change for the DE1 espresso machine.
-      tags: [DE1]
+      summary: Request Machine State Change
+      description: Requests a state change for the espresso machine.
+      tags: [Machine]
       parameters:
         - name: newState
           in: path
@@ -126,11 +126,11 @@ paths:
           description: State change successful
         "400":
           description: Bad Request
-  /api/v1/de1/profile:
+  /api/v1/machine/profile:
     post:
-      summary: Set DE1 Profile
-      description: Uploads a new brewing profile to the DE1 machine.
-      tags: [DE1]
+      summary: Set Machine Profile
+      description: Uploads a new brewing profile to the machine.
+      tags: [Machine]
       requestBody:
         required: true
         content:
@@ -140,11 +140,11 @@ paths:
       responses:
         "200":
           description: Profile updated successfully
-  /api/v1/de1/shotSettings:
+  /api/v1/machine/shotSettings:
     post:
       summary: Update Shot Settings
-      description: Updates shot settings on the DE1 espresso machine.
-      tags: [DE1]
+      description: Updates shot settings on the espresso machine.
+      tags: [Machine]
       requestBody:
         required: true
         content:
@@ -154,11 +154,11 @@ paths:
       responses:
         "200":
           description: Shot settings updated successfully
-  /api/v1/de1/settings:
+  /api/v1/machine/settings:
     get:
-      summary: Get De1 settings
-      description: pulls additional settings from the De1
-      tags: [DE1]
+      summary: Get machine settings
+      description: pulls additional settings from the machine
+      tags: [Machine]
       responses:
         "200":
           description: Successful response
@@ -167,9 +167,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/De1SettingsResponse"
     post:
-      summary: Set De1 settings
-      description: set additional settings on the De1, each setting can be set individually
-      tags: [DE1]
+      summary: Set machine settings
+      description: set additional settings on the machine, each setting can be set individually
+      tags: [Machine]
       requestBody:
         required: true
         content:
@@ -180,11 +180,11 @@ paths:
         "200":
           description: Settings update successful
 
-  /api/v1/de1/settings/advanced:
+  /api/v1/machine/settings/advanced:
     get:
-      summary: Get advanced De1 settings
-      description: Get additional advanced De1 settings
-      tags: [DE1]
+      summary: Get advanced machine settings
+      description: Get additional advanced machine settings
+      tags: [Machine]
       responses:
         "200":
           description: Successful response
@@ -193,9 +193,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/De1AdvancedSettingsResponse"
     post:
-      summary: Set advanced De1 settings
-      description: Set advanced settings on the De1, each setting can be sent separately
-      tags: [DE1]
+      summary: Set advanced machine settings
+      description: Set advanced settings on the machine, each setting can be sent separately
+      tags: [Machine]
       requestBody:
         required: true
         content:
@@ -206,11 +206,11 @@ paths:
         "200":
           description: Advanced settings updated successfully
 
-  /api/v1/de1/usb/{state}:
+  /api/v1/machine/usb/{state}:
     put:
       summary: Toggle USB Charger Mode
-      description: Enables or disables the USB charger mode on the DE1 machine.
-      tags: [DE1]
+      description: Enables or disables the USB charger mode on the machine.
+      tags: [Machine]
       parameters:
         - name: state
           in: path
@@ -228,10 +228,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/v1/de1/waterLevels:
+  /api/v1/machine/waterLevels:
     post:
       summary: Set new water level threshold, only the warningThresholdPercentage field is important here
-      tags: [DE1]
+      tags: [Machine]
       requestBody:
         required: true
         content: 
@@ -242,18 +242,18 @@ paths:
         "202":
           description: Levels updated
 
-  /api/v1/de1/firmware:
+  /api/v1/machine/firmware:
     post:
-      summary: Push new firmware to the De1
-      description: Send a firmware file to De1, the call will wait until the firmware upgrade is complete (which might be a long time)
-      tags: [DE1]
+      summary: Push new firmware to the machine
+      description: Send a firmware file to machine, the call will wait until the firmware upgrade is complete (which might be a long time)
+      tags: [Machine]
       requestBody:
         required: true
         content:
           application/octet-stream:
       responses:
         "200":
-          description: Firmware update successful. Need to restart De1 to load new firmware
+          description: Firmware update successful. Need to restart machine to load new firmware
         "500":
           description: Something went wrong during the firmware upgrade process. Check the response and Rea logs
 

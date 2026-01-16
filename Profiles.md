@@ -8,7 +8,7 @@ The first public specification of the JSON version of these profiles I know abou
 has been defined by [Jeff Kletsky](https://pyde1.readthedocs.io/en/latest/profile_json.html)
 \- it's actually a version 2.1 of the specification it seems.
 REA supports loading these profiles to the espresso machine
-either directly through the '/de1/profile'
+either directly through the '/machine/profile'
 endpoint or by updating the '/workflow' endpoint, which is more suited
 for updating the entire system.
 
@@ -537,7 +537,7 @@ To use a profile with the DE1 machine, either:
 
 1. **Direct upload to machine:**
 ```bash
-curl -X POST http://localhost:8080/api/v1/de1/profile \
+curl -X POST http://localhost:8080/api/v1/machine/profile \
   -H "Content-Type: application/json" \
   -d '{...profile...}'
 ```

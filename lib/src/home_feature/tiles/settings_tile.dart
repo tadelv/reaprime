@@ -321,9 +321,9 @@ class _SettingsTileState extends State<SettingsTile> {
           context: context,
           builder:
               (context) => ShadDialog(
-                title: Text('No DE1 Found'),
+                title: Text('No Machine Found'),
                 description: Text(
-                  'No DE1 machines were found during the scan. Make sure your DE1 is powered on and Bluetooth is enabled.',
+                  'No espresso machines were found during the scan. Make sure your machine is powered on and Bluetooth is enabled.',
                 ),
                 actions: [
                   ShadButton(
@@ -344,9 +344,9 @@ class _SettingsTileState extends State<SettingsTile> {
           context: context,
           builder:
               (context) => ShadDialog(
-                title: Text('Select DE1'),
+                title: Text('Select Machine'),
                 description: Text(
-                  'Multiple DE1 machines found. Select one to connect:',
+                  'Multiple espresso machines found. Select one to connect:',
                 ),
                 child: DeviceSelectionWidget(
                   deviceController: widget.deviceController,

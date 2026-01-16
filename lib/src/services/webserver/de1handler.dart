@@ -7,11 +7,11 @@ class De1Handler {
   De1Handler({required De1Controller controller}) : _controller = controller;
 
   void addRoutes(RouterPlus app) {
-    app.get('/api/v1/de1/info', _infoHandler);
-    app.get('/api/v1/de1/state', _stateHandler);
-    app.put('/api/v1/de1/state/<newState>', _requestStateHandler);
-    app.post('/api/v1/de1/profile', _profileHandler);
-    app.options('/api/v1/de1/profile', (Request r) {
+    app.get('/api/v1/machine/info', _infoHandler);
+    app.get('/api/v1/machine/state', _stateHandler);
+    app.put('/api/v1/machine/state/<newState>', _requestStateHandler);
+    app.post('/api/v1/machine/profile', _profileHandler);
+    app.options('/api/v1/machine/profile', (Request r) {
       return Response.ok(
         '',
         headers: {
@@ -26,18 +26,18 @@ class De1Handler {
         },
       );
     });
-    app.post('/api/v1/de1/shotSettings', _shotSettingsHandler);
+    app.post('/api/v1/machine/shotSettings', _shotSettingsHandler);
 
     // Sockets
-    app.get('/ws/v1/de1/snapshot', sws.webSocketHandler(_handleSnapshot));
+    app.get('/ws/v1/machine/snapshot', sws.webSocketHandler(_handleSnapshot));
     app.get(
-      '/ws/v1/de1/shotSettings',
+      '/ws/v1/machine/shotSettings',
       sws.webSocketHandler(_handleShotSettings),
     );
-    app.get('/ws/v1/de1/waterLevels', sws.webSocketHandler(_handleWaterLevels));
-    app.get('/ws/v1/de1/raw', sws.webSocketHandler(_handleRawSocket));
+    app.get('/ws/v1/machine/waterLevels', sws.webSocketHandler(_handleWaterLevels));
+    app.get('/ws/v1/machine/raw', sws.webSocketHandler(_handleRawSocket));
 
-    app.post('/api/v1/de1/waterLevels', (Request r) async {
+    app.post('/api/v1/machine/waterLevels', (Request r) async {
       return withDe1((de1) async {
         var json = jsonDecode(await r.readAsString());
         if (json['refillLevel'] != null) {
@@ -49,7 +49,7 @@ class De1Handler {
 
     // MMR?
 
-    app.post('/api/v1/de1/settings', (Request r) async {
+    app.post('/api/v1/machine/settings', (Request r) async {
       return withDe1((de1) async {
         var json = jsonDecode(await r.readAsString());
         log.info("have: $json");
@@ -85,7 +85,7 @@ class De1Handler {
       });
     });
 
-    app.get('/api/v1/de1/settings', () async {
+    app.get('/api/v1/machine/settings', () async {
       return withDe1((de1) async {
         var json = <String, dynamic>{};
         json['fan'] = await de1.getFanThreshhold();
@@ -101,7 +101,7 @@ class De1Handler {
       });
     });
 
-    app.post('/api/v1/de1/settings/advanced', (Request r) async {
+    app.post('/api/v1/machine/settings/advanced', (Request r) async {
       return withDe1((de1) async {
         var json = jsonDecode(await r.readAsString());
         if (json['heaterPh1Flow'] != null) {
@@ -122,7 +122,7 @@ class De1Handler {
       });
     });
 
-    app.get('/api/v1/de1/settings/advanced', () async {
+    app.get('/api/v1/machine/settings/advanced', () async {
       return withDe1((de1) async {
         var json = <String, dynamic>{};
         json['heaterPh1Flow'] = await de1.getHeaterPhase1Flow();
@@ -133,7 +133,7 @@ class De1Handler {
       });
     });
 
-    app.post('/api/v1/de1/firmware', (Request request) async {
+    app.post('/api/v1/machine/firmware', (Request request) async {
       try {
         // Read the binary body into a Uint8List
         final List<int> bodyBytes =

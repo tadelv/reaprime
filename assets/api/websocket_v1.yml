@@ -19,21 +19,21 @@ servers:
       tablet-ip:
         default: localhost
 channels:
-  De1Snapshot:
-    address: ws/v1/de1/snapshot
-    description: Real-time snapshot data from the DE1 machine.
+  MachineSnapshot:
+    address: ws/v1/machine/snapshot
+    description: Real-time snapshot data from the espresso machine.
     messages:
       machineSnapshotMessage:
         $ref: '#/components/messages/MachineSnapshot'
   ShotSettings:
     description: Real-time shot settings updates.
-    address: ws/v1/de1/shotSettings
+    address: ws/v1/machine/shotSettings
     messages:
       shotSettingsMessage:
         $ref: '#/components/messages/ShotSettings'
   WaterLevels:
     description: Real-time water level updates.
-    address: ws/v1/de1/waterLevels
+    address: ws/v1/machine/waterLevels
     messages:
       waterLevelsMessage:
         $ref: '#/components/messages/WaterLevels'
@@ -43,12 +43,12 @@ channels:
     messages:
       scaleSnapshotMessage:
         $ref: '#/components/messages/ScaleSnapshot'
-  De1Raw:
-    description: Real-time raw BLE data from DE1 (read/write/notify).
-    address: ws/v1/de1/raw
+  MachineRaw:
+    description: Real-time raw BLE data from machine (read/write/notify).
+    address: ws/v1/machine/raw
     messages:
-      de1RawMessage:
-        $ref: '#/components/messages/De1RawMessage'
+      machineRawMessage:
+        $ref: '#/components/messages/MachineRawMessage'
   SensorSnapshot:
     description: Real-time sensor snapshot updates for a specific sensor.
     address: ws/v1/sensors/{id}/snapshot
@@ -77,10 +77,10 @@ channels:
         $ref: '#/components/messages/LogMessage'
 
 operations:
-  de1Snapshot:
+  machineSnapshot:
     action: receive
     channel:
-      $ref: '#/channels/De1Snapshot'
+      $ref: '#/channels/MachineSnapshot'
   shotSettings:
     action: receive
     channel:
@@ -93,10 +93,10 @@ operations:
     action: receive
     channel:
       $ref: '#/channels/ScaleSnapshot'
-  de1Raw:
+  machineRaw:
     action: receive
     channel:
-      $ref: '#/channels/De1Raw'
+      $ref: '#/channels/MachineRaw'
   sensorSnapshot:
     action: receive
     channel:
@@ -137,9 +137,9 @@ components:
       title: Water Levels
       payload:
         $ref: '#/components/schemas/WaterLevels'
-    De1RawMessage:
-      name: De1RawMessage
-      title: DE1 Raw BLE Message
+    MachineRawMessage:
+      name: MachineRawMessage
+      title: Machine Raw BLE Message
       payload:
         $ref: '#/components/schemas/De1RawMessage'
     SensorSnapshot:

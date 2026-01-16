@@ -341,7 +341,7 @@ class _StatusTileState extends State<StatusTile> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
-          "DE1:",
+          "Machine:",
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         StreamBuilder(

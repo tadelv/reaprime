@@ -36,35 +36,35 @@ function createPlugin(host) {
   }
 
   /**
-   * Fetch DE1 machine settings
+   * Fetch machine settings
    */
   async function fetchDe1Settings() {
     try {
-      const res = await fetch("http://localhost:8080/api/v1/de1/settings");
+      const res = await fetch("http://localhost:8080/api/v1/machine/settings");
       if (!res.ok) {
-        log(`Failed to fetch DE1 settings: ${res.status}`);
+        log(`Failed to fetch machine settings: ${res.status}`);
         return null;
       }
       return await res.json();
     } catch (e) {
-      log(`Error fetching DE1 settings: ${e.message}`);
+      log(`Error fetching machine settings: ${e.message}`);
       return null;
     }
   }
 
   /**
-   * Fetch DE1 advanced settings
+   * Fetch machine advanced settings
    */
   async function fetchDe1AdvancedSettings() {
     try {
-      const res = await fetch("http://localhost:8080/api/v1/de1/settings/advanced");
+      const res = await fetch("http://localhost:8080/api/v1/machine/settings/advanced");
       if (!res.ok) {
-        log(`Failed to fetch DE1 advanced settings: ${res.status}`);
+        log(`Failed to fetch machine advanced settings: ${res.status}`);
         return null;
       }
       return await res.json();
     } catch (e) {
-      log(`Error fetching DE1 advanced settings: ${e.message}`);
+      log(`Error fetching machine advanced settings: ${e.message}`);
       return null;
     }
   }
@@ -360,11 +360,11 @@ function createPlugin(host) {
             ` : '<div class="error" role="alert" aria-live="assertive">Failed to load REA settings</div>'}
             </section>
 
-            <!-- DE1 Machine Settings -->
-            <section class="section" aria-labelledby="de1-settings-heading">
-                <h2 id="de1-settings-heading">DE1 Machine Settings</h2>
+            <!-- Machine Settings -->
+            <section class="section" aria-labelledby="machine-settings-heading">
+                <h2 id="machine-settings-heading">Machine Settings</h2>
             ${de1Settings ? `
-                <div class="settings-grid" role="group" aria-label="DE1 machine settings controls">
+                <div class="settings-grid" role="group" aria-label="Machine settings controls">
                     <div class="setting-item">
                         <label class="setting-label" for="fan">Fan Threshold (°C)</label>
                         <div class="setting-control">
@@ -435,12 +435,12 @@ function createPlugin(host) {
                         </div>
                     </div>
                 </div>
-            ` : '<div class="error" role="alert">Failed to load DE1 settings (machine may not be connected)</div>'}
+            ` : '<div class="error" role="alert">Failed to load machine settings (machine may not be connected)</div>'}
             </section>
 
-            <!-- DE1 Advanced Settings -->
-            <section class="section" aria-labelledby="de1-advanced-settings-heading">
-                <h2 id="de1-advanced-settings-heading">DE1 Advanced Settings</h2>
+            <!-- Machine Advanced Settings -->
+            <section class="section" aria-labelledby="machine-advanced-settings-heading">
+                <h2 id="machine-advanced-settings-heading">Machine Advanced Settings</h2>
             ${de1AdvancedSettings ? `
                 <div class="settings-grid">
                     <div class="setting-item">
@@ -472,7 +472,7 @@ function createPlugin(host) {
                         </div>
                     </div>
                 </div>
-            ` : '<div class="error" role="alert">Failed to load DE1 advanced settings (machine may not be connected)</div>'}
+            ` : '<div class="error" role="alert">Failed to load machine advanced settings (machine may not be connected)</div>'}
             </section>
         </main>
     </div>
@@ -539,7 +539,7 @@ function createPlugin(host) {
                 const payload = {};
                 payload[key] = value;
                 
-                const response = await fetch(baseUrl + '/api/v1/de1/settings', {
+                const response = await fetch(baseUrl + '/api/v1/machine/settings', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -548,14 +548,14 @@ function createPlugin(host) {
                 });
 
                 if (response.ok || response.status === 202) {
-                    showToast('DE1 setting updated successfully');
+                    showToast('Machine setting updated successfully');
                     document.getElementById('timestamp').textContent = new Date().toLocaleString();
                 } else {
                     const error = await response.text();
-                    showToast('Failed to update DE1 setting: ' + error, true);
+                    showToast('Failed to update machine setting: ' + error, true);
                 }
             } catch (e) {
-                showToast('Error updating DE1 setting: ' + e.message, true);
+                showToast('Error updating machine setting: ' + e.message, true);
             }
         }
 
@@ -564,7 +564,7 @@ function createPlugin(host) {
                 const payload = {};
                 payload[key] = value;
                 
-                const response = await fetch(baseUrl + '/api/v1/de1/settings/advanced', {
+                const response = await fetch(baseUrl + '/api/v1/machine/settings/advanced', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -573,14 +573,14 @@ function createPlugin(host) {
                 });
 
                 if (response.ok || response.status === 202) {
-                    showToast('DE1 advanced setting updated successfully');
+                    showToast('Machine advanced setting updated successfully');
                     document.getElementById('timestamp').textContent = new Date().toLocaleString();
                 } else {
                     const error = await response.text();
-                    showToast('Failed to update DE1 advanced setting: ' + error, true);
+                    showToast('Failed to update machine advanced setting: ' + error, true);
                 }
             } catch (e) {
-                showToast('Error updating DE1 advanced setting: ' + e.message, true);
+                showToast('Error updating machine advanced setting: ' + e.message, true);
             }
         }
 
@@ -615,7 +615,7 @@ function createPlugin(host) {
   // Return the plugin object
   return {
     id: "settings.reaplugin",
-    version: "0.0.5",
+    version: "0.0.6",
 
     onLoad(settings) {
       state.refreshInterval = settings.RefreshInterval !== undefined ? settings.RefreshInterval : 5;
