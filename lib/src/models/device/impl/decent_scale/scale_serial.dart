@@ -32,6 +32,7 @@ class HDSSerial implements Scale {
   disconnect() async {
     _connectionSubject.add(ConnectionState.disconnected);
     _transportSubscription.cancel();
+    _stringSubscription.cancel();
     await _transport.disconnect();
   }
 
@@ -39,12 +40,24 @@ class HDSSerial implements Scale {
   String get name => "Half Decent Scale";
 
   late StreamSubscription<Uint8List> _transportSubscription;
+  late StreamSubscription<String> _stringSubscription;
   @override
   Future<void> onConnect() async {
     _log.info("on connect");
     await _transport.connect();
     _transportSubscription = _transport.rawStream.listen(
       onData,
+      onError: (error) {
+        _log.warning("transport error", error);
+        disconnect();
+      },
+      onDone: () {
+        disconnect();
+      },
+    );
+
+    _stringSubscription = _transport.readStream.listen(
+      onStringData,
       onError: (error) {
         _log.warning("transport error", error);
         disconnect();
@@ -79,15 +92,19 @@ class HDSSerial implements Scale {
   }
 
   Future<void> _sendOledOn() async {
-    // Send "oledon" command as ASCII
-    final cmd = Uint8List.fromList('oledon\n'.codeUnits);
-    await _transport.writeHexCommand(cmd);
+    List<int> payload = [];
+    // payload = [0x03, 0x0A, 0x01, 0x00, 0x00, 0x01, 0x08];
+    // await _transport.writeHexCommand(Uint8List.fromList(payload));
+    payload = [0x03, 0x0A, 0x04, 0x00, 0x00, 0x01, 0x08];
+    await _transport.writeHexCommand(Uint8List.fromList(payload));
   }
 
   Future<void> _sendOledOff() async {
-    // Send "oledoff" command as ASCII
-    final cmd = Uint8List.fromList('oledoff\n'.codeUnits);
-    await _transport.writeHexCommand(cmd);
+    List<int> payload = [];
+    // payload = [0x03, 0x0A, 0x04, 0x01, 0x00, 0x01, 0x09];
+    // await _transport.writeHexCommand(Uint8List.fromList(payload));
+    payload = [0x03, 0x0A, 0x00, 0x01, 0x00, 0x01, 0x09];
+    await _transport.writeHexCommand(Uint8List.fromList(payload));
   }
 
   final BehaviorSubject<ScaleSnapshot> _snapshotHandler = BehaviorSubject();
@@ -96,8 +113,10 @@ class HDSSerial implements Scale {
   DeviceType get type => DeviceType.scale;
 
   void onData(Uint8List data) {
-    _log.finest("got message: $data");
-    if (data.length != 7 || data[0] != 0x03 || data[1] != 0xCE) {
+    try {
+      _log.finest("got message: $data");
+    } catch (_) {}
+    if (data.length < 5 || data[0] != 0x03 || data[1] != 0xCE) {
       _log.finest("data is not weight data");
       return;
     }
@@ -112,5 +131,26 @@ class HDSSerial implements Scale {
         batteryLevel: 100,
       ),
     );
+  }
+
+  final _hdsRegex = RegExp(r'\d+ Weight: (.*)');
+  void onStringData(String data) {
+    return;
+    _log.finest("received string $data");
+    final matches = _hdsRegex.allMatches(data);
+    if (matches.isNotEmpty) {
+      final weightStr = matches.first.groups([1]).first;
+      if (weightStr != null) {
+        final weight = double.parse(weightStr);
+
+        _snapshotHandler.add(
+          ScaleSnapshot(
+            timestamp: DateTime.now(),
+            weight: weight,
+            batteryLevel: 100,
+          ),
+        );
+      }
+    }
   }
 }

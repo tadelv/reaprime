@@ -92,7 +92,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     }
 
     final rawData = <Uint8List>[];
-    const readDuration = Duration(milliseconds: 800);
+    const readDuration = Duration(milliseconds: 1800);
     _log.fine("Inspecting: ${port.name}, ${port.productName}");
 
     try {
@@ -120,7 +120,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       } catch (e) {
         _log.warning("failed to decode:", e);
       }
-      _log.info("Collected serial data: ${utf8.decode(combined)}");
+      _log.info("Collected serial data: ${combined.map((e) => e.toRadixString(16).padLeft(2,'0'))}");
       _log.info("parsed into strings: ${strings}");
       if (combined.isEmpty && strings.isEmpty) {
         throw ('no data collected');
