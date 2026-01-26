@@ -119,7 +119,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     _restartTimer?.cancel();
     _restartTimer = Timer.periodic(Duration(hours: 1), (_) {
-    // _restartTimer = Timer.periodic(Duration(seconds: 40), (_) {
+      // _restartTimer = Timer.periodic(Duration(seconds: 40), (_) {
       final now = DateTime.now();
       if (now.hour == 1) {
         AppRoot.restart(context);
@@ -217,7 +217,16 @@ class _MyAppState extends State<MyApp> {
                       if (device is Scale) {
                         return ScaleDebugView(scale: device);
                       }
-                      return Text("No mapping for ${device.name}");
+                      return Scaffold(
+                        body: ShadButton.link(
+                          child: Text("No mapping for ${device.name}"),
+                          onPressed: () {
+                            if (context.mounted) {
+                              Navigator.of(context).pop();
+                            }
+                          },
+                        ),
+                      );
                     case SampleItemListView.routeName:
                       return SampleItemListView(
                         controller: widget.deviceController,
@@ -299,4 +308,3 @@ class _MyAppState extends State<MyApp> {
     );
   }
 }
-

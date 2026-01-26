@@ -60,6 +60,10 @@ class _ScaleDebugViewState extends State<ScaleDebugView> {
                       FilledButton(
                         onPressed: () async {
                           await widget.scale.disconnect();
+                          if (!context.mounted) {
+                            return;
+                          }
+                          Navigator.of(context).pop();
                         },
                         child: Text("Disconnect"),
                       ),
