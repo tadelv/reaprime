@@ -11,6 +11,8 @@ import 'package:rxdart/rxdart.dart';
 class ScaleController {
   final DeviceController _deviceController;
 
+  StreamSubscription<List<Device>>? _deviceStreamSubscription;
+
   Scale? _scale;
 
   StreamSubscription<ConnectionState>? _scaleConnection;
@@ -20,7 +22,7 @@ class ScaleController {
 
   ScaleController({required DeviceController controller})
     : _deviceController = controller {
-    _deviceController.deviceStream.listen((devices) async {
+    _deviceStreamSubscription = _deviceController.deviceStream.listen((devices) async {
       var scales = devices.whereType<Scale>().toList();
       if (_scale == null &&
           scales.firstOrNull != null &&
@@ -30,6 +32,10 @@ class ScaleController {
       }
     });
   }
+
+  void dispose() {
+      _deviceStreamSubscription?.cancel();
+    }
 
   Future<void> connectToScale(Scale scale) async {
     _onDisconnect();
