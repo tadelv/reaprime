@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/src/home_feature/home_feature.dart';
 import 'package:reaprime/src/home_feature/widgets/device_selection_widget.dart';
@@ -18,12 +19,13 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 
 class PermissionsView extends StatelessWidget {
+  final Logger _log = Logger("PermissionsView");
   final DeviceController deviceController;
   final De1Controller de1controller;
   final PluginLoaderService? pluginLoaderService;
   final WebUIStorage webUIStorage;
 
-  const PermissionsView({
+  PermissionsView({
     super.key,
     required this.deviceController,
     required this.de1controller,
@@ -116,10 +118,11 @@ class PermissionsView extends StatelessWidget {
       // This allows foreground service notification to appear in notification drawer
       if (Platform.isAndroid) {
         await Permission.notification.request();
-        
+
         // CRITICAL: Request battery optimization exemption
         // This prevents Android from killing the app in the background
-        final batteryOptStatus = await Permission.ignoreBatteryOptimizations.status;
+        final batteryOptStatus =
+            await Permission.ignoreBatteryOptimizations.status;
         if (!batteryOptStatus.isGranted) {
           await Permission.ignoreBatteryOptimizations.request();
         }
@@ -137,7 +140,7 @@ class PermissionsView extends StatelessWidget {
         await pluginLoaderService!.initialize();
       } catch (e) {
         // Log error but don't fail the permissions check
-        debugPrint('Failed to initialize plugins: $e');
+        _log.warning('Failed to initialize plugins: $e');
       }
     }
 
@@ -195,19 +198,20 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 
     // If 10 seconds elapsed without finding a second de1, continue automatically
     Future.delayed(_timeoutDuration, () {
-      if (mounted) {
-        final discoveredDevices =
-            widget.deviceController.devices.whereType<De1Interface>().toList();
+      final discoveredDevices =
+          widget.deviceController.devices.whereType<De1Interface>().toList();
+      _discoverySubscription.cancel();
 
-        if (discoveredDevices.length == 1) {
-          widget.de1controller.connectToDe1(discoveredDevices.first);
+      if (discoveredDevices.length == 1) {
+        widget.de1controller.connectToDe1(discoveredDevices.first);
+        if (mounted) {
           Navigator.popAndPushNamed(context, LandingFeature.routeName);
-        } else if (discoveredDevices.isEmpty) {
-          // Show no devices found screen instead of auto-navigating
-          setState(() {
-            _state = DiscoveryState.foundNone;
-          });
         }
+      } else if (discoveredDevices.isEmpty) {
+        // Show no devices found screen instead of auto-navigating
+        setState(() {
+          _state = DiscoveryState.foundNone;
+        });
       }
     });
   }
@@ -278,12 +282,12 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                 spacing: 8,
                 children: [
                   Text(
-                    'No DE1 Machines Found',
+                    'No Decent Machines Found',
                     style: theme.textTheme.h3,
                     textAlign: TextAlign.center,
                   ),
                   Text(
-                    'The scan completed but no DE1 machines were discovered.',
+                    'The scan completed but no Decent machines were discovered.',
                     style: theme.textTheme.muted,
                     textAlign: TextAlign.center,
                   ),
@@ -308,12 +312,12 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                       _troubleshootingItem(
                         context,
                         LucideIcons.power,
-                        'Ensure your DE1 machine is powered on',
+                        'Ensure your Decent machine is powered on',
                       ),
                       _troubleshootingItem(
                         context,
                         LucideIcons.bluetooth,
-                        'Check that Bluetooth is enabled on your device',
+                        'Check that Bluetooth is enabled on your device (if you will use Bluetooth connection)',
                       ),
                       _troubleshootingItem(
                         context,
@@ -323,7 +327,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                       _troubleshootingItem(
                         context,
                         LucideIcons.signal,
-                        'Move closer to your DE1 machine',
+                        'Move closer to your Decent machine',
                       ),
                     ],
                   ),
@@ -530,4 +534,3 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 }
 
 enum DiscoveryState { searching, foundOne, foundMany, foundNone }
-
