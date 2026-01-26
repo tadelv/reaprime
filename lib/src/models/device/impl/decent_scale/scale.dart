@@ -88,7 +88,7 @@ class DecentScale implements Scale {
 
   @override
   disconnect() async {
-    await _sendPowerOff();
+    // await _sendPowerOff();
     subscription?.cancel();
     _connectionStateController.add(ConnectionState.disconnected);
     _heartbeatTimer?.cancel();
@@ -113,7 +113,12 @@ class DecentScale implements Scale {
       // Send OLed on command (will return battery %)
       payload = [0x03, 0x0A, 0x01, 0x00, 0x00, 0x01, 0x08];
     }
-    await _device.write(serviceUUID, writeUUID, Uint8List.fromList(payload));
+    try {
+      await _device.write(serviceUUID, writeUUID, Uint8List.fromList(payload));
+    } catch (e) {
+      // just disconnect
+      await disconnect();
+    }
   }
 
   void _registerNotifications() async {
