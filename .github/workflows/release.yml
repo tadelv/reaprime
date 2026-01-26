@@ -186,9 +186,44 @@ jobs:
           name: raspberrypi-linux-arm64-app
           path: reaprime-linux-arm64-${{ steps.version.outputs.version }}.tar.gz
 
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Windows app (unsigned)
+        run: flutter build windows --release
+
+      - name: Get version from tag
+        id: version
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create Windows archive
+        shell: pwsh
+        run: |
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath reaprime-windows-x64-${{ steps.version.outputs.version }}.zip
+
+      - name: Upload Windows app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-app
+          path: reaprime-windows-x64-${{ steps.version.outputs.version }}.zip
+
   create-release:
     name: Create GitHub Release
-    needs: [build-android, build-macos, build-linux, build-raspberrypi]
+    needs: [build-android, build-macos, build-linux, build-raspberrypi, build-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -217,6 +252,7 @@ jobs:
             release-artifacts/macos-app/*
             release-artifacts/linux-app/*
             release-artifacts/raspberrypi-linux-arm64-app/*
+            release-artifacts/windows-app/*
           tag_name: ${{ steps.version.outputs.tag }}
           name: ReaPrime ${{ steps.version.outputs.version }}
           draft: false
@@ -231,6 +267,7 @@ jobs:
             - **macOS**: `reaprime-macos-${{ steps.version.outputs.version }}.zip`
             - **Linux x64**: `reaprime-linux-x64-${{ steps.version.outputs.version }}.tar.gz`
             - **Linux ARM64 (Raspberry Pi)**: `reaprime-linux-arm64-${{ steps.version.outputs.version }}.tar.gz`
+            - **Windows x64**: `reaprime-windows-x64-${{ steps.version.outputs.version }}.zip`
             
             ### Installation
             
@@ -239,6 +276,8 @@ jobs:
             **macOS**: Download the ZIP, extract it, and move the app to your Applications folder.
             
             **Linux**: Download the tar.gz, extract it, and run the executable inside the bundle directory.
+            
+            **Windows**: Download the ZIP, extract it, and run the executable inside the extracted folder.
             
             ### What's Changed
             <!-- GitHub will auto-generate release notes here -->

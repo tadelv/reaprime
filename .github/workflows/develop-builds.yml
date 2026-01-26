@@ -140,3 +140,27 @@ jobs:
           name: raspberrypi-linux-arm64-app
           path: build/linux/arm64/release/bundle
 
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Windows app (unsigned)
+        run: flutter build windows --release
+
+      - name: Upload Windows app
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-app
+          path: build/windows/x64/runner/Release
+
+
