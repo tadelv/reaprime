@@ -37,6 +37,7 @@ import 'package:reaprime/src/services/storage/file_storage_service.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'src/app.dart';
 import 'src/services/foreground_service.dart';
@@ -59,6 +60,11 @@ void main() async {
   PrintAppender(formatter: ColorFormatter()).attachToLogger(Logger.root);
 
   final log = Logger("Main");
+  
+  await WindowManager.instance.ensureInitialized();
+  if (Platform.isWindows || Platform.isMacOS) {
+    WindowManager.instance.setMinimumSize(const Size(900, 800));
+  }
 
   if (Platform.isAndroid) {
     try {

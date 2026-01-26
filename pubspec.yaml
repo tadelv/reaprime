@@ -70,6 +70,7 @@ dependencies:
   firebase_analytics: ^12.1.0
   http: ^1.2.2
   network_info_plus: ^7.0.0
+  window_manager: ^0.5.1
   # path: ../flutter_libserialport
   # git:
   #   url: https://github.com/tadelv/flutter_libserialport.git
