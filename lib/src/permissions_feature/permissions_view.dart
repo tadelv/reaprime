@@ -132,7 +132,7 @@ class PermissionsView extends StatelessWidget {
         (e) => e == AvailabilityState.poweredOn,
       );
     }
-    deviceController.initialize();
+    await deviceController.initialize();
 
     // Initialize plugins after permissions are granted
     if (pluginLoaderService != null) {

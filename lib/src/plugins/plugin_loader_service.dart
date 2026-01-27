@@ -286,11 +286,11 @@ class PluginLoaderService {
   // Private helper methods
 
   Future<void> _copyBundledPlugins() async {
-    try {
-      // Get list of bundled plugins from assets
-      final bundledPlugins = await _getBundledPluginPaths();
+    // Get list of bundled plugins from assets
+    final bundledPlugins = await _getBundledPluginPaths();
 
-      for (final pluginPath in bundledPlugins) {
+    for (final pluginPath in bundledPlugins) {
+      try {
         final pluginName = pluginPath.split('/').last;
         final destDir = Directory('${_pluginsDir.path}/$pluginName');
 
@@ -316,7 +316,7 @@ class PluginLoaderService {
           File('${destDir.path}/plugin.js').writeAsStringSync(pluginAsset);
 
           _log.fine('Copied bundled plugin: $pluginName');
-          return;
+          continue;
         }
 
         // Read version from manifest, overwrite if our version is newer
@@ -333,7 +333,7 @@ class PluginLoaderService {
           _log.fine(
             "not overriding bundled plugin: [bundled: ${newManifest.version}], [existing: ${existingManifest.version}]",
           );
-          return;
+          continue;
         }
         File('${destDir.path}/manifest.json').writeAsStringSync(manifestAsset);
 
@@ -344,9 +344,9 @@ class PluginLoaderService {
         File('${destDir.path}/plugin.js').writeAsStringSync(pluginAsset);
 
         _log.fine('Updated bundled plugin: $pluginName');
+      } catch (e) {
+        _log.warning('Failed to copy bundled plugins', e);
       }
-    } catch (e) {
-      _log.warning('Failed to copy bundled plugins', e);
     }
   }
 
