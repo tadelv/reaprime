@@ -85,45 +85,48 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _home(BuildContext context) {
     // Use LayoutBuilder to adapt to screen size
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWideScreen = constraints.maxWidth > 900;
+    return Scrollbar(
+      thumbVisibility: true,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWideScreen = constraints.maxWidth > 900;
 
-        if (isWideScreen) {
-          // Desktop/tablet layout: two columns side by side
-          return SingleChildScrollView(
-            child: Padding(
-              padding: EdgeInsets.only(top: 12, bottom: 12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.max,
-                children: [
-                  SizedBox(width: 16),
-                  Flexible(flex: 2, child: _leftColumn(context)),
-                  SizedBox(width: 16),
-                  Flexible(flex: 3, child: _rightColumn(context)),
-                  SizedBox(width: 16),
-                ],
+          if (isWideScreen) {
+            // Desktop/tablet layout: two columns side by side
+            return SingleChildScrollView(
+              child: Padding(
+                padding: EdgeInsets.only(top: 12, bottom: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.max,
+                  children: [
+                    SizedBox(width: 16),
+                    Flexible(flex: 2, child: _leftColumn(context)),
+                    SizedBox(width: 16),
+                    Flexible(flex: 3, child: _rightColumn(context)),
+                    SizedBox(width: 16),
+                  ],
+                ),
               ),
-            ),
-          );
-        } else {
-          // Mobile/narrow layout: single column, stacked vertically
-          return SingleChildScrollView(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: 12,
-                children: [
-                  ..._rightColumnWidgets(context),
-                  ..._leftColumnWidgets(context),
-                ],
+            );
+          } else {
+            // Mobile/narrow layout: single column, stacked vertically
+            return SingleChildScrollView(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  spacing: 12,
+                  children: [
+                    ..._rightColumnWidgets(context),
+                    ..._leftColumnWidgets(context),
+                  ],
+                ),
               ),
-            ),
-          );
-        }
-      },
+            );
+          }
+        },
+      ),
     );
   }
 
