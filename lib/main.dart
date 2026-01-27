@@ -60,9 +60,9 @@ void main() async {
   PrintAppender(formatter: ColorFormatter()).attachToLogger(Logger.root);
 
   final log = Logger("Main");
-  
-  await WindowManager.instance.ensureInitialized();
+
   if (Platform.isWindows || Platform.isMacOS) {
+    await WindowManager.instance.ensureInitialized();
     WindowManager.instance.setMinimumSize(const Size(900, 800));
   }
 
