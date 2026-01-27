@@ -343,7 +343,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             children: [
               Flexible(child: Text("WebUI loaded:")),
               Flexible(
-                child: ShadButton.link(
+                child: ShadButton(
                   child: Text(
                     widget.webUIService.serverPath().split('/').last,
                     overflow: TextOverflow.ellipsis,
