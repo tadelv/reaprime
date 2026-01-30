@@ -41,6 +41,9 @@ class MachineParser {
             log.info(
               "listen where event  ${element.map(toHexString).toList()}",
             );
+            if (element.length < 3) {
+              return false;
+            }
 
             if (buffer[1] == element[1] &&
                 buffer[2] == element[2] &&

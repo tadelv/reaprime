@@ -173,7 +173,7 @@ class _LandingState extends State<LandingFeature> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('WebUI Setup'),
+        title: const Text('Streamline Setup'),
         actions: [
           TextButton(
             onPressed: _navigateToHome,
@@ -236,19 +236,19 @@ class _LandingState extends State<LandingFeature> {
         const Icon(Icons.web_asset_off, size: 64),
         const SizedBox(height: 16),
         Text(
-          'No WebUI skins available',
+          'No Skins available',
           style: Theme.of(context).textTheme.headlineSmall,
         ),
         const SizedBox(height: 8),
         Text(
-          'Please install a WebUI skin to use this feature.',
+          'Please install a skin to use this feature.',
           style: Theme.of(context).textTheme.bodyLarge,
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 24),
         ShadButton(
           onPressed: _navigateToHome,
-          child: const Text('Continue to Home'),
+          child: const Text('Continue to Dashboard'),
         ),
       ],
     );
@@ -278,7 +278,7 @@ class _LandingState extends State<LandingFeature> {
         const Icon(Icons.web, size: 64),
         const SizedBox(height: 16),
         Text(
-          'Select WebUI Skin',
+          'Select Skin',
           style: Theme.of(context).textTheme.headlineSmall,
         ),
         const SizedBox(height: 8),
@@ -352,7 +352,7 @@ class _LandingState extends State<LandingFeature> {
       children: [
         const Icon(Icons.check_circle, size: 64, color: Colors.green),
         const SizedBox(height: 16),
-        Text('WebUI Ready!', style: Theme.of(context).textTheme.headlineSmall),
+        Text('Skin Ready!', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 8),
         Text(
           'Serving: ${_selectedSkin!.name}',

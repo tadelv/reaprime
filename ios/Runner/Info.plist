@@ -27,7 +27,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Needed to discover local devices</string>
+	<string>Needed to discover devices</string>
 	<key>NSDocumentsFolderUsageDescription</key>
 	<string>Needed for local storage</string>
 	<key>NSDownloadsFolderUsageDescription</key>
@@ -42,6 +42,10 @@
 	<string>Needed to discover local devices</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
