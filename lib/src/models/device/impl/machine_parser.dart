@@ -6,13 +6,13 @@ import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:rxdart/rxdart.dart';
 
 class MachineParser {
   static Future<Machine> machineFrom({required BLETransport transport}) async {
     Logger log = Logger("Machine parser");
     log.info("starting check");
-    final StreamController<List<int>> mmrController =
-        StreamController.broadcast();
+    final BehaviorSubject<List<int>> mmrController = BehaviorSubject.seeded([]);
     try {
       await transport.connect();
 

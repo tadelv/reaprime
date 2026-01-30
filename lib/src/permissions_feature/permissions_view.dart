@@ -293,46 +293,6 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                   ),
                 ],
               ),
-              ShadCard(
-                backgroundColor: theme.colorScheme.secondary.withValues(
-                  alpha: 0.1,
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: 12,
-                    children: [
-                      Text(
-                        'Troubleshooting Tips:',
-                        style: theme.textTheme.small.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      _troubleshootingItem(
-                        context,
-                        LucideIcons.power,
-                        'Ensure your Decent machine is powered on',
-                      ),
-                      _troubleshootingItem(
-                        context,
-                        LucideIcons.bluetooth,
-                        'Check that Bluetooth is enabled on your device (if you will use Bluetooth connection)',
-                      ),
-                      _troubleshootingItem(
-                        context,
-                        LucideIcons.mapPin,
-                        'Verify location permissions are granted (required for BLE)',
-                      ),
-                      _troubleshootingItem(
-                        context,
-                        LucideIcons.signal,
-                        'Move closer to your Decent machine',
-                      ),
-                    ],
-                  ),
-                ),
-              ),
               Column(
                 spacing: 12,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
