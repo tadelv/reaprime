@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 class ScaleDebugView extends StatefulWidget {
   final Scale scale;
@@ -71,7 +72,15 @@ class _ScaleDebugViewState extends State<ScaleDebugView> {
                   );
                 } else if (snapshot.connectionState ==
                     ConnectionState.waiting) {
-                  return Text("Connecting");
+                  return Column(
+                    children: [
+                      Text("Connecting"),
+                      ShadButton(child: Text("disconnect"),
+                      onPressed: () async {
+                          await widget.scale.disconnect();
+                        },)
+                    ],
+                  );
                 }
                 return Text("Waiting for data: ${snapshot.connectionState}");
               },
