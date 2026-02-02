@@ -147,7 +147,7 @@ jobs:
       - name: Create release ZIP
         run: |
           cd build/macos/Build/Products/Release
-          zip -r ../../../../../streamline-bridge-macos-${{ steps.version.outputs.version }}.zip Streamline-Bridge.app
+          ditto -c -k --keepParent Streamline-Bridge.app ../../../../../streamline-bridge-macos-${{ steps.version.outputs.version }}.zip
 
       - uses: actions/upload-artifact@v4
         with:
@@ -332,4 +332,5 @@ jobs:
             **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.version.outputs.tag }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
