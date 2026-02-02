@@ -1,4 +1,4 @@
-# Reasonable Espresso App - 1 
+# Reasonable Espresso App - 1 a.k.a. Streamline Bridge
 
 > ReaPrime (R1) is a gateway app to the next generation of interfaces for Decent espresso machines. An API first approach makes it help you
 > focus on developing modern and sleek UIs, that are easy on the eyes as well as a delight to use. 
