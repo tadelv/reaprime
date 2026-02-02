@@ -100,7 +100,7 @@ jobs:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
         run: |
           cd macos
-          bundle exec fastlane match developer_id
+          bundle exec fastlane match developer_id --readonly
 
       # ---- Build ----
       - name: Build macOS app

@@ -92,9 +92,10 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           TEAM_ID: ${{ secrets.TEAM_ID }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_PRIVATE_KEY: ${{ secrets.MATCH_GIT_PRIVATE_KEY }}
         run: |
           cd macos
-          bundle exec fastlane match developer_id
+          bundle exec fastlane match developer_id --readonly
 
       # ---- Build ----
       - name: Build macOS app
