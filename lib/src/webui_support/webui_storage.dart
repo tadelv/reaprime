@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_archive/flutter_archive.dart';
+import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
 
 /// REA metadata for tracking WebUI skin source and version
@@ -679,12 +679,24 @@ class WebUIStorage {
     tempDir.createSync(recursive: true);
 
     try {
-      // Extract zip file
+      // Extract zip file using archive package
       final zipFile = File(zipPath);
-      await ZipFile.extractToDirectory(
-        zipFile: zipFile,
-        destinationDir: tempDir,
-      );
+      final bytes = await zipFile.readAsBytes();
+      final archive = ZipDecoder().decodeBytes(bytes);
+      
+      // Extract files to temp directory
+      for (final file in archive) {
+        final filename = file.name;
+        final filePath = '${tempDir.path}/$filename';
+        
+        if (file.isFile) {
+          final outFile = File(filePath);
+          outFile.createSync(recursive: true);
+          outFile.writeAsBytesSync(file.content as List<int>);
+        } else {
+          Directory(filePath).createSync(recursive: true);
+        }
+      }
 
       // Find the actual content directory
       // (GitHub zips have a root folder like "repo-main/")
@@ -773,6 +785,8 @@ class WebUIStorage {
     await _scanInstalledSkins();
   }
 }
+
+
 
 
 

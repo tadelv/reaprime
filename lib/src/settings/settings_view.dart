@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_archive/flutter_archive.dart';
+import 'package:archive/archive_io.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/build_info.dart';
@@ -149,11 +149,19 @@ class SettingsView extends StatelessWidget {
 
                       final tempFile = File('$destination/R1_shots.zip');
                       try {
-                        await ZipFile.createFromFiles(
-                          sourceDir: tempDir,
-                          files: [source],
-                          zipFile: tempFile,
+                        // Create zip archive using archive package
+                        final archive = Archive();
+                        final sourceBytes = await source.readAsBytes();
+                        final archiveFile = ArchiveFile(
+                          'shots.json',
+                          sourceBytes.length,
+                          sourceBytes,
                         );
+                        archive.addFile(archiveFile);
+                        
+                        // Encode to zip and write to file
+                        final zipData = ZipEncoder().encode(archive);
+                        await tempFile.writeAsBytes(zipData!);
                       } catch (e, st) {
                         Logger("Settings").severe("failed to export:", e, st);
                       }
