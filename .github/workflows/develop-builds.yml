@@ -95,7 +95,7 @@ jobs:
           MATCH_GIT_PRIVATE_KEY: ${{ secrets.MATCH_GIT_PRIVATE_KEY }}
         run: |
           cd macos
-          bundle exec fastlane match developer_id --readonly
+          bundle exec fastlane match developer_id
 
       # ---- Build ----
       - name: Build macOS app
