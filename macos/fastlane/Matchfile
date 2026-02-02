@@ -1,0 +1,7 @@
+git_url("https://github.com/tadelv/fastlane-match.git")
+
+storage_mode("git")
+
+type("developer_id") # macOS
+username(ENV["APPLE_ID"])
+team_id(ENV["TEAM_ID"])

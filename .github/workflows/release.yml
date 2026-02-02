@@ -104,7 +104,7 @@ jobs:
 
       - name: Codesign app (hardened runtime)
         run: |
-          APP="build/macos/Build/Products/Release/ReaPrime.app"
+          APP="build/macos/Build/Products/Release/Streamline-Bridge.app"
           codesign --deep --force \
             --options runtime \
             --sign "Developer ID Application" \
@@ -114,7 +114,7 @@ jobs:
       - name: Zip app for notarization
         run: |
           cd build/macos/Build/Products/Release
-          ditto -c -k --keepParent ReaPrime.app ReaPrime.zip
+          ditto -c -k --keepParent Streamline-Bridge.app Streamline-Bridge.zip
 
       - name: Notarize app
         env:
@@ -123,7 +123,7 @@ jobs:
           APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
         run: |
           xcrun notarytool submit \
-            build/macos/Build/Products/Release/ReaPrime.zip \
+            build/macos/Build/Products/Release/Streamline-Bridge.zip \
             --apple-id "$APPLE_ID" \
             --team-id "$TEAM_ID" \
             --password "$APP_SPECIFIC_PASSWORD" \
@@ -131,7 +131,7 @@ jobs:
 
       - name: Staple notarization ticket
         run: |
-          xcrun stapler staple build/macos/Build/Products/Release/ReaPrime.app
+          xcrun stapler staple build/macos/Build/Products/Release/Streamline-Bridge.app
 
       # ---- Final ZIP ----
       - name: Get version
@@ -143,12 +143,12 @@ jobs:
       - name: Create release ZIP
         run: |
           cd build/macos/Build/Products/Release
-          zip -r ../../../../../reaprime-macos-${{ steps.version.outputs.version }}.zip ReaPrime.app
+          zip -r ../../../../../streamline-bridge-macos-${{ steps.version.outputs.version }}.zip Streamline-Bridge.app
 
       - uses: actions/upload-artifact@v4
         with:
           name: macos-app
-          path: reaprime-macos-${{ steps.version.outputs.version }}.zip
+          path: streamline-bridge-macos-${{ steps.version.outputs.version }}.zip
 
   build-linux:
     runs-on: ubuntu-latest
@@ -328,5 +328,4 @@ jobs:
             **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.version.outputs.tag }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
 
