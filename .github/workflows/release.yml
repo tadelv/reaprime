@@ -82,6 +82,9 @@ jobs:
           flutter pub get
           brew install automake libtool
 
+      - name: Install FlutterFire CLI
+        run: dart pub global activate flutterfire_cli
+
       # ---- Import signing certificate ----
       - name: Import signing certificate
         env:
