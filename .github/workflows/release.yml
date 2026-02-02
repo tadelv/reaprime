@@ -96,7 +96,9 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           TEAM_ID: ${{ secrets.TEAM_ID }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-        run: bundle exec fastlane match developer_id
+        run: |
+          cd macos
+          bundle exec fastlane match developer_id
 
       # ---- Build ----
       - name: Build macOS app
