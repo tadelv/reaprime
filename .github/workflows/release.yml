@@ -78,7 +78,9 @@ jobs:
           channel: 'stable'
 
       - name: Install dependencies
-        run: flutter pub get
+        run: |
+          flutter pub get
+          brew install automake libtool
 
       # ---- Import signing certificate ----
       - name: Import signing certificate
