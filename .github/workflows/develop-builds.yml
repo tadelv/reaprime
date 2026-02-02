@@ -74,14 +74,70 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build macOS app (unsigned)
+      # ---- Ruby / fastlane ----
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+
+      - name: Install fastlane
+        run: bundle install
+
+      # ---- Certificates ----
+      - name: Install Apple certificates (match)
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+        run: bundle exec fastlane match developer_id
+
+      # ---- Build ----
+      - name: Build macOS app
         run: ./flutter_with_commit.sh build macos --release
+
+      - name: Codesign app (hardened runtime)
+        run: |
+          APP="build/macos/Build/Products/Release/Streamline-Bridge.app"
+          codesign --deep --force \
+            --options runtime \
+            --sign "Developer ID Application" \
+            "$APP"
+
+      # ---- Notarize ----
+      - name: Zip app for notarization
+        run: |
+          cd build/macos/Build/Products/Release
+          ditto -c -k --keepParent Streamline-Bridge.app Streamline-Bridge.zip
+
+      - name: Notarize app
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+          APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
+        run: |
+          xcrun notarytool submit \
+            build/macos/Build/Products/Release/Streamline-Bridge.zip \
+            --apple-id "$APPLE_ID" \
+            --team-id "$TEAM_ID" \
+            --password "$APP_SPECIFIC_PASSWORD" \
+            --wait
+
+      - name: Staple notarization ticket
+        run: |
+          xcrun stapler staple build/macos/Build/Products/Release/Streamline-Bridge.app
+
+      # ---- Upload ----
+      - name: Create development ZIP
+        run: |
+          cd build/macos/Build/Products/Release
+          zip -r ../../../../../streamline-bridge-macos-develop.zip Streamline-Bridge.app
 
       - name: Upload macOS app
         uses: actions/upload-artifact@v4
         with:
           name: macos-app
-          path: build/macos/Build/Products/Release/*.app
+          path: streamline-bridge-macos-develop.zip
 
   build-linux:
     runs-on: ubuntu-latest
