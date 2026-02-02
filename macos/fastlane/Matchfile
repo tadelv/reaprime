@@ -5,3 +5,4 @@ storage_mode("git")
 type("developer_id") # macOS
 username(ENV["APPLE_ID"])
 team_id(ENV["TEAM_ID"])
+app_identifier("net.tadel.reaprime")
