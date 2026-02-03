@@ -90,18 +90,18 @@ class _SkinViewState extends State<SkinView> {
       cacheEnabled: false,
 
       // Zoom - disable for consistent UI
-      // supportZoom: false,
+      supportZoom: false,
       builtInZoomControls: false,
       enableViewportScale: true,
 
       // displayZoomControls: false,
       userAgent: "Streamline-Bridge",
-
-
     );
 
     _log.info('InAppWebView settings initialized');
   }
+
+  bool _escPressed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -112,7 +112,9 @@ class _SkinViewState extends State<SkinView> {
       onKeyEvent: (KeyEvent event) {
         // Handle Escape key on desktop platforms to exit SkinView
         if (event is KeyUpEvent &&
-            event.logicalKey == LogicalKeyboardKey.escape) {
+            event.logicalKey == LogicalKeyboardKey.escape &&
+            !_escPressed) {
+          _escPressed = true;
           _log.info('Escape key pressed - exiting SkinView');
           Future.delayed(Duration(milliseconds: 300), () {
             if (context.mounted == false) {
@@ -183,7 +185,7 @@ class _SkinViewState extends State<SkinView> {
         padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          spacing: 24,
+          spacing: 8,
           children: [
             Icon(icon, size: 72, color: iconColor),
             Text(

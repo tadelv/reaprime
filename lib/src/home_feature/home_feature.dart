@@ -12,6 +12,7 @@ import 'package:reaprime/src/home_feature/tiles/settings_tile.dart';
 import 'package:reaprime/src/home_feature/tiles/status_tile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
+import 'package:reaprime/src/settings/gateway_mode_info_dialog.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/skin_feature/skin_view.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
@@ -252,10 +253,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Flexible(child: Text("IP Address:")),
-                Flexible(child: Text(widget.webUIService.deviceIp())),
+                Flexible(child: Text(widget.webUIService.deviceIp() + ":3000")),
               ],
             ),
-            Text("Gateway mode"),
+            Row(
+              children: [
+                Expanded(child: Text("Gateway mode")),
+                IconButton(
+                  icon: const Icon(Icons.info_outline),
+                  iconSize: 20,
+                  onPressed: () => showGatewayModeInfoDialog(context),
+                  tooltip: 'Learn more about Gateway mode',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
             DropdownButton<GatewayMode>(
               isDense: true,
               isExpanded: true,
@@ -357,7 +370,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                   onPressed: () async {
                     // On supported platforms (iOS, Android, macOS), use in-app WebView
-                    if (Platform.isIOS || Platform.isAndroid || Platform.isMacOS) {
+                    if (Platform.isIOS ||
+                        Platform.isAndroid ||
+                        Platform.isMacOS) {
                       Navigator.of(context).pushNamed(SkinView.routeName);
                     } else {
                       // On other platforms, open in external browser

@@ -54,7 +54,7 @@ class _SettingsTileState extends State<SettingsTile> {
             await ForegroundTaskService.stop();
             exit(0);
           },
-          child: Text("Quit"),
+          child: Text("Exit Streamline-Bridge"),
         ),
       ],
     );

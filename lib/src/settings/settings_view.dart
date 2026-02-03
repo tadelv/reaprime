@@ -10,6 +10,7 @@ import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/sample_feature/sample_item_list_view.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
+import 'package:reaprime/src/settings/gateway_mode_info_dialog.dart';
 import 'package:reaprime/src/settings/plugins_settings_view.dart';
 import 'package:reaprime/src/settings/update_dialog.dart';
 import 'package:reaprime/src/services/android_updater.dart';
@@ -82,9 +83,21 @@ class SettingsView extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 spacing: 8,
                 children: [
-                  Text(
-                    "Gateway mode (let REAPrime clients control the shot, scale and other parameters)",
-                    style: Theme.of(context).textTheme.bodyMedium,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          "Gateway mode (let REAPrime clients control the shot, scale and other parameters)",
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.info_outline),
+                        iconSize: 20,
+                        onPressed: () => showGatewayModeInfoDialog(context),
+                        tooltip: 'Learn more about Gateway mode',
+                      ),
+                    ],
                   ),
                   DropdownButton<GatewayMode>(
                     isExpanded: true,
@@ -158,7 +171,7 @@ class SettingsView extends StatelessWidget {
                           sourceBytes,
                         );
                         archive.addFile(archiveFile);
-                        
+
                         // Encode to zip and write to file
                         final zipData = ZipEncoder().encode(archive);
                         await tempFile.writeAsBytes(zipData!);
@@ -266,16 +279,13 @@ class SettingsView extends StatelessWidget {
     try {
       // Show loading indicator
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Checking for updates...')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Checking for updates...')));
 
       // Check for app updates (Android only for now)
       if (Platform.isAndroid) {
-        final updater = AndroidUpdater(
-          owner: 'tadelv',
-          repo: 'reaprime',
-        );
+        final updater = AndroidUpdater(owner: 'tadelv', repo: 'reaprime');
 
         final updateInfo = await updater.checkForUpdate(
           BuildInfo.version,
@@ -288,12 +298,13 @@ class SettingsView extends StatelessWidget {
           // Show update dialog
           showDialog(
             context: context,
-            builder: (context) => UpdateDialog(
-              updateInfo: updateInfo,
-              currentVersion: BuildInfo.version,
-              onDownload: (info) => updater.downloadUpdate(info),
-              onInstall: (path) => updater.installUpdate(path),
-            ),
+            builder:
+                (context) => UpdateDialog(
+                  updateInfo: updateInfo,
+                  currentVersion: BuildInfo.version,
+                  onDownload: (info) => updater.downloadUpdate(info),
+                  onInstall: (path) => updater.installUpdate(path),
+                ),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -307,9 +318,9 @@ class SettingsView extends StatelessWidget {
         // Non-Android platforms: just check for WebUI updates
         await webUIStorage.downloadRemoteSkins();
         if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('WebUI is up to date')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('WebUI is up to date')));
       }
     } catch (e, stackTrace) {
       log.severe('Error checking for updates', e, stackTrace);
@@ -323,31 +334,30 @@ class SettingsView extends StatelessWidget {
   Future<void> _showImportDialog(BuildContext context) async {
     final result = await showShadDialog<String>(
       context: context,
-      builder: (context) => ShadDialog(
-        title: const Text('Import Shots'),
-        description: const Text(
-          'Choose how you want to import your shots',
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          spacing: 16,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ShadButton(
-              child: Text('Import from JSON file'),
-              onPressed: () {
-                Navigator.of(context).pop('file');
-              },
+      builder:
+          (context) => ShadDialog(
+            title: const Text('Import Shots'),
+            description: const Text('Choose how you want to import your shots'),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 16,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ShadButton(
+                  child: Text('Import from JSON file'),
+                  onPressed: () {
+                    Navigator.of(context).pop('file');
+                  },
+                ),
+                ShadButton.secondary(
+                  child: Text('Import from folder'),
+                  onPressed: () {
+                    Navigator.of(context).pop('folder');
+                  },
+                ),
+              ],
             ),
-            ShadButton.secondary(
-              child: Text('Import from folder'),
-              onPressed: () {
-                Navigator.of(context).pop('folder');
-              },
-            ),
-          ],
-        ),
-      ),
+          ),
     );
 
     if (result == 'file') {
@@ -361,18 +371,19 @@ class SettingsView extends StatelessWidget {
     showShadDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => ShadDialog(
-        title: Text(message),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 16),
-            const CircularProgressIndicator(),
-            const SizedBox(height: 16),
-            const Text('Please wait...'),
-          ],
-        ),
-      ),
+      builder:
+          (context) => ShadDialog(
+            title: Text(message),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 16),
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                const Text('Please wait...'),
+              ],
+            ),
+          ),
     );
   }
 
@@ -396,9 +407,9 @@ class SettingsView extends StatelessWidget {
     if (filePath == null) {
       log.warning("File path is null");
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to access file')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Failed to access file')));
       }
       return;
     }
@@ -440,14 +451,16 @@ class SettingsView extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Successfully imported $count shot${count == 1 ? '' : 's'}'),
+            content: Text(
+              'Successfully imported $count shot${count == 1 ? '' : 's'}',
+            ),
             backgroundColor: Colors.green,
           ),
         );
       }
     } catch (e, st) {
       log.severe("Shot import failed:", e, st);
-      
+
       // Close progress dialog
       if (context.mounted) {
         Navigator.of(context).pop();
@@ -487,16 +500,16 @@ class SettingsView extends StatelessWidget {
       final Directory sourceDir = Directory(sourceDirPath);
       final files = await sourceDir.list().toList();
       log.info("listing: $files");
-      
+
       int successCount = 0;
       int failCount = 0;
-      
+
       for (final file in files) {
         if (file is! File) continue;
-        
+
         final f = File(file.path);
         if (!f.path.endsWith('.json')) continue;
-        
+
         try {
           final content = await f.readAsString();
           log.fine("Importing: ${f.path}");
@@ -521,19 +534,20 @@ class SettingsView extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              successCount > 0 
-                ? 'Imported $successCount shot${successCount == 1 ? '' : 's'}${hasFailures ? ' ($failCount failed)' : ''}'
-                : 'No shots imported${hasFailures ? ' ($failCount files failed)' : ''}',
+              successCount > 0
+                  ? 'Imported $successCount shot${successCount == 1 ? '' : 's'}${hasFailures ? ' ($failCount failed)' : ''}'
+                  : 'No shots imported${hasFailures ? ' ($failCount files failed)' : ''}',
             ),
-            backgroundColor: successCount > 0 
-              ? (hasFailures ? Colors.orange : Colors.green)
-              : Colors.red,
+            backgroundColor:
+                successCount > 0
+                    ? (hasFailures ? Colors.orange : Colors.green)
+                    : Colors.red,
           ),
         );
       }
     } catch (e, st) {
       log.severe("Folder import failed:", e, st);
-      
+
       // Close progress dialog
       if (context.mounted) {
         Navigator.of(context).pop();
@@ -593,15 +607,3 @@ class SettingsView extends StatelessWidget {
     }
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
