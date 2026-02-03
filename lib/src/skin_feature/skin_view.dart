@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/home_feature/home_feature.dart';
@@ -24,6 +25,7 @@ class SkinView extends StatefulWidget {
 
 class _SkinViewState extends State<SkinView> {
   final _log = Logger('SkinView');
+  final _focusNode = FocusNode();
   InAppWebViewController? _controller;
   bool _isLoading = true;
   bool _isCheckingCompatibility = true;
@@ -36,6 +38,12 @@ class _SkinViewState extends State<SkinView> {
   void initState() {
     super.initState();
     _checkCompatibilityAndInit();
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
   }
 
   Future<void> _checkCompatibilityAndInit() async {
@@ -93,13 +101,25 @@ class _SkinViewState extends State<SkinView> {
   @override
   Widget build(BuildContext context) {
     // Use Scaffold for proper widget constraints on Android, but make it fullscreen
-    return Scaffold(
-      // No AppBar for fullscreen appearance
-      body: SafeArea(
-        // Allow content to extend into system UI areas for true fullscreen
-        top: false,
-        bottom: false,
-        child: _buildBody(),
+    return KeyboardListener(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: (KeyEvent event) {
+        // Handle Escape key on desktop platforms to exit SkinView
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.escape) {
+          _log.info('Escape key pressed - exiting SkinView');
+          Navigator.of(context).pushReplacementNamed(HomeScreen.routeName);
+        }
+      },
+      child: Scaffold(
+        // No AppBar for fullscreen appearance
+        body: SafeArea(
+          // Allow content to extend into system UI areas for true fullscreen
+          top: false,
+          bottom: false,
+          child: _buildBody(),
+        ),
       ),
     );
   }
