@@ -87,12 +87,17 @@ class _SkinViewState extends State<SkinView> {
       useShouldOverrideUrlLoading: true,
 
       // Caching
-      cacheEnabled: true,
+      cacheEnabled: false,
 
       // Zoom - disable for consistent UI
-      supportZoom: false,
+      // supportZoom: false,
       builtInZoomControls: false,
-      displayZoomControls: false,
+      enableViewportScale: true,
+
+      // displayZoomControls: false,
+      userAgent: "Streamline-Bridge",
+
+
     );
 
     _log.info('InAppWebView settings initialized');
@@ -106,10 +111,15 @@ class _SkinViewState extends State<SkinView> {
       autofocus: true,
       onKeyEvent: (KeyEvent event) {
         // Handle Escape key on desktop platforms to exit SkinView
-        if (event is KeyDownEvent &&
+        if (event is KeyUpEvent &&
             event.logicalKey == LogicalKeyboardKey.escape) {
           _log.info('Escape key pressed - exiting SkinView');
-          Navigator.of(context).pushReplacementNamed(HomeScreen.routeName);
+          Future.delayed(Duration(milliseconds: 300), () {
+            if (context.mounted == false) {
+              return;
+            }
+            Navigator.of(context).pushReplacementNamed(HomeScreen.routeName);
+          });
         }
       },
       child: Scaffold(
