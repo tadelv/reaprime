@@ -8,7 +8,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/src/home_feature/home_feature.dart';
 import 'package:reaprime/src/home_feature/widgets/device_selection_widget.dart';
 import 'package:reaprime/src/landing_feature/landing_feature.dart';
+import 'package:reaprime/src/skin_feature/skin_view.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
+import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:universal_ble/universal_ble.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
@@ -25,6 +27,7 @@ class PermissionsView extends StatelessWidget {
   final De1Controller de1controller;
   final PluginLoaderService? pluginLoaderService;
   final WebUIStorage webUIStorage;
+  final WebUIService webUIService;
   final SettingsController settingsController;
 
   PermissionsView({
@@ -33,6 +36,7 @@ class PermissionsView extends StatelessWidget {
     required this.de1controller,
     this.pluginLoaderService,
     required this.webUIStorage,
+    required this.webUIService,
     required this.settingsController,
   });
 
@@ -158,6 +162,8 @@ class PermissionsView extends StatelessWidget {
         de1controller: de1controller,
         deviceController: deviceController,
         settingsController: settingsController,
+        webUIService: webUIService,
+        webUIStorage: webUIStorage,
         logger: _log,
       ),
     );
@@ -168,12 +174,17 @@ class DeviceDiscoveryView extends StatefulWidget {
   final DeviceController deviceController;
   final De1Controller de1controller;
   final SettingsController settingsController;
+  final WebUIService webUIService;
+  final WebUIStorage webUIStorage;
   final Logger logger;
+  
   const DeviceDiscoveryView({
     super.key,
     required this.deviceController,
     required this.de1controller,
     required this.settingsController,
+    required this.webUIService,
+    required this.webUIStorage,
     required this.logger,
   });
 
@@ -188,6 +199,51 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   late StreamSubscription<List<dev.Device>> _discoverySubscription;
 
   final Duration _timeoutDuration = Duration(seconds: 10);
+
+  /// Determines the correct route to navigate to after device connection
+  /// 
+  /// Returns SkinView route for mobile/desktop platforms (iOS, Android, macOS)
+  /// if WebUI is available and serving. Otherwise returns LandingFeature route.
+  Future<String> _getNavigationRoute() async {
+    // Check platform - only use WebView on iOS, Android, macOS
+    final supportedPlatforms = Platform.isIOS || Platform.isAndroid || Platform.isMacOS;
+    
+    if (!supportedPlatforms) {
+      widget.logger.info('Platform not supported for WebView, using Landing page');
+      return LandingFeature.routeName;
+    }
+
+    // Check if WebUI service is serving
+    if (!widget.webUIService.isServing) {
+      widget.logger.warning('WebUI service is not serving, using Landing page');
+      _showWebUIError('WebUI service is not available');
+      return LandingFeature.routeName;
+    }
+
+    // Check if default skin is available
+    final defaultSkin = widget.webUIStorage.defaultSkin;
+    if (defaultSkin == null) {
+      widget.logger.warning('No default skin available, using Landing page');
+      _showWebUIError('No WebUI skin found');
+      return LandingFeature.routeName;
+    }
+
+    widget.logger.info('Navigating to SkinView with skin: ${defaultSkin.name}');
+    return SkinView.routeName;
+  }
+
+  /// Shows an error notification to the user about WebUI issues
+  void _showWebUIError(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -214,9 +270,16 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
           );
 
           // Auto-connect to preferred machine
-          widget.de1controller.connectToDe1(preferredMachine).then((_) {
+          widget.de1controller.connectToDe1(preferredMachine).then((_) async {
             if (mounted) {
-              Navigator.popAndPushNamed(context, LandingFeature.routeName);
+              final route = await _getNavigationRoute();
+              if (mounted) {
+                // Push both routes to stack: HomeScreen first, then the target route
+                Navigator.popAndPushNamed(context, HomeScreen.routeName);
+                if (route == SkinView.routeName) {
+                  Navigator.of(context).pushNamed(SkinView.routeName);
+                }
+              }
             }
           });
           _discoverySubscription.cancel();
@@ -278,8 +341,15 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       settingsController: widget.settingsController,
       showHeader: true,
       headerText: "Select a machine from the list",
-      onDeviceSelected: (de1) {
-        Navigator.popAndPushNamed(context, LandingFeature.routeName);
+      onDeviceSelected: (de1) async {
+        final route = await _getNavigationRoute();
+        if (mounted) {
+          // Push both routes to stack: HomeScreen first, then the target route
+          Navigator.popAndPushNamed(context, HomeScreen.routeName);
+          if (route == SkinView.routeName) {
+            Navigator.of(context).pushNamed(SkinView.routeName);
+          }
+        }
       },
     );
   }
@@ -424,8 +494,16 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
           if (discoveredDevices.isEmpty) {
             _state = DiscoveryState.foundNone;
           } else if (discoveredDevices.length == 1) {
-            widget.de1controller.connectToDe1(discoveredDevices.first);
-            Navigator.popAndPushNamed(context, LandingFeature.routeName);
+            widget.de1controller.connectToDe1(discoveredDevices.first).then((_) async {
+              final route = await _getNavigationRoute();
+              if (mounted) {
+                // Push both routes to stack: HomeScreen first, then the target route
+                Navigator.popAndPushNamed(context, HomeScreen.routeName);
+                if (route == SkinView.routeName) {
+                  Navigator.of(context).pushNamed(SkinView.routeName);
+                }
+              }
+            });
           } else {
             _state = DiscoveryState.foundMany;
           }
@@ -518,3 +596,11 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 }
 
 enum DiscoveryState { searching, foundMany, foundNone }
+
+
+
+
+
+
+
+

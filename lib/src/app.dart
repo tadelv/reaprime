@@ -15,6 +15,7 @@ import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/permissions_feature/permissions_view.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
 import 'package:reaprime/src/realtime_steam_feature/realtime_steam_feature.dart';
+import 'package:reaprime/src/skin_feature/skin_view.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -291,12 +292,15 @@ class _MyAppState extends State<MyApp> {
                         webUIStorage: widget.webUIStorage,
                         webUIService: widget.webUIService,
                       );
+                    case SkinView.routeName:
+                      return const SkinView();
                     default:
                       return PermissionsView(
                         deviceController: widget.deviceController,
                         de1controller: widget.de1Controller,
                         pluginLoaderService: widget.pluginLoaderService,
                         webUIStorage: widget.webUIStorage,
+                        webUIService: widget.webUIService,
                         settingsController: widget.settingsController,
                       );
                   }
@@ -309,3 +313,5 @@ class _MyAppState extends State<MyApp> {
     );
   }
 }
+
+
