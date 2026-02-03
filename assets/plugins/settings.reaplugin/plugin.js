@@ -356,6 +356,14 @@ function createPlugin(host) {
                             <button class="btn btn-primary" onclick="updateReaSetting('scalePowerMode', document.getElementById('scalePowerMode').value)" aria-label="Save scale power mode setting">Save</button>
                         </div>
                     </div>
+                    <div class="setting-item">
+                        <label class="setting-label" for="preferredMachineId">Auto-Connect Device ID</label>
+                        <div class="setting-control">
+                            <input type="text" id="preferredMachineId" value="${reaSettings.preferredMachineId || ''}" placeholder="None set" aria-describedby="preferredMachineId-desc" style="width: 200px;">
+                            <span id="preferredMachineId-desc" class="visually-hidden">Device ID for automatic connection on startup. Leave empty to disable auto-connect.</span>
+                            <button class="btn btn-primary" onclick="updateReaSetting('preferredMachineId', document.getElementById('preferredMachineId').value || null)" aria-label="Save preferred machine ID setting">Save</button>
+                        </div>
+                    </div>
                 </div>
             ` : '<div class="error" role="alert" aria-live="assertive">Failed to load REA settings</div>'}
             </section>
@@ -615,7 +623,7 @@ function createPlugin(host) {
   // Return the plugin object
   return {
     id: "settings.reaplugin",
-    version: "0.0.6",
+    version: "0.0.7",
 
     onLoad(settings) {
       state.refreshInterval = settings.RefreshInterval !== undefined ? settings.RefreshInterval : 5;

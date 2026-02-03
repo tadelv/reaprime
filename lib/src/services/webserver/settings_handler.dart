@@ -19,6 +19,7 @@ class SettingsHandler {
       final weightFlowMultiplier = _controller.weightFlowMultiplier;
       final volumeFlowMultiplier = _controller.volumeFlowMultiplier;
       final scalePowerMode = _controller.scalePowerMode.name;
+      final preferredMachineId = _controller.preferredMachineId;
       return {
         'gatewayMode': gatewayMode,
         'webUiPath': webPath,
@@ -26,6 +27,7 @@ class SettingsHandler {
         'weightFlowMultiplier': weightFlowMultiplier,
         'volumeFlowMultiplier': volumeFlowMultiplier,
         'scalePowerMode': scalePowerMode,
+        'preferredMachineId': preferredMachineId,
       };
     });
     app.post('/api/v1/settings', (Request request) async {
@@ -77,10 +79,23 @@ class SettingsHandler {
         );
         if (mode == null) {
           return Response.badRequest(
-            body: {'message': '${json["scalePowerMode"]} is not a valid scale power mode'},
+            body: {
+              'message':
+                  '${json["scalePowerMode"]} is not a valid scale power mode',
+            },
           );
         }
         await _controller.setScalePowerMode(mode);
+      }
+      if (json.containsKey('preferredMachineId')) {
+        final value = json['preferredMachineId'];
+        if (value == null || value is String) {
+          await _controller.setPreferredMachineId(value);
+        } else {
+          return Response.badRequest(
+            body: {'message': 'preferredMachineId must be a string or null'},
+          );
+        }
       }
       return Response.ok('');
     });
