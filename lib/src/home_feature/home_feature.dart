@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
@@ -11,6 +13,7 @@ import 'package:reaprime/src/home_feature/tiles/status_tile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
+import 'package:reaprime/src/skin_feature/skin_view.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -341,6 +344,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
         // Show status when serving, or start button when not serving
         if (widget.webUIService.isServing) {
+          final skinName = widget.webUIService.serverPath().split('/').last;
           return Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -348,12 +352,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               Flexible(
                 child: ShadButton(
                   child: Text(
-                    widget.webUIService.serverPath().split('/').last,
+                    "Go to $skinName",
                     overflow: TextOverflow.ellipsis,
                   ),
                   onPressed: () async {
-                    final url = Uri.parse('http://localhost:3000');
-                    await launchUrl(url);
+                    // On supported platforms (iOS, Android, macOS), use in-app WebView
+                    if (Platform.isIOS || Platform.isAndroid || Platform.isMacOS) {
+                      Navigator.of(context).pushNamed(SkinView.routeName);
+                    } else {
+                      // On other platforms, open in external browser
+                      final url = Uri.parse('http://localhost:3000');
+                      await launchUrl(url);
+                    }
                   },
                 ),
               ),

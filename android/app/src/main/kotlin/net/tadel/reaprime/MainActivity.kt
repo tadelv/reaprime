@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
+import android.webkit.WebView
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
@@ -34,6 +35,17 @@ class MainActivity: FlutterActivity() {
             Log.w(TAG, "Duplicate launcher instance detected - finishing")
             finish()
             return
+        }
+        
+        // Enable software rendering for WebView on devices with GPU issues
+        // This is a workaround for MediaTek chipsets with broken hardware acceleration
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            try {
+                WebView.setWebContentsDebuggingEnabled(true)
+                Log.d(TAG, "WebView debugging enabled")
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to enable WebView debugging", e)
+            }
         }
         
         Log.d(TAG, "onCreate - valid instance starting")

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/home_feature/home_feature.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 /// Displays the WebUI skin in a full-screen webview
 /// 
@@ -34,32 +35,66 @@ class _SkinViewState extends State<SkinView> {
 
   void _initializeWebView() {
     try {
-      _controller = WebViewController()..setJavaScriptMode(JavaScriptMode.unrestricted);
+      _log.info('Initializing WebView for platform: ${Platform.operatingSystem}');
+      
+      // On Android, create controller with platform-specific parameters
+      if (Platform.isAndroid) {
+        _log.info('Creating Android WebView controller');
+        
+        final androidController = WebViewController.fromPlatformCreationParams(
+          AndroidWebViewControllerCreationParams(),
+        );
+        
+        // Configure Android-specific WebView settings
+        final androidWebViewController = androidController.platform as AndroidWebViewController;
+        
+        // Disable media playback gesture requirement
+        androidWebViewController.setMediaPlaybackRequiresUserGesture(false);
+        
+        // Enable DOM storage and database for better compatibility
+        androidWebViewController.setGeolocationPermissionsPromptCallbacks(
+          onShowPrompt: (request) async {
+            return GeolocationPermissionsResponse(allow: false, retain: false);
+          },
+        );
+        
+        // Try to improve compatibility by explicitly enabling certain features
+        _log.info('Configured Android WebView settings');
+        
+        _controller = androidController;
+      } else {
+        _log.info('Creating standard WebView controller');
+        _controller = WebViewController();
+      }
+      
+      _controller.setJavaScriptMode(JavaScriptMode.unrestricted);
+      _log.info('JavaScript mode set to unrestricted');
       
       // setBackgroundColor with transparency is not supported on macOS
       // Only set background color on iOS and Android
       if (Platform.isIOS || Platform.isAndroid) {
-        _controller.setBackgroundColor(Colors.transparent);
+        _controller.setBackgroundColor(Colors.white);
+        _log.info('Background color set to white');
       }
       
       _controller
         ..setNavigationDelegate(
           NavigationDelegate(
             onPageStarted: (String url) {
-              _log.fine('Page started loading: $url');
+              _log.info('Page started loading: $url');
               setState(() {
                 _isLoading = true;
                 _errorMessage = null;
               });
             },
             onPageFinished: (String url) {
-              _log.fine('Page finished loading: $url');
+              _log.info('Page finished loading: $url');
               setState(() {
                 _isLoading = false;
               });
             },
             onWebResourceError: (WebResourceError error) {
-              _log.warning('WebView error: ${error.description}');
+              _log.severe('WebView resource error - Code: ${error.errorCode}, Type: ${error.errorType}, Description: ${error.description}');
               setState(() {
                 _isLoading = false;
                 _errorMessage = 'Failed to load skin: ${error.description}';
@@ -68,6 +103,7 @@ class _SkinViewState extends State<SkinView> {
             onNavigationRequest: (NavigationRequest request) {
               // Allow all navigation within localhost:3000
               if (request.url.startsWith('http://localhost:3000')) {
+                _log.fine('Allowing navigation to: ${request.url}');
                 return NavigationDecision.navigate;
               }
               // Block external navigation
@@ -77,6 +113,8 @@ class _SkinViewState extends State<SkinView> {
           ),
         )
         ..loadRequest(Uri.parse('http://localhost:3000'));
+      
+      _log.info('WebView load request issued for http://localhost:3000');
     } catch (e, stackTrace) {
       _log.severe('Failed to initialize WebView', e, stackTrace);
       setState(() {
@@ -88,17 +126,15 @@ class _SkinViewState extends State<SkinView> {
 
   @override
   Widget build(BuildContext context) {
+    // Use Scaffold for proper widget constraints on Android, but make it fullscreen
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Streamline'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            Navigator.of(context).pushReplacementNamed(HomeScreen.routeName);
-          },
-        ),
+      // No AppBar for fullscreen appearance
+      body: SafeArea(
+        // Allow content to extend into system UI areas for true fullscreen
+        top: false,
+        bottom: false,
+        child: _buildBody(),
       ),
-      body: _buildBody(),
     );
   }
 
@@ -138,9 +174,12 @@ class _SkinViewState extends State<SkinView> {
       );
     }
 
+    // Wrap WebView in RepaintBoundary to help with rendering issues
     return Stack(
       children: [
-        WebViewWidget(controller: _controller),
+        RepaintBoundary(
+          child: WebViewWidget(controller: _controller),
+        ),
         if (_isLoading)
           const Center(
             child: CircularProgressIndicator(),
