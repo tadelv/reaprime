@@ -50,10 +50,6 @@ class _LandingState extends State<LandingFeature> {
 
   Future<void> _initializeLanding() async {
     try {
-      // Load previously selected skin preference
-      final prefs = await SharedPreferences.getInstance();
-      final savedSkinId = prefs.getString(_selectedSkinPrefKey);
-
       // Get available skins
       final skins = widget.webUIStorage.installedSkins;
 
@@ -65,23 +61,23 @@ class _LandingState extends State<LandingFeature> {
         return;
       }
 
-      // Try to use saved preference, otherwise use default skin
-      WebUISkin? skinToUse;
-      if (savedSkinId != null) {
-        skinToUse = widget.webUIStorage.getSkin(savedSkinId);
-      }
-      skinToUse ??= widget.webUIStorage.defaultSkin;
-
-      if (skinToUse != null) {
+      // Check if WebUI service is already serving (initialized in PermissionsView)
+      if (widget.webUIService.isServing) {
+        _log.info('WebUI service already serving, using current skin');
+        // Try to determine which skin is being served (use default)
+        final defaultSkin = widget.webUIStorage.defaultSkin;
         setState(() {
-          _selectedSkin = skinToUse;
+          _selectedSkin = defaultSkin;
+          _isServingUI = true;
           _isLoading = false;
         });
-
-        // Auto-load the selected skin
-        await _serveSkin(skinToUse);
       } else {
+        // WebUI not serving - show error message explaining the issue
         setState(() {
+          _errorMessage = 
+              'WebUI service failed to start during initialization. '
+              'This may be due to missing skins or port conflicts. '
+              'You can still use the dashboard below.';
           _isLoading = false;
         });
       }
@@ -399,3 +395,4 @@ class _LandingState extends State<LandingFeature> {
     return url;
   }
 }
+

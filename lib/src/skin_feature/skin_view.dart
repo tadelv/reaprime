@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/home_feature/home_feature.dart';
@@ -32,9 +34,15 @@ class _SkinViewState extends State<SkinView> {
 
   void _initializeWebView() {
     try {
-      _controller = WebViewController()
-        ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setBackgroundColor(Colors.transparent)
+      _controller = WebViewController()..setJavaScriptMode(JavaScriptMode.unrestricted);
+      
+      // setBackgroundColor with transparency is not supported on macOS
+      // Only set background color on iOS and Android
+      if (Platform.isIOS || Platform.isAndroid) {
+        _controller.setBackgroundColor(Colors.transparent);
+      }
+      
+      _controller
         ..setNavigationDelegate(
           NavigationDelegate(
             onPageStarted: (String url) {
