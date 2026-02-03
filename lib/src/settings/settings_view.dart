@@ -231,6 +231,57 @@ class SettingsView extends StatelessWidget {
                   ),
                 ],
               ),
+              ShadCard(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 12,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Auto-Connect Device',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.info_outline),
+                            iconSize: 20,
+                            onPressed: () => _showPreferredDeviceInfo(context),
+                            tooltip: 'Learn more',
+                          ),
+                        ],
+                      ),
+                      if (controller.preferredMachineId != null) ...[
+                        Text(
+                          'Device ID: ${controller.preferredMachineId}',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        ShadButton.destructive(
+                          onPressed: () async {
+                            await controller.setPreferredMachineId(null);
+                          },
+                          child: const Text('Clear Auto-Connect Device'),
+                        ),
+                      ] else ...[
+                        Text(
+                          'No auto-connect device set',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(fontStyle: FontStyle.italic),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'To set an auto-connect device, check the "Auto-connect to this machine" checkbox when selecting a device during startup.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
               ShadButton.secondary(
                 onPressed: () {
                   _pickFolderAndLoadHtml(context);
@@ -270,6 +321,88 @@ class SettingsView extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  void _showPreferredDeviceInfo(BuildContext context) {
+    showShadDialog(
+      context: context,
+      builder:
+          (context) => ShadDialog(
+            title: const Text('Auto-Connect Device'),
+            description: const Text(
+              'Automatically connect to your preferred machine on startup',
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 16,
+              children: [
+                Text(
+                  'When you set an auto-connect device, ReaPrime will:',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+                ),
+                _buildInfoPoint(
+                  context,
+                  Icons.bluetooth_searching,
+                  'Scan for devices on startup',
+                ),
+                _buildInfoPoint(
+                  context,
+                  Icons.link,
+                  'Automatically connect to your preferred machine when found',
+                ),
+                _buildInfoPoint(
+                  context,
+                  Icons.speed,
+                  'Skip the device selection screen for faster startup',
+                ),
+                const Divider(),
+                Text(
+                  'How to set:',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+                ),
+                Text(
+                  '1. During device selection at startup, check the "Auto-connect to this machine" checkbox next to your preferred device.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'How to change:',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+                ),
+                Text(
+                  '1. Clear the current auto-connect device using the button above.\n2. Restart the app and select a different device with the checkbox.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+            actions: [
+              ShadButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Got it'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  Widget _buildInfoPoint(BuildContext context, IconData icon, String text) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 12,
+      children: [
+        Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+        Expanded(
+          child: Text(text, style: Theme.of(context).textTheme.bodySmall),
+        ),
+      ],
     );
   }
 
