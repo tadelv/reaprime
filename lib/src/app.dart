@@ -297,6 +297,7 @@ class _MyAppState extends State<MyApp> {
                         de1controller: widget.de1Controller,
                         pluginLoaderService: widget.pluginLoaderService,
                         webUIStorage: widget.webUIStorage,
+                        settingsController: widget.settingsController,
                       );
                   }
                 },

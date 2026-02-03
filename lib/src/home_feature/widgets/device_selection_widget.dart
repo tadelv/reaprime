@@ -5,6 +5,7 @@ import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
+import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// Reusable widget for selecting a DE1 machine from a list of discovered devices.
@@ -44,6 +45,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 class DeviceSelectionWidget extends StatefulWidget {
   final DeviceController deviceController;
   final De1Controller de1Controller;
+  final SettingsController? settingsController;
   final Function(De1Interface) onDeviceSelected;
   final bool showHeader;
   final String? headerText;
@@ -52,6 +54,7 @@ class DeviceSelectionWidget extends StatefulWidget {
     super.key,
     required this.deviceController,
     required this.de1Controller,
+    this.settingsController,
     required this.onDeviceSelected,
     this.showHeader = false,
     this.headerText,
@@ -64,6 +67,8 @@ class DeviceSelectionWidget extends StatefulWidget {
 class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
   late StreamSubscription<List<dev.Device>> _discoverySubscription;
   List<De1Interface> _discoveredDevices = [];
+  String? _connectingDeviceId;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -100,27 +105,88 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
       return Padding(
         padding: const EdgeInsets.all(16.0),
         child: Center(
-          child: Text('No DE1 machines found. Please try scanning again.'),
+          child: Text('No machines found. Please try scanning again.'),
         ),
       );
     }
+
+    final preferredMachineId = widget.settingsController?.preferredMachineId;
 
     final listView = ListView.builder(
       shrinkWrap: true,
       itemCount: _discoveredDevices.length,
       itemBuilder: (context, index) {
         final de1 = _discoveredDevices[index];
+        final isPreferred = preferredMachineId == de1.deviceId;
+        final isConnecting = _connectingDeviceId == de1.deviceId;
+        final isAnyConnecting = _connectingDeviceId != null;
+        
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
           child: ShadCard(
-            child: ListTile(
-              title: Text(de1.name),
-              subtitle: Text("ID: ${de1.deviceId}"),
-              trailing: Icon(LucideIcons.chevronRight),
-              onTap: () async {
-                await widget.de1Controller.connectToDe1(de1);
-                widget.onDeviceSelected(de1);
-              },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  title: Text(de1.name),
+                  subtitle: Text("ID: ${de1.deviceId}"),
+                  trailing: isConnecting
+                      ? SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(LucideIcons.chevronRight),
+                  enabled: !isAnyConnecting,
+                  onTap: isAnyConnecting
+                      ? null
+                      : () async {
+                          setState(() {
+                            _connectingDeviceId = de1.deviceId;
+                            _errorMessage = null;
+                          });
+
+                          try {
+                            await widget.de1Controller.connectToDe1(de1);
+                            if (mounted) {
+                              widget.onDeviceSelected(de1);
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              setState(() {
+                                _connectingDeviceId = null;
+                                _errorMessage = 'Failed to connect: $e';
+                              });
+                            }
+                          }
+                        },
+                ),
+                if (widget.settingsController != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 8.0),
+                    child: Row(
+                      children: [
+                        Checkbox(
+                          value: isPreferred,
+                          onChanged: (value) async {
+                            if (value == true) {
+                              await widget.settingsController!.setPreferredMachineId(de1.deviceId);
+                            } else {
+                              await widget.settingsController!.setPreferredMachineId(null);
+                            }
+                            setState(() {});
+                          },
+                        ),
+                        Expanded(
+                          child: Text(
+                            'Auto-connect to this machine',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
           ),
         );
@@ -132,18 +198,105 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
         spacing: 16,
         children: [
           Text(
-            widget.headerText ?? "Select DE1 from the list",
+            widget.headerText ?? "Select a machine from the list",
             style: Theme.of(context).textTheme.titleMedium,
           ),
+          if (_errorMessage != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: ShadCard(
+                backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Row(
+                    children: [
+                      Icon(
+                        LucideIcons.info,
+                        size: 20,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onErrorContainer,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(LucideIcons.x, size: 16),
+                        onPressed: () {
+                          setState(() {
+                            _errorMessage = null;
+                          });
+                        },
+                        padding: EdgeInsets.zero,
+                        constraints: BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           Expanded(child: listView),
         ],
       );
     }
 
-    return SizedBox(
-      height: 300,
-      width: 400,
-      child: listView,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_errorMessage != null)
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: ShadCard(
+              backgroundColor: Theme.of(context).colorScheme.errorContainer,
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Row(
+                  children: [
+                    Icon(
+                      LucideIcons.info,
+                      size: 20,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _errorMessage!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onErrorContainer,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(LucideIcons.x, size: 16),
+                      onPressed: () {
+                        setState(() {
+                          _errorMessage = null;
+                        });
+                      },
+                      padding: EdgeInsets.zero,
+                      constraints: BoxConstraints(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        SizedBox(
+          height: 300,
+          width: 400,
+          child: listView,
+        ),
+      ],
     );
   }
 }
+
+
+
+
+
+

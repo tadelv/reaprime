@@ -17,6 +17,7 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
+import 'package:reaprime/src/settings/settings_controller.dart';
 
 class PermissionsView extends StatelessWidget {
   final Logger _log = Logger("PermissionsView");
@@ -24,6 +25,7 @@ class PermissionsView extends StatelessWidget {
   final De1Controller de1controller;
   final PluginLoaderService? pluginLoaderService;
   final WebUIStorage webUIStorage;
+  final SettingsController settingsController;
 
   PermissionsView({
     super.key,
@@ -31,6 +33,7 @@ class PermissionsView extends StatelessWidget {
     required this.de1controller,
     this.pluginLoaderService,
     required this.webUIStorage,
+    required this.settingsController,
   });
 
   @override
@@ -154,6 +157,8 @@ class PermissionsView extends StatelessWidget {
       child: DeviceDiscoveryView(
         de1controller: de1controller,
         deviceController: deviceController,
+        settingsController: settingsController,
+        logger: _log,
       ),
     );
   }
@@ -162,10 +167,14 @@ class PermissionsView extends StatelessWidget {
 class DeviceDiscoveryView extends StatefulWidget {
   final DeviceController deviceController;
   final De1Controller de1controller;
+  final SettingsController settingsController;
+  final Logger logger;
   const DeviceDiscoveryView({
     super.key,
     required this.deviceController,
     required this.de1controller,
+    required this.settingsController,
+    required this.logger,
   });
 
   @override
@@ -187,31 +196,46 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
     _discoverySubscription = widget.deviceController.deviceStream.listen((
       data,
     ) {
+      widget.logger.fine("device stream update: $data");
       final discoveredDevices = data.whereType<De1Interface>().toList();
-      setState(() {
-        _state =
-            discoveredDevices.length > 1
-                ? DiscoveryState.foundMany
-                : DiscoveryState.searching;
-      });
+
+      // Show devices immediately when first one is detected
+      if (discoveredDevices.isNotEmpty) {
+        setState(() {
+          _state = DiscoveryState.foundMany;
+        });
+
+        // Check if we should auto-connect to preferred machine
+        final preferredMachineId = widget.settingsController.preferredMachineId;
+        if (preferredMachineId != null) {
+          final preferredMachine = discoveredDevices.firstWhere(
+            (device) => device.deviceId == preferredMachineId,
+            orElse: () => discoveredDevices.first,
+          );
+
+          // Auto-connect to preferred machine
+          widget.de1controller.connectToDe1(preferredMachine).then((_) {
+            if (mounted) {
+              Navigator.popAndPushNamed(context, LandingFeature.routeName);
+            }
+          });
+          _discoverySubscription.cancel();
+        }
+      }
     });
 
-    // If 10 seconds elapsed without finding a second de1, continue automatically
+    // If 10 seconds elapsed without finding any devices, show no devices found
     Future.delayed(_timeoutDuration, () {
       final discoveredDevices =
           widget.deviceController.devices.whereType<De1Interface>().toList();
       _discoverySubscription.cancel();
 
-      if (discoveredDevices.length == 1) {
-        widget.de1controller.connectToDe1(discoveredDevices.first);
+      if (discoveredDevices.isEmpty) {
         if (mounted) {
-          Navigator.popAndPushNamed(context, LandingFeature.routeName);
+          setState(() {
+            _state = DiscoveryState.foundNone;
+          });
         }
-      } else if (discoveredDevices.isEmpty) {
-        // Show no devices found screen instead of auto-navigating
-        setState(() {
-          _state = DiscoveryState.foundNone;
-        });
       }
     });
   }
@@ -227,7 +251,6 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
     switch (_state) {
       case DiscoveryState.searching:
         return _searchingView(context);
-      case DiscoveryState.foundOne:
       case DiscoveryState.foundMany:
         return SizedBox(height: 500, width: 300, child: _resultsView(context));
       case DiscoveryState.foundNone:
@@ -252,8 +275,9 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
     return DeviceSelectionWidget(
       deviceController: widget.deviceController,
       de1Controller: widget.de1controller,
+      settingsController: widget.settingsController,
       showHeader: true,
-      headerText: "Select DE1 from the list",
+      headerText: "Select a machine from the list",
       onDeviceSelected: (de1) {
         Navigator.popAndPushNamed(context, LandingFeature.routeName);
       },
@@ -493,4 +517,4 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   }
 }
 
-enum DiscoveryState { searching, foundOne, foundMany, foundNone }
+enum DiscoveryState { searching, foundMany, foundNone }

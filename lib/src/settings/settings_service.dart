@@ -87,6 +87,18 @@ class SettingsService {
   Future<void> setScalePowerMode(ScalePowerMode mode) async {
     await prefs.setString(SettingsKeys.scalePowerMode.name, mode.name);
   }
+
+  Future<String?> preferredMachineId() async {
+    return await prefs.getString(SettingsKeys.preferredMachineId.name);
+  }
+
+  Future<void> setPreferredMachineId(String? machineId) async {
+    if (machineId == null) {
+      await prefs.remove(SettingsKeys.preferredMachineId.name);
+    } else {
+      await prefs.setString(SettingsKeys.preferredMachineId.name, machineId);
+    }
+  }
 }
 
 enum SettingsKeys {
@@ -98,4 +110,5 @@ enum SettingsKeys {
   weightFlowMultiplier,
   volumeFlowMultiplier,
   scalePowerMode,
+  preferredMachineId,
 }

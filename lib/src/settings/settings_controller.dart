@@ -33,6 +33,8 @@ class SettingsController with ChangeNotifier {
 
   late ScalePowerMode _scalePowerMode;
 
+  String? _preferredMachineId;
+
   // Allow Widgets to read the user's preferred ThemeMode.
   ThemeMode get themeMode => _themeMode;
   GatewayMode get gatewayMode => _gatewayMode;
@@ -41,6 +43,7 @@ class SettingsController with ChangeNotifier {
   double get weightFlowMultiplier => _weightFlowMultiplier;
   double get volumeFlowMultiplier => _volumeFlowMultiplier;
   ScalePowerMode get scalePowerMode => _scalePowerMode;
+  String? get preferredMachineId => _preferredMachineId;
 
   /// Load the user's settings from the SettingsService. It may load from a
   /// local database or the internet. The controller only knows it can load the
@@ -53,6 +56,7 @@ class SettingsController with ChangeNotifier {
     _weightFlowMultiplier = await _settingsService.weightFlowMultiplier();
     _volumeFlowMultiplier = await _settingsService.volumeFlowMultiplier();
     _scalePowerMode = await _settingsService.scalePowerMode();
+    _preferredMachineId = await _settingsService.preferredMachineId();
 
     // Important! Inform listeners a change has occurred.
     notifyListeners();
@@ -143,6 +147,15 @@ class SettingsController with ChangeNotifier {
     }
     _scalePowerMode = mode;
     await _settingsService.setScalePowerMode(mode);
+    notifyListeners();
+  }
+
+  Future<void> setPreferredMachineId(String? machineId) async {
+    if (machineId == _preferredMachineId) {
+      return;
+    }
+    _preferredMachineId = machineId;
+    await _settingsService.setPreferredMachineId(machineId);
     notifyListeners();
   }
 }

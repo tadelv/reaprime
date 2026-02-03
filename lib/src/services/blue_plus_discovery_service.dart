@@ -24,7 +24,6 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
        });
 
   @override
-  // TODO: implement devices
   Stream<List<Device>> get devices => _deviceStreamController.stream;
 
   Future<void> _createDevice(

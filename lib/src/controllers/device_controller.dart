@@ -13,7 +13,7 @@ class DeviceController {
   final BehaviorSubject<List<Device>> _deviceStream = BehaviorSubject.seeded(
     [],
   );
-  
+
   final List<StreamSubscription> _serviceSubscriptions = [];
 
   Stream<List<Device>> get deviceStream => _deviceStream.asBroadcastStream();
@@ -32,7 +32,9 @@ class DeviceController {
     for (var service in _services) {
       try {
         await service.initialize();
-        final subscription = service.devices.listen((devices) => _serviceUpdate(service, devices));
+        final subscription = service.devices.listen(
+          (devices) => _serviceUpdate(service, devices),
+        );
         _serviceSubscriptions.add(subscription);
       } catch (e) {
         _log.warning("Service ${service} failed to init:", e);
@@ -44,7 +46,7 @@ class DeviceController {
   bool _autoConnect = true;
   bool get shouldAutoConnect => _autoConnect;
 
-  Future<void> scanForDevices({required bool autoConnect }) async {
+  Future<void> scanForDevices({required bool autoConnect}) async {
     // throw out all disconnected devices
     _devices.forEach((_, devices) async {
       List<Device> devicesToRemove = [];
@@ -63,28 +65,34 @@ class DeviceController {
     _autoConnect = autoConnect;
     _deviceStream.add(devices);
     // Scan all services in parallel
+    final completer = Completer();
     try {
-      await Future.wait(
-        _services.map((service) async {
-          try {
-            await service.scanForDevices();
-            _log.info("Service $service scan completed");
-            _deviceStream.add(_devices.values.expand((e) => e).toList());
-          } catch (e, st) {
-            _log.warning("Service $service failed to scan:", e, st);
-          }
-        }),
+      completer.complete(
+        Future.wait(
+          _services.map((service) async {
+            try {
+              _log.fine("starting scan for $service");
+              await service.scanForDevices();
+              // _deviceStream.add(_devices.values.expand((e) => e).toList());
+            } catch (e, st) {
+              _log.warning("Service $service failed to scan:", e, st);
+            }
+          }),
+        ),
       );
     } finally {
-      await Future.delayed(Duration(milliseconds: 200), () {
-        _autoConnect = tmpAutoConnect;
-        _log.info("_autoConnect restored to $tmpAutoConnect");
-        _log.info("current devices: ${this.devices}");
+      completer.future.then((_) async {
+        await Future.delayed(Duration(milliseconds: 200), () {
+          _autoConnect = tmpAutoConnect;
+          _log.info("_autoConnect restored to $tmpAutoConnect");
+          _log.info("current devices: $devices");
+        });
       });
     }
   }
 
-  _serviceUpdate(DeviceDiscoveryService service, List<Device> devices) {
+  void _serviceUpdate(DeviceDiscoveryService service, List<Device> devices) {
+    _log.fine("$service update: $devices");
     _devices[service] = devices;
     _deviceStream.add(this.devices);
   }
