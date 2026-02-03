@@ -1,32 +1,61 @@
 # Reasonable Espresso App - 1 a.k.a. Streamline Bridge
 
-> ReaPrime (R1) is a gateway app to the next generation of interfaces for Decent espresso machines. An API first approach makes it help you
-> focus on developing modern and sleek UIs, that are easy on the eyes as well as a delight to use. 
-
+> ReaPrime (R1) is a gateway app to the next generation
+of interfaces for Decent espresso machines. An API first approach makes it help you
+> focus on developing modern and sleek UIs,
+that are easy on the eyes as well as a delight to use.  
 
 ## API
+
 To browse the REA API, start REA and then point your browser to [localhost:4001](http://localhost:4001).
 
 ## Supported platforms
-The primary platform for ReaPrime is Android, as it runs on the tablet Decent espresso machines ship with.
-Of course, R1 can run as a service in the background, neatly tucked out of the way, but still keeping a stable
+
+The primary platform for ReaPrime is Android, as
+it runs on the tablet Decent espresso machines ship with.
+Of course, R1 can run as a service in the
+background, neatly tucked out of the way, but still keeping a stable
 connection between your app and the machine.
 
+## WebUI / Skins
+
+Similar to the original de1app, Streamline Bridge supports
+loading and display of different "skins".
+The skins can be accessed from the devices on you local
+area network on port 3000.  
+On the device running Bridge itself,
+there is an option on some platforms to use the
+embedded in-app web view, to access the skin and operate the machine.
+
+**Note: Android support**
+On the Teclast tablets, that used to ship with Decent machines, the Android System WebView
+versions cause an issue with displaying the in-app skin display (web view).
+
+You can try and update the system WebView if possible, from places like
+[https://www.apkmirror.com/apk/google-inc/android-system-webview/]
+
+Make sure to restart the tablet afterwards.
+
 ### What does it support?
+
 Currently, R1 supports the most basic of features, but enough to support the main workflows
 
 #### Machine supported operations
-- Query and set machine state (turn off/on, start espresso on machines without GHC, stop the shot)
+
+- Query and set machine state (turn off/on, start espresso
+on machines without GHC, stop the shot)
 - Set machine settings such as hot water temperature, steam temperature etc.
 - Upload v2 json profiles to the machine (the ones de1app stores in `profiles_v2`)
 
 - Exposed websockets for realtime shot updates and other values that might change frequently
 
 #### Scale supported operations
+
 - Tare the scale
 - Exposed websocket for weight snapshots
 
-##### Currently supported scales:
+##### Currently supported scales
+
 - Felicita Arc
 - Decent Scale
 - Bookoo
@@ -43,18 +72,23 @@ I'll skip through Flutter SDK install for now, google has all the answers.
 
 ### Build on your machine
 
-For versioning purposes, a build script is included, that injects certain environment vars into the build process.  
+For versioning purposes, a build
+script is included, that injects certain environment vars
+into the build process.  
 If you want to take advantage of that, make sure you run:
 `./flutter_with_commit.sh run`
 
-### Build for Linux arm64 in container:
+### Build for Linux arm64 in container
 
 Have Colima installed. Then `make build-arm`
 
+## Reasons and credits
 
-## Reasons and credits:
+REA stands for "Reasonable Espresso App".
+Provided you use it with a Decent Espresso machine,
+it might help you brew a reasonably decent espresso.  
 
-REA stands for "Reasonable Espresso App". Provided you use it with a Decent Espresso machine, it might help you brew a reasonably decent espresso.  
-
-Credit for the name and thanks for all the support, goes to [@randomcoffeesnob](https://github.com/randomcoffeesnob).  
+Credit for the name and thanks for
+all the support,
+goes to [@randomcoffeesnob](https://github.com/randomcoffeesnob).  
 Also thanks to [@mimoja](https://github.com/mimoja) for the first Flutter app version.

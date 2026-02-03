@@ -3,17 +3,18 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/home_feature/widgets/device_connecting_indicator.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// Reusable widget for selecting a DE1 machine from a list of discovered devices.
-/// 
+///
 /// This widget can be used in dialogs or as a standalone view. It automatically
 /// updates as new devices are discovered and allows the user to select a device
 /// to connect to.
-/// 
+///
 /// Usage in a dialog:
 /// ```dart
 /// showShadDialog(
@@ -30,7 +31,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 ///   ),
 /// );
 /// ```
-/// 
+///
 /// Usage in a full-screen view:
 /// ```dart
 /// DeviceSelectionWidget(
@@ -49,6 +50,7 @@ class DeviceSelectionWidget extends StatefulWidget {
   final Function(De1Interface) onDeviceSelected;
   final bool showHeader;
   final String? headerText;
+  final String? autoConnectingDeviceId;
 
   const DeviceSelectionWidget({
     super.key,
@@ -58,6 +60,7 @@ class DeviceSelectionWidget extends StatefulWidget {
     required this.onDeviceSelected,
     this.showHeader = false,
     this.headerText,
+    this.autoConnectingDeviceId,
   });
 
   @override
@@ -73,21 +76,25 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
   @override
   void initState() {
     super.initState();
-    
+
     // Get initial devices
-    _discoveredDevices = widget.deviceController.devices
-        .where((device) => device.type == dev.DeviceType.machine)
-        .cast<De1Interface>()
-        .toList();
-    
+    _discoveredDevices =
+        widget.deviceController.devices
+            .where((device) => device.type == dev.DeviceType.machine)
+            .cast<De1Interface>()
+            .toList();
+
     // Listen for additional devices discovered
-    _discoverySubscription = widget.deviceController.deviceStream.listen((data) {
+    _discoverySubscription = widget.deviceController.deviceStream.listen((
+      data,
+    ) {
       if (mounted) {
         setState(() {
-          _discoveredDevices = data
-              .where((device) => device.type == dev.DeviceType.machine)
-              .cast<De1Interface>()
-              .toList();
+          _discoveredDevices =
+              data
+                  .where((device) => device.type == dev.DeviceType.machine)
+                  .cast<De1Interface>()
+                  .toList();
         });
       }
     });
@@ -118,9 +125,13 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
       itemBuilder: (context, index) {
         final de1 = _discoveredDevices[index];
         final isPreferred = preferredMachineId == de1.deviceId;
-        final isConnecting = _connectingDeviceId == de1.deviceId;
-        final isAnyConnecting = _connectingDeviceId != null;
-        
+        final isAutoConnecting = widget.autoConnectingDeviceId == de1.deviceId;
+        final isManualConnecting = _connectingDeviceId == de1.deviceId;
+        final isConnecting = isAutoConnecting || isManualConnecting;
+        final isAnyConnecting =
+            widget.autoConnectingDeviceId != null ||
+            _connectingDeviceId != null;
+
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
           child: ShadCard(
@@ -130,49 +141,52 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
                 ListTile(
                   title: Text(de1.name),
                   subtitle: Text("ID: ${de1.deviceId}"),
-                  trailing: isConnecting
-                      ? SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Icon(LucideIcons.chevronRight),
+                  trailing: DeviceConnectingIndicator(
+                    isConnecting: isConnecting,
+                  ),
                   enabled: !isAnyConnecting,
-                  onTap: isAnyConnecting
-                      ? null
-                      : () async {
-                          setState(() {
-                            _connectingDeviceId = de1.deviceId;
-                            _errorMessage = null;
-                          });
+                  onTap:
+                      isAnyConnecting
+                          ? null
+                          : () async {
+                            setState(() {
+                              _connectingDeviceId = de1.deviceId;
+                              _errorMessage = null;
+                            });
 
-                          try {
-                            await widget.de1Controller.connectToDe1(de1);
-                            if (mounted) {
-                              widget.onDeviceSelected(de1);
+                            try {
+                              await widget.de1Controller.connectToDe1(de1);
+                              if (mounted) {
+                                widget.onDeviceSelected(de1);
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                setState(() {
+                                  _connectingDeviceId = null;
+                                  _errorMessage = 'Failed to connect: $e';
+                                });
+                              }
                             }
-                          } catch (e) {
-                            if (mounted) {
-                              setState(() {
-                                _connectingDeviceId = null;
-                                _errorMessage = 'Failed to connect: $e';
-                              });
-                            }
-                          }
-                        },
+                          },
                 ),
                 if (widget.settingsController != null)
                   Padding(
-                    padding: const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 8.0),
+                    padding: const EdgeInsets.only(
+                      left: 16.0,
+                      right: 16.0,
+                      bottom: 8.0,
+                    ),
                     child: Row(
                       children: [
                         Checkbox(
                           value: isPreferred,
                           onChanged: (value) async {
                             if (value == true) {
-                              await widget.settingsController!.setPreferredMachineId(de1.deviceId);
+                              await widget.settingsController!
+                                  .setPreferredMachineId(de1.deviceId);
                             } else {
-                              await widget.settingsController!.setPreferredMachineId(null);
+                              await widget.settingsController!
+                                  .setPreferredMachineId(null);
                             }
                             setState(() {});
                           },
@@ -220,7 +234,8 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
                         child: Text(
                           _errorMessage!,
                           style: TextStyle(
-                            color: Theme.of(context).colorScheme.onErrorContainer,
+                            color:
+                                Theme.of(context).colorScheme.onErrorContainer,
                           ),
                         ),
                       ),
@@ -285,18 +300,8 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
               ),
             ),
           ),
-        SizedBox(
-          height: 300,
-          width: 400,
-          child: listView,
-        ),
+        SizedBox(height: 300, width: 400, child: listView),
       ],
     );
   }
 }
-
-
-
-
-
-

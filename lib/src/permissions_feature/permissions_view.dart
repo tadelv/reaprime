@@ -202,7 +202,7 @@ class DeviceDiscoveryView extends StatefulWidget {
   final WebUIService webUIService;
   final WebUIStorage webUIStorage;
   final Logger logger;
-  
+
   const DeviceDiscoveryView({
     super.key,
     required this.deviceController,
@@ -220,21 +220,25 @@ class DeviceDiscoveryView extends StatefulWidget {
 class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   DiscoveryState _state = DiscoveryState.searching;
   bool _isScanning = false;
+  String? _autoConnectingDeviceId;
 
   late StreamSubscription<List<dev.Device>> _discoverySubscription;
 
   final Duration _timeoutDuration = Duration(seconds: 10);
 
   /// Determines the correct route to navigate to after device connection
-  /// 
+  ///
   /// Returns SkinView route for mobile/desktop platforms (iOS, Android, macOS)
   /// if WebUI is available and serving. Otherwise returns LandingFeature route.
   String _getNavigationRoute() {
     // Check platform - only use WebView on iOS, Android, macOS
-    final supportedPlatforms = Platform.isIOS || Platform.isAndroid || Platform.isMacOS;
-    
+    final supportedPlatforms =
+        Platform.isIOS || Platform.isAndroid || Platform.isMacOS;
+
     if (!supportedPlatforms) {
-      widget.logger.info('Platform not supported for WebView, using Landing page');
+      widget.logger.info(
+        'Platform not supported for WebView, using Landing page',
+      );
       return LandingFeature.routeName;
     }
 
@@ -279,17 +283,33 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
             orElse: () => discoveredDevices.first,
           );
 
-          // Auto-connect to preferred machine
-          widget.de1controller.connectToDe1(preferredMachine).then((_) {
-            if (mounted) {
-              final route = _getNavigationRoute();
-              // Push both routes to stack: HomeScreen first, then the target route
-              Navigator.popAndPushNamed(context, HomeScreen.routeName);
-              if (route == SkinView.routeName) {
-                Navigator.of(context).pushNamed(SkinView.routeName);
-              }
-            }
+          // Set auto-connecting state to show progress indicator
+          setState(() {
+            _autoConnectingDeviceId = preferredMachine.deviceId;
           });
+
+          // Auto-connect to preferred machine
+          widget.de1controller
+              .connectToDe1(preferredMachine)
+              .then((_) {
+                if (mounted) {
+                  final route = _getNavigationRoute();
+                  // Push both routes to stack: HomeScreen first, then the target route
+                  Navigator.popAndPushNamed(context, HomeScreen.routeName);
+                  if (route == SkinView.routeName) {
+                    Navigator.of(context).pushNamed(SkinView.routeName);
+                  }
+                }
+              })
+              .catchError((error) {
+                // Clear auto-connecting state on error
+                if (mounted) {
+                  setState(() {
+                    _autoConnectingDeviceId = null;
+                  });
+                }
+                widget.logger.severe('Auto-connect failed: $error');
+              });
           _discoverySubscription.cancel();
         }
       }
@@ -349,6 +369,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       settingsController: widget.settingsController,
       showHeader: true,
       headerText: "Select a machine from the list",
+      autoConnectingDeviceId: _autoConnectingDeviceId,
       onDeviceSelected: (de1) {
         final route = _getNavigationRoute();
         // Push both routes to stack: HomeScreen first, then the target route
@@ -500,7 +521,9 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
           if (discoveredDevices.isEmpty) {
             _state = DiscoveryState.foundNone;
           } else if (discoveredDevices.length == 1) {
-            widget.de1controller.connectToDe1(discoveredDevices.first).then((_) {
+            widget.de1controller.connectToDe1(discoveredDevices.first).then((
+              _,
+            ) {
               if (mounted) {
                 final route = _getNavigationRoute();
                 // Push both routes to stack: HomeScreen first, then the target route
@@ -602,16 +625,3 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 }
 
 enum DiscoveryState { searching, foundMany, foundNone }
-
-
-
-
-
-
-
-
-
-
-
-
-
