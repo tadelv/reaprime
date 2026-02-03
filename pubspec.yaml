@@ -71,7 +71,8 @@ dependencies:
   http: ^1.2.2
   network_info_plus: ^7.0.0
   window_manager: ^0.5.1
-  webview_flutter: ^4.10.0
+  flutter_inappwebview: ^6.1.5
+  device_info_plus: ^11.2.0
   # path: ../flutter_libserialport
   # git:
   #   url: https://github.com/tadelv/flutter_libserialport.git
@@ -98,5 +99,7 @@ flutter:
     - assets/plugins/visualizer.reaplugin/
     - assets/plugins/settings.reaplugin/
     - assets/defaultProfiles/
+
+
 
 
