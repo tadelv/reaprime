@@ -94,6 +94,10 @@ class _SkinViewState extends State<SkinView> {
       builtInZoomControls: false,
       enableViewportScale: true,
 
+      // Scrollbars - hide on all platforms
+      verticalScrollBarEnabled: false,
+      horizontalScrollBarEnabled: false,
+
       // displayZoomControls: false,
       userAgent: "Streamline-Bridge",
     );
@@ -395,6 +399,28 @@ class _SkinViewState extends State<SkinView> {
               _isLoading = false;
             });
             
+            // Inject CSS to hide scrollbars in web content
+            // await controller.evaluateJavascript(source: '''
+            //   (function() {
+            //     var style = document.createElement('style');
+            //     style.textContent = `
+            //       ::-webkit-scrollbar {
+            //         display: none !important;
+            //         width: 0 !important;
+            //         height: 0 !important;
+            //       }
+            //       * {
+            //         scrollbar-width: none !important;
+            //         -ms-overflow-style: none !important;
+            //       }
+            //       html, body {
+            //         overflow: overlay !important;
+            //       }
+            //     `;
+            //     document.head.appendChild(style);
+            //   })();
+            // ''');
+            
             // Show exit instructions snackbar
             if (mounted) {
               _showExitInstructions();
@@ -436,5 +462,3 @@ class _SkinViewState extends State<SkinView> {
     );
   }
 }
-
-
