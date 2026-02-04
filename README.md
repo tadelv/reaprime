@@ -185,6 +185,7 @@ make dual-build
 - **macOS**: 10.14 or later
 - **Linux**: Modern distribution with GTK 3.0+
 - **Windows**: Windows 10 or later
+  - **Important**: Requires [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-supported-redistributable-version) to be installed
 
 ### Recommended
 
@@ -253,5 +254,7 @@ See the [LICENSE](LICENSE) file for details.
 ---
 
 **Need help?** Check our [documentation](/) or open an [issue](https://github.com/tadelv/reaprime/issues).
+
+
 
 

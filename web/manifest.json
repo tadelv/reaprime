@@ -1,11 +1,11 @@
 {
-    "name": "reaprime",
-    "short_name": "reaprime",
+    "name": "Streamline-Bridge",
+    "short_name": "Bridge",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#hexcode",
     "theme_color": "#hexcode",
-    "description": "Reasonable Espresso App",
+    "description": "Streamline Bridge - Gateway for Decent Espresso Machines",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -1,5 +1,5 @@
 name: reaprime
-description: "Reasonable Espresso App"
+description: "Streamline Bridge - Gateway for Decent Espresso Machines"
 
 # Prevent accidental publishing to pub.dev.
 publish_to: "none"
@@ -99,6 +99,7 @@ flutter:
     - assets/plugins/visualizer.reaplugin/
     - assets/plugins/settings.reaplugin/
     - assets/defaultProfiles/
+
 
 
 

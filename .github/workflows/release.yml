@@ -339,11 +339,15 @@ jobs:
             
             **Windows**: Download the ZIP, extract it, and run the executable inside the extracted folder.
             
+            > **Windows users**: Streamline-Bridge requires the [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-supported-redistributable-version) to be installed. If the app doesn't start, please download and install the latest Visual C++ Redistributable from Microsoft.
+            
             ### What's Changed
             <!-- GitHub will auto-generate release notes here -->
             
             **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.version.outputs.tag }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
 
 
