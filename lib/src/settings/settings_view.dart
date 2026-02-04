@@ -51,8 +51,8 @@ class SettingsView extends StatelessWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             // Responsive padding based on screen width
-            final horizontalPadding = constraints.maxWidth > 600 ? 24.0 : 16.0;
-            final cardSpacing = constraints.maxWidth > 600 ? 24.0 : 16.0;
+            final horizontalPadding = constraints.maxWidth > 600 ? 16.0 : 12.0;
+            final cardSpacing = constraints.maxWidth > 600 ? 12.0 : 10.0;
 
             return Padding(
               padding: EdgeInsets.all(horizontalPadding),
@@ -111,7 +111,7 @@ class SettingsView extends StatelessWidget {
                     children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        spacing: 8,
+                        spacing: 6,
                         children: [
                           Text(
                             'Gateway Mode',
@@ -159,7 +159,7 @@ class SettingsView extends StatelessWidget {
                       // Auto-Connect Device
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        spacing: 12,
+                        spacing: 8,
                         children: [
                           Row(
                             children: [
@@ -172,10 +172,12 @@ class SettingsView extends StatelessWidget {
                               ),
                               IconButton(
                                 icon: const Icon(Icons.info_outline),
-                                iconSize: 20,
+                                iconSize: 18,
                                 onPressed:
                                     () => _showPreferredDeviceInfo(context),
                                 tooltip: 'Learn more',
+                                padding: EdgeInsets.all(4),
+                                constraints: BoxConstraints(),
                               ),
                             ],
                           ),
@@ -184,7 +186,7 @@ class SettingsView extends StatelessWidget {
                               'Device ID: ${controller.preferredMachineId}',
                               style: Theme.of(context).textTheme.bodyMedium,
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 6),
                             ShadButton.destructive(
                               onPressed: () async {
                                 await controller.setPreferredMachineId(null);
@@ -206,7 +208,7 @@ class SettingsView extends StatelessWidget {
                           ],
                         ],
                       ),
-                      const Divider(height: 32),
+                      const Divider(height: 24),
                       // Simulated Devices
                       ShadSwitch(
                         value: controller.simulatedDevices,
@@ -311,7 +313,7 @@ class SettingsView extends StatelessWidget {
                     children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 12,
+                        spacing: 8,
                         children: [
                           ShadButton.secondary(
                             onPressed: () {
@@ -342,7 +344,7 @@ class SettingsView extends StatelessWidget {
                     children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 12,
+                        spacing: 8,
                         children: [
                           // Log Level
                           Row(
@@ -351,7 +353,7 @@ class SettingsView extends StatelessWidget {
                                 'Log Level',
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
-                              const SizedBox(width: 16),
+                              const SizedBox(width: 12),
                               Expanded(
                                 child: DropdownButton<String>(
                                   isExpanded: true,
@@ -379,7 +381,7 @@ class SettingsView extends StatelessWidget {
                               ),
                             ],
                           ),
-                          const Divider(),
+                          const Divider(height: 20),
                           // Plugins Button
                           ShadButton.secondary(
                             onPressed: () {
@@ -418,7 +420,7 @@ class SettingsView extends StatelessWidget {
                     children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        spacing: 8,
+                        spacing: 6,
                         children: [
                           _buildInfoRow(
                             context,
@@ -457,52 +459,51 @@ class SettingsView extends StatelessWidget {
     String? footnote,
     required List<Widget> children,
   }) {
-    return ShadCard(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 16,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 12,
+      children: [
+        // Header
+        Row(
           children: [
-            // Header
-            Row(
-              children: [
-                Icon(icon, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                ),
-                if (infoButton != null)
-                  IconButton(
-                    icon: const Icon(Icons.info_outline),
-                    iconSize: 20,
-                    onPressed: infoButton,
-                    tooltip: 'Learn more',
-                  ),
-              ],
-            ),
-            // Content
-            ...children,
-            // Footnote
-            if (footnote != null) ...[
-              const Divider(height: 24),
-              Text(
-                footnote,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface
-                          .withOpacity(0.6),
-                      fontStyle: FontStyle.italic,
+            Icon(icon, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
               ),
-            ],
+            ),
+            if (infoButton != null)
+              IconButton(
+                icon: const Icon(Icons.info_outline),
+                iconSize: 18,
+                onPressed: infoButton,
+                tooltip: 'Learn more',
+                padding: EdgeInsets.all(4),
+                constraints: BoxConstraints(),
+              ),
           ],
         ),
-      ),
+        // Content
+        ...children,
+        // Footnote
+        if (footnote != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            footnote,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface
+                      .withOpacity(0.6),
+                  fontStyle: FontStyle.italic,
+                ),
+          ),
+        ],
+        // Divider after each section
+        const Divider(height: 24),
+      ],
     );
   }
 
