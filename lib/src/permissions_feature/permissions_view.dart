@@ -219,7 +219,7 @@ class DeviceDiscoveryView extends StatefulWidget {
 
 class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   DiscoveryState _state = DiscoveryState.searching;
-  bool _isScanning = false;
+  bool _isScanning = true; // Start as true since we begin scanning immediately
   String? _autoConnectingDeviceId;
 
   late StreamSubscription<List<dev.Device>> _discoverySubscription;
@@ -321,12 +321,13 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
           widget.deviceController.devices.whereType<De1Interface>().toList();
       _discoverySubscription.cancel();
 
-      if (discoveredDevices.isEmpty) {
-        if (mounted) {
-          setState(() {
+      if (mounted) {
+        setState(() {
+          _isScanning = false;
+          if (discoveredDevices.isEmpty) {
             _state = DiscoveryState.foundNone;
-          });
-        }
+          }
+        });
       }
     });
   }
@@ -363,21 +364,80 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   }
 
   Widget _resultsView(BuildContext context) {
-    return DeviceSelectionWidget(
-      deviceController: widget.deviceController,
-      de1Controller: widget.de1controller,
-      settingsController: widget.settingsController,
-      showHeader: true,
-      headerText: "Select a machine from the list",
-      autoConnectingDeviceId: _autoConnectingDeviceId,
-      onDeviceSelected: (de1) {
-        final route = _getNavigationRoute();
-        // Push both routes to stack: HomeScreen first, then the target route
-        Navigator.popAndPushNamed(context, HomeScreen.routeName);
-        if (route == SkinView.routeName) {
-          Navigator.of(context).pushNamed(SkinView.routeName);
-        }
-      },
+    final theme = ShadTheme.of(context);
+    
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 16,
+      children: [
+        // Scanning indicator
+        if (_isScanning)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 8,
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              Text(
+                'Scanning for devices...',
+                style: theme.textTheme.muted,
+              ),
+            ],
+          ),
+        
+        // Device list
+        DeviceSelectionWidget(
+          deviceController: widget.deviceController,
+          de1Controller: widget.de1controller,
+          settingsController: widget.settingsController,
+          showHeader: true,
+          headerText: "Select a machine from the list",
+          autoConnectingDeviceId: _autoConnectingDeviceId,
+          onDeviceSelected: (de1) {
+            final route = _getNavigationRoute();
+            // Push both routes to stack: HomeScreen first, then the target route
+            Navigator.popAndPushNamed(context, HomeScreen.routeName);
+            if (route == SkinView.routeName) {
+              Navigator.of(context).pushNamed(SkinView.routeName);
+            }
+          },
+        ),
+        
+        // Action buttons (shown when scanning is complete)
+        if (!_isScanning)
+          Row(
+            spacing: 12,
+            children: [
+              Expanded(
+                child: ShadButton.outline(
+                  onPressed: _retryScan,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 8,
+                    children: [
+                      Icon(LucideIcons.refreshCw, size: 16),
+                      Text('Scan Again'),
+                    ],
+                  ),
+                ),
+              ),
+              Expanded(
+                child: ShadButton.secondary(
+                  onPressed: () {
+                    Navigator.popAndPushNamed(
+                      context,
+                      HomeScreen.routeName,
+                    );
+                  },
+                  child: Text('Continue to Dashboard'),
+                ),
+              ),
+            ],
+          ),
+      ],
     );
   }
 
@@ -503,7 +563,6 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   Future<void> _retryScan() async {
     setState(() {
       _isScanning = true;
-      _state = DiscoveryState.searching;
     });
 
     try {
@@ -521,6 +580,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
           if (discoveredDevices.isEmpty) {
             _state = DiscoveryState.foundNone;
           } else if (discoveredDevices.length == 1) {
+            // Auto-connect if only one device found
             widget.de1controller.connectToDe1(discoveredDevices.first).then((
               _,
             ) {
@@ -539,10 +599,10 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
         });
       }
     } catch (e) {
+      widget.logger.severe('Retry scan failed: $e');
       if (mounted) {
         setState(() {
           _isScanning = false;
-          _state = DiscoveryState.foundNone;
         });
       }
     }
@@ -625,3 +685,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 }
 
 enum DiscoveryState { searching, foundMany, foundNone }
+
+
+
+

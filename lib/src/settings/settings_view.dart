@@ -48,348 +48,557 @@ class SettingsView extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          // Glue the SettingsController to the theme selection DropdownButton.
-          //
-          // When a user selects a theme from the dropdown list, the
-          // SettingsController is updated, which rebuilds the MaterialApp.
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 16,
-            children: [
-              DropdownButton<ThemeMode>(
-                // Read the selected themeMode from the controller
-                value: controller.themeMode,
-                // Call the updateThemeMode method any time the user selects a theme.
-                onChanged: controller.updateThemeMode,
-                items: const [
-                  DropdownMenuItem(
-                    value: ThemeMode.system,
-                    child: Text('System Theme'),
-                  ),
-                  DropdownMenuItem(
-                    value: ThemeMode.light,
-                    child: Text('Light Theme'),
-                  ),
-                  DropdownMenuItem(
-                    value: ThemeMode.dark,
-                    child: Text('Dark Theme'),
-                  ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 8,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          "Gateway mode (let REAPrime clients control the shot, scale and other parameters)",
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.info_outline),
-                        iconSize: 20,
-                        onPressed: () => showGatewayModeInfoDialog(context),
-                        tooltip: 'Learn more about Gateway mode',
-                      ),
-                    ],
-                  ),
-                  DropdownButton<GatewayMode>(
-                    isExpanded: true,
-                    value: controller.gatewayMode,
-                    onChanged: (v) {
-                      if (v != null) {
-                        controller.updateGatewayMode(v);
-                      }
-                    },
-                    items: const [
-                      DropdownMenuItem(
-                        value: GatewayMode.full,
-                        child: Text('Full (Rea has no control)'),
-                      ),
-                      DropdownMenuItem(
-                        value: GatewayMode.tracking,
-                        child: Text(
-                          'Tracking (Rea will stop shot if target weight is reached)',
-                        ),
-                      ),
-                      DropdownMenuItem(
-                        value: GatewayMode.disabled,
-                        child: Text('Disabled (Rea has full control'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              Wrap(
-                spacing: 16,
-                runSpacing: 16,
-                children: [
-                  ShadButton(
-                    child: Text("Export logs"),
-                    onPressed: () async {
-                      var docs = await getApplicationDocumentsDirectory();
-                      File logFile = File('${docs.path}/log.txt');
-                      var bytes = await logFile.readAsBytes();
-                      String? outputFile = await FilePicker.platform.saveFile(
-                        fileName: "R1-logs.txt",
-                        dialogTitle: "Choose where to save logs",
-                        bytes: bytes,
-                      );
-                      if (outputFile != null) {
-                        File destination = File(outputFile);
-                        await destination.writeAsBytes(bytes);
-                      }
-                    },
-                  ),
-                  ShadButton(
-                    child: Text("Export all shots"),
-                    onPressed: () async {
-                      final exporter = ShotExporter(
-                        storage: persistenceController.storageService,
-                      );
-                      final jsonData = await exporter.exportJson();
-                      final tempDir = await getTemporaryDirectory();
-                      final source = File("${tempDir.path}/shots.json");
-                      await source.writeAsString(jsonData);
-                      final destination = await FilePicker.platform
-                          .getDirectoryPath(dialogTitle: "Pick export dir");
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Responsive padding based on screen width
+            final horizontalPadding = constraints.maxWidth > 600 ? 24.0 : 16.0;
+            final cardSpacing = constraints.maxWidth > 600 ? 24.0 : 16.0;
 
-                      final tempFile = File('$destination/R1_shots.zip');
-                      try {
-                        // Create zip archive using archive package
-                        final archive = Archive();
-                        final sourceBytes = await source.readAsBytes();
-                        final archiveFile = ArchiveFile(
-                          'shots.json',
-                          sourceBytes.length,
-                          sourceBytes,
-                        );
-                        archive.addFile(archiveFile);
-
-                        // Encode to zip and write to file
-                        final zipData = ZipEncoder().encode(archive);
-                        await tempFile.writeAsBytes(zipData!);
-                      } catch (e, st) {
-                        Logger("Settings").severe("failed to export:", e, st);
-                      }
-                    },
-                  ),
-                  ShadButton(
-                    child: Text("Import shots"),
-                    onPressed: () => _showImportDialog(context),
-                  ),
-                  ShadButton(
-                    child: Text("Debug view"),
-                    onPressed: () {
-                      Navigator.pushNamed(
-                        context,
-                        SampleItemListView.routeName,
-                      );
-                    },
-                  ),
-                ],
-              ),
-              Row(
-                spacing: 16.0,
+            return Padding(
+              padding: EdgeInsets.all(horizontalPadding),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text("Log Level:"),
-                  DropdownButton<String>(
-                    hint: Text("Log Level:"),
-                    value: controller.logLevel,
-                    onChanged: controller.updateLogLevel,
-                    items: const [
-                      DropdownMenuItem(value: "FINE", child: Text('Fine')),
-                      DropdownMenuItem(value: "INFO", child: Text('Info')),
-                      DropdownMenuItem(value: "FINEST", child: Text('Finest')),
-                      DropdownMenuItem(
-                        value: "WARNING",
-                        child: Text('Warning'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  ShadSwitch(
-                    value: controller.simulatedDevices,
-                    enabled: true,
-                    onChanged: (v) async {
-                      Logger("Settings").info("toggle sim to ${v}");
-                      await controller.setSimulatedDevices(v);
-                    },
-                    label: Text("Show simulated devices"),
-                    sublabel: Text(
-                      "Whether simulated devices should be shown in scan results",
-                    ),
-                  ),
-                ],
-              ),
-              ShadCard(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: 12,
+                  // Appearance Section
+                  _buildSectionCard(
+                    context: context,
+                    title: 'Appearance',
+                    icon: Icons.palette_outlined,
+                    footnote: 'Customize the visual appearance of the app',
                     children: [
                       Row(
                         children: [
-                          Expanded(
-                            child: Text(
-                              'Auto-Connect Device',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
+                          Text(
+                            'Theme',
+                            style: Theme.of(context).textTheme.bodyMedium,
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.info_outline),
-                            iconSize: 20,
-                            onPressed: () => _showPreferredDeviceInfo(context),
-                            tooltip: 'Learn more',
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: DropdownButton<ThemeMode>(
+                              isExpanded: true,
+                              value: controller.themeMode,
+                              onChanged: controller.updateThemeMode,
+                              items: const [
+                                DropdownMenuItem(
+                                  value: ThemeMode.system,
+                                  child: Text('System Theme'),
+                                ),
+                                DropdownMenuItem(
+                                  value: ThemeMode.light,
+                                  child: Text('Light Theme'),
+                                ),
+                                DropdownMenuItem(
+                                  value: ThemeMode.dark,
+                                  child: Text('Dark Theme'),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
-                      if (controller.preferredMachineId != null) ...[
-                        Text(
-                          'Device ID: ${controller.preferredMachineId}',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        ShadButton.destructive(
-                          onPressed: () async {
-                            await controller.setPreferredMachineId(null);
-                          },
-                          child: const Text('Clear Auto-Connect Device'),
-                        ),
-                      ] else ...[
-                        Text(
-                          'No auto-connect device set',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(fontStyle: FontStyle.italic),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'To set an auto-connect device, check the "Auto-connect to this machine" checkbox when selecting a device during startup.',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
                     ],
                   ),
-                ),
-              ),
-              ShadButton.secondary(
-                onPressed: () {
-                  _pickFolderAndLoadHtml(context);
-                },
-                child: Text("Load WebUI"),
-              ),
-              if (webUIService.isServing)
-                ShadButton(
-                  child: Text("Open UI in browser"),
-                  onPressed: () async {
-                    final url = Uri.parse('http://localhost:3000');
-                    await launchUrl(url);
-                  },
-                ),
-              ShadButton.secondary(
-                onPressed: () {
-                  Navigator.of(
-                    context,
-                  ).pushNamed(PluginsSettingsView.routeName);
-                },
-                child: Text("Plugins"),
-              ),
-              ShadButton.secondary(
-                onPressed: () => _checkForUpdates(context),
-                child: Text("Check for updates"),
-              ),
-              SizedBox(height: 24),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Version: ${BuildInfo.version}'),
-                  Text('Commit: ${BuildInfo.commitShort}'),
-                  Text('Branch: ${BuildInfo.branch}'),
+                  SizedBox(height: cardSpacing),
+
+                  // Gateway & Control Section
+                  _buildSectionCard(
+                    context: context,
+                    title: 'Gateway & Control',
+                    icon: Icons.settings_remote_outlined,
+                    infoButton: () => showGatewayModeInfoDialog(context),
+                    footnote:
+                        'Configure how external clients can control the machine',
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        spacing: 8,
+                        children: [
+                          Text(
+                            'Gateway Mode',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          DropdownButton<GatewayMode>(
+                            isExpanded: true,
+                            value: controller.gatewayMode,
+                            onChanged: (v) {
+                              if (v != null) {
+                                controller.updateGatewayMode(v);
+                              }
+                            },
+                            items: const [
+                              DropdownMenuItem(
+                                value: GatewayMode.full,
+                                child: Text('Full (Rea has no control)'),
+                              ),
+                              DropdownMenuItem(
+                                value: GatewayMode.tracking,
+                                child: Text(
+                                  'Tracking (Rea will stop shot if target weight is reached)',
+                                ),
+                              ),
+                              DropdownMenuItem(
+                                value: GatewayMode.disabled,
+                                child: Text('Disabled (Rea has full control)'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: cardSpacing),
+
+                  // Device Management Section
+                  _buildSectionCard(
+                    context: context,
+                    title: 'Device Management',
+                    icon: Icons.devices_outlined,
+                    footnote:
+                        'Configure device connections and simulation options',
+                    children: [
+                      // Auto-Connect Device
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        spacing: 12,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Auto-Connect Device',
+                                  style:
+                                      Theme.of(context).textTheme.titleSmall,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.info_outline),
+                                iconSize: 20,
+                                onPressed:
+                                    () => _showPreferredDeviceInfo(context),
+                                tooltip: 'Learn more',
+                              ),
+                            ],
+                          ),
+                          if (controller.preferredMachineId != null) ...[
+                            Text(
+                              'Device ID: ${controller.preferredMachineId}',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                            const SizedBox(height: 8),
+                            ShadButton.destructive(
+                              onPressed: () async {
+                                await controller.setPreferredMachineId(null);
+                              },
+                              child: const Text('Clear Auto-Connect Device'),
+                            ),
+                          ] else ...[
+                            Text(
+                              'No auto-connect device set',
+                              style:
+                                  Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(fontStyle: FontStyle.italic),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'To set an auto-connect device, check the "Auto-connect to this machine" checkbox when selecting a device during startup.',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ],
+                      ),
+                      const Divider(height: 32),
+                      // Simulated Devices
+                      ShadSwitch(
+                        value: controller.simulatedDevices,
+                        enabled: true,
+                        onChanged: (v) async {
+                          Logger("Settings").info("toggle sim to $v");
+                          await controller.setSimulatedDevices(v);
+                        },
+                        label: const Text("Show simulated devices"),
+                        sublabel: const Text(
+                          "Whether simulated devices should be shown in scan results",
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: cardSpacing),
+
+                  // Data Management Section
+                  _buildSectionCard(
+                    context: context,
+                    title: 'Data Management',
+                    icon: Icons.storage_outlined,
+                    footnote:
+                        'Import, export, and manage your shot data and logs',
+                    children: [
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          ShadButton(
+                            onPressed: () async {
+                              var docs =
+                                  await getApplicationDocumentsDirectory();
+                              File logFile = File('${docs.path}/log.txt');
+                              var bytes = await logFile.readAsBytes();
+                              String? outputFile =
+                                  await FilePicker.platform.saveFile(
+                                fileName: "R1-logs.txt",
+                                dialogTitle: "Choose where to save logs",
+                                bytes: bytes,
+                              );
+                              if (outputFile != null) {
+                                File destination = File(outputFile);
+                                await destination.writeAsBytes(bytes);
+                              }
+                            },
+                            child: const Text("Export logs"),
+                          ),
+                          ShadButton(
+                            onPressed: () async {
+                              final exporter = ShotExporter(
+                                storage: persistenceController.storageService,
+                              );
+                              final jsonData = await exporter.exportJson();
+                              final tempDir = await getTemporaryDirectory();
+                              final source = File("${tempDir.path}/shots.json");
+                              await source.writeAsString(jsonData);
+                              final destination =
+                                  await FilePicker.platform.getDirectoryPath(
+                                dialogTitle: "Pick export dir",
+                              );
+
+                              final tempFile = File('$destination/R1_shots.zip');
+                              try {
+                                // Create zip archive using archive package
+                                final archive = Archive();
+                                final sourceBytes = await source.readAsBytes();
+                                final archiveFile = ArchiveFile(
+                                  'shots.json',
+                                  sourceBytes.length,
+                                  sourceBytes,
+                                );
+                                archive.addFile(archiveFile);
+
+                                // Encode to zip and write to file
+                                final zipData = ZipEncoder().encode(archive);
+                                await tempFile.writeAsBytes(zipData!);
+                              } catch (e, st) {
+                                Logger("Settings")
+                                    .severe("failed to export:", e, st);
+                              }
+                            },
+                            child: const Text("Export all shots"),
+                          ),
+                          ShadButton(
+                            onPressed: () => _showImportDialog(context),
+                            child: const Text("Import shots"),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: cardSpacing),
+
+                  // WebUI Section
+                  _buildSectionCard(
+                    context: context,
+                    title: 'Web Interface',
+                    icon: Icons.web_outlined,
+                    footnote:
+                        'Load and access the web-based user interface',
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        spacing: 12,
+                        children: [
+                          ShadButton.secondary(
+                            onPressed: () {
+                              _pickFolderAndLoadHtml(context);
+                            },
+                            child: const Text("Load WebUI"),
+                          ),
+                          if (webUIService.isServing)
+                            ShadButton(
+                              onPressed: () async {
+                                final url = Uri.parse('http://localhost:3000');
+                                await launchUrl(url);
+                              },
+                              child: const Text("Open UI in browser"),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: cardSpacing),
+
+                  // Advanced Section
+                  _buildSectionCard(
+                    context: context,
+                    title: 'Advanced',
+                    icon: Icons.tune_outlined,
+                    footnote: 'Developer tools and advanced configuration',
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        spacing: 12,
+                        children: [
+                          // Log Level
+                          Row(
+                            children: [
+                              Text(
+                                'Log Level',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: DropdownButton<String>(
+                                  isExpanded: true,
+                                  value: controller.logLevel,
+                                  onChanged: controller.updateLogLevel,
+                                  items: const [
+                                    DropdownMenuItem(
+                                      value: "FINE",
+                                      child: Text('Fine'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: "INFO",
+                                      child: Text('Info'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: "FINEST",
+                                      child: Text('Finest'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: "WARNING",
+                                      child: Text('Warning'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Divider(),
+                          // Plugins Button
+                          ShadButton.secondary(
+                            onPressed: () {
+                              Navigator.of(context)
+                                  .pushNamed(PluginsSettingsView.routeName);
+                            },
+                            child: const Text("Plugins"),
+                          ),
+                          // Debug View Button
+                          ShadButton.secondary(
+                            onPressed: () {
+                              Navigator.pushNamed(
+                                context,
+                                SampleItemListView.routeName,
+                              );
+                            },
+                            child: const Text("Debug view"),
+                          ),
+                          // Updates Button
+                          ShadButton.secondary(
+                            onPressed: () => _checkForUpdates(context),
+                            child: const Text("Check for updates"),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: cardSpacing),
+
+                  // About Section
+                  _buildSectionCard(
+                    context: context,
+                    title: 'About',
+                    icon: Icons.info_outline,
+                    footnote: 'Version and build information',
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        spacing: 8,
+                        children: [
+                          _buildInfoRow(
+                            context,
+                            'Version',
+                            BuildInfo.version,
+                          ),
+                          _buildInfoRow(
+                            context,
+                            'Commit',
+                            BuildInfo.commitShort,
+                          ),
+                          _buildInfoRow(
+                            context,
+                            'Branch',
+                            BuildInfo.branch,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: horizontalPadding),
                 ],
               ),
-            ],
-          ),
+            );
+          },
         ),
       ),
+    );
+  }
+
+  Widget _buildSectionCard({
+    required BuildContext context,
+    required String title,
+    required IconData icon,
+    VoidCallback? infoButton,
+    String? footnote,
+    required List<Widget> children,
+  }) {
+    return ShadCard(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 16,
+          children: [
+            // Header
+            Row(
+              children: [
+                Icon(icon, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ),
+                if (infoButton != null)
+                  IconButton(
+                    icon: const Icon(Icons.info_outline),
+                    iconSize: 20,
+                    onPressed: infoButton,
+                    tooltip: 'Learn more',
+                  ),
+              ],
+            ),
+            // Content
+            ...children,
+            // Footnote
+            if (footnote != null) ...[
+              const Divider(height: 24),
+              Text(
+                footnote,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface
+                          .withOpacity(0.6),
+                      fontStyle: FontStyle.italic,
+                    ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(BuildContext context, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 80,
+          child: Text(
+            '$label:',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontFamily: 'monospace',
+                ),
+          ),
+        ),
+      ],
     );
   }
 
   void _showPreferredDeviceInfo(BuildContext context) {
     showShadDialog(
       context: context,
-      builder:
-          (context) => ShadDialog(
-            title: const Text('Auto-Connect Device'),
-            description: const Text(
-              'Automatically connect to your preferred machine on startup',
+      builder: (context) => ShadDialog(
+        title: const Text('Auto-Connect Device'),
+        description: const Text(
+          'Automatically connect to your preferred machine on startup',
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 16,
+          children: [
+            Text(
+              'When you set an auto-connect device, ReaPrime will:',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w500),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 16,
-              children: [
-                Text(
-                  'When you set an auto-connect device, ReaPrime will:',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
-                ),
-                _buildInfoPoint(
-                  context,
-                  Icons.bluetooth_searching,
-                  'Scan for devices on startup',
-                ),
-                _buildInfoPoint(
-                  context,
-                  Icons.link,
-                  'Automatically connect to your preferred machine when found',
-                ),
-                _buildInfoPoint(
-                  context,
-                  Icons.speed,
-                  'Skip the device selection screen for faster startup',
-                ),
-                const Divider(),
-                Text(
-                  'How to set:',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
-                ),
-                Text(
-                  '1. During device selection at startup, check the "Auto-connect to this machine" checkbox next to your preferred device.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'How to change:',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
-                ),
-                Text(
-                  '1. Clear the current auto-connect device using the button above.\n2. Restart the app and select a different device with the checkbox.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
+            _buildInfoPoint(
+              context,
+              Icons.bluetooth_searching,
+              'Scan for devices on startup',
             ),
-            actions: [
-              ShadButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Got it'),
-              ),
-            ],
+            _buildInfoPoint(
+              context,
+              Icons.link,
+              'Automatically connect to your preferred machine when found',
+            ),
+            _buildInfoPoint(
+              context,
+              Icons.speed,
+              'Skip the device selection screen for faster startup',
+            ),
+            const Divider(),
+            Text(
+              'How to set:',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w500),
+            ),
+            Text(
+              '1. During device selection at startup, check the "Auto-connect to this machine" checkbox next to your preferred device.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'How to change:',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w500),
+            ),
+            Text(
+              '1. Clear the current auto-connect device using the button above.\n2. Restart the app and select a different device with the checkbox.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+        actions: [
+          ShadButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Got it'),
           ),
+        ],
+      ),
     );
   }
 
@@ -412,9 +621,8 @@ class SettingsView extends StatelessWidget {
     try {
       // Show loading indicator
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Checking for updates...')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Checking for updates...')));
 
       // Check for app updates (Android only for now)
       if (Platform.isAndroid) {
@@ -431,13 +639,12 @@ class SettingsView extends StatelessWidget {
           // Show update dialog
           showDialog(
             context: context,
-            builder:
-                (context) => UpdateDialog(
-                  updateInfo: updateInfo,
-                  currentVersion: BuildInfo.version,
-                  onDownload: (info) => updater.downloadUpdate(info),
-                  onInstall: (path) => updater.installUpdate(path),
-                ),
+            builder: (context) => UpdateDialog(
+              updateInfo: updateInfo,
+              currentVersion: BuildInfo.version,
+              onDownload: (info) => updater.downloadUpdate(info),
+              onInstall: (path) => updater.installUpdate(path),
+            ),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -451,9 +658,8 @@ class SettingsView extends StatelessWidget {
         // Non-Android platforms: just check for WebUI updates
         await webUIStorage.downloadRemoteSkins();
         if (!context.mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('WebUI is up to date')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('WebUI is up to date')));
       }
     } catch (e, stackTrace) {
       log.severe('Error checking for updates', e, stackTrace);
@@ -467,30 +673,29 @@ class SettingsView extends StatelessWidget {
   Future<void> _showImportDialog(BuildContext context) async {
     final result = await showShadDialog<String>(
       context: context,
-      builder:
-          (context) => ShadDialog(
-            title: const Text('Import Shots'),
-            description: const Text('Choose how you want to import your shots'),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              spacing: 16,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ShadButton(
-                  child: Text('Import from JSON file'),
-                  onPressed: () {
-                    Navigator.of(context).pop('file');
-                  },
-                ),
-                ShadButton.secondary(
-                  child: Text('Import from folder'),
-                  onPressed: () {
-                    Navigator.of(context).pop('folder');
-                  },
-                ),
-              ],
+      builder: (context) => ShadDialog(
+        title: const Text('Import Shots'),
+        description: const Text('Choose how you want to import your shots'),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 16,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ShadButton(
+              onPressed: () {
+                Navigator.of(context).pop('file');
+              },
+              child: const Text('Import from JSON file'),
             ),
-          ),
+            ShadButton.secondary(
+              onPressed: () {
+                Navigator.of(context).pop('folder');
+              },
+              child: const Text('Import from folder'),
+            ),
+          ],
+        ),
+      ),
     );
 
     if (result == 'file') {
@@ -504,19 +709,18 @@ class SettingsView extends StatelessWidget {
     showShadDialog(
       context: context,
       barrierDismissible: false,
-      builder:
-          (context) => ShadDialog(
-            title: Text(message),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 16),
-                const CircularProgressIndicator(),
-                const SizedBox(height: 16),
-                const Text('Please wait...'),
-              ],
-            ),
-          ),
+      builder: (context) => ShadDialog(
+        title: Text(message),
+        child: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(height: 16),
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Please wait...'),
+          ],
+        ),
+      ),
     );
   }
 
@@ -540,9 +744,8 @@ class SettingsView extends StatelessWidget {
     if (filePath == null) {
       log.warning("File path is null");
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Failed to access file')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Failed to access file')));
       }
       return;
     }
@@ -671,10 +874,9 @@ class SettingsView extends StatelessWidget {
                   ? 'Imported $successCount shot${successCount == 1 ? '' : 's'}${hasFailures ? ' ($failCount failed)' : ''}'
                   : 'No shots imported${hasFailures ? ' ($failCount files failed)' : ''}',
             ),
-            backgroundColor:
-                successCount > 0
-                    ? (hasFailures ? Colors.orange : Colors.green)
-                    : Colors.red,
+            backgroundColor: successCount > 0
+                ? (hasFailures ? Colors.orange : Colors.green)
+                : Colors.red,
           ),
         );
       }
@@ -703,9 +905,8 @@ class SettingsView extends StatelessWidget {
 
     if (selectedDirectory != null) {
       final dir = Directory(selectedDirectory);
-      Logger(
-        "Settings",
-      ).finest('list dir: ${dir.listSync(recursive: true).join("\n")}');
+      Logger("Settings")
+          .finest('list dir: ${dir.listSync(recursive: true).join("\n")}');
       final indexFile = File('$selectedDirectory/index.html');
       final itExists = await indexFile.exists();
       await webUIService.serveFolderAtPath(selectedDirectory);
@@ -718,13 +919,13 @@ class SettingsView extends StatelessWidget {
             content: Row(
               children: [
                 Text('WebUI from $selectedDirectory loaded'),
-                Spacer(),
+                const Spacer(),
                 ShadButton.outline(
-                  child: Text("Open"),
                   onPressed: () async {
                     final url = Uri.parse('http://localhost:3000');
                     await launchUrl(url);
                   },
+                  child: const Text("Open"),
                 ),
               ],
             ),
