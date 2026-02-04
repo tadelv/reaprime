@@ -140,7 +140,7 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
               children: [
                 ListTile(
                   title: Text(de1.name),
-                  subtitle: Text("ID: ${de1.deviceId}"),
+                  subtitle: Text("ID: ${de1.deviceId.length > 8 ? de1.deviceId.substring(de1.deviceId.length - 8) : de1.deviceId}"),
                   trailing: DeviceConnectingIndicator(
                     isConnecting: isConnecting,
                   ),

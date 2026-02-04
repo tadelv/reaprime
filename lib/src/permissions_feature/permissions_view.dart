@@ -226,11 +226,11 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 
   final Duration _timeoutDuration = Duration(seconds: 10);
 
-  /// Determines the correct route to navigate to after device connection
+  /// Navigates to the appropriate screen after device connection
   ///
-  /// Returns SkinView route for mobile/desktop platforms (iOS, Android, macOS)
-  /// if WebUI is available and serving. Otherwise returns LandingFeature route.
-  String _getNavigationRoute() {
+  /// Ensures WebUI is ready before navigating to SkinView on supported platforms.
+  /// Falls back to LandingFeature if WebUI is not available.
+  Future<void> _navigateAfterConnection() async {
     // Check platform - only use WebView on iOS, Android, macOS
     final supportedPlatforms =
         Platform.isIOS || Platform.isAndroid || Platform.isMacOS;
@@ -239,29 +239,54 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       widget.logger.info(
         'Platform not supported for WebView, using Landing page',
       );
-      return LandingFeature.routeName;
+      _navigateToRoute(LandingFeature.routeName);
+      return;
     }
 
-    // Check if WebUI service is serving
+    // Ensure WebUI is ready
     if (!widget.webUIService.isServing) {
-      widget.logger.warning('WebUI service is not serving, using Landing page');
-      return LandingFeature.routeName;
+      widget.logger.info('WebUI not serving, attempting to start...');
+      
+      final defaultSkin = widget.webUIStorage.defaultSkin;
+      if (defaultSkin != null) {
+        try {
+          await widget.webUIService.serveFolderAtPath(defaultSkin.path);
+          widget.logger.info('WebUI service started successfully');
+        } catch (e) {
+          widget.logger.severe('Failed to start WebUI service: $e');
+          _navigateToRoute(LandingFeature.routeName);
+          return;
+        }
+      } else {
+        widget.logger.warning('No default skin available, using Landing page');
+        _navigateToRoute(LandingFeature.routeName);
+        return;
+      }
     }
 
-    // Check if default skin is available
-    final defaultSkin = widget.webUIStorage.defaultSkin;
-    if (defaultSkin == null) {
-      widget.logger.warning('No default skin available, using Landing page');
-      return LandingFeature.routeName;
-    }
+    // Wait a brief moment for WebUI to be fully ready
+    await Future.delayed(const Duration(milliseconds: 500));
 
-    widget.logger.info('Navigating to SkinView with skin: ${defaultSkin.name}');
-    return SkinView.routeName;
+    widget.logger.info('Navigating to SkinView');
+    _navigateToRoute(SkinView.routeName);
+  }
+
+  /// Helper to navigate to a specific route
+  void _navigateToRoute(String route) {
+    if (!mounted) return;
+    
+    // Push both routes to stack: HomeScreen first, then the target route
+    Navigator.popAndPushNamed(context, HomeScreen.routeName);
+    if (route == SkinView.routeName) {
+      Navigator.of(context).pushNamed(SkinView.routeName);
+    }
   }
 
   @override
   void initState() {
     super.initState();
+
+    bool hasHandledAutoConnect = false;
 
     _discoverySubscription = widget.deviceController.deviceStream.listen((
       data,
@@ -275,9 +300,11 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
           _state = DiscoveryState.foundMany;
         });
 
-        // Check if we should auto-connect to preferred machine
+        // Check if we should auto-connect to preferred machine (only once)
         final preferredMachineId = widget.settingsController.preferredMachineId;
-        if (preferredMachineId != null) {
+        if (preferredMachineId != null && !hasHandledAutoConnect) {
+          hasHandledAutoConnect = true;
+          
           final preferredMachine = discoveredDevices.firstWhere(
             (device) => device.deviceId == preferredMachineId,
             orElse: () => discoveredDevices.first,
@@ -291,14 +318,9 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
           // Auto-connect to preferred machine
           widget.de1controller
               .connectToDe1(preferredMachine)
-              .then((_) {
+              .then((_) async {
                 if (mounted) {
-                  final route = _getNavigationRoute();
-                  // Push both routes to stack: HomeScreen first, then the target route
-                  Navigator.popAndPushNamed(context, HomeScreen.routeName);
-                  if (route == SkinView.routeName) {
-                    Navigator.of(context).pushNamed(SkinView.routeName);
-                  }
+                  await _navigateAfterConnection();
                 }
               })
               .catchError((error) {
@@ -310,25 +332,26 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                 }
                 widget.logger.severe('Auto-connect failed: $error');
               });
-          _discoverySubscription.cancel();
         }
       }
     });
 
-    // If 10 seconds elapsed without finding any devices, show no devices found
+    // If 10 seconds elapsed without finding any devices, stop scanning
+    // Only set state to foundNone if we truly have no devices
     Future.delayed(_timeoutDuration, () {
+      if (!mounted) return;
+      
       final discoveredDevices =
           widget.deviceController.devices.whereType<De1Interface>().toList();
-      _discoverySubscription.cancel();
 
-      if (mounted) {
-        setState(() {
-          _isScanning = false;
-          if (discoveredDevices.isEmpty) {
-            _state = DiscoveryState.foundNone;
-          }
-        });
-      }
+      setState(() {
+        _isScanning = false;
+        // Only show "no devices found" if we actually have no devices
+        // Don't change state if devices were found
+        if (discoveredDevices.isEmpty && _state != DiscoveryState.foundMany) {
+          _state = DiscoveryState.foundNone;
+        }
+      });
     });
   }
 
@@ -396,13 +419,8 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
           showHeader: true,
           headerText: "Select a machine from the list",
           autoConnectingDeviceId: _autoConnectingDeviceId,
-          onDeviceSelected: (de1) {
-            final route = _getNavigationRoute();
-            // Push both routes to stack: HomeScreen first, then the target route
-            Navigator.popAndPushNamed(context, HomeScreen.routeName);
-            if (route == SkinView.routeName) {
-              Navigator.of(context).pushNamed(SkinView.routeName);
-            }
+          onDeviceSelected: (de1) async {
+            await _navigateAfterConnection();
           },
         ),
         
@@ -421,7 +439,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                       spacing: 8,
                       children: [
                         Icon(LucideIcons.refreshCw, size: 16),
-                        Text('Scan Again'),
+                        Text('ReScan'),
                       ],
                     ),
                   ),
@@ -434,7 +452,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                         HomeScreen.routeName,
                       );
                     },
-                    child: Text('Continue to Dashboard'),
+                    child: Text('Dashboard'),
                   ),
                 ),
               ],
@@ -586,14 +604,9 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
             // Auto-connect if only one device found
             widget.de1controller.connectToDe1(discoveredDevices.first).then((
               _,
-            ) {
+            ) async {
               if (mounted) {
-                final route = _getNavigationRoute();
-                // Push both routes to stack: HomeScreen first, then the target route
-                Navigator.popAndPushNamed(context, HomeScreen.routeName);
-                if (route == SkinView.routeName) {
-                  Navigator.of(context).pushNamed(SkinView.routeName);
-                }
+                await _navigateAfterConnection();
               }
             });
           } else {
@@ -688,6 +701,10 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 }
 
 enum DiscoveryState { searching, foundMany, foundNone }
+
+
+
+
 
 
 

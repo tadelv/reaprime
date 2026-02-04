@@ -63,7 +63,7 @@ void main() async {
 
   if (Platform.isWindows || Platform.isMacOS) {
     await WindowManager.instance.ensureInitialized();
-    WindowManager.instance.setMinimumSize(const Size(900, 800));
+    WindowManager.instance.setMinimumSize(const Size(1152, 720));
   }
 
   if (Platform.isAndroid) {
