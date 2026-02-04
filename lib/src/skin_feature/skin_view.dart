@@ -101,6 +101,30 @@ class _SkinViewState extends State<SkinView> {
     _log.info('InAppWebView settings initialized');
   }
 
+  void _showExitInstructions() {
+    String instructions;
+    
+    if (Platform.isIOS) {
+      instructions = 'Swipe right from the left side of the screen to return to Dashboard';
+    } else if (Platform.isAndroid) {
+      instructions = 'Use system back button to return to Dashboard';
+    } else if (Platform.isMacOS) {
+      instructions = 'Press Escape key to return to Dashboard';
+    } else {
+      // Fallback for other platforms
+      instructions = 'Use back navigation to return to Dashboard';
+    }
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(instructions),
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
   bool _escPressed = false;
 
   @override
@@ -370,6 +394,11 @@ class _SkinViewState extends State<SkinView> {
             setState(() {
               _isLoading = false;
             });
+            
+            // Show exit instructions snackbar
+            if (mounted) {
+              _showExitInstructions();
+            }
           },
           onReceivedError: (controller, request, error) {
             _log.severe(
@@ -407,3 +436,5 @@ class _SkinViewState extends State<SkinView> {
     );
   }
 }
+
+
