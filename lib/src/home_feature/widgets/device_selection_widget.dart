@@ -209,6 +209,7 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
 
     if (widget.showHeader) {
       return Column(
+        mainAxisSize: MainAxisSize.min,
         spacing: 16,
         children: [
           Text(
@@ -254,7 +255,7 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
                 ),
               ),
             ),
-          Expanded(child: listView),
+          listView,
         ],
       );
     }
@@ -305,3 +306,4 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
     );
   }
 }
+

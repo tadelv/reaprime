@@ -408,34 +408,37 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
         
         // Action buttons (shown when scanning is complete)
         if (!_isScanning)
-          Row(
-            spacing: 12,
-            children: [
-              Expanded(
-                child: ShadButton.outline(
-                  onPressed: _retryScan,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: 8,
-                    children: [
-                      Icon(LucideIcons.refreshCw, size: 16),
-                      Text('Scan Again'),
-                    ],
+          SizedBox(
+            width: 300,
+            child: Row(
+              spacing: 12,
+              children: [
+                Expanded(
+                  child: ShadButton.outline(
+                    onPressed: _retryScan,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 8,
+                      children: [
+                        Icon(LucideIcons.refreshCw, size: 16),
+                        Text('Scan Again'),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              Expanded(
-                child: ShadButton.secondary(
-                  onPressed: () {
-                    Navigator.popAndPushNamed(
-                      context,
-                      HomeScreen.routeName,
-                    );
-                  },
-                  child: Text('Continue to Dashboard'),
+                Expanded(
+                  child: ShadButton.secondary(
+                    onPressed: () {
+                      Navigator.popAndPushNamed(
+                        context,
+                        HomeScreen.routeName,
+                      );
+                    },
+                    child: Text('Continue to Dashboard'),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
       ],
     );
@@ -685,6 +688,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 }
 
 enum DiscoveryState { searching, foundMany, foundNone }
+
 
 
 
