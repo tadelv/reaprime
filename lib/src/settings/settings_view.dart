@@ -27,7 +27,7 @@ import 'settings_controller.dart';
 ///
 /// When a user changes a setting, the SettingsController is updated and
 /// Widgets that listen to the SettingsController are rebuilt.
-class SettingsView extends StatelessWidget {
+class SettingsView extends StatefulWidget {
   const SettingsView({
     super.key,
     required this.controller,
@@ -43,6 +43,11 @@ class SettingsView extends StatelessWidget {
   final WebUIService webUIService;
   final WebUIStorage webUIStorage;
 
+  @override
+  State<SettingsView> createState() => _SettingsViewState();
+}
+
+class _SettingsViewState extends State<SettingsView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -76,8 +81,8 @@ class SettingsView extends StatelessWidget {
                           Expanded(
                             child: DropdownButton<ThemeMode>(
                               isExpanded: true,
-                              value: controller.themeMode,
-                              onChanged: controller.updateThemeMode,
+                              value: widget.controller.themeMode,
+                              onChanged: widget.controller.updateThemeMode,
                               items: const [
                                 DropdownMenuItem(
                                   value: ThemeMode.system,
@@ -119,10 +124,10 @@ class SettingsView extends StatelessWidget {
                           ),
                           DropdownButton<GatewayMode>(
                             isExpanded: true,
-                            value: controller.gatewayMode,
+                            value: widget.controller.gatewayMode,
                             onChanged: (v) {
                               if (v != null) {
-                                controller.updateGatewayMode(v);
+                                widget.controller.updateGatewayMode(v);
                               }
                             },
                             items: const [
@@ -181,15 +186,15 @@ class SettingsView extends StatelessWidget {
                               ),
                             ],
                           ),
-                          if (controller.preferredMachineId != null) ...[
+                          if (widget.controller.preferredMachineId != null) ...[
                             Text(
-                              'Device ID: ${controller.preferredMachineId}',
+                              'Device ID: ${widget.controller.preferredMachineId}',
                               style: Theme.of(context).textTheme.bodyMedium,
                             ),
                             const SizedBox(height: 6),
                             ShadButton.destructive(
                               onPressed: () async {
-                                await controller.setPreferredMachineId(null);
+                                await widget.controller.setPreferredMachineId(null);
                               },
                               child: const Text('Clear Auto-Connect Device'),
                             ),
@@ -211,11 +216,11 @@ class SettingsView extends StatelessWidget {
                       const Divider(height: 24),
                       // Simulated Devices
                       ShadSwitch(
-                        value: controller.simulatedDevices,
+                        value: widget.controller.simulatedDevices,
                         enabled: true,
                         onChanged: (v) async {
                           Logger("Settings").info("toggle sim to $v");
-                          await controller.setSimulatedDevices(v);
+                          await widget.controller.setSimulatedDevices(v);
                         },
                         label: const Text("Show simulated devices"),
                         sublabel: const Text(
@@ -260,7 +265,7 @@ class SettingsView extends StatelessWidget {
                           ShadButton(
                             onPressed: () async {
                               final exporter = ShotExporter(
-                                storage: persistenceController.storageService,
+                                storage: widget.persistenceController.storageService,
                               );
                               final jsonData = await exporter.exportJson();
                               final tempDir = await getTemporaryDirectory();
@@ -315,7 +320,7 @@ class SettingsView extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         spacing: 8,
                         children: [
-                          if (!webUIService.isServing)
+                          if (!widget.webUIService.isServing)
                             ShadButton.secondary(
                               onPressed: () {
                                 _pickFolderAndLoadHtml(context);
@@ -332,12 +337,17 @@ class SettingsView extends StatelessWidget {
                             ),
                             ShadButton.destructive(
                               onPressed: () async {
-                                await webUIService.stopServing();
+                                await widget.webUIService.stopServing();
                                 setState(() {});
                               },
                               child: const Text("Stop WebUI Server"),
                             ),
                           ],
+                          const Divider(height: 20),
+                          ShadButton.outline(
+                            onPressed: () => _checkForSkinUpdates(context),
+                            child: const Text("Check for Skin Updates"),
+                          ),
                         ],
                       ),
                     ],
@@ -366,8 +376,8 @@ class SettingsView extends StatelessWidget {
                               Expanded(
                                 child: DropdownButton<String>(
                                   isExpanded: true,
-                                  value: controller.logLevel,
-                                  onChanged: controller.updateLogLevel,
+                                  value: widget.controller.logLevel,
+                                  onChanged: widget.controller.updateLogLevel,
                                   items: const [
                                     DropdownMenuItem(
                                       value: "FINE",
@@ -625,6 +635,35 @@ class SettingsView extends StatelessWidget {
     );
   }
 
+  Future<void> _checkForSkinUpdates(BuildContext context) async {
+    final log = Logger('SettingsView');
+
+    try {
+      // Show loading indicator
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Checking for skin updates...')),
+      );
+
+      // Check for skin updates
+      await widget.webUIStorage.downloadRemoteSkins();
+
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Skin updates completed'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e, stackTrace) {
+      log.severe('Error checking for skin updates', e, stackTrace);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to check for skin updates: $e')),
+      );
+    }
+  }
+
   Future<void> _checkForUpdates(BuildContext context) async {
     final log = Logger('SettingsView');
 
@@ -663,10 +702,10 @@ class SettingsView extends StatelessWidget {
         }
 
         // Also check for WebUI updates
-        await webUIStorage.downloadRemoteSkins();
+        await widget.webUIStorage.downloadRemoteSkins();
       } else {
         // Non-Android platforms: just check for WebUI updates
-        await webUIStorage.downloadRemoteSkins();
+        await widget.webUIStorage.downloadRemoteSkins();
         if (!context.mounted) return;
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('WebUI is up to date')));
@@ -737,7 +776,7 @@ class SettingsView extends StatelessWidget {
   Future<void> _importFromFile(BuildContext context) async {
     final log = Logger("ShotImport");
     final importer = ShotImporter(
-      storage: persistenceController.storageService,
+      storage: widget.persistenceController.storageService,
     );
 
     final result = await FilePicker.platform.pickFiles(
@@ -786,7 +825,7 @@ class SettingsView extends StatelessWidget {
         log.info("Imported 1 shot");
       }
 
-      persistenceController.loadShots();
+      widget.persistenceController.loadShots();
 
       // Close progress dialog
       if (context.mounted) {
@@ -827,7 +866,7 @@ class SettingsView extends StatelessWidget {
   Future<void> _importFromFolder(BuildContext context) async {
     final log = Logger("ShotImport");
     final importer = ShotImporter(
-      storage: persistenceController.storageService,
+      storage: widget.persistenceController.storageService,
     );
 
     final sourceDirPath = await FilePicker.platform.getDirectoryPath();
@@ -867,7 +906,7 @@ class SettingsView extends StatelessWidget {
         }
       }
 
-      persistenceController.loadShots();
+      widget.persistenceController.loadShots();
 
       // Close progress dialog
       if (context.mounted) {
@@ -919,7 +958,7 @@ class SettingsView extends StatelessWidget {
           .finest('list dir: ${dir.listSync(recursive: true).join("\n")}');
       final indexFile = File('$selectedDirectory/index.html');
       final itExists = await indexFile.exists();
-      await webUIService.serveFolderAtPath(selectedDirectory);
+      await widget.webUIService.serveFolderAtPath(selectedDirectory);
       if (context.mounted == false) {
         return;
       }
