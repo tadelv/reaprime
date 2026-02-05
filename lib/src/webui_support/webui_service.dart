@@ -115,4 +115,14 @@ class WebUIService {
   }
 
   bool get isServing => _server != null;
+
+  Future<void> stopServing() async {
+    if (_server != null) {
+      _log.info('Stopping WebUI server on port $port');
+      await _server?.close(force: true);
+      _server = null;
+      _path = "";
+      _log.info('WebUI server stopped');
+    }
+  }
 }

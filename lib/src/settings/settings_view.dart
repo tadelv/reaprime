@@ -315,13 +315,14 @@ class SettingsView extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         spacing: 8,
                         children: [
-                          ShadButton.secondary(
-                            onPressed: () {
-                              _pickFolderAndLoadHtml(context);
-                            },
-                            child: const Text("Load WebUI"),
-                          ),
-                          if (webUIService.isServing)
+                          if (!webUIService.isServing)
+                            ShadButton.secondary(
+                              onPressed: () {
+                                _pickFolderAndLoadHtml(context);
+                              },
+                              child: const Text("Load WebUI"),
+                            )
+                          else ...[
                             ShadButton(
                               onPressed: () async {
                                 final url = Uri.parse('http://localhost:3000');
@@ -329,6 +330,14 @@ class SettingsView extends StatelessWidget {
                               },
                               child: const Text("Open UI in browser"),
                             ),
+                            ShadButton.destructive(
+                              onPressed: () async {
+                                await webUIService.stopServing();
+                                setState(() {});
+                              },
+                              child: const Text("Stop WebUI Server"),
+                            ),
+                          ],
                         ],
                       ),
                     ],
