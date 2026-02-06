@@ -249,12 +249,8 @@ make dual-build
 
 This project is licensed under the GNU General Public License v3.0 (GPL-3.0).
 
-See the [LICENSE](LICENSE) file for details.
+See the [LICENSE](LICENSE.txt) file for details.
 
 ---
 
 **Need help?** Check our [documentation](/) or open an [issue](https://github.com/tadelv/reaprime/issues).
-
-
-
-

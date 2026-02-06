@@ -48,6 +48,16 @@ class SettingsView extends StatefulWidget {
 }
 
 class _SettingsViewState extends State<SettingsView> {
+  String? _selectedSkinId;
+  static const String _customSkinId = '__custom__';
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize with default skin if available
+    _selectedSkinId = widget.webUIStorage.defaultSkin?.id;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -314,18 +324,31 @@ class _SettingsViewState extends State<SettingsView> {
                     title: 'Web Interface',
                     icon: Icons.web_outlined,
                     footnote:
-                        'Load and access the web-based user interface',
+                        'Select and manage web-based user interface skins',
                     children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         spacing: 8,
                         children: [
+                          // Skin selector
+                          Row(
+                            children: [
+                              Text(
+                                'Skin',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildSkinSelector(),
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 20),
+                          // Server controls
                           if (!widget.webUIService.isServing)
                             ShadButton.secondary(
-                              onPressed: () {
-                                _pickFolderAndLoadHtml(context);
-                              },
-                              child: const Text("Load WebUI"),
+                              onPressed: () => _startSelectedSkin(),
+                              child: const Text("Start WebUI Server"),
                             )
                           else ...[
                             ShadButton(
@@ -549,6 +572,155 @@ class _SettingsViewState extends State<SettingsView> {
         ),
       ],
     );
+  }
+
+  Widget _buildSkinSelector() {
+    final installedSkins = widget.webUIStorage.installedSkins;
+    
+    return DropdownButton<String>(
+      isExpanded: true,
+      value: _selectedSkinId,
+      onChanged: (value) {
+        setState(() {
+          _selectedSkinId = value;
+        });
+        
+        // If custom is selected, open folder picker
+        if (value == _customSkinId) {
+          _pickCustomSkinFolder(context);
+        }
+      },
+      items: [
+        // Installed skins
+        ...installedSkins.map((skin) {
+          return DropdownMenuItem(
+            value: skin.id,
+            child: Row(
+              children: [
+                if (skin.isBundled)
+                  const Icon(Icons.verified, size: 16)
+                else
+                  const Icon(Icons.folder, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    skin.name,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (skin.version != null)
+                  Text(
+                    ' v${skin.version}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+              ],
+            ),
+          );
+        }),
+        // Custom folder option
+        const DropdownMenuItem(
+          value: _customSkinId,
+          child: Row(
+            children: [
+              Icon(Icons.folder_open, size: 16),
+              SizedBox(width: 8),
+              Text('Load custom folder...'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _startSelectedSkin() async {
+    if (_selectedSkinId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a skin first')),
+      );
+      return;
+    }
+
+    if (_selectedSkinId == _customSkinId) {
+      await _pickCustomSkinFolder(context);
+      return;
+    }
+
+    try {
+      final skin = widget.webUIStorage.getSkin(_selectedSkinId!);
+      if (skin == null) {
+        throw Exception('Selected skin not found');
+      }
+
+      await widget.webUIService.serveFolderAtPath(skin.path);
+      setState(() {});
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('WebUI started with ${skin.name}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to start WebUI: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickCustomSkinFolder(BuildContext context) async {
+    String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
+
+    if (selectedDirectory != null) {
+      final dir = Directory(selectedDirectory);
+      final indexFile = File('$selectedDirectory/index.html');
+      final itExists = await indexFile.exists();
+      
+      if (itExists) {
+        await widget.webUIService.serveFolderAtPath(selectedDirectory);
+        setState(() {});
+        
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Text('Custom WebUI from $selectedDirectory loaded'),
+                  const Spacer(),
+                  ShadButton.outline(
+                    onPressed: () async {
+                      final url = Uri.parse('http://localhost:3000');
+                      await launchUrl(url);
+                    },
+                    child: const Text("Open"),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('index.html not found in selected folder'),
+            ),
+          );
+        }
+        // Reset selection back to previous valid skin
+        setState(() {
+          _selectedSkinId = widget.webUIStorage.defaultSkin?.id;
+        });
+      }
+    } else {
+      // User cancelled, reset to default
+      setState(() {
+        _selectedSkinId = widget.webUIStorage.defaultSkin?.id;
+      });
+    }
   }
 
   void _showPreferredDeviceInfo(BuildContext context) {
