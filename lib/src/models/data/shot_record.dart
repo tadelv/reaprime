@@ -8,6 +8,7 @@ class ShotRecord {
   final List<ShotSnapshot> measurements;
   final Workflow workflow;
   final String? shotNotes;
+  final Map<String, dynamic>? metadata;
   
   ShotRecord({
     required this.id,
@@ -15,6 +16,7 @@ class ShotRecord {
     required this.measurements,
     required this.workflow,
     this.shotNotes,
+    this.metadata,
   });
 
   Map<String, dynamic> toJson() {
@@ -24,6 +26,7 @@ class ShotRecord {
       "measurements": measurements.map((e) => e.toJson()).toList(),
       "workflow": workflow.toJson(),
       if (shotNotes != null) "shotNotes": shotNotes,
+      if (metadata != null) "metadata": metadata,
     };
   }
 
@@ -36,6 +39,7 @@ class ShotRecord {
           .toList(),
       workflow: Workflow.fromJson(json["workflow"]),
       shotNotes: json["shotNotes"] as String?,
+      metadata: json["metadata"] as Map<String, dynamic>?,
     );
   }
 
@@ -55,6 +59,7 @@ class ShotRecord {
     List<ShotSnapshot>? measurements,
     Workflow? workflow,
     String? shotNotes,
+    Map<String, dynamic>? metadata,
   }) {
     return ShotRecord(
       id: id ?? this.id,
@@ -62,6 +67,7 @@ class ShotRecord {
       measurements: measurements ?? this.measurements,
       workflow: workflow ?? this.workflow,
       shotNotes: shotNotes ?? this.shotNotes,
+      metadata: metadata ?? this.metadata,
     );
   }
 }

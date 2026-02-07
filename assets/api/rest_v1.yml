@@ -1634,6 +1634,23 @@ components:
           type: string
           nullable: true
           description: Optional notes about the shot (e.g., tasting notes, observations)
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: |
+            Optional flexible metadata dictionary for future extensibility.
+            Can store arbitrary key-value pairs such as:
+            - rating: numerical rating (1-5)
+            - tags: array of strings for categorization
+            - favorite: boolean flag
+            - barista: string name
+            - customFields: any application-specific data
+          example:
+            rating: 4.5
+            tags: ["morning", "sweet"]
+            favorite: true
+            barista: "Alice"
 
     ShotSnapshot:
       type: object
