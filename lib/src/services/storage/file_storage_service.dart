@@ -66,6 +66,26 @@ class FileStorageService implements StorageService {
     _log.fine("Stored shot: ${record.id} at ${file.path}");
   }
 
+  @override
+  Future<void> updateShot(ShotRecord record) async {
+    File file = File('${shotsPath.path}/${record.id}.json');
+    if (!await file.exists()) {
+      throw Exception("Shot with id ${record.id} not found");
+    }
+    await file.writeAsString(jsonEncode(record.toJson()));
+    _log.fine("Updated shot: ${record.id} at ${file.path}");
+  }
+
+  @override
+  Future<void> deleteShot(String id) async {
+    File file = File('${shotsPath.path}/$id.json');
+    if (!await file.exists()) {
+      throw Exception("Shot with id $id not found");
+    }
+    await file.delete();
+    _log.fine("Deleted shot: $id");
+  }
+
   Future<List<String>> _getShotFiles() {
     return shotsPath.list().map((e) => e.path).toList();
   }

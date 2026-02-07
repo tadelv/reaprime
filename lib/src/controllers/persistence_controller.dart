@@ -24,6 +24,35 @@ class PersistenceController {
     }
   }
 
+  Future<void> updateShot(ShotRecord record) async {
+    _log.info("Updating shot: ${record.id}");
+    try {
+      await storageService.updateShot(record);
+      final index = _shots.indexWhere((s) => s.id == record.id);
+      if (index != -1) {
+        _shots[index] = record;
+        _shotsController.add(_shots);
+      } else {
+        _log.warning("Shot ${record.id} not found in memory cache");
+      }
+    } catch (e, st) {
+      _log.severe("Error updating shot:", e, st);
+      rethrow;
+    }
+  }
+
+  Future<void> deleteShot(String id) async {
+    _log.info("Deleting shot: $id");
+    try {
+      await storageService.deleteShot(id);
+      _shots.removeWhere((s) => s.id == id);
+      _shotsController.add(_shots);
+    } catch (e, st) {
+      _log.severe("Error deleting shot:", e, st);
+      rethrow;
+    }
+  }
+
   Future<List<ShotRecord>> loadShots() async {
     var loadedShots = await storageService.getAllShots();
     _log.fine("shots loaded: ${loadedShots.length}");

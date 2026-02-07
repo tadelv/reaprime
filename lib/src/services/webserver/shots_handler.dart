@@ -16,6 +16,9 @@ class ShotsHandler {
     app.get('/api/v1/shots', _getShots);
     app.get('/api/v1/shots/ids', _getIds);
     app.get('/api/v1/shots/latest', _getLatestShot);
+    app.get('/api/v1/shots/<id>', _getShot);
+    app.put('/api/v1/shots/<id>', _updateShot);
+    app.delete('/api/v1/shots/<id>', _deleteShot);
   }
 
   Future<Response> _getShots(Request req) async {
@@ -44,4 +47,66 @@ class ShotsHandler {
     List<ShotRecord> shots = await _controller.shots.first;
     return Response.ok(jsonEncode(shots.lastOrNull?.toJson()));
   }
+
+  Future<Response> _getShot(Request req, String id) async {
+    try {
+      final shot = await _controller.storageService.getShot(id);
+      if (shot == null) {
+        return Response.notFound(jsonEncode({"error": "Shot not found"}));
+      }
+      return Response.ok(jsonEncode(shot.toJson()));
+    } catch (e, st) {
+      _log.severe("Error getting shot $id", e, st);
+      return Response.internalServerError(
+        body: jsonEncode({"error": e.toString()}),
+      );
+    }
+  }
+
+  Future<Response> _updateShot(Request req, String id) async {
+    try {
+      final body = await req.body.asString;
+      final json = jsonDecode(body) as Map<String, dynamic>;
+      
+      // Validate that the ID in the path matches the ID in the body (if provided)
+      if (json['id'] != null && json['id'] != id) {
+        return Response.badRequest(
+          body: jsonEncode({"error": "ID in path does not match ID in body"}),
+        );
+      }
+      
+      // Ensure ID is set in the JSON
+      json['id'] = id;
+      
+      final updatedShot = ShotRecord.fromJson(json);
+      await _controller.updateShot(updatedShot);
+      
+      return Response.ok(jsonEncode(updatedShot.toJson()));
+    } catch (e, st) {
+      _log.severe("Error updating shot $id", e, st);
+      if (e.toString().contains("not found")) {
+        return Response.notFound(jsonEncode({"error": "Shot not found"}));
+      }
+      return Response.internalServerError(
+        body: jsonEncode({"error": e.toString()}),
+      );
+    }
+  }
+
+  Future<Response> _deleteShot(Request req, String id) async {
+    try {
+      await _controller.deleteShot(id);
+      return Response.ok(jsonEncode({"success": true, "id": id}));
+    } catch (e, st) {
+      _log.severe("Error deleting shot $id", e, st);
+      if (e.toString().contains("not found")) {
+        return Response.notFound(jsonEncode({"error": "Shot not found"}));
+      }
+      return Response.internalServerError(
+        body: jsonEncode({"error": e.toString()}),
+      );
+    }
+  }
 }
+
+

@@ -447,6 +447,137 @@ paths:
               schema: 
                 $ref: "#/components/schemas/ShotRecord"
 
+  /api/v1/shots/{id}:
+    get:
+      summary: Get a specific shot by ID
+      tags: [Shots History]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Shot ID
+      responses:
+        "200":
+          description: Shot found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShotRecord"
+        "404":
+          description: Shot not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+    
+    put:
+      summary: Update a shot record
+      description: Updates an existing shot record. Commonly used to add or update shot notes, or modify workflow metadata.
+      tags: [Shots History]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Shot ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShotRecord"
+      responses:
+        "200":
+          description: Shot updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShotRecord"
+        "400":
+          description: Bad Request (ID mismatch)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "404":
+          description: Shot not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+    
+    delete:
+      summary: Delete a shot record
+      description: Permanently deletes a shot record from storage
+      tags: [Shots History]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Shot ID
+      responses:
+        "200":
+          description: Shot deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  id:
+                    type: string
+        "404":
+          description: Shot not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
   # REA Key-Value Store for clients
   /api/v1/store/{namespace}:
     get:
@@ -1499,6 +1630,10 @@ components:
             $ref: "#/components/schemas/ShotSnapshot"
         workflow:
           $ref: "#/components/schemas/WorkflowRequest"
+        shotNotes:
+          type: string
+          nullable: true
+          description: Optional notes about the shot (e.g., tasting notes, observations)
 
     ShotSnapshot:
       type: object

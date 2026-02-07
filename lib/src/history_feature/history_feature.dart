@@ -138,6 +138,18 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                         Text(
                           "${record.measurements.last.machine.timestamp.difference(record.timestamp).toString()}",
                         ),
+                        if (record.shotNotes != null && record.shotNotes!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4.0),
+                            child: Text(
+                              record.shotNotes!,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                fontStyle: FontStyle.italic,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -161,26 +173,150 @@ class _HistoryFeatureState extends State<HistoryFeature> {
   }
 
   Widget shotDetail(BuildContext context, ShotRecord record) {
-    return Column(
-      children: [
-        Text("${record.id}"),
-        if (record.workflow.grinderData != null)
-          Text(
-            "${record.workflow.grinderData!.model}: ${record.workflow.grinderData!.setting}",
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(child: Text("Shot ID: ${record.id}", style: Theme.of(context).textTheme.bodySmall)),
+                Row(
+                  children: [
+                    ShadButton(
+                      child: Text("Edit"),
+                      onPressed: () => _showEditDialog(context, record),
+                    ),
+                    SizedBox(width: 8),
+                    ShadButton(
+                      child: Text("Repeat"),
+                      onPressed: () {
+                        widget.workflowController.setWorkflow(record.workflow.copyWith());
+                      },
+                    ),
+                    SizedBox(width: 8),
+                    ShadButton.destructive(
+                      child: Text("Delete"),
+                      onPressed: () => _confirmDelete(context, record),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            if (record.workflow.grinderData != null)
+              Text(
+                "Grinder: ${record.workflow.grinderData!.model} - ${record.workflow.grinderData!.setting}",
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+            SizedBox(height: 8),
+            Text(
+              "Profile: ${record.workflow.profile.title}",
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+            SizedBox(height: 8),
+            if (record.shotNotes != null && record.shotNotes!.isNotEmpty)
+              ShadCard(
+                title: Text("Notes"),
+                child: Text(record.shotNotes!),
+              ),
+            SizedBox(height: 16),
+            ShotChart(
+              key: ValueKey(record.id),
+              shotSnapshots: record.measurements,
+              shotStartTime: record.timestamp,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showEditDialog(BuildContext context, ShotRecord record) {
+    final notesController = TextEditingController(text: record.shotNotes ?? '');
+
+    showShadDialog(
+      context: context,
+      builder: (context) => ShadDialog(
+        title: Text('Edit Shot'),
+        description: Text('Update shot notes'),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ShadInput(
+                controller: notesController,
+                placeholder: const Text('Add notes about this shot...'),
+                maxLines: 5,
+              ),
+            ],
           ),
-        Text("Profile: ${record.workflow.profile.title}"),
-        ShadButton(
-          child: Text("Repeat"),
-          onPressed: () {
-            widget.workflowController.setWorkflow(record.workflow.copyWith());
-          },
         ),
-        ShotChart(
-          key: ValueKey(record.id),
-          shotSnapshots: record.measurements,
-          shotStartTime: record.timestamp,
-        ),
-      ],
+        actions: [
+          ShadButton.outline(
+            child: const Text('Cancel'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          ShadButton(
+            child: const Text('Save'),
+            onPressed: () async {
+              try {
+                final updatedShot = record.copyWith(
+                  shotNotes: notesController.text.isEmpty ? null : notesController.text,
+                );
+                await widget.persistenceController.updateShot(updatedShot);
+                Navigator.of(context).pop();
+                setState(() {
+                  _selectedShot = updatedShot;
+                });
+              } catch (e) {
+                _log.severe("Failed to update shot", e);
+                // Show error toast
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to update shot: $e')),
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, ShotRecord record) {
+    showShadDialog(
+      context: context,
+      builder: (context) => ShadDialog.alert(
+        title: const Text('Delete Shot'),
+        description: Text('Are you sure you want to delete this shot? This action cannot be undone.'),
+        actions: [
+          ShadButton.outline(
+            child: const Text('Cancel'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          ShadButton.destructive(
+            child: const Text('Delete'),
+            onPressed: () async {
+              try {
+                await widget.persistenceController.deleteShot(record.id);
+                Navigator.of(context).pop();
+                setState(() {
+                  _selectedShot = null;
+                });
+              } catch (e) {
+                _log.severe("Failed to delete shot", e);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to delete shot: $e')),
+                );
+              }
+            },
+          ),
+        ],
+      ),
     );
   }
 }
