@@ -1,15 +1,22 @@
 # Streamline Bridge
 
-> **Streamline Bridge** connects your Decent Espresso machine to beautiful, modern user interfaces (called "skins"). Think of it as the bridge between your DE1 (or Bengle) and sleek touchscreen experiences like [Streamline.js](https://github.com/allofmeng/streamline_project).
+> **Streamline Bridge** connects your Decent Espresso machine to beautiful,
+modern user interfaces (called "skins").  
+Think of it as the bridge between your
+DE1 (or Bengle) and sleek touchscreen experiences like [Streamline.js](https://github.com/allofmeng/streamline_project).
 
 **What it does:**
+
 - Connects to your Decent Espresso machine via Bluetooth or USB
 - Lets you control your machine through modern web-based interfaces
 - Provides real-time shot data, temperatures, and pressure readings
 - Works with scales to automatically stop shots at your target weight
 - Runs on Android tablets, desktop computers, and more
 
-**For developers:** Streamline Bridge provides a complete REST and WebSocket API, making it easy to build custom interfaces without dealing with the complexity of machine communication and device connectivity.
+**For developers:** Streamline Bridge provides
+a complete REST and WebSocket API, making it
+easy to build custom interfaces without dealing with the
+complexity of machine communication and device connectivity.
 
 ## Table of Contents
 
