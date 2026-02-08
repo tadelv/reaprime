@@ -479,6 +479,31 @@ class _SettingsViewState extends State<SettingsView> {
                             'Branch',
                             BuildInfo.branch,
                           ),
+                          const Divider(height: 20),
+                          Text(
+                            'License',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Copyright © 2025 Decent Espresso',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Licensed under GNU General Public License v3.0',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 8),
+                          ShadButton.outline(
+                            onPressed: () async {
+                              final url = Uri.parse('https://www.gnu.org/licenses/gpl-3.0.html');
+                              await launchUrl(url);
+                            },
+                            child: const Text('View GPL v3 License'),
+                          ),
                         ],
                       ),
                     ],

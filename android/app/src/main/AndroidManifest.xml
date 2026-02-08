@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 
+        Streamline Bridge - A gateway application for Decent Espresso machines
+        Copyright (C) 2025 Decent Espresso
+        Licensed under GPL v3 - https://www.gnu.org/licenses/gpl-3.0.html
+    -->
     
     <!-- Bluetooth permissions -->
     <uses-permission android:name="android.permission.BLUETOOTH" />

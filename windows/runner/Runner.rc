@@ -93,7 +93,7 @@ BEGIN
             VALUE "FileDescription", "reaprime" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "reaprime" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2025 net.tadel. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2025 Decent Espresso. Licensed under GPL v3." "\0"
             VALUE "OriginalFilename", "reaprime.exe" "\0"
             VALUE "ProductName", "reaprime" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"

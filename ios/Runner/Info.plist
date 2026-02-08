@@ -40,6 +40,8 @@
 	<string>Needed to discover local devices</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Needed to discover local devices</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2025 Decent Espresso. Licensed under GPL v3.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>
