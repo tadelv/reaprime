@@ -376,26 +376,105 @@ paths:
   # REA Workflow API
   /api/v1/workflow:
     get:
-      summary: Get info about current workflow
+      summary: Get current workflow
+      description: |
+        Retrieves the complete current workflow including profile, dose settings, grinder data, 
+        coffee information, and all machine settings (steam, hot water, rinse).
+        
+        This is the recommended way to get all brewing parameters in a single call.
       tags: [Workflow]
       responses:
         "200":
+          description: Current workflow object with all settings
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/WorkflowRequest"
     put:
-      summary: Set or update current workflow
+      summary: Update current workflow
+      description: |
+        Updates the current workflow. This is the **recommended method** for applying changes 
+        to the machine and brewing parameters in one atomic operation.
+        
+        You can update the complete workflow or just specific fields:
+        - **profile**: Update the brewing profile
+        - **doseData**: Change input/output dose targets
+        - **grinderData**: Update grinder settings
+        - **coffeeData**: Change coffee information
+        - **steamSettings**: Modify steam temperature, duration, and flow
+        - **hotWaterData**: Adjust hot water temperature, volume, duration, and flow
+        - **rinseData**: Update rinse temperature, duration, and flow
+        
+        This approach is preferred over updating individual settings via separate endpoints 
+        as it ensures all related settings are applied together and uploaded to the machine 
+        as a cohesive recipe.
       tags: [Workflow]
-      description: You can update only specific fields, like doseData or grinderData, or profile etc.
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/WorkflowRequest"
+            examples:
+              updateProfile:
+                summary: Update just the profile
+                value:
+                  profile:
+                    version: "2"
+                    title: "Updated Profile"
+                    steps: []
+              updateDoseAndGrinder:
+                summary: Update dose and grinder settings
+                value:
+                  doseData:
+                    doseIn: 18.5
+                    doseOut: 37.0
+                  grinderData:
+                    setting: "2.8"
+                    manufacturer: "Niche"
+                    model: "Zero"
+              updateSteamSettings:
+                summary: Update steam settings
+                value:
+                  steamSettings:
+                    targetTemperature: 155
+                    duration: 60
+                    flow: 0.9
+              completeWorkflow:
+                summary: Complete workflow update
+                value:
+                  name: "Morning Espresso"
+                  description: "Daily shot recipe"
+                  profile:
+                    version: "2"
+                    title: "Classic Profile"
+                    steps: []
+                  doseData:
+                    doseIn: 18.0
+                    doseOut: 36.0
+                  grinderData:
+                    setting: "2.5"
+                    manufacturer: "Niche"
+                    model: "Zero"
+                  coffeeData:
+                    name: "Ethiopia Yirgacheffe"
+                    roaster: "Local Roaster"
+                  steamSettings:
+                    targetTemperature: 150
+                    duration: 50
+                    flow: 0.8
+                  hotWaterData:
+                    targetTemperature: 75
+                    duration: 30
+                    volume: 50
+                    flow: 10.0
+                  rinseData:
+                    targetTemperature: 90
+                    duration: 10
+                    flow: 6.0
       responses:
         "200":
-          description: Returns the new workflow object
+          description: Returns the updated workflow object
           content:
             application/json:
               schema:
@@ -1583,6 +1662,12 @@ components:
           $ref: "#/components/schemas/GrinderData"
         coffeeData:
           $ref: "#/components/schemas/CoffeeData"
+        steamSettings:
+          $ref: "#/components/schemas/SteamSettings"
+        hotWaterData:
+          $ref: "#/components/schemas/HotWaterData"
+        rinseData:
+          $ref: "#/components/schemas/RinseData"
 
     DoseData:
       type: object
@@ -1592,8 +1677,12 @@ components:
       properties:
         doseIn:
           type: number
+          description: Input dose (dry coffee weight in grams)
+          example: 18.0
         doseOut:
           type: number
+          description: Target output dose (beverage weight in grams)
+          example: 36.0
 
     GrinderData:
       type: object
@@ -1602,10 +1691,18 @@ components:
       properties:
         setting:
           type: string
+          description: Grinder setting (e.g., "2.5", "15")
+          example: "2.5"
         manufacturer:
           type: string
+          nullable: true
+          description: Grinder manufacturer name
+          example: "Niche"
         model:
           type: string
+          nullable: true
+          description: Grinder model name
+          example: "Zero"
 
     CoffeeData:
       type: object
@@ -1614,8 +1711,81 @@ components:
       properties:
         name:
           type: string
+          description: Coffee name or variety
+          example: "Ethiopia Yirgacheffe"
         roaster:
           type: string
+          nullable: true
+          description: Roaster name
+          example: "Local Roaster"
+
+    SteamSettings:
+      type: object
+      required:
+        - targetTemperature
+        - duration
+        - flow
+      properties:
+        targetTemperature:
+          type: integer
+          description: Target steam temperature in Celsius
+          example: 150
+        duration:
+          type: integer
+          description: Steam duration in seconds
+          example: 50
+        flow:
+          type: number
+          format: double
+          description: Steam flow rate
+          example: 0.8
+
+    HotWaterData:
+      type: object
+      required:
+        - targetTemperature
+        - duration
+        - volume
+        - flow
+      properties:
+        targetTemperature:
+          type: integer
+          description: Target hot water temperature in Celsius
+          example: 75
+        duration:
+          type: integer
+          description: Hot water dispensing duration in seconds
+          example: 30
+        volume:
+          type: integer
+          description: Target hot water volume in milliliters
+          example: 50
+        flow:
+          type: number
+          format: double
+          description: Hot water flow rate
+          example: 10.0
+
+    RinseData:
+      type: object
+      required:
+        - targetTemperature
+        - duration
+        - flow
+      properties:
+        targetTemperature:
+          type: integer
+          description: Target rinse water temperature in Celsius
+          example: 90
+        duration:
+          type: integer
+          description: Rinse duration in seconds
+          example: 10
+        flow:
+          type: number
+          format: double
+          description: Rinse flow rate
+          example: 6.0
 
     ShotRecord:
       type: object
@@ -1769,3 +1939,5 @@ components:
       type: string
       enum: [visible, hidden, deleted]
       description: Visibility state of a profile. 'visible' = shown in UI, 'hidden' = hidden from UI but not deleted, 'deleted' = soft-deleted (user profiles only)
+
+
