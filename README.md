@@ -33,7 +33,14 @@ To browse the complete API documentation:
 1. Start Streamline Bridge
 2. Navigate to [http://localhost:4001](http://localhost:4001)
 
-The API provides:
+Or:  
+
+1. Change directory to `assets/api/` on your computer
+2. Run `npx httpserver -p 4001` to start a http server in that folder
+3. Navigate to `http://localhost:4001`  
+
+The API provides:  
+
 - **REST endpoints** on port `8080`
 - **WebSocket streams** for real-time data
 - **Plugin HTTP endpoints** for custom integrations
@@ -235,9 +242,24 @@ make dual-build
 3. On network access: use device's local IP instead of localhost
 4. Check port 8080 is not in use by another application
 
-## Credits
+## About the Name
 
-**Streamline Bridge** (formerly REA/ReaPrime) stands for "Reasonable Espresso App" - because with a Decent Espresso machine, you might just brew something reasonably decent.
+**Streamline Bridge** (formerly known as REA/ReaPrime) represents a simplified approach to the project's terminology.
+
+### The Evolution
+
+The original name **REA** stood for "Reasonable Espresso App" - a tongue-in-cheek reference to brewing something "reasonably decent" with a Decent Espresso machine. As the project evolved into **ReaPrime**, we realized the naming could be clearer for users.
+
+### Why Streamline Bridge?
+
+The rename to **Streamline Bridge** better reflects the project's role in the ecosystem:
+
+- **[Streamline.js](https://github.com/allofmeng/streamline_project)**: Our modern, sleek WebUI skin being developed separately - the user-facing interface
+- **Streamline Bridge**: This application - the bridge that connects Streamline.js (and other skins) to your espresso machine
+
+The name emphasizes the app's purpose: **bridging the gap** between beautiful user interfaces and the complexity of machine communication, device connectivity, and state management.
+
+## Credits
 
 ### Acknowledgments
 
@@ -254,3 +276,4 @@ See the [LICENSE](LICENSE.txt) file for details.
 ---
 
 **Need help?** Check our [documentation](/) or open an [issue](https://github.com/tadelv/reaprime/issues).
+
