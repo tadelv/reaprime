@@ -30,7 +30,7 @@
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Use BT to connect to DE1</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright © 2025 Decent Espresso. Licensed under GPL v3.</string>
+	<string>Copyright © 2025-2026 Decent Espresso. Licensed under GPL v3.</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>

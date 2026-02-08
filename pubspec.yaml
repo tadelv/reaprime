@@ -4,6 +4,10 @@ description: "Streamline Bridge - Gateway for Decent Espresso Machines"
 # Prevent accidental publishing to pub.dev.
 publish_to: "none"
 
+# License
+# Copyright (C) 2025-2026 Decent Espresso
+# Licensed under GPL v3 - https://www.gnu.org/licenses/gpl-3.0.html
+
 version: 1.0.0+1
 
 environment:

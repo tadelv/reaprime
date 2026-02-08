@@ -488,7 +488,7 @@ class _SettingsViewState extends State<SettingsView> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Copyright © 2025 Decent Espresso',
+                            'Copyright © 2025-2026 Decent Espresso',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           const SizedBox(height: 2),
