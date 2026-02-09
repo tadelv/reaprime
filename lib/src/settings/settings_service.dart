@@ -99,6 +99,18 @@ class SettingsService {
       await prefs.setString(SettingsKeys.preferredMachineId.name, machineId);
     }
   }
+
+  Future<SkinExitButtonPosition> skinExitButtonPosition() async {
+    return SkinExitButtonPositionFromString.fromString(
+          await prefs.getString(SettingsKeys.skinExitButtonPosition.name) ??
+              SkinExitButtonPosition.topLeft.name,
+        ) ??
+        SkinExitButtonPosition.topLeft;
+  }
+
+  Future<void> setSkinExitButtonPosition(SkinExitButtonPosition position) async {
+    await prefs.setString(SettingsKeys.skinExitButtonPosition.name, position.name);
+  }
 }
 
 enum SettingsKeys {
@@ -111,4 +123,22 @@ enum SettingsKeys {
   volumeFlowMultiplier,
   scalePowerMode,
   preferredMachineId,
+  skinExitButtonPosition,
+}
+
+/// Position options for the skin view exit button
+enum SkinExitButtonPosition {
+  topLeft,
+  topRight,
+  bottomLeft,
+  bottomRight,
+}
+
+extension SkinExitButtonPositionFromString on SkinExitButtonPosition {
+  static SkinExitButtonPosition? fromString(String value) {
+    return SkinExitButtonPosition.values.firstWhere(
+      (e) => e.name == value,
+      orElse: () => SkinExitButtonPosition.topLeft,
+    );
+  }
 }

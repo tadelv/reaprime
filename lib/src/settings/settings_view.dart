@@ -111,6 +111,47 @@ class _SettingsViewState extends State<SettingsView> {
                           ),
                         ],
                       ),
+                      if (Platform.isMacOS || Platform.isLinux || Platform.isWindows) ...[
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Text(
+                              'Skin Exit Button',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: DropdownButton<SkinExitButtonPosition>(
+                                isExpanded: true,
+                                value: widget.controller.skinExitButtonPosition,
+                                onChanged: (position) {
+                                  if (position != null) {
+                                    widget.controller.setSkinExitButtonPosition(position);
+                                  }
+                                },
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: SkinExitButtonPosition.topLeft,
+                                    child: Text('Top Left'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: SkinExitButtonPosition.topRight,
+                                    child: Text('Top Right'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: SkinExitButtonPosition.bottomLeft,
+                                    child: Text('Bottom Left'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: SkinExitButtonPosition.bottomRight,
+                                    child: Text('Bottom Right'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                   SizedBox(height: cardSpacing),

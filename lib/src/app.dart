@@ -293,7 +293,9 @@ class _MyAppState extends State<MyApp> {
                         webUIService: widget.webUIService,
                       );
                     case SkinView.routeName:
-                      return const SkinView();
+                      return SkinView(
+                        settingsController: widget.settingsController,
+                      );
                     default:
                       return PermissionsView(
                         deviceController: widget.deviceController,
