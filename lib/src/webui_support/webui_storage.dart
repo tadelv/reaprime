@@ -139,12 +139,27 @@ class WebUIStorage {
     // 'assets/web/',
   ];
 
-  /// Hardcoded list of remote WebUI sources
-  /// These can be URLs to zip files or GitHub repos
-  /// Skins from these sources are treated as "bundled" (cannot be removed)
-  static const List<String> _remoteWebUISources = [
-    // Example: 'https://github.com/username/webui-skin/archive/refs/heads/main.zip',
-    'https://github.com/allofmeng/streamline_project/archive/refs/heads/main.zip',
+  /// Remote WebUI source configuration
+  /// Supports both GitHub releases and branch archives
+  static const List<Map<String, dynamic>> _remoteWebUISources = [
+    // Streamline Project (branch archive - no releases yet)
+    {
+      'type': 'github_branch',
+      'repo': 'allofmeng/streamline_project',
+      'branch': 'main',
+    },
+    // Example: GitHub Release (recommended for production)
+    // {
+    //   'type': 'github_release',
+    //   'repo': 'username/my-skin-repo',
+    //   'asset': 'my-skin.zip',  // Optional: specific asset name
+    //   'prerelease': false,      // Optional: include pre-releases
+    // },
+    // Example: Direct URL (legacy support)
+    // {
+    //   'type': 'url',
+    //   'url': 'https://example.com/skin.zip',
+    // },
   ];
 
   /// Set of skin IDs that were installed from remote sources (treated as bundled)
@@ -286,17 +301,257 @@ class WebUIStorage {
     await installFromUrl(url);
   }
 
+  /// Install a WebUI skin from a GitHub Release
+  /// Uses GitHub API to fetch the latest release and download the asset
+  /// 
+  /// Parameters:
+  /// - [repo]: Repository in format "owner/repo"
+  /// - [assetName]: Optional specific asset name to download (e.g., "my-skin.zip")
+  ///   If null, downloads the first .zip asset found
+  /// - [includePrerelease]: If true, includes pre-release versions
+  /// 
+  /// Example:
+  /// ```dart
+  /// await webUIStorage.installFromGitHubRelease('username/my-skin-repo');
+  /// await webUIStorage.installFromGitHubRelease('username/my-skin-repo', assetName: 'skin-v1.0.0.zip');
+  /// ```
+  Future<void> installFromGitHubRelease(
+    String repo, {
+    String? assetName,
+    bool includePrerelease = false,
+  }) async {
+    final parts = repo.split('/');
+    if (parts.length != 2) {
+      throw Exception('Invalid GitHub repo format. Use: owner/repo');
+    }
+
+    _log.info('Installing WebUI from GitHub release: $repo');
+
+    try {
+      // Fetch latest release from GitHub API
+      final apiUrl = includePrerelease
+          ? 'https://api.github.com/repos/$repo/releases'
+          : 'https://api.github.com/repos/$repo/releases/latest';
+      
+      final releaseResponse = await http.get(
+        Uri.parse(apiUrl),
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'Streamline-Bridge-WebUI',
+        },
+      );
+      
+      if (releaseResponse.statusCode != 200) {
+        throw Exception('Failed to fetch GitHub release: ${releaseResponse.statusCode}');
+      }
+      
+      final dynamic releaseData = includePrerelease
+          ? (jsonDecode(releaseResponse.body) as List).first
+          : jsonDecode(releaseResponse.body);
+      
+      final releaseTag = releaseData['tag_name'] as String;
+      final releaseName = releaseData['name'] as String;
+      final assets = releaseData['assets'] as List;
+      
+      _log.info('Found release: $releaseName ($releaseTag)');
+      
+      // Find the asset to download
+      dynamic targetAsset;
+      if (assetName != null) {
+        targetAsset = assets.firstWhere(
+          (asset) => asset['name'] == assetName,
+          orElse: () => throw Exception('Asset not found: $assetName'),
+        );
+      } else {
+        targetAsset = assets.firstWhere(
+          (asset) => (asset['name'] as String).endsWith('.zip'),
+          orElse: () => throw Exception('No .zip asset found in release'),
+        );
+      }
+      
+      final downloadUrl = targetAsset['browser_download_url'] as String;
+      
+      _log.info('Downloading asset: ${targetAsset['name']}');
+      
+      // Download and install
+      await installFromUrl(downloadUrl);
+      
+      _log.info('Successfully installed WebUI from GitHub release: $releaseTag');
+    } catch (e) {
+      _log.severe('Failed to install WebUI from GitHub release: $repo', e);
+      rethrow;
+    }
+  }
+
   /// Download and install all skins from the hardcoded remote sources
   /// These skins are treated as "bundled" and cannot be removed by users
   Future<void> downloadRemoteSkins() async {
-    for (final url in _remoteWebUISources) {
+    for (final sourceConfig in _remoteWebUISources) {
       try {
-        _log.info('Downloading remote bundled skin from: $url');
-        await _installFromUrlAsRemoteBundled(url);
-      } catch (e) {
-        _log.warning('Failed to download remote skin from $url', e);
+        final type = sourceConfig['type'] as String;
+        
+        switch (type) {
+          case 'github_release':
+            final repo = sourceConfig['repo'] as String;
+            final asset = sourceConfig['asset'] as String?;
+            final prerelease = sourceConfig['prerelease'] as bool? ?? false;
+            
+            _log.info('Downloading remote bundled skin from GitHub release: $repo');
+            await _installFromGitHubRelease(repo, asset, prerelease);
+            break;
+            
+          case 'github_branch':
+            final repo = sourceConfig['repo'] as String;
+            final branch = sourceConfig['branch'] as String? ?? 'main';
+            final url = 'https://github.com/$repo/archive/refs/heads/$branch.zip';
+            
+            _log.info('Downloading remote bundled skin from GitHub branch: $repo/$branch');
+            await _installFromUrlAsRemoteBundled(url);
+            break;
+            
+          case 'url':
+            final url = sourceConfig['url'] as String;
+            
+            _log.info('Downloading remote bundled skin from URL: $url');
+            await _installFromUrlAsRemoteBundled(url);
+            break;
+            
+          default:
+            _log.warning('Unknown remote source type: $type');
+        }
+      } catch (e, st) {
+        _log.warning('Failed to download remote skin from $sourceConfig', e, st);
         // Continue with other sources even if one fails
       }
+    }
+  }
+
+  /// Install from GitHub Release using GitHub API
+  /// Supports semantic versioning and proper release tracking
+  Future<void> _installFromGitHubRelease(
+    String repo,
+    String? assetName,
+    bool includePrerelease,
+  ) async {
+    try {
+      // Fetch latest release from GitHub API
+      final apiUrl = includePrerelease
+          ? 'https://api.github.com/repos/$repo/releases'
+          : 'https://api.github.com/repos/$repo/releases/latest';
+      
+      _log.fine('Fetching GitHub release info from: $apiUrl');
+      
+      final releaseResponse = await http.get(
+        Uri.parse(apiUrl),
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'Streamline-Bridge-WebUI',
+        },
+      );
+      
+      if (releaseResponse.statusCode != 200) {
+        throw Exception('Failed to fetch GitHub release: ${releaseResponse.statusCode}');
+      }
+      
+      final dynamic releaseData = includePrerelease
+          ? (jsonDecode(releaseResponse.body) as List).first
+          : jsonDecode(releaseResponse.body);
+      
+      final releaseTag = releaseData['tag_name'] as String;
+      final releaseName = releaseData['name'] as String;
+      final publishedAt = releaseData['published_at'] as String;
+      final assets = releaseData['assets'] as List;
+      
+      _log.info('Found release: $releaseName ($releaseTag) published at $publishedAt');
+      
+      // Find the asset to download
+      dynamic targetAsset;
+      if (assetName != null) {
+        // Look for specific asset name
+        targetAsset = assets.firstWhere(
+          (asset) => asset['name'] == assetName,
+          orElse: () => throw Exception('Asset not found: $assetName'),
+        );
+      } else {
+        // Look for first .zip asset
+        targetAsset = assets.firstWhere(
+          (asset) => (asset['name'] as String).endsWith('.zip'),
+          orElse: () => throw Exception('No .zip asset found in release'),
+        );
+      }
+      
+      final downloadUrl = targetAsset['browser_download_url'] as String;
+      final assetSize = targetAsset['size'] as int;
+      
+      _log.info('Downloading asset: ${targetAsset['name']} (${(assetSize / 1024 / 1024).toStringAsFixed(2)} MB)');
+      
+      // Check if we already have this version installed
+      final sourceIdentifier = 'github_release:$repo@$releaseTag';
+      final existingMetadata = _skinMetadata.values.firstWhere(
+        (meta) => meta.sourceUrl == sourceIdentifier,
+        orElse: () => WebUIReaMetadata(
+          skinId: '',
+          installedAt: DateTime.now(),
+        ),
+      );
+      
+      if (existingMetadata.skinId.isNotEmpty) {
+        _log.info('Release $releaseTag already installed, skipping download');
+        
+        // Update last checked time
+        _skinMetadata[existingMetadata.skinId] = existingMetadata.copyWith(
+          lastChecked: DateTime.now(),
+        );
+        await _saveSkinMetadata();
+        return;
+      }
+      
+      // Download the asset
+      final assetResponse = await http.get(Uri.parse(downloadUrl));
+      if (assetResponse.statusCode != 200) {
+        throw Exception('Failed to download asset: ${assetResponse.statusCode}');
+      }
+      
+      // Create temp file for the downloaded zip
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final tempFile = File('${appDocDir.path}/temp_webui_release.zip');
+      await tempFile.writeAsBytes(assetResponse.bodyBytes);
+      
+      String installedSkinId;
+      try {
+        // Install from the downloaded zip
+        installedSkinId = await _installFromZip(tempFile.path);
+      } finally {
+        // Clean up temp file
+        if (tempFile.existsSync()) {
+          await tempFile.delete();
+        }
+      }
+      
+      // Mark this skin as remote bundled
+      _remoteBundledSkinIds.add(installedSkinId);
+      await _saveRemoteBundledSkinIds();
+      
+      // Store REA metadata with release information
+      _skinMetadata[installedSkinId] = WebUIReaMetadata(
+        skinId: installedSkinId,
+        sourceUrl: sourceIdentifier,
+        commitHash: releaseTag,
+        etag: null,  // GitHub releases don't use ETags for versioning
+        lastModified: publishedAt,
+        installedAt: DateTime.now(),
+        lastChecked: DateTime.now(),
+      );
+      await _saveSkinMetadata();
+      
+      _log.info('Successfully installed skin from GitHub release: $installedSkinId ($releaseTag)');
+      
+      // Rescan installed skins
+      await _scanInstalledSkins();
+      
+    } catch (e, st) {
+      _log.severe('Failed to install from GitHub release: $repo', e, st);
+      rethrow;
     }
   }
 
@@ -785,6 +1040,11 @@ class WebUIStorage {
     await _scanInstalledSkins();
   }
 }
+
+
+
+
+
 
 
 

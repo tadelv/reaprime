@@ -26,6 +26,7 @@ import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
+import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
@@ -47,6 +48,7 @@ part 'webserver/sensors_handler.dart';
 part 'webserver/kv_store_handler.dart';
 part 'webserver/plugins_handler.dart';
 part 'webserver/profile_handler.dart';
+part 'webserver/webui_handler.dart';
 
 final log = Logger("Webservice");
 
@@ -60,6 +62,7 @@ Future<void> startWebServer(
   PersistenceController persistenceController,
   PluginLoaderService pluginService,
   WebUIService webUIService,
+  WebUIStorage webUIStorage,
   ProfileController profileController,
 ) async {
   log.info("starting webserver");
@@ -89,6 +92,8 @@ Future<void> startWebServer(
   );
 
   final profileHandler = ProfileHandler(controller: profileController);
+  
+  final webUIHandler = WebUIHandler(storage: webUIStorage);
 
   final kvStoreHandler = KvStoreHandler();
   await kvStoreHandler.store.initialize();
@@ -105,6 +110,7 @@ Future<void> startWebServer(
       kvStoreHandler,
       pluginsHandler,
       profileHandler,
+      webUIHandler,
     ),
     '0.0.0.0',
     8080,
@@ -127,6 +133,7 @@ Handler _init(
   KvStoreHandler kvStoreHandler,
   PluginsHandler pluginsHandler,
   ProfileHandler profileHandler,
+  WebUIHandler webUIHandler,
 ) {
   log.info("called _init");
   var app = Router().plus;
@@ -170,6 +177,7 @@ Handler _init(
   kvStoreHandler.addRoutes(app);
   pluginsHandler.addRoutes(app);
   profileHandler.addRoutes(app);
+  webUIHandler.addRoutes(app);
 
   final handler = const Pipeline()
       .addMiddleware(

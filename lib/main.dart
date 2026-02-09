@@ -201,6 +201,7 @@ void main() async {
       persistenceController,
       pluginService,
       webUIService,
+      webUIStorage,
       profileController,
     );
   } catch (e, st) {
