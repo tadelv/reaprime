@@ -115,8 +115,6 @@ class _SkinViewState extends State<SkinView> {
           'Swipe right from the left side of the screen to return to Dashboard';
     } else if (Platform.isAndroid) {
       instructions = 'Use system back button to return to Dashboard';
-    } else if (Platform.isMacOS) {
-      instructions = 'Press Escape key to return to Dashboard';
     } else {
       // Fallback for other platforms
       instructions = 'Use back navigation to return to Dashboard';

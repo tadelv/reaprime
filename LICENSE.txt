@@ -1,5 +1,5 @@
 Streamline Bridge - A gateway application for Decent Espresso machines
-Copyright (C) 2025 Decent Espresso
+Copyright (C) 2025-2026 Decent Espresso
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -13,4 +13,5 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 
