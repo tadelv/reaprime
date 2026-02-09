@@ -148,7 +148,7 @@ Streamline Bridge features a JavaScript plugin system for dynamic functionality 
 - `time-to-ready.reaplugin`: Machine warm-up notifications
 - `visualizer.reaplugin`: Real-time shot visualization
 
-📖 **[Read the Plugin Development Guide →](/Plugins.md)**
+📖 **[Read the Plugin Development Guide →](doc/Plugins.md)**
 
 ## Building
 
@@ -291,6 +291,6 @@ See the [LICENSE](LICENSE.txt) file for details.
 
 ---
 
-**Need help?** Check our [documentation](/) or open an [issue](https://github.com/tadelv/reaprime/issues).
+**Need help?** Check our [documentation](/doc) or open an [issue](https://github.com/tadelv/reaprime/issues).
 
 

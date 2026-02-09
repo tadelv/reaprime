@@ -2099,6 +2099,775 @@ For questions or issues:
 
 Happy brewing and coding!
 
+---
+
+## Skin Development & Deployment
+
+This section covers how to develop, build, and deploy custom WebUI skins for Streamline-Bridge, including support for modern web frameworks like Next.js, React, Vue, Svelte, and others.
+
+### Understanding Skin Distribution
+
+Streamline-Bridge supports multiple skin installation methods:
+
+1. **Bundled Asset Skins**: Skins packaged with the Flutter app (in `assets/web/`)
+2. **Remote Bundled Skins**: Skins auto-downloaded from hardcoded GitHub URLs on app startup
+3. **User-Installed Skins**: Skins manually installed by users from local paths or URLs
+
+**Skin Directory Structure:**
+```
+ApplicationDocuments/
+└── web-ui/
+    ├── my-skin-id/
+    │   ├── index.html        # Required entry point
+    │   ├── manifest.json     # Optional metadata
+    │   ├── assets/
+    │   ├── _next/            # Next.js example
+    │   └── ...
+    ├── another-skin/
+    └── .rea_metadata.json    # Version tracking (managed by REA)
+```
+
+### Skin Metadata: manifest.json
+
+While optional, including a `manifest.json` helps Streamline-Bridge display better skin information:
+
+```json
+{
+  "id": "my-nextjs-skin",
+  "name": "Beautiful Espresso UI",
+  "description": "Modern Next.js skin with real-time shot visualization",
+  "version": "1.2.0",
+  "author": "Your Name",
+  "repository": "https://github.com/username/repo"
+}
+```
+
+**Important**: If `manifest.json` is missing, the skin ID will be the directory name.
+
+---
+
+## Local Development Workflow
+
+### 1. Develop Your Skin Locally
+
+Use any modern web framework. Here's a Next.js example:
+
+**Create Next.js App:**
+```bash
+npx create-next-app@latest my-espresso-skin
+cd my-espresso-skin
+```
+
+**Configure for Static Export** (`next.config.js`):
+```javascript
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  output: 'export',  // Enable static HTML export
+  images: {
+    unoptimized: true  // Required for static export
+  },
+  // Optional: Add base path if serving from subdirectory
+  // basePath: '/my-skin',
+  // assetPrefix: '/my-skin',
+}
+
+module.exports = nextConfig
+```
+
+**Build Your Skin:**
+```bash
+npm run build
+```
+
+This creates an `out/` directory with static HTML/CSS/JS files.
+
+### 2. Test Locally with Streamline-Bridge
+
+**Option A: Install from Local Path** (Flutter Dart code example):
+
+```dart
+// In your Flutter app or via API
+await webUIStorage.installFromPath('/path/to/my-espresso-skin/out');
+```
+
+**Option B: Manual Copy** (for quick testing):
+
+```bash
+# Find your app documents directory
+# Android: /sdcard/Android/data/com.example.reaprime/files/
+# macOS: ~/Library/Containers/com.example.reaprime/Data/Documents/
+# Linux: ~/.local/share/reaprime/
+
+# Copy your build output
+cp -r ./out ~/path/to/app/documents/web-ui/my-skin-id/
+```
+
+**Option C: Serve Locally and Point Browser** (during development):
+
+```bash
+# In your Next.js project
+npm run dev
+
+# Access directly at http://localhost:3000
+# Connect to Streamline-Bridge API at http://<gateway-ip>:8080
+```
+
+### 3. Connect to Gateway During Development
+
+When developing locally, your skin needs to connect to the Streamline-Bridge gateway:
+
+```javascript
+// Use environment variable or config
+const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://192.168.1.100:8080';
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://192.168.1.100:8080';
+
+// In your API client
+export const apiClient = {
+  async getMachineState() {
+    const response = await fetch(`${GATEWAY_URL}/api/v1/machine/state`);
+    return response.json();
+  },
+  
+  connectSnapshot() {
+    return new WebSocket(`${WS_URL}/ws/v1/machine/snapshot`);
+  }
+};
+```
+
+**Development `.env.local`:**
+```bash
+NEXT_PUBLIC_GATEWAY_URL=http://192.168.1.100:8080
+NEXT_PUBLIC_WS_URL=ws://192.168.1.100:8080
+```
+
+---
+
+## Production Deployment via GitHub Releases
+
+For production distribution, use GitHub Releases to publish built skins. This approach provides:
+- Semantic versioning via Git tags
+- Automatic update detection
+- Clean separation of source code vs. distribution files
+- Professional software distribution workflow
+
+### Method 1: GitHub Actions Automated Release
+
+**Create `.github/workflows/release.yml`:**
+
+```yaml
+name: Build and Release WebUI Skin
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0, v1.2.3, etc.
+  workflow_dispatch:  # Allow manual triggering from GitHub UI
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Build Next.js app
+        run: npm run build
+        
+      - name: Create manifest.json
+        run: |
+          cat > out/manifest.json << EOF
+          {
+            "id": "my-nextjs-skin",
+            "name": "Beautiful Espresso UI",
+            "description": "Modern Next.js skin with real-time shot visualization",
+            "version": "${{ github.ref_name }}",
+            "author": "Your Name",
+            "repository": "${{ github.repository }}"
+          }
+          EOF
+      
+      - name: Create release archive
+        run: |
+          cd out
+          zip -r ../my-skin-${{ github.ref_name }}.zip .
+          cd ..
+          
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: my-skin-${{ github.ref_name }}.zip
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+**Usage:**
+```bash
+# Create and push a version tag
+git tag v1.0.0
+git push origin v1.0.0
+
+# GitHub Actions will automatically:
+# 1. Build your Next.js app
+# 2. Create manifest.json with version
+# 3. Package as ZIP
+# 4. Create GitHub Release with the ZIP attached
+```
+
+### Method 2: Distribution Branch (Alternative)
+
+If you prefer not to use GitHub Releases, deploy to a separate `dist` branch:
+
+**Create `.github/workflows/build-dist.yml`:**
+
+```yaml
+name: Build to Dist Branch
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: Install and build
+        run: |
+          npm ci
+          npm run build
+          
+      - name: Create manifest
+        run: |
+          cat > out/manifest.json << EOF
+          {
+            "id": "my-nextjs-skin",
+            "name": "Beautiful Espresso UI",
+            "version": "$(git rev-parse --short HEAD)",
+            "author": "Your Name"
+          }
+          EOF
+      
+      - name: Deploy to dist branch
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./out
+          publish_branch: dist
+          force_orphan: true  # Keep dist branch clean (no history)
+```
+
+Then install from the `dist` branch:
+```dart
+// In webui_storage.dart _remoteWebUISources
+'https://github.com/username/repo/archive/refs/heads/dist.zip'
+```
+
+---
+
+## Configuring Streamline-Bridge for Auto-Download
+
+### For Remote Bundled Skins (Auto-Download on Startup)
+
+Edit `lib/src/webui_support/webui_storage.dart`:
+
+```dart
+/// Remote WebUI source configuration
+static const List<Map<String, dynamic>> _remoteWebUISources = [
+  // GitHub Release (recommended for production)
+  {
+    'type': 'github_release',
+    'repo': 'username/my-skin-repo',
+    'asset': 'my-skin.zip',  // Optional: specific asset name
+    'prerelease': false,      // Optional: include pre-releases
+  },
+  // GitHub Branch Archive
+  {
+    'type': 'github_branch',
+    'repo': 'username/my-skin-repo',
+    'branch': 'main',
+  },
+  // Direct URL
+  {
+    'type': 'url',
+    'url': 'https://example.com/skin.zip',
+  },
+];
+```
+
+**Streamline-Bridge will:**
+- Download skins on first app startup
+- Check for updates on subsequent startups
+- For GitHub releases: checks for new release tags
+- For branches/URLs: uses HTTP ETag/Last-Modified headers
+- Only re-download if remote version has changed
+- Mark these skins as "bundled" (users cannot remove them)
+
+### For User-Installable Skins (via REST API)
+
+Users can install skins dynamically via REST API without recompiling the app:
+
+**Install from GitHub Release:**
+```bash
+curl -X POST http://localhost:8080/api/v1/webui/skins/install/github-release \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo": "username/my-skin-repo",
+    "asset": "my-skin.zip",
+    "prerelease": false
+  }'
+```
+
+**Install from GitHub Branch:**
+```bash
+curl -X POST http://localhost:8080/api/v1/webui/skins/install/github-branch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo": "username/my-skin-repo",
+    "branch": "main"
+  }'
+```
+
+**Install from URL:**
+```bash
+curl -X POST http://localhost:8080/api/v1/webui/skins/install/url \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com/skin.zip"
+  }'
+```
+
+**List Installed Skins:**
+```bash
+curl http://localhost:8080/api/v1/webui/skins
+```
+
+**Get Specific Skin:**
+```bash
+curl http://localhost:8080/api/v1/webui/skins/my-skin-id
+```
+
+**Remove Skin (user-installed only):**
+```bash
+curl -X DELETE http://localhost:8080/api/v1/webui/skins/my-skin-id
+```
+
+**Get Default Skin:**
+```bash
+curl http://localhost:8080/api/v1/webui/skins/default
+```
+
+---
+
+## Version Management & Updates
+
+Streamline-Bridge tracks skin metadata in `.rea_metadata.json`:
+
+```json
+{
+  "my-nextjs-skin": {
+    "skinId": "my-nextjs-skin",
+    "sourceUrl": "https://github.com/username/repo/archive/refs/heads/dist.zip",
+    "etag": "\"abc123def456\"",
+    "lastModified": "Wed, 01 Feb 2026 12:00:00 GMT",
+    "commitHash": "branch:dist",
+    "installedAt": "2026-02-01T12:00:00Z",
+    "lastChecked": "2026-02-09T10:30:00Z"
+  }
+}
+```
+
+**Update Detection:**
+- Remote skins are checked for updates when `downloadRemoteSkins()` is called
+- Uses HTTP `ETag` and `Last-Modified` headers for efficient version checking
+- Only downloads if remote version differs from installed version
+- Updates are automatic for remote bundled skins
+
+---
+
+## Best Practices for Skin Development
+
+### 1. Environment Variables for Gateway URL
+
+Always use environment variables for API endpoints:
+
+```javascript
+// .env.local (development)
+NEXT_PUBLIC_GATEWAY_URL=http://192.168.1.100:8080
+NEXT_PUBLIC_WS_URL=ws://192.168.1.100:8080
+
+// .env.production (build)
+NEXT_PUBLIC_GATEWAY_URL=http://localhost:8080
+NEXT_PUBLIC_WS_URL=ws://localhost:8080
+```
+
+**Why localhost in production?** When served by Streamline-Bridge, the skin runs on the same device as the gateway.
+
+### 2. Static Export Configuration
+
+Ensure your framework is configured for static export:
+
+**Next.js** (`next.config.js`):
+```javascript
+module.exports = {
+  output: 'export',
+  images: { unoptimized: true }
+}
+```
+
+**Vite** (`vite.config.js`):
+```javascript
+export default {
+  base: './',  // Use relative paths
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets'
+  }
+}
+```
+
+**Create React App**:
+```bash
+npm run build  # Already static by default
+```
+
+### 3. Handle Missing manifest.json
+
+If you don't include `manifest.json`, ensure your directory name is descriptive:
+
+```bash
+# Build output structure
+out/
+├── index.html
+├── _next/
+└── assets/
+
+# Will be installed as:
+web-ui/
+└── out/  # <- Skin ID will be "out" (not great!)
+```
+
+**Better:** Always include `manifest.json` with proper `id` field.
+
+### 4. Test Before Release
+
+Before creating a GitHub release:
+
+1. **Build locally:**
+   ```bash
+   npm run build
+   ```
+
+2. **Test the build output:**
+   ```bash
+   npx serve out
+   # Open http://localhost:3000
+   ```
+
+3. **Verify all assets load** (check browser console for 404s)
+
+4. **Test WebSocket connections** to your development gateway
+
+5. **Create manifest.json** and verify metadata
+
+6. **Only then create release tag**
+
+### 5. Versioning Strategy
+
+Use semantic versioning for skin releases:
+
+- `v1.0.0` - Initial release
+- `v1.1.0` - New features, backward compatible
+- `v1.1.1` - Bug fixes
+- `v2.0.0` - Breaking changes
+
+---
+
+## Framework-Specific Examples
+
+### Next.js
+
+```bash
+# Create app
+npx create-next-app@latest my-skin
+
+# Configure next.config.js for static export
+# Build
+npm run build
+
+# Output is in ./out/
+```
+
+### React (Vite)
+
+```bash
+# Create app
+npm create vite@latest my-skin -- --template react
+
+# Build
+npm run build
+
+# Output is in ./dist/
+```
+
+### Vue
+
+```bash
+# Create app
+npm create vue@latest my-skin
+
+# Build
+npm run build
+
+# Output is in ./dist/
+```
+
+### Svelte
+
+```bash
+# Create app
+npm create svelte@latest my-skin
+
+# Install adapter-static
+npm install -D @sveltejs/adapter-static
+
+# Configure svelte.config.js
+# Build
+npm run build
+
+# Output is in ./build/
+```
+
+---
+
+## Troubleshooting
+
+### Build Output Missing index.html
+
+Ensure your framework is configured for static HTML generation:
+- Next.js needs `output: 'export'`
+- SvelteKit needs `@sveltejs/adapter-static`
+- Some frameworks require explicit configuration
+
+### Assets Not Loading (404 Errors)
+
+Check asset paths are relative:
+- Next.js: Automatically handled with `output: 'export'`
+- Vite: Set `base: './'` in config
+- Check browser console for failing asset URLs
+
+### WebSocket Connection Fails
+
+During development with skin on `localhost:3000` and gateway on `192.168.1.100:8080`:
+- Ensure CORS is enabled on gateway (it is by default)
+- Use explicit gateway IP in `NEXT_PUBLIC_WS_URL`
+- Check browser console for connection errors
+
+### Skin Not Appearing in Streamline-Bridge
+
+- Verify directory name or `manifest.json` `id` field
+- Check `ApplicationDocuments/web-ui/` directory exists
+- Ensure `index.html` is at root of skin directory
+- Review Streamline-Bridge logs for installation errors
+
+### Updates Not Detected
+
+For remote bundled skins:
+- GitHub must return different `ETag` or `Last-Modified` headers
+- Branch archives update when branch changes
+- Releases have stable ETags (won't auto-update)
+- Force re-download by deleting skin directory and restarting app
+
+---
+
+## Example: Complete Next.js Skin Project
+
+**Project Structure:**
+```
+my-espresso-skin/
+├── .github/
+│   └── workflows/
+│       └── release.yml
+├── src/
+│   ├── app/
+│   │   ├── page.tsx
+│   │   └── layout.tsx
+│   ├── components/
+│   │   ├── MachineStatus.tsx
+│   │   └── ShotChart.tsx
+│   └── lib/
+│       └── api-client.ts
+├── public/
+├── next.config.js
+├── package.json
+├── .env.local
+└── README.md
+```
+
+**next.config.js:**
+```javascript
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  output: 'export',
+  images: { unoptimized: true }
+}
+
+module.exports = nextConfig
+```
+
+**.env.local:**
+```bash
+NEXT_PUBLIC_GATEWAY_URL=http://192.168.1.100:8080
+NEXT_PUBLIC_WS_URL=ws://192.168.1.100:8080
+```
+
+**src/lib/api-client.ts:**
+```typescript
+const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL!;
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL!;
+
+export const api = {
+  async getMachineState() {
+    const res = await fetch(`${GATEWAY_URL}/api/v1/machine/state`);
+    return res.json();
+  },
+  
+  async setMachineState(state: string) {
+    await fetch(`${GATEWAY_URL}/api/v1/machine/state/${state}`, {
+      method: 'PUT'
+    });
+  },
+  
+  connectSnapshot() {
+    return new WebSocket(`${WS_URL}/ws/v1/machine/snapshot`);
+  }
+};
+```
+
+**package.json scripts:**
+```json
+{
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "release": "npm run build && echo 'Ready to tag and push!'"
+  }
+}
+```
+
+**Deployment:**
+```bash
+# Development
+npm run dev
+
+# Production build
+npm run build
+
+# Create release
+git tag v1.0.0
+git push origin v1.0.0
+
+# GitHub Actions builds and creates release automatically
+```
+
+---
+
+## Advanced: Multiple Skins in One Repository
+
+You can manage multiple skins in a monorepo:
+
+```
+espresso-skins/
+├── packages/
+│   ├── minimal/
+│   │   ├── package.json
+│   │   └── src/
+│   ├── advanced/
+│   │   ├── package.json
+│   │   └── src/
+│   └── experimental/
+│       ├── package.json
+│       └── src/
+├── .github/
+│   └── workflows/
+│       ├── release-minimal.yml
+│       ├── release-advanced.yml
+│       └── release-experimental.yml
+└── package.json (root)
+```
+
+Each skin can have its own release workflow targeting different GitHub Release tags.
+
+---
+
+## Contributing Your Skin
+
+Once your skin is ready for public use:
+
+1. **Document it well:**
+   - Add screenshots to README
+   - Document unique features
+   - Provide setup instructions
+
+2. **Add to community list:**
+   - Submit PR to Streamline-Bridge documentation
+   - Share on Decent Diaspora forums
+
+3. **Consider open-sourcing:**
+   - Choose appropriate license (MIT, Apache, GPL, etc.)
+   - Welcome contributions and issues
+
+---
+
+## Summary
+
+**For Development:**
+- Build your skin with any modern web framework
+- Configure for static HTML export
+- Test locally using `npm run dev` or by copying build to `web-ui/`
+- Connect to gateway API using environment variables
+
+**For Distribution:**
+- Use GitHub Actions to automate builds
+- Create releases with version tags (recommended)
+- OR use a `dist` branch for continuous deployment
+- Always include `manifest.json` with proper metadata
+
+**For Auto-Updates:**
+- Add your skin to `_remoteWebUISources` in `webui_storage.dart`
+- Streamline-Bridge will auto-download and check for updates
+- Uses HTTP headers for efficient version detection
+
+Happy skin development!
+
+
+
 
 
 
