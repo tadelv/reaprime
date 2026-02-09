@@ -42,6 +42,7 @@ class _SkinViewState extends State<SkinView> {
 
   @override
   void dispose() {
+    _escPressed = false;
     _focusNode.dispose();
     super.dispose();
   }
@@ -107,9 +108,10 @@ class _SkinViewState extends State<SkinView> {
 
   void _showExitInstructions() {
     String instructions;
-    
+
     if (Platform.isIOS) {
-      instructions = 'Swipe right from the left side of the screen to return to Dashboard';
+      instructions =
+          'Swipe right from the left side of the screen to return to Dashboard';
     } else if (Platform.isAndroid) {
       instructions = 'Use system back button to return to Dashboard';
     } else if (Platform.isMacOS) {
@@ -118,7 +120,7 @@ class _SkinViewState extends State<SkinView> {
       // Fallback for other platforms
       instructions = 'Use back navigation to return to Dashboard';
     }
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(instructions),
@@ -145,6 +147,7 @@ class _SkinViewState extends State<SkinView> {
           _escPressed = true;
           _log.info('Escape key pressed - exiting SkinView');
           Future.delayed(Duration(milliseconds: 300), () {
+            _escPressed = false;
             if (context.mounted == false) {
               return;
             }
@@ -398,7 +401,7 @@ class _SkinViewState extends State<SkinView> {
             setState(() {
               _isLoading = false;
             });
-            
+
             // Inject CSS to hide scrollbars in web content
             // await controller.evaluateJavascript(source: '''
             //   (function() {
@@ -420,7 +423,7 @@ class _SkinViewState extends State<SkinView> {
             //     document.head.appendChild(style);
             //   })();
             // ''');
-            
+
             // Show exit instructions snackbar
             if (mounted) {
               _showExitInstructions();

@@ -1,4 +1,5 @@
 import 'package:reaprime/src/models/data/profile.dart';
+import 'package:reaprime/src/models/data/utils.dart';
 import 'package:uuid/uuid.dart';
 
 class Workflow {
@@ -210,9 +211,9 @@ class SteamSettings {
 
   factory SteamSettings.fromJson(Map<String, dynamic> json) {
     return SteamSettings(
-      targetTemperature: json['targetTemperature'],
-      duration: json['duration'],
-      flow: json['flow'],
+      targetTemperature: parseInt(json['targetTemperature']),
+      duration: parseInt(json['duration']),
+      flow: parseDouble(json['flow']),
     );
   }
 
@@ -259,10 +260,10 @@ class HotWaterData {
 
   factory HotWaterData.fromJson(Map<String, dynamic> json) {
     return HotWaterData(
-      targetTemperature: json['targetTemperature'],
-      duration: json['duration'],
-      volume: json['volume'],
-      flow: json['flow'],
+      targetTemperature: parseInt(json['targetTemperature']),
+      duration: parseInt(json['duration']),
+      volume: parseInt(json['volume']),
+      flow: parseDouble(json['flow']),
     );
   }
 
@@ -297,9 +298,9 @@ class RinseData {
 
   factory RinseData.fromJson(Map<String, dynamic> json) {
     return RinseData(
-      targetTemperature: json['targetTemperature'],
-      duration: json['duration'],
-      flow: json['flow'],
+      targetTemperature: parseInt( json['targetTemperature']),
+      duration: parseInt( json['duration']),
+      flow: parseDouble(json['flow']),
     );
   }
 
