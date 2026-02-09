@@ -36,6 +36,23 @@ function createPlugin(host) {
   }
 
   /**
+   * Fetch available WebUI skins
+   */
+  async function fetchWebUISkins() {
+    try {
+      const res = await fetch("http://localhost:8080/api/v1/webui/skins");
+      if (!res.ok) {
+        log(`Failed to fetch WebUI skins: ${res.status}`);
+        return null;
+      }
+      return await res.json();
+    } catch (e) {
+      log(`Error fetching WebUI skins: ${e.message}`);
+      return null;
+    }
+  }
+
+  /**
    * Fetch machine settings
    */
   async function fetchDe1Settings() {
@@ -72,7 +89,7 @@ function createPlugin(host) {
   /**
    * Generate HTML page with all settings (with editable controls)
    */
-  function generateSettingsHTML(reaSettings, de1Settings, de1AdvancedSettings) {
+  function generateSettingsHTML(reaSettings, de1Settings, de1AdvancedSettings, webUISkins) {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -364,6 +381,18 @@ function createPlugin(host) {
                             <button class="btn btn-primary" onclick="updateReaSetting('preferredMachineId', document.getElementById('preferredMachineId').value || null)" aria-label="Save preferred machine ID setting">Save</button>
                         </div>
                     </div>
+                    <div class="setting-item">
+                        <label class="setting-label" for="defaultSkinId">Default WebUI Skin</label>
+                        <div class="setting-control">
+                            <select id="defaultSkinId" aria-describedby="defaultSkinId-desc" style="width: 200px;">
+                                ${webUISkins ? webUISkins.map(skin => 
+                                    `<option value="${skin.id}" ${reaSettings.defaultSkinId === skin.id ? 'selected' : ''}>${skin.name || skin.id}</option>`
+                                ).join('') : '<option>Loading...</option>'}
+                            </select>
+                            <span id="defaultSkinId-desc" class="visually-hidden">WebUI skin to load by default on application startup</span>
+                            <button class="btn btn-primary" onclick="updateReaSetting('defaultSkinId', document.getElementById('defaultSkinId').value)" aria-label="Save default skin ID setting">Save</button>
+                        </div>
+                    </div>
                 </div>
             ` : '<div class="error" role="alert" aria-live="assertive">Failed to load REA settings</div>'}
             </section>
@@ -623,7 +652,7 @@ function createPlugin(host) {
   // Return the plugin object
   return {
     id: "settings.reaplugin",
-    version: "0.0.7",
+    version: "0.0.8",
 
     onLoad(settings) {
       state.refreshInterval = settings.RefreshInterval !== undefined ? settings.RefreshInterval : 5;
@@ -643,9 +672,10 @@ function createPlugin(host) {
         return Promise.all([
           fetchReaSettings(),
           fetchDe1Settings(),
-          fetchDe1AdvancedSettings()
-        ]).then(([reaSettings, de1Settings, de1AdvancedSettings]) => {
-          const html = generateSettingsHTML(reaSettings, de1Settings, de1AdvancedSettings);
+          fetchDe1AdvancedSettings(),
+          fetchWebUISkins()
+        ]).then(([reaSettings, de1Settings, de1AdvancedSettings, webUISkins]) => {
+          const html = generateSettingsHTML(reaSettings, de1Settings, de1AdvancedSettings, webUISkins);
           
           return {
             requestId: request.requestId,
