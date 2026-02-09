@@ -49,6 +49,18 @@ class MockStorageService implements StorageService {
   void reset() {
     storedShots.clear();
   }
+
+  @override
+  Future<void> deleteShot(String id) {
+    // TODO: implement deleteShot
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> updateShot(ShotRecord record) {
+    // TODO: implement updateShot
+    throw UnimplementedError();
+  }
 }
 
 void main() {
