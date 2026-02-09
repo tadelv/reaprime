@@ -16,6 +16,9 @@ class WebUIHandler {
     // Get default skin
     app.get('/api/v1/webui/skins/default', _handleGetDefaultSkin);
 
+    // Set default skin
+    app.put('/api/v1/webui/skins/default', _handleSetDefaultSkin);
+
     // Install skin from GitHub release
     app.post('/api/v1/webui/skins/install/github-release', _handleInstallFromGitHubRelease);
 
@@ -86,6 +89,50 @@ class WebUIHandler {
       );
     } catch (e, st) {
       log.severe('Failed to get default skin', e, st);
+      return Response.internalServerError(
+        body: jsonEncode({'error': e.toString()}),
+      );
+    }
+  }
+
+  /// PUT /api/v1/webui/skins/default
+  /// Set the default skin
+  /// 
+  /// Body:
+  /// {
+  ///   "skinId": "my-skin-id"
+  /// }
+  Future<Response> _handleSetDefaultSkin(Request request) async {
+    try {
+      final body = jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final skinId = body['skinId'] as String?;
+
+      if (skinId == null || skinId.isEmpty) {
+        return Response.badRequest(
+          body: jsonEncode({'error': 'Missing required field: skinId'}),
+        );
+      }
+
+      log.info('Setting default skin to: $skinId');
+
+      await _storage.setDefaultSkin(skinId);
+
+      return Response.ok(
+        jsonEncode({
+          'success': true,
+          'message': 'Default skin updated successfully',
+          'skinId': skinId,
+        }),
+      );
+    } catch (e, st) {
+      log.severe('Failed to set default skin', e, st);
+      
+      if (e.toString().contains('Skin not found')) {
+        return Response.notFound(
+          jsonEncode({'error': e.toString()}),
+        );
+      }
+      
       return Response.internalServerError(
         body: jsonEncode({'error': e.toString()}),
       );

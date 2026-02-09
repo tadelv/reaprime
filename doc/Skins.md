@@ -2481,6 +2481,19 @@ curl -X DELETE http://localhost:8080/api/v1/webui/skins/my-skin-id
 curl http://localhost:8080/api/v1/webui/skins/default
 ```
 
+**Set Default Skin:**
+```bash
+curl -X PUT http://localhost:8080/api/v1/webui/skins/default \
+  -H "Content-Type: application/json" \
+  -d '{"skinId": "my-skin-id"}'
+```
+
+The default skin preference:
+- Defaults to `streamline-project` if no preference is set
+- Persists across app restarts
+- Automatically saved when user selects a skin in Settings view
+- Can be changed via API or Settings plugin
+
 ---
 
 ## Version Management & Updates
@@ -2865,6 +2878,7 @@ Once your skin is ready for public use:
 - Uses HTTP headers for efficient version detection
 
 Happy skin development!
+
 
 
 

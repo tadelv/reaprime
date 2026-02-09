@@ -3,12 +3,15 @@ part of '../webserver_service.dart';
 class SettingsHandler {
   final SettingsController _controller;
   final WebUIService _webUIService;
+  final WebUIStorage _webUIStorage;
 
   SettingsHandler({
     required SettingsController controller,
     required WebUIService service,
+    required WebUIStorage webUIStorage,
   }) : _controller = controller,
-       _webUIService = service;
+       _webUIService = service,
+       _webUIStorage = webUIStorage;
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/settings', () async {
@@ -20,6 +23,7 @@ class SettingsHandler {
       final volumeFlowMultiplier = _controller.volumeFlowMultiplier;
       final scalePowerMode = _controller.scalePowerMode.name;
       final preferredMachineId = _controller.preferredMachineId;
+      final defaultSkinId = _controller.defaultSkinId;
       return {
         'gatewayMode': gatewayMode,
         'webUiPath': webPath,
@@ -28,6 +32,7 @@ class SettingsHandler {
         'volumeFlowMultiplier': volumeFlowMultiplier,
         'scalePowerMode': scalePowerMode,
         'preferredMachineId': preferredMachineId,
+        'defaultSkinId': defaultSkinId,
       };
     });
     app.post('/api/v1/settings', (Request request) async {
@@ -94,6 +99,22 @@ class SettingsHandler {
         } else {
           return Response.badRequest(
             body: {'message': 'preferredMachineId must be a string or null'},
+          );
+        }
+      }
+      if (json.containsKey('defaultSkinId')) {
+        final value = json['defaultSkinId'];
+        if (value is String) {
+          try {
+            await _webUIStorage.setDefaultSkin(value);
+          } catch (e) {
+            return Response.badRequest(
+              body: {'message': 'Invalid skin ID: ${e.toString()}'},
+            );
+          }
+        } else {
+          return Response.badRequest(
+            body: {'message': 'defaultSkinId must be a string'},
           );
         }
       }

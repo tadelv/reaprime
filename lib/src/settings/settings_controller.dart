@@ -37,6 +37,8 @@ class SettingsController with ChangeNotifier {
 
   late SkinExitButtonPosition _skinExitButtonPosition;
 
+  late String _defaultSkinId;
+
   // Allow Widgets to read the user's preferred ThemeMode.
   ThemeMode get themeMode => _themeMode;
   GatewayMode get gatewayMode => _gatewayMode;
@@ -47,6 +49,7 @@ class SettingsController with ChangeNotifier {
   ScalePowerMode get scalePowerMode => _scalePowerMode;
   String? get preferredMachineId => _preferredMachineId;
   SkinExitButtonPosition get skinExitButtonPosition => _skinExitButtonPosition;
+  String get defaultSkinId => _defaultSkinId;
 
   /// Load the user's settings from the SettingsService. It may load from a
   /// local database or the internet. The controller only knows it can load the
@@ -61,6 +64,7 @@ class SettingsController with ChangeNotifier {
     _scalePowerMode = await _settingsService.scalePowerMode();
     _preferredMachineId = await _settingsService.preferredMachineId();
     _skinExitButtonPosition = await _settingsService.skinExitButtonPosition();
+    _defaultSkinId = await _settingsService.defaultSkinId();
 
     // Important! Inform listeners a change has occurred.
     notifyListeners();
@@ -169,6 +173,15 @@ class SettingsController with ChangeNotifier {
     }
     _skinExitButtonPosition = position;
     await _settingsService.setSkinExitButtonPosition(position);
+    notifyListeners();
+  }
+
+  Future<void> setDefaultSkinId(String skinId) async {
+    if (skinId == _defaultSkinId) {
+      return;
+    }
+    _defaultSkinId = skinId;
+    await _settingsService.setDefaultSkinId(skinId);
     notifyListeners();
   }
 }

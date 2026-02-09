@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
+import 'package:reaprime/src/settings/settings_controller.dart';
 
 /// REA metadata for tracking WebUI skin source and version
 class WebUIReaMetadata {
@@ -127,11 +128,14 @@ class WebUISkin {
 /// - Provides a registry of currently installed web-ui skins
 class WebUIStorage {
   final _log = Logger('WebUIStorage');
+  final SettingsController _settingsController;
   
   late Directory _webUIDir;
   final Map<String, WebUISkin> _installedSkins = {};
   final Map<String, WebUIReaMetadata> _skinMetadata = {};
   bool _initialized = false;
+
+  WebUIStorage(this._settingsController);
 
   /// Hardcoded list of bundled asset paths
   /// These are Flutter assets that ship with the app
@@ -142,6 +146,13 @@ class WebUIStorage {
   /// Remote WebUI source configuration
   /// Supports both GitHub releases and branch archives
   static const List<Map<String, dynamic>> _remoteWebUISources = [
+    // Baseline
+    {
+      'type': 'github_release',
+      'repo': 'tadelv/baseline.js',
+      'asset': 'baseline-skin.zip',  // Optional: specific asset name
+      'prerelease': true,      // Optional: include pre-releases
+    },
     // Streamline Project (branch archive - no releases yet)
     {
       'type': 'github_branch',
@@ -211,9 +222,29 @@ class WebUIStorage {
   /// Get a specific skin by ID
   WebUISkin? getSkin(String id) => _installedSkins[id];
 
-  /// Get the default skin (first bundled skin or first available skin)
+  /// Get the default skin based on user preference
+  /// Falls back to 'streamline-project' if preference not found
+  /// Then falls back to first bundled skin or first available skin
   WebUISkin? get defaultSkin {
-    // Try to find a bundled skin first
+    // Try to get skin from preference
+    final preferredSkinId = _settingsController.defaultSkinId;
+    _log.info("selecting preferred skin: $preferredSkinId, in: ${_installedSkins}");
+    if (_installedSkins.containsKey(preferredSkinId)) {
+      return _installedSkins[preferredSkinId];
+    }
+
+    // Log if preferred skin not found
+    if (preferredSkinId != 'streamline_project-main') {
+      _log.warning('Preferred skin "$preferredSkinId" not found, falling back to default');
+    }
+
+    // Try to find streamline-project as default
+    final streamlineSkin = _installedSkins['streamline_project-main'];
+    if (streamlineSkin != null) {
+      return streamlineSkin;
+    }
+
+    // Try to find any bundled skin
     final bundledSkin = _installedSkins.values
         .where((skin) => skin.isBundled)
         .firstOrNull;
@@ -224,6 +255,16 @@ class WebUIStorage {
 
     // Otherwise return the first available skin
     return _installedSkins.values.firstOrNull;
+  }
+
+  /// Set the default skin by ID and persist to preferences
+  Future<void> setDefaultSkin(String skinId) async {
+    if (!_installedSkins.containsKey(skinId)) {
+      throw Exception('Skin not found: $skinId');
+    }
+    
+    await _settingsController.setDefaultSkinId(skinId);
+    _log.info('Set default skin to: $skinId');
   }
 
   /// Install a WebUI skin from a local filesystem path
@@ -1040,6 +1081,9 @@ class WebUIStorage {
     await _scanInstalledSkins();
   }
 }
+
+
+
 
 
 

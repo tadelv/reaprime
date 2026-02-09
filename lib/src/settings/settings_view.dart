@@ -51,7 +51,7 @@ class SettingsView extends StatefulWidget {
 class _SettingsViewState extends State<SettingsView> {
   String? _selectedSkinId;
   static const String _customSkinId = '__custom__';
-
+  final Logger  _log = Logger("Settings");
   @override
   void initState() {
     super.initState();
@@ -271,7 +271,7 @@ class _SettingsViewState extends State<SettingsView> {
                         value: widget.controller.simulatedDevices,
                         enabled: true,
                         onChanged: (v) async {
-                          Logger("Settings").info("toggle sim to $v");
+                          _log.info("toggle sim to $v");
                           await widget.controller.setSimulatedDevices(v);
                         },
                         label: const Text("Show simulated devices"),
@@ -344,7 +344,7 @@ class _SettingsViewState extends State<SettingsView> {
                                 final zipData = ZipEncoder().encode(archive);
                                 await tempFile.writeAsBytes(zipData!);
                               } catch (e, st) {
-                                Logger("Settings")
+                                _log
                                     .severe("failed to export:", e, st);
                               }
                             },
@@ -719,6 +719,15 @@ class _SettingsViewState extends State<SettingsView> {
       }
 
       await widget.webUIService.serveFolderAtPath(skin.path);
+      
+      // Save the selected skin as default
+      try {
+        await widget.webUIStorage.setDefaultSkin(skin.id);
+        _log.info('Set default skin to: ${skin.id}');
+      } catch (e) {
+        _log.warning('Failed to set default skin: $e');
+      }
+      
       setState(() {});
 
       if (mounted) {
@@ -1229,3 +1238,4 @@ class _SettingsViewState extends State<SettingsView> {
     }
   }
 }
+

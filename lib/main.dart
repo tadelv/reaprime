@@ -188,7 +188,7 @@ void main() async {
   pluginService.pluginManager.de1Controller = de1Controller;
 
   final WebUIService webUIService = WebUIService();
-  final WebUIStorage webUIStorage = WebUIStorage();
+  final WebUIStorage webUIStorage = WebUIStorage(settingsController);
 
   try {
     await startWebServer(

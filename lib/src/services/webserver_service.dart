@@ -76,6 +76,7 @@ Future<void> startWebServer(
   final settingsHandler = SettingsHandler(
     controller: settingsController,
     service: webUIService,
+    webUIStorage: webUIStorage,
   );
   final sensorsHandler = SensorsHandler(controller: sensorController);
   final workflowHandler = WorkflowHandler(

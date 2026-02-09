@@ -1255,7 +1255,7 @@ paths:
   /api/v1/webui/skins/default:
     get:
       summary: Get the default WebUI skin
-      description: Returns the default skin (first bundled skin or first available)
+      description: Returns the default skin based on user preference (defaults to 'streamline-project')
       tags: [WebUI]
       responses:
         "200":
@@ -1266,6 +1266,43 @@ paths:
                 $ref: '#/components/schemas/WebUISkin'
         "404":
           description: No default skin available
+        "500":
+          description: Internal Server Error
+    put:
+      summary: Set the default WebUI skin
+      description: Sets the user's preferred default skin by ID and persists to preferences
+      tags: [WebUI]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - skinId
+              properties:
+                skinId:
+                  type: string
+                  description: ID of the skin to set as default
+                  example: "my-nextjs-skin"
+      responses:
+        "200":
+          description: Default skin updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  skinId:
+                    type: string
+        "400":
+          description: Bad request (missing skinId field)
+        "404":
+          description: Skin not found
         "500":
           description: Internal Server Error
 
@@ -2228,6 +2265,7 @@ components:
           format: date-time
           nullable: true
           description: When updates were last checked
+
 
 
 

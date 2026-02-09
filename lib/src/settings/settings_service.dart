@@ -111,6 +111,14 @@ class SettingsService {
   Future<void> setSkinExitButtonPosition(SkinExitButtonPosition position) async {
     await prefs.setString(SettingsKeys.skinExitButtonPosition.name, position.name);
   }
+
+  Future<String> defaultSkinId() async {
+    return await prefs.getString(SettingsKeys.defaultSkinId.name) ?? 'streamline_project-main';
+  }
+
+  Future<void> setDefaultSkinId(String skinId) async {
+    await prefs.setString(SettingsKeys.defaultSkinId.name, skinId);
+  }
 }
 
 enum SettingsKeys {
@@ -124,6 +132,7 @@ enum SettingsKeys {
   scalePowerMode,
   preferredMachineId,
   skinExitButtonPosition,
+  defaultSkinId,
 }
 
 /// Position options for the skin view exit button
