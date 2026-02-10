@@ -22,6 +22,10 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
 
   // StreamSubscription<UsbEvent>? _usbSerialSubscription;
   List<Device> _devices = [];
+  
+  // Guard against concurrent scans
+  bool _isScanning = false;
+  Future<void>? _currentScan;
 
   final BehaviorSubject<List<Device>> _machineSubject = BehaviorSubject.seeded(
     <Device>[],
@@ -38,11 +42,32 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
 
   @override
   Future<void> scanForDevices() async {
+    // If already scanning, wait for that scan to complete
+    if (_isScanning) {
+      _log.info("Scan already in progress, waiting for completion");
+      await _currentScan;
+      return;
+    }
+
+    _isScanning = true;
+    _currentScan = _performScan();
+    
+    try {
+      await _currentScan;
+    } finally {
+      _isScanning = false;
+      _currentScan = null;
+    }
+  }
+
+  Future<void> _performScan() async {
     final ports = await SerialPort.availablePorts;
     _log.info("Found ports: $ports");
 
     List<Device> connected = [];
-    for (var d in _devices) {
+    // Create a copy to avoid concurrent modification during iteration
+    final devicesCopy = List<Device>.from(_devices);
+    for (var d in devicesCopy) {
       final state = await d.connectionState.first;
       if (state == ConnectionState.connected) {
         connected.add(d);
