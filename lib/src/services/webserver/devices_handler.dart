@@ -28,8 +28,7 @@ class DevicesHandler {
       final bool shouldConnect =
           req.requestedUri.queryParametersAll["connect"]?.firstOrNull == "true";
       final bool quickScan =
-          req.requestedUri.queryParametersAll["quick"]?.firstOrNull ==
-          "true";
+          req.requestedUri.queryParametersAll["quick"]?.firstOrNull == "true";
       log.info("running scan, connect = $shouldConnect, quick = $quickScan");
       if (quickScan) {
         _controller.scanForDevices(autoConnect: shouldConnect);
@@ -41,6 +40,7 @@ class DevicesHandler {
     });
 
     app.put('/api/v1/devices/connect', _handleConnect);
+    app.put('/api/v1/devices/disconnect', _handleDisconnect);
   }
 
   Future<List<Map<String, String>>> _deviceList() async {
@@ -74,9 +74,23 @@ class DevicesHandler {
       case DeviceType.scale:
         await _scaleController.connectToScale(device as Scale);
       case DeviceType.sensor:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+        await (device as Sensor).onConnect();
     }
+    return Response.ok(null);
+  }
+
+  Future<Response> _handleDisconnect(Request req) async {
+    final devices = _controller.devices;
+    final deviceId = req.requestedUri.queryParameters['deviceId'];
+    if (deviceId == null) {
+      return Response.badRequest();
+    }
+    final device = devices.firstWhereOrNull((e) => e.deviceId == deviceId);
+    if (device == null) {
+      return Response.notFound(null);
+    }
+    await device.disconnect();
+
     return Response.ok(null);
   }
 }

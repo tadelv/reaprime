@@ -22,7 +22,7 @@ final class SensorsHandler {
       if (sensor == null) {
         return Response.notFound('not found');
       }
-      return Response.ok(sensor.info.toJson());
+      return Response.ok(jsonEncode(sensor.info.toJson()));
     });
 
     app.get('/ws/v1/sensors/<id>/snapshot', _handleSensorSnapshot);

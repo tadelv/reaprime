@@ -47,7 +47,7 @@ class SensorBasket implements Sensor {
       return;
     }
     _log.info("on connect");
-    await _transport.disconnect();
+    await _transport.connect();
     _transportSubscription =
         _transport.readStream.listen(onData, onError: (error) {
       _log.warning("transport error", error);
