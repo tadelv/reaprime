@@ -647,14 +647,21 @@ class _SettingsViewState extends State<SettingsView> {
     return DropdownButton<String>(
       isExpanded: true,
       value: _selectedSkinId,
-      onChanged: (value) {
+      onChanged: (value) async {
+        if (value == null) return;
+        
         setState(() {
           _selectedSkinId = value;
         });
         
         // If custom is selected, open folder picker
         if (value == _customSkinId) {
-          _pickCustomSkinFolder(context);
+          await _pickCustomSkinFolder(context);
+        } else {
+          // If server is running, restart it with the new skin
+          if (widget.webUIService.isServing) {
+            await _restartServerWithSkin(value);
+          }
         }
       },
       items: [
@@ -697,6 +704,49 @@ class _SettingsViewState extends State<SettingsView> {
         ),
       ],
     );
+  }
+
+  Future<void> _restartServerWithSkin(String skinId) async {
+    try {
+      final skin = widget.webUIStorage.getSkin(skinId);
+      if (skin == null) {
+        throw Exception('Selected skin not found');
+      }
+
+      _log.info('Restarting WebUI server with skin: ${skin.name}');
+      
+      // Stop the current server
+      await widget.webUIService.stopServing();
+      
+      // Start with the new skin
+      await widget.webUIService.serveFolderAtPath(skin.path);
+      
+      // Save the selected skin as default
+      try {
+        await widget.webUIStorage.setDefaultSkin(skin.id);
+        _log.info('Set default skin to: ${skin.id}');
+      } catch (e) {
+        _log.warning('Failed to set default skin: $e');
+      }
+      
+      setState(() {});
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('WebUI restarted with ${skin.name}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      _log.severe('Failed to restart WebUI server', e);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to restart WebUI: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _startSelectedSkin() async {
@@ -1238,4 +1288,6 @@ class _SettingsViewState extends State<SettingsView> {
     }
   }
 }
+
+
 
