@@ -195,7 +195,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                     child: Text(
                       "Found ${_filteredShots.length} shot${_filteredShots.length == 1 ? '' : 's'}",
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.secondary,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                       ),
                     ),
                   ),
@@ -271,7 +271,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                           if (record.workflow.coffeeData != null) ...[
                             Row(
                               children: [
-                                Icon(Icons.coffee, size: 14, color: Theme.of(context).colorScheme.secondary),
+                                Icon(Icons.coffee, size: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
@@ -291,7 +291,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                                 child: Text(
                                   record.workflow.coffeeData!.roaster!,
                                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context).colorScheme.secondary,
+                                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -303,7 +303,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                           // Profile name
                           Row(
                             children: [
-                              Icon(Icons.dashboard_customize, size: 14, color: Theme.of(context).colorScheme.secondary),
+                              Icon(Icons.dashboard_customize, size: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
@@ -320,7 +320,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                           // Dose ratio
                           Row(
                             children: [
-                              Icon(Icons.scale, size: 14, color: Theme.of(context).colorScheme.secondary),
+                              Icon(Icons.scale, size: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
                               const SizedBox(width: 4),
                               Text(
                                 "${record.workflow.doseData.doseIn}g → ${record.workflow.doseData.doseOut}g",
@@ -332,7 +332,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                               Text(
                                 "(1:${(record.workflow.doseData.doseOut / record.workflow.doseData.doseIn).toStringAsFixed(1)})",
                                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Theme.of(context).colorScheme.secondary,
+                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                                 ),
                               ),
                             ],
@@ -343,7 +343,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                             const SizedBox(height: 6),
                             Row(
                               children: [
-                                Icon(Icons.settings, size: 14, color: Theme.of(context).colorScheme.secondary),
+                                Icon(Icons.settings, size: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
@@ -369,7 +369,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(Icons.note, size: 12, color: Theme.of(context).colorScheme.secondary),
+                                  Icon(Icons.note, size: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
                                   const SizedBox(width: 4),
                                   Expanded(
                                     child: Text(
@@ -465,7 +465,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                       Text(
                         record.shotTime(),
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.secondary,
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                         ),
                       ),
                     ],
@@ -701,7 +701,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                               Text(
                                 "Tags:",
                                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Theme.of(context).colorScheme.secondary,
+                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                                 ),
                               ),
                               SizedBox(height: 4),
@@ -760,7 +760,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
               child: Text(
                 "Shot ID: ${record.id}",
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.secondary,
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                 ),
               ),
             ),
@@ -889,7 +889,7 @@ class _StatCard extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.secondary,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
             ),
           ),
         ],
@@ -921,7 +921,7 @@ class _DetailRow extends StatelessWidget {
             child: Text(
               "$label:",
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.secondary,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
               ),
             ),
           ),

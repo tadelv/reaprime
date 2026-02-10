@@ -25,9 +25,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'settings_controller.dart';
 
 /// Displays the various settings that can be customized by the user.
-///
-/// When a user changes a setting, the SettingsController is updated and
-/// Widgets that listen to the SettingsController are rebuilt.
 class SettingsView extends StatefulWidget {
   const SettingsView({
     super.key,
@@ -51,11 +48,11 @@ class SettingsView extends StatefulWidget {
 class _SettingsViewState extends State<SettingsView> {
   String? _selectedSkinId;
   static const String _customSkinId = '__custom__';
-  final Logger  _log = Logger("Settings");
+  final Logger _log = Logger("Settings");
+
   @override
   void initState() {
     super.initState();
-    // Initialize with default skin if available
     _selectedSkinId = widget.webUIStorage.defaultSkin?.id;
   }
 
@@ -64,623 +61,362 @@ class _SettingsViewState extends State<SettingsView> {
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: SingleChildScrollView(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            // Responsive padding based on screen width
-            final horizontalPadding = constraints.maxWidth > 600 ? 16.0 : 12.0;
-            final cardSpacing = constraints.maxWidth > 600 ? 12.0 : 10.0;
-
-            return Padding(
-              padding: EdgeInsets.all(horizontalPadding),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Appearance Section
-                  _buildSectionCard(
-                    context: context,
-                    title: 'Appearance',
-                    icon: Icons.palette_outlined,
-                    footnote: 'Customize the visual appearance of the app',
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Theme',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: DropdownButton<ThemeMode>(
-                              isExpanded: true,
-                              value: widget.controller.themeMode,
-                              onChanged: widget.controller.updateThemeMode,
-                              items: const [
-                                DropdownMenuItem(
-                                  value: ThemeMode.system,
-                                  child: Text('System Theme'),
-                                ),
-                                DropdownMenuItem(
-                                  value: ThemeMode.light,
-                                  child: Text('Light Theme'),
-                                ),
-                                DropdownMenuItem(
-                                  value: ThemeMode.dark,
-                                  child: Text('Dark Theme'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (Platform.isMacOS || Platform.isLinux || Platform.isWindows) ...[
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Text(
-                              'Skin Exit Button',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: DropdownButton<SkinExitButtonPosition>(
-                                isExpanded: true,
-                                value: widget.controller.skinExitButtonPosition,
-                                onChanged: (position) {
-                                  if (position != null) {
-                                    widget.controller.setSkinExitButtonPosition(position);
-                                  }
-                                },
-                                items: const [
-                                  DropdownMenuItem(
-                                    value: SkinExitButtonPosition.topLeft,
-                                    child: Text('Top Left'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: SkinExitButtonPosition.topRight,
-                                    child: Text('Top Right'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: SkinExitButtonPosition.bottomLeft,
-                                    child: Text('Bottom Left'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: SkinExitButtonPosition.bottomRight,
-                                    child: Text('Bottom Right'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                  SizedBox(height: cardSpacing),
-
-                  // Gateway & Control Section
-                  _buildSectionCard(
-                    context: context,
-                    title: 'Gateway & Control',
-                    icon: Icons.settings_remote_outlined,
-                    infoButton: () => showGatewayModeInfoDialog(context),
-                    footnote:
-                        'Configure how external clients can control the machine',
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        spacing: 6,
-                        children: [
-                          Text(
-                            'Gateway Mode',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                          DropdownButton<GatewayMode>(
-                            isExpanded: true,
-                            value: widget.controller.gatewayMode,
-                            onChanged: (v) {
-                              if (v != null) {
-                                widget.controller.updateGatewayMode(v);
-                              }
-                            },
-                            items: const [
-                              DropdownMenuItem(
-                                value: GatewayMode.full,
-                                child: Text('Full (Rea has no control)'),
-                              ),
-                              DropdownMenuItem(
-                                value: GatewayMode.tracking,
-                                child: Text(
-                                  'Tracking (Rea will stop shot if target weight is reached)',
-                                ),
-                              ),
-                              DropdownMenuItem(
-                                value: GatewayMode.disabled,
-                                child: Text('Disabled (Rea has full control)'),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: cardSpacing),
-
-                  // Device Management Section
-                  _buildSectionCard(
-                    context: context,
-                    title: 'Device Management',
-                    icon: Icons.devices_outlined,
-                    footnote:
-                        'Configure device connections and simulation options',
-                    children: [
-                      // Auto-Connect Device
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        spacing: 8,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  'Auto-Connect Device',
-                                  style:
-                                      Theme.of(context).textTheme.titleSmall,
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.info_outline),
-                                iconSize: 18,
-                                onPressed:
-                                    () => _showPreferredDeviceInfo(context),
-                                tooltip: 'Learn more',
-                                padding: EdgeInsets.all(4),
-                                constraints: BoxConstraints(),
-                              ),
-                            ],
-                          ),
-                          if (widget.controller.preferredMachineId != null) ...[
-                            Text(
-                              'Device ID: ${widget.controller.preferredMachineId}',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                            const SizedBox(height: 6),
-                            ShadButton.destructive(
-                              onPressed: () async {
-                                await widget.controller.setPreferredMachineId(null);
-                              },
-                              child: const Text('Clear Auto-Connect Device'),
-                            ),
-                          ] else ...[
-                            Text(
-                              'No auto-connect device set',
-                              style:
-                                  Theme.of(context).textTheme.bodyMedium
-                                      ?.copyWith(fontStyle: FontStyle.italic),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'To set an auto-connect device, check the "Auto-connect to this machine" checkbox when selecting a device during startup.',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                        ],
-                      ),
-                      const Divider(height: 24),
-                      // Simulated Devices
-                      ShadSwitch(
-                        value: widget.controller.simulatedDevices,
-                        enabled: true,
-                        onChanged: (v) async {
-                          _log.info("toggle sim to $v");
-                          await widget.controller.setSimulatedDevices(v);
-                        },
-                        label: const Text("Show simulated devices"),
-                        sublabel: const Text(
-                          "Whether simulated devices should be shown in scan results",
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: cardSpacing),
-
-                  // Data Management Section
-                  _buildSectionCard(
-                    context: context,
-                    title: 'Data Management',
-                    icon: Icons.storage_outlined,
-                    footnote:
-                        'Import, export, and manage your shot data and logs',
-                    children: [
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          ShadButton(
-                            onPressed: () async {
-                              var docs =
-                                  await getApplicationDocumentsDirectory();
-                              File logFile = File('${docs.path}/log.txt');
-                              var bytes = await logFile.readAsBytes();
-                              String? outputFile =
-                                  await FilePicker.platform.saveFile(
-                                fileName: "R1-logs.txt",
-                                dialogTitle: "Choose where to save logs",
-                                bytes: bytes,
-                              );
-                              if (outputFile != null) {
-                                File destination = File(outputFile);
-                                await destination.writeAsBytes(bytes);
-                              }
-                            },
-                            child: const Text("Export logs"),
-                          ),
-                          ShadButton(
-                            onPressed: () async {
-                              final exporter = ShotExporter(
-                                storage: widget.persistenceController.storageService,
-                              );
-                              final jsonData = await exporter.exportJson();
-                              final tempDir = await getTemporaryDirectory();
-                              final source = File("${tempDir.path}/shots.json");
-                              await source.writeAsString(jsonData);
-                              final destination =
-                                  await FilePicker.platform.getDirectoryPath(
-                                dialogTitle: "Pick export dir",
-                              );
-
-                              final tempFile = File('$destination/R1_shots.zip');
-                              try {
-                                // Create zip archive using archive package
-                                final archive = Archive();
-                                final sourceBytes = await source.readAsBytes();
-                                final archiveFile = ArchiveFile(
-                                  'shots.json',
-                                  sourceBytes.length,
-                                  sourceBytes,
-                                );
-                                archive.addFile(archiveFile);
-
-                                // Encode to zip and write to file
-                                final zipData = ZipEncoder().encode(archive);
-                                await tempFile.writeAsBytes(zipData!);
-                              } catch (e, st) {
-                                _log
-                                    .severe("failed to export:", e, st);
-                              }
-                            },
-                            child: const Text("Export all shots"),
-                          ),
-                          ShadButton(
-                            onPressed: () => _showImportDialog(context),
-                            child: const Text("Import shots"),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: cardSpacing),
-
-                  // WebUI Section
-                  _buildSectionCard(
-                    context: context,
-                    title: 'Web Interface',
-                    icon: Icons.web_outlined,
-                    footnote:
-                        'Select and manage web-based user interface skins',
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 8,
-                        children: [
-                          // Skin selector
-                          Row(
-                            children: [
-                              Text(
-                                'Skin',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _buildSkinSelector(),
-                              ),
-                            ],
-                          ),
-                          const Divider(height: 20),
-                          // Server controls
-                          if (!widget.webUIService.isServing)
-                            ShadButton.secondary(
-                              onPressed: () => _startSelectedSkin(),
-                              child: const Text("Start WebUI Server"),
-                            )
-                          else ...[
-                            ShadButton(
-                              onPressed: () async {
-                                final url = Uri.parse('http://localhost:3000');
-                                await launchUrl(url);
-                              },
-                              child: const Text("Open UI in browser"),
-                            ),
-                            ShadButton.destructive(
-                              onPressed: () async {
-                                await widget.webUIService.stopServing();
-                                setState(() {});
-                              },
-                              child: const Text("Stop WebUI Server"),
-                            ),
-                          ],
-                          const Divider(height: 20),
-                          ShadButton.outline(
-                            onPressed: () => _checkForSkinUpdates(context),
-                            child: const Text("Check for Skin Updates"),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: cardSpacing),
-
-                  // Advanced Section
-                  _buildSectionCard(
-                    context: context,
-                    title: 'Advanced',
-                    icon: Icons.tune_outlined,
-                    footnote: 'Developer tools and advanced configuration',
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 8,
-                        children: [
-                          // Log Level
-                          Row(
-                            children: [
-                              Text(
-                                'Log Level',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: DropdownButton<String>(
-                                  isExpanded: true,
-                                  value: widget.controller.logLevel,
-                                  onChanged: widget.controller.updateLogLevel,
-                                  items: const [
-                                    DropdownMenuItem(
-                                      value: "FINE",
-                                      child: Text('Fine'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: "INFO",
-                                      child: Text('Info'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: "FINEST",
-                                      child: Text('Finest'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: "WARNING",
-                                      child: Text('Warning'),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const Divider(height: 20),
-                          // Plugins Button
-                          ShadButton.secondary(
-                            onPressed: () {
-                              Navigator.of(context)
-                                  .pushNamed(PluginsSettingsView.routeName);
-                            },
-                            child: const Text("Plugins"),
-                          ),
-                          // Debug View Button
-                          ShadButton.secondary(
-                            onPressed: () {
-                              Navigator.pushNamed(
-                                context,
-                                SampleItemListView.routeName,
-                              );
-                            },
-                            child: const Text("Debug view"),
-                          ),
-                          // Updates Button
-                          ShadButton.secondary(
-                            onPressed: () => _checkForUpdates(context),
-                            child: const Text("Check for updates"),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: cardSpacing),
-
-                  // About Section
-                  _buildSectionCard(
-                    context: context,
-                    title: 'About',
-                    icon: Icons.info_outline,
-                    footnote: 'Version and build information',
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        spacing: 6,
-                        children: [
-                          _buildInfoRow(
-                            context,
-                            'Version',
-                            BuildInfo.version,
-                          ),
-                          _buildInfoRow(
-                            context,
-                            'Commit',
-                            BuildInfo.commitShort,
-                          ),
-                          _buildInfoRow(
-                            context,
-                            'Branch',
-                            BuildInfo.branch,
-                          ),
-                          const Divider(height: 20),
-                          Text(
-                            'License',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w500,
-                                ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Copyright © 2025-2026 Decent Espresso',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Licensed under GNU General Public License v3.0',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          const SizedBox(height: 8),
-                          ShadButton.outline(
-                            onPressed: () async {
-                              final url = Uri.parse('https://www.gnu.org/licenses/gpl-3.0.html');
-                              await launchUrl(url);
-                            },
-                            child: const Text('View GPL v3 License'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: horizontalPadding),
-                ],
-              ),
-            );
-          },
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 16,
+          children: [
+            _buildAppearanceSection(),
+            _buildGatewaySection(),
+            _buildDeviceManagementSection(),
+            _buildDataManagementSection(),
+            _buildWebUISection(),
+            _buildAdvancedSection(),
+            _buildAboutSection(),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildSectionCard({
-    required BuildContext context,
-    required String title,
-    required IconData icon,
-    VoidCallback? infoButton,
-    String? footnote,
-    required List<Widget> children,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: 12,
+  // MARK: - Section Builders
+
+  Widget _buildAppearanceSection() {
+    return _SettingsSection(
+      title: 'Appearance',
+      icon: Icons.palette_outlined,
+      description: 'Customize the visual appearance of the app',
       children: [
-        // Header
-        Row(
-          children: [
-            Icon(icon, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
+        _SettingRow(
+          label: 'Theme',
+          child: DropdownButton<ThemeMode>(
+            isExpanded: true,
+            value: widget.controller.themeMode,
+            onChanged: widget.controller.updateThemeMode,
+            items: const [
+              DropdownMenuItem(value: ThemeMode.system, child: Text('System Theme')),
+              DropdownMenuItem(value: ThemeMode.light, child: Text('Light Theme')),
+              DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark Theme')),
+            ],
+          ),
+        ),
+        if (Platform.isMacOS || Platform.isLinux || Platform.isWindows)
+          _SettingRow(
+            label: 'Skin Exit Button',
+            child: DropdownButton<SkinExitButtonPosition>(
+              isExpanded: true,
+              value: widget.controller.skinExitButtonPosition,
+              onChanged: (position) {
+                if (position != null) {
+                  widget.controller.setSkinExitButtonPosition(position);
+                }
+              },
+              items: const [
+                DropdownMenuItem(value: SkinExitButtonPosition.topLeft, child: Text('Top Left')),
+                DropdownMenuItem(value: SkinExitButtonPosition.topRight, child: Text('Top Right')),
+                DropdownMenuItem(value: SkinExitButtonPosition.bottomLeft, child: Text('Bottom Left')),
+                DropdownMenuItem(value: SkinExitButtonPosition.bottomRight, child: Text('Bottom Right')),
+              ],
             ),
-            if (infoButton != null)
-              IconButton(
-                icon: const Icon(Icons.info_outline),
-                iconSize: 18,
-                onPressed: infoButton,
-                tooltip: 'Learn more',
-                padding: EdgeInsets.all(4),
-                constraints: BoxConstraints(),
-              ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildGatewaySection() {
+    return _SettingsSection(
+      title: 'Gateway & Control',
+      icon: Icons.settings_remote_outlined,
+      description: 'Configure how external clients can control the machine',
+      onInfoPressed: () => showGatewayModeInfoDialog(context),
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Gateway Mode',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            DropdownButton<GatewayMode>(
+              isExpanded: true,
+              value: widget.controller.gatewayMode,
+              onChanged: (v) {
+                if (v != null) widget.controller.updateGatewayMode(v);
+              },
+              items: const [
+                DropdownMenuItem(
+                  value: GatewayMode.full,
+                  child: Text('Full (Rea has no control)'),
+                ),
+                DropdownMenuItem(
+                  value: GatewayMode.tracking,
+                  child: Text('Tracking (Rea will stop shot if target weight is reached)'),
+                ),
+                DropdownMenuItem(
+                  value: GatewayMode.disabled,
+                  child: Text('Disabled (Rea has full control)'),
+                ),
+              ],
+            ),
           ],
         ),
-        // Content
-        ...children,
-        // Footnote
-        if (footnote != null) ...[
-          const SizedBox(height: 4),
+      ],
+    );
+  }
+
+  Widget _buildDeviceManagementSection() {
+    return _SettingsSection(
+      title: 'Device Management',
+      icon: Icons.devices_outlined,
+      description: 'Configure device connections and simulation options',
+      children: [
+        // Auto-Connect Device
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Auto-Connect Device',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.info_outline, size: 18),
+              onPressed: () => _showPreferredDeviceInfo(context),
+              tooltip: 'Learn more',
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (widget.controller.preferredMachineId != null) ...[
           Text(
-            footnote,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface
-                      .withOpacity(0.6),
+            'Device ID: ${widget.controller.preferredMachineId}',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 12),
+          ShadButton.destructive(
+            onPressed: () async {
+              await widget.controller.setPreferredMachineId(null);
+            },
+            child: const Text('Clear Auto-Connect Device'),
+          ),
+        ] else ...[
+          Text(
+            'No auto-connect device set',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   fontStyle: FontStyle.italic,
                 ),
           ),
+          const SizedBox(height: 4),
+          Text(
+            'To set an auto-connect device, check the "Auto-connect to this machine" checkbox when selecting a device during startup.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
         ],
-        // Divider after each section
-        const Divider(height: 24),
+        const Divider(height: 32),
+        // Simulated Devices
+        ShadSwitch(
+          value: widget.controller.simulatedDevices,
+          onChanged: (v) async {
+            _log.info("toggle sim to $v");
+            await widget.controller.setSimulatedDevices(v);
+          },
+          label: const Text("Show simulated devices"),
+          sublabel: const Text(
+            "Whether simulated devices should be shown in scan results",
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildInfoRow(BuildContext context, String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildDataManagementSection() {
+    return _SettingsSection(
+      title: 'Data Management',
+      icon: Icons.storage_outlined,
+      description: 'Import, export, and manage your shot data and logs',
       children: [
-        SizedBox(
-          width: 80,
-          child: Text(
-            '$label:',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontFamily: 'monospace',
-                ),
-          ),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            ShadButton.outline(
+              onPressed: _exportLogs,
+              child: const Text("Export logs"),
+            ),
+            ShadButton.outline(
+              onPressed: _exportShots,
+              child: const Text("Export all shots"),
+            ),
+            ShadButton.outline(
+              onPressed: () => _showImportDialog(context),
+              child: const Text("Import shots"),
+            ),
+          ],
         ),
       ],
     );
   }
+
+  Widget _buildWebUISection() {
+    return _SettingsSection(
+      title: 'Web Interface',
+      icon: Icons.web_outlined,
+      description: 'Select and manage web-based user interface skins',
+      children: [
+        _SettingRow(
+          label: 'Skin',
+          child: _buildSkinSelector(),
+        ),
+        const Divider(height: 24),
+        if (!widget.webUIService.isServing)
+          ShadButton(
+            onPressed: _startSelectedSkin,
+            child: const Text("Start WebUI Server"),
+          )
+        else
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              ShadButton(
+                onPressed: () async {
+                  await launchUrl(Uri.parse('http://localhost:3000'));
+                },
+                child: const Text("Open UI in browser"),
+              ),
+              ShadButton.destructive(
+                onPressed: () async {
+                  await widget.webUIService.stopServing();
+                  setState(() {});
+                },
+                child: const Text("Stop WebUI Server"),
+              ),
+            ],
+          ),
+        const Divider(height: 24),
+        ShadButton.outline(
+          onPressed: () => _checkForSkinUpdates(context),
+          child: const Text("Check for Skin Updates"),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAdvancedSection() {
+    return _SettingsSection(
+      title: 'Advanced',
+      icon: Icons.tune_outlined,
+      description: 'Developer tools and advanced configuration',
+      children: [
+        _SettingRow(
+          label: 'Log Level',
+          child: DropdownButton<String>(
+            isExpanded: true,
+            value: widget.controller.logLevel,
+            onChanged: widget.controller.updateLogLevel,
+            items: const [
+              DropdownMenuItem(value: "FINE", child: Text('Fine')),
+              DropdownMenuItem(value: "INFO", child: Text('Info')),
+              DropdownMenuItem(value: "FINEST", child: Text('Finest')),
+              DropdownMenuItem(value: "WARNING", child: Text('Warning')),
+            ],
+          ),
+        ),
+        const Divider(height: 24),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            ShadButton.outline(
+              onPressed: () => Navigator.of(context).pushNamed(PluginsSettingsView.routeName),
+              child: const Text("Plugins"),
+            ),
+            ShadButton.outline(
+              onPressed: () => Navigator.pushNamed(context, SampleItemListView.routeName),
+              child: const Text("Debug view"),
+            ),
+            ShadButton.outline(
+              onPressed: () => _checkForUpdates(context),
+              child: const Text("Check for updates"),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAboutSection() {
+    return _SettingsSection(
+      title: 'About',
+      icon: Icons.info_outline,
+      description: 'Version and build information',
+      children: [
+        _InfoRow('Version', BuildInfo.version),
+        _InfoRow('Commit', BuildInfo.commitShort),
+        _InfoRow('Branch', BuildInfo.branch),
+        const Divider(height: 24),
+        Text(
+          'License',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Copyright © 2025-2026 Decent Espresso',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          'Licensed under GNU General Public License v3.0',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 12),
+        ShadButton.outline(
+          onPressed: () async {
+            await launchUrl(Uri.parse('https://www.gnu.org/licenses/gpl-3.0.html'));
+          },
+          child: const Text('View GPL v3 License'),
+        ),
+      ],
+    );
+  }
+
+  // MARK: - Helper Widgets
 
   Widget _buildSkinSelector() {
     final installedSkins = widget.webUIStorage.installedSkins;
-    
+
     return DropdownButton<String>(
       isExpanded: true,
       value: _selectedSkinId,
       onChanged: (value) async {
         if (value == null) return;
-        
-        setState(() {
-          _selectedSkinId = value;
-        });
-        
-        // If custom is selected, open folder picker
+
+        setState(() => _selectedSkinId = value);
+
         if (value == _customSkinId) {
           await _pickCustomSkinFolder(context);
-        } else {
-          // If server is running, restart it with the new skin
-          if (widget.webUIService.isServing) {
-            await _restartServerWithSkin(value);
-          }
+        } else if (widget.webUIService.isServing) {
+          await _restartServerWithSkin(value);
         }
       },
       items: [
-        // Installed skins
         ...installedSkins.map((skin) {
           return DropdownMenuItem(
             value: skin.id,
             child: Row(
               children: [
-                if (skin.isBundled)
-                  const Icon(Icons.verified, size: 16)
-                else
-                  const Icon(Icons.folder, size: 16),
+                Icon(
+                  skin.isBundled ? Icons.verified : Icons.folder,
+                  size: 16,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    skin.name,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  child: Text(skin.name, overflow: TextOverflow.ellipsis),
                 ),
                 if (skin.version != null)
                   Text(
@@ -691,7 +427,6 @@ class _SettingsViewState extends State<SettingsView> {
             ),
           );
         }),
-        // Custom folder option
         const DropdownMenuItem(
           value: _customSkinId,
           child: Row(
@@ -706,29 +441,103 @@ class _SettingsViewState extends State<SettingsView> {
     );
   }
 
+  // MARK: - Data Management Actions
+
+  Future<void> _exportLogs() async {
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      final logFile = File('${docs.path}/log.txt');
+      final bytes = await logFile.readAsBytes();
+
+      final outputFile = await FilePicker.platform.saveFile(
+        fileName: "R1-logs.txt",
+        dialogTitle: "Choose where to save logs",
+        bytes: bytes,
+      );
+
+      if (outputFile != null) {
+        await File(outputFile).writeAsBytes(bytes);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Logs exported successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      _log.severe("Failed to export logs", e);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to export logs: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportShots() async {
+    try {
+      final exporter = ShotExporter(
+        storage: widget.persistenceController.storageService,
+      );
+      final jsonData = await exporter.exportJson();
+      final tempDir = await getTemporaryDirectory();
+      final source = File("${tempDir.path}/shots.json");
+      await source.writeAsString(jsonData);
+
+      final destination = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: "Pick export dir",
+      );
+
+      if (destination != null) {
+        final tempFile = File('$destination/R1_shots.zip');
+        final archive = Archive();
+        final sourceBytes = await source.readAsBytes();
+        final archiveFile = ArchiveFile('shots.json', sourceBytes.length, sourceBytes);
+        archive.addFile(archiveFile);
+
+        final zipData = ZipEncoder().encode(archive);
+        await tempFile.writeAsBytes(zipData!);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Shots exported successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e, st) {
+      _log.severe("Failed to export shots", e, st);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to export shots: $e')),
+        );
+      }
+    }
+  }
+
+  // MARK: - WebUI Actions
+
   Future<void> _restartServerWithSkin(String skinId) async {
     try {
       final skin = widget.webUIStorage.getSkin(skinId);
-      if (skin == null) {
-        throw Exception('Selected skin not found');
-      }
+      if (skin == null) throw Exception('Selected skin not found');
 
       _log.info('Restarting WebUI server with skin: ${skin.name}');
-      
-      // Stop the current server
+
       await widget.webUIService.stopServing();
-      
-      // Start with the new skin
       await widget.webUIService.serveFolderAtPath(skin.path);
-      
-      // Save the selected skin as default
+
       try {
         await widget.webUIStorage.setDefaultSkin(skin.id);
         _log.info('Set default skin to: ${skin.id}');
       } catch (e) {
         _log.warning('Failed to set default skin: $e');
       }
-      
+
       setState(() {});
 
       if (mounted) {
@@ -764,20 +573,17 @@ class _SettingsViewState extends State<SettingsView> {
 
     try {
       final skin = widget.webUIStorage.getSkin(_selectedSkinId!);
-      if (skin == null) {
-        throw Exception('Selected skin not found');
-      }
+      if (skin == null) throw Exception('Selected skin not found');
 
       await widget.webUIService.serveFolderAtPath(skin.path);
-      
-      // Save the selected skin as default
+
       try {
         await widget.webUIStorage.setDefaultSkin(skin.id);
         _log.info('Set default skin to: ${skin.id}');
       } catch (e) {
         _log.warning('Failed to set default skin: $e');
       }
-      
+
       setState(() {});
 
       if (mounted) {
@@ -798,28 +604,27 @@ class _SettingsViewState extends State<SettingsView> {
   }
 
   Future<void> _pickCustomSkinFolder(BuildContext context) async {
-    String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
+    final selectedDirectory = await FilePicker.platform.getDirectoryPath();
 
     if (selectedDirectory != null) {
-      final dir = Directory(selectedDirectory);
       final indexFile = File('$selectedDirectory/index.html');
       final itExists = await indexFile.exists();
-      
+
       if (itExists) {
         await widget.webUIService.serveFolderAtPath(selectedDirectory);
         setState(() {});
-        
+
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Row(
                 children: [
-                  Text('Custom WebUI from $selectedDirectory loaded'),
-                  const Spacer(),
+                  Expanded(
+                    child: Text('Custom WebUI from $selectedDirectory loaded'),
+                  ),
                   ShadButton.outline(
                     onPressed: () async {
-                      final url = Uri.parse('http://localhost:3000');
-                      await launchUrl(url);
+                      await launchUrl(Uri.parse('http://localhost:3000'));
                     },
                     child: const Text("Open"),
                   ),
@@ -836,114 +641,22 @@ class _SettingsViewState extends State<SettingsView> {
             ),
           );
         }
-        // Reset selection back to previous valid skin
-        setState(() {
-          _selectedSkinId = widget.webUIStorage.defaultSkin?.id;
-        });
+        setState(() => _selectedSkinId = widget.webUIStorage.defaultSkin?.id);
       }
     } else {
-      // User cancelled, reset to default
-      setState(() {
-        _selectedSkinId = widget.webUIStorage.defaultSkin?.id;
-      });
+      setState(() => _selectedSkinId = widget.webUIStorage.defaultSkin?.id);
     }
   }
 
-  void _showPreferredDeviceInfo(BuildContext context) {
-    showShadDialog(
-      context: context,
-      builder: (context) => ShadDialog(
-        title: const Text('Auto-Connect Device'),
-        description: const Text(
-          'Automatically connect to your preferred machine on startup',
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 16,
-          children: [
-            Text(
-              'When you set an auto-connect device, ReaPrime will:',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w500),
-            ),
-            _buildInfoPoint(
-              context,
-              Icons.bluetooth_searching,
-              'Scan for devices on startup',
-            ),
-            _buildInfoPoint(
-              context,
-              Icons.link,
-              'Automatically connect to your preferred machine when found',
-            ),
-            _buildInfoPoint(
-              context,
-              Icons.speed,
-              'Skip the device selection screen for faster startup',
-            ),
-            const Divider(),
-            Text(
-              'How to set:',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w500),
-            ),
-            Text(
-              '1. During device selection at startup, check the "Auto-connect to this machine" checkbox next to your preferred device.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'How to change:',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w500),
-            ),
-            Text(
-              '1. Clear the current auto-connect device using the button above.\n2. Restart the app and select a different device with the checkbox.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-        actions: [
-          ShadButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Got it'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoPoint(BuildContext context, IconData icon, String text) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: 12,
-      children: [
-        Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
-        Expanded(
-          child: Text(text, style: Theme.of(context).textTheme.bodySmall),
-        ),
-      ],
-    );
-  }
+  // MARK: - Update Actions
 
   Future<void> _checkForSkinUpdates(BuildContext context) async {
-    final log = Logger('SettingsView');
-
     try {
-      // Show loading indicator
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Checking for skin updates...')),
       );
 
-      // Check for skin updates
       await widget.webUIStorage.downloadRemoteSkins();
 
       if (!context.mounted) return;
@@ -954,7 +667,7 @@ class _SettingsViewState extends State<SettingsView> {
         ),
       );
     } catch (e, stackTrace) {
-      log.severe('Error checking for skin updates', e, stackTrace);
+      _log.severe('Error checking for skin updates', e, stackTrace);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to check for skin updates: $e')),
@@ -963,27 +676,22 @@ class _SettingsViewState extends State<SettingsView> {
   }
 
   Future<void> _checkForUpdates(BuildContext context) async {
-    final log = Logger('SettingsView');
-
     try {
-      // Show loading indicator
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Checking for updates...')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Checking for updates...')),
+      );
 
-      // Check for app updates (Android only for now)
       if (Platform.isAndroid) {
         final updater = AndroidUpdater(owner: 'tadelv', repo: 'reaprime');
-
         final updateInfo = await updater.checkForUpdate(
           BuildInfo.version,
-          channel: UpdateChannel.stable, // TODO: Make this configurable
+          channel: UpdateChannel.stable,
         );
 
         if (!context.mounted) return;
 
         if (updateInfo != null) {
-          // Show update dialog
           showDialog(
             context: context,
             builder: (context) => UpdateDialog(
@@ -998,24 +706,24 @@ class _SettingsViewState extends State<SettingsView> {
             const SnackBar(content: Text('You are on the latest version')),
           );
         }
-
-        // Also check for WebUI updates
         await widget.webUIStorage.downloadRemoteSkins();
       } else {
-        // Non-Android platforms: just check for WebUI updates
         await widget.webUIStorage.downloadRemoteSkins();
         if (!context.mounted) return;
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('WebUI is up to date')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('WebUI is up to date')),
+        );
       }
     } catch (e, stackTrace) {
-      log.severe('Error checking for updates', e, stackTrace);
+      _log.severe('Error checking for updates', e, stackTrace);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to check for updates: $e')),
       );
     }
   }
+
+  // MARK: - Import Actions
 
   Future<void> _showImportDialog(BuildContext context) async {
     final result = await showShadDialog<String>(
@@ -1025,19 +733,15 @@ class _SettingsViewState extends State<SettingsView> {
         description: const Text('Choose how you want to import your shots'),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          spacing: 16,
+          spacing: 12,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ShadButton(
-              onPressed: () {
-                Navigator.of(context).pop('file');
-              },
+              onPressed: () => Navigator.of(context).pop('file'),
               child: const Text('Import from JSON file'),
             ),
             ShadButton.secondary(
-              onPressed: () {
-                Navigator.of(context).pop('folder');
-              },
+              onPressed: () => Navigator.of(context).pop('folder'),
               child: const Text('Import from folder'),
             ),
           ],
@@ -1052,7 +756,7 @@ class _SettingsViewState extends State<SettingsView> {
     }
   }
 
-  Future<void> _showProgressDialog(BuildContext context, String message) async {
+  void _showProgressDialog(BuildContext context, String message) {
     showShadDialog(
       context: context,
       barrierDismissible: false,
@@ -1072,7 +776,6 @@ class _SettingsViewState extends State<SettingsView> {
   }
 
   Future<void> _importFromFile(BuildContext context) async {
-    final log = Logger("ShotImport");
     final importer = ShotImporter(
       storage: widget.persistenceController.storageService,
     );
@@ -1083,135 +786,95 @@ class _SettingsViewState extends State<SettingsView> {
       dialogTitle: "Select shots JSON file",
     );
 
-    if (result == null || result.files.isEmpty) {
-      return;
-    }
+    if (result == null || result.files.isEmpty) return;
 
     final filePath = result.files.single.path;
     if (filePath == null) {
-      log.warning("File path is null");
+      _log.warning("File path is null");
       if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Failed to access file')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to access file')),
+        );
       }
       return;
     }
 
-    log.fine("importing from $filePath");
-
     if (!context.mounted) return;
-
-    // Show progress dialog
     _showProgressDialog(context, 'Importing shots');
 
     try {
       final file = File(filePath);
       final content = await file.readAsString();
-
-      // Try to parse to determine if it's a single shot or array
       final decoded = jsonDecode(content);
 
       int count = 0;
       if (decoded is List) {
-        // Multiple shots in array format
         count = await importer.importShotsJson(content);
-        log.info("Imported $count shots");
       } else {
-        // Single shot object
         await importer.importShotJson(content);
         count = 1;
-        log.info("Imported 1 shot");
       }
 
       widget.persistenceController.loadShots();
 
-      // Close progress dialog
-      if (context.mounted) {
-        Navigator.of(context).pop();
-      }
+      if (context.mounted) Navigator.of(context).pop();
 
-      // Show success message
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Successfully imported $count shot${count == 1 ? '' : 's'}',
-            ),
+            content: Text('Successfully imported $count shot${count == 1 ? '' : 's'}'),
             backgroundColor: Colors.green,
           ),
         );
       }
     } catch (e, st) {
-      log.severe("Shot import failed:", e, st);
-
-      // Close progress dialog
-      if (context.mounted) {
-        Navigator.of(context).pop();
-      }
-
-      // Show error message
+      _log.severe("Shot import failed", e, st);
+      if (context.mounted) Navigator.of(context).pop();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Import failed: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Import failed: $e'), backgroundColor: Colors.red),
         );
       }
     }
   }
 
   Future<void> _importFromFolder(BuildContext context) async {
-    final log = Logger("ShotImport");
     final importer = ShotImporter(
       storage: widget.persistenceController.storageService,
     );
 
     final sourceDirPath = await FilePicker.platform.getDirectoryPath();
-
-    log.fine("importing from $sourceDirPath");
-    if (sourceDirPath == null) {
-      return;
-    }
+    if (sourceDirPath == null) return;
 
     if (!context.mounted) return;
-
-    // Show progress dialog
     _showProgressDialog(context, 'Importing shots from folder');
 
     try {
-      final Directory sourceDir = Directory(sourceDirPath);
+      final sourceDir = Directory(sourceDirPath);
       final files = await sourceDir.list().toList();
-      log.info("listing: $files");
 
       int successCount = 0;
       int failCount = 0;
 
       for (final file in files) {
         if (file is! File) continue;
-
         final f = File(file.path);
         if (!f.path.endsWith('.json')) continue;
 
         try {
           final content = await f.readAsString();
-          log.fine("Importing: ${f.path}");
           await importer.importShotJson(content);
           successCount++;
         } catch (e, st) {
-          log.warning("shot import failed:", e, st);
+          _log.warning("Shot import failed", e, st);
           failCount++;
         }
       }
 
       widget.persistenceController.loadShots();
 
-      // Close progress dialog
-      if (context.mounted) {
-        Navigator.of(context).pop();
-      }
+      if (context.mounted) Navigator.of(context).pop();
 
-      // Show result message
       if (context.mounted) {
         final hasFailures = failCount > 0;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1228,66 +891,229 @@ class _SettingsViewState extends State<SettingsView> {
         );
       }
     } catch (e, st) {
-      log.severe("Folder import failed:", e, st);
-
-      // Close progress dialog
-      if (context.mounted) {
-        Navigator.of(context).pop();
-      }
-
-      // Show error message
+      _log.severe("Folder import failed", e, st);
+      if (context.mounted) Navigator.of(context).pop();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Import failed: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Import failed: $e'), backgroundColor: Colors.red),
         );
       }
     }
   }
 
-  Future<void> _pickFolderAndLoadHtml(BuildContext context) async {
-    String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
+  // MARK: - Info Dialogs
 
-    if (selectedDirectory != null) {
-      final dir = Directory(selectedDirectory);
-      Logger("Settings")
-          .finest('list dir: ${dir.listSync(recursive: true).join("\n")}');
-      final indexFile = File('$selectedDirectory/index.html');
-      final itExists = await indexFile.exists();
-      await widget.webUIService.serveFolderAtPath(selectedDirectory);
-      if (context.mounted == false) {
-        return;
-      }
-      if (itExists) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Text('WebUI from $selectedDirectory loaded'),
-                const Spacer(),
-                ShadButton.outline(
-                  onPressed: () async {
-                    final url = Uri.parse('http://localhost:3000');
-                    await launchUrl(url);
-                  },
-                  child: const Text("Open"),
-                ),
-              ],
+  void _showPreferredDeviceInfo(BuildContext context) {
+    showShadDialog(
+      context: context,
+      builder: (context) => ShadDialog(
+        title: const Text('Auto-Connect Device'),
+        description: const Text('Automatically connect to your preferred machine on startup'),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 12,
+          children: [
+            Text(
+              'When you set an auto-connect device, ReaPrime will:',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
             ),
+            _InfoPoint(
+              icon: Icons.bluetooth_searching,
+              text: 'Scan for devices on startup',
+            ),
+            _InfoPoint(
+              icon: Icons.link,
+              text: 'Automatically connect to your preferred machine when found',
+            ),
+            _InfoPoint(
+              icon: Icons.speed,
+              text: 'Skip the device selection screen for faster startup',
+            ),
+            const Divider(height: 20),
+            Text(
+              'How to set:',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+            Text(
+              'During device selection at startup, check the "Auto-connect to this machine" checkbox next to your preferred device.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'How to change:',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+            Text(
+              'Clear the current auto-connect device using the button above, then restart the app and select a different device with the checkbox.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+        actions: [
+          ShadButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Got it'),
           ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('index.html not found in selected folder'),
-          ),
-        );
-      }
-    }
+        ],
+      ),
+    );
   }
 }
 
+// MARK: - Helper Widgets
 
+class _SettingsSection extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final String? description;
+  final VoidCallback? onInfoPressed;
+  final List<Widget> children;
+
+  const _SettingsSection({
+    required this.title,
+    required this.icon,
+    this.description,
+    this.onInfoPressed,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ShadCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ),
+              if (onInfoPressed != null)
+                IconButton(
+                  icon: const Icon(Icons.info_outline, size: 18),
+                  onPressed: onInfoPressed,
+                  tooltip: 'Learn more',
+                ),
+            ],
+          ),
+          if (description != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              description!,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                  ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingRow extends StatelessWidget {
+  final String label;
+  final Widget child;
+
+  const _SettingRow({
+    required this.label,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 140,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+          ),
+          Expanded(child: child),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _InfoRow(this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              '$label:',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontFamily: 'monospace',
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoPoint extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _InfoPoint({
+    required this.icon,
+    required this.text,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(text, style: Theme.of(context).textTheme.bodySmall),
+        ),
+      ],
+    );
+  }
+}
 
