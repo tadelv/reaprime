@@ -51,6 +51,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _isServingUI = false;
   String? _errorMessage;
+  final ScrollController _scrollController = ScrollController();
 
   static const String _selectedSkinPrefKey = 'selected_webui_skin_id';
 
@@ -62,6 +63,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -89,15 +91,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _home(BuildContext context) {
     // Use LayoutBuilder to adapt to screen size
-    return Scrollbar(
-      thumbVisibility: true,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWideScreen = constraints.maxWidth > 900;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWideScreen = constraints.maxWidth > 900;
+        final isDesktop = Platform.isMacOS || Platform.isLinux || Platform.isWindows;
 
-          if (isWideScreen) {
-            // Desktop/tablet layout: two columns side by side
-            return SingleChildScrollView(
+        if (isWideScreen) {
+          // Desktop/tablet layout: two columns side by side
+          return Scrollbar(
+            controller: _scrollController,
+            thumbVisibility: isDesktop,
+            child: SingleChildScrollView(
+              controller: _scrollController,
               child: Padding(
                 padding: EdgeInsets.only(top: 12, bottom: 12),
                 child: Row(
@@ -112,10 +117,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ],
                 ),
               ),
-            );
-          } else {
-            // Mobile/narrow layout: single column, stacked vertically
-            return SingleChildScrollView(
+            ),
+          );
+        } else {
+          // Mobile/narrow layout: single column, stacked vertically
+          return Scrollbar(
+            controller: _scrollController,
+            thumbVisibility: isDesktop,
+            child: SingleChildScrollView(
+              controller: _scrollController,
               child: Padding(
                 padding: EdgeInsets.all(16),
                 child: Column(
@@ -127,10 +137,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ],
                 ),
               ),
-            );
-          }
-        },
-      ),
+            ),
+          );
+        }
+      },
     );
   }
 
