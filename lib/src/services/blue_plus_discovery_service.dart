@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:collection/collection.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -14,6 +15,10 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
   final StreamController<List<Device>> _deviceStreamController =
       StreamController.broadcast();
   final Set<String> _devicesBeingCreated = {};
+
+  // On Linux, queue discovered devices and process after scan stops
+  // to avoid BlueZ le-connection-abort-by-local errors
+  final List<_PendingDevice> _pendingDevices = [];
 
   StreamSubscription<String>? _logSubscription;
 
@@ -128,8 +133,15 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
       // Mark device as being created to prevent duplicates
       _devicesBeingCreated.add(deviceId);
 
-      // Create device asynchronously without blocking the listener
-      _createDevice(deviceId, deviceFactory);
+      if (Platform.isLinux) {
+        // On Linux/BlueZ, queue device for processing after scan stops
+        // to avoid le-connection-abort-by-local errors
+        _pendingDevices.add(_PendingDevice(deviceId, deviceFactory));
+        _log.info("Queued $deviceId for post-scan processing");
+      } else {
+        // On other platforms, create device immediately
+        _createDevice(deviceId, deviceFactory);
+      }
     }, onError: (e) => _log.warning(e));
 
     // cleanup: cancel subscription when scanning stops
@@ -151,9 +163,35 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
       oneByOne: true,
     );
 
-    await Future.delayed(Duration(seconds: 15), () async {
-      await FlutterBluePlus.stopScan();
-      _deviceStreamController.add(_devices.toList());
-    });
+    if (Platform.isLinux) {
+      // On Linux/BlueZ, we must stop scanning before connecting to devices.
+      // Scan for 15s to ensure we catch devices with slow advertising intervals,
+      // then process all queued devices after the scan stops.
+      await Future.delayed(Duration(seconds: 15), () async {
+        await FlutterBluePlus.stopScan();
+      });
+
+      if (_pendingDevices.isNotEmpty) {
+        _log.info("Processing ${_pendingDevices.length} queued BLE devices");
+        // Brief delay for BlueZ to settle after scan stop
+        await Future.delayed(Duration(milliseconds: 200));
+        for (final pending in _pendingDevices) {
+          await _createDevice(pending.deviceId, pending.factory);
+        }
+        _pendingDevices.clear();
+      }
+    } else {
+      await Future.delayed(Duration(seconds: 15), () async {
+        await FlutterBluePlus.stopScan();
+      });
+    }
+
+    _deviceStreamController.add(_devices.toList());
   }
+}
+
+class _PendingDevice {
+  final String deviceId;
+  final Future<Device> Function(BLETransport) factory;
+  _PendingDevice(this.deviceId, this.factory);
 }

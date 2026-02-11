@@ -83,7 +83,7 @@ class BluePlusTransport implements BLETransport {
       callback(Uint8List.fromList(data));
     });
     _device.cancelWhenDisconnected(subscription);
-    characteristic.setNotifyValue(true);
+    await characteristic.setNotifyValue(true);
   }
 
   @override

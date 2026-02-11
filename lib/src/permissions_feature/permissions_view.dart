@@ -228,7 +228,9 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 
   late StreamSubscription<List<dev.Device>> _discoverySubscription;
 
-  final Duration _timeoutDuration = Duration(seconds: 10);
+  // On Linux, BLE devices are queued during scan and processed after it stops
+  // (15s), so we need a longer timeout to avoid showing "no devices" prematurely.
+  final Duration _timeoutDuration = Duration(seconds: Platform.isLinux ? 20 : 10);
 
   /// Navigates to the appropriate screen after device connection
   ///
