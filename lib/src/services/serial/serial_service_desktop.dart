@@ -73,20 +73,37 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
         connected.add(d);
       }
     }
-    final scanPorts = ports.where(
-      (p) => connected.map((e) => e.deviceId).contains(p) == false,
-    );
+    final connectedIds = connected.map((e) => e.deviceId).toSet();
 
-    final results = <Device?>[];
-
-    for (final portId in scanPorts) {
-      try {
-        results.add(await _detectDevice(portId));
-      } catch (e, st) {
-        _log.warning("Error detecting device on $portId", e, st);
-        results.add(null);
+    // Pre-filter ports: skip already-connected, Bluetooth, and non-USB ports
+    final scanPorts = ports.where((p) {
+      if (connectedIds.contains(p)) return false;
+      final port = SerialPort(p);
+      final transport = port.transport.toTransport();
+      final name = port.name ?? '';
+      port.dispose();
+      if (transport == "Bluetooth") return false;
+      // Only scan USB serial ports
+      if (name.contains('serial') || name.contains('usbmodem') ||
+          name.contains('ttyACM') || name.contains('ttyUSB')) {
+        return true;
       }
-    }
+      return false;
+    }).toList();
+
+    _log.info("Scanning ${scanPorts.length} USB serial ports: $scanPorts");
+
+    // Scan ports in parallel instead of sequentially
+    final results = await Future.wait(
+      scanPorts.map((portId) async {
+        try {
+          return await _detectDevice(portId);
+        } catch (e, st) {
+          _log.warning("Error detecting device on $portId", e, st);
+          return null;
+        }
+      }),
+    );
     results.addAll(connected);
 
     _devices = results.whereType<Device>().toList();
@@ -111,19 +128,6 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     // Half Decent Scale shortcut
     if (port.productName == "Half Decent Scale") {
       return HDSSerial(transport: transport);
-    }
-
-    if (port.name != null) {
-      // macOS: cu.usbserial-*, cu.usbmodem-*
-      // Linux: ttyACM*, ttyUSB*
-      final name = port.name!;
-      if (!name.contains('serial') &&
-          !name.contains('usbmodem') &&
-          !name.contains('ttyACM') &&
-          !name.contains('ttyUSB')) {
-        port.dispose();
-        return null;
-      }
     }
 
     final rawData = <Uint8List>[];

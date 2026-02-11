@@ -278,11 +278,14 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   /// Helper to navigate to a specific route
   void _navigateToRoute(String route) {
     if (!mounted) return;
-    
-    // Push both routes to stack: HomeScreen first, then the target route
-    Navigator.popAndPushNamed(context, HomeScreen.routeName);
+
     if (route == SkinView.routeName) {
+      // Push both routes to stack: HomeScreen first, then SkinView on top
+      Navigator.popAndPushNamed(context, HomeScreen.routeName);
       Navigator.of(context).pushNamed(SkinView.routeName);
+    } else {
+      // For LandingFeature or any other route, navigate directly
+      Navigator.popAndPushNamed(context, route);
     }
   }
 
