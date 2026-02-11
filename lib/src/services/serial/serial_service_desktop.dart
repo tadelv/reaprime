@@ -114,8 +114,13 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     }
 
     if (port.name != null) {
-      if (!port.name!.contains('serial') &&
-          !port.name!.contains('usbmodem')) {
+      // macOS: cu.usbserial-*, cu.usbmodem-*
+      // Linux: ttyACM*, ttyUSB*
+      final name = port.name!;
+      if (!name.contains('serial') &&
+          !name.contains('usbmodem') &&
+          !name.contains('ttyACM') &&
+          !name.contains('ttyUSB')) {
         port.dispose();
         return null;
       }
