@@ -54,7 +54,7 @@ build-arm: arm
 
 build-amd: amd
 	@echo "🚀 Building Flutter Linux x86_64..."
-	TARGETARCH=amd64 docker compose run --rm $(SERVICE) bash -c "flutter pub get && ./flutter_with_commit build linux --release"
+	TARGETARCH=amd64 docker compose run --rm $(SERVICE) bash -c "flutter pub get && ./flutter_with_commit.sh build linux --release"
 
 dual-build: build-arm build-amd
 	@echo "🎉 Dual build complete!"
