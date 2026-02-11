@@ -108,6 +108,11 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       return UnifiedDe1(transport: transport);
     }
 
+    // Half Decent Scale shortcut
+    if (port.productName == "Half Decent Scale") {
+      return HDSSerial(transport: transport);
+    }
+
     if (port.name != null) {
       if (!port.name!.contains('serial') &&
           !port.name!.contains('usbmodem')) {
@@ -326,3 +331,4 @@ extension IntToString on int {
     }
   }
 }
+

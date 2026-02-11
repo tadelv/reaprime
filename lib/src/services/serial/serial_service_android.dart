@@ -115,7 +115,8 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
   Future<Device?> _detectDevice(UsbDevice device) async {
     _log.info("device name: ${device.productName}");
     if (device.productName?.contains('Serial') == false &&
-        !(device.productName == 'DE1')) {
+        !(device.productName == 'DE1') &&
+        !(device.productName == 'Half Decent Scale')) {
       return null;
     }
     UsbPort? port;
@@ -135,6 +136,12 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
     if (device.productName == "DE1") {
       _log.info("short circuit to de1");
       return UnifiedDe1(transport: transport);
+    }
+
+    // Half Decent Scale shortcut
+    if (device.productName == "Half Decent Scale") {
+      _log.info("short circuit to Half Decent Scale");
+      return HDSSerial(transport: transport);
     }
 
     final List<Uint8List> rawData = [];
@@ -296,5 +303,6 @@ class AndroidSerialPort implements SerialTransport {
     _log.fine("wrote request: ${command.map((e) => e.toRadixString(16))}");
   }
 }
+
 
 
