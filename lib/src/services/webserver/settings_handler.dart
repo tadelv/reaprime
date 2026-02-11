@@ -24,6 +24,7 @@ class SettingsHandler {
       final scalePowerMode = _controller.scalePowerMode.name;
       final preferredMachineId = _controller.preferredMachineId;
       final defaultSkinId = _controller.defaultSkinId;
+      final automaticUpdateCheck = _controller.automaticUpdateCheck;
       return {
         'gatewayMode': gatewayMode,
         'webUiPath': webPath,
@@ -33,6 +34,7 @@ class SettingsHandler {
         'scalePowerMode': scalePowerMode,
         'preferredMachineId': preferredMachineId,
         'defaultSkinId': defaultSkinId,
+        'automaticUpdateCheck': automaticUpdateCheck,
       };
     });
     app.post('/api/v1/settings', (Request request) async {
@@ -115,6 +117,16 @@ class SettingsHandler {
         } else {
           return Response.badRequest(
             body: {'message': 'defaultSkinId must be a string'},
+          );
+        }
+      }
+      if (json.containsKey('automaticUpdateCheck')) {
+        final value = json['automaticUpdateCheck'];
+        if (value is bool) {
+          await _controller.setAutomaticUpdateCheck(value);
+        } else {
+          return Response.badRequest(
+            body: {'message': 'automaticUpdateCheck must be a boolean'},
           );
         }
       }

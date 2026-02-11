@@ -35,8 +35,10 @@ import 'package:reaprime/src/services/universal_ble_discovery_service.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
 import 'package:reaprime/src/services/storage/file_storage_service.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
+import 'package:reaprime/src/services/update_check_service.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'src/app.dart';
@@ -227,11 +229,22 @@ void main() async {
       ) ??
       Level.FINE;
 
+  // Initialize update check service
+  final updateCheckService = UpdateCheckService(
+    settingsService: SettingsService(),
+  );
+  await updateCheckService.initialize();
+
+  // Add lifecycle observer for all platforms (for update notifications)
+  WidgetsBinding.instance.addObserver(AppLifecycleObserver(
+    updateCheckService: updateCheckService,
+    de1Controller: de1Controller,
+  ));
+
   if (Platform.isAndroid) {
     // Initialize and start foreground service as early as possible
     ForegroundTaskService.init();
     await ForegroundTaskService.start();
-    WidgetsBinding.instance.addObserver(AppLifecycleObserver());
     // SchedulerBinding.instance.addTimingsCallback((timings) {
     //   // If this keeps firing while app is "backgrounded",
     //   // something is forcing frames.
@@ -251,6 +264,7 @@ void main() async {
         pluginLoaderService: pluginService,
         webUIService: webUIService,
         webUIStorage: webUIStorage,
+        updateCheckService: updateCheckService,
       ),
     ),
   );
@@ -258,12 +272,42 @@ void main() async {
 
 class AppLifecycleObserver with WidgetsBindingObserver {
   final _log = Logger("App Lifecycle");
+  final UpdateCheckService? updateCheckService;
+  final De1Controller? de1Controller;
+  
   late Timer _memTimer;
+  bool _wasBackgrounded = false;
+  StreamSubscription? _machineStateSubscription;
+  StreamSubscription? _stateStreamSubscription;
+  int? _lastMachineState;
 
-  AppLifecycleObserver() {
+  AppLifecycleObserver({
+    this.updateCheckService,
+    this.de1Controller,
+  }) {
     _memTimer = Timer.periodic(Duration(minutes: 5), (t) {
       final rss = ProcessInfo.currentRss / (1024 * 1024);
       _log.info("[MEM] RSS=${rss.toStringAsFixed(1)}MB");
+    });
+
+    // Monitor machine state changes for sleep-to-idle transitions
+    _machineStateSubscription = de1Controller?.de1.listen((machine) {
+      _stateStreamSubscription?.cancel();
+      
+      if (machine == null) return;
+      
+      // Check if machine transitioned from sleep to idle
+      _stateStreamSubscription = machine.currentSnapshot.listen((snapshot) {
+        final currentState = snapshot.state.state.index;
+        
+        // Detect transition from sleep (0) to idle (2)
+        if (_lastMachineState == 0 && currentState == 2 && updateCheckService?.hasAvailableUpdate == true) {
+          _log.info('Machine transitioned from sleep to idle, showing update notification');
+          _showUpdateNotification();
+        }
+        
+        _lastMachineState = currentState;
+      });
     });
   }
 
@@ -272,15 +316,64 @@ class AppLifecycleObserver with WidgetsBindingObserver {
     if (state == AppLifecycleState.paused) {
       // STOP charts, timers, streams
       _log.info("state: paused");
+      _wasBackgrounded = true;
     }
     if (state == AppLifecycleState.resumed) {
       // Resume if needed
       _log.info("state: resumed");
+      
+      // Check for updates when app comes to foreground
+      if (_wasBackgrounded && updateCheckService?.hasAvailableUpdate == true) {
+        _showUpdateNotification();
+      }
+      _wasBackgrounded = false;
+    }
+  }
+
+  void _showUpdateNotification() {
+    final context = NavigationService.context;
+    if (context == null || !context.mounted) return;
+
+    final updateInfo = updateCheckService?.availableUpdate;
+    if (updateInfo == null) return;
+
+    // Show snackbar with action to open update dialog
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Update available: ${updateInfo.version}'),
+        action: SnackBarAction(
+          label: 'View',
+          onPressed: () {
+            _showUpdateDialog(context, updateInfo);
+          },
+        ),
+        duration: const Duration(days: 1), // Persistent snackbar
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _showUpdateDialog(BuildContext context, dynamic updateInfo) async {
+    if (Platform.isAndroid) {
+      // On Android, navigate to settings where user can download and install
+      Navigator.of(context).pushNamed('/settings');
+    } else {
+      // On other platforms, open the release page in browser
+      final releaseUrl = updateCheckService?.getReleaseUrl();
+      if (releaseUrl != null) {
+        try {
+          await launchUrl(Uri.parse(releaseUrl));
+        } catch (e) {
+          _log.warning('Failed to open release URL', e);
+        }
+      }
     }
   }
 
   void dispose() {
     _memTimer.cancel();
+    _machineStateSubscription?.cancel();
+    _stateStreamSubscription?.cancel();
   }
 }
 
@@ -294,6 +387,7 @@ class AppRoot extends StatefulWidget {
   final PluginLoaderService pluginLoaderService;
   final WebUIService webUIService;
   final WebUIStorage webUIStorage;
+  final UpdateCheckService? updateCheckService;
 
   const AppRoot({
     super.key,
@@ -306,6 +400,7 @@ class AppRoot extends StatefulWidget {
     required this.pluginLoaderService,
     required this.webUIService,
     required this.webUIStorage,
+    this.updateCheckService,
   });
 
   static void restart(BuildContext context) {
@@ -354,7 +449,24 @@ class _AppRootState extends State<AppRoot> {
         pluginLoaderService: widget.pluginLoaderService,
         webUIService: widget.webUIService,
         webUIStorage: widget.webUIStorage,
+        updateCheckService: widget.updateCheckService,
       ),
     );
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

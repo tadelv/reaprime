@@ -119,6 +119,23 @@ class SettingsService {
   Future<void> setDefaultSkinId(String skinId) async {
     await prefs.setString(SettingsKeys.defaultSkinId.name, skinId);
   }
+
+  Future<bool> automaticUpdateCheck() async {
+    return await prefs.getBool(SettingsKeys.automaticUpdateCheck.name) ?? true;
+  }
+
+  Future<void> setAutomaticUpdateCheck(bool value) async {
+    await prefs.setBool(SettingsKeys.automaticUpdateCheck.name, value);
+  }
+
+  Future<DateTime?> lastUpdateCheckTime() async {
+    final timestamp = await prefs.getInt(SettingsKeys.lastUpdateCheckTime.name);
+    return timestamp != null ? DateTime.fromMillisecondsSinceEpoch(timestamp) : null;
+  }
+
+  Future<void> setLastUpdateCheckTime(DateTime time) async {
+    await prefs.setInt(SettingsKeys.lastUpdateCheckTime.name, time.millisecondsSinceEpoch);
+  }
 }
 
 enum SettingsKeys {
@@ -133,6 +150,8 @@ enum SettingsKeys {
   preferredMachineId,
   skinExitButtonPosition,
   defaultSkinId,
+  automaticUpdateCheck,
+  lastUpdateCheckTime,
 }
 
 /// Position options for the skin view exit button

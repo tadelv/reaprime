@@ -15,6 +15,7 @@ import 'package:reaprime/src/settings/plugins_settings_view.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:reaprime/src/settings/update_dialog.dart';
 import 'package:reaprime/src/services/android_updater.dart';
+import 'package:reaprime/src/services/update_check_service.dart';
 import 'package:reaprime/src/util/shot_exporter.dart';
 import 'package:reaprime/src/util/shot_importer.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
@@ -32,6 +33,7 @@ class SettingsView extends StatefulWidget {
     required this.persistenceController,
     required this.webUIService,
     required this.webUIStorage,
+    this.updateCheckService,
   });
 
   static const routeName = '/settings';
@@ -40,6 +42,7 @@ class SettingsView extends StatefulWidget {
   final PersistenceController persistenceController;
   final WebUIService webUIService;
   final WebUIStorage webUIStorage;
+  final UpdateCheckService? updateCheckService;
 
   @override
   State<SettingsView> createState() => _SettingsViewState();
@@ -326,6 +329,49 @@ class _SettingsViewState extends State<SettingsView> {
           ),
         ),
         const Divider(height: 24),
+        ShadSwitch(
+          value: widget.controller.automaticUpdateCheck,
+          onChanged: (v) async {
+            await widget.controller.setAutomaticUpdateCheck(v);
+            if (v) {
+              await widget.updateCheckService?.enableAutomaticChecks();
+            } else {
+              await widget.updateCheckService?.disableAutomaticChecks();
+            }
+          },
+          label: const Text("Automatic update checks"),
+          sublabel: const Text(
+            "Check for updates every 12 hours",
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (widget.updateCheckService?.hasAvailableUpdate == true) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.system_update,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Update available: ${widget.updateCheckService?.availableUpdate?.version}',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         Wrap(
           spacing: 12,
           runSpacing: 12,
@@ -682,16 +728,15 @@ class _SettingsViewState extends State<SettingsView> {
         const SnackBar(content: Text('Checking for updates...')),
       );
 
-      if (Platform.isAndroid) {
-        final updater = AndroidUpdater(owner: 'tadelv', repo: 'reaprime');
-        final updateInfo = await updater.checkForUpdate(
-          BuildInfo.version,
-          channel: UpdateChannel.stable,
-        );
+      // Check for app updates
+      final updateInfo = await widget.updateCheckService?.checkForUpdate();
 
-        if (!context.mounted) return;
+      if (!context.mounted) return;
 
-        if (updateInfo != null) {
+      if (updateInfo != null) {
+        if (Platform.isAndroid) {
+          // On Android, show download/install dialog
+          final updater = AndroidUpdater(owner: 'tadelv', repo: 'reaprime');
           showDialog(
             context: context,
             builder: (context) => UpdateDialog(
@@ -702,18 +747,59 @@ class _SettingsViewState extends State<SettingsView> {
             ),
           );
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('You are on the latest version')),
+          // On other platforms, show dialog and open browser
+          final releaseUrl = widget.updateCheckService?.getReleaseUrl();
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Update Available'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Version ${updateInfo.version} is available'),
+                  const SizedBox(height: 8),
+                  Text('Current version: ${BuildInfo.version}'),
+                  if (updateInfo.releaseNotes.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Text('Release Notes:',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Container(
+                      constraints: const BoxConstraints(maxHeight: 200),
+                      child: SingleChildScrollView(
+                        child: Text(updateInfo.releaseNotes),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Later'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.of(context).pop();
+                    if (releaseUrl != null) {
+                      await launchUrl(Uri.parse(releaseUrl));
+                    }
+                  },
+                  child: const Text('Download'),
+                ),
+              ],
+            ),
           );
         }
-        await widget.webUIStorage.downloadRemoteSkins();
       } else {
-        await widget.webUIStorage.downloadRemoteSkins();
-        if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('WebUI is up to date')),
+          const SnackBar(content: Text('You are on the latest version')),
         );
       }
+
+      // Also update WebUI skins
+      await widget.webUIStorage.downloadRemoteSkins();
     } catch (e, stackTrace) {
       _log.severe('Error checking for updates', e, stackTrace);
       if (!context.mounted) return;
@@ -1116,4 +1202,6 @@ class _InfoPoint extends StatelessWidget {
     );
   }
 }
+
+
 

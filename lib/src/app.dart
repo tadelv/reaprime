@@ -27,6 +27,7 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/sample_feature/scale_debug_view.dart';
+import 'package:reaprime/src/services/update_check_service.dart';
 import 'package:reaprime/src/settings/plugins_settings_view.dart';
 import 'sample_feature/sample_item_details_view.dart';
 
@@ -55,6 +56,7 @@ class MyApp extends StatefulWidget {
     required this.pluginLoaderService,
     required this.webUIService,
     required this.webUIStorage,
+    this.updateCheckService,
   });
 
   final SettingsController settingsController;
@@ -66,6 +68,7 @@ class MyApp extends StatefulWidget {
   final PluginLoaderService pluginLoaderService;
   final WebUIService webUIService;
   final WebUIStorage webUIStorage;
+  final UpdateCheckService? updateCheckService;
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -193,6 +196,7 @@ class _MyAppState extends State<MyApp> {
                         persistenceController: widget.persistenceController,
                         webUIService: widget.webUIService,
                         webUIStorage: widget.webUIStorage,
+                        updateCheckService: widget.updateCheckService,
                       );
                     case De1DebugView.routeName:
                       var device = widget.deviceController.devices.firstWhere(
@@ -315,5 +319,8 @@ class _MyAppState extends State<MyApp> {
     );
   }
 }
+
+
+
 
 

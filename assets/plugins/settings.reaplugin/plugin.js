@@ -323,6 +323,17 @@ function createPlugin(host) {
                         </div>
                     </div>
                     <div class="setting-item">
+                        <label class="setting-label" for="automaticUpdateCheck">Automatic Update Checks</label>
+                        <div class="setting-control">
+                            <select id="automaticUpdateCheck" aria-describedby="automaticUpdateCheck-desc">
+                                <option value="true" ${reaSettings.automaticUpdateCheck !== false ? 'selected' : ''}>Enabled</option>
+                                <option value="false" ${reaSettings.automaticUpdateCheck === false ? 'selected' : ''}>Disabled</option>
+                            </select>
+                            <span id="automaticUpdateCheck-desc" class="visually-hidden">Check for app updates every 12 hours automatically</span>
+                            <button class="btn btn-primary" onclick="updateReaSetting('automaticUpdateCheck', document.getElementById('automaticUpdateCheck').value === 'true')" aria-label="Save automatic update check setting">Save</button>
+                        </div>
+                    </div>
+                    <div class="setting-item">
                         <label class="setting-label" for="logLevel">Log Level</label>
                         <div class="setting-control">
                             <select id="logLevel" aria-describedby="logLevel-desc">

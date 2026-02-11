@@ -39,6 +39,8 @@ class SettingsController with ChangeNotifier {
 
   late String _defaultSkinId;
 
+  late bool _automaticUpdateCheck;
+
   // Allow Widgets to read the user's preferred ThemeMode.
   ThemeMode get themeMode => _themeMode;
   GatewayMode get gatewayMode => _gatewayMode;
@@ -50,6 +52,7 @@ class SettingsController with ChangeNotifier {
   String? get preferredMachineId => _preferredMachineId;
   SkinExitButtonPosition get skinExitButtonPosition => _skinExitButtonPosition;
   String get defaultSkinId => _defaultSkinId;
+  bool get automaticUpdateCheck => _automaticUpdateCheck;
 
   /// Load the user's settings from the SettingsService. It may load from a
   /// local database or the internet. The controller only knows it can load the
@@ -65,6 +68,7 @@ class SettingsController with ChangeNotifier {
     _preferredMachineId = await _settingsService.preferredMachineId();
     _skinExitButtonPosition = await _settingsService.skinExitButtonPosition();
     _defaultSkinId = await _settingsService.defaultSkinId();
+    _automaticUpdateCheck = await _settingsService.automaticUpdateCheck();
 
     // Important! Inform listeners a change has occurred.
     notifyListeners();
@@ -182,6 +186,15 @@ class SettingsController with ChangeNotifier {
     }
     _defaultSkinId = skinId;
     await _settingsService.setDefaultSkinId(skinId);
+    notifyListeners();
+  }
+
+  Future<void> setAutomaticUpdateCheck(bool value) async {
+    if (value == _automaticUpdateCheck) {
+      return;
+    }
+    _automaticUpdateCheck = value;
+    await _settingsService.setAutomaticUpdateCheck(value);
     notifyListeners();
   }
 }
