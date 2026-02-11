@@ -135,9 +135,13 @@ class PermissionsView extends StatelessWidget {
         }
       }
     } else {
-      await UniversalBle.availabilityStream.firstWhere(
-        (e) => e == AvailabilityState.poweredOn,
-      );
+      try {
+        await UniversalBle.availabilityStream.firstWhere(
+          (e) => e == AvailabilityState.poweredOn,
+        ).timeout(Duration(seconds: 5));
+      } on TimeoutException {
+        _log.warning('Bluetooth availability check timed out, continuing without BLE');
+      }
     }
 
     // Initialize WebUI storage and service BEFORE device controller

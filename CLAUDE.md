@@ -317,6 +317,3 @@ See `doc/Skins.md` for complete development guide and `doc/SKIN_DEPLOYMENT_GUIDE
 - Pay attention to memory leaks (especially stream subscriptions)
 - Use constructor dependency injection
 - Single Responsibility Principle for all components
-
-
-

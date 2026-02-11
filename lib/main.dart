@@ -93,12 +93,14 @@ void main() async {
     "build: ${BuildInfo.commitShort}, branch: ${BuildInfo.branch}",
   );
 
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-  } catch (e, st) {
-    log.warning(e, st);
+  if (Platform.isLinux == false && Platform.isWindows == false) {
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    } catch (e, st) {
+      log.warning(e, st);
+    }
   }
 
   final List<DeviceDiscoveryService> services = [];
@@ -236,10 +238,12 @@ void main() async {
   await updateCheckService.initialize();
 
   // Add lifecycle observer for all platforms (for update notifications)
-  WidgetsBinding.instance.addObserver(AppLifecycleObserver(
-    updateCheckService: updateCheckService,
-    de1Controller: de1Controller,
-  ));
+  WidgetsBinding.instance.addObserver(
+    AppLifecycleObserver(
+      updateCheckService: updateCheckService,
+      de1Controller: de1Controller,
+    ),
+  );
 
   if (Platform.isAndroid) {
     // Initialize and start foreground service as early as possible
@@ -274,17 +278,14 @@ class AppLifecycleObserver with WidgetsBindingObserver {
   final _log = Logger("App Lifecycle");
   final UpdateCheckService? updateCheckService;
   final De1Controller? de1Controller;
-  
+
   late Timer _memTimer;
   bool _wasBackgrounded = false;
   StreamSubscription? _machineStateSubscription;
   StreamSubscription? _stateStreamSubscription;
   int? _lastMachineState;
 
-  AppLifecycleObserver({
-    this.updateCheckService,
-    this.de1Controller,
-  }) {
+  AppLifecycleObserver({this.updateCheckService, this.de1Controller}) {
     _memTimer = Timer.periodic(Duration(minutes: 5), (t) {
       final rss = ProcessInfo.currentRss / (1024 * 1024);
       _log.info("[MEM] RSS=${rss.toStringAsFixed(1)}MB");
@@ -293,19 +294,23 @@ class AppLifecycleObserver with WidgetsBindingObserver {
     // Monitor machine state changes for sleep-to-idle transitions
     _machineStateSubscription = de1Controller?.de1.listen((machine) {
       _stateStreamSubscription?.cancel();
-      
+
       if (machine == null) return;
-      
+
       // Check if machine transitioned from sleep to idle
       _stateStreamSubscription = machine.currentSnapshot.listen((snapshot) {
         final currentState = snapshot.state.state.index;
-        
+
         // Detect transition from sleep (0) to idle (2)
-        if (_lastMachineState == 0 && currentState == 2 && updateCheckService?.hasAvailableUpdate == true) {
-          _log.info('Machine transitioned from sleep to idle, showing update notification');
+        if (_lastMachineState == 0 &&
+            currentState == 2 &&
+            updateCheckService?.hasAvailableUpdate == true) {
+          _log.info(
+            'Machine transitioned from sleep to idle, showing update notification',
+          );
           _showUpdateNotification();
         }
-        
+
         _lastMachineState = currentState;
       });
     });
@@ -321,7 +326,7 @@ class AppLifecycleObserver with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       // Resume if needed
       _log.info("state: resumed");
-      
+
       // Check for updates when app comes to foreground
       if (_wasBackgrounded && updateCheckService?.hasAvailableUpdate == true) {
         _showUpdateNotification();
@@ -454,19 +459,3 @@ class _AppRootState extends State<AppRoot> {
     );
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
