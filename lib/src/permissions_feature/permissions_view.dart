@@ -228,9 +228,10 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 
   late StreamSubscription<List<dev.Device>> _discoverySubscription;
 
-  // On Linux, BLE devices are queued during scan and processed after it stops
-  // (15s), so we need a longer timeout to avoid showing "no devices" prematurely.
-  final Duration _timeoutDuration = Duration(seconds: Platform.isLinux ? 20 : 10);
+  // On Linux, BLE scanning and connection is much slower due to BlueZ quirks:
+  // 12s scan + 3s settle + ~7s prep scan + connect + service discovery.
+  // Total can be ~35s, so we use a generous 50s timeout.
+  final Duration _timeoutDuration = Duration(seconds: Platform.isLinux ? 50 : 10);
 
   /// Navigates to the appropriate screen after device connection
   ///

@@ -302,9 +302,10 @@ class _SettingsTileState extends State<SettingsTile> {
       // Trigger scan
       await widget.deviceController.scanForDevices(autoConnect: false);
 
-      // Wait for devices to be discovered and interrogated (10 seconds)
-      // DE1 machines need to be connected to and interrogated for model type
-      await Future.delayed(Duration(seconds: 10));
+      // Wait for devices to be discovered and interrogated.
+      // DE1 machines need to be connected to and interrogated for model type.
+      // On Linux, the BLE flow is much slower (scan + prep scan + connect).
+      await Future.delayed(Duration(seconds: Platform.isLinux ? 45 : 10));
 
       // Get all DE1 machines
       de1Machines =

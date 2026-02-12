@@ -23,9 +23,11 @@ import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 /// 4. **Connection priority is a no-op:** BlueZ does not support connection
 ///    priority parameters the way Android does.
 ///
-/// Connection retries are NOT handled here - they are handled by
-/// [LinuxBleDiscoveryService] which includes a re-scan step between retries
-/// to refresh BlueZ's internal device cache.
+/// When connecting outside of the discovery flow (e.g. via the REST API),
+/// the device may no longer be in `flutter_blue_plus_linux`'s internal
+/// cache. This transport handles that by catching the resulting
+/// [StateError] and running a brief BLE scan to repopulate the cache
+/// before retrying the connection.
 class LinuxBluePlusTransport implements BLETransport {
   final Logger _log;
   final BluetoothDevice _device;
@@ -39,6 +41,12 @@ class LinuxBluePlusTransport implements BLETransport {
   /// Delay between service discovery retry attempts.
   static const Duration _discoveryRetryDelay = Duration(seconds: 1);
 
+  /// Duration of the brief scan used to refresh BlueZ's device cache.
+  static const Duration _cacheRefreshScanDuration = Duration(seconds: 4);
+
+  /// Settle time after stopping the cache-refresh scan before connecting.
+  static const Duration _cacheRefreshSettleDelay = Duration(seconds: 2);
+
   LinuxBluePlusTransport({required String remoteId})
     : _device = BluetoothDevice(remoteId: DeviceIdentifier(remoteId)),
       _log = Logger("LinuxBPTransport-$remoteId");
@@ -47,6 +55,29 @@ class LinuxBluePlusTransport implements BLETransport {
   Future<void> connect() async {
     _log.info("Connecting...");
 
+    // Skip if already connected (e.g. MachineParser left connection open).
+    if (_device.isConnected) {
+      _log.info("Already connected, skipping connect");
+      return;
+    }
+
+    try {
+      await _doConnect();
+    } on StateError catch (e) {
+      // "Bad state: No element" — flutter_blue_plus_linux lost the device
+      // from its internal cache (happens after disconnect on BlueZ).
+      // Run a brief scan to repopulate the cache, then retry.
+      _log.warning(
+        "Device not in BlueZ plugin cache ($e), "
+        "running refresh scan before retry",
+      );
+      await _refreshDeviceCache();
+      await _doConnect();
+    }
+  }
+
+  /// Perform the actual BLE connect + post-connect setup.
+  Future<void> _doConnect() async {
     // On Linux/BlueZ, do NOT request a specific MTU during connect.
     // BlueZ handles MTU negotiation automatically via L2CAP, and
     // requesting an MTU at connect time can cause "Operation not
@@ -73,6 +104,38 @@ class LinuxBluePlusTransport implements BLETransport {
     }
 
     _log.info("Connection established");
+  }
+
+  /// Run a brief BLE scan to repopulate flutter_blue_plus_linux's internal
+  /// device list. After disconnect on BlueZ, the plugin's `singleWhere`
+  /// lookup fails because the device is no longer cached. Scanning makes
+  /// the device visible again.
+  Future<void> _refreshDeviceCache() async {
+    _log.info("Running pre-connect scan to restore device in BlueZ cache");
+    try {
+      if (FlutterBluePlus.isScanningNow) {
+        await FlutterBluePlus.stopScan();
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+
+      await FlutterBluePlus.startScan(oneByOne: true);
+      await Future.delayed(_cacheRefreshScanDuration);
+      await FlutterBluePlus.stopScan();
+
+      // Critical: wait for BlueZ to fully settle after the scan
+      // before attempting to connect, otherwise we hit
+      // le-connection-abort-by-local.
+      _log.fine(
+        "Cache refresh scan complete, waiting "
+        "${_cacheRefreshSettleDelay.inSeconds}s for BlueZ to settle",
+      );
+      await Future.delayed(_cacheRefreshSettleDelay);
+    } catch (e) {
+      _log.warning("Pre-connect cache refresh scan failed: $e");
+      try {
+        await FlutterBluePlus.stopScan();
+      } catch (_) {}
+    }
   }
 
   @override

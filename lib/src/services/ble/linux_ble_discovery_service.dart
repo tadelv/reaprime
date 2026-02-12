@@ -54,8 +54,9 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
   /// How long to scan before stopping and processing results.
   static const Duration _scanDuration = Duration(seconds: 12);
 
-  /// How long to wait after stopping scan for in-flight results to arrive.
-  static const Duration _postScanSettleDelay = Duration(seconds: 2);
+  /// How long to wait after stopping scan for in-flight results to arrive
+  /// and for BlueZ to fully exit scanning mode before connection attempts.
+  static const Duration _postScanSettleDelay = Duration(seconds: 3);
 
   /// Delay between sequential device connection attempts.
   static const Duration _interDeviceDelay = Duration(milliseconds: 800);
@@ -270,6 +271,14 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
 
     // Process queued devices sequentially
     if (_pendingDevices.isNotEmpty) {
+      // On BlueZ, the first connect after a long scan consistently fails
+      // with le-connection-abort-by-local. Running a brief "prep scan"
+      // resets BlueZ's internal state and makes the connect succeed on the
+      // first attempt, avoiding a costly retry cycle (~15s saved).
+      _log.info("Running connection prep scan before device processing");
+      await _ensureScanStopped();
+      await _runRefreshScan();
+
       _log.info(
         "Processing ${_pendingDevices.length} queued BLE device(s) "
         "sequentially",
@@ -353,8 +362,10 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
       );
       await Future.delayed(_refreshScanDuration);
       await FlutterBluePlus.stopScan();
-      // Settle after refresh scan
-      await Future.delayed(const Duration(seconds: 1));
+      // Settle after refresh scan — must wait long enough for BlueZ to
+      // fully exit scanning mode, otherwise connect hits
+      // le-connection-abort-by-local.
+      await Future.delayed(const Duration(seconds: 2));
     } catch (e) {
       _log.warning("Refresh scan failed: $e");
       try {
