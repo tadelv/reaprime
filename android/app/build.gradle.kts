@@ -12,7 +12,7 @@ plugins {
 
 android {
     namespace = "net.tadel.reaprime"
-    compileSdk = 35
+    compileSdk = 36
     // ndkVersion = flutter.ndkVersion
 		ndkVersion = "27.0.12077973"
 
