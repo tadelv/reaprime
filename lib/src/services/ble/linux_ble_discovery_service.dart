@@ -18,24 +18,22 @@ import 'package:reaprime/src/services/ble/linux_blue_plus_transport.dart';
 ///    errors. This service queues discovered devices and processes them only
 ///    after the scan has fully stopped.
 ///
-/// 2. **Adapter state transitions need settling time.** After stopping a scan,
-///    BlueZ needs a brief pause before the adapter is ready for connections.
+/// 2. **`startScan(timeout:)` returns immediately on Linux.** The timeout
+///    parameter does not reliably block for the full scan duration on BlueZ.
+///    We start without a timeout and manage the duration ourselves.
 ///
-/// 3. **Connection attempts are less reliable.** BlueZ connections can fail
-///    transiently, so we implement retry logic with increasing delays.
+/// 3. **Scan results arrive asynchronously.** Results can arrive after the
+///    scan is reported as stopped. We keep our listener active and wait for
+///    results to flush before processing.
 ///
-/// 4. **Service UUID scan filtering can be unreliable.** On some BlueZ
-///    versions, filtering by service UUIDs during scan does not work
-///    correctly. We scan without filters and match services manually from
-///    advertisement data.
+/// 4. **After a failed connection, devices disappear from the plugin cache.**
+///    `flutter_blue_plus_linux` uses `singleWhere` to look up devices
+///    internally. After disconnect, the device may be gone, causing
+///    "Bad state: No element" on retry. We re-scan before each retry.
 ///
 /// 5. **Adapter availability.** The Bluetooth adapter may not be immediately
 ///    available (e.g., rfkill, adapter not present). We check and wait for
 ///    the adapter before proceeding.
-///
-/// 6. **Sequential device processing.** Connecting to multiple devices
-///    concurrently on BlueZ is unreliable. We process discovered devices
-///    one at a time with delays between each.
 class LinuxBleDiscoveryService implements DeviceDiscoveryService {
   final Logger _log = Logger("LinuxBleDiscoveryService");
   Map<String, Future<Device> Function(BLETransport)> deviceMappings;
@@ -54,25 +52,22 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
   bool _adapterReady = false;
 
   /// How long to scan before stopping and processing results.
-  /// BlueZ needs a longer scan window because:
-  /// - BLE advertising intervals can be up to 10.24s
-  /// - BlueZ may miss initial advertisements while the adapter settles
-  /// - We want to catch devices with slow advertising intervals
   static const Duration _scanDuration = Duration(seconds: 12);
 
-  /// Delay after stopping scan before processing devices.
-  /// BlueZ needs this to fully release the scanning state internally.
-  static const Duration _postScanSettleDelay = Duration(milliseconds: 500);
+  /// How long to wait after stopping scan for in-flight results to arrive.
+  static const Duration _postScanSettleDelay = Duration(seconds: 2);
 
   /// Delay between sequential device connection attempts.
-  /// Prevents BlueZ from becoming overwhelmed with concurrent operations.
   static const Duration _interDeviceDelay = Duration(milliseconds: 800);
 
   /// Maximum number of connection retries per device.
   static const int _maxRetries = 2;
 
   /// Base delay for retry backoff.
-  static const Duration _retryBaseDelay = Duration(seconds: 2);
+  static const Duration _retryBaseDelay = Duration(seconds: 3);
+
+  /// Brief scan duration used before retries to refresh BlueZ device cache.
+  static const Duration _refreshScanDuration = Duration(seconds: 4);
 
   /// Timeout for waiting for the adapter to become available.
   static const Duration _adapterTimeout = Duration(seconds: 10);
@@ -88,7 +83,8 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
 
   @override
   Future<void> initialize() async {
-    assert(Platform.isLinux, 'LinuxBleDiscoveryService should only be used on Linux');
+    assert(
+        Platform.isLinux, 'LinuxBleDiscoveryService should only be used on Linux');
 
     await FlutterBluePlus.setLogLevel(LogLevel.warning);
     _logSubscription = FlutterBluePlus.logs.listen((logMessage) {
@@ -119,7 +115,6 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
     _log.info("initialized (Linux-specific BLE service)");
   }
 
-  /// Checks if the Bluetooth adapter is powered on and available.
   Future<bool> _checkAdapterState() async {
     try {
       final state = await FlutterBluePlus.adapterState.first.timeout(
@@ -132,8 +127,6 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
     }
   }
 
-  /// Waits for the Bluetooth adapter to become available.
-  /// Returns true if the adapter is ready, false if we timed out.
   Future<bool> _waitForAdapter() async {
     if (_adapterReady) return true;
 
@@ -157,40 +150,29 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
     }
   }
 
-  /// Ensures any previous scan is stopped before starting a new one.
+  /// Ensures any previous scan is fully stopped with settle time.
   Future<void> _ensureScanStopped() async {
     try {
       if (FlutterBluePlus.isScanningNow) {
         _log.info("Stopping previous scan before starting new one");
         await FlutterBluePlus.stopScan();
-        // Give BlueZ time to fully stop the previous scan
-        await Future.delayed(const Duration(milliseconds: 300));
       }
+      // Always give BlueZ a moment even if scan wasn't running,
+      // in case it just stopped
+      await Future.delayed(const Duration(milliseconds: 500));
     } catch (e) {
       _log.warning("Error stopping previous scan: $e");
     }
   }
 
-  @override
-  Future<void> scanForDevices() async {
-    // Step 1: Ensure adapter is available
-    final adapterAvailable = await _waitForAdapter();
-    if (!adapterAvailable) {
-      _log.severe("Cannot scan: Bluetooth adapter not available");
-      _deviceStreamController.add(_devices.toList());
-      return;
-    }
-
-    // Step 2: Stop any ongoing scan
-    await _ensureScanStopped();
-
-    // Step 3: Clear pending devices from any previous scan
+  /// Runs a scan for [duration], collecting results into [_pendingDevices].
+  /// Manages the scan lifecycle manually instead of using the timeout
+  /// parameter, which doesn't block reliably on Linux.
+  Future<void> _runScan(Duration duration) async {
     _pendingDevices.clear();
 
-    // Step 4: Set up scan listener
-    // On Linux/BlueZ, we must NOT connect to devices while scanning.
-    // All discovered devices are queued and processed after the scan stops.
-    var subscription = FlutterBluePlus.onScanResults.listen((results) {
+    // Set up scan listener BEFORE starting scan
+    final subscription = FlutterBluePlus.onScanResults.listen((results) {
       if (results.isEmpty) return;
 
       ScanResult r = results.last;
@@ -198,21 +180,9 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
 
       // Skip if device already exists or is being created
       if (_devices.firstWhereOrNull(
-            (element) => element.deviceId == deviceId,
-          ) !=
-          null) {
-        _log.fine(
-          "Duplicate device scanned $deviceId, "
-          "${r.advertisementData.advName}",
-        );
-        return;
-      }
-
-      if (_devicesBeingCreated.contains(deviceId)) {
-        _log.fine(
-          "Device already being created $deviceId, "
-          "${r.advertisementData.advName}",
-        );
+                (element) => element.deviceId == deviceId) !=
+            null ||
+          _devicesBeingCreated.contains(deviceId)) {
         return;
       }
 
@@ -233,68 +203,85 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
       if (deviceFactory == null) return;
 
       // Check if already pending
-      if (_pendingDevices.any((p) => p.deviceId == deviceId)) {
-        _log.fine("Device $deviceId already in pending queue");
-        return;
-      }
+      if (_pendingDevices.any((p) => p.deviceId == deviceId)) return;
 
       _log.info("Queued $deviceId for post-scan processing "
           "(service: ${matchedService.str})");
       _pendingDevices.add(_PendingDevice(deviceId, deviceFactory));
     }, onError: (e) => _log.warning("Scan result error: $e"));
 
-    // Step 5: Auto-cancel subscription when scan completes
-    FlutterBluePlus.cancelWhenScanComplete(subscription);
-
-    // Step 6: Start scanning
-    // On BlueZ, scan with service filters when possible. However, some BlueZ
-    // versions have issues with service UUID filtering. If scanning with
-    // filters returns no results, a retry without filters could be considered.
+    // Start scan WITHOUT timeout - we manage timing ourselves
     _log.info(
-      "Starting BLE scan (duration: ${_scanDuration.inSeconds}s, "
+      "Starting BLE scan (duration: ${duration.inSeconds}s, "
       "services: ${deviceMappings.keys.length})",
     );
     try {
       await FlutterBluePlus.startScan(
-        withServices:
-            deviceMappings.keys.map((e) => Guid(e)).toList(),
+        withServices: deviceMappings.keys.map((e) => Guid(e)).toList(),
         oneByOne: true,
-        timeout: _scanDuration,
+        // No timeout - we manage it ourselves
       );
     } catch (e) {
       _log.severe("Failed to start scan: $e");
-      // If scan failed, try to stop it cleanly
-      try {
-        await FlutterBluePlus.stopScan();
-      } catch (_) {}
+      subscription.cancel();
+      return;
+    }
+
+    // Wait for the full scan duration
+    await Future.delayed(duration);
+
+    // Explicitly stop scan
+    _log.info("Stopping scan...");
+    try {
+      await FlutterBluePlus.stopScan();
+    } catch (e) {
+      _log.warning("Error stopping scan: $e");
+    }
+
+    // Wait for in-flight scan results to flush through the stream.
+    // BlueZ delivers results asynchronously via D-Bus; results can arrive
+    // after the scan is reported as stopped.
+    _log.fine(
+      "Waiting ${_postScanSettleDelay.inSeconds}s for results to flush "
+      "and BlueZ to settle",
+    );
+    await Future.delayed(_postScanSettleDelay);
+
+    // NOW cancel the subscription - after results have flushed
+    subscription.cancel();
+
+    _log.info(
+        "Scan complete. Found ${_pendingDevices.length} device(s) to process");
+  }
+
+  @override
+  Future<void> scanForDevices() async {
+    final adapterAvailable = await _waitForAdapter();
+    if (!adapterAvailable) {
+      _log.severe("Cannot scan: Bluetooth adapter not available");
       _deviceStreamController.add(_devices.toList());
       return;
     }
 
-    // Step 7: Wait for scan to complete
-    // The scan will stop automatically after _scanDuration due to the timeout
-    // parameter above. We wait here for it to complete.
-    _log.info("Scan completed. Found ${_pendingDevices.length} device(s)");
+    await _ensureScanStopped();
 
-    // Step 8: Post-scan settle delay
-    // Critical for BlueZ: the adapter needs time to transition from scanning
-    // mode back to idle before we can initiate connections.
-    _log.fine(
-      "Waiting ${_postScanSettleDelay.inMilliseconds}ms for BlueZ to settle",
-    );
-    await Future.delayed(_postScanSettleDelay);
+    // Run the main scan
+    await _runScan(_scanDuration);
 
-    // Step 9: Process queued devices sequentially
+    // Process queued devices sequentially
     if (_pendingDevices.isNotEmpty) {
       _log.info(
         "Processing ${_pendingDevices.length} queued BLE device(s) "
         "sequentially",
       );
 
-      for (int i = 0; i < _pendingDevices.length; i++) {
-        final pending = _pendingDevices[i];
+      // Take a snapshot so we can clear the list
+      final toProcess = List<_PendingDevice>.from(_pendingDevices);
+      _pendingDevices.clear();
 
-        // Add inter-device delay (except for the first device)
+      for (int i = 0; i < toProcess.length; i++) {
+        final pending = toProcess[i];
+
         if (i > 0) {
           _log.fine(
             "Waiting ${_interDeviceDelay.inMilliseconds}ms before "
@@ -305,17 +292,11 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
 
         await _createDeviceWithRetry(pending.deviceId, pending.factory);
       }
-      _pendingDevices.clear();
     }
 
-    // Step 10: Emit final device list
     _deviceStreamController.add(_devices.toList());
   }
 
-  /// Creates a device with retry logic for Linux/BlueZ connection failures.
-  ///
-  /// BlueZ connections can fail transiently due to timing issues, adapter
-  /// state, or interference. We retry with increasing delays.
   Future<void> _createDeviceWithRetry(
     String deviceId,
     Future<Device> Function(BLETransport) deviceFactory,
@@ -331,10 +312,18 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
             "(waiting ${delay.inMilliseconds}ms)",
           );
           await Future.delayed(delay);
+
+          // Re-scan briefly to refresh BlueZ's device cache.
+          // After a failed connection + disconnect, flutter_blue_plus_linux
+          // loses the device from its internal list, causing "Bad state:
+          // No element" on subsequent connect attempts.
+          _log.info("Running refresh scan to restore device in BlueZ cache");
+          await _ensureScanStopped();
+          await _runRefreshScan();
         }
 
         await _createDevice(deviceId, deviceFactory);
-        return; // Success, exit retry loop
+        return;
       } catch (e) {
         _log.warning(
           "Attempt ${attempt + 1}/${_maxRetries + 1} failed for "
@@ -353,7 +342,27 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
     _devicesBeingCreated.remove(deviceId);
   }
 
-  /// Creates a device from a discovered BLE peripheral.
+  /// Brief scan to refresh BlueZ's internal device cache before a retry.
+  Future<void> _runRefreshScan() async {
+    _log.fine(
+        "Refresh scan for ${_refreshScanDuration.inSeconds}s");
+    try {
+      await FlutterBluePlus.startScan(
+        withServices: deviceMappings.keys.map((e) => Guid(e)).toList(),
+        oneByOne: true,
+      );
+      await Future.delayed(_refreshScanDuration);
+      await FlutterBluePlus.stopScan();
+      // Settle after refresh scan
+      await Future.delayed(const Duration(seconds: 1));
+    } catch (e) {
+      _log.warning("Refresh scan failed: $e");
+      try {
+        await FlutterBluePlus.stopScan();
+      } catch (_) {}
+    }
+  }
+
   Future<void> _createDevice(
     String deviceId,
     Future<Device> Function(BLETransport) deviceFactory,
@@ -362,23 +371,16 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
       final transport = LinuxBluePlusTransport(remoteId: deviceId);
       final device = await deviceFactory(transport);
 
-      // Double-check device was not added while we were creating it
       if (_devices.firstWhereOrNull((d) => d.deviceId == deviceId) != null) {
         _log.fine("Device $deviceId already added, skipping duplicate");
         _devicesBeingCreated.remove(deviceId);
         return;
       }
 
-      // Add device to list
       _devices.add(device);
       _deviceStreamController.add(_devices);
       _log.info("Device $deviceId added successfully");
 
-      // Set up cleanup listener for when device disconnects.
-      // We use skip(1) to ignore the current connection state that was set
-      // during device creation/inspection (e.g., MachineParser connecting
-      // and inspecting). This way we only react to FUTURE disconnection
-      // events, not the state that existed when the device was first created.
       StreamSubscription? sub;
       sub = device.connectionState.skip(1).listen((event) {
         if (event == ConnectionState.disconnected) {
@@ -395,11 +397,10 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
     } catch (e) {
       _log.severe("Error creating device $deviceId: $e");
       _devicesBeingCreated.remove(deviceId);
-      rethrow; // Rethrow so retry logic can catch it
+      rethrow;
     }
   }
 
-  /// Clean up subscriptions and resources.
   void dispose() {
     _logSubscription?.cancel();
     _adapterSubscription?.cancel();
