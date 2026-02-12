@@ -26,6 +26,7 @@ complexity of machine communication and device connectivity.
 - [WebUI / Skins](#webui--skins)
 - [Supported Operations](#supported-operations)
 - [Plugins](#plugins)
+- [Documentation](#documentation)
 - [Building](#building)
 - [System Requirements](#system-requirements)
 - [Troubleshooting](#troubleshooting)
@@ -149,6 +150,18 @@ Streamline Bridge features a JavaScript plugin system for dynamic functionality 
 - `visualizer.reaplugin`: Real-time shot visualization
 
 📖 **[Read the Plugin Development Guide →](doc/Plugins.md)**
+
+## Documentation
+
+In-depth guides and API references are available in the [`doc/`](doc/) directory:
+
+| Document | Description |
+|----------|-------------|
+| [Skins.md](doc/Skins.md) | WebUI skin development guide — REST & WebSocket API reference, development workflow, deployment via GitHub Releases |
+| [Plugins.md](doc/Plugins.md) | JavaScript plugin development — host API, event system, manifest structure, and examples |
+| [Profiles.md](doc/Profiles.md) | Profiles API — content-based hash IDs, version tracking, import/export, and storage architecture |
+| [DeviceManagement.md](doc/DeviceManagement.md) | Device discovery and connection management — transport abstraction, auto-connect logic, adding new device types |
+| [RELEASE.md](doc/RELEASE.md) | Release process — Git tag workflow, GitHub Actions CI, versioning conventions |
 
 ## Building
 

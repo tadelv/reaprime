@@ -907,8 +907,3 @@ _log.info('Found serial ports: $ports');
 - **UUID:** Universally Unique Identifier, used to identify BLE services/devices
 - **Service Mapping:** Dictionary mapping UUIDs to device factory functions
 
----
-
-**Document Version:** 1.0  
-**Last Updated:** 2026-01-09  
-**Author:** Claude Sonnet 4.5 (REA Development Assistant)

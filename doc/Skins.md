@@ -1988,45 +1988,6 @@ Here's a complete minimal skin implementation:
 
 ---
 
-## Deployment
-
-### Serving Your Skin
-
-**1. Local Development:**
-```bash
-# Python
-python3 -m http.server 8000
-
-# Node.js
-npx http-server -p 8000
-
-# PHP
-php -S localhost:8000
-```
-
-Then access at `http://localhost:8000`
-
-**2. Configure Streamline-Bridge to Serve Your Skin:**
-
-Update Streamline-Bridge settings to serve your skin:
-
-```javascript
-await fetch('http://192.168.1.100:8080/api/v1/settings', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    webUiPath: '/path/to/your/skin'
-  })
-});
-```
-
-**3. Remote Hosting:**
-- Host on any web server
-- Update CORS settings if needed
-- Ensure your skin can reach the gateway IP
-
----
-
 ## Troubleshooting
 
 ### WebSocket Connection Fails
@@ -2072,32 +2033,6 @@ This serves OpenAPI/Swagger documentation with:
 - Request/response schemas
 - Try-it-out functionality
 - WebSocket endpoint documentation
-
----
-
-## Next Steps
-
-1. **Study the Streamline Project** reference implementation for real-world patterns
-2. **Start with the minimal example** above and expand incrementally
-3. **Build interactive charts** using Chart.js, D3.js, or Plotly
-4. **Explore workflow automation** for recurring brewing recipes
-5. **Consider plugin development** for advanced custom functionality (see `Plugins.md`)
-
----
-
-## Contributing
-
-If you develop a skin and want to share it:
-1. Add it to the Streamline-Bridge community showcase (coming soon)
-2. Include screenshots and setup instructions
-3. Document any custom features or requirements
-4. Share on the Decent Diaspora forums
-
-For questions or issues:
-- Open issues on the Streamline-Bridge GitHub repository
-- Join discussions on Decent Diaspora forums
-
-Happy brewing and coding!
 
 ---
 
@@ -2858,6 +2793,16 @@ Once your skin is ready for public use:
 
 ---
 
+## Next Steps
+
+1. **Study the Streamline Project** reference implementation for real-world patterns
+2. **Start with the minimal example** above and expand incrementally
+3. **Build interactive charts** using Chart.js, D3.js, or Plotly
+4. **Explore workflow automation** for recurring brewing recipes
+5. **Consider plugin development** for advanced custom functionality (see `Plugins.md`)
+
+---
+
 ## Summary
 
 **For Development:**
@@ -2877,15 +2822,7 @@ Once your skin is ready for public use:
 - Streamline-Bridge will auto-download and check for updates
 - Uses HTTP headers for efficient version detection
 
-Happy skin development!
-
-
-
-
-
-
-
-
+For questions or issues, open an issue on the [Streamline-Bridge GitHub repository](https://github.com/tadelv/reaprime).
 
 
 

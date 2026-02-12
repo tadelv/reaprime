@@ -173,8 +173,6 @@ Comprehensive documentation is located in the `doc/` directory:
 - **`doc/Plugins.md`** - Plugin development guide (JavaScript API, manifest structure, event system)
 - **`doc/Profiles.md`** - Profile API documentation (content-based hashing, version tracking, management)
 - **`doc/DeviceManagement.md`** - Device discovery and connection management
-- **`doc/SKIN_DEPLOYMENT_GUIDE.md`** - Quick-start guide for deploying skins via GitHub Releases
-- **`doc/WEBUI_API_SUMMARY.md`** - Technical summary of WebUI API implementation
 - **`doc/RELEASE.md`** - Release process and versioning guidelines
 
 ## Plugin Development
