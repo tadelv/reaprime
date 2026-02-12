@@ -57,6 +57,8 @@ class De1Controller {
   Stream<RinseData> get rinseData => _rinseStream.stream;
 
   final List<StreamSubscription<dynamic>> _subscriptions = [];
+  bool _dataInitialized = false;
+  Timer? _shotSettingsDebounce;
 
   De1Controller({required DeviceController controller})
       : _deviceController = controller {
@@ -107,6 +109,9 @@ class De1Controller {
     _log.info("resetting de1");
     _de1 = null;
     _de1Controller.add(_de1);
+    _dataInitialized = false;
+    _shotSettingsDebounce?.cancel();
+    _shotSettingsDebounce = null;
     for (var sub in _subscriptions) {
       sub.cancel();
     }
@@ -114,17 +119,33 @@ class De1Controller {
   }
 
   Future<void> _initializeData() async {
+    if (_dataInitialized) {
+      _log.warning("Data already initialized, skipping (this should only happen once!)");
+      return;
+    }
+    _log.info("Initializing DE1 data for the first time");
+    _dataInitialized = true;
+    
     await connectedDe1().shotSettings.first.then(_shotSettingsUpdate);
     _subscriptions.add(
       connectedDe1().shotSettings.listen(
             _shotSettingsUpdate,
           ),
     );
+    _log.info("Created shotSettings listener, total subscriptions: ${_subscriptions.length}");
     await _setDe1Defaults();
   }
 
   Future<void> _shotSettingsUpdate(De1ShotSettings data) async {
-    _log.info('received shot settings');
+    // Debounce rapid successive calls (e.g., from setSteamFlow + setHotWaterFlow + updateShotSettings)
+    _shotSettingsDebounce?.cancel();
+    _shotSettingsDebounce = Timer(const Duration(milliseconds: 100), () async {
+      _log.info('Processing shot settings update (debounced)');
+      await _processShotSettingsUpdate(data);
+    });
+  }
+
+  Future<void> _processShotSettingsUpdate(De1ShotSettings data) async {
     var steamFlow = await connectedDe1().getSteamFlow();
     _steamDataController.add(
       SteamSettings(

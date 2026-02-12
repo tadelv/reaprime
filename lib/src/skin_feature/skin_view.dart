@@ -483,7 +483,7 @@ class _SkinViewState extends State<SkinView> {
             return NavigationActionPolicy.CANCEL;
           },
           onConsoleMessage: (controller, consoleMessage) {
-            _log.fine(
+            _log.finest(
               'WebView Console [${consoleMessage.messageLevel}]: ${consoleMessage.message}',
             );
           },

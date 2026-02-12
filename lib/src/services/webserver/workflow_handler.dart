@@ -40,12 +40,12 @@ class WorkflowHandler {
     updatedWorkflow = Workflow.fromJson(resultJson);
 
     _controller.setWorkflow(updatedWorkflow);
-    await _de1controller.connectedDe1().setProfile(updatedWorkflow.profile);
+    _de1controller.connectedDe1().setProfile(updatedWorkflow.profile);
     if (oldWorkflow.rinseData != updatedWorkflow.rinseData) {
-      await _de1controller.updateFlushSettings(updatedWorkflow.rinseData);
+      _de1controller.updateFlushSettings(updatedWorkflow.rinseData);
     }
     if (oldWorkflow.steamSettings != updatedWorkflow.steamSettings) {
-      await _de1controller.updateSteamSettings(
+      _de1controller.updateSteamSettings(
         SteamFormSettings(
           steamEnabled: updatedWorkflow.steamSettings.duration > 0,
           targetTemp: updatedWorkflow.steamSettings.targetTemperature,
@@ -55,7 +55,7 @@ class WorkflowHandler {
       );
     }
     if (oldWorkflow.hotWaterData != updatedWorkflow.hotWaterData) {
-      await _de1controller.updateHotWaterSettings(
+      _de1controller.updateHotWaterSettings(
         HotWaterFormSettings(
           targetTemperature: updatedWorkflow.hotWaterData.targetTemperature,
           flow: updatedWorkflow.hotWaterData.flow,

@@ -44,6 +44,8 @@ class UnifiedDe1 implements De1Interface {
 
   final Logger _log = Logger("DE1");
 
+  Stream<ByteData>? _cachedMmrStream;
+
   UnifiedDe1({required DataTransport transport})
     : _transport = UnifiedDe1Transport(transport: transport);
 
@@ -371,6 +373,16 @@ class UnifiedDe1 implements De1Interface {
         return d;
       })
       .map(_parseWaterLevels);
+
+  // Private getter for MMR stream with notifyFrom called once per event
+  // Cached to ensure only one stream chain is created
+  Stream<ByteData> get _mmr {
+    _cachedMmrStream ??= _transport.mmr.map((d) {
+      notifyFrom(Endpoint.readFromMMR, d.buffer.asUint8List());
+      return d;
+    }).asBroadcastStream();
+    return _cachedMmrStream!;
+  }
 }
 
 
