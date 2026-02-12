@@ -1,0 +1,162 @@
+import 'dart:async';
+import 'dart:typed_data';
+import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:rxdart/subjects.dart';
+
+import 'package:reaprime/src/models/device/device.dart';
+
+import '../../scale.dart';
+
+class DifluidScale implements Scale {
+  static String serviceUUID = '00ee';
+  static String dataUUID = 'aa01';
+
+  static final List<int> _cmdStartWeightNotifications = [
+    0xDF, 0xDF, 0x01, 0x00, 0x01, 0x01, 0xC1
+  ];
+  static final List<int> _cmdSetUnitToGram = [
+    0xDF, 0xDF, 0x01, 0x04, 0x01, 0x00, 0xC4
+  ];
+  static final List<int> _cmdTare = [
+    0xDF, 0xDF, 0x03, 0x02, 0x01, 0x01, 0xC5
+  ];
+
+  final String _deviceId;
+
+  final StreamController<ScaleSnapshot> _streamController =
+      StreamController.broadcast();
+
+  final BLETransport _transport;
+
+  DifluidScale({required BLETransport transport})
+    : _transport = transport,
+      _deviceId = transport.id;
+
+  @override
+  Stream<ScaleSnapshot> get currentSnapshot => _streamController.stream;
+
+  @override
+  String get deviceId => _deviceId;
+
+  @override
+  String get name => "Difluid Microbalance";
+
+  final StreamController<ConnectionState> _connectionStateController =
+      BehaviorSubject.seeded(ConnectionState.connecting);
+
+  @override
+  Stream<ConnectionState> get connectionState =>
+      _connectionStateController.stream;
+
+  @override
+  Future<void> onConnect() async {
+    if (await _transport.connectionState.first == true) {
+      return;
+    }
+    _connectionStateController.add(ConnectionState.connecting);
+    StreamSubscription<bool>? subscription;
+    subscription = _transport.connectionState.listen((bool state) async {
+      switch (state) {
+        case true:
+          _connectionStateController.add(ConnectionState.connected);
+          await _transport.discoverServices();
+
+          _registerNotifications();
+        case false:
+          if (await _connectionStateController.stream.first !=
+              ConnectionState.connecting) {
+            _connectionStateController.add(ConnectionState.disconnected);
+            subscription?.cancel();
+          }
+      }
+    });
+    await _transport.connect();
+  }
+
+  @override
+  disconnect() async {
+    await _transport.disconnect();
+  }
+
+  @override
+  DeviceType get type => DeviceType.scale;
+
+  @override
+  Future<void> tare() async {
+    await _transport.write(
+      serviceUUID,
+      dataUUID,
+      Uint8List.fromList(_cmdTare),
+      withResponse: true,
+    );
+  }
+
+  @override
+  Future<void> sleepDisplay() async {
+    // Difluid Microbalance doesn't have documented display sleep commands
+    // Fallback to disconnect as per scale interface contract
+    await disconnect();
+  }
+
+  @override
+  Future<void> wakeDisplay() async {
+    // Difluid Microbalance doesn't have documented wake display commands
+    // This is a no-op
+  }
+
+  void _registerNotifications() async {
+    await _transport.subscribe(serviceUUID, dataUUID, _parseNotification);
+
+    // Send start weight notifications command
+    await _transport.write(
+      serviceUUID,
+      dataUUID,
+      Uint8List.fromList(_cmdStartWeightNotifications),
+      withResponse: true,
+    );
+
+    // Set unit to grams
+    await _transport.write(
+      serviceUUID,
+      dataUUID,
+      Uint8List.fromList(_cmdSetUnitToGram),
+      withResponse: true,
+    );
+  }
+
+  void _parseNotification(List<int> data) {
+    if (data.length < 19 || data[3] != 0) {
+      return;
+    }
+
+    // If unit is not grams, send setUnitToGram command
+    if (data[17] != 0) {
+      _transport.write(
+        serviceUUID,
+        dataUUID,
+        Uint8List.fromList(_cmdSetUnitToGram),
+        withResponse: true,
+      );
+    }
+
+    // Extract bytes 5-8 as big-endian signed int32
+    final weightRaw = _getInt32(data.sublist(5, 9));
+    final weight = weightRaw / 10.0;
+
+    _streamController.add(
+      ScaleSnapshot(
+        timestamp: DateTime.now(),
+        weight: weight,
+        batteryLevel: 0,
+      ),
+    );
+  }
+
+  int _getInt32(List<int> buffer) {
+    final bytes = ByteData(buffer.length);
+    for (var i = 0; i < buffer.length; i++) {
+      bytes.setUint8(i, buffer[i]);
+    }
+    return bytes.getInt32(0, Endian.big);
+  }
+}
