@@ -210,7 +210,7 @@ class De1Handler {
     });
   }
 
-  _handleSnapshot(WebSocketChannel socket) async {
+  _handleSnapshot(WebSocketChannel socket, String? protocol) async {
     log.fine("handling websocket connection");
     var de1 = _controller.connectedDe1();
     var sub = de1.currentSnapshot.listen((snapshot) {
@@ -228,7 +228,7 @@ class De1Handler {
     );
   }
 
-  _handleShotSettings(WebSocketChannel socket) async {
+  _handleShotSettings(WebSocketChannel socket, String? protocol) async {
     log.fine('handling shot settings connection');
     var de1 = _controller.connectedDe1();
     var sub = de1.shotSettings.listen((data) {
@@ -246,7 +246,7 @@ class De1Handler {
     );
   }
 
-  _handleWaterLevels(WebSocketChannel socket) async {
+  _handleWaterLevels(WebSocketChannel socket, String? protocol) async {
     log.fine('handling water levels connection');
     var de1 = _controller.connectedDe1();
     var sub = de1.waterLevels.listen((data) {
@@ -264,7 +264,7 @@ class De1Handler {
     );
   }
 
-  _handleRawSocket(WebSocketChannel socket) async {
+  _handleRawSocket(WebSocketChannel socket, String? protocol) async {
     var de1 = _controller.connectedDe1();
     var sub = de1.rawOutStream.listen((data) {
       try {

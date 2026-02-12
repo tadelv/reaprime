@@ -29,6 +29,7 @@ import 'package:reaprime/src/models/device/impl/felicita/arc.dart';
 import 'package:reaprime/src/models/device/impl/machine_parser.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/services/blue_plus_discovery_service.dart';
+import 'package:reaprime/src/services/ble/linux_ble_discovery_service.dart';
 import 'package:reaprime/src/services/storage/hive_store_service.dart';
 import 'package:reaprime/src/services/storage/hive_profile_storage.dart';
 import 'package:reaprime/src/services/universal_ble_discovery_service.dart';
@@ -104,41 +105,38 @@ void main() async {
   }
 
   final List<DeviceDiscoveryService> services = [];
-  if (!Platform.isWindows) {
+
+  // Device UUID mappings shared across BLE discovery services
+  final bleDeviceMappings = {
+    UnifiedDe1.advertisingUUID.toUpperCase():
+        (t) => MachineParser.machineFrom(transport: t),
+    FelicitaArc.serviceUUID.toUpperCase(): (t) async {
+      return FelicitaArc(transport: t);
+    },
+    DecentScale.serviceUUID.toUpperCase(): (t) async {
+      return DecentScale(transport: t);
+    },
+    BookooScale.serviceUUID.toUpperCase(): (t) async {
+      return BookooScale(transport: t);
+    },
+  };
+
+  if (Platform.isLinux) {
+    // Use Linux-specific BLE discovery service that handles BlueZ quirks:
+    // - Stops scan before connecting (avoids le-connection-abort-by-local)
+    // - Adapter state monitoring and recovery
+    // - Connection retry logic with backoff
+    // - Sequential device processing with settle delays
     services.add(
-      BluePlusDiscoveryService(
-        mappings: {
-          UnifiedDe1.advertisingUUID.toUpperCase():
-              (t) => MachineParser.machineFrom(transport: t),
-          FelicitaArc.serviceUUID.toUpperCase(): (t) async {
-            return FelicitaArc(transport: t);
-          },
-          DecentScale.serviceUUID.toUpperCase(): (t) async {
-            return DecentScale(transport: t);
-          },
-          BookooScale.serviceUUID.toUpperCase(): (t) async {
-            return BookooScale(transport: t);
-          },
-        },
-      ),
+      LinuxBleDiscoveryService(mappings: bleDeviceMappings),
+    );
+  } else if (!Platform.isWindows) {
+    services.add(
+      BluePlusDiscoveryService(mappings: bleDeviceMappings),
     );
   } else {
     services.add(
-      UniversalBleDiscoveryService(
-        mappings: {
-          UnifiedDe1.advertisingUUID.toUpperCase():
-              (t) => MachineParser.machineFrom(transport: t),
-          FelicitaArc.serviceUUID.toUpperCase(): (t) async {
-            return FelicitaArc(transport: t);
-          },
-          DecentScale.serviceUUID.toUpperCase(): (t) async {
-            return DecentScale(transport: t);
-          },
-          BookooScale.serviceUUID.toUpperCase(): (t) async {
-            return BookooScale(transport: t);
-          },
-        },
-      ),
+      UniversalBleDiscoveryService(mappings: bleDeviceMappings),
     );
   }
 

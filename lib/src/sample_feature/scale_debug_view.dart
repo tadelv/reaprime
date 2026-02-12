@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/models/device/scale.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:shadcn_ui/shadcn_ui.dart' hide Scale;
 
 class ScaleDebugView extends StatefulWidget {
   final Scale scale;

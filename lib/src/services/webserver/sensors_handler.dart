@@ -56,7 +56,7 @@ final class SensorsHandler {
     _log.info("Handling: $req");
     final id = req.params['id']; // works for normal handlers
     _log.info("got id: $id");
-    return sws.webSocketHandler((socket) {
+    return sws.webSocketHandler((socket, protocol) {
       _log.info("upgraded to socket");
       final sensor = _controller.sensors[id];
       if (sensor == null) {
