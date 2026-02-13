@@ -326,6 +326,106 @@ class FeedbackService {
     }
   }
 
+  /// Generate an HTML feedback report for local export.
+  ///
+  /// Used as a fallback when GitHub submission fails, so users can
+  /// save the report and share it manually.
+  Future<String> generateHtmlReport(FeedbackRequest request) async {
+    final systemInfo =
+        request.includeSystemInfo ? _collectSystemInfo() : '';
+    String? logContent;
+    if (request.includeLogs) {
+      logContent = await _readLogFile();
+    }
+
+    final html = StringBuffer();
+    html.writeln('<!DOCTYPE html>');
+    html.writeln('<html><head>');
+    html.writeln(
+      '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">',
+    );
+    html.writeln(
+      '<title>[${request.type.displayName}] Feedback Report</title>',
+    );
+    html.writeln('<style>');
+    html.writeln(
+      'body{font-family:system-ui,sans-serif;max-width:800px;margin:0 auto;padding:20px;color:#222;background:#fafafa}',
+    );
+    html.writeln(
+      'h1{border-bottom:2px solid #4a7;padding-bottom:8px}h2{color:#555;margin-top:24px}',
+    );
+    html.writeln(
+      'pre{background:#f0f0f0;padding:12px;border-radius:6px;overflow-x:auto;font-size:12px;max-height:600px;overflow-y:auto}',
+    );
+    html.writeln(
+      'img{max-width:100%;border:1px solid #ddd;border-radius:6px;margin:8px 0}',
+    );
+    html.writeln(
+      '.meta{color:#888;font-size:13px;border-top:1px solid #ddd;padding-top:12px;margin-top:24px}',
+    );
+    html.writeln('ul{line-height:1.8}');
+    html.writeln('</style></head><body>');
+
+    html.writeln(
+      '<h1>[${_escapeHtml(request.type.displayName)}] Feedback Report</h1>',
+    );
+
+    html.writeln('<h2>Description</h2>');
+    html.writeln('<p>${_escapeHtml(request.description).replaceAll('\n', '<br>')}</p>');
+
+    if (systemInfo.isNotEmpty) {
+      html.writeln('<h2>System Information</h2><ul>');
+      // Parse the markdown-style list into HTML
+      for (final line in systemInfo.split('\n')) {
+        final trimmed = line.trim();
+        if (trimmed.startsWith('- ')) {
+          html.writeln('<li>${_escapeHtml(trimmed.substring(2))}</li>');
+        }
+      }
+      html.writeln('</ul>');
+    }
+
+    if (request.screenshots.isNotEmpty) {
+      html.writeln('<h2>Screenshots</h2>');
+      for (int i = 0; i < request.screenshots.length; i++) {
+        final b64 = base64Encode(request.screenshots[i]);
+        html.writeln(
+          '<p>Screenshot ${i + 1}:</p>'
+          '<img src="data:image/png;base64,$b64" alt="Screenshot ${i + 1}">',
+        );
+      }
+    }
+
+    if (logContent != null && logContent.isNotEmpty) {
+      // Truncate for HTML report to keep file size reasonable
+      const maxLogSize = 100000;
+      if (logContent.length > maxLogSize) {
+        logContent =
+            '... (truncated, showing last ${maxLogSize ~/ 1024}KB) ...\n'
+            '${logContent.substring(logContent.length - maxLogSize)}';
+      }
+      html.writeln('<h2>Application Logs</h2>');
+      html.writeln('<pre>${_escapeHtml(logContent)}</pre>');
+    }
+
+    html.writeln(
+      '<p class="meta">Generated via Streamline in-app feedback on '
+      '${request.timestamp.toIso8601String()}</p>',
+    );
+    html.writeln('</body></html>');
+
+    return html.toString();
+  }
+
+  /// Escape HTML special characters
+  static String _escapeHtml(String text) {
+    return text
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
+  }
+
   /// Common auth headers for GitHub API requests
   Map<String, String> get _authHeaders => {
         'Authorization': 'token $_githubToken',

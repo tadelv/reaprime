@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -35,18 +36,21 @@ class FeedbackDialog extends StatefulWidget {
 class _FeedbackDialogState extends State<FeedbackDialog> {
   final TextEditingController _descriptionController = TextEditingController();
   late final FeedbackController _controller;
+  late final FeedbackService _service;
 
   FeedbackType _selectedType = FeedbackType.bug;
   bool _includeLogs = true;
   bool _includeSystemInfo = true;
   final List<Uint8List> _screenshots = [];
+  String? _validationMessage;
+  FeedbackRequest? _lastRequest;
+  bool _exporting = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = FeedbackController(
-      service: FeedbackService(githubToken: widget.githubToken),
-    );
+    _service = FeedbackService(githubToken: widget.githubToken);
+    _controller = FeedbackController(service: _service);
     _controller.addListener(_onControllerChanged);
   }
 
@@ -71,7 +75,8 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
 
     for (final file in result.files) {
       if (_screenshots.length >= _maxScreenshots) break;
-      final bytes = file.bytes ?? (file.path != null ? await _readFile(file.path!) : null);
+      final bytes = file.bytes ??
+          (file.path != null ? await _readFile(file.path!) : null);
       if (bytes != null) {
         setState(() => _screenshots.add(bytes));
       }
@@ -87,20 +92,17 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
   }
 
   Future<void> _submit() async {
+    setState(() => _validationMessage = null);
+
     if (_descriptionController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a description')),
-      );
+      setState(() => _validationMessage = 'Please enter a description.');
       return;
     }
 
     if (!_controller.isConfigured) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Feedback is not configured. Build with --dart-define=GITHUB_FEEDBACK_TOKEN=<token>',
-          ),
-        ),
+      setState(
+        () => _validationMessage =
+            'Feedback is not configured. Build with --dart-define=GITHUB_FEEDBACK_TOKEN=<token>.',
       );
       return;
     }
@@ -112,8 +114,50 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
       includeSystemInfo: _includeSystemInfo,
       screenshots: _screenshots,
     );
+    _lastRequest = request;
 
     await _controller.submitFeedback(request);
+  }
+
+  Future<void> _exportAsHtml() async {
+    final request = _lastRequest;
+    if (request == null) return;
+
+    setState(() => _exporting = true);
+    try {
+      final html = await _service.generateHtmlReport(request);
+      final bytes = utf8.encode(html);
+      final timestamp = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .split('.')
+          .first;
+      final fileName = 'feedback_report_$timestamp.html';
+
+      final result = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Feedback Report',
+        fileName: fileName,
+        bytes: Uint8List.fromList(bytes),
+      );
+
+      if (result != null && mounted) {
+        // On some platforms saveFile with bytes writes the file,
+        // on others it only returns the path and we need to write.
+        final file = File(result);
+        if (!await file.exists() || await file.length() == 0) {
+          await file.writeAsBytes(bytes);
+        }
+        setState(
+          () => _validationMessage = 'Report saved to: $result',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _validationMessage = 'Failed to export report: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
   }
 
   @override
@@ -138,6 +182,27 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 8),
+        // Validation / info message
+        if (_validationMessage != null) ...[
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Theme.of(context)
+                  .colorScheme
+                  .secondaryContainer
+                  .withAlpha(180),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              _validationMessage!,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color:
+                        Theme.of(context).colorScheme.onSecondaryContainer,
+                  ),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
         // Feedback type selector
         Text(
           'Type',
@@ -267,7 +332,7 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
             ],
           ),
         ],
-        // Error message
+        // Error message with export option
         if (_controller.state == FeedbackState.error &&
             _controller.lastResult?.errorMessage != null) ...[
           const SizedBox(height: 12),
@@ -277,11 +342,30 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
               color: Theme.of(context).colorScheme.errorContainer,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Text(
-              _controller.lastResult!.errorMessage!,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onErrorContainer,
-                  ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  _controller.lastResult!.errorMessage!,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color:
+                            Theme.of(context).colorScheme.onErrorContainer,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                ShadButton.outline(
+                  size: ShadButtonSize.sm,
+                  onPressed: _exporting ? null : _exportAsHtml,
+                  child: _exporting
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child:
+                              CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Export as HTML'),
+                ),
+              ],
             ),
           ),
         ],
@@ -330,8 +414,9 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
 
     return [
       ShadButton.outline(
-        onPressed:
-            _controller.isSubmitting ? null : () => Navigator.of(context).pop(),
+        onPressed: _controller.isSubmitting
+            ? null
+            : () => Navigator.of(context).pop(),
         child: const Text('Cancel'),
       ),
       ShadButton(
