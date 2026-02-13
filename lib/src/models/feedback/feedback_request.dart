@@ -41,7 +41,7 @@ class FeedbackRequest {
   final FeedbackType type;
   final bool includeLogs;
   final bool includeSystemInfo;
-  final Uint8List? screenshot;
+  final List<Uint8List> screenshots;
   final DateTime timestamp;
 
   FeedbackRequest({
@@ -49,7 +49,7 @@ class FeedbackRequest {
     required this.type,
     this.includeLogs = true,
     this.includeSystemInfo = true,
-    this.screenshot,
+    this.screenshots = const [],
     DateTime? timestamp,
   }) : timestamp = timestamp ?? DateTime.now();
 
@@ -58,7 +58,7 @@ class FeedbackRequest {
         'type': type.name,
         'includeLogs': includeLogs,
         'includeSystemInfo': includeSystemInfo,
-        'hasScreenshot': screenshot != null,
+        'screenshotCount': screenshots.length,
         'timestamp': timestamp.toIso8601String(),
       };
 

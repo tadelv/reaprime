@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
+import 'package:flutter/painting.dart';
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
@@ -46,10 +49,13 @@ class FeedbackService {
         systemInfo = _collectSystemInfo();
       }
 
-      // Upload logs as Gist if requested
+      // Upload logs and screenshots as Gist
       String? gistUrl;
-      if (request.includeLogs) {
-        gistUrl = await _uploadLogsAsGist();
+      if (request.includeLogs || request.screenshots.isNotEmpty) {
+        gistUrl = await _uploadGist(
+          includeLogs: request.includeLogs,
+          screenshots: request.screenshots,
+        );
       }
 
       // Build issue body
@@ -75,14 +81,6 @@ class FeedbackService {
       final issueNumber = issueResult['number'] as int;
       final issueUrl = issueResult['html_url'] as String;
 
-      // Upload screenshot as comment if provided
-      if (request.screenshot != null) {
-        await _addScreenshotComment(
-          issueNumber: issueNumber,
-          screenshot: request.screenshot!,
-        );
-      }
-
       _log.info('Feedback submitted successfully as issue #$issueNumber');
       return FeedbackSubmissionResult.succeeded(
         issueUrl: issueUrl,
@@ -107,59 +105,57 @@ class FeedbackService {
     return info.toString();
   }
 
-  /// Read the log file and upload it as a GitHub Gist
-  Future<String?> _uploadLogsAsGist() async {
+  /// Upload logs and screenshots as a single GitHub Gist.
+  ///
+  /// Screenshots are scaled down to fit within ~48KB raw (which becomes
+  /// ~64KB base64) before being included as base64-encoded files in the Gist.
+  Future<String?> _uploadGist({
+    required bool includeLogs,
+    required List<Uint8List> screenshots,
+  }) async {
     try {
-      String? logContent;
+      final Map<String, Map<String, String>> gistFiles = {};
 
-      // Try Android log path first
-      if (Platform.isAndroid) {
-        final androidLogFile =
-            File('/storage/emulated/0/Download/REA1/log.txt');
-        if (await androidLogFile.exists()) {
-          logContent = await androidLogFile.readAsString();
+      // Add logs if requested
+      if (includeLogs) {
+        String? logContent = await _readLogFile();
+        if (logContent != null && logContent.isNotEmpty) {
+          // Truncate if too large
+          const maxLogSize = 500000; // ~500KB
+          if (logContent.length > maxLogSize) {
+            logContent =
+                '... (truncated, showing last ${maxLogSize ~/ 1024}KB) ...\n${logContent.substring(logContent.length - maxLogSize)}';
+          }
+          gistFiles['reaprime_logs.txt'] = {'content': logContent};
         }
       }
 
-      // Fall back to app documents directory
-      if (logContent == null) {
-        final docs = await getApplicationDocumentsDirectory();
-        final logFile = File('${docs.path}/log.txt');
-        if (await logFile.exists()) {
-          logContent = await logFile.readAsString();
-        }
+      // Add screenshots scaled to <64KB base64 (~48KB raw)
+      for (int i = 0; i < screenshots.length; i++) {
+        final scaled = await _scaleImageToMaxSize(screenshots[i], 48000);
+        final base64 = base64Encode(scaled);
+        gistFiles['screenshot_${i + 1}.png.b64'] = {'content': base64};
       }
 
-      if (logContent == null || logContent.isEmpty) {
-        _log.info('No log file found to upload');
+      if (gistFiles.isEmpty) {
         return null;
-      }
-
-      // Truncate if too large (GitHub Gist has limits)
-      const maxLogSize = 500000; // ~500KB
-      if (logContent.length > maxLogSize) {
-        logContent =
-            '... (truncated, showing last ${maxLogSize ~/ 1024}KB) ...\n${logContent.substring(logContent.length - maxLogSize)}';
       }
 
       final response = await http.post(
         Uri.parse('$_githubApiBase/gists'),
         headers: _authHeaders,
         body: jsonEncode({
-          'description': 'ReaPrime feedback logs - ${DateTime.now().toIso8601String()}',
+          'description':
+              'ReaPrime feedback - ${DateTime.now().toIso8601String()}',
           'public': false,
-          'files': {
-            'reaprime_logs.txt': {
-              'content': logContent,
-            },
-          },
+          'files': gistFiles,
         }),
       );
 
       if (response.statusCode == 201) {
         final gistData = jsonDecode(response.body) as Map<String, dynamic>;
         final gistUrl = gistData['html_url'] as String;
-        _log.info('Logs uploaded as Gist: $gistUrl');
+        _log.info('Gist uploaded: $gistUrl');
         return gistUrl;
       } else {
         _log.warning(
@@ -168,9 +164,87 @@ class FeedbackService {
         return null;
       }
     } catch (e) {
-      _log.warning('Failed to upload logs as Gist', e);
+      _log.warning('Failed to upload Gist', e);
       return null;
     }
+  }
+
+  /// Read the log file contents
+  Future<String?> _readLogFile() async {
+    try {
+      if (Platform.isAndroid) {
+        final androidLogFile =
+            File('/storage/emulated/0/Download/REA1/log.txt');
+        if (await androidLogFile.exists()) {
+          return await androidLogFile.readAsString();
+        }
+      }
+      final docs = await getApplicationDocumentsDirectory();
+      final logFile = File('${docs.path}/log.txt');
+      if (await logFile.exists()) {
+        return await logFile.readAsString();
+      }
+      _log.info('No log file found');
+      return null;
+    } catch (e) {
+      _log.warning('Failed to read log file', e);
+      return null;
+    }
+  }
+
+  /// Scale an image (JPEG or PNG bytes) down until the resulting PNG
+  /// is smaller than [maxBytes]. Uses progressive quality reduction.
+  Future<Uint8List> _scaleImageToMaxSize(
+    Uint8List imageBytes,
+    int maxBytes,
+  ) async {
+    if (imageBytes.length <= maxBytes) return imageBytes;
+
+    final codec = await ui.instantiateImageCodec(imageBytes);
+    final frame = await codec.getNextFrame();
+    final original = frame.image;
+
+    // Try progressively smaller scales until we fit
+    for (double scale = 0.5; scale >= 0.1; scale -= 0.1) {
+      final targetWidth = (original.width * scale).round();
+      final targetHeight = (original.height * scale).round();
+
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(
+        recorder,
+        Rect.fromLTWH(0, 0, targetWidth.toDouble(), targetHeight.toDouble()),
+      );
+      canvas.drawImageRect(
+        original,
+        Rect.fromLTWH(
+          0,
+          0,
+          original.width.toDouble(),
+          original.height.toDouble(),
+        ),
+        Rect.fromLTWH(0, 0, targetWidth.toDouble(), targetHeight.toDouble()),
+        Paint()..filterQuality = FilterQuality.medium,
+      );
+      final picture = recorder.endRecording();
+      final scaled = await picture.toImage(targetWidth, targetHeight);
+      final byteData = await scaled.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+
+      if (byteData == null) continue;
+      final result = byteData.buffer.asUint8List();
+
+      _log.fine(
+        'Scaled image to ${targetWidth}x$targetHeight: '
+        '${result.length} bytes (target: $maxBytes)',
+      );
+
+      if (result.length <= maxBytes) return result;
+    }
+
+    // Last resort: return smallest attempt
+    _log.warning('Could not scale image below $maxBytes bytes');
+    return imageBytes;
   }
 
   /// Build the title for the GitHub issue
@@ -203,8 +277,8 @@ class FeedbackService {
     }
 
     if (gistUrl != null) {
-      body.writeln('## Logs');
-      body.writeln('Application logs: $gistUrl');
+      body.writeln('## Attachments');
+      body.writeln('Logs and screenshots: $gistUrl');
       body.writeln();
     }
 
@@ -249,38 +323,6 @@ class FeedbackService {
     } catch (e) {
       _log.severe('Failed to create GitHub issue', e);
       return null;
-    }
-  }
-
-  /// Add a screenshot as a comment on the issue using base64 encoding
-  Future<void> _addScreenshotComment({
-    required int issueNumber,
-    required List<int> screenshot,
-  }) async {
-    try {
-      final base64Image = base64Encode(screenshot);
-      final commentBody =
-          '## Screenshot\n\n![Screenshot](data:image/png;base64,$base64Image)';
-
-      final response = await http.post(
-        Uri.parse(
-          '$_githubApiBase/repos/$_repo/issues/$issueNumber/comments',
-        ),
-        headers: _authHeaders,
-        body: jsonEncode({
-          'body': commentBody,
-        }),
-      );
-
-      if (response.statusCode == 201) {
-        _log.info('Screenshot added to issue #$issueNumber');
-      } else {
-        _log.warning(
-          'Failed to add screenshot comment: ${response.statusCode}',
-        );
-      }
-    } catch (e) {
-      _log.warning('Failed to add screenshot comment', e);
     }
   }
 
