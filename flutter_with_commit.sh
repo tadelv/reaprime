@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -e
 
+# --- Load local env file if present (not used in CI) ---
+if [ -f .env.dev ]; then
+  set -a
+  source .env.dev
+  set +a
+fi
+
 # --- Collect git info safely ---
 COMMIT=$(git rev-parse HEAD 2>/dev/null || echo unknown)
 COMMIT_SHORT=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
