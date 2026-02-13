@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
@@ -68,8 +69,13 @@ class MachineParser {
         m = Bengle(transport: transport);
       }
       await transport.disconnect();
-      // TODO: not sure if disconnect will mess up bluetooth on Android?
-      await Future.delayed(Duration(milliseconds: 500));
+      // Give the BLE stack time to clean up after disconnect.
+      // Android needs longer (1500ms) to avoid phantom connections
+      // on older devices (e.g. Android 9 on Teclast tablets).
+      final cleanupDelay = Platform.isAndroid
+          ? Duration(milliseconds: 1500)
+          : Duration(milliseconds: 500);
+      await Future.delayed(cleanupDelay);
       return m;
     } catch (e, st) {
       log.warning("failed to check:", e, st);

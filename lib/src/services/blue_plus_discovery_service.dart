@@ -6,6 +6,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/services/ble/android_blue_plus_transport.dart';
 import 'package:reaprime/src/services/ble/blue_plus_transport.dart';
 
 class BluePlusDiscoveryService implements DeviceDiscoveryService {
@@ -36,7 +37,9 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
     Future<Device> Function(BLETransport) deviceFactory,
   ) async {
     try {
-      final transport = BluePlusTransport(remoteId: deviceId);
+      final transport = Platform.isAndroid
+          ? AndroidBluePlusTransport(remoteId: deviceId)
+          : BluePlusTransport(remoteId: deviceId);
       final device = await deviceFactory(transport);
 
       // Double-check device wasn't added while we were creating it
