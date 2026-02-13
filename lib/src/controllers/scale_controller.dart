@@ -42,7 +42,11 @@ class ScaleController {
     _scaleConnection = scale.connectionState.listen(_processConnection);
     _scaleSnapshot = scale.currentSnapshot.listen(_processSnapshot);
     await scale.onConnect();
-    _scale = scale;
+    // Only set _scale if we're still connected (onConnect may have failed
+    // and triggered _onDisconnect which nulls _scaleConnection).
+    if (_scaleConnection != null) {
+      _scale = scale;
+    }
   }
 
   void _onDisconnect() {

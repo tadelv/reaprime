@@ -51,7 +51,9 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
       // Add device to list
       _devices.add(device);
       _deviceStreamController.add(_devices);
-      _log.info("Device $deviceId added successfully");
+      _log.info(
+        'Device $deviceId "${device.name}" added successfully',
+      );
 
       // Set up cleanup listener for when device disconnects.
       // We use skip(1) to ignore the current connection state that was set during
@@ -117,14 +119,13 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
         return;
       }
 
-      _log.fine(
-        '${r.device.remoteId}: "${r.advertisementData.advName}" found!',
-      );
-
       final s = r.advertisementData.serviceUuids.firstWhereOrNull(
         (adv) => deviceMappings.keys.map((e) => Guid(e)).toList().contains(adv),
       );
       if (s == null) {
+        _log.fine(
+          '${r.device.remoteId}: "${r.advertisementData.advName}" found but no matching service UUID',
+        );
         return;
       }
 
@@ -132,6 +133,11 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
       if (deviceFactory == null) {
         return;
       }
+
+      _log.info(
+        'Matched device ${r.device.remoteId} "${r.advertisementData.advName}" '
+        'with service ${s.str}',
+      );
 
       // Mark device as being created to prevent duplicates
       _devicesBeingCreated.add(deviceId);

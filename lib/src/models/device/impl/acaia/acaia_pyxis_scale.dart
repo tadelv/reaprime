@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/subjects.dart';
 
@@ -21,6 +22,7 @@ class AcaiaPyxisScale implements Scale {
   static String statusCharacteristicUUID =
       '49535343-1e4d-4bd9-ba61-23c647249616';
 
+  final Logger _log = Logger('AcaiaPyxisScale');
   final String _deviceId;
 
   final StreamController<ScaleSnapshot> _streamController =
@@ -45,7 +47,8 @@ class AcaiaPyxisScale implements Scale {
   String get deviceId => _deviceId;
 
   @override
-  String get name => "Acaia Pyxis";
+  String get name =>
+      _transport.name.isNotEmpty ? _transport.name : 'Acaia Pyxis';
 
   final StreamController<ConnectionState> _connectionStateController =
       BehaviorSubject.seeded(ConnectionState.connecting);
@@ -60,26 +63,41 @@ class AcaiaPyxisScale implements Scale {
       return;
     }
     _connectionStateController.add(ConnectionState.connecting);
-    StreamSubscription<bool>? subscription;
-    subscription = _transport.connectionState.listen((bool state) async {
-      switch (state) {
-        case true:
-          _connectionStateController.add(ConnectionState.connected);
-          await _transport.discoverServices();
-          await _initScale();
-        case false:
-          if (await _connectionStateController.stream.first !=
-              ConnectionState.connecting) {
-            _connectionStateController.add(ConnectionState.disconnected);
-            subscription?.cancel();
-            _heartbeatTimer?.cancel();
-            _heartbeatTimer = null;
-            _watchdogTimer?.cancel();
-            _watchdogTimer = null;
-          }
-      }
+
+    // Listen for unexpected disconnects during operation
+    StreamSubscription<bool>? disconnectSub;
+    disconnectSub = _transport.connectionState
+        .where((state) => !state)
+        .listen((_) {
+      _log.info('Transport disconnected');
+      _connectionStateController.add(ConnectionState.disconnected);
+      disconnectSub?.cancel();
+      _heartbeatTimer?.cancel();
+      _heartbeatTimer = null;
+      _watchdogTimer?.cancel();
+      _watchdogTimer = null;
     });
-    await _transport.connect();
+
+    try {
+      // Await full transport connection (including post-connect settle,
+      // MTU negotiation, etc.) before attempting service discovery.
+      await _transport.connect();
+      await _transport.discoverServices();
+      await _initScale();
+      _connectionStateController.add(ConnectionState.connected);
+      _log.info('Scale initialized successfully');
+    } catch (e) {
+      _log.warning('Failed to initialize scale: $e');
+      disconnectSub?.cancel();
+      _heartbeatTimer?.cancel();
+      _heartbeatTimer = null;
+      _watchdogTimer?.cancel();
+      _watchdogTimer = null;
+      _connectionStateController.add(ConnectionState.disconnected);
+      try {
+        await _transport.disconnect();
+      } catch (_) {}
+    }
   }
 
   @override
