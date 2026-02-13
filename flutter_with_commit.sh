@@ -8,9 +8,11 @@ BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
 BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # --- Optional secrets from environment ---
-GITHUB_TOKEN_DEFINE=()
-if [ -n "$GITHUB_FEEDBACK_TOKEN" ]; then
-  GITHUB_TOKEN_DEFINE=(--dart-define=GITHUB_FEEDBACK_TOKEN="$GITHUB_FEEDBACK_TOKEN")
+# Note: env var is FEEDBACK_TOKEN (not GITHUB_*) because GitHub Actions
+# reserves the GITHUB_ prefix for its own variables.
+FEEDBACK_TOKEN_DEFINE=()
+if [ -n "$FEEDBACK_TOKEN" ]; then
+  FEEDBACK_TOKEN_DEFINE=(--dart-define=GITHUB_FEEDBACK_TOKEN="$FEEDBACK_TOKEN")
 fi
 
 # --- Extract version from git tag ---
@@ -50,7 +52,7 @@ if [ "$COMMAND" = "build" ]; then
       --dart-define=BRANCH="$BRANCH" \
       --dart-define=BUILD_TIME="$BUILD_TIME" \
       --dart-define=VERSION="$VERSION" \
-      "${GITHUB_TOKEN_DEFINE[@]}" \
+      "${FEEDBACK_TOKEN_DEFINE[@]}" \
       "${REMAINDER[@]}"
 
     exit $?
@@ -63,5 +65,5 @@ flutter "$COMMAND" \
   --dart-define=BRANCH="$BRANCH" \
   --dart-define=BUILD_TIME="$BUILD_TIME" \
   --dart-define=VERSION="$VERSION" \
-  "${GITHUB_TOKEN_DEFINE[@]}" \
+  "${FEEDBACK_TOKEN_DEFINE[@]}" \
   "${EXTRA_ARGS[@]}"
