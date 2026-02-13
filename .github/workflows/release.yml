@@ -47,6 +47,8 @@ jobs:
 
       - name: Build Android APK
         run: ./flutter_with_commit.sh build apk --release
+        env:
+          FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
       - name: Get version from tag
         id: version
@@ -118,6 +120,8 @@ jobs:
       # ---- Build ----
       - name: Build macOS app
         run: ./flutter_with_commit.sh build macos --release
+        env:
+          FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
       - name: Codesign app (hardened runtime)
         run: |
@@ -186,6 +190,8 @@ jobs:
 
       - name: Build Linux app (unsigned)
         run: ./flutter_with_commit.sh build linux --release
+        env:
+          FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
       - name: Get version from tag
         id: version
@@ -227,7 +233,9 @@ jobs:
         run: flutter pub get
 
       - name: Build Linux app (ARM64)
-        run: ./flutter_with_commit.sh build linux --release 
+        run: ./flutter_with_commit.sh build linux --release
+        env:
+          FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
       - name: Get version from tag
         id: version
