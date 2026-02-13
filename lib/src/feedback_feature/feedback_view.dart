@@ -361,7 +361,7 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
                     child:
                         CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Export as HTML'),
+                : const Text('Export as HTML instead'),
           ),
         ],
       ],
