@@ -17,6 +17,7 @@ import 'package:reaprime/src/settings/update_dialog.dart';
 import 'package:reaprime/src/services/android_updater.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
 import 'package:reaprime/src/util/shot_exporter.dart';
+import 'package:reaprime/src/feedback_feature/feedback_view.dart';
 import 'package:reaprime/src/util/shot_importer.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
@@ -256,6 +257,16 @@ class _SettingsViewState extends State<SettingsView> {
             ShadButton.outline(
               onPressed: () => _showImportDialog(context),
               child: const Text("Import shots"),
+            ),
+            ShadButton.outline(
+              onPressed: () => showFeedbackDialog(
+                context,
+                githubToken: const String.fromEnvironment(
+                  'GITHUB_FEEDBACK_TOKEN',
+                  defaultValue: '',
+                ),
+              ),
+              child: const Text("Send Feedback"),
             ),
           ],
         ),

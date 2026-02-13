@@ -7,6 +7,12 @@ COMMIT_SHORT=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
 BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
+# --- Optional secrets from environment ---
+GITHUB_TOKEN_DEFINE=()
+if [ -n "$GITHUB_FEEDBACK_TOKEN" ]; then
+  GITHUB_TOKEN_DEFINE=(--dart-define=GITHUB_FEEDBACK_TOKEN="$GITHUB_FEEDBACK_TOKEN")
+fi
+
 # --- Extract version from git tag ---
 # Get the most recent tag (if any), strip 'v' prefix if present
 TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
@@ -44,6 +50,7 @@ if [ "$COMMAND" = "build" ]; then
       --dart-define=BRANCH="$BRANCH" \
       --dart-define=BUILD_TIME="$BUILD_TIME" \
       --dart-define=VERSION="$VERSION" \
+      "${GITHUB_TOKEN_DEFINE[@]}" \
       "${REMAINDER[@]}"
 
     exit $?
@@ -56,4 +63,5 @@ flutter "$COMMAND" \
   --dart-define=BRANCH="$BRANCH" \
   --dart-define=BUILD_TIME="$BUILD_TIME" \
   --dart-define=VERSION="$VERSION" \
+  "${GITHUB_TOKEN_DEFINE[@]}" \
   "${EXTRA_ARGS[@]}"

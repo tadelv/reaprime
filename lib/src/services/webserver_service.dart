@@ -39,7 +39,9 @@ import 'package:shelf/shelf_io.dart' as io;
 import 'package:shelf_web_socket/shelf_web_socket.dart' as sws;
 import 'package:shelf_cors_headers/shelf_cors_headers.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
+import 'package:reaprime/src/models/feedback/feedback_request.dart';
 import 'package:reaprime/src/plugins/plugin_manager.dart';
+import 'package:reaprime/src/services/feedback_service.dart';
 
 part 'webserver/de1handler.dart';
 part 'webserver/scale_handler.dart';
@@ -50,6 +52,7 @@ part 'webserver/kv_store_handler.dart';
 part 'webserver/plugins_handler.dart';
 part 'webserver/profile_handler.dart';
 part 'webserver/webui_handler.dart';
+part 'webserver/feedback_handler.dart';
 
 final log = Logger("Webservice");
 
@@ -97,6 +100,15 @@ Future<void> startWebServer(
   
   final webUIHandler = WebUIHandler(storage: webUIStorage);
 
+  final feedbackHandler = FeedbackHandler(
+    service: FeedbackService(
+      githubToken: const String.fromEnvironment(
+        'GITHUB_FEEDBACK_TOKEN',
+        defaultValue: '',
+      ),
+    ),
+  );
+
   final kvStoreHandler = KvStoreHandler();
   await kvStoreHandler.store.initialize();
   // Start server
@@ -113,6 +125,7 @@ Future<void> startWebServer(
       pluginsHandler,
       profileHandler,
       webUIHandler,
+      feedbackHandler,
     ),
     '0.0.0.0',
     8080,
@@ -136,6 +149,7 @@ Handler _init(
   PluginsHandler pluginsHandler,
   ProfileHandler profileHandler,
   WebUIHandler webUIHandler,
+  FeedbackHandler feedbackHandler,
 ) {
   log.info("called _init");
   var app = Router().plus;
@@ -180,6 +194,7 @@ Handler _init(
   pluginsHandler.addRoutes(app);
   profileHandler.addRoutes(app);
   webUIHandler.addRoutes(app);
+  feedbackHandler.addRoutes(app);
 
   final handler = const Pipeline()
       .addMiddleware(

@@ -27,6 +27,7 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/sample_feature/scale_debug_view.dart';
+import 'package:reaprime/src/services/screenshot_service.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
 import 'package:reaprime/src/settings/plugins_settings_view.dart';
 import 'sample_feature/sample_item_details_view.dart';
@@ -133,7 +134,9 @@ class _MyAppState extends State<MyApp> {
 
     final themeColor = 'green';
 
-    return ScaffoldMessenger(
+    return RepaintBoundary(
+      key: ScreenshotService.screenshotKey,
+      child: ScaffoldMessenger(
       child: ListenableBuilder(
         listenable: widget.settingsController,
         builder: (BuildContext context, Widget? child) {
@@ -316,11 +319,8 @@ class _MyAppState extends State<MyApp> {
           );
         },
       ),
+    ),
     );
   }
 }
-
-
-
-
 
