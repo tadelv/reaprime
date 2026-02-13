@@ -342,31 +342,26 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
               color: Theme.of(context).colorScheme.errorContainer,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  _controller.lastResult!.errorMessage!,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color:
-                            Theme.of(context).colorScheme.onErrorContainer,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                ShadButton.outline(
-                  size: ShadButtonSize.sm,
-                  onPressed: _exporting ? null : _exportAsHtml,
-                  child: _exporting
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child:
-                              CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Export as HTML'),
-                ),
-              ],
+            child: Text(
+              _controller.lastResult!.errorMessage!,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color:
+                        Theme.of(context).colorScheme.onErrorContainer,
+                  ),
             ),
+          ),
+          const SizedBox(height: 8),
+          ShadButton.outline(
+            size: ShadButtonSize.sm,
+            onPressed: _exporting ? null : _exportAsHtml,
+            child: _exporting
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child:
+                        CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Export as HTML'),
           ),
         ],
       ],
