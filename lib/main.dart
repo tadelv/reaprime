@@ -66,6 +66,39 @@ import 'firebase_options.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 import 'package:reaprime/src/services/telemetry/log_buffer.dart';
 import 'package:reaprime/src/services/telemetry/anonymization.dart';
+import 'package:reaprime/src/services/telemetry/error_report_throttle.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+
+/// Set system information as custom keys in telemetry service.
+/// This provides critical context for diagnosing platform-specific issues.
+Future<void> _setSystemInfoKeys(TelemetryService telemetryService) async {
+  try {
+    final deviceInfoPlugin = DeviceInfoPlugin();
+    final deviceInfo = await deviceInfoPlugin.deviceInfo;
+    final deviceData = deviceInfo.data;
+
+    // Set platform info
+    await telemetryService.setCustomKey('os_name', Platform.operatingSystem);
+    await telemetryService.setCustomKey('os_version', Platform.operatingSystemVersion);
+    await telemetryService.setCustomKey('app_version', BuildInfo.commitShort);
+
+    // Set device model (platform-adaptive field names)
+    final deviceModel = deviceData['model'] ??
+                       deviceData['computerName'] ??
+                       'unknown';
+    await telemetryService.setCustomKey('device_model', deviceModel);
+
+    // Set device brand (platform-adaptive field names)
+    final deviceBrand = deviceData['brand'] ??
+                       deviceData['hostName'] ??
+                       'unknown';
+    await telemetryService.setCustomKey('device_brand', deviceBrand);
+  } catch (e, st) {
+    final log = Logger('Main');
+    log.warning('Failed to set system info custom keys', e, st);
+    // Non-blocking - continue app startup even if this fails
+  }
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -121,8 +154,9 @@ void main() async {
     }
   }
 
-  // Create log buffer and telemetry service
+  // Create log buffer, error report throttle, and telemetry service
   final logBuffer = LogBuffer();
+  final errorReportThrottle = ErrorReportThrottle();
   final telemetryService = TelemetryService.create(logBuffer: logBuffer);
 
   // Initialize telemetry (disables collection by default, sets up error handlers)
@@ -133,12 +167,19 @@ void main() async {
   }
 
   // Hook Logger.root to capture WARNING+ in log buffer with PII scrubbing
+  // and trigger non-fatal error reports with rate limiting
   Logger.root.onRecord.listen((record) {
     if (record.level >= Level.WARNING) {
       final scrubbed = Anonymization.scrubString(
         '${record.level.name}: ${record.loggerName}: ${record.message}'
       );
       logBuffer.append(scrubbed);
+
+      // Trigger telemetry error report if rate limit allows
+      if (errorReportThrottle.shouldReport(scrubbed)) {
+        final error = record.error ?? scrubbed;
+        telemetryService.recordError(error, record.stackTrace);
+      }
     }
   });
 
