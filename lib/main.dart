@@ -328,6 +328,7 @@ void main() async {
       webUIService,
       webUIStorage,
       profileController,
+      logBuffer,
     );
   } catch (e, st) {
     log.severe('failed to start web server', e, st);
