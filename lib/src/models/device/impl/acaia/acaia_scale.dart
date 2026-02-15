@@ -62,20 +62,25 @@ class AcaiaScale implements Scale {
     _connectionStateController.add(ConnectionState.connecting);
 
     StreamSubscription<bool>? disconnectSub;
-    disconnectSub = _transport.connectionState
-        .where((state) => !state)
-        .listen((_) {
-      _log.info('Transport disconnected');
-      _connectionStateController.add(ConnectionState.disconnected);
-      disconnectSub?.cancel();
-      _heartbeatTimer?.cancel();
-      _heartbeatTimer = null;
-      _configTimer?.cancel();
-      _configTimer = null;
-    });
 
     try {
       await _transport.connect();
+
+      // Subscribe to disconnect AFTER connect succeeds.
+      // The transport's BehaviorSubject now holds `true`, so the
+      // .where(!state) filter won't fire until a real disconnect.
+      disconnectSub = _transport.connectionState
+          .where((state) => !state)
+          .listen((_) {
+        _log.info('Transport disconnected');
+        _connectionStateController.add(ConnectionState.disconnected);
+        disconnectSub?.cancel();
+        _heartbeatTimer?.cancel();
+        _heartbeatTimer = null;
+        _configTimer?.cancel();
+        _configTimer = null;
+      });
+
       await _transport.discoverServices();
       await _initScale();
       _connectionStateController.add(ConnectionState.connected);
@@ -247,6 +252,7 @@ class AcaiaScale implements Scale {
   static const int _metadataLen = 5;
 
   void _parseNotification(List<int> data) {
+    _log.fine('Notification received: ${data.length} bytes');
     _commandBuffer.addAll(data);
 
     while (_commandBuffer.length >= _metadataLen + 1) {

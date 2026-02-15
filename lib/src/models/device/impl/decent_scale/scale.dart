@@ -56,34 +56,42 @@ class DecentScale implements Scale {
       return;
     }
     _connectionStateController.add(ConnectionState.connecting);
-    subscription = _device.connectionState.listen((bool state) async {
-      _log.info("state: $state");
-      switch (state) {
-        case true:
-          _connectionStateController.add(ConnectionState.connected);
-          await _device.discoverServices();
 
-          _registerNotifications();
-          _heartbeatTimer?.cancel();
-          _heartbeatTimer = Timer.periodic(Duration(seconds: 4), (timer) async {
-            if (await _connectionStateController.stream.first !=
-                ConnectionState.connected) {
-              timer.cancel();
-              disconnect();
-              return;
-            }
-            await _sendHeartBeat();
-          });
-          _sendOledOn();
-          _sendHeartBeat();
-        case false:
-          if (await _connectionStateController.stream.first !=
-              ConnectionState.connecting) {
-            disconnect();
-          }
-      }
-    });
-    await _device.connect();
+    try {
+      await _device.connect();
+
+      subscription = _device.connectionState
+          .where((state) => !state)
+          .listen((_) {
+        _log.info("Transport disconnected");
+        disconnect();
+      });
+
+      await _device.discoverServices();
+      _registerNotifications();
+      _heartbeatTimer?.cancel();
+      _heartbeatTimer = Timer.periodic(Duration(seconds: 4), (timer) async {
+        if (await _connectionStateController.stream.first !=
+            ConnectionState.connected) {
+          timer.cancel();
+          disconnect();
+          return;
+        }
+        await _sendHeartBeat();
+      });
+      _sendOledOn();
+      _sendHeartBeat();
+      _connectionStateController.add(ConnectionState.connected);
+    } catch (e) {
+      _log.warning('Failed to initialize scale: $e');
+      subscription?.cancel();
+      _heartbeatTimer?.cancel();
+      _heartbeatTimer = null;
+      _connectionStateController.add(ConnectionState.disconnected);
+      try {
+        await _device.disconnect();
+      } catch (_) {}
+    }
   }
 
   @override

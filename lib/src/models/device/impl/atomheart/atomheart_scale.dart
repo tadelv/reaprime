@@ -51,22 +51,29 @@ class AtomheartScale implements Scale {
       return;
     }
     _connectionStateController.add(ConnectionState.connecting);
-    StreamSubscription<bool>? subscription;
-    subscription = _transport.connectionState.listen((bool state) async {
-      switch (state) {
-        case true:
-          _connectionStateController.add(ConnectionState.connected);
-          await _transport.discoverServices();
-          _registerNotifications();
-        case false:
-          if (await _connectionStateController.stream.first !=
-              ConnectionState.connecting) {
-            _connectionStateController.add(ConnectionState.disconnected);
-            subscription?.cancel();
-          }
-      }
-    });
-    await _transport.connect();
+
+    StreamSubscription<bool>? disconnectSub;
+
+    try {
+      await _transport.connect();
+
+      disconnectSub = _transport.connectionState
+          .where((state) => !state)
+          .listen((_) {
+        _connectionStateController.add(ConnectionState.disconnected);
+        disconnectSub?.cancel();
+      });
+
+      await _transport.discoverServices();
+      _registerNotifications();
+      _connectionStateController.add(ConnectionState.connected);
+    } catch (e) {
+      disconnectSub?.cancel();
+      _connectionStateController.add(ConnectionState.disconnected);
+      try {
+        await _transport.disconnect();
+      } catch (_) {}
+    }
   }
 
   @override
