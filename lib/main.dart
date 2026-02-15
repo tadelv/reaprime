@@ -166,6 +166,9 @@ void main() async {
     log.warning('Telemetry initialization failed', e, st);
   }
 
+  // Set system information custom keys for error reports
+  await _setSystemInfoKeys(telemetryService);
+
   // Hook Logger.root to capture WARNING+ in log buffer with PII scrubbing
   // and trigger non-fatal error reports with rate limiting
   Logger.root.onRecord.listen((record) {
