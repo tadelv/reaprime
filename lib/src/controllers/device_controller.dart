@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 import 'package:rxdart/rxdart.dart';
 
 class DeviceController {
@@ -15,6 +16,17 @@ class DeviceController {
   );
 
   final List<StreamSubscription> _serviceSubscriptions = [];
+
+  // Telemetry service for reporting device state changes
+  TelemetryService? _telemetryService;
+
+  /// Set the telemetry service for tracking device state changes
+  ///
+  /// Should be called before initialize() to ensure device state is tracked
+  /// from the start. Follows setter injection pattern used in SettingsController.
+  set telemetryService(TelemetryService service) {
+    _telemetryService = service;
+  }
 
   Stream<List<Device>> get deviceStream => _deviceStream.asBroadcastStream();
 
@@ -95,6 +107,45 @@ class DeviceController {
     _log.fine("$service update: $devices");
     _devices[service] = devices;
     _deviceStream.add(this.devices);
+    _updateDeviceCustomKeys();
+  }
+
+  /// Update telemetry custom keys with current device state
+  ///
+  /// Called on every device list change to keep telemetry context up-to-date.
+  /// Sets individual device keys (device_{name}_type) and summary counts by type.
+  void _updateDeviceCustomKeys() {
+    if (_telemetryService == null) return;
+
+    int machineCount = 0;
+    int scaleCount = 0;
+    int sensorCount = 0;
+
+    for (var device in this.devices) {
+      // Set individual device type key
+      _telemetryService!.setCustomKey(
+        'device_${device.name}_type',
+        device.type.name,
+      );
+
+      // Count by type (devices in the map are considered connected)
+      switch (device.type) {
+        case DeviceType.machine:
+          machineCount++;
+          break;
+        case DeviceType.scale:
+          scaleCount++;
+          break;
+        case DeviceType.sensor:
+          sensorCount++;
+          break;
+      }
+    }
+
+    // Set summary counts
+    _telemetryService!.setCustomKey('connected_machines', machineCount);
+    _telemetryService!.setCustomKey('connected_scales', scaleCount);
+    _telemetryService!.setCustomKey('connected_sensors', sensorCount);
   }
 
   void dispose() {
