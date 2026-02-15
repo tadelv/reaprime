@@ -183,7 +183,10 @@ Handler _init(
       //   return response;
       // }
 
-      // Add the header to responses that aren’t websocket-related.
+      // Only add JSON content-type if the handler didn't already set one.
+      if (response.headers.containsKey('content-type')) {
+        return response;
+      }
       return response.change(
         headers: {...response.headersAll, 'content-type': 'application/json'},
       );
