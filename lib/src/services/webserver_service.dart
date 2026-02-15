@@ -42,6 +42,7 @@ import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/feedback/feedback_request.dart';
 import 'package:reaprime/src/plugins/plugin_manager.dart';
 import 'package:reaprime/src/services/feedback_service.dart';
+import 'package:reaprime/src/services/telemetry/log_buffer.dart';
 
 part 'webserver/de1handler.dart';
 part 'webserver/scale_handler.dart';
@@ -53,6 +54,7 @@ part 'webserver/plugins_handler.dart';
 part 'webserver/profile_handler.dart';
 part 'webserver/webui_handler.dart';
 part 'webserver/feedback_handler.dart';
+part 'webserver/logs_handler.dart';
 
 final log = Logger("Webservice");
 
@@ -68,6 +70,7 @@ Future<void> startWebServer(
   WebUIService webUIService,
   WebUIStorage webUIStorage,
   ProfileController profileController,
+  LogBuffer logBuffer,
 ) async {
   log.info("starting webserver");
   final de1Handler = De1Handler(controller: de1Controller);
@@ -109,6 +112,8 @@ Future<void> startWebServer(
     ),
   );
 
+  final logsHandler = LogsHandler(logBuffer: logBuffer);
+
   final kvStoreHandler = KvStoreHandler();
   await kvStoreHandler.store.initialize();
   // Start server
@@ -126,6 +131,7 @@ Future<void> startWebServer(
       profileHandler,
       webUIHandler,
       feedbackHandler,
+      logsHandler,
     ),
     '0.0.0.0',
     8080,
@@ -150,6 +156,7 @@ Handler _init(
   ProfileHandler profileHandler,
   WebUIHandler webUIHandler,
   FeedbackHandler feedbackHandler,
+  LogsHandler logsHandler,
 ) {
   log.info("called _init");
   var app = Router().plus;
@@ -195,6 +202,7 @@ Handler _init(
   profileHandler.addRoutes(app);
   webUIHandler.addRoutes(app);
   feedbackHandler.addRoutes(app);
+  logsHandler.addRoutes(app);
 
   final handler = const Pipeline()
       .addMiddleware(
