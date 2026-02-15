@@ -10,10 +10,11 @@ import 'package:reaprime/src/models/device/device.dart';
 
 import '../../scale.dart';
 
-/// Acaia Classic / older model scale implementation.
+/// Acaia Classic / older model scale implementation (IPS protocol).
 ///
+/// Matches the de1app `acaiascale` implementation for ACAIA/PROCH-named scales.
 /// Uses a proprietary protocol with header bytes 0xEF 0xDD, message type,
-/// payload, and two checksum bytes.
+/// payload, and two checksum bytes over a single BLE characteristic.
 class AcaiaScale implements Scale {
   static String serviceUUID = '1820';
   static String characteristicUUID = '2a80';
@@ -27,8 +28,10 @@ class AcaiaScale implements Scale {
   final BLETransport _transport;
 
   Timer? _heartbeatTimer;
+  Timer? _configTimer;
   int _batteryLevel = 0;
   List<int> _commandBuffer = [];
+  bool _receivingNotifications = false;
 
   AcaiaScale({required BLETransport transport})
     : _transport = transport,
@@ -58,7 +61,6 @@ class AcaiaScale implements Scale {
     }
     _connectionStateController.add(ConnectionState.connecting);
 
-    // Listen for unexpected disconnects during operation
     StreamSubscription<bool>? disconnectSub;
     disconnectSub = _transport.connectionState
         .where((state) => !state)
@@ -68,11 +70,11 @@ class AcaiaScale implements Scale {
       disconnectSub?.cancel();
       _heartbeatTimer?.cancel();
       _heartbeatTimer = null;
+      _configTimer?.cancel();
+      _configTimer = null;
     });
 
     try {
-      // Await full transport connection (including post-connect settle,
-      // MTU negotiation, etc.) before attempting service discovery.
       await _transport.connect();
       await _transport.discoverServices();
       await _initScale();
@@ -83,6 +85,8 @@ class AcaiaScale implements Scale {
       disconnectSub?.cancel();
       _heartbeatTimer?.cancel();
       _heartbeatTimer = null;
+      _configTimer?.cancel();
+      _configTimer = null;
       _connectionStateController.add(ConnectionState.disconnected);
       try {
         await _transport.disconnect();
@@ -94,13 +98,15 @@ class AcaiaScale implements Scale {
   disconnect() async {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
+    _configTimer?.cancel();
+    _configTimer = null;
     await _transport.disconnect();
   }
 
   @override
   DeviceType get type => DeviceType.scale;
 
-  // --- Protocol encoding ---
+  // --- Protocol encoding (matches de1app acaia_encode) ---
 
   static const int _header1 = 0xEF;
   static const int _header2 = 0xDD;
@@ -110,7 +116,11 @@ class AcaiaScale implements Scale {
     0x38, 0x39, 0x30, 0x31, 0x32, 0x33, 0x34,
   ];
 
-  static const List<int> _configPayload = [9, 0, 1, 1, 2, 2, 5, 3, 4];
+  // Config payload matching de1app hex "0900010102020103041106":
+  // data [0x09,0x00,0x01,0x01,0x02,0x02,0x01,0x03,0x04] + checksums [0x11,0x06]
+  static const List<int> _configPayload = [
+    0x09, 0x00, 0x01, 0x01, 0x02, 0x02, 0x01, 0x03, 0x04,
+  ];
 
   static const List<int> _heartbeatPayload = [0x02, 0x00];
 
@@ -136,35 +146,57 @@ class AcaiaScale implements Scale {
     ]);
   }
 
-  // --- Initialization sequence ---
+  // --- Initialization sequence (matches de1app timing) ---
 
   Future<void> _initScale() async {
-    // Register notifications first
+    _receivingNotifications = false;
+
+    // de1app IPS: t+100ms enable notifications, t+500ms send ident
     await _transport.subscribe(
       serviceUUID,
       characteristicUUID,
       _parseNotification,
     );
 
-    // Wait 1 second, then send ident
-    await Future.delayed(const Duration(seconds: 1));
+    await Future.delayed(const Duration(milliseconds: 400));
+
+    // Send ident (IPS: write without response)
     await _transport.write(
       serviceUUID,
       characteristicUUID,
       _encode(0x0B, _identPayload),
+      withResponse: false,
     );
+    _log.fine('Sent ident');
 
-    // Wait 1 more second, then send config
-    await Future.delayed(const Duration(seconds: 1));
+    // de1app retries ident every 400ms if no notifications received
+    await Future.delayed(const Duration(milliseconds: 400));
+
+    if (!_receivingNotifications) {
+      _log.info('No response after ident, retrying...');
+      await _transport.write(
+        serviceUUID,
+        characteristicUUID,
+        _encode(0x0B, _identPayload),
+        withResponse: false,
+      );
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+
+    // Send config
     await _transport.write(
       serviceUUID,
       characteristicUUID,
       _encode(0x0C, _configPayload),
+      withResponse: false,
     );
+    _log.fine('Sent config');
 
-    // Start heartbeat timer every 3 seconds
+    // Start heartbeat cycle: heartbeat every 2s, config 1s after heartbeat
+    // (matches de1app forced heartbeat pattern)
     _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+    _configTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       _sendHeartbeat();
     });
   }
@@ -176,16 +208,26 @@ class AcaiaScale implements Scale {
       _encode(0x00, _heartbeatPayload),
       withResponse: false,
     );
+    // Send config 1s after heartbeat (de1app forced heartbeat pattern)
+    _configTimer?.cancel();
+    _configTimer = Timer(const Duration(seconds: 1), () {
+      _transport.write(
+        serviceUUID,
+        characteristicUUID,
+        _encode(0x0C, _configPayload),
+        withResponse: false,
+      );
+    });
   }
 
-  // --- Tare ---
+  // --- Tare (matches de1app: 17 zero bytes on wire) ---
 
   @override
   Future<void> tare() async {
     await _transport.write(
       serviceUUID,
       characteristicUUID,
-      _encode(0x04, [0x00]),
+      _encode(0x04, List.filled(15, 0x00)),
       withResponse: false,
     );
   }
@@ -194,24 +236,20 @@ class AcaiaScale implements Scale {
 
   @override
   Future<void> sleepDisplay() async {
-    // Acaia Classic doesn't support display control
-    // Fallback to disconnect as per scale interface contract
     await disconnect();
   }
 
   @override
-  Future<void> wakeDisplay() async {
-    // Acaia Classic doesn't support display control
-    // This is a no-op
-  }
+  Future<void> wakeDisplay() async {}
 
-  // --- Notification parsing ---
+  // --- Notification parsing (matches de1app acaia_parse_response) ---
+
+  static const int _metadataLen = 5;
 
   void _parseNotification(List<int> data) {
     _commandBuffer.addAll(data);
 
-    // Look for valid message starting with header bytes
-    while (_commandBuffer.length > 4) {
+    while (_commandBuffer.length >= _metadataLen + 1) {
       // Find header
       if (_commandBuffer[0] != _header1 || _commandBuffer[1] != _header2) {
         _commandBuffer.removeAt(0);
@@ -219,60 +257,57 @@ class AcaiaScale implements Scale {
       }
 
       int msgType = _commandBuffer[2];
+      int length = _commandBuffer[3];
+      int eventType = _commandBuffer[4];
 
-      // We need at least bytes up to the payload start to parse
-      if (_commandBuffer.length < 5) break;
+      // Total message size: metadata + remaining payload
+      int msgLen = _metadataLen + length;
 
-      List<int> payload = _commandBuffer.sublist(4);
+      // Wait for complete message
+      if (_commandBuffer.length < msgLen) break;
 
-      switch (msgType) {
-        case 12:
-          _parseType12(payload);
-          _commandBuffer.clear();
-          return;
-        case 8:
-          _batteryLevel = _commandBuffer[4];
-          _commandBuffer.clear();
-          return;
-        default:
-          // Unknown type, discard this message
-          _commandBuffer.clear();
-          return;
+      // Track that scale is responding (de1app sets flag when msg_type != 7)
+      if (msgType != 7) {
+        _receivingNotifications = true;
+      }
+
+      // Battery message
+      if (msgType == 8 && _commandBuffer.length > 4) {
+        _batteryLevel = _commandBuffer[4];
+      }
+
+      // Weight messages: msg_type 12, event_type 5 or 11, length <= 64
+      if (msgType == 12 &&
+          (eventType == 5 || eventType == 11) &&
+          length <= 64) {
+        final payloadOffset =
+            eventType == 5 ? _metadataLen : _metadataLen + 3;
+        _decodeWeight(_commandBuffer, payloadOffset);
+      }
+
+      // Advance past processed message
+      if (msgLen <= _commandBuffer.length) {
+        _commandBuffer = _commandBuffer.sublist(msgLen);
+      } else {
+        _commandBuffer.clear();
       }
     }
   }
 
-  void _parseType12(List<int> payload) {
-    if (payload.isEmpty) return;
-    int subType = payload[0];
+  /// Decode weight from buffer at offset.
+  /// 3-byte (24-bit) little-endian weight matching de1app.
+  void _decodeWeight(List<int> buffer, int offset) {
+    if (offset + 6 > buffer.length) return;
 
-    switch (subType) {
-      case 5:
-        // Weight data
-        _decodeWeight(payload);
-      case 8:
-        // Tare done - no action needed
-        break;
-      case 11:
-        // Heartbeat response
-        if (payload.length > 3 && payload[3] == 5) {
-          _decodeWeight(payload.sublist(3));
-        }
-    }
-  }
+    int value = ((buffer[offset + 2] & 0xFF) << 16) +
+        ((buffer[offset + 1] & 0xFF) << 8) +
+        (buffer[offset] & 0xFF);
 
-  void _decodeWeight(List<int> payload) {
-    if (payload.length < 7) return;
+    int unit = buffer[offset + 4] & 0xFF;
+    double weight = value / pow(10, unit);
 
-    int temp = ((payload[4] & 0xFF) << 24) +
-        ((payload[3] & 0xFF) << 16) +
-        ((payload[2] & 0xFF) << 8) +
-        (payload[1] & 0xFF);
-
-    int unit = payload[5] & 0xFF;
-    double weight = temp / pow(10, unit);
-
-    if ((payload[6] & 0x02) != 0) {
+    // Sign: negative if byte > 1 (de1app convention)
+    if ((buffer[offset + 5] & 0xFF) > 1) {
       weight *= -1;
     }
 
