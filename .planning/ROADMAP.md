@@ -45,10 +45,11 @@ Plans:
   3. Each error report includes 16kb rolling log buffer for debugging
   4. Connected device snapshots appear in reports (device types, connection states)
   5. API endpoints can export logs on demand via REST without telemetry upload
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 02-01: TBD
+- [ ] 02-01-PLAN.md — Global error reporting pipeline with rate limiting and device state custom keys
+- [ ] 02-02-PLAN.md — System information snapshot and GET /api/v1/logs export endpoint
 
 ### Phase 3: Performance Optimization
 **Goal**: Ensure telemetry adds zero UI jank under sustained BLE load
@@ -87,11 +88,11 @@ Note: Phase 4 can run parallel with Phase 3 (independent dependency chain).
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core Telemetry Service & Privacy | 2/2 | ✓ Complete | 2026-02-15 |
-| 2. Integration & Error Detection | 0/TBD | Not started | - |
+| 1. Core Telemetry Service & Privacy | 2/2 | Complete | 2026-02-15 |
+| 2. Integration & Error Detection | 0/2 | Planned | - |
 | 3. Performance Optimization | 0/TBD | Not started | - |
 | 4. WebView Integration | 0/TBD | Not started | - |
 
 ---
 *Roadmap created: 2026-02-15*
-*Last updated: 2026-02-15 after phase 1 execution*
+*Last updated: 2026-02-15 after phase 2 planning*
