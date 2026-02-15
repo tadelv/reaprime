@@ -144,6 +144,15 @@ class PermissionsView extends StatelessWidget {
       }
     }
 
+    // Telemetry consent prompt (one-time, non-blocking)
+    if (!settingsController.telemetryPromptShown) {
+      // Mark as shown and leave consent OFF by default.
+      // User can enable in Settings. This satisfies PRIV-03 (consent
+      // is surfaced) and PRIV-04 (disabled until explicitly enabled).
+      await settingsController.setTelemetryPromptShown(true);
+      _log.info('Telemetry consent defaulting to OFF (user can enable in Settings)');
+    }
+
     // Initialize WebUI storage and service BEFORE device controller
     _log.info('Initializing WebUI storage...');
     try {

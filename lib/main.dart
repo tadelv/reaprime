@@ -7,6 +7,7 @@ import 'package:hive_ce/hive.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
@@ -61,8 +62,10 @@ import 'src/settings/settings_service.dart';
 import 'src/services/serial/serial_service.dart';
 
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'firebase_options.dart';
+import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
+import 'package:reaprime/src/services/telemetry/log_buffer.dart';
+import 'package:reaprime/src/services/telemetry/anonymization.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -106,21 +109,38 @@ void main() async {
     "build: ${BuildInfo.commitShort}, branch: ${BuildInfo.branch}",
   );
 
-  if (Platform.isLinux == false && Platform.isWindows == false) {
+  // Initialize Firebase on supported platforms (not Linux/Windows, not debug, not simulate)
+  final isDebugOrSimulate = kDebugMode || const String.fromEnvironment("simulate") == "1";
+  if (!Platform.isLinux && !Platform.isWindows && !isDebugOrSimulate) {
     try {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
-      FlutterError.onError =
-          FirebaseCrashlytics.instance.recordFlutterFatalError;
-      PlatformDispatcher.instance.onError = (error, stack) {
-        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-        return true;
-      };
     } catch (e, st) {
-      log.warning(e, st);
+      log.warning('Firebase initialization failed', e, st);
     }
   }
+
+  // Create log buffer and telemetry service
+  final logBuffer = LogBuffer();
+  final telemetryService = TelemetryService.create(logBuffer: logBuffer);
+
+  // Initialize telemetry (disables collection by default, sets up error handlers)
+  try {
+    await telemetryService.initialize();
+  } catch (e, st) {
+    log.warning('Telemetry initialization failed', e, st);
+  }
+
+  // Hook Logger.root to capture WARNING+ in log buffer with PII scrubbing
+  Logger.root.onRecord.listen((record) {
+    if (record.level >= Level.WARNING) {
+      final scrubbed = Anonymization.scrubString(
+        '${record.level.name}: ${record.loggerName}: ${record.message}'
+      );
+      logBuffer.append(scrubbed);
+    }
+  });
 
   final List<DeviceDiscoveryService> services = [];
 
@@ -222,6 +242,7 @@ void main() async {
   }
 
   final settingsController = SettingsController(SettingsService());
+  settingsController.telemetryService = telemetryService;
 
   // Initialize profile storage and controller
   final profileController = ProfileController(

@@ -53,20 +53,20 @@ abstract class TelemetryService {
 
   /// Factory method to create the appropriate telemetry service for the platform
   ///
-  /// Returns [FirebaseCrashlyticsTelemetryService] on Android, iOS, macOS, and Windows.
-  /// Returns [NoOpTelemetryService] on Linux, or when in debug mode or simulation mode.
-  static TelemetryService create() {
+  /// [logBuffer] - Rolling log buffer for attaching context to error reports
+  ///
+  /// Returns [FirebaseCrashlyticsTelemetryService] on Android, iOS, and macOS.
+  /// Returns [NoOpTelemetryService] on Linux/Windows, or when in debug mode or simulation mode.
+  static TelemetryService create({required LogBuffer logBuffer}) {
     // Check if telemetry should be disabled
     final isDebugMode = kDebugMode;
     final isSimulateMode = const String.fromEnvironment('simulate') == '1';
-    final isLinux = Platform.isLinux;
+    final isLinuxOrWindows = Platform.isLinux || Platform.isWindows;
 
-    if (isDebugMode || isSimulateMode || isLinux) {
+    if (isDebugMode || isSimulateMode || isLinuxOrWindows) {
       return NoOpTelemetryService();
     }
 
-    // Create shared log buffer for Firebase implementation
-    final logBuffer = LogBuffer();
     return FirebaseCrashlyticsTelemetryService(logBuffer);
   }
 }

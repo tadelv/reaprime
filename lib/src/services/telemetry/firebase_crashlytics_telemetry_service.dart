@@ -1,3 +1,5 @@
+import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 import 'package:reaprime/src/services/telemetry/log_buffer.dart';
@@ -20,6 +22,16 @@ class FirebaseCrashlyticsTelemetryService implements TelemetryService {
   Future<void> initialize() async {
     // PRIV-04: Disable collection by default until user consents
     await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(false);
+
+    // TELE-04: Set up global error handlers to route through TelemetryService
+    FlutterError.onError = (details) {
+      FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+    };
+
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
   }
 
   @override
