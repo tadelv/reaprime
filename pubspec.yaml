@@ -77,6 +77,7 @@ dependencies:
   window_manager: ^0.5.1
   flutter_inappwebview: ^6.1.5
   device_info_plus: ^12.3.0
+  circular_buffer: ^0.12.0
   # path: ../flutter_libserialport
   # git:
   #   url: https://github.com/tadelv/flutter_libserialport.git
