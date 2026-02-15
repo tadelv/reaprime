@@ -9,10 +9,10 @@ See: .planning/PROJECT.md (updated 2026-02-15)
 
 ## Current Position
 
-Phase: 1 of 4 — COMPLETE (Core Telemetry Service & Privacy)
-Plan: 0 of TBD in phase 2
-Status: Phase 1 verified, ready to plan phase 2
-Last activity: 2026-02-15 — Phase 1 verified (6/6 criteria passed)
+Phase: 2 of 4 — Integration & Error Detection
+Plan: 1 of TBD in phase 2
+Status: Executing Phase 2
+Last activity: 2026-02-15 — Completed 02-01-PLAN.md (Global Error Pipeline)
 
 Progress: [██░░░░░░░░] 25%
 
@@ -34,6 +34,8 @@ Progress: [██░░░░░░░░] 25%
 - Trend: Stable (2.5min → 3.4min)
 
 *Updated after each plan completion*
+| Phase 02 P02 | 3 | 2 tasks | 3 files |
+| Phase 02 P01 | 185 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -56,6 +58,12 @@ Recent decisions affecting current work:
 - Non-blocking consent prompt in permissions_view — marks telemetryPromptShown on first launch, consent defaults OFF, user enables in Settings
 - Global error handlers in FirebaseCrashlyticsTelemetryService.initialize() — centralizes error handling configuration (TELE-04)
 - Windows added to NoOp platforms alongside Linux — limited Crashlytics support
+- [Phase 02-01]: 60-second rate limit window for error reports - balances noise reduction with issue freshness
+- [Phase 02-01]: Throttle map cleanup at 100 entries - prevents unbounded memory growth
+- [Phase 02-01]: Device counts use simple presence in _devices map - no complex connection state tracking needed
+- [Phase 02-02]: System info collected via device_info_plus after telemetry initialization
+- [Phase 02-02]: Platform-adaptive field names for device model/brand (handles Android/iOS/macOS/Windows differences)
+- [Phase 02-02]: Log export returns raw buffer contents without triggering telemetry upload
 
 ### Pending Todos
 
@@ -70,9 +78,9 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-15 (plan execution)
-Stopped at: Completed 01-02-PLAN.md (TelemetryService Integration) — Phase 1 Complete
+Stopped at: Completed 02-01-PLAN.md (Global Error Pipeline) — Phase 2 Plan 1 Complete
 Resume file: None
 
 ---
 *State initialized: 2026-02-15*
-*Last updated: 2026-02-15T16:02:30Z*
+*Last updated: 2026-02-15T20:29:37Z*
