@@ -78,37 +78,43 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TELE-01 | — | Pending |
-| TELE-02 | — | Pending |
-| TELE-03 | — | Pending |
-| TELE-04 | — | Pending |
-| TELE-05 | — | Pending |
-| PRIV-01 | — | Pending |
-| PRIV-02 | — | Pending |
-| PRIV-03 | — | Pending |
-| PRIV-04 | — | Pending |
-| LOGC-01 | — | Pending |
-| LOGC-02 | — | Pending |
-| LOGC-03 | — | Pending |
-| LOGC-04 | — | Pending |
-| LOGC-05 | — | Pending |
-| ERRD-01 | — | Pending |
-| ERRD-02 | — | Pending |
-| ERRD-03 | — | Pending |
-| INTG-01 | — | Pending |
-| INTG-02 | — | Pending |
-| INTG-03 | — | Pending |
-| INTG-04 | — | Pending |
-| INTG-05 | — | Pending |
-| WLOG-01 | — | Pending |
-| WLOG-02 | — | Pending |
-| WLOG-03 | — | Pending |
+| TELE-01 | Phase 1 | Pending |
+| TELE-02 | Phase 1 | Pending |
+| TELE-03 | Phase 1 | Pending |
+| TELE-04 | Phase 1 | Pending |
+| TELE-05 | Phase 1 | Pending |
+| PRIV-01 | Phase 1 | Pending |
+| PRIV-02 | Phase 1 | Pending |
+| PRIV-03 | Phase 1 | Pending |
+| PRIV-04 | Phase 1 | Pending |
+| LOGC-01 | Phase 1 | Pending |
+| LOGC-02 | Phase 2 | Pending |
+| LOGC-03 | Phase 2 | Pending |
+| LOGC-04 | Phase 2 | Pending |
+| LOGC-05 | Phase 2 | Pending |
+| ERRD-01 | Phase 2 | Pending |
+| ERRD-02 | Phase 2 | Pending |
+| ERRD-03 | Phase 2 | Pending |
+| INTG-01 | Phase 2 | Pending |
+| INTG-02 | Phase 2 | Pending |
+| INTG-03 | Phase 2 | Pending |
+| INTG-04 | Phase 2 | Pending |
+| INTG-05 | Phase 2 | Pending |
+| WLOG-01 | Phase 4 | Pending |
+| WLOG-02 | Phase 4 | Pending |
+| WLOG-03 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 25 total
-- Mapped to phases: 0
-- Unmapped: 25
+- Mapped to phases: 25
+- Unmapped: 0
+
+**Phase Distribution:**
+- Phase 1: 10 requirements (Core service, privacy, log buffer foundation)
+- Phase 2: 12 requirements (Integration, error detection, context enrichment)
+- Phase 3: 0 requirements (Optimization phase)
+- Phase 4: 3 requirements (WebView logging)
 
 ---
 *Requirements defined: 2026-02-15*
-*Last updated: 2026-02-15 after initial definition*
+*Last updated: 2026-02-15 after roadmap creation*
