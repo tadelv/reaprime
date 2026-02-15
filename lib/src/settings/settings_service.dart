@@ -136,6 +136,22 @@ class SettingsService {
   Future<void> setLastUpdateCheckTime(DateTime time) async {
     await prefs.setInt(SettingsKeys.lastUpdateCheckTime.name, time.millisecondsSinceEpoch);
   }
+
+  Future<bool> telemetryConsent() async {
+    return await prefs.getBool(SettingsKeys.telemetryConsent.name) ?? false;
+  }
+
+  Future<void> setTelemetryConsent(bool value) async {
+    await prefs.setBool(SettingsKeys.telemetryConsent.name, value);
+  }
+
+  Future<bool> telemetryPromptShown() async {
+    return await prefs.getBool(SettingsKeys.telemetryPromptShown.name) ?? false;
+  }
+
+  Future<void> setTelemetryPromptShown(bool value) async {
+    await prefs.setBool(SettingsKeys.telemetryPromptShown.name, value);
+  }
 }
 
 enum SettingsKeys {
@@ -152,6 +168,8 @@ enum SettingsKeys {
   defaultSkinId,
   automaticUpdateCheck,
   lastUpdateCheckTime,
+  telemetryConsent,
+  telemetryPromptShown,
 }
 
 /// Position options for the skin view exit button

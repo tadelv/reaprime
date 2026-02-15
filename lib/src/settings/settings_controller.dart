@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
+import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 
 import 'settings_service.dart';
 
@@ -41,6 +42,12 @@ class SettingsController with ChangeNotifier {
 
   late bool _automaticUpdateCheck;
 
+  late bool _telemetryConsent;
+
+  late bool _telemetryPromptShown;
+
+  TelemetryService? _telemetryService;
+
   // Allow Widgets to read the user's preferred ThemeMode.
   ThemeMode get themeMode => _themeMode;
   GatewayMode get gatewayMode => _gatewayMode;
@@ -53,6 +60,10 @@ class SettingsController with ChangeNotifier {
   SkinExitButtonPosition get skinExitButtonPosition => _skinExitButtonPosition;
   String get defaultSkinId => _defaultSkinId;
   bool get automaticUpdateCheck => _automaticUpdateCheck;
+  bool get telemetryConsent => _telemetryConsent;
+  bool get telemetryPromptShown => _telemetryPromptShown;
+
+  set telemetryService(TelemetryService service) => _telemetryService = service;
 
   /// Load the user's settings from the SettingsService. It may load from a
   /// local database or the internet. The controller only knows it can load the
@@ -69,6 +80,13 @@ class SettingsController with ChangeNotifier {
     _skinExitButtonPosition = await _settingsService.skinExitButtonPosition();
     _defaultSkinId = await _settingsService.defaultSkinId();
     _automaticUpdateCheck = await _settingsService.automaticUpdateCheck();
+    _telemetryConsent = await _settingsService.telemetryConsent();
+    _telemetryPromptShown = await _settingsService.telemetryPromptShown();
+
+    // Sync telemetry consent to TelemetryService if it exists
+    if (_telemetryService != null) {
+      await _telemetryService!.setConsentEnabled(_telemetryConsent);
+    }
 
     // Important! Inform listeners a change has occurred.
     notifyListeners();
@@ -195,6 +213,27 @@ class SettingsController with ChangeNotifier {
     }
     _automaticUpdateCheck = value;
     await _settingsService.setAutomaticUpdateCheck(value);
+    notifyListeners();
+  }
+
+  Future<void> setTelemetryConsent(bool value) async {
+    if (value == _telemetryConsent) {
+      return;
+    }
+    _telemetryConsent = value;
+    await _settingsService.setTelemetryConsent(value);
+    if (_telemetryService != null) {
+      await _telemetryService!.setConsentEnabled(value);
+    }
+    notifyListeners();
+  }
+
+  Future<void> setTelemetryPromptShown(bool value) async {
+    if (value == _telemetryPromptShown) {
+      return;
+    }
+    _telemetryPromptShown = value;
+    await _settingsService.setTelemetryPromptShown(value);
     notifyListeners();
   }
 }
