@@ -29,10 +29,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. User must explicitly grant consent before any telemetry is collected
   4. BLE MAC addresses and IP addresses are SHA-256 hashed in all reports
   5. Debug/simulate builds never send telemetry to Firebase
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 01-01: TBD
+- [ ] 01-01-PLAN.md — Core telemetry service files (interface, Firebase/NoOp implementations, anonymization, log buffer)
+- [ ] 01-02-PLAN.md — Integration wiring (settings consent, main.dart lifecycle, permissions flow)
 
 ### Phase 2: Integration & Error Detection
 **Goal**: Validate telemetry usefulness through BLE integration and automatic error reporting
@@ -86,11 +87,11 @@ Note: Phase 4 can run parallel with Phase 3 (independent dependency chain).
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core Telemetry Service & Privacy | 0/TBD | Not started | - |
+| 1. Core Telemetry Service & Privacy | 0/2 | Planning complete | - |
 | 2. Integration & Error Detection | 0/TBD | Not started | - |
 | 3. Performance Optimization | 0/TBD | Not started | - |
 | 4. WebView Integration | 0/TBD | Not started | - |
 
 ---
 *Roadmap created: 2026-02-15*
-*Last updated: 2026-02-15 after initial creation*
+*Last updated: 2026-02-15 after phase 1 planning*
