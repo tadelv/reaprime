@@ -12,7 +12,7 @@ ReaPrime field telemetry adds production-grade error reporting to an existing Fl
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Core Telemetry Service & Privacy** - Abstract service with Firebase implementation and PII anonymization
+- [x] **Phase 1: Core Telemetry Service & Privacy** - Abstract service with Firebase implementation and PII anonymization
 - [ ] **Phase 2: Integration & Error Detection** - BLE transport integration with automatic error reporting
 - [ ] **Phase 3: Performance Optimization** - Log throttling and production profiling under BLE load
 - [ ] **Phase 4: WebView Integration** - Separate console log capture for WebUI skins
@@ -32,8 +32,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans:** 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Core telemetry service files (interface, Firebase/NoOp implementations, anonymization, log buffer)
-- [ ] 01-02-PLAN.md — Integration wiring (settings consent, main.dart lifecycle, permissions flow)
+- [x] 01-01-PLAN.md — Core telemetry service files (interface, Firebase/NoOp implementations, anonymization, log buffer)
+- [x] 01-02-PLAN.md — Integration wiring (settings consent, main.dart lifecycle, permissions flow)
 
 ### Phase 2: Integration & Error Detection
 **Goal**: Validate telemetry usefulness through BLE integration and automatic error reporting
@@ -87,11 +87,11 @@ Note: Phase 4 can run parallel with Phase 3 (independent dependency chain).
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core Telemetry Service & Privacy | 0/2 | Planning complete | - |
+| 1. Core Telemetry Service & Privacy | 2/2 | ✓ Complete | 2026-02-15 |
 | 2. Integration & Error Detection | 0/TBD | Not started | - |
 | 3. Performance Optimization | 0/TBD | Not started | - |
 | 4. WebView Integration | 0/TBD | Not started | - |
 
 ---
 *Roadmap created: 2026-02-15*
-*Last updated: 2026-02-15 after phase 1 planning*
+*Last updated: 2026-02-15 after phase 1 execution*
