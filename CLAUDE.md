@@ -260,15 +260,24 @@ See `doc/Profiles.md` for comprehensive documentation.
 REA supports custom web-based user interfaces (skins) that connect to the gateway API:
 
 **Core Concepts:**
-- Skins are static web apps (HTML/CSS/JS) served by Streamline-Bridge
+- Skins are static web apps (HTML/CSS/JS) served via built-in HTTP server
 - Support for modern frameworks: Next.js, React, Vue, Svelte, etc.
-- GitHub Release integration for version management
+- GitHub Release/branch integration for version management
 - REST API for installation without recompiling app
 
 **Key Files:**
-- WebUI storage: `lib/src/webui_support/webui_storage.dart`
-- WebUI service: `lib/src/webui_support/webui_service.dart`
+- WebUI storage & models: `lib/src/webui_support/webui_storage.dart` (`WebUISkin`, `WebUIReaMetadata`)
+- WebUI HTTP server: `lib/src/webui_support/webui_service.dart`
 - REST API handler: `lib/src/services/webserver/webui_handler.dart`
+- Settings integration: `lib/src/settings/settings_controller.dart` (`defaultSkinId`)
+- Settings UI: `lib/src/settings/settings_view.dart` (WebUI section)
+
+**Installation Methods:**
+- From GitHub releases (with asset selection, prerelease support)
+- From GitHub branches (archive download)
+- From direct URLs (with ETag/Last-Modified caching)
+- From local filesystem (directory or ZIP)
+- Remote bundled skins (hardcoded list, auto-downloaded on startup)
 
 **API Endpoints:**
 - `GET /api/v1/webui/skins` - List all installed skins
@@ -282,10 +291,16 @@ REA supports custom web-based user interfaces (skins) that connect to the gatewa
 
 **Default Skin Behavior:**
 - User preference stored in `SettingsController.defaultSkinId`
-- Defaults to `'streamline-project'` if no preference set
+- Defaults to `'streamline_project-main'` if no preference set
 - Automatically saved when user selects skin in Settings view
-- Fallback order: preference → streamline-project → first bundled → first available
+- Fallback order: preference → streamline_project-main → first bundled → first available
 - Persists across app restarts via SharedPreferences
+
+**Metadata & Version Tracking:**
+- `WebUIReaMetadata` tracks installation source, version info (etag, lastModified, commitHash), timestamps
+- Persisted to `web-ui/.rea_metadata.json` in app documents directory
+- Remote bundled skin IDs tracked in `web-ui/.remote_bundled_registry.json`
+- Bundled skins (asset + remote) are protected from user deletion
 
 **Remote Bundled Skins:**
 Edit `lib/src/webui_support/webui_storage.dart` to add hardcoded skins that auto-download on startup:
@@ -299,7 +314,13 @@ static const List<Map<String, dynamic>> _remoteWebUISources = [
 ];
 ```
 
-See `doc/Skins.md` for complete development guide and `doc/SKIN_DEPLOYMENT_GUIDE.md` for deployment instructions.
+**Current Limitations (future work):**
+- No defined manifest schema — `manifest.json` is optional and not validated on install
+- No skin settings/configuration system (unlike plugins which have settings schema)
+- No skin permissions or sandboxing
+- No skin integrity verification (checksums, signatures)
+
+See `doc/Skins.md` for complete skin development guide (API reference, WebSocket endpoints, example implementation).
 
 ## Memory & Performance Considerations
 
