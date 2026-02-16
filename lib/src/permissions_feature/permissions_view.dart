@@ -301,7 +301,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
     super.initState();
 
     // Show telemetry consent dialog once (non-blocking, after frame renders)
-    if (!widget.settingsController.telemetryPromptShown) {
+    if (!widget.settingsController.telemetryConsentDialogShown) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _showTelemetryConsentDialog();
       });
@@ -625,7 +625,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       ),
     );
 
-    await widget.settingsController.setTelemetryPromptShown(true);
+    await widget.settingsController.setTelemetryConsentDialogShown(true);
     if (result == true) {
       await widget.settingsController.setTelemetryConsent(true);
       widget.logger.info('Telemetry consent granted by user');

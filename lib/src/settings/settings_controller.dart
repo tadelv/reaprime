@@ -46,6 +46,8 @@ class SettingsController with ChangeNotifier {
 
   late bool _telemetryPromptShown;
 
+  late bool _telemetryConsentDialogShown;
+
   TelemetryService? _telemetryService;
 
   // Allow Widgets to read the user's preferred ThemeMode.
@@ -62,6 +64,7 @@ class SettingsController with ChangeNotifier {
   bool get automaticUpdateCheck => _automaticUpdateCheck;
   bool get telemetryConsent => _telemetryConsent;
   bool get telemetryPromptShown => _telemetryPromptShown;
+  bool get telemetryConsentDialogShown => _telemetryConsentDialogShown;
 
   set telemetryService(TelemetryService service) => _telemetryService = service;
 
@@ -82,6 +85,7 @@ class SettingsController with ChangeNotifier {
     _automaticUpdateCheck = await _settingsService.automaticUpdateCheck();
     _telemetryConsent = await _settingsService.telemetryConsent();
     _telemetryPromptShown = await _settingsService.telemetryPromptShown();
+    _telemetryConsentDialogShown = await _settingsService.telemetryConsentDialogShown();
 
     // Sync telemetry consent to TelemetryService if it exists
     if (_telemetryService != null) {
@@ -234,6 +238,15 @@ class SettingsController with ChangeNotifier {
     }
     _telemetryPromptShown = value;
     await _settingsService.setTelemetryPromptShown(value);
+    notifyListeners();
+  }
+
+  Future<void> setTelemetryConsentDialogShown(bool value) async {
+    if (value == _telemetryConsentDialogShown) {
+      return;
+    }
+    _telemetryConsentDialogShown = value;
+    await _settingsService.setTelemetryConsentDialogShown(value);
     notifyListeners();
   }
 }

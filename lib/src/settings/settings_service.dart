@@ -152,6 +152,14 @@ class SettingsService {
   Future<void> setTelemetryPromptShown(bool value) async {
     await prefs.setBool(SettingsKeys.telemetryPromptShown.name, value);
   }
+
+  Future<bool> telemetryConsentDialogShown() async {
+    return await prefs.getBool(SettingsKeys.telemetryConsentDialogShown.name) ?? false;
+  }
+
+  Future<void> setTelemetryConsentDialogShown(bool value) async {
+    await prefs.setBool(SettingsKeys.telemetryConsentDialogShown.name, value);
+  }
 }
 
 enum SettingsKeys {
@@ -170,6 +178,7 @@ enum SettingsKeys {
   lastUpdateCheckTime,
   telemetryConsent,
   telemetryPromptShown,
+  telemetryConsentDialogShown,
 }
 
 /// Position options for the skin view exit button
