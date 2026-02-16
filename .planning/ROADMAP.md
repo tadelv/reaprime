@@ -13,9 +13,9 @@ ReaPrime field telemetry adds production-grade error reporting to an existing Fl
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Core Telemetry Service & Privacy** - Abstract service with Firebase implementation and PII anonymization
-- [ ] **Phase 2: Integration & Error Detection** - BLE transport integration with automatic error reporting
+- [x] **Phase 2: Integration & Error Detection** - BLE transport integration with automatic error reporting
 - [x] **Phase 3: Performance Optimization** - Log throttling and production profiling under BLE load
-- [ ] **Phase 4: WebView Integration** - Separate console log capture for WebUI skins
+- [x] **Phase 4: WebView Integration** - Separate console log capture for WebUI skins
 
 ## Phase Details
 
@@ -48,8 +48,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Global error reporting pipeline with rate limiting and device state custom keys
-- [ ] 02-02-PLAN.md — System information snapshot and GET /api/v1/logs export endpoint
+- [x] 02-01-PLAN.md — Global error reporting pipeline with rate limiting and device state custom keys
+- [x] 02-02-PLAN.md — System information snapshot and GET /api/v1/logs export endpoint
 
 ### Phase 3: Performance Optimization
 **Goal**: Ensure telemetry adds zero UI jank under sustained BLE load
@@ -78,8 +78,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — WebViewLogService creation and SkinView console capture hook
-- [ ] 04-02-PLAN.md — REST/WebSocket API endpoints and feedback integration
+- [x] 04-01-PLAN.md — WebViewLogService creation and SkinView console capture hook
+- [x] 04-02-PLAN.md — REST/WebSocket API endpoints and feedback integration
 
 ## Progress
 
@@ -91,10 +91,10 @@ Note: Phase 4 can run parallel with Phase 3 (independent dependency chain).
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Core Telemetry Service & Privacy | 2/2 | Complete | 2026-02-15 |
-| 2. Integration & Error Detection | 0/2 | Planned | - |
+| 2. Integration & Error Detection | 2/2 | Complete | 2026-02-15 |
 | 3. Performance Optimization | 2/2 | Complete | 2026-02-16 |
-| 4. WebView Integration | 0/2 | Planned | - |
+| 4. WebView Integration | 2/2 | Complete | 2026-02-16 |
 
 ---
 *Roadmap created: 2026-02-15*
-*Last updated: 2026-02-16 after phase 4 planning*
+*Last updated: 2026-02-16 — all phases complete*
