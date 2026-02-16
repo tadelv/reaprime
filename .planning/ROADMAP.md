@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Core Telemetry Service & Privacy** - Abstract service with Firebase implementation and PII anonymization
 - [ ] **Phase 2: Integration & Error Detection** - BLE transport integration with automatic error reporting
-- [ ] **Phase 3: Performance Optimization** - Log throttling and production profiling under BLE load
+- [x] **Phase 3: Performance Optimization** - Log throttling and production profiling under BLE load
 - [ ] **Phase 4: WebView Integration** - Separate console log capture for WebUI skins
 
 ## Phase Details
@@ -64,8 +64,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Fix LogBuffer size enforcement bug and add bounded async report queue
-- [ ] 03-02-PLAN.md — Reconnection event tracking with disconnection duration and DevTools profiling verification
+- [x] 03-01-PLAN.md — Fix LogBuffer size enforcement bug and add bounded async report queue
+- [x] 03-02-PLAN.md — Reconnection event tracking with disconnection duration and DevTools profiling verification
 
 ### Phase 4: WebView Integration
 **Goal**: Capture JavaScript console output from WebUI skins in separate log stream
@@ -75,10 +75,11 @@ Plans:
   1. WebView console.log/warn/error output writes to dedicated webview_console.log file
   2. WebView logs are isolated from app logs (different file, different stream)
   3. User feedback flow includes webview logs when submitting reports
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 04-01: TBD
+- [ ] 04-01-PLAN.md — WebViewLogService creation and SkinView console capture hook
+- [ ] 04-02-PLAN.md — REST/WebSocket API endpoints and feedback integration
 
 ## Progress
 
@@ -91,9 +92,9 @@ Note: Phase 4 can run parallel with Phase 3 (independent dependency chain).
 |-------|----------------|--------|-----------|
 | 1. Core Telemetry Service & Privacy | 2/2 | Complete | 2026-02-15 |
 | 2. Integration & Error Detection | 0/2 | Planned | - |
-| 3. Performance Optimization | 0/2 | Planned | - |
-| 4. WebView Integration | 0/TBD | Not started | - |
+| 3. Performance Optimization | 2/2 | Complete | 2026-02-16 |
+| 4. WebView Integration | 0/2 | Planned | - |
 
 ---
 *Roadmap created: 2026-02-15*
-*Last updated: 2026-02-15 after phase 2 planning*
+*Last updated: 2026-02-16 after phase 4 planning*

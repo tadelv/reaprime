@@ -5,37 +5,40 @@
 See: .planning/PROJECT.md (updated 2026-02-15)
 
 **Core value:** Reliable, anonymized field telemetry from mission-critical device communication paths so we can diagnose connectivity and stability issues without user intervention.
-**Current focus:** Phase 2 - Integration & Error Detection
+**Current focus:** Phase 3 complete — ready for Phase 4
 
 ## Current Position
 
-Phase: 2 of 4 — Integration & Error Detection
-Plan: 2 of TBD in phase 2
-Status: Executing Phase 2
-Last activity: 2026-02-15 — Completed 02-02-PLAN.md (System Info & Log Export)
+Phase: 3 of 4 — Performance Optimization (COMPLETE)
+Plan: 2 of 2 in phase 3
+Status: Phase 3 complete
+Last activity: 2026-02-16 — Completed 03-02-PLAN.md (Reconnection tracking & DevTools verification)
 
-Progress: [██░░░░░░░░] 25%
+Progress: [██████████] 100% (Phase 3)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: 3.0 min
-- Total execution time: 0.10 hours
+- Total plans completed: 4
+- Average duration: 2.3 min (automated only)
+- Total execution time: ~0.2 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 2 | 5.9min | 3.0min |
+| 03 | 2 | ~4min | ~2min |
 
 **Recent Trend:**
-- Last plan: 01-02 (3.4min)
-- Trend: Stable (2.5min → 3.4min)
+- Last plan: 03-02 (checkpoint + gap fixes)
+- Trend: Stable
 
 *Updated after each plan completion*
 | Phase 02 P02 | 3 | 2 tasks | 3 files |
 | Phase 02 P01 | 185 | 2 tasks | 3 files |
+| Phase 03 P01 | 2 | 2 tasks | 3 files |
+| Phase 03 P02 | manual | 2 tasks + 5 fixes | 6 files |
 
 ## Accumulated Context
 
@@ -58,29 +61,36 @@ Recent decisions affecting current work:
 - Non-blocking consent prompt in permissions_view — marks telemetryPromptShown on first launch, consent defaults OFF, user enables in Settings
 - Global error handlers in FirebaseCrashlyticsTelemetryService.initialize() — centralizes error handling configuration (TELE-04)
 - Windows added to NoOp platforms alongside Linux — limited Crashlytics support
-- [Phase 02-01]: 60-second rate limit window for error reports - balances noise reduction with issue freshness
-- [Phase 02-01]: Throttle map cleanup at 100 entries - prevents unbounded memory growth
-- [Phase 02-01]: Device counts use simple presence in _devices map - no complex connection state tracking needed
+- [Phase 02-01]: 60-second rate limit window for error reports
 - [Phase 02-02]: System info collected via device_info_plus after telemetry initialization
-- [Phase 02-02]: Platform-adaptive field names for device model/brand (handles Android/iOS/macOS/Windows differences)
-- [Phase 02-02]: Log export returns raw buffer contents without triggering telemetry upload
+- [Phase 03-01]: Queue capacity 10 reports with FIFO eviction, microtask scheduling, in-memory only
+- [Phase 03-02]: Merged Rx.merge + single throttleTime for synchronized 10Hz UI updates
+- [Phase 03-02]: Cache Rx.combineLatest3 in initState to prevent StreamBuilder flashing
+- [Phase 03-02]: telemetryConsentDialogShown key for existing user migration
 
 ### Pending Todos
 
-None yet.
+None.
 
 ### Blockers/Concerns
 
-**Phase 2 readiness:**
-- Platform-specific BLE error codes may differ (Android GATT vs iOS CoreBluetooth vs Linux BlueZ) — validate during integration testing
 - Firebase Crashlytics quota for non-fatals unclear — monitor Firebase console after 1 week in production
+
+## Phase 3 Gap Fixes (during checkpoint)
+
+During DevTools profiling checkpoint, 5 additional issues were found and fixed:
+1. Telemetry consent dialog missing (Phase 1 PRIV-03/PRIV-04 gap)
+2. Existing users never see consent dialog (key migration)
+3. checkPermissions() running 3x (FutureBuilder anti-pattern)
+4. StatusTile scale weight jank (unthrottled stream)
+5. StatusTile unsynchronized streams (independent throttles → merged tick)
 
 ## Session Continuity
 
-Last session: 2026-02-16 (context gathering)
-Stopped at: Phase 3 context gathered — ready for planning
-Resume file: .planning/phases/03-performance-optimization/03-CONTEXT.md
+Last session: 2026-02-16
+Stopped at: Phase 4 context gathered
+Resume file: .planning/phases/04-webview-integration/04-CONTEXT.md
 
 ---
 *State initialized: 2026-02-15*
-*Last updated: 2026-02-15T20:29:37Z*
+*Last updated: 2026-02-16*

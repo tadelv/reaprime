@@ -83,6 +83,20 @@ paths:
         "200":
           description: "Device connected successfully"
 
+  /api/v1/devices/disconnect:
+    put:
+      summary: Disconnect a specified device
+      tags: [Devices]
+      parameters:
+        - name: deviceId
+          description: The id of the device to disconnect from
+          in: query
+          required: true
+          schema: 
+            type: string
+      responses:
+        "200":
+          description: "Device disconnected successfully"
 
   # Machine specific API
   
