@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 import 'package:reaprime/src/services/telemetry/log_buffer.dart';
+import 'package:reaprime/src/services/telemetry/telemetry_report_queue.dart';
 
 /// Firebase Crashlytics implementation of TelemetryService
 ///
@@ -10,13 +11,17 @@ import 'package:reaprime/src/services/telemetry/log_buffer.dart';
 /// - Telemetry collection disabled by default (requires explicit consent)
 /// - Rolling log buffer attached to all error reports for context
 /// - Custom keys for session and device metadata
+/// - Bounded async report queue to prevent blocking UI thread
 class FirebaseCrashlyticsTelemetryService implements TelemetryService {
   final LogBuffer _logBuffer;
+  late final TelemetryReportQueue _queue;
 
   /// Create a new Firebase Crashlytics telemetry service
   ///
   /// [logBuffer] - Rolling log buffer for attaching context to error reports
-  FirebaseCrashlyticsTelemetryService(this._logBuffer);
+  FirebaseCrashlyticsTelemetryService(this._logBuffer) {
+    _queue = TelemetryReportQueue(_sendReport);
+  }
 
   @override
   Future<void> initialize() async {
@@ -34,8 +39,11 @@ class FirebaseCrashlyticsTelemetryService implements TelemetryService {
     };
   }
 
-  @override
-  Future<void> recordError(
+  /// Internal method to actually send a report to Firebase
+  ///
+  /// This is called by the queue's async drain loop and performs the actual
+  /// platform channel IPC to Firebase Crashlytics.
+  Future<void> _sendReport(
     Object error,
     StackTrace? stackTrace, {
     bool fatal = false,
@@ -52,6 +60,17 @@ class FirebaseCrashlyticsTelemetryService implements TelemetryService {
       stackTrace,
       fatal: fatal,
     );
+  }
+
+  @override
+  Future<void> recordError(
+    Object error,
+    StackTrace? stackTrace, {
+    bool fatal = false,
+  }) async {
+    // Enqueue the report for async processing
+    // This returns quickly without blocking on platform channel calls
+    _queue.enqueue(error, stackTrace, fatal: fatal);
   }
 
   @override
