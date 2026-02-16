@@ -30,6 +30,8 @@ class PermissionsView extends StatelessWidget {
   final WebUIService webUIService;
   final SettingsController settingsController;
 
+  late final Future<bool> _permissionsFuture;
+
   PermissionsView({
     super.key,
     required this.deviceController,
@@ -38,7 +40,9 @@ class PermissionsView extends StatelessWidget {
     required this.webUIStorage,
     required this.webUIService,
     required this.settingsController,
-  });
+  }) {
+    _permissionsFuture = checkPermissions();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +59,7 @@ class PermissionsView extends StatelessWidget {
         children: [
           Text('Streamline is starting ...'),
           FutureBuilder(
-            future: checkPermissions(),
+            future: _permissionsFuture,
             builder: (context, result) {
               switch (result.connectionState) {
                 case ConnectionState.none:
