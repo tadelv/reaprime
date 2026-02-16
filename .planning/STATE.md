@@ -88,8 +88,8 @@ During DevTools profiling checkpoint, 5 additional issues were found and fixed:
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Phase 3 complete
-Next: Phase 4 (WebView Integration) or milestone audit
+Stopped at: Phase 4 context gathered
+Resume file: .planning/phases/04-webview-integration/04-CONTEXT.md
 
 ---
 *State initialized: 2026-02-15*
