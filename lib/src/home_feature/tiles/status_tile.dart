@@ -301,7 +301,8 @@ class _StatusTileState extends State<StatusTile> {
                   );
                 }
                 return StreamBuilder(
-                  stream: widget.scaleController.weightSnapshot,
+                  stream: widget.scaleController.weightSnapshot
+                      .throttleTime(const Duration(milliseconds: 100)),
                   builder: (context, weight) {
                     if (weight.connectionState != ConnectionState.active ||
                         !weight.hasData) {
