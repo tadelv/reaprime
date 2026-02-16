@@ -61,10 +61,11 @@ Plans:
   3. Logging overhead measures under 1ms per call in DevTools timeline
   4. Power-cycling devices mid-connection doesn't crash the app
   5. Rate limiting prevents duplicate errors from flooding Firebase (max 1 report per 60s per unique message)
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 03-01: TBD
+- [ ] 03-01-PLAN.md — Fix LogBuffer size enforcement bug and add bounded async report queue
+- [ ] 03-02-PLAN.md — Reconnection event tracking with disconnection duration and DevTools profiling verification
 
 ### Phase 4: WebView Integration
 **Goal**: Capture JavaScript console output from WebUI skins in separate log stream
@@ -90,7 +91,7 @@ Note: Phase 4 can run parallel with Phase 3 (independent dependency chain).
 |-------|----------------|--------|-----------|
 | 1. Core Telemetry Service & Privacy | 2/2 | Complete | 2026-02-15 |
 | 2. Integration & Error Detection | 0/2 | Planned | - |
-| 3. Performance Optimization | 0/TBD | Not started | - |
+| 3. Performance Optimization | 0/2 | Planned | - |
 | 4. WebView Integration | 0/TBD | Not started | - |
 
 ---
