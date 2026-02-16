@@ -346,7 +346,8 @@ class _StatusTileState extends State<StatusTile> {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         StreamBuilder(
-          stream: widget.de1.currentSnapshot,
+          stream: widget.de1.currentSnapshot
+              .throttleTime(const Duration(milliseconds: 100)),
           builder: (context, snapshotData) {
             if (snapshotData.connectionState != ConnectionState.active ||
                 !snapshotData.hasData) {
