@@ -37,12 +37,27 @@ class LogBuffer {
 
     // Manual trimming: if we're over the size limit, we need to rebuild
     // the buffer without the oldest entries
-    while (_currentSizeBytes > maxSizeBytes && _buffer.isNotEmpty) {
-      // Since CircularBuffer doesn't have removeFirst, we need to
-      // track eviction through the automatic overflow behavior
-      // For now, we rely on the capacity limit to prevent unlimited growth
-      // and accept that we might slightly exceed maxSizeBytes
-      break;
+    if (_currentSizeBytes > maxSizeBytes && _buffer.isNotEmpty) {
+      // CircularBuffer doesn't have removeFirst, so we convert to list,
+      // remove entries from front until under size limit, then rebuild
+      final entries = _buffer.toList();
+      var trimmedSize = _currentSizeBytes;
+      var removeCount = 0;
+
+      // Remove oldest entries until we're under the limit
+      while (trimmedSize > maxSizeBytes && removeCount < entries.length) {
+        trimmedSize -= entries[removeCount].length;
+        removeCount++;
+      }
+
+      // Rebuild buffer with remaining entries
+      if (removeCount > 0) {
+        _buffer.clear();
+        for (var i = removeCount; i < entries.length; i++) {
+          _buffer.add(entries[i]);
+        }
+        _currentSizeBytes = trimmedSize;
+      }
     }
   }
 
