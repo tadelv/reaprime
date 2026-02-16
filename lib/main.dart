@@ -67,6 +67,7 @@ import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 import 'package:reaprime/src/services/telemetry/log_buffer.dart';
 import 'package:reaprime/src/services/telemetry/anonymization.dart';
 import 'package:reaprime/src/services/telemetry/error_report_throttle.dart';
+import 'package:reaprime/src/services/webview_log_service.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 
 /// Set system information as custom keys in telemetry service.
@@ -135,6 +136,13 @@ void main() async {
   RotatingFileAppender(
     baseFilePath: '${(await getApplicationDocumentsDirectory()).path}/log.txt',
   ).attachToLogger(Logger.root);
+
+  // Initialize WebView console log service (separate from app logs)
+  final webViewLogDir = Platform.isAndroid
+      ? '/storage/emulated/0/Download/REA1'
+      : (await getApplicationDocumentsDirectory()).path;
+  final webViewLogService = WebViewLogService(logDirectoryPath: webViewLogDir);
+  await webViewLogService.initialize();
 
   Logger.root.info("==== REA PRIME starting ====");
 
@@ -329,6 +337,7 @@ void main() async {
       webUIStorage,
       profileController,
       logBuffer,
+      webViewLogService,
     );
   } catch (e, st) {
     log.severe('failed to start web server', e, st);
@@ -389,6 +398,7 @@ void main() async {
         webUIService: webUIService,
         webUIStorage: webUIStorage,
         updateCheckService: updateCheckService,
+        webViewLogService: webViewLogService,
       ),
     ),
   );
@@ -513,6 +523,7 @@ class AppRoot extends StatefulWidget {
   final WebUIService webUIService;
   final WebUIStorage webUIStorage;
   final UpdateCheckService? updateCheckService;
+  final WebViewLogService webViewLogService;
 
   const AppRoot({
     super.key,
@@ -525,6 +536,7 @@ class AppRoot extends StatefulWidget {
     required this.pluginLoaderService,
     required this.webUIService,
     required this.webUIStorage,
+    required this.webViewLogService,
     this.updateCheckService,
   });
 
@@ -575,6 +587,7 @@ class _AppRootState extends State<AppRoot> {
         webUIService: widget.webUIService,
         webUIStorage: widget.webUIStorage,
         updateCheckService: widget.updateCheckService,
+        webViewLogService: widget.webViewLogService,
       ),
     );
   }

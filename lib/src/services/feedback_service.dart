@@ -128,6 +128,19 @@ class FeedbackService {
           }
           gistFiles['reaprime_logs.txt'] = {'content': logContent};
         }
+
+        // Add webview console logs if available
+        String? webViewLogContent = await _readWebViewLogFile();
+        if (webViewLogContent != null && webViewLogContent.isNotEmpty) {
+          const maxWebViewLogSize = 500000; // ~500KB
+          if (webViewLogContent.length > maxWebViewLogSize) {
+            webViewLogContent =
+                '... (truncated, showing last ${maxWebViewLogSize ~/ 1024}KB) ...\n${webViewLogContent.substring(webViewLogContent.length - maxWebViewLogSize)}';
+          }
+          gistFiles['reaprime_webview_logs.txt'] = {
+            'content': webViewLogContent,
+          };
+        }
       }
 
       // Add screenshots scaled to <64KB base64 (~48KB raw)
@@ -188,6 +201,29 @@ class FeedbackService {
       return null;
     } catch (e) {
       _log.warning('Failed to read log file', e);
+      return null;
+    }
+  }
+
+  /// Read the webview console log file contents
+  Future<String?> _readWebViewLogFile() async {
+    try {
+      if (Platform.isAndroid) {
+        final androidFile =
+            File('/storage/emulated/0/Download/REA1/webview_console.log');
+        if (await androidFile.exists()) {
+          return await androidFile.readAsString();
+        }
+      }
+      final docs = await getApplicationDocumentsDirectory();
+      final logFile = File('${docs.path}/webview_console.log');
+      if (await logFile.exists()) {
+        return await logFile.readAsString();
+      }
+      _log.info('No webview log file found');
+      return null;
+    } catch (e) {
+      _log.warning('Failed to read webview log file', e);
       return null;
     }
   }
@@ -334,8 +370,10 @@ class FeedbackService {
     final systemInfo =
         request.includeSystemInfo ? _collectSystemInfo() : '';
     String? logContent;
+    String? webViewLogContent;
     if (request.includeLogs) {
       logContent = await _readLogFile();
+      webViewLogContent = await _readWebViewLogFile();
     }
 
     final html = StringBuffer();
@@ -406,6 +444,17 @@ class FeedbackService {
       }
       html.writeln('<h2>Application Logs</h2>');
       html.writeln('<pre>${_escapeHtml(logContent)}</pre>');
+    }
+
+    if (webViewLogContent != null && webViewLogContent.isNotEmpty) {
+      const maxWebViewLogSize = 100000;
+      if (webViewLogContent.length > maxWebViewLogSize) {
+        webViewLogContent =
+            '... (truncated, showing last ${maxWebViewLogSize ~/ 1024}KB) ...\n'
+            '${webViewLogContent.substring(webViewLogContent.length - maxWebViewLogSize)}';
+      }
+      html.writeln('<h2>WebView Console Logs</h2>');
+      html.writeln('<pre>${_escapeHtml(webViewLogContent)}</pre>');
     }
 
     html.writeln(

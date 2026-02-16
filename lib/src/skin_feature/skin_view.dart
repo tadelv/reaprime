@@ -5,6 +5,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/home_feature/home_feature.dart';
 import 'package:reaprime/src/services/webview_compatibility_checker.dart';
+import 'package:reaprime/src/services/webview_log_service.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -16,9 +17,14 @@ import 'package:url_launcher/url_launcher.dart';
 ///
 /// The view includes a back button in the app bar to navigate to the home dashboard.
 class SkinView extends StatefulWidget {
-  const SkinView({super.key, required this.settingsController});
+  const SkinView({
+    super.key,
+    required this.settingsController,
+    required this.webViewLogService,
+  });
 
   final SettingsController settingsController;
+  final WebViewLogService webViewLogService;
 
   static const routeName = '/skin';
 
@@ -483,8 +489,16 @@ class _SkinViewState extends State<SkinView> {
             return NavigationActionPolicy.CANCEL;
           },
           onConsoleMessage: (controller, consoleMessage) {
+            // Route to dedicated webview log service (file + stream)
+            final skinId = widget.settingsController.defaultSkinId;
+            widget.webViewLogService.log(
+              skinId,
+              consoleMessage.messageLevel.toString(),
+              consoleMessage.message,
+            );
+            // Also log at FINEST for app-level debug visibility
             _log.finest(
-              'WebView Console [${consoleMessage.messageLevel}]: ${consoleMessage.message}',
+              'WebView Console [$skinId] [${consoleMessage.messageLevel}]: ${consoleMessage.message}',
             );
           },
         ),
