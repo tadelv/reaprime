@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
@@ -10,6 +12,7 @@ import 'package:reaprime/src/home_feature/forms/water_levels_form.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
+import 'package:reaprime/src/models/device/machine.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -33,6 +36,30 @@ class StatusTile extends StatefulWidget {
 }
 
 class _StatusTileState extends State<StatusTile> {
+  MachineSnapshot? _machineSnapshot;
+  WeightSnapshot? _weightSnapshot;
+  StreamSubscription? _tickSub;
+
+  @override
+  void initState() {
+    super.initState();
+    // Merge both high-frequency streams into one tick, throttle once.
+    // Each source updates its cached value; the throttled merge triggers
+    // a single synchronized setState at ~10Hz.
+    _tickSub = Rx.merge([
+      widget.de1.currentSnapshot.map((s) { _machineSnapshot = s; }),
+      widget.scaleController.weightSnapshot.map((w) { _weightSnapshot = w; }),
+    ]).throttleTime(const Duration(milliseconds: 100)).listen((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tickSub?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -300,33 +327,25 @@ class _StatusTileState extends State<StatusTile> {
                     child: Text("Waiting"),
                   );
                 }
-                return StreamBuilder(
-                  stream: widget.scaleController.weightSnapshot
-                      .throttleTime(const Duration(milliseconds: 100)),
-                  builder: (context, weight) {
-                    if (weight.connectionState != ConnectionState.active ||
-                        !weight.hasData) {
-                      return Column(
+                return _weightSnapshot == null
+                    ? Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [Text("W: --g"), Text("B: --%")],
-                      );
-                    }
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        GestureDetector(
-                          onTap: () {
-                            widget.scaleController.connectedScale().tare();
-                          },
-                          child: Text(
-                            "W: ${weight.data?.weight.toStringAsFixed(1) ?? 0.0}g",
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              widget.scaleController.connectedScale().tare();
+                            },
+                            child: Text(
+                              "W: ${_weightSnapshot!.weight.toStringAsFixed(1)}g",
+                            ),
                           ),
-                        ),
-                        Text("B: ${weight.data?.battery ?? 0}%"),
-                      ],
-                    );
-                  },
-                );
+                          Text("B: ${_weightSnapshot!.battery ?? 0}%"),
+                        ],
+                      );
               },
             ),
           ],
@@ -345,51 +364,42 @@ class _StatusTileState extends State<StatusTile> {
           "Machine:",
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
-        StreamBuilder(
-          stream: widget.de1.currentSnapshot
-              .throttleTime(const Duration(milliseconds: 100)),
-          builder: (context, snapshotData) {
-            if (snapshotData.connectionState != ConnectionState.active ||
-                !snapshotData.hasData) {
-              return Text("Waiting");
-            }
-            var snapshot = snapshotData.data!;
-            return Row(
-              //mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              spacing: 50,
-              children: [
-                SizedBox(
-                  width: 100,
-                  child: Text("${snapshot.state.state.name}"),
+        if (_machineSnapshot == null)
+          Text("Waiting")
+        else
+          Row(
+            spacing: 50,
+            children: [
+              SizedBox(
+                width: 100,
+                child: Text("${_machineSnapshot!.state.state.name}"),
+              ),
+              SizedBox(
+                width: boxWidth,
+                child: Row(
+                  children: [
+                    Icon(
+                      LucideIcons.thermometer,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                    Text("${_machineSnapshot!.groupTemperature.toStringAsFixed(1)}℃"),
+                  ],
                 ),
-                SizedBox(
-                  width: boxWidth,
-                  child: Row(
-                    children: [
-                      Icon(
-                        LucideIcons.thermometer,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                      Text("${snapshot.groupTemperature.toStringAsFixed(1)}℃"),
-                    ],
-                  ),
+              ),
+              SizedBox(
+                width: boxWidth,
+                child: Row(
+                  children: [
+                    Icon(
+                      LucideIcons.wind,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                    Text("${_machineSnapshot!.steamTemperature}℃"),
+                  ],
                 ),
-                SizedBox(
-                  width: boxWidth,
-                  child: Row(
-                    children: [
-                      Icon(
-                        LucideIcons.wind,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                      Text("${snapshot.steamTemperature}℃"),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
+              ),
+            ],
+          ),
         StreamBuilder(
           stream: widget.de1.waterLevels,
           builder: (context, waterSnapshot) {
