@@ -28,6 +28,7 @@ import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/sample_feature/scale_debug_view.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
+import 'package:reaprime/src/services/webview_log_service.dart';
 import 'package:reaprime/src/settings/plugins_settings_view.dart';
 import 'sample_feature/sample_item_details_view.dart';
 
@@ -56,6 +57,7 @@ class MyApp extends StatefulWidget {
     required this.pluginLoaderService,
     required this.webUIService,
     required this.webUIStorage,
+    required this.webViewLogService,
     this.updateCheckService,
   });
 
@@ -68,6 +70,7 @@ class MyApp extends StatefulWidget {
   final PluginLoaderService pluginLoaderService;
   final WebUIService webUIService;
   final WebUIStorage webUIStorage;
+  final WebViewLogService webViewLogService;
   final UpdateCheckService? updateCheckService;
 
   @override
@@ -299,6 +302,7 @@ class _MyAppState extends State<MyApp> {
                     case SkinView.routeName:
                       return SkinView(
                         settingsController: widget.settingsController,
+                        webViewLogService: widget.webViewLogService,
                       );
                     default:
                       return PermissionsView(

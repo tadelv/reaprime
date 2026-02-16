@@ -43,6 +43,7 @@ import 'package:reaprime/src/models/feedback/feedback_request.dart';
 import 'package:reaprime/src/plugins/plugin_manager.dart';
 import 'package:reaprime/src/services/feedback_service.dart';
 import 'package:reaprime/src/services/telemetry/log_buffer.dart';
+import 'package:reaprime/src/services/webview_log_service.dart';
 
 part 'webserver/de1handler.dart';
 part 'webserver/scale_handler.dart';
@@ -71,6 +72,7 @@ Future<void> startWebServer(
   WebUIStorage webUIStorage,
   ProfileController profileController,
   LogBuffer logBuffer,
+  WebViewLogService webViewLogService,
 ) async {
   log.info("starting webserver");
   final de1Handler = De1Handler(controller: de1Controller);
