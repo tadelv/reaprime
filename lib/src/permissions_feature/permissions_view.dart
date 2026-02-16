@@ -144,14 +144,9 @@ class PermissionsView extends StatelessWidget {
       }
     }
 
-    // Telemetry consent prompt (one-time, non-blocking)
-    if (!settingsController.telemetryPromptShown) {
-      // Mark as shown and leave consent OFF by default.
-      // User can enable in Settings. This satisfies PRIV-03 (consent
-      // is surfaced) and PRIV-04 (disabled until explicitly enabled).
-      await settingsController.setTelemetryPromptShown(true);
-      _log.info('Telemetry consent defaulting to OFF (user can enable in Settings)');
-    }
+    // Telemetry consent prompt is shown as a dialog after device picker loads
+    // (see _DeviceDiscoveryState.initState). This keeps startup non-blocking
+    // while still prompting the user (PRIV-03, PRIV-04).
 
     // Initialize WebUI storage and service BEFORE device controller
     _log.info('Initializing WebUI storage...');
@@ -304,6 +299,13 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   @override
   void initState() {
     super.initState();
+
+    // Show telemetry consent dialog once (non-blocking, after frame renders)
+    if (!widget.settingsController.telemetryPromptShown) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showTelemetryConsentDialog();
+      });
+    }
 
     bool hasHandledAutoConnect = false;
 
@@ -598,6 +600,38 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
         Expanded(child: Text(text, style: theme.textTheme.small)),
       ],
     );
+  }
+
+  Future<void> _showTelemetryConsentDialog() async {
+    final result = await showShadDialog<bool>(
+      context: context,
+      builder: (context) => ShadDialog(
+        title: const Text('Help Improve Streamline'),
+        description: const Text(
+          'Share anonymous crash reports and diagnostics to help us fix '
+          'connectivity issues. No personal data is collected — BLE addresses '
+          'and IPs are hashed before sending.',
+        ),
+        actions: [
+          ShadButton.outline(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('No thanks'),
+          ),
+          ShadButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Enable'),
+          ),
+        ],
+      ),
+    );
+
+    await widget.settingsController.setTelemetryPromptShown(true);
+    if (result == true) {
+      await widget.settingsController.setTelemetryConsent(true);
+      widget.logger.info('Telemetry consent granted by user');
+    } else {
+      widget.logger.info('Telemetry consent declined by user');
+    }
   }
 
   Future<void> _retryScan() async {

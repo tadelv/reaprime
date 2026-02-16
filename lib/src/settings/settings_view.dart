@@ -325,6 +325,18 @@ class _SettingsViewState extends State<SettingsView> {
       icon: Icons.tune_outlined,
       description: 'Developer tools and advanced configuration',
       children: [
+        ShadSwitch(
+          value: widget.controller.telemetryConsent,
+          onChanged: (v) async {
+            await widget.controller.setTelemetryConsent(v);
+            setState(() {});
+          },
+          label: const Text("Anonymous crash reporting"),
+          sublabel: const Text(
+            "Share anonymized crash reports and diagnostics to help fix connectivity issues",
+          ),
+        ),
+        const Divider(height: 24),
         _SettingRow(
           label: 'Log Level',
           child: DropdownButton<String>(
