@@ -75,10 +75,11 @@ Plans:
   1. WebView console.log/warn/error output writes to dedicated webview_console.log file
   2. WebView logs are isolated from app logs (different file, different stream)
   3. User feedback flow includes webview logs when submitting reports
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 04-01: TBD
+- [ ] 04-01-PLAN.md — WebViewLogService creation and SkinView console capture hook
+- [ ] 04-02-PLAN.md — REST/WebSocket API endpoints and feedback integration
 
 ## Progress
 
@@ -92,8 +93,8 @@ Note: Phase 4 can run parallel with Phase 3 (independent dependency chain).
 | 1. Core Telemetry Service & Privacy | 2/2 | Complete | 2026-02-15 |
 | 2. Integration & Error Detection | 0/2 | Planned | - |
 | 3. Performance Optimization | 2/2 | Complete | 2026-02-16 |
-| 4. WebView Integration | 0/TBD | Not started | - |
+| 4. WebView Integration | 0/2 | Planned | - |
 
 ---
 *Roadmap created: 2026-02-15*
-*Last updated: 2026-02-15 after phase 2 planning*
+*Last updated: 2026-02-16 after phase 4 planning*
