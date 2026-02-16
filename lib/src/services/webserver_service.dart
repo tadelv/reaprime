@@ -56,6 +56,7 @@ part 'webserver/profile_handler.dart';
 part 'webserver/webui_handler.dart';
 part 'webserver/feedback_handler.dart';
 part 'webserver/logs_handler.dart';
+part 'webserver/webview_logs_handler.dart';
 
 final log = Logger("Webservice");
 
@@ -116,6 +117,10 @@ Future<void> startWebServer(
 
   final logsHandler = LogsHandler(logBuffer: logBuffer);
 
+  final webViewLogsHandler = WebViewLogsHandler(
+    webViewLogService: webViewLogService,
+  );
+
   final kvStoreHandler = KvStoreHandler();
   await kvStoreHandler.store.initialize();
   // Start server
@@ -134,6 +139,7 @@ Future<void> startWebServer(
       webUIHandler,
       feedbackHandler,
       logsHandler,
+      webViewLogsHandler,
     ),
     '0.0.0.0',
     8080,
@@ -159,6 +165,7 @@ Handler _init(
   WebUIHandler webUIHandler,
   FeedbackHandler feedbackHandler,
   LogsHandler logsHandler,
+  WebViewLogsHandler webViewLogsHandler,
 ) {
   log.info("called _init");
   var app = Router().plus;
@@ -208,6 +215,7 @@ Handler _init(
   webUIHandler.addRoutes(app);
   feedbackHandler.addRoutes(app);
   logsHandler.addRoutes(app);
+  webViewLogsHandler.addRoutes(app);
 
   final handler = const Pipeline()
       .addMiddleware(
