@@ -20,6 +20,12 @@ class DeviceController {
   // Telemetry service for reporting device state changes
   TelemetryService? _telemetryService;
 
+  // Track when devices were last seen disconnecting
+  final Map<String, DateTime> _disconnectedAt = {};
+
+  // Track previously seen device names for disconnection detection
+  final Set<String> _previousDeviceNames = {};
+
   /// Set the telemetry service for tracking device state changes
   ///
   /// Should be called before initialize() to ensure device state is tracked
@@ -49,7 +55,7 @@ class DeviceController {
         );
         _serviceSubscriptions.add(subscription);
       } catch (e) {
-        _log.warning("Service ${service} failed to init:", e);
+        _log.warning("Service $service failed to init:", e);
       }
     }
     await scanForDevices(autoConnect: true);
@@ -106,6 +112,45 @@ class DeviceController {
   void _serviceUpdate(DeviceDiscoveryService service, List<Device> devices) {
     _log.fine("$service update: $devices");
     _devices[service] = devices;
+
+    // Get current device names
+    final currentDeviceNames = this.devices.map((d) => d.name).toSet();
+
+    // Detect disconnections: devices that were in previous update but not in current
+    final disconnectedDevices = _previousDeviceNames.difference(currentDeviceNames);
+    for (var deviceName in disconnectedDevices) {
+      _disconnectedAt[deviceName] = DateTime.now();
+      _log.info("Device $deviceName disconnected");
+    }
+
+    // Detect reconnections: devices in current update that have disconnection timestamps
+    for (var deviceName in currentDeviceNames) {
+      if (_disconnectedAt.containsKey(deviceName)) {
+        final disconnectedTime = _disconnectedAt[deviceName]!;
+        final duration = DateTime.now().difference(disconnectedTime);
+        _log.info("Device $deviceName reconnected after ${duration.inSeconds}s");
+
+        // Set telemetry custom key with reconnection duration
+        _telemetryService?.setCustomKey(
+          'reconnection_duration_$deviceName',
+          duration.inSeconds,
+        );
+
+        // Remove from disconnected tracking
+        _disconnectedAt.remove(deviceName);
+      }
+    }
+
+    // Clean up stale disconnection entries (older than 24 hours)
+    final now = DateTime.now();
+    _disconnectedAt.removeWhere((deviceName, timestamp) {
+      return now.difference(timestamp).inHours > 24;
+    });
+
+    // Update previous device names for next comparison
+    _previousDeviceNames.clear();
+    _previousDeviceNames.addAll(currentDeviceNames);
+
     _deviceStream.add(this.devices);
     _updateDeviceCustomKeys();
   }
@@ -121,7 +166,7 @@ class DeviceController {
     int scaleCount = 0;
     int sensorCount = 0;
 
-    for (var device in this.devices) {
+    for (var device in devices) {
       // Set individual device type key
       _telemetryService!.setCustomKey(
         'device_${device.name}_type',
