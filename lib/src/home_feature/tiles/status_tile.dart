@@ -38,17 +38,28 @@ class StatusTile extends StatefulWidget {
 class _StatusTileState extends State<StatusTile> {
   MachineSnapshot? _machineSnapshot;
   WeightSnapshot? _weightSnapshot;
+  De1WaterLevels? _waterLevels;
   StreamSubscription? _tickSub;
+
+  // Cache the combined settings stream so it isn't recreated on every build.
+  late final Stream<List<dynamic>> _settingsStream;
 
   @override
   void initState() {
     super.initState();
-    // Merge both high-frequency streams into one tick, throttle once.
+    _settingsStream = Rx.combineLatest3(
+      widget.controller.steamData,
+      widget.controller.hotWaterData,
+      widget.controller.rinseData,
+      (steam, hotWater, rinse) => [steam, hotWater, rinse],
+    );
+    // Merge all high-frequency streams into one tick, throttle once.
     // Each source updates its cached value; the throttled merge triggers
     // a single synchronized setState at ~10Hz.
     _tickSub = Rx.merge([
       widget.de1.currentSnapshot.map((s) { _machineSnapshot = s; }),
       widget.scaleController.weightSnapshot.map((w) { _weightSnapshot = w; }),
+      widget.de1.waterLevels.map((w) { _waterLevels = w; }),
     ]).throttleTime(const Duration(milliseconds: 100)).listen((_) {
       if (mounted) setState(() {});
     });
@@ -68,12 +79,7 @@ class _StatusTileState extends State<StatusTile> {
         _firstRow(),
         SizedBox(height: 8),
         StreamBuilder(
-          stream: Rx.combineLatest3(
-            widget.controller.steamData,
-            widget.controller.hotWaterData,
-            widget.controller.rinseData,
-            (steam, hotWater, rinse) => [steam, hotWater, rinse],
-          ),
+          stream: _settingsStream,
           builder: (context, settingsSnapshot) {
             if (settingsSnapshot.connectionState != ConnectionState.active ||
                 !settingsSnapshot.hasData) {
@@ -400,44 +406,36 @@ class _StatusTileState extends State<StatusTile> {
               ),
             ],
           ),
-        StreamBuilder(
-          stream: widget.de1.waterLevels,
-          builder: (context, waterSnapshot) {
-            if (waterSnapshot.connectionState != ConnectionState.active ||
-                !waterSnapshot.hasData) {
-              return Text("Waiting");
-            }
-            var snapshot = waterSnapshot.data!;
-            final theme = Theme.of(context);
-            return SizedBox(
-              width: boxWidth,
-              child: GestureDetector(
-                onTap: () {
-                  _showWaterLevelsDialog(context, widget.controller);
-                },
-                child: Row(
-                  children: [
-                    Icon(
-                      LucideIcons.waves,
-                      color: Theme.of(context).colorScheme.onSurface,
+        if (_waterLevels == null)
+          Text("Waiting")
+        else
+          SizedBox(
+            width: boxWidth,
+            child: GestureDetector(
+              onTap: () {
+                _showWaterLevelsDialog(context, widget.controller);
+              },
+              child: Row(
+                children: [
+                  Icon(
+                    LucideIcons.waves,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  Text(
+                    "${_waterLevels!.currentLevel}mm",
+                    style: TextStyle(
+                      color:
+                          _waterLevels!.currentLevel > 10
+                              ? Theme.of(context).colorScheme.primary
+                              : _waterLevels!.currentLevel > 5
+                              ? Theme.of(context).colorScheme.onSurface
+                              : Theme.of(context).colorScheme.error,
                     ),
-                    Text(
-                      "${snapshot.currentLevel}mm",
-                      style: TextStyle(
-                        color:
-                            snapshot.currentLevel > 10
-                                ? theme.colorScheme.primary
-                                : snapshot.currentLevel > 5
-                                ? theme.colorScheme.onSurface
-                                : theme.colorScheme.error,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            );
-          },
-        ),
+            ),
+          ),
       ],
     );
   }
