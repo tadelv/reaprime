@@ -41,6 +41,8 @@ class _SkinViewState extends State<SkinView> {
   CompatibilityResult? _compatibilityResult;
 
   late InAppWebViewSettings _settings;
+  
+  bool _didShowExit = false;
 
   @override
   void initState() {
@@ -459,7 +461,8 @@ class _SkinViewState extends State<SkinView> {
             // ''');
 
             // Show exit instructions snackbar
-            if (mounted) {
+            if (mounted && _didShowExit == false) {
+              _didShowExit = true;
               _showExitInstructions();
             }
           },
