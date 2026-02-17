@@ -255,6 +255,70 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
         "Scan complete. Found ${_pendingDevices.length} device(s) to process");
   }
 
+  bool _isBleDeviceId(String deviceId) {
+    final macPattern = RegExp(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$');
+    final uuidPattern = RegExp(
+      r'^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$',
+    );
+    return macPattern.hasMatch(deviceId) || uuidPattern.hasMatch(deviceId);
+  }
+
+  @override
+  Future<void> scanForSpecificDevice(String deviceId) async {
+    if (!_isBleDeviceId(deviceId)) {
+      _log.fine('scanForSpecificDevice: "$deviceId" is not a BLE ID, skipping');
+      return;
+    }
+    if (!_adapterReady) {
+      _log.warning('BLE adapter not ready, cannot do targeted scan');
+      return;
+    }
+
+    _log.info('Linux targeted BLE scan for $deviceId');
+
+    var sub = FlutterBluePlus.onScanResults.listen((results) {
+      if (results.isEmpty) return;
+      final r = results.last;
+      final foundId = r.device.remoteId.str;
+      if (_devicesBeingCreated.contains(foundId)) return;
+      if (_devices.firstWhereOrNull((d) => d.deviceId == foundId) != null) return;
+
+      final s = r.advertisementData.serviceUuids.firstWhereOrNull(
+        (adv) => deviceMappings.keys.map((e) => Guid(e)).toList().contains(adv),
+      );
+      if (s == null) return;
+      final factory = deviceMappings[s.str];
+      if (factory == null) return;
+
+      _devicesBeingCreated.add(foundId);
+      _pendingDevices.add(_PendingDevice(foundId, factory));
+    }, onError: (e) => _log.warning('Targeted scan error: $e'));
+
+    FlutterBluePlus.cancelWhenScanComplete(sub);
+
+    await FlutterBluePlus.startScan(
+      withRemoteIds: [deviceId],
+      withServices: deviceMappings.keys.map((e) => Guid(e)).toList(),
+      oneByOne: true,
+    );
+
+    // Linux: scan for up to 15s then stop and process
+    await Future.delayed(const Duration(seconds: 15), () async {
+      await FlutterBluePlus.stopScan();
+    });
+
+    await Future.delayed(_postScanSettleDelay);
+
+    if (_pendingDevices.isNotEmpty) {
+      for (final pending in List.of(_pendingDevices)) {
+        await _createDevice(pending.deviceId, pending.factory);
+      }
+      _pendingDevices.clear();
+    }
+
+    _deviceStreamController.add(_devices.toList());
+  }
+
   @override
   Future<void> scanForDevices() async {
     final adapterAvailable = await _waitForAdapter();

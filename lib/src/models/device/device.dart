@@ -27,4 +27,13 @@ abstract class DeviceDiscoveryService {
     throw "Not implemented yet";
   }
 
+  /// Scan for a specific device by ID.
+  ///
+  /// Implementations should validate whether [deviceId] belongs to their
+  /// transport (BLE MAC format for BLE services, port path for serial, etc.)
+  /// and no-op if it does not. This avoids BLE services scanning for USB IDs
+  /// and vice versa.
+  Future<void> scanForSpecificDevice(String deviceId) async {
+    // Default: no-op. Override in services that support targeted scanning.
+  }
 }

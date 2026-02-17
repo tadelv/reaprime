@@ -343,20 +343,41 @@ class _SettingsTileState extends State<SettingsTile> {
         // TODO: In the future, filter by preferred machine ID
         showShadDialog(
           context: context,
-          builder:
-              (context) => ShadDialog(
+          builder: (dialogContext) {
+            String? dialogConnectingId;
+            String? dialogError;
+            return StatefulBuilder(
+              builder: (context, setDialogState) => ShadDialog(
                 title: Text('Select Machine'),
                 description: Text(
                   'Multiple espresso machines found. Select one to connect:',
                 ),
                 child: DeviceSelectionWidget(
                   deviceController: widget.deviceController,
-                  de1Controller: widget.controller,
-                  onDeviceSelected: (de1) {
-                    Navigator.of(context).pop();
+                  connectingDeviceId: dialogConnectingId,
+                  errorMessage: dialogError,
+                  onDeviceTapped: (de1) async {
+                    if (dialogConnectingId != null) return;
+                    setDialogState(() {
+                      dialogConnectingId = de1.deviceId;
+                      dialogError = null;
+                    });
+                    try {
+                      await widget.controller.connectToDe1(de1);
+                      if (dialogContext.mounted) {
+                        Navigator.of(dialogContext).pop();
+                      }
+                    } catch (e) {
+                      setDialogState(() {
+                        dialogConnectingId = null;
+                        dialogError = 'Failed to connect: $e';
+                      });
+                    }
                   },
                 ),
               ),
+            );
+          },
         );
       }
     } finally {

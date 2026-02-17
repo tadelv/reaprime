@@ -47,6 +47,25 @@ class UniversalBleDiscoveryService extends DeviceDiscoveryService {
     });
   }
 
+  bool _isBleDeviceId(String deviceId) {
+    final macPattern = RegExp(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$');
+    final uuidPattern = RegExp(
+      r'^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$',
+    );
+    return macPattern.hasMatch(deviceId) || uuidPattern.hasMatch(deviceId);
+  }
+
+  @override
+  Future<void> scanForSpecificDevice(String deviceId) async {
+    if (!_isBleDeviceId(deviceId)) {
+      log.fine('scanForSpecificDevice: "$deviceId" is not a BLE ID, skipping');
+      return;
+    }
+    // universal_ble does not support withRemoteIds filtering — fall back to full scan
+    log.info('universal_ble: falling back to full scan for $deviceId');
+    await scanForDevices();
+  }
+
   @override
   Future<void> scanForDevices() async {
     log.info("mappings: ${deviceMappings}");

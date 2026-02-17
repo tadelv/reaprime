@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
@@ -46,7 +47,15 @@ class DeviceController {
     _devices = {};
   }
 
+  bool _initialized = false;
+
   Future<void> initialize() async {
+    if (_initialized) {
+      _log.fine("Already initialized, skipping");
+      return;
+    }
+    _initialized = true;
+
     for (var service in _services) {
       try {
         await service.initialize();
@@ -58,7 +67,9 @@ class DeviceController {
         _log.warning("Service $service failed to init:", e);
       }
     }
-    await scanForDevices(autoConnect: true);
+    // Note: we no longer auto-scan here. The UI layer decides whether to run
+    // a targeted scan (preferred device) or a full scan (no preference).
+    // This avoids competing BLE scans that interfere with each other.
   }
 
   bool _autoConnect = true;
@@ -106,6 +117,37 @@ class DeviceController {
           _log.info("current devices: $devices");
         });
       });
+    }
+  }
+
+  /// Scan all services for a specific device by ID.
+  ///
+  /// Returns true if the device appears in [deviceStream] within the timeout,
+  /// false otherwise. Callers should fall back to [scanForDevices] on false.
+  Future<bool> scanForSpecificDevice(String deviceId) async {
+    // BLE scan can take a few seconds, plus device creation (connect +
+    // service discovery + inspection) adds ~3-5s on top. Use a generous
+    // timeout to avoid false negatives.
+    final timeout = Duration(seconds: Platform.isLinux ? 25 : 15);
+
+    // Start targeted scan on all services in parallel (each service
+    // self-validates whether the ID belongs to its transport)
+    for (final service in _services) {
+      service.scanForSpecificDevice(deviceId).catchError((e) {
+        _log.warning("Service $service scanForSpecificDevice failed: $e");
+      });
+    }
+
+    // Wait until the device appears in the stream or we time out
+    try {
+      await _deviceStream
+          .expand((devices) => devices)
+          .where((device) => device.deviceId == deviceId)
+          .first
+          .timeout(timeout);
+      return true;
+    } on TimeoutException {
+      return false;
     }
   }
 
