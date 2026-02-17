@@ -134,22 +134,51 @@ class De1Handler {
     });
 
     app.post('/api/v1/machine/firmware', (Request request) async {
-      try {
-        // Read the binary body into a Uint8List
-        final List<int> bodyBytes =
-            await request.read().expand((x) => x).toList();
-        final Uint8List fwImage = Uint8List.fromList(bodyBytes);
+      final List<int> bodyBytes =
+          await request.read().expand((x) => x).toList();
+      final Uint8List fwImage = Uint8List.fromList(bodyBytes);
 
-        // Send to DE1 (assumes withDe1 returns a response or Future<void>)
-        return await withDe1((de1) async {
-          await de1.updateFirmware(fwImage, onProgress: (progress) {});
-          return Response.ok('Firmware uploaded successfully');
-        });
+      De1Interface de1;
+      try {
+        de1 = _controller.connectedDe1();
       } catch (e) {
         return Response.internalServerError(
-          body: 'Failed to upload firmware: $e',
+          body: jsonEncode({'error': e.toString()}),
         );
       }
+
+      final progressController = StreamController<List<int>>();
+
+      void emit(Map<String, dynamic> event) {
+        if (!progressController.isClosed) {
+          progressController.add(utf8.encode('${jsonEncode(event)}\n'));
+        }
+      }
+
+      // When the client disconnects, dart:io unsubscribes from the stream.
+      // Detect this via onCancel and abort the upload.
+      progressController.onCancel = () async {
+        log.warning('firmware upload: client disconnected, cancelling');
+        await de1.cancelFirmwareUpload();
+      };
+
+      emit({'status': 'erasing', 'progress': 0.0});
+
+      de1.updateFirmware(fwImage, onProgress: (progress) {
+        emit({'status': 'uploading', 'progress': progress});
+      }).then((_) {
+        emit({'status': 'done', 'progress': 1.0});
+        progressController.close();
+      }).catchError((Object e) {
+        // Cancelled uploads throw — emit error only if stream still open
+        emit({'status': 'error', 'progress': -1.0, 'error': e.toString()});
+        progressController.close();
+      });
+
+      return Response.ok(
+        progressController.stream,
+        headers: {'Content-Type': 'application/x-ndjson'},
+      );
     });
   }
 
@@ -285,5 +314,6 @@ class De1Handler {
     );
   }
 }
+
 
 
