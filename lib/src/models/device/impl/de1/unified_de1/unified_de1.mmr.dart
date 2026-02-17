@@ -108,6 +108,13 @@ extension UnifiedDe1MMR on UnifiedDe1 {
     ),
     MMRItem.tankTemp: _MMRConfig(item: MMRItem.tankTemp),
     MMRItem.allowUSBCharging: _MMRConfig(item: MMRItem.allowUSBCharging),
+    MMRItem.calFlowEst: _MMRConfig(
+      item: MMRItem.calFlowEst,
+      readScale: 0.001,
+      writeScale: 1000.0,
+      minValue: 130,
+      maxValue: 2000,
+    ),
   };
 
   int _unpackMMRInt(List<int> buffer) {
