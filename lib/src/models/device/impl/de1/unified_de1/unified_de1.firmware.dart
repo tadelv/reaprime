@@ -3,7 +3,9 @@ part of 'unified_de1.dart';
 
 extension UnifiedDe1Firmware on UnifiedDe1 {
   Future<void> _updateFirmware(
-      Uint8List fwImage, void Function(double) onProgress) async {
+      Uint8List fwImage,
+      void Function(double) onProgress,
+      List<bool> cancelToken) async {
     _log.info("Starting firmware upgrade ...");
 
     await requestState(MachineState.sleeping);
@@ -76,7 +78,7 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
       await Future.delayed(Duration(seconds: 1));
     }
 
-    await uploadFW(fwImage, onProgress);
+    await uploadFW(fwImage, onProgress, cancelToken);
     _log.info("All done!");
 
     // verify crc?
@@ -99,9 +101,15 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
   }
 
   Future<void> uploadFW(
-      Uint8List list, void Function(double) onProgress) async {
+      Uint8List list,
+      void Function(double) onProgress,
+      List<bool> cancelToken) async {
     final total = list.length;
     for (int i = 0; i < list.length; i += 16) {
+      if (cancelToken[0]) {
+        _log.info('uploadFW: cancelled at byte $i');
+        throw Exception('firmware upload cancelled by client disconnect');
+      }
       final chunkLength = (i + 16 <= list.length) ? 16 : list.length - i;
       final data = Uint8List(4 + chunkLength);
       final address = encodeU24P0(i);
@@ -113,10 +121,13 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
 
       data.setRange(4, 4 + chunkLength, list, i);
 
-      await _transport.write(Endpoint.writeToMMR, data);
+      await _transport.writeWithResponse(Endpoint.writeToMMR, data);
       onProgress(min(i / total, 1.0));
     }
   }
 }
 
 enum FWUpgradeState { erase, upload, error, done }
+
+
+

@@ -73,6 +73,10 @@ abstract class De1Interface extends Machine {
   // TODO: should it be something different than Uint8List?
   Future<void> updateFirmware(Uint8List fwImage,
       {required void Function(double progress) onProgress});
+
+  /// Cancel an in-progress firmware upload. Sets the machine to sleeping.
+  /// No-op if no upload is in progress.
+  Future<void> cancelFirmwareUpload() async {}
 }
 
 // This doesn't change anything
@@ -174,4 +178,5 @@ final class De1WaterLevels {
     };
   }
 }
+
 

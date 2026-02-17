@@ -601,5 +601,8 @@ class MockDe1 implements De1Interface {
     }
     onProgress(1.0);
   }
+
+  @override
+  Future<void> cancelFirmwareUpload() async {}
 }
 

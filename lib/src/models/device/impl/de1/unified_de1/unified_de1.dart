@@ -327,12 +327,31 @@ class UnifiedDe1 implements De1Interface {
   @override
   DeviceType get type => DeviceType.machine;
 
+  List<bool>? _fwCancelToken;
+
   @override
   Future<void> updateFirmware(
     Uint8List fwImage, {
     required void Function(double progress) onProgress,
   }) async {
-    await _updateFirmware(fwImage, onProgress);
+    _fwCancelToken = [false];
+    try {
+      await _updateFirmware(fwImage, onProgress, _fwCancelToken!);
+    } finally {
+      _fwCancelToken = null;
+    }
+  }
+
+  /// Cancel an in-progress firmware upload. Sets the machine to sleeping.
+  /// No-op if no upload is in progress.
+  @override
+  Future<void> cancelFirmwareUpload() async {
+    _fwCancelToken?[0] = true;
+    try {
+      await requestState(MachineState.sleeping);
+    } catch (e) {
+      _log.warning('cancelFirmwareUpload: failed to request sleeping state: $e');
+    }
   }
 
   @override
@@ -384,5 +403,6 @@ class UnifiedDe1 implements De1Interface {
     return _cachedMmrStream!;
   }
 }
+
 
 
