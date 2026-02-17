@@ -156,6 +156,11 @@ class UnifiedDe1 implements De1Interface {
   }
 
   @override
+  Future<double> getFlowEstimation() async {
+    return await _readMMRScaled(MMRItem.calFlowEst);
+  }
+
+  @override
   Future<int> getSteamPurgeMode() async {
     return await _readMMRInt(MMRItem.steamPurgeMode);
   }
@@ -290,6 +295,11 @@ class UnifiedDe1 implements De1Interface {
   @override
   Future<void> setUsbChargerMode(bool t) async {
     await _writeMMRInt(MMRItem.allowUSBCharging, t ? 1 : 0);
+  }
+
+  @override
+  Future<void> setFlowEstimation(double multiplier) async {
+    await _writeMMRScaled(MMRItem.calFlowEst, multiplier);
   }
 
   @override

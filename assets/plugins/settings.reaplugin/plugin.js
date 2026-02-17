@@ -70,6 +70,23 @@ function createPlugin(host) {
   }
 
   /**
+   * Fetch machine calibration settings
+   */
+  async function fetchCalibrationSettings() {
+    try {
+      const res = await fetch("http://localhost:8080/api/v1/machine/calibration");
+      if (!res.ok) {
+        log(`Failed to fetch calibration settings: ${res.status}`);
+        return null;
+      }
+      return await res.json();
+    } catch (e) {
+      log(`Error fetching calibration settings: ${e.message}`);
+      return null;
+    }
+  }
+
+  /**
    * Fetch machine advanced settings
    */
   async function fetchDe1AdvancedSettings() {
@@ -89,7 +106,7 @@ function createPlugin(host) {
   /**
    * Generate HTML page with all settings (with editable controls)
    */
-  function generateSettingsHTML(reaSettings, de1Settings, de1AdvancedSettings, webUISkins) {
+  function generateSettingsHTML(reaSettings, de1Settings, de1AdvancedSettings, webUISkins, calibrationSettings) {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -522,6 +539,23 @@ function createPlugin(host) {
                 </div>
             ` : '<div class="error" role="alert">Failed to load machine advanced settings (machine may not be connected)</div>'}
             </section>
+
+            <!-- Machine Calibration -->
+            <section class="section" aria-labelledby="machine-calibration-heading">
+                <h2 id="machine-calibration-heading">Calibration</h2>
+            ${calibrationSettings ? `
+                <div class="settings-grid">
+                    <div class="setting-item">
+                        <label class="setting-label" for="flowMultiplier">Flow Estimation Multiplier</label>
+                        <div class="setting-control">
+                            <input type="number" id="flowMultiplier" value="${calibrationSettings.flowMultiplier !== undefined ? calibrationSettings.flowMultiplier : 1.0}" step="0.01" min="0.13" max="2.0" aria-describedby="flowMultiplier-desc">
+                            <span id="flowMultiplier-desc" class="visually-hidden">Adjusts the DE1 flow sensor calibration. Valid range: 0.13 to 2.0. Default is 1.0.</span>
+                            <button class="btn btn-primary" onclick="updateCalibrationSetting('flowMultiplier', parseFloat(document.getElementById('flowMultiplier').value))" aria-label="Save flow estimation multiplier">Save</button>
+                        </div>
+                    </div>
+                </div>
+            ` : '<div class="error" role="alert">Failed to load calibration settings (machine may not be connected)</div>'}
+            </section>
         </main>
     </div>
 
@@ -607,6 +641,31 @@ function createPlugin(host) {
             }
         }
 
+        async function updateCalibrationSetting(key, value) {
+            try {
+                const payload = {};
+                payload[key] = value;
+
+                const response = await fetch(baseUrl + '/api/v1/machine/calibration', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok || response.status === 202) {
+                    showToast('Calibration setting updated successfully');
+                    document.getElementById('timestamp').textContent = new Date().toLocaleString();
+                } else {
+                    const error = await response.text();
+                    showToast('Failed to update calibration setting: ' + error, true);
+                }
+            } catch (e) {
+                showToast('Error updating calibration setting: ' + e.message, true);
+            }
+        }
+
         async function updateDe1AdvancedSetting(key, value) {
             try {
                 const payload = {};
@@ -684,9 +743,10 @@ function createPlugin(host) {
           fetchReaSettings(),
           fetchDe1Settings(),
           fetchDe1AdvancedSettings(),
-          fetchWebUISkins()
-        ]).then(([reaSettings, de1Settings, de1AdvancedSettings, webUISkins]) => {
-          const html = generateSettingsHTML(reaSettings, de1Settings, de1AdvancedSettings, webUISkins);
+          fetchWebUISkins(),
+          fetchCalibrationSettings()
+        ]).then(([reaSettings, de1Settings, de1AdvancedSettings, webUISkins, calibrationSettings]) => {
+          const html = generateSettingsHTML(reaSettings, de1Settings, de1AdvancedSettings, webUISkins, calibrationSettings);
           
           return {
             requestId: request.requestId,
