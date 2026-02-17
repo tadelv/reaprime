@@ -89,6 +89,68 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
     _log.info("initialized");
   }
 
+  bool _isBleDeviceId(String deviceId) {
+    // MAC address format: AA:BB:CC:DD:EE:FF
+    final macPattern = RegExp(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$');
+    // UUID format: 8-4-4-4-12 hex chars
+    final uuidPattern = RegExp(
+      r'^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$',
+    );
+    return macPattern.hasMatch(deviceId) || uuidPattern.hasMatch(deviceId);
+  }
+
+  @override
+  Future<void> scanForSpecificDevice(String deviceId) async {
+    if (!_isBleDeviceId(deviceId)) {
+      _log.fine('scanForSpecificDevice: "$deviceId" is not a BLE ID, skipping');
+      return;
+    }
+
+    _log.info('Starting targeted BLE scan for device $deviceId');
+
+    var subscription = FlutterBluePlus.onScanResults.listen((results) {
+      if (results.isEmpty) return;
+      final r = results.last;
+      final foundId = r.device.remoteId.str;
+
+      if (_devices.firstWhereOrNull((d) => d.deviceId == foundId) != null) return;
+      if (_devicesBeingCreated.contains(foundId)) return;
+
+      final s = r.advertisementData.serviceUuids.firstWhereOrNull(
+        (adv) => deviceMappings.keys.map((e) => Guid(e)).toList().contains(adv),
+      );
+      if (s == null) return;
+
+      final deviceFactory = deviceMappings[s.str];
+      if (deviceFactory == null) return;
+
+      _devicesBeingCreated.add(foundId);
+      _createDevice(foundId, deviceFactory);
+    }, onError: (e) => _log.warning('Targeted scan error: $e'));
+
+    FlutterBluePlus.cancelWhenScanComplete(subscription);
+
+    await FlutterBluePlus.adapterState
+        .where((val) => val == BluetoothAdapterState.on)
+        .first;
+
+    await FlutterBluePlus.startScan(
+      withRemoteIds: [deviceId],
+      withServices: deviceMappings.keys.map((e) => Guid(e)).toList(),
+      oneByOne: true,
+    );
+
+    // Stop after timeout (device found earlier stops via cancelWhenScanComplete)
+    final timeout = Platform.isLinux
+        ? const Duration(seconds: 20)
+        : const Duration(seconds: 8);
+    await Future.delayed(timeout, () async {
+      await FlutterBluePlus.stopScan();
+    });
+
+    _deviceStreamController.add(_devices.toList());
+  }
+
   @override
   Future<void> scanForDevices() async {
     // listen to scan results

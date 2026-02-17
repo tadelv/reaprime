@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:collection/collection.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
@@ -21,8 +22,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 
-class PermissionsView extends StatelessWidget {
-  final Logger _log = Logger("PermissionsView");
+class PermissionsView extends StatefulWidget {
   final DeviceController deviceController;
   final De1Controller de1controller;
   final PluginLoaderService? pluginLoaderService;
@@ -30,9 +30,7 @@ class PermissionsView extends StatelessWidget {
   final WebUIService webUIService;
   final SettingsController settingsController;
 
-  late final Future<bool> _permissionsFuture;
-
-  PermissionsView({
+  const PermissionsView({
     super.key,
     required this.deviceController,
     required this.de1controller,
@@ -40,8 +38,45 @@ class PermissionsView extends StatelessWidget {
     required this.webUIStorage,
     required this.webUIService,
     required this.settingsController,
-  }) {
-    _permissionsFuture = checkPermissions();
+  });
+
+  @override
+  State<PermissionsView> createState() => _PermissionsViewState();
+
+  static String getRandomCoffeeMessage() {
+    final messages = [
+      "Dialing in the grinder...",
+      "Preheating the portafilter...",
+      "Calibrating the tamp pressure...",
+      "Blooming the coffee bed...",
+      "Checking water hardness...",
+      "Polishing the shower screen...",
+      "Degassing freshly roasted beans...",
+      "Leveling the distribution tool...",
+      "Priming the group head...",
+      "Adjusting brew temperature to 0.1°C...",
+      "Consulting the barista championship rules...",
+      "Measuring TDS with lab precision...",
+      "Perfecting the WDT technique...",
+      "Activating bluetooth (please turn it on)...",
+      "Weighing beans to 0.01g accuracy...",
+      "Cleaning the espresso altar...",
+      "Channeling positive vibes (not water)...",
+      "Waiting for third wave to arrive...",
+      "Updating espresso definitions...",
+    ];
+    return messages[DateTime.now().millisecondsSinceEpoch % messages.length];
+  }
+}
+
+class _PermissionsViewState extends State<PermissionsView> {
+  final Logger _log = Logger("PermissionsView");
+  late final Future<bool> _permissionsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _permissionsFuture = _checkPermissions();
   }
 
   @override
@@ -90,32 +125,7 @@ class PermissionsView extends StatelessWidget {
     );
   }
 
-  static String getRandomCoffeeMessage() {
-    final messages = [
-      "Dialing in the grinder...",
-      "Preheating the portafilter...",
-      "Calibrating the tamp pressure...",
-      "Blooming the coffee bed...",
-      "Checking water hardness...",
-      "Polishing the shower screen...",
-      "Degassing freshly roasted beans...",
-      "Leveling the distribution tool...",
-      "Priming the group head...",
-      "Adjusting brew temperature to 0.1°C...",
-      "Consulting the barista championship rules...",
-      "Measuring TDS with lab precision...",
-      "Perfecting the WDT technique...",
-      "Activating bluetooth (please turn it on)...",
-      "Weighing beans to 0.01g accuracy...",
-      "Cleaning the espresso altar...",
-      "Channeling positive vibes (not water)...",
-      "Waiting for third wave to arrive...",
-      "Updating espresso definitions...",
-    ];
-    return messages[DateTime.now().millisecondsSinceEpoch % messages.length];
-  }
-
-  Future<bool> checkPermissions() async {
+  Future<bool> _checkPermissions() async {
     if (Platform.isAndroid || Platform.isIOS) {
       // await Permission.ignoreBatteryOptimizations.request();
       await Permission.manageExternalStorage.request();
@@ -155,7 +165,7 @@ class PermissionsView extends StatelessWidget {
     // Initialize WebUI storage and service BEFORE device controller
     _log.info('Initializing WebUI storage...');
     try {
-      await webUIStorage.initialize();
+      await widget.webUIStorage.initialize();
       _log.info('WebUI storage initialized successfully');
     } catch (e) {
       _log.severe('Failed to initialize WebUI storage', e);
@@ -163,11 +173,11 @@ class PermissionsView extends StatelessWidget {
     }
 
     // Start WebUI service if we have a default skin
-    final defaultSkin = webUIStorage.defaultSkin;
+    final defaultSkin = widget.webUIStorage.defaultSkin;
     if (defaultSkin != null) {
       _log.info('Starting WebUI service with skin: ${defaultSkin.name}');
       try {
-        await webUIService.serveFolderAtPath(defaultSkin.path);
+        await widget.webUIService.serveFolderAtPath(defaultSkin.path);
         _log.info('WebUI service started successfully');
       } catch (e) {
         _log.severe('Failed to start WebUI service', e);
@@ -178,9 +188,9 @@ class PermissionsView extends StatelessWidget {
     }
 
     // Initialize plugins after WebUI is ready
-    if (pluginLoaderService != null) {
+    if (widget.pluginLoaderService != null) {
       try {
-        await pluginLoaderService!.initialize();
+        await widget.pluginLoaderService!.initialize();
       } catch (e) {
         // Log error but don't fail the permissions check
         _log.warning('Failed to initialize plugins: $e');
@@ -188,7 +198,7 @@ class PermissionsView extends StatelessWidget {
     }
 
     // Initialize device controller last
-    await deviceController.initialize();
+    await widget.deviceController.initialize();
 
     return true;
   }
@@ -196,11 +206,11 @@ class PermissionsView extends StatelessWidget {
   Widget _de1Picker(BuildContext context) {
     return Center(
       child: DeviceDiscoveryView(
-        de1controller: de1controller,
-        deviceController: deviceController,
-        settingsController: settingsController,
-        webUIService: webUIService,
-        webUIStorage: webUIStorage,
+        de1controller: widget.de1controller,
+        deviceController: widget.deviceController,
+        settingsController: widget.settingsController,
+        webUIService: widget.webUIService,
+        webUIStorage: widget.webUIStorage,
         logger: _log,
       ),
     );
@@ -232,7 +242,11 @@ class DeviceDiscoveryView extends StatefulWidget {
 class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   DiscoveryState _state = DiscoveryState.searching;
   bool _isScanning = true; // Start as true since we begin scanning immediately
-  String? _autoConnectingDeviceId;
+  String? _connectingDeviceId;
+  String? _connectionError;
+  // When set, the discovery subscription will auto-connect to this device
+  // when it appears. Persists through fallback from direct-connect to full scan.
+  String? _autoConnectDeviceId;
 
   late StreamSubscription<List<dev.Device>> _discoverySubscription;
 
@@ -300,6 +314,114 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
     }
   }
 
+  Future<void> _handleDeviceTapped(De1Interface de1) async {
+    if (_connectingDeviceId != null) return; // guard against double-tap
+    setState(() {
+      _connectingDeviceId = de1.deviceId;
+      _connectionError = null;
+    });
+    try {
+      await widget.de1controller.connectToDe1(de1);
+      if (mounted) {
+        await _navigateAfterConnection();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _connectingDeviceId = null;
+          _connectionError = 'Failed to connect: $e';
+        });
+      }
+      widget.logger.severe('Manual connect failed: $e');
+    }
+  }
+
+  Widget _directConnectingView(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 16,
+      children: [
+        SizedBox(width: 200, child: ShadProgress()),
+        Text(
+          'Connecting to your machine...',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        TextButton(
+          onPressed: _fallbackToFullScan,
+          child: Text('Scan for all devices', style: theme.textTheme.muted),
+        ),
+      ],
+    );
+  }
+
+  void _fallbackToFullScan({bool keepAutoConnect = false}) {
+    if (!keepAutoConnect) {
+      _autoConnectDeviceId = null;
+    }
+    setState(() {
+      _state = DiscoveryState.searching;
+    });
+    widget.deviceController.scanForDevices(autoConnect: false);
+  }
+
+  Future<void> _startDirectConnect(String deviceId) async {
+    final found = await widget.deviceController.scanForSpecificDevice(deviceId);
+
+    if (!mounted) return;
+
+    if (!found) {
+      widget.logger.info('Preferred device $deviceId not found, falling back to full scan');
+      _fallbackToFullScan(keepAutoConnect: true);
+      _startNormalScanWithTimeout();
+      return;
+    }
+
+    // Device is now in the stream — find and connect
+    final device = widget.deviceController.devices
+        .whereType<De1Interface>()
+        .firstWhereOrNull((d) => d.deviceId == deviceId);
+
+    if (device == null) {
+      widget.logger.warning('Device appeared then vanished: $deviceId');
+      _fallbackToFullScan();
+      _startNormalScanWithTimeout();
+      return;
+    }
+
+    setState(() {
+      _connectingDeviceId = device.deviceId;
+    });
+
+    try {
+      await widget.de1controller.connectToDe1(device);
+      if (mounted) await _navigateAfterConnection();
+    } catch (e) {
+      widget.logger.severe('Direct connect failed: $e');
+      if (mounted) {
+        setState(() {
+          _connectingDeviceId = null;
+        });
+        _fallbackToFullScan();
+        _startNormalScanWithTimeout();
+      }
+    }
+  }
+
+  void _startNormalScanWithTimeout() {
+    Future.delayed(_timeoutDuration, () {
+      if (!mounted) return;
+      final discoveredDevices =
+          widget.deviceController.devices.whereType<De1Interface>().toList();
+      setState(() {
+        _isScanning = false;
+        if (discoveredDevices.isEmpty && _state != DiscoveryState.foundMany) {
+          _state = DiscoveryState.foundNone;
+        }
+      });
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -311,73 +433,46 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       });
     }
 
-    bool hasHandledAutoConnect = false;
+    final preferredMachineId = widget.settingsController.preferredMachineId;
 
-    _discoverySubscription = widget.deviceController.deviceStream.listen((
-      data,
-    ) {
-      widget.logger.fine("device stream update: $data");
+    if (preferredMachineId != null) {
+      // Fast-connect path: scan specifically for the preferred device
+      _state = DiscoveryState.directConnecting;
+      _autoConnectDeviceId = preferredMachineId;
+      _startDirectConnect(preferredMachineId);
+    }
+
+    // Always listen to device stream for the normal foundMany path
+    _discoverySubscription = widget.deviceController.deviceStream.listen((data) {
       final discoveredDevices = data.whereType<De1Interface>().toList();
+      if (discoveredDevices.isEmpty) return;
 
-      // Show devices immediately when first one is detected
-      if (discoveredDevices.isNotEmpty) {
+      // Auto-connect if the preferred device appeared (handles late discovery
+      // after targeted scan timeout + fallback to full scan)
+      if (_autoConnectDeviceId != null && _connectingDeviceId == null) {
+        final target = discoveredDevices.firstWhereOrNull(
+          (d) => d.deviceId == _autoConnectDeviceId,
+        );
+        if (target != null) {
+          _autoConnectDeviceId = null; // consume — only try once
+          _handleDeviceTapped(target);
+          return;
+        }
+      }
+
+      if (_state != DiscoveryState.directConnecting) {
         setState(() {
           _state = DiscoveryState.foundMany;
         });
-
-        // Check if we should auto-connect to preferred machine (only once)
-        final preferredMachineId = widget.settingsController.preferredMachineId;
-        if (preferredMachineId != null && !hasHandledAutoConnect) {
-          hasHandledAutoConnect = true;
-          
-          final preferredMachine = discoveredDevices.firstWhere(
-            (device) => device.deviceId == preferredMachineId,
-            orElse: () => discoveredDevices.first,
-          );
-
-          // Set auto-connecting state to show progress indicator
-          setState(() {
-            _autoConnectingDeviceId = preferredMachine.deviceId;
-          });
-
-          // Auto-connect to preferred machine
-          widget.de1controller
-              .connectToDe1(preferredMachine)
-              .then((_) async {
-                if (mounted) {
-                  await _navigateAfterConnection();
-                }
-              })
-              .catchError((error) {
-                // Clear auto-connecting state on error
-                if (mounted) {
-                  setState(() {
-                    _autoConnectingDeviceId = null;
-                  });
-                }
-                widget.logger.severe('Auto-connect failed: $error');
-              });
-        }
       }
     });
 
-    // If 10 seconds elapsed without finding any devices, stop scanning
-    // Only set state to foundNone if we truly have no devices
-    Future.delayed(_timeoutDuration, () {
-      if (!mounted) return;
-      
-      final discoveredDevices =
-          widget.deviceController.devices.whereType<De1Interface>().toList();
-
-      setState(() {
-        _isScanning = false;
-        // Only show "no devices found" if we actually have no devices
-        // Don't change state if devices were found
-        if (discoveredDevices.isEmpty && _state != DiscoveryState.foundMany) {
-          _state = DiscoveryState.foundNone;
-        }
-      });
-    });
+    // Normal search path: start a full scan (initialize() no longer auto-scans
+    // to avoid competing with a targeted scan)
+    if (preferredMachineId == null) {
+      widget.deviceController.scanForDevices(autoConnect: true);
+      _startNormalScanWithTimeout();
+    }
   }
 
   @override
@@ -389,6 +484,8 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   @override
   Widget build(BuildContext context) {
     switch (_state) {
+      case DiscoveryState.directConnecting:
+        return _directConnectingView(context);
       case DiscoveryState.searching:
         return _searchingView(context);
       case DiscoveryState.foundMany:
@@ -439,14 +536,12 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
         // Device list
         DeviceSelectionWidget(
           deviceController: widget.deviceController,
-          de1Controller: widget.de1controller,
           settingsController: widget.settingsController,
           showHeader: true,
           headerText: "Select a machine from the list",
-          autoConnectingDeviceId: _autoConnectingDeviceId,
-          onDeviceSelected: (de1) async {
-            await _navigateAfterConnection();
-          },
+          connectingDeviceId: _connectingDeviceId,
+          errorMessage: _connectionError,
+          onDeviceTapped: _handleDeviceTapped,
         ),
         
         // Action buttons (shown when scanning is complete)
@@ -757,7 +852,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   }
 }
 
-enum DiscoveryState { searching, foundMany, foundNone }
+enum DiscoveryState { directConnecting, searching, foundMany, foundNone }
 
 
 

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/home_feature/widgets/device_connecting_indicator.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
@@ -9,58 +8,29 @@ import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-/// Reusable widget for selecting a DE1 machine from a list of discovered devices.
+/// Reusable widget for displaying a list of discovered DE1 machines.
 ///
-/// This widget can be used in dialogs or as a standalone view. It automatically
-/// updates as new devices are discovered and allows the user to select a device
-/// to connect to.
-///
-/// Usage in a dialog:
-/// ```dart
-/// showShadDialog(
-///   context: context,
-///   builder: (context) => ShadDialog(
-///     title: Text('Select DE1'),
-///     child: DeviceSelectionWidget(
-///       deviceController: deviceController,
-///       de1Controller: de1Controller,
-///       onDeviceSelected: (de1) {
-///         Navigator.of(context).pop();
-///       },
-///     ),
-///   ),
-/// );
-/// ```
-///
-/// Usage in a full-screen view:
-/// ```dart
-/// DeviceSelectionWidget(
-///   deviceController: deviceController,
-///   de1Controller: de1Controller,
-///   showHeader: true,
-///   onDeviceSelected: (de1) {
-///     Navigator.of(context).pushNamed('/home');
-///   },
-/// );
-/// ```
+/// This is a pure display widget — it does not own connection state.
+/// The parent is responsible for managing connection logic and passing
+/// [connectingDeviceId] and [errorMessage] as props.
 class DeviceSelectionWidget extends StatefulWidget {
   final DeviceController deviceController;
-  final De1Controller de1Controller;
   final SettingsController? settingsController;
-  final Function(De1Interface) onDeviceSelected;
+  final Function(De1Interface) onDeviceTapped;
   final bool showHeader;
   final String? headerText;
-  final String? autoConnectingDeviceId;
+  final String? connectingDeviceId;
+  final String? errorMessage;
 
   const DeviceSelectionWidget({
     super.key,
     required this.deviceController,
-    required this.de1Controller,
+    required this.onDeviceTapped,
     this.settingsController,
-    required this.onDeviceSelected,
     this.showHeader = false,
     this.headerText,
-    this.autoConnectingDeviceId,
+    this.connectingDeviceId,
+    this.errorMessage,
   });
 
   @override
@@ -70,8 +40,6 @@ class DeviceSelectionWidget extends StatefulWidget {
 class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
   late StreamSubscription<List<dev.Device>> _discoverySubscription;
   List<De1Interface> _discoveredDevices = [];
-  String? _connectingDeviceId;
-  String? _errorMessage;
 
   @override
   void initState() {
@@ -118,6 +86,7 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
     }
 
     final preferredMachineId = widget.settingsController?.preferredMachineId;
+    final isAnyConnecting = widget.connectingDeviceId != null;
 
     final listView = ListView.builder(
       shrinkWrap: true,
@@ -125,12 +94,7 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
       itemBuilder: (context, index) {
         final de1 = _discoveredDevices[index];
         final isPreferred = preferredMachineId == de1.deviceId;
-        final isAutoConnecting = widget.autoConnectingDeviceId == de1.deviceId;
-        final isManualConnecting = _connectingDeviceId == de1.deviceId;
-        final isConnecting = isAutoConnecting || isManualConnecting;
-        final isAnyConnecting =
-            widget.autoConnectingDeviceId != null ||
-            _connectingDeviceId != null;
+        final isConnecting = widget.connectingDeviceId == de1.deviceId;
 
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
@@ -145,29 +109,9 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
                     isConnecting: isConnecting,
                   ),
                   enabled: !isAnyConnecting,
-                  onTap:
-                      isAnyConnecting
-                          ? null
-                          : () async {
-                            setState(() {
-                              _connectingDeviceId = de1.deviceId;
-                              _errorMessage = null;
-                            });
-
-                            try {
-                              await widget.de1Controller.connectToDe1(de1);
-                              if (mounted) {
-                                widget.onDeviceSelected(de1);
-                              }
-                            } catch (e) {
-                              if (mounted) {
-                                setState(() {
-                                  _connectingDeviceId = null;
-                                  _errorMessage = 'Failed to connect: $e';
-                                });
-                              }
-                            }
-                          },
+                  onTap: isAnyConnecting
+                      ? null
+                      : () => widget.onDeviceTapped(de1),
                 ),
                 if (widget.settingsController != null)
                   Padding(
@@ -216,7 +160,7 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
             widget.headerText ?? "Select a machine from the list",
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          if (_errorMessage != null)
+          if (widget.errorMessage != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8.0),
               child: ShadCard(
@@ -233,22 +177,12 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          _errorMessage!,
+                          widget.errorMessage!,
                           style: TextStyle(
                             color:
                                 Theme.of(context).colorScheme.onErrorContainer,
                           ),
                         ),
-                      ),
-                      IconButton(
-                        icon: Icon(LucideIcons.x, size: 16),
-                        onPressed: () {
-                          setState(() {
-                            _errorMessage = null;
-                          });
-                        },
-                        padding: EdgeInsets.zero,
-                        constraints: BoxConstraints(),
                       ),
                     ],
                   ),
@@ -263,7 +197,7 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (_errorMessage != null)
+        if (widget.errorMessage != null)
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: ShadCard(
@@ -280,21 +214,11 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        _errorMessage!,
+                        widget.errorMessage!,
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onErrorContainer,
                         ),
                       ),
-                    ),
-                    IconButton(
-                      icon: Icon(LucideIcons.x, size: 16),
-                      onPressed: () {
-                        setState(() {
-                          _errorMessage = null;
-                        });
-                      },
-                      padding: EdgeInsets.zero,
-                      constraints: BoxConstraints(),
                     ),
                   ],
                 ),
@@ -306,4 +230,3 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
     );
   }
 }
-
