@@ -220,6 +220,32 @@ paths:
         "200":
           description: Advanced settings updated successfully
 
+  /api/v1/machine/calibration:
+    get:
+      summary: Get machine calibration settings
+      description: Returns the current flow estimation calibration multiplier from the DE1
+      tags: [Machine]
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/De1CalibrationResponse"
+    post:
+      summary: Set machine calibration settings
+      description: Updates the flow estimation calibration multiplier on the DE1
+      tags: [Machine]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/De1CalibrationRequest"
+      responses:
+        "202":
+          description: Calibration settings updated successfully
+
   /api/v1/machine/usb/{state}:
     put:
       summary: Toggle USB Charger Mode
@@ -1720,6 +1746,25 @@ components:
         heaterPh2Timeout:
           description: Heater phase 2 timeout in seconds (how long should de1 try to stabilize temperature)
           type: integer
+    De1CalibrationRequest:
+      type: object
+      properties:
+        flowMultiplier:
+          description: Flow estimation calibration multiplier (valid range 0.13–2.0)
+          type: number
+          format: double
+          nullable: true
+          minimum: 0.13
+          maximum: 2.0
+          example: 1.0
+    De1CalibrationResponse:
+      type: object
+      properties:
+        flowMultiplier:
+          description: Flow estimation calibration multiplier (valid range 0.13–2.0)
+          type: number
+          format: double
+          example: 1.0
     De1RawMessage:
       type: object
       required:

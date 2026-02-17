@@ -371,6 +371,7 @@ class MockDe1 implements De1Interface {
 
   bool _chargerOn = false;
   int _steamPurgeMode = 0; // 0 = normal, 1 = two tap stop
+  double _flowEstimation = 1.0;
 
   @override
   Future<bool> getUsbChargerMode() async {
@@ -380,6 +381,16 @@ class MockDe1 implements De1Interface {
   @override
   Future<void> setUsbChargerMode(bool t) async {
     _chargerOn = t;
+  }
+
+  @override
+  Future<double> getFlowEstimation() async {
+    return _flowEstimation;
+  }
+
+  @override
+  Future<void> setFlowEstimation(double multiplier) async {
+    _flowEstimation = multiplier;
   }
 
   @override

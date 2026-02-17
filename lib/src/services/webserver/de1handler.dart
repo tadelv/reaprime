@@ -136,6 +136,24 @@ class De1Handler {
       });
     });
 
+    app.get('/api/v1/machine/calibration', () async {
+      return withDe1((de1) async {
+        var json = <String, dynamic>{};
+        json['flowMultiplier'] = await de1.getFlowEstimation();
+        return Response.ok(jsonEncode(json));
+      });
+    });
+
+    app.post('/api/v1/machine/calibration', (Request r) async {
+      return withDe1((de1) async {
+        var json = jsonDecode(await r.readAsString());
+        if (json['flowMultiplier'] != null) {
+          await de1.setFlowEstimation(parseDouble(json['flowMultiplier']));
+        }
+        return Response(202);
+      });
+    });
+
     app.post('/api/v1/machine/firmware', (Request request) async {
       final List<int> bodyBytes =
           await request.read().expand((x) => x).toList();
