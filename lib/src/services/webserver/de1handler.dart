@@ -34,7 +34,10 @@ class De1Handler {
       '/ws/v1/machine/shotSettings',
       sws.webSocketHandler(_handleShotSettings),
     );
-    app.get('/ws/v1/machine/waterLevels', sws.webSocketHandler(_handleWaterLevels));
+    app.get(
+      '/ws/v1/machine/waterLevels',
+      sws.webSocketHandler(_handleWaterLevels),
+    );
     app.get('/ws/v1/machine/raw', sws.webSocketHandler(_handleRawSocket));
 
     app.post('/api/v1/machine/waterLevels', (Request r) async {
@@ -164,16 +167,28 @@ class De1Handler {
 
       emit({'status': 'erasing', 'progress': 0.0});
 
-      de1.updateFirmware(fwImage, onProgress: (progress) {
-        emit({'status': 'uploading', 'progress': progress});
-      }).then((_) {
-        emit({'status': 'done', 'progress': 1.0});
-        progressController.close();
-      }).catchError((Object e) {
-        // Cancelled uploads throw — emit error only if stream still open
-        emit({'status': 'error', 'progress': -1.0, 'error': e.toString()});
-        progressController.close();
-      });
+      double lastProgress = -1;
+
+      de1
+          .updateFirmware(
+            fwImage,
+            onProgress: (progress) {
+              if (progress - lastProgress < 0.01) {
+                return;
+              }
+              lastProgress = progress;
+              emit({'status': 'uploading', 'progress': progress});
+            },
+          )
+          .then((_) {
+            emit({'status': 'done', 'progress': 1.0});
+            progressController.close();
+          })
+          .catchError((Object e) {
+            // Cancelled uploads throw — emit error only if stream still open
+            emit({'status': 'error', 'progress': -1.0, 'error': e.toString()});
+            progressController.close();
+          });
 
       return Response.ok(
         progressController.stream,
@@ -314,6 +329,4 @@ class De1Handler {
     );
   }
 }
-
-
 
