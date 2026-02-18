@@ -534,6 +534,22 @@ paths:
             type: array
             items:
               type: string
+        - in: query
+          name: orderBy
+          description: Field to sort results by
+          required: false
+          schema:
+            type: string
+            enum: [timestamp]
+            default: timestamp
+        - in: query
+          name: order
+          description: Sort direction
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
       responses:
         "200":
           content:

@@ -33,6 +33,25 @@ class ShotsHandler {
             return ids.contains(e.id);
           }).toList();
     }
+
+    final orderBy = req.url.queryParameters['orderBy'];
+    if (orderBy != null && orderBy != 'timestamp') {
+      return Response.badRequest(
+        body: jsonEncode({"error": "Invalid orderBy value. Supported: timestamp"}),
+      );
+    }
+
+    final order = req.url.queryParameters['order'] ?? 'desc';
+    if (order != 'asc' && order != 'desc') {
+      return Response.badRequest(
+        body: jsonEncode({"error": "Invalid order value. Supported: asc, desc"}),
+      );
+    }
+
+    shots.sort((a, b) => order == 'asc'
+        ? a.timestamp.compareTo(b.timestamp)
+        : b.timestamp.compareTo(a.timestamp));
+
     final shotObjects = shots.map((e) => e.toJson()).toList();
     return Response.ok(jsonEncode(shotObjects));
   }
