@@ -83,7 +83,7 @@ class ShotsHandler {
 
   Future<Response> _getLatestShot(Request req) async {
     List<ShotRecord> shots = await _controller.shots.first;
-    return Response.ok(jsonEncode(shots.lastOrNull?.toJson()));
+    return Response.ok(jsonEncode(shots.firstOrNull?.toJson()));
   }
 
   Future<Response> _getShot(Request req, String id) async {
@@ -107,26 +107,30 @@ class ShotsHandler {
     try {
       final body = await req.body.asString;
       final json = jsonDecode(body) as Map<String, dynamic>;
-      
+
       // Validate that the ID in the path matches the ID in the body (if provided)
       if (json['id'] != null && json['id'] != id) {
         return Response.badRequest(
           body: jsonEncode({"error": "ID in path does not match ID in body"}),
         );
       }
-      
-      // Ensure ID is set in the JSON
-      json['id'] = id;
-      
-      final updatedShot = ShotRecord.fromJson(json);
+
+      // Fetch existing shot for partial update support
+      final existingShot = await _controller.storageService.getShot(id);
+      if (existingShot == null) {
+        return Response.notFound(jsonEncode({"error": "Shot not found"}));
+      }
+
+      // Deep merge partial payload onto existing shot data
+      final merged = _deepMerge(existingShot.toJson(), json);
+      merged['id'] = id;
+
+      final updatedShot = ShotRecord.fromJson(merged);
       await _controller.updateShot(updatedShot);
-      
+
       return Response.ok(jsonEncode(updatedShot.toJson()));
     } catch (e, st) {
       _log.severe("Error updating shot $id", e, st);
-      if (e.toString().contains("not found")) {
-        return Response.notFound(jsonEncode({"error": "Shot not found"}));
-      }
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
       );
@@ -148,6 +152,22 @@ class ShotsHandler {
       );
     }
   }
+
+  Map<String, dynamic> _deepMerge(
+    Map<String, dynamic> base,
+    Map<String, dynamic> overrides,
+  ) {
+    final result = Map<String, dynamic>.from(base);
+    for (final key in overrides.keys) {
+      final baseValue = result[key];
+      final overrideValue = overrides[key];
+      if (baseValue is Map<String, dynamic> &&
+          overrideValue is Map<String, dynamic>) {
+        result[key] = _deepMerge(baseValue, overrideValue);
+      } else {
+        result[key] = overrideValue;
+      }
+    }
+    return result;
+  }
 }
-
-
