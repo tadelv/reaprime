@@ -562,6 +562,23 @@ paths:
     get:
       summary: Get a list of identifiers of all the shots
       tags: [Shots History]
+      parameters:
+        - in: query
+          name: orderBy
+          description: Field to sort results by
+          required: false
+          schema:
+            type: string
+            enum: [timestamp]
+            default: timestamp
+        - in: query
+          name: order
+          description: Sort direction
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
       responses:
         "200":
           content:
