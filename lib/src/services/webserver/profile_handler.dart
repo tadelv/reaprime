@@ -93,6 +93,7 @@ class ProfileHandler {
 
   /// GET /api/v1/profiles/{id}
   Future<Response> _handleGetById(Request request, String id) async {
+    id = Uri.decodeComponent(id);
     try {
       final profile = await _controller.get(id);
 
@@ -160,6 +161,7 @@ class ProfileHandler {
   /// PUT /api/v1/profiles/{id}
   /// Body: { profile?: {...}, metadata?: {...} }
   Future<Response> _handleUpdate(Request request, String id) async {
+    id = Uri.decodeComponent(id);
     try {
       final body = await request.readAsString();
       final json = jsonDecode(body) as Map<String, dynamic>;
@@ -195,6 +197,7 @@ class ProfileHandler {
 
   /// DELETE /api/v1/profiles/{id}
   Future<Response> _handleDelete(Request request, String id) async {
+    id = Uri.decodeComponent(id);
     try {
       await _controller.delete(id);
 
@@ -217,6 +220,7 @@ class ProfileHandler {
   /// PUT /api/v1/profiles/{id}/visibility
   /// Body: { visibility: "visible" | "hidden" | "deleted" }
   Future<Response> _handleSetVisibility(Request request, String id) async {
+    id = Uri.decodeComponent(id);
     try {
       final body = await request.readAsString();
       final json = jsonDecode(body) as Map<String, dynamic>;
@@ -253,6 +257,7 @@ class ProfileHandler {
 
   /// GET /api/v1/profiles/{id}/lineage
   Future<Response> _handleGetLineage(Request request, String id) async {
+    id = Uri.decodeComponent(id);
     try {
       final lineage = await _controller.getLineage(id);
 
@@ -359,6 +364,7 @@ class ProfileHandler {
 
   /// DELETE /api/v1/profiles/{id}/purge
   Future<Response> _handlePurge(Request request, String id) async {
+    id = Uri.decodeComponent(id);
     try {
       await _controller.purge(id);
 

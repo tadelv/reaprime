@@ -49,6 +49,7 @@ class ShotsHandler {
   }
 
   Future<Response> _getShot(Request req, String id) async {
+    id = Uri.decodeComponent(id);
     try {
       final shot = await _controller.storageService.getShot(id);
       if (shot == null) {
@@ -64,6 +65,7 @@ class ShotsHandler {
   }
 
   Future<Response> _updateShot(Request req, String id) async {
+    id = Uri.decodeComponent(id);
     try {
       final body = await req.body.asString;
       final json = jsonDecode(body) as Map<String, dynamic>;
@@ -94,6 +96,7 @@ class ShotsHandler {
   }
 
   Future<Response> _deleteShot(Request req, String id) async {
+    id = Uri.decodeComponent(id);
     try {
       await _controller.deleteShot(id);
       return Response.ok(jsonEncode({"success": true, "id": id}));
