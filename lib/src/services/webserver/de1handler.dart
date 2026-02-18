@@ -226,6 +226,21 @@ class De1Handler {
     }
   }
 
+  void _withDe1Ws(
+    WebSocketChannel socket,
+    void Function(De1Interface) body,
+  ) {
+    De1Interface de1;
+    try {
+      de1 = _controller.connectedDe1();
+    } catch (e) {
+      socket.sink.add(jsonEncode({'error': 'No machine connected'}));
+      socket.sink.close();
+      return;
+    }
+    body(de1);
+  }
+
   Future<Response> _infoHandler(Request request) async {
     return withDe1((De1Interface de1) async {
       return Response.ok(jsonEncode(de1.machineInfo.toJson()));
@@ -274,77 +289,81 @@ class De1Handler {
 
   _handleSnapshot(WebSocketChannel socket, String? protocol) async {
     log.fine("handling websocket connection");
-    var de1 = _controller.connectedDe1();
-    var sub = de1.currentSnapshot.listen((snapshot) {
-      try {
-        var json = jsonEncode(snapshot.toJson());
-        socket.sink.add(json);
-      } catch (e, st) {
-        log.severe("failed to send: ", e, st);
-      }
+    _withDe1Ws(socket, (de1) {
+      var sub = de1.currentSnapshot.listen((snapshot) {
+        try {
+          var json = jsonEncode(snapshot.toJson());
+          socket.sink.add(json);
+        } catch (e, st) {
+          log.severe("failed to send: ", e, st);
+        }
+      });
+      socket.stream.listen(
+        (e) {},
+        onDone: () => sub.cancel(),
+        onError: (e, st) => sub.cancel(),
+      );
     });
-    socket.stream.listen(
-      (e) {},
-      onDone: () => sub.cancel(),
-      onError: (e, st) => sub.cancel(),
-    );
   }
 
   _handleShotSettings(WebSocketChannel socket, String? protocol) async {
     log.fine('handling shot settings connection');
-    var de1 = _controller.connectedDe1();
-    var sub = de1.shotSettings.listen((data) {
-      try {
-        var json = jsonEncode(data.toJson());
-        socket.sink.add(json);
-      } catch (e, st) {
-        log.severe("failed to send: ", e, st);
-      }
+    _withDe1Ws(socket, (de1) {
+      var sub = de1.shotSettings.listen((data) {
+        try {
+          var json = jsonEncode(data.toJson());
+          socket.sink.add(json);
+        } catch (e, st) {
+          log.severe("failed to send: ", e, st);
+        }
+      });
+      socket.stream.listen(
+        (e) {},
+        onDone: () => sub.cancel(),
+        onError: (e, st) => sub.cancel(),
+      );
     });
-    socket.stream.listen(
-      (e) {},
-      onDone: () => sub.cancel(),
-      onError: (e, st) => sub.cancel(),
-    );
   }
 
   _handleWaterLevels(WebSocketChannel socket, String? protocol) async {
     log.fine('handling water levels connection');
-    var de1 = _controller.connectedDe1();
-    var sub = de1.waterLevels.listen((data) {
-      try {
-        var json = jsonEncode(data.toJson());
-        socket.sink.add(json);
-      } catch (e, st) {
-        log.severe("failed to send water levels", e, st);
-      }
+    _withDe1Ws(socket, (de1) {
+      var sub = de1.waterLevels.listen((data) {
+        try {
+          var json = jsonEncode(data.toJson());
+          socket.sink.add(json);
+        } catch (e, st) {
+          log.severe("failed to send water levels", e, st);
+        }
+      });
+      socket.stream.listen(
+        (e) {},
+        onDone: () => sub.cancel(),
+        onError: (e, st) => sub.cancel(),
+      );
     });
-    socket.stream.listen(
-      (e) {},
-      onDone: () => sub.cancel(),
-      onError: (e, st) => sub.cancel(),
-    );
   }
 
   _handleRawSocket(WebSocketChannel socket, String? protocol) async {
-    var de1 = _controller.connectedDe1();
-    var sub = de1.rawOutStream.listen((data) {
-      try {
-        var json = jsonEncode(data.toJson());
-        socket.sink.add(json);
-      } catch (e) {
-        log.severe("Failed to send raw: ", e);
-      }
+    _withDe1Ws(socket, (de1) {
+      var sub = de1.rawOutStream.listen((data) {
+        try {
+          var json = jsonEncode(data.toJson());
+          socket.sink.add(json);
+        } catch (e) {
+          log.severe("Failed to send raw: ", e);
+        }
+      });
+      socket.stream.listen(
+        (event) {
+          var json = jsonDecode(event.toString());
+          final message = De1RawMessage.fromJson(json);
+          de1.sendRawMessage(message);
+        },
+        onDone: () => sub.cancel(),
+        onError: (e, st) => sub.cancel(),
+      );
     });
-    socket.stream.listen(
-      (event) {
-        var json = jsonDecode(event.toString());
-        final message = De1RawMessage.fromJson(json);
-        de1.sendRawMessage(message);
-      },
-      onDone: () => sub.cancel(),
-      onError: (e, st) => sub.cancel(),
-    );
   }
 }
 
