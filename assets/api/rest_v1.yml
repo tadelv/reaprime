@@ -638,7 +638,10 @@ paths:
     
     put:
       summary: Update a shot record
-      description: Updates an existing shot record. Commonly used to add or update shot notes, or modify workflow metadata.
+      description: |
+        Updates an existing shot record. Supports partial updates — only the fields
+        included in the request body will be changed, all other fields are preserved
+        from the existing record. Commonly used to add or update shot notes or metadata.
       tags: [Shots History]
       parameters:
         - in: path
@@ -653,6 +656,17 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/ShotRecord"
+            examples:
+              updateNotes:
+                summary: Update only shot notes
+                value:
+                  shotNotes: "Tasted great, slightly fruity"
+              updateMetadata:
+                summary: Update only metadata
+                value:
+                  metadata:
+                    rating: 4.5
+                    favorite: true
       responses:
         "200":
           description: Shot updated successfully
