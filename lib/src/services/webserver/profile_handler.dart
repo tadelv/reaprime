@@ -56,12 +56,10 @@ class ProfileHandler {
         try {
           visibility = VisibilityExtension.fromString(visibilityParam);
         } catch (e) {
-          return Response.badRequest(
-            body: jsonEncode({
-              'error': 'Invalid visibility value',
-              'message': 'Valid values: visible, hidden, deleted',
-            }),
-          );
+          return jsonBadRequest({
+            'error': 'Invalid visibility value',
+            'message': 'Valid values: visible, hidden, deleted',
+          });
         }
       }
 
@@ -79,15 +77,10 @@ class ProfileHandler {
         );
       }
 
-      return Response.ok(
-        jsonEncode(profiles.map((p) => p.toJson()).toList()),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonOk(profiles.map((p) => p.toJson()).toList());
     } catch (e, st) {
       log.severe('Error in _handleGetAll', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'error': 'Internal server error', 'message': '$e'}),
-      );
+      return jsonError({'error': 'Internal server error', 'message': '$e'});
     }
   }
 
@@ -98,20 +91,13 @@ class ProfileHandler {
       final profile = await _controller.get(id);
 
       if (profile == null) {
-        return Response.notFound(
-          jsonEncode({'error': 'Profile not found', 'id': id}),
-        );
+        return jsonNotFound({'error': 'Profile not found', 'id': id});
       }
 
-      return Response.ok(
-        jsonEncode(profile.toJson()),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonOk(profile.toJson());
     } catch (e, st) {
       log.severe('Error in _handleGetById', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'error': 'Internal server error', 'message': '$e'}),
-      );
+      return jsonError({'error': 'Internal server error', 'message': '$e'});
     }
   }
 
@@ -123,12 +109,10 @@ class ProfileHandler {
       final json = jsonDecode(body) as Map<String, dynamic>;
 
       if (!json.containsKey('profile')) {
-        return Response.badRequest(
-          body: jsonEncode({
-            'error': 'Missing required field',
-            'message': 'Request must contain "profile" field',
-          }),
-        );
+        return jsonBadRequest({
+          'error': 'Missing required field',
+          'message': 'Request must contain "profile" field',
+        });
       }
 
       final profile = Profile.fromJson(json['profile'] as Map<String, dynamic>);
@@ -141,20 +125,12 @@ class ProfileHandler {
         metadata: metadata,
       );
 
-      return Response(
-        201,
-        body: jsonEncode(record.toJson()),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonCreated(record.toJson());
     } on ArgumentError catch (e) {
-      return Response.badRequest(
-        body: jsonEncode({'error': 'Invalid request', 'message': '$e'}),
-      );
+      return jsonBadRequest({'error': 'Invalid request', 'message': '$e'});
     } catch (e, st) {
       log.severe('Error in _handleCreate', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'error': 'Internal server error', 'message': '$e'}),
-      );
+      return jsonError({'error': 'Internal server error', 'message': '$e'});
     }
   }
 
@@ -179,19 +155,12 @@ class ProfileHandler {
         metadata: metadata,
       );
 
-      return Response.ok(
-        jsonEncode(record.toJson()),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonOk(record.toJson());
     } on ArgumentError catch (e) {
-      return Response.badRequest(
-        body: jsonEncode({'error': 'Invalid request', 'message': '$e'}),
-      );
+      return jsonBadRequest({'error': 'Invalid request', 'message': '$e'});
     } catch (e, st) {
       log.severe('Error in _handleUpdate', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'error': 'Internal server error', 'message': '$e'}),
-      );
+      return jsonError({'error': 'Internal server error', 'message': '$e'});
     }
   }
 
@@ -201,19 +170,12 @@ class ProfileHandler {
     try {
       await _controller.delete(id);
 
-      return Response.ok(
-        jsonEncode({'success': true, 'message': 'Profile deleted', 'id': id}),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonOk({'success': true, 'message': 'Profile deleted', 'id': id});
     } on ArgumentError catch (e) {
-      return Response.notFound(
-        jsonEncode({'error': 'Not found', 'message': '$e'}),
-      );
+      return jsonNotFound({'error': 'Not found', 'message': '$e'});
     } catch (e, st) {
       log.severe('Error in _handleDelete', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'error': 'Internal server error', 'message': '$e'}),
-      );
+      return jsonError({'error': 'Internal server error', 'message': '$e'});
     }
   }
 
@@ -226,12 +188,10 @@ class ProfileHandler {
       final json = jsonDecode(body) as Map<String, dynamic>;
 
       if (!json.containsKey('visibility')) {
-        return Response.badRequest(
-          body: jsonEncode({
-            'error': 'Missing required field',
-            'message': 'Request must contain "visibility" field',
-          }),
-        );
+        return jsonBadRequest({
+          'error': 'Missing required field',
+          'message': 'Request must contain "visibility" field',
+        });
       }
 
       final visibilityStr = json['visibility'] as String;
@@ -239,19 +199,12 @@ class ProfileHandler {
 
       final record = await _controller.setVisibility(id, visibility);
 
-      return Response.ok(
-        jsonEncode(record.toJson()),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonOk(record.toJson());
     } on ArgumentError catch (e) {
-      return Response.badRequest(
-        body: jsonEncode({'error': 'Invalid request', 'message': '$e'}),
-      );
+      return jsonBadRequest({'error': 'Invalid request', 'message': '$e'});
     } catch (e, st) {
       log.severe('Error in _handleSetVisibility', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'error': 'Internal server error', 'message': '$e'}),
-      );
+      return jsonError({'error': 'Internal server error', 'message': '$e'});
     }
   }
 
@@ -262,20 +215,13 @@ class ProfileHandler {
       final lineage = await _controller.getLineage(id);
 
       if (lineage.isEmpty) {
-        return Response.notFound(
-          jsonEncode({'error': 'Profile not found', 'id': id}),
-        );
+        return jsonNotFound({'error': 'Profile not found', 'id': id});
       }
 
-      return Response.ok(
-        jsonEncode(lineage.map((p) => p.toJson()).toList()),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonOk(lineage.map((p) => p.toJson()).toList());
     } catch (e, st) {
       log.severe('Error in _handleGetLineage', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'error': 'Internal server error', 'message': '$e'}),
-      );
+      return jsonError({'error': 'Internal server error', 'message': '$e'});
     }
   }
 
@@ -287,26 +233,19 @@ class ProfileHandler {
       final json = jsonDecode(body);
 
       if (json is! List) {
-        return Response.badRequest(
-          body: jsonEncode({
-            'error': 'Invalid request',
-            'message': 'Request body must be an array of profile records',
-          }),
-        );
+        return jsonBadRequest({
+          'error': 'Invalid request',
+          'message': 'Request body must be an array of profile records',
+        });
       }
 
       final profilesJson = json.cast<Map<String, dynamic>>();
       final result = await _controller.importProfiles(profilesJson);
 
-      return Response.ok(
-        jsonEncode(result),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonOk(result);
     } catch (e, st) {
       log.severe('Error in _handleImport', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'error': 'Internal server error', 'message': '$e'}),
-      );
+      return jsonError({'error': 'Internal server error', 'message': '$e'});
     }
   }
 
@@ -332,9 +271,7 @@ class ProfileHandler {
       );
     } catch (e, st) {
       log.severe('Error in _handleExport', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'error': 'Internal server error', 'message': '$e'}),
-      );
+      return jsonError({'error': 'Internal server error', 'message': '$e'});
     }
   }
 
@@ -346,19 +283,12 @@ class ProfileHandler {
     try {
       final record = await _controller.restoreDefault(filename);
 
-      return Response.ok(
-        jsonEncode(record.toJson()),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonOk(record.toJson());
     } on ArgumentError catch (e) {
-      return Response.notFound(
-        jsonEncode({'error': 'Not found', 'message': '$e'}),
-      );
+      return jsonNotFound({'error': 'Not found', 'message': '$e'});
     } catch (e, st) {
       log.severe('Error in _handleRestoreDefault', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'error': 'Internal server error', 'message': '$e'}),
-      );
+      return jsonError({'error': 'Internal server error', 'message': '$e'});
     }
   }
 
@@ -368,24 +298,16 @@ class ProfileHandler {
     try {
       await _controller.purge(id);
 
-      return Response.ok(
-        jsonEncode({
-          'success': true,
-          'message': 'Profile permanently deleted',
-          'id': id,
-        }),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonOk({
+        'success': true,
+        'message': 'Profile permanently deleted',
+        'id': id,
+      });
     } on ArgumentError catch (e) {
-      return Response.badRequest(
-        body: jsonEncode({'error': 'Invalid request', 'message': '$e'}),
-      );
+      return jsonBadRequest({'error': 'Invalid request', 'message': '$e'});
     } catch (e, st) {
       log.severe('Error in _handlePurge', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'error': 'Internal server error', 'message': '$e'}),
-      );
+      return jsonError({'error': 'Internal server error', 'message': '$e'});
     }
   }
 }
-
