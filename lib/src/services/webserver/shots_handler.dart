@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
+import 'package:reaprime/src/services/webserver/json_response.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
 class ShotsHandler {
@@ -36,16 +37,12 @@ class ShotsHandler {
 
     final orderBy = req.url.queryParameters['orderBy'];
     if (orderBy != null && orderBy != 'timestamp') {
-      return Response.badRequest(
-        body: jsonEncode({"error": "Invalid orderBy value. Supported: timestamp"}),
-      );
+      return jsonBadRequest({"error": "Invalid orderBy value. Supported: timestamp"});
     }
 
     final order = req.url.queryParameters['order'] ?? 'desc';
     if (order != 'asc' && order != 'desc') {
-      return Response.badRequest(
-        body: jsonEncode({"error": "Invalid order value. Supported: asc, desc"}),
-      );
+      return jsonBadRequest({"error": "Invalid order value. Supported: asc, desc"});
     }
 
     shots.sort((a, b) => order == 'asc'
@@ -53,7 +50,7 @@ class ShotsHandler {
         : b.timestamp.compareTo(a.timestamp));
 
     final shotObjects = shots.map((e) => e.toJson()).toList();
-    return Response.ok(jsonEncode(shotObjects));
+    return jsonOk(shotObjects);
   }
 
   Future<Response> _getIds(Request req) async {
@@ -61,16 +58,12 @@ class ShotsHandler {
 
     final orderBy = req.url.queryParameters['orderBy'];
     if (orderBy != null && orderBy != 'timestamp') {
-      return Response.badRequest(
-        body: jsonEncode({"error": "Invalid orderBy value. Supported: timestamp"}),
-      );
+      return jsonBadRequest({"error": "Invalid orderBy value. Supported: timestamp"});
     }
 
     final order = req.url.queryParameters['order'] ?? 'desc';
     if (order != 'asc' && order != 'desc') {
-      return Response.badRequest(
-        body: jsonEncode({"error": "Invalid order value. Supported: asc, desc"}),
-      );
+      return jsonBadRequest({"error": "Invalid order value. Supported: asc, desc"});
     }
 
     shots.sort((a, b) => order == 'asc'
@@ -78,12 +71,12 @@ class ShotsHandler {
         : b.timestamp.compareTo(a.timestamp));
 
     final ids = shots.map((e) => e.id);
-    return Response.ok(jsonEncode(ids.toList()));
+    return jsonOk(ids.toList());
   }
 
   Future<Response> _getLatestShot(Request req) async {
     List<ShotRecord> shots = await _controller.shots.first;
-    return Response.ok(jsonEncode(shots.firstOrNull?.toJson()));
+    return jsonOk(shots.firstOrNull?.toJson());
   }
 
   Future<Response> _getShot(Request req, String id) async {
@@ -91,14 +84,12 @@ class ShotsHandler {
     try {
       final shot = await _controller.storageService.getShot(id);
       if (shot == null) {
-        return Response.notFound(jsonEncode({"error": "Shot not found"}));
+        return jsonNotFound({"error": "Shot not found"});
       }
-      return Response.ok(jsonEncode(shot.toJson()));
+      return jsonOk(shot.toJson());
     } catch (e, st) {
       _log.severe("Error getting shot $id", e, st);
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-      );
+      return jsonError({"error": e.toString()});
     }
   }
 
@@ -110,15 +101,13 @@ class ShotsHandler {
 
       // Validate that the ID in the path matches the ID in the body (if provided)
       if (json['id'] != null && json['id'] != id) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "ID in path does not match ID in body"}),
-        );
+        return jsonBadRequest({"error": "ID in path does not match ID in body"});
       }
 
       // Fetch existing shot for partial update support
       final existingShot = await _controller.storageService.getShot(id);
       if (existingShot == null) {
-        return Response.notFound(jsonEncode({"error": "Shot not found"}));
+        return jsonNotFound({"error": "Shot not found"});
       }
 
       // Deep merge partial payload onto existing shot data
@@ -128,12 +117,10 @@ class ShotsHandler {
       final updatedShot = ShotRecord.fromJson(merged);
       await _controller.updateShot(updatedShot);
 
-      return Response.ok(jsonEncode(updatedShot.toJson()));
+      return jsonOk(updatedShot.toJson());
     } catch (e, st) {
       _log.severe("Error updating shot $id", e, st);
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-      );
+      return jsonError({"error": e.toString()});
     }
   }
 
@@ -141,15 +128,13 @@ class ShotsHandler {
     id = Uri.decodeComponent(id);
     try {
       await _controller.deleteShot(id);
-      return Response.ok(jsonEncode({"success": true, "id": id}));
+      return jsonOk({"success": true, "id": id});
     } catch (e, st) {
       _log.severe("Error deleting shot $id", e, st);
       if (e.toString().contains("not found")) {
-        return Response.notFound(jsonEncode({"error": "Shot not found"}));
+        return jsonNotFound({"error": "Shot not found"});
       }
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-      );
+      return jsonError({"error": e.toString()});
     }
   }
 
