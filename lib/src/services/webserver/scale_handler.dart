@@ -13,7 +13,11 @@ class ScaleHandler {
       switch (command) {
         case 'tare':
           _log.fine("handling api tare command");
-          await _controller.connectedScale().tare();
+          try {
+            await _controller.connectedScale().tare();
+          } catch (e) {
+            return jsonError({'error': e.toString()});
+          }
           return Response.ok('');
         default:
           return Response.notFound("");
@@ -23,14 +27,21 @@ class ScaleHandler {
   }
 
   _handleSnapshot(WebSocketChannel socket, String? protocol) async {
-    log.fine("handling websocket connection");
-    var scale = _controller.connectedScale();
+    _log.fine("handling websocket connection");
+    Scale scale;
+    try {
+      scale = _controller.connectedScale();
+    } catch (e) {
+      socket.sink.add(jsonEncode({'error': 'No scale connected'}));
+      socket.sink.close();
+      return;
+    }
     var sub = scale.currentSnapshot.listen((snapshot) {
       try {
         var json = jsonEncode(snapshot.toJson());
         socket.sink.add(json);
       } catch (e, st) {
-        log.severe("failed to send: ", e, st);
+        _log.severe("failed to send: ", e, st);
       }
     });
     socket.stream.listen(
