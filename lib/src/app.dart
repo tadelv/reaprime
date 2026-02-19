@@ -308,6 +308,7 @@ class _MyAppState extends State<MyApp> {
                       return PermissionsView(
                         deviceController: widget.deviceController,
                         de1controller: widget.de1Controller,
+                        scaleController: widget.scaleController,
                         pluginLoaderService: widget.pluginLoaderService,
                         webUIStorage: widget.webUIStorage,
                         webUIService: widget.webUIService,

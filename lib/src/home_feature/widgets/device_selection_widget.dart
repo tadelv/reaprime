@@ -15,6 +15,7 @@ class DeviceSelectionWidget extends StatefulWidget {
   final DeviceController deviceController;
   final dev.DeviceType deviceType;
   final Function(dev.Device) onDeviceTapped;
+  final String? selectedDeviceId;
   final String? preferredDeviceId;
   final Function(String?)? onPreferredChanged;
   final bool showHeader;
@@ -27,6 +28,7 @@ class DeviceSelectionWidget extends StatefulWidget {
     required this.deviceController,
     required this.deviceType,
     required this.onDeviceTapped,
+    this.selectedDeviceId,
     this.preferredDeviceId,
     this.onPreferredChanged,
     this.showHeader = false,
@@ -97,14 +99,23 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
         final device = _discoveredDevices[index];
         final isPreferred = widget.preferredDeviceId == device.deviceId;
         final isConnecting = widget.connectingDeviceId == device.deviceId;
+        final isSelected = widget.selectedDeviceId == device.deviceId;
 
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+          padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 4.0),
           child: ShadCard(
+            border: isSelected
+                ? ShadBorder.all(
+                    color: Theme.of(context).colorScheme.primary,
+                    width: 2,
+                  )
+                : null,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 ListTile(
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
                   title: Text(device.name),
                   subtitle: Text("ID: ${device.deviceId.length > 8 ? device.deviceId.substring(device.deviceId.length - 8) : device.deviceId}"),
                   trailing: DeviceConnectingIndicator(
@@ -118,9 +129,9 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
                 if (widget.onPreferredChanged != null)
                   Padding(
                     padding: const EdgeInsets.only(
-                      left: 16.0,
-                      right: 16.0,
-                      bottom: 8.0,
+                      left: 8.0,
+                      right: 8.0,
+                      bottom: 4.0,
                     ),
                     child: Row(
                       children: [
@@ -154,7 +165,7 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
     if (widget.showHeader) {
       return Column(
         mainAxisSize: MainAxisSize.min,
-        spacing: 16,
+        spacing: 8,
         children: [
           Text(
             widget.headerText ?? "Select a machine from the list",

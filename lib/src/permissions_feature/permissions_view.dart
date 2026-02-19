@@ -16,8 +16,10 @@ import 'package:universal_ble/universal_ble.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
+import 'package:reaprime/src/models/device/scale.dart' as device_scale;
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
@@ -25,6 +27,7 @@ import 'package:reaprime/src/settings/settings_controller.dart';
 class PermissionsView extends StatefulWidget {
   final DeviceController deviceController;
   final De1Controller de1controller;
+  final ScaleController scaleController;
   final PluginLoaderService? pluginLoaderService;
   final WebUIStorage webUIStorage;
   final WebUIService webUIService;
@@ -34,6 +37,7 @@ class PermissionsView extends StatefulWidget {
     super.key,
     required this.deviceController,
     required this.de1controller,
+    required this.scaleController,
     this.pluginLoaderService,
     required this.webUIStorage,
     required this.webUIService,
@@ -208,6 +212,7 @@ class _PermissionsViewState extends State<PermissionsView> {
       child: DeviceDiscoveryView(
         de1controller: widget.de1controller,
         deviceController: widget.deviceController,
+        scaleController: widget.scaleController,
         settingsController: widget.settingsController,
         webUIService: widget.webUIService,
         webUIStorage: widget.webUIStorage,
@@ -220,6 +225,7 @@ class _PermissionsViewState extends State<PermissionsView> {
 class DeviceDiscoveryView extends StatefulWidget {
   final DeviceController deviceController;
   final De1Controller de1controller;
+  final ScaleController scaleController;
   final SettingsController settingsController;
   final WebUIService webUIService;
   final WebUIStorage webUIStorage;
@@ -229,6 +235,7 @@ class DeviceDiscoveryView extends StatefulWidget {
     super.key,
     required this.deviceController,
     required this.de1controller,
+    required this.scaleController,
     required this.settingsController,
     required this.webUIService,
     required this.webUIStorage,
@@ -247,6 +254,9 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   // When set, the discovery subscription will auto-connect to this device
   // when it appears. Persists through fallback from direct-connect to full scan.
   String? _autoConnectDeviceId;
+
+  De1Interface? _selectedMachine;
+  dev.Device? _selectedScale;
 
   late StreamSubscription<List<dev.Device>> _discoverySubscription;
 
@@ -334,10 +344,6 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       }
       widget.logger.severe('Manual connect failed: $e');
     }
-  }
-
-  Future<void> _handleScaleTapped(dev.Device scale) async {
-    await widget.settingsController.setPreferredScaleId(scale.deviceId);
   }
 
   Widget _directConnectingView(BuildContext context) {
@@ -512,6 +518,24 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
     );
   }
 
+  Future<void> _handleContinue() async {
+    if (_selectedMachine == null) return;
+
+    // Connect to scale if selected (fire and forget — doesn't block navigation)
+    if (_selectedScale != null) {
+      final scale = _selectedScale!;
+      final scaleDevice = widget.deviceController.devices
+          .whereType<device_scale.Scale>()
+          .firstWhereOrNull((s) => s.deviceId == scale.deviceId);
+      if (scaleDevice != null) {
+        widget.scaleController.connectToScale(scaleDevice);
+      }
+    }
+
+    // Connect to machine (this triggers navigation)
+    await _handleDeviceTapped(_selectedMachine!);
+  }
+
   Widget _resultsView(BuildContext context) {
     final theme = ShadTheme.of(context);
 
@@ -535,9 +559,8 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
           ),
 
         // Two-column device lists
-        SizedBox(
-          height: 400,
-          width: 600,
+        ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: 300, maxWidth: 500),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -550,11 +573,15 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                   headerText: "Machines",
                   connectingDeviceId: _connectingDeviceId,
                   errorMessage: _connectionError,
+                  selectedDeviceId: _selectedMachine?.deviceId,
                   preferredDeviceId: widget.settingsController.preferredMachineId,
                   onPreferredChanged: (id) =>
                       widget.settingsController.setPreferredMachineId(id),
-                  onDeviceTapped: (device) =>
-                      _handleDeviceTapped(device as De1Interface),
+                  onDeviceTapped: (device) {
+                    setState(() {
+                      _selectedMachine = device as De1Interface;
+                    });
+                  },
                 ),
               ),
               SizedBox(width: 16),
@@ -565,46 +592,62 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                   deviceType: dev.DeviceType.scale,
                   showHeader: true,
                   headerText: "Scales",
+                  selectedDeviceId: _selectedScale?.deviceId,
                   preferredDeviceId: widget.settingsController.preferredScaleId,
                   onPreferredChanged: (id) =>
                       widget.settingsController.setPreferredScaleId(id),
-                  onDeviceTapped: _handleScaleTapped,
+                  onDeviceTapped: (device) {
+                    setState(() {
+                      _selectedScale = device;
+                    });
+                  },
                 ),
               ),
             ],
           ),
         ),
 
-        // Action buttons (shown when scanning is complete)
-        if (!_isScanning)
-          SizedBox(
-            width: 300,
-            child: Row(
-              spacing: 12,
-              children: [
-                Expanded(
-                  child: ShadButton.outline(
-                    onPressed: _retryScan,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      spacing: 8,
-                      children: [
-                        Icon(LucideIcons.refreshCw, size: 16),
-                        Text('ReScan'),
-                      ],
-                    ),
-                  ),
+        // Continue button (always visible)
+        ShadButton(
+          onPressed: _selectedMachine != null && _connectingDeviceId == null
+              ? _handleContinue
+              : null,
+          child: _connectingDeviceId != null
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 8,
+                  children: [
+                    SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                    Text('Connecting...'),
+                  ],
+                )
+              : Text('Continue'),
+        ),
+
+        // ReScan and Dashboard below
+        if (!_isScanning && _connectingDeviceId == null)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 12,
+            children: [
+              ShadButton.outline(
+                onPressed: _retryScan,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 8,
+                  children: [
+                    Icon(LucideIcons.refreshCw, size: 16),
+                    Text('ReScan'),
+                  ],
                 ),
-                Expanded(
-                  child: ShadButton.secondary(
-                    onPressed: () {
-                      Navigator.popAndPushNamed(context, HomeScreen.routeName);
-                    },
-                    child: Text('Dashboard'),
-                  ),
-                ),
-              ],
-            ),
+              ),
+              ShadButton.secondary(
+                onPressed: () {
+                  Navigator.popAndPushNamed(context, HomeScreen.routeName);
+                },
+                child: Text('Dashboard'),
+              ),
+            ],
           ),
       ],
     );
