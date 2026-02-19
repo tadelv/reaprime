@@ -354,9 +354,11 @@ class _SettingsTileState extends State<SettingsTile> {
                 ),
                 child: DeviceSelectionWidget(
                   deviceController: widget.deviceController,
+                  deviceType: dev.DeviceType.machine,
                   connectingDeviceId: dialogConnectingId,
                   errorMessage: dialogError,
-                  onDeviceTapped: (de1) async {
+                  onDeviceTapped: (device) async {
+                    final de1 = device as De1Interface;
                     if (dialogConnectingId != null) return;
                     setDialogState(() {
                       dialogConnectingId = de1.deviceId;

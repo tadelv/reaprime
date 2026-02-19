@@ -3,20 +3,20 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/home_feature/widgets/device_connecting_indicator.dart';
-import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
-import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-/// Reusable widget for displaying a list of discovered DE1 machines.
+/// Reusable widget for displaying a list of discovered devices of a given type.
 ///
 /// This is a pure display widget — it does not own connection state.
 /// The parent is responsible for managing connection logic and passing
 /// [connectingDeviceId] and [errorMessage] as props.
 class DeviceSelectionWidget extends StatefulWidget {
   final DeviceController deviceController;
-  final SettingsController? settingsController;
-  final Function(De1Interface) onDeviceTapped;
+  final dev.DeviceType deviceType;
+  final Function(dev.Device) onDeviceTapped;
+  final String? preferredDeviceId;
+  final Function(String?)? onPreferredChanged;
   final bool showHeader;
   final String? headerText;
   final String? connectingDeviceId;
@@ -25,8 +25,10 @@ class DeviceSelectionWidget extends StatefulWidget {
   const DeviceSelectionWidget({
     super.key,
     required this.deviceController,
+    required this.deviceType,
     required this.onDeviceTapped,
-    this.settingsController,
+    this.preferredDeviceId,
+    this.onPreferredChanged,
     this.showHeader = false,
     this.headerText,
     this.connectingDeviceId,
@@ -39,7 +41,7 @@ class DeviceSelectionWidget extends StatefulWidget {
 
 class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
   late StreamSubscription<List<dev.Device>> _discoverySubscription;
-  List<De1Interface> _discoveredDevices = [];
+  List<dev.Device> _discoveredDevices = [];
 
   @override
   void initState() {
@@ -48,8 +50,7 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
     // Get initial devices
     _discoveredDevices =
         widget.deviceController.devices
-            .where((device) => device.type == dev.DeviceType.machine)
-            .cast<De1Interface>()
+            .where((device) => device.type == widget.deviceType)
             .toList();
 
     // Listen for additional devices discovered
@@ -60,8 +61,7 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
         setState(() {
           _discoveredDevices =
               data
-                  .where((device) => device.type == dev.DeviceType.machine)
-                  .cast<De1Interface>()
+                  .where((device) => device.type == widget.deviceType)
                   .toList();
         });
       }
@@ -77,24 +77,26 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
   @override
   Widget build(BuildContext context) {
     if (_discoveredDevices.isEmpty) {
+      final label = widget.deviceType == dev.DeviceType.machine
+          ? 'machines'
+          : 'scales';
       return Padding(
         padding: const EdgeInsets.all(16.0),
         child: Center(
-          child: Text('No machines found. Please try scanning again.'),
+          child: Text('No $label found. Please try scanning again.'),
         ),
       );
     }
 
-    final preferredMachineId = widget.settingsController?.preferredMachineId;
     final isAnyConnecting = widget.connectingDeviceId != null;
 
     final listView = ListView.builder(
       shrinkWrap: true,
       itemCount: _discoveredDevices.length,
       itemBuilder: (context, index) {
-        final de1 = _discoveredDevices[index];
-        final isPreferred = preferredMachineId == de1.deviceId;
-        final isConnecting = widget.connectingDeviceId == de1.deviceId;
+        final device = _discoveredDevices[index];
+        final isPreferred = widget.preferredDeviceId == device.deviceId;
+        final isConnecting = widget.connectingDeviceId == device.deviceId;
 
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
@@ -103,17 +105,17 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 ListTile(
-                  title: Text(de1.name),
-                  subtitle: Text("ID: ${de1.deviceId.length > 8 ? de1.deviceId.substring(de1.deviceId.length - 8) : de1.deviceId}"),
+                  title: Text(device.name),
+                  subtitle: Text("ID: ${device.deviceId.length > 8 ? device.deviceId.substring(device.deviceId.length - 8) : device.deviceId}"),
                   trailing: DeviceConnectingIndicator(
                     isConnecting: isConnecting,
                   ),
                   enabled: !isAnyConnecting,
                   onTap: isAnyConnecting
                       ? null
-                      : () => widget.onDeviceTapped(de1),
+                      : () => widget.onDeviceTapped(device),
                 ),
-                if (widget.settingsController != null)
+                if (widget.onPreferredChanged != null)
                   Padding(
                     padding: const EdgeInsets.only(
                       left: 16.0,
@@ -124,20 +126,18 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
                       children: [
                         Checkbox(
                           value: isPreferred,
-                          onChanged: (value) async {
-                            if (value == true) {
-                              await widget.settingsController!
-                                  .setPreferredMachineId(de1.deviceId);
-                            } else {
-                              await widget.settingsController!
-                                  .setPreferredMachineId(null);
-                            }
+                          onChanged: (value) {
+                            widget.onPreferredChanged?.call(
+                              value == true ? device.deviceId : null,
+                            );
                             setState(() {});
                           },
                         ),
                         Expanded(
                           child: Text(
-                            'Auto-connect to this machine',
+                            widget.deviceType == dev.DeviceType.machine
+                                ? 'Auto-connect to this machine'
+                                : 'Auto-connect to this scale',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ),
