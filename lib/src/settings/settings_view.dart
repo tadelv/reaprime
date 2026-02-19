@@ -220,6 +220,44 @@ class _SettingsViewState extends State<SettingsView> {
           ),
         ],
         const Divider(height: 32),
+        // Auto-Connect Scale
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Auto-Connect Scale',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (widget.controller.preferredScaleId != null) ...[
+          Text(
+            'Scale ID: ${widget.controller.preferredScaleId}',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 12),
+          ShadButton.destructive(
+            onPressed: () async {
+              await widget.controller.setPreferredScaleId(null);
+            },
+            child: const Text('Clear Auto-Connect Scale'),
+          ),
+        ] else ...[
+          Text(
+            'No auto-connect scale set',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontStyle: FontStyle.italic,
+                ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'To set an auto-connect scale, check the "Auto-connect to this scale" checkbox when selecting a device during startup.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+        const Divider(height: 32),
         // Simulated Devices
         ShadSwitch(
           value: widget.controller.simulatedDevices,
@@ -1016,8 +1054,8 @@ class _SettingsViewState extends State<SettingsView> {
     showShadDialog(
       context: context,
       builder: (context) => ShadDialog(
-        title: const Text('Auto-Connect Device'),
-        description: const Text('Automatically connect to your preferred machine on startup'),
+        title: const Text('Auto-Connect Devices'),
+        description: const Text('Automatically connect to your preferred machine and scale on startup'),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1041,6 +1079,10 @@ class _SettingsViewState extends State<SettingsView> {
               icon: Icons.speed,
               text: 'Skip the device selection screen for faster startup',
             ),
+            _InfoPoint(
+              icon: Icons.scale,
+              text: 'Also connect to your preferred scale if set',
+            ),
             const Divider(height: 20),
             Text(
               'How to set:',
@@ -1049,7 +1091,7 @@ class _SettingsViewState extends State<SettingsView> {
                   ),
             ),
             Text(
-              'During device selection at startup, check the "Auto-connect to this machine" checkbox next to your preferred device.',
+              'During device selection at startup, check the "Auto-connect" checkbox next to your preferred machine or scale.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
