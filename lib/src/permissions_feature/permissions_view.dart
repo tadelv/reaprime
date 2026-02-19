@@ -480,7 +480,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
     // Normal search path: start a full scan (initialize() no longer auto-scans
     // to avoid competing with a targeted scan)
     if (preferredMachineId == null) {
-      widget.deviceController.scanForDevices(autoConnect: true);
+      widget.deviceController.scanForDevices(autoConnect: false);
       _startNormalScanWithTimeout();
     }
   }
