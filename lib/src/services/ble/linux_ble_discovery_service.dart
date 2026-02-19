@@ -264,9 +264,10 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
   }
 
   @override
-  Future<void> scanForSpecificDevice(String deviceId) async {
-    if (!_isBleDeviceId(deviceId)) {
-      _log.fine('scanForSpecificDevice: "$deviceId" is not a BLE ID, skipping');
+  Future<void> scanForSpecificDevices(List<String> deviceIds) async {
+    final bleIds = deviceIds.where(_isBleDeviceId).toList();
+    if (bleIds.isEmpty) {
+      _log.fine('scanForSpecificDevices: no BLE IDs in $deviceIds, skipping');
       return;
     }
     if (!_adapterReady) {
@@ -274,7 +275,7 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
       return;
     }
 
-    _log.info('Linux targeted BLE scan for $deviceId');
+    _log.info('Linux targeted BLE scan for $bleIds');
 
     var sub = FlutterBluePlus.onScanResults.listen((results) {
       if (results.isEmpty) return;
@@ -297,7 +298,7 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
     FlutterBluePlus.cancelWhenScanComplete(sub);
 
     await FlutterBluePlus.startScan(
-      withRemoteIds: [deviceId],
+      withRemoteIds: bleIds,
       withServices: deviceMappings.keys.map((e) => Guid(e)).toList(),
       oneByOne: true,
     );

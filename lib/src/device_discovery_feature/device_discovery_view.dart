@@ -201,8 +201,12 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
     widget.deviceController.scanForDevices(autoConnect: false);
   }
 
-  Future<void> _startDirectConnect(String deviceId) async {
-    final found = await widget.deviceController.scanForSpecificDevice(deviceId);
+  Future<void> _startDirectConnect(String deviceId, {List<String> alsoScanFor = const []}) async {
+    final allIds = [deviceId, ...alsoScanFor];
+    final found = await widget.deviceController.scanForSpecificDevices(
+      allIds,
+      awaitDeviceId: deviceId,
+    );
 
     if (!mounted) return;
 
@@ -270,12 +274,20 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
     }
 
     final preferredMachineId = widget.settingsController.preferredMachineId;
+    final preferredScaleId = widget.settingsController.preferredScaleId;
 
     if (preferredMachineId != null) {
-      // Fast-connect path: scan specifically for the preferred device
+      // Fast-connect path: single BLE scan for machine + scale together
       _state = DiscoveryState.directConnecting;
       _autoConnectDeviceId = preferredMachineId;
-      _startDirectConnect(preferredMachineId);
+      _startDirectConnect(
+        preferredMachineId,
+        alsoScanFor: [if (preferredScaleId != null) preferredScaleId],
+      );
+    } else if (preferredScaleId != null) {
+      // No preferred machine but have a preferred scale — targeted scale scan
+      // (ScaleController auto-connects when it appears in the device stream)
+      widget.deviceController.scanForSpecificDevice(preferredScaleId);
     }
 
     // Always listen to device stream for the normal foundMany path

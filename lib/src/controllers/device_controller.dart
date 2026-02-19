@@ -124,25 +124,40 @@ class DeviceController {
   ///
   /// Returns true if the device appears in [deviceStream] within the timeout,
   /// false otherwise. Callers should fall back to [scanForDevices] on false.
-  Future<bool> scanForSpecificDevice(String deviceId) async {
+  Future<bool> scanForSpecificDevice(String deviceId) {
+    return scanForSpecificDevices([deviceId], awaitDeviceId: deviceId);
+  }
+
+  /// Scan all services for multiple specific devices in a single scan pass.
+  ///
+  /// [deviceIds] — all device IDs to include in the scan filter.
+  /// [awaitDeviceId] — the device to wait for; returns true when it appears.
+  ///   Other IDs will still be discovered (and trigger auto-connect via
+  ///   controllers listening to [deviceStream]) but are not awaited.
+  ///
+  /// Returns true if [awaitDeviceId] appears within the timeout, false otherwise.
+  Future<bool> scanForSpecificDevices(
+    List<String> deviceIds, {
+    required String awaitDeviceId,
+  }) async {
     // BLE scan can take a few seconds, plus device creation (connect +
     // service discovery + inspection) adds ~3-5s on top. Use a generous
     // timeout to avoid false negatives.
     final timeout = Duration(seconds: Platform.isLinux ? 25 : 15);
 
     // Start targeted scan on all services in parallel (each service
-    // self-validates whether the ID belongs to its transport)
+    // self-validates whether the IDs belong to its transport)
     for (final service in _services) {
-      service.scanForSpecificDevice(deviceId).catchError((e) {
-        _log.warning("Service $service scanForSpecificDevice failed: $e");
+      service.scanForSpecificDevices(deviceIds).catchError((e) {
+        _log.warning("Service $service scanForSpecificDevices failed: $e");
       });
     }
 
-    // Wait until the device appears in the stream or we time out
+    // Wait until the primary device appears in the stream or we time out
     try {
       await _deviceStream
           .expand((devices) => devices)
-          .where((device) => device.deviceId == deviceId)
+          .where((device) => device.deviceId == awaitDeviceId)
           .first
           .timeout(timeout);
       return true;

@@ -100,13 +100,14 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
   }
 
   @override
-  Future<void> scanForSpecificDevice(String deviceId) async {
-    if (!_isBleDeviceId(deviceId)) {
-      _log.fine('scanForSpecificDevice: "$deviceId" is not a BLE ID, skipping');
+  Future<void> scanForSpecificDevices(List<String> deviceIds) async {
+    final bleIds = deviceIds.where(_isBleDeviceId).toList();
+    if (bleIds.isEmpty) {
+      _log.fine('scanForSpecificDevices: no BLE IDs in $deviceIds, skipping');
       return;
     }
 
-    _log.info('Starting targeted BLE scan for device $deviceId');
+    _log.info('Starting targeted BLE scan for devices $bleIds');
 
     var subscription = FlutterBluePlus.onScanResults.listen((results) {
       if (results.isEmpty) return;
@@ -135,7 +136,7 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
         .first;
 
     await FlutterBluePlus.startScan(
-      withRemoteIds: [deviceId],
+      withRemoteIds: bleIds,
       withServices: deviceMappings.keys.map((e) => Guid(e)).toList(),
       oneByOne: true,
     );
