@@ -541,7 +541,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 
     return Column(
       mainAxisSize: MainAxisSize.min,
-      spacing: 16,
+      spacing: 8,
       children: [
         // Scanning indicator
         if (_isScanning)
@@ -550,17 +550,17 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
             spacing: 8,
             children: [
               SizedBox(
-                width: 16,
-                height: 16,
+                width: 12,
+                height: 12,
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
-              Text('Scanning for devices...', style: theme.textTheme.muted),
+              Text('Scanning...', style: theme.textTheme.muted),
             ],
           ),
 
         // Two-column device lists
         ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: 300, maxWidth: 500),
+          constraints: BoxConstraints(maxHeight: 260, maxWidth: 460),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -584,7 +584,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                   },
                 ),
               ),
-              SizedBox(width: 16),
+              SizedBox(width: 8),
               // Scale column
               Expanded(
                 child: DeviceSelectionWidget(
@@ -607,48 +607,49 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
           ),
         ),
 
-        // Continue button (always visible)
-        ShadButton(
-          onPressed: _selectedMachine != null && _connectingDeviceId == null
-              ? _handleContinue
-              : null,
-          child: _connectingDeviceId != null
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  spacing: 8,
-                  children: [
-                    SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                    Text('Connecting...'),
-                  ],
-                )
-              : Text('Continue'),
-        ),
-
-        // ReScan and Dashboard below
-        if (!_isScanning && _connectingDeviceId == null)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            spacing: 12,
-            children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 8,
+          children: [
+            if (!_isScanning && _connectingDeviceId == null)
               ShadButton.outline(
+                size: ShadButtonSize.sm,
                 onPressed: _retryScan,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  spacing: 8,
+                  spacing: 4,
                   children: [
-                    Icon(LucideIcons.refreshCw, size: 16),
+                    Icon(LucideIcons.refreshCw, size: 14),
                     Text('ReScan'),
                   ],
                 ),
               ),
+            ShadButton(
+              size: ShadButtonSize.sm,
+              onPressed: _selectedMachine != null && _connectingDeviceId == null
+                  ? _handleContinue
+                  : null,
+              child: _connectingDeviceId != null
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 4,
+                      children: [
+                        SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                        Text('Connecting...'),
+                      ],
+                    )
+                  : Text('Continue'),
+            ),
+            if (!_isScanning && _connectingDeviceId == null)
               ShadButton.secondary(
+                size: ShadButtonSize.sm,
                 onPressed: () {
                   Navigator.popAndPushNamed(context, HomeScreen.routeName);
                 },
                 child: Text('Dashboard'),
               ),
-            ],
-          ),
+          ],
+        ),
       ],
     );
   }
