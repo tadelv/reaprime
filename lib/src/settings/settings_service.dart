@@ -100,6 +100,18 @@ class SettingsService {
     }
   }
 
+  Future<String?> preferredScaleId() async {
+    return await prefs.getString(SettingsKeys.preferredScaleId.name);
+  }
+
+  Future<void> setPreferredScaleId(String? scaleId) async {
+    if (scaleId == null) {
+      await prefs.remove(SettingsKeys.preferredScaleId.name);
+    } else {
+      await prefs.setString(SettingsKeys.preferredScaleId.name, scaleId);
+    }
+  }
+
   Future<SkinExitButtonPosition> skinExitButtonPosition() async {
     return SkinExitButtonPositionFromString.fromString(
           await prefs.getString(SettingsKeys.skinExitButtonPosition.name) ??
@@ -184,6 +196,7 @@ enum SettingsKeys {
   volumeFlowMultiplier,
   scalePowerMode,
   preferredMachineId,
+  preferredScaleId,
   skinExitButtonPosition,
   defaultSkinId,
   automaticUpdateCheck,
