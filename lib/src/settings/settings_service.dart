@@ -160,6 +160,18 @@ class SettingsService {
   Future<void> setTelemetryConsentDialogShown(bool value) async {
     await prefs.setBool(SettingsKeys.telemetryConsentDialogShown.name, value);
   }
+
+  Future<String?> skippedVersion() async {
+    return await prefs.getString(SettingsKeys.skippedVersion.name);
+  }
+
+  Future<void> setSkippedVersion(String? version) async {
+    if (version == null) {
+      await prefs.remove(SettingsKeys.skippedVersion.name);
+    } else {
+      await prefs.setString(SettingsKeys.skippedVersion.name, version);
+    }
+  }
 }
 
 enum SettingsKeys {
@@ -179,6 +191,7 @@ enum SettingsKeys {
   telemetryConsent,
   telemetryPromptShown,
   telemetryConsentDialogShown,
+  skippedVersion,
 }
 
 /// Position options for the skin view exit button

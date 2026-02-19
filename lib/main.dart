@@ -350,7 +350,7 @@ void main() async {
   // This prevents a sudden theme change when the app is first displayed.
   settingsController.addListener(() {
     simulatedDevicesService.simulationEnabled =
-        settingsController.simulatedDevices;
+        settingsController.simulatedDevices || (const String.fromEnvironment("simulate") == "1");
   });
   await settingsController.loadSettings();
 
@@ -421,6 +421,13 @@ class AppLifecycleObserver with WidgetsBindingObserver {
       _log.info("[MEM] RSS=${rss.toStringAsFixed(1)}MB");
     });
 
+    // Show initial update notification once the widget tree is fully built
+    if (updateCheckService?.hasAvailableUpdate == true) {
+      Future.delayed(const Duration(seconds: 3), () {
+        _showUpdateNotification();
+      });
+    }
+
     // Monitor machine state changes for sleep-to-idle transitions
     _machineStateSubscription = de1Controller?.de1.listen((machine) {
       _stateStreamSubscription?.cancel();
@@ -448,9 +455,10 @@ class AppLifecycleObserver with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
       // STOP charts, timers, streams
-      _log.info("state: paused");
+      _log.info("state: $state");
       _wasBackgrounded = true;
     }
     if (state == AppLifecycleState.resumed) {
@@ -472,8 +480,12 @@ class AppLifecycleObserver with WidgetsBindingObserver {
     final updateInfo = updateCheckService?.availableUpdate;
     if (updateInfo == null) return;
 
-    // Show snackbar with action to open update dialog
-    ScaffoldMessenger.of(context).showSnackBar(
+    final messenger = ScaffoldMessenger.of(context);
+
+    // Clear any existing snackbars to prevent stacking
+    messenger.clearSnackBars();
+
+    final controller = messenger.showSnackBar(
       SnackBar(
         content: Text('Update available: ${updateInfo.version}'),
         action: SnackBarAction(
@@ -482,10 +494,18 @@ class AppLifecycleObserver with WidgetsBindingObserver {
             _showUpdateDialog(context, updateInfo);
           },
         ),
+        showCloseIcon: true,
         duration: const Duration(days: 1), // Persistent snackbar
         behavior: SnackBarBehavior.floating,
       ),
     );
+
+    // When user taps the close icon, skip this version permanently
+    controller.closed.then((reason) {
+      if (reason == SnackBarClosedReason.dismiss) {
+        updateCheckService?.skipCurrentUpdate();
+      }
+    });
   }
 
   void _showUpdateDialog(BuildContext context, dynamic updateInfo) async {
