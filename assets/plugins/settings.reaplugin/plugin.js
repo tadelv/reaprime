@@ -410,6 +410,14 @@ function createPlugin(host) {
                         </div>
                     </div>
                     <div class="setting-item">
+                        <label class="setting-label" for="preferredScaleId">Auto-Connect Scale ID</label>
+                        <div class="setting-control">
+                            <input type="text" id="preferredScaleId" value="${reaSettings.preferredScaleId || ''}" placeholder="None set" aria-describedby="preferredScaleId-desc" style="width: 200px;">
+                            <span id="preferredScaleId-desc" class="visually-hidden">Scale ID for automatic connection on startup. Leave empty to disable auto-connect for scales.</span>
+                            <button class="btn btn-primary" onclick="updateReaSetting('preferredScaleId', document.getElementById('preferredScaleId').value || null)" aria-label="Save preferred scale ID setting">Save</button>
+                        </div>
+                    </div>
+                    <div class="setting-item">
                         <label class="setting-label" for="defaultSkinId">Default WebUI Skin</label>
                         <div class="setting-control">
                             <select id="defaultSkinId" aria-describedby="defaultSkinId-desc" style="width: 200px;">
