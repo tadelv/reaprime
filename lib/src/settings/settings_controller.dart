@@ -36,6 +36,8 @@ class SettingsController with ChangeNotifier {
 
   String? _preferredMachineId;
 
+  String? _preferredScaleId;
+
   late SkinExitButtonPosition _skinExitButtonPosition;
 
   late String _defaultSkinId;
@@ -59,6 +61,7 @@ class SettingsController with ChangeNotifier {
   double get volumeFlowMultiplier => _volumeFlowMultiplier;
   ScalePowerMode get scalePowerMode => _scalePowerMode;
   String? get preferredMachineId => _preferredMachineId;
+  String? get preferredScaleId => _preferredScaleId;
   SkinExitButtonPosition get skinExitButtonPosition => _skinExitButtonPosition;
   String get defaultSkinId => _defaultSkinId;
   bool get automaticUpdateCheck => _automaticUpdateCheck;
@@ -80,6 +83,7 @@ class SettingsController with ChangeNotifier {
     _volumeFlowMultiplier = await _settingsService.volumeFlowMultiplier();
     _scalePowerMode = await _settingsService.scalePowerMode();
     _preferredMachineId = await _settingsService.preferredMachineId();
+    _preferredScaleId = await _settingsService.preferredScaleId();
     _skinExitButtonPosition = await _settingsService.skinExitButtonPosition();
     _defaultSkinId = await _settingsService.defaultSkinId();
     _automaticUpdateCheck = await _settingsService.automaticUpdateCheck();
@@ -190,6 +194,15 @@ class SettingsController with ChangeNotifier {
     }
     _preferredMachineId = machineId;
     await _settingsService.setPreferredMachineId(machineId);
+    notifyListeners();
+  }
+
+  Future<void> setPreferredScaleId(String? scaleId) async {
+    if (scaleId == _preferredScaleId) {
+      return;
+    }
+    _preferredScaleId = scaleId;
+    await _settingsService.setPreferredScaleId(scaleId);
     notifyListeners();
   }
 
