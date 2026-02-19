@@ -18,7 +18,6 @@ import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
-import 'package:reaprime/src/models/device/scale.dart' as device_scale;
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
@@ -245,8 +244,6 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   bool _isScanning = true; // Start as true since we begin scanning immediately
   String? _connectingDeviceId;
   String? _connectionError;
-  String? _connectingScaleId;
-  String? _scaleConnectionError;
   // When set, the discovery subscription will auto-connect to this device
   // when it appears. Persists through fallback from direct-connect to full scan.
   String? _autoConnectDeviceId;
@@ -340,26 +337,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   }
 
   Future<void> _handleScaleTapped(dev.Device scale) async {
-    if (_connectingScaleId != null) return;
-    setState(() {
-      _connectingScaleId = scale.deviceId;
-      _scaleConnectionError = null;
-    });
-    try {
-      await widget.settingsController.setPreferredScaleId(scale.deviceId);
-      if (mounted) {
-        setState(() {
-          _connectingScaleId = null;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _connectingScaleId = null;
-          _scaleConnectionError = 'Failed: $e';
-        });
-      }
-    }
+    await widget.settingsController.setPreferredScaleId(scale.deviceId);
   }
 
   Widget _directConnectingView(BuildContext context) {
@@ -471,10 +449,9 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
     // Always listen to device stream for the normal foundMany path
     _discoverySubscription = widget.deviceController.deviceStream.listen((data) {
       final discoveredMachines = data.whereType<De1Interface>().toList();
-      final discoveredScales = data.whereType<device_scale.Scale>().toList();
-      if (discoveredMachines.isEmpty && discoveredScales.isEmpty) return;
+      if (discoveredMachines.isEmpty) return;
 
-      // Auto-connect if the preferred device appeared (handles late discovery
+      // Auto-connect if the preferred machine appeared (handles late discovery
       // after targeted scan timeout + fallback to full scan)
       if (_autoConnectDeviceId != null && _connectingDeviceId == null) {
         final target = discoveredMachines.firstWhereOrNull(
@@ -588,8 +565,6 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                   deviceType: dev.DeviceType.scale,
                   showHeader: true,
                   headerText: "Scales",
-                  connectingDeviceId: _connectingScaleId,
-                  errorMessage: _scaleConnectionError,
                   preferredDeviceId: widget.settingsController.preferredScaleId,
                   onPreferredChanged: (id) =>
                       widget.settingsController.setPreferredScaleId(id),
