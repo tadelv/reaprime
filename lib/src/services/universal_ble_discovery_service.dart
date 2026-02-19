@@ -56,13 +56,14 @@ class UniversalBleDiscoveryService extends DeviceDiscoveryService {
   }
 
   @override
-  Future<void> scanForSpecificDevice(String deviceId) async {
-    if (!_isBleDeviceId(deviceId)) {
-      log.fine('scanForSpecificDevice: "$deviceId" is not a BLE ID, skipping');
+  Future<void> scanForSpecificDevices(List<String> deviceIds) async {
+    final bleIds = deviceIds.where(_isBleDeviceId).toList();
+    if (bleIds.isEmpty) {
+      log.fine('scanForSpecificDevices: no BLE IDs in $deviceIds, skipping');
       return;
     }
     // universal_ble does not support withRemoteIds filtering — fall back to full scan
-    log.info('universal_ble: falling back to full scan for $deviceId');
+    log.info('universal_ble: falling back to full scan for $bleIds');
     await scanForDevices();
   }
 

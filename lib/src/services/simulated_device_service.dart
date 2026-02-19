@@ -26,7 +26,7 @@ class SimulatedDeviceService
   int scanCount = 0;
 
   @override
-  Future<void> scanForSpecificDevice(String deviceId) async {
+  Future<void> scanForSpecificDevices(List<String> deviceIds) async {
     // Simulated service: fall back to full scan
     await scanForDevices();
   }

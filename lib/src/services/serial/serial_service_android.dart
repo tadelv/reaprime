@@ -56,37 +56,41 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
   }
 
   @override
-  Future<void> scanForSpecificDevice(String deviceId) async {
-    final intId = int.tryParse(deviceId);
-    if (intId == null) {
-      _log.fine('scanForSpecificDevice: "$deviceId" is not an Android USB device ID, skipping');
+  Future<void> scanForSpecificDevices(List<String> deviceIds) async {
+    final usbIds = deviceIds.where((id) => int.tryParse(id) != null).toList();
+    if (usbIds.isEmpty) {
+      _log.fine('scanForSpecificDevices: no Android USB device IDs in $deviceIds, skipping');
       return;
     }
 
-    _log.info('Direct USB detection for device ID $deviceId');
+    _log.info('Direct USB detection for device IDs $usbIds');
     final usbDevices = await UsbSerial.listDevices();
-    final target = usbDevices.firstWhereOrNull((d) => d.deviceId == intId);
-    if (target == null) {
-      _log.fine('USB device $deviceId not found in connected devices');
-      return;
-    }
 
-    // Skip if already tracked
-    if (_devices.firstWhereOrNull((d) => d.deviceId == deviceId) != null) {
-      _log.fine('Device $deviceId already in device list');
-      return;
-    }
-
-    try {
-      final device = await _detectDevice(target);
-      if (device != null) {
-        _devices.add(device);
-        _machineSubject.add(_devices);
-        _log.info('Direct USB connect found device $deviceId');
+    for (final deviceId in usbIds) {
+      final intId = int.parse(deviceId);
+      final target = usbDevices.firstWhereOrNull((d) => d.deviceId == intId);
+      if (target == null) {
+        _log.fine('USB device $deviceId not found in connected devices');
+        continue;
       }
-    } catch (e) {
-      _log.warning('Direct USB detection failed for $deviceId: $e');
+
+      // Skip if already tracked
+      if (_devices.firstWhereOrNull((d) => d.deviceId == deviceId) != null) {
+        _log.fine('Device $deviceId already in device list');
+        continue;
+      }
+
+      try {
+        final device = await _detectDevice(target);
+        if (device != null) {
+          _devices.add(device);
+          _log.info('Direct USB connect found device $deviceId');
+        }
+      } catch (e) {
+        _log.warning('Direct USB detection failed for $deviceId: $e');
+      }
     }
+    _machineSubject.add(_devices);
   }
 
   @override
