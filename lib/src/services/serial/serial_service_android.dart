@@ -182,7 +182,7 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
     final duration = const Duration(seconds: 3);
 
     try {
-      await transport.connect();
+      await transport.connect().timeout(Duration(milliseconds: 300));
 
       // Start listening to the stream
       final subscription = transport.rawStream.listen(

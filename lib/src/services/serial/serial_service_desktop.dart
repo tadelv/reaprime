@@ -167,7 +167,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     _log.fine("Inspecting: ${port.name}, ${port.productName}");
 
     try {
-      await transport.connect();
+      await transport.connect().timeout(Duration(milliseconds: 300));
 
       // Collect data with a timeout rather than a fixed delay
       final subscription = transport.rawStream.listen(rawData.add);
