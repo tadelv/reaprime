@@ -287,7 +287,6 @@ class _SettingsTileState extends State<SettingsTile> {
 
     if (de1Machines.isNotEmpty) {
       // Found available DE1(s), connect to first one
-      // TODO: In the future, check for preferred machine ID here
       final de1 = de1Machines.first;
       await widget.controller.connectToDe1(de1);
       return;
@@ -340,7 +339,6 @@ class _SettingsTileState extends State<SettingsTile> {
         await widget.controller.connectToDe1(de1);
       } else {
         // Multiple DE1s found, show selection dialog
-        // TODO: In the future, filter by preferred machine ID
         showShadDialog(
           context: context,
           builder: (dialogContext) {

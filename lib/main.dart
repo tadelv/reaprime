@@ -355,6 +355,9 @@ void main() async {
     simulatedDevicesService.simulationEnabled =
         settingsController.simulatedDevices || (const String.fromEnvironment("simulate") == "1");
   });
+  settingsController.addListener(() {
+    scaleController.preferredScaleId = settingsController.preferredScaleId;
+  });
   await settingsController.loadSettings();
 
   Logger.root.level =
