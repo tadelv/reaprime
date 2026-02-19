@@ -209,15 +209,9 @@ class De1StateManager with WidgetsBindingObserver {
     _previousMachineState = currentState;
   }
 
-  /// Handles scale power management based on machine state transitions
+  /// Handles scale power management and auto-reconnect based on machine
+  /// state transitions.
   void _handleScalePowerManagement(MachineState currentState) {
-    final scalePowerMode = _settingsController.scalePowerMode;
-
-    // Skip if power management is disabled
-    if (scalePowerMode == ScalePowerMode.disabled) {
-      return;
-    }
-
     // Skip if no previous state (first snapshot)
     if (_previousMachineState == null) {
       return;
@@ -228,8 +222,11 @@ class De1StateManager with WidgetsBindingObserver {
       return;
     }
 
-    // Transition from idle to sleeping -> put scale to sleep
-    if ((_previousMachineState == MachineState.idle) &&
+    final scalePowerMode = _settingsController.scalePowerMode;
+
+    // Transition from idle to sleeping -> put scale to sleep (power mgmt only)
+    if (scalePowerMode != ScalePowerMode.disabled &&
+        _previousMachineState == MachineState.idle &&
         currentState == MachineState.sleeping) {
       _logger.info(
         'Machine going to sleep, managing scale power (mode: ${scalePowerMode.name})',
@@ -253,7 +250,7 @@ class De1StateManager with WidgetsBindingObserver {
       }
     }
 
-    // Transition from sleeping to idle -> wake scale or trigger scan
+    // Transition from sleeping to idle -> wake scale or trigger reconnect scan
     if (_previousMachineState == MachineState.sleeping &&
         currentState == MachineState.idle) {
       _logger.info('Machine waking up from sleep');
@@ -268,7 +265,8 @@ class De1StateManager with WidgetsBindingObserver {
       }
 
       // If scale is connected and mode is displayOff, wake the display
-      if (scaleConnected && scalePowerMode == ScalePowerMode.displayOff) {
+      if (scaleConnected &&
+          scalePowerMode == ScalePowerMode.displayOff) {
         try {
           final scale = _scaleController.connectedScale();
           scale.wakeDisplay().catchError((e) {
