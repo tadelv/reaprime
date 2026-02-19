@@ -83,9 +83,12 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
           ? 'machines'
           : 'scales';
       return Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(8.0),
         child: Center(
-          child: Text('No $label found. Please try scanning again.'),
+          child: Text(
+            'No $label found.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
         ),
       );
     }
@@ -102,8 +105,9 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
         final isSelected = widget.selectedDeviceId == device.deviceId;
 
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 4.0),
+          padding: const EdgeInsets.symmetric(vertical: 1.0, horizontal: 2.0),
           child: ShadCard(
+            padding: EdgeInsets.zero,
             border: isSelected
                 ? ShadBorder.all(
                     color: Theme.of(context).colorScheme.primary,
@@ -115,9 +119,13 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
               children: [
                 ListTile(
                   dense: true,
-                  visualDensity: VisualDensity.compact,
-                  title: Text(device.name),
-                  subtitle: Text("ID: ${device.deviceId.length > 8 ? device.deviceId.substring(device.deviceId.length - 8) : device.deviceId}"),
+                  visualDensity: VisualDensity(horizontal: -4, vertical: -4),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                  title: Text(device.name, style: Theme.of(context).textTheme.bodySmall),
+                  subtitle: Text(
+                    "ID: ${device.deviceId.length > 8 ? device.deviceId.substring(device.deviceId.length - 8) : device.deviceId}",
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
                   trailing: DeviceConnectingIndicator(
                     isConnecting: isConnecting,
                   ),
@@ -129,27 +137,30 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
                 if (widget.onPreferredChanged != null)
                   Padding(
                     padding: const EdgeInsets.only(
-                      left: 8.0,
-                      right: 8.0,
-                      bottom: 4.0,
+                      left: 4.0,
+                      right: 4.0,
+                      bottom: 2.0,
                     ),
                     child: Row(
                       children: [
-                        Checkbox(
-                          value: isPreferred,
-                          onChanged: (value) {
-                            widget.onPreferredChanged?.call(
-                              value == true ? device.deviceId : null,
-                            );
-                            setState(() {});
-                          },
+                        SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: Checkbox(
+                            value: isPreferred,
+                            onChanged: (value) {
+                              widget.onPreferredChanged?.call(
+                                value == true ? device.deviceId : null,
+                              );
+                              setState(() {});
+                            },
+                          ),
                         ),
+                        SizedBox(width: 4),
                         Expanded(
                           child: Text(
-                            widget.deviceType == dev.DeviceType.machine
-                                ? 'Auto-connect to this machine'
-                                : 'Auto-connect to this scale',
-                            style: Theme.of(context).textTheme.bodySmall,
+                            'Auto-connect',
+                            style: Theme.of(context).textTheme.labelSmall,
                           ),
                         ),
                       ],
@@ -165,38 +176,35 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
     if (widget.showHeader) {
       return Column(
         mainAxisSize: MainAxisSize.min,
-        spacing: 8,
+        spacing: 4,
         children: [
           Text(
             widget.headerText ?? "Select a machine from the list",
-            style: Theme.of(context).textTheme.titleMedium,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
           ),
           if (widget.errorMessage != null)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              padding: const EdgeInsets.symmetric(horizontal: 4.0),
               child: ShadCard(
+                padding: EdgeInsets.all(8),
                 backgroundColor: Theme.of(context).colorScheme.errorContainer,
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Row(
-                    children: [
-                      Icon(
-                        LucideIcons.info,
-                        size: 20,
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          widget.errorMessage!,
-                          style: TextStyle(
-                            color:
-                                Theme.of(context).colorScheme.onErrorContainer,
-                          ),
+                child: Row(
+                  children: [
+                    Icon(
+                      LucideIcons.info,
+                      size: 14,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        widget.errorMessage!,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onErrorContainer,
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -210,33 +218,31 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
       children: [
         if (widget.errorMessage != null)
           Padding(
-            padding: const EdgeInsets.all(8.0),
+            padding: const EdgeInsets.all(4.0),
             child: ShadCard(
+              padding: EdgeInsets.all(8),
               backgroundColor: Theme.of(context).colorScheme.errorContainer,
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Row(
-                  children: [
-                    Icon(
-                      LucideIcons.info,
-                      size: 20,
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        widget.errorMessage!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onErrorContainer,
-                        ),
+              child: Row(
+                children: [
+                  Icon(
+                    LucideIcons.info,
+                    size: 14,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      widget.errorMessage!,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onErrorContainer,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
-        SizedBox(height: 300, width: 400, child: listView),
+        SizedBox(height: 260, width: 400, child: listView),
       ],
     );
   }
