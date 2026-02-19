@@ -23,6 +23,7 @@ class SettingsHandler {
       final volumeFlowMultiplier = _controller.volumeFlowMultiplier;
       final scalePowerMode = _controller.scalePowerMode.name;
       final preferredMachineId = _controller.preferredMachineId;
+      final preferredScaleId = _controller.preferredScaleId;
       final defaultSkinId = _controller.defaultSkinId;
       final automaticUpdateCheck = _controller.automaticUpdateCheck;
       return {
@@ -33,6 +34,7 @@ class SettingsHandler {
         'volumeFlowMultiplier': volumeFlowMultiplier,
         'scalePowerMode': scalePowerMode,
         'preferredMachineId': preferredMachineId,
+        'preferredScaleId': preferredScaleId,
         'defaultSkinId': defaultSkinId,
         'automaticUpdateCheck': automaticUpdateCheck,
       };
@@ -101,6 +103,16 @@ class SettingsHandler {
         } else {
           return Response.badRequest(
             body: {'message': 'preferredMachineId must be a string or null'},
+          );
+        }
+      }
+      if (json.containsKey('preferredScaleId')) {
+        final value = json['preferredScaleId'];
+        if (value == null || value is String) {
+          await _controller.setPreferredScaleId(value);
+        } else {
+          return Response.badRequest(
+            body: {'message': 'preferredScaleId must be a string or null'},
           );
         }
       }
