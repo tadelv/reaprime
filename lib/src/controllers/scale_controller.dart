@@ -32,19 +32,13 @@ class ScaleController {
       var scales = devices.whereType<Scale>().toList();
       if (_scale == null &&
           scales.isNotEmpty &&
+          _preferredScaleId != null &&
           _deviceController.shouldAutoConnect) {
-        if (_preferredScaleId != null) {
-          // Connect only to the preferred scale
-          final preferred = scales.firstWhereOrNull(
-            (s) => s.deviceId == _preferredScaleId,
-          );
-          if (preferred != null) {
-            await connectToScale(preferred);
-          }
-          // If preferred not found, don't connect to any scale
-        } else {
-          // No preference set — connect to first scale found (legacy behavior)
-          await connectToScale(scales.first);
+        final preferred = scales.firstWhereOrNull(
+          (s) => s.deviceId == _preferredScaleId,
+        );
+        if (preferred != null) {
+          await connectToScale(preferred);
         }
       }
     });
