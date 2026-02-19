@@ -18,6 +18,7 @@ import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
+import 'package:reaprime/src/models/device/scale.dart' as device_scale;
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
@@ -244,6 +245,8 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   bool _isScanning = true; // Start as true since we begin scanning immediately
   String? _connectingDeviceId;
   String? _connectionError;
+  String? _connectingScaleId;
+  String? _scaleConnectionError;
   // When set, the discovery subscription will auto-connect to this device
   // when it appears. Persists through fallback from direct-connect to full scan.
   String? _autoConnectDeviceId;
@@ -333,6 +336,29 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
         });
       }
       widget.logger.severe('Manual connect failed: $e');
+    }
+  }
+
+  Future<void> _handleScaleTapped(dev.Device scale) async {
+    if (_connectingScaleId != null) return;
+    setState(() {
+      _connectingScaleId = scale.deviceId;
+      _scaleConnectionError = null;
+    });
+    try {
+      await widget.settingsController.setPreferredScaleId(scale.deviceId);
+      if (mounted) {
+        setState(() {
+          _connectingScaleId = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _connectingScaleId = null;
+          _scaleConnectionError = 'Failed: $e';
+        });
+      }
     }
   }
 
@@ -444,13 +470,14 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 
     // Always listen to device stream for the normal foundMany path
     _discoverySubscription = widget.deviceController.deviceStream.listen((data) {
-      final discoveredDevices = data.whereType<De1Interface>().toList();
-      if (discoveredDevices.isEmpty) return;
+      final discoveredMachines = data.whereType<De1Interface>().toList();
+      final discoveredScales = data.whereType<device_scale.Scale>().toList();
+      if (discoveredMachines.isEmpty && discoveredScales.isEmpty) return;
 
       // Auto-connect if the preferred device appeared (handles late discovery
       // after targeted scan timeout + fallback to full scan)
       if (_autoConnectDeviceId != null && _connectingDeviceId == null) {
-        final target = discoveredDevices.firstWhereOrNull(
+        final target = discoveredMachines.firstWhereOrNull(
           (d) => d.deviceId == _autoConnectDeviceId,
         );
         if (target != null) {
@@ -489,7 +516,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       case DiscoveryState.searching:
         return _searchingView(context);
       case DiscoveryState.foundMany:
-        return SizedBox(height: 500, width: 300, child: _resultsView(context));
+        return _resultsView(context);
       case DiscoveryState.foundNone:
         return _noDevicesFoundView(context);
     }
@@ -510,7 +537,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 
   Widget _resultsView(BuildContext context) {
     final theme = ShadTheme.of(context);
-    
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       spacing: 16,
@@ -526,26 +553,53 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                 height: 16,
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
-              Text(
-                'Scanning for devices...',
-                style: theme.textTheme.muted,
+              Text('Scanning for devices...', style: theme.textTheme.muted),
+            ],
+          ),
+
+        // Two-column device lists
+        SizedBox(
+          height: 400,
+          width: 600,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Machine column
+              Expanded(
+                child: DeviceSelectionWidget(
+                  deviceController: widget.deviceController,
+                  deviceType: dev.DeviceType.machine,
+                  showHeader: true,
+                  headerText: "Machines",
+                  connectingDeviceId: _connectingDeviceId,
+                  errorMessage: _connectionError,
+                  preferredDeviceId: widget.settingsController.preferredMachineId,
+                  onPreferredChanged: (id) =>
+                      widget.settingsController.setPreferredMachineId(id),
+                  onDeviceTapped: (device) =>
+                      _handleDeviceTapped(device as De1Interface),
+                ),
+              ),
+              SizedBox(width: 16),
+              // Scale column
+              Expanded(
+                child: DeviceSelectionWidget(
+                  deviceController: widget.deviceController,
+                  deviceType: dev.DeviceType.scale,
+                  showHeader: true,
+                  headerText: "Scales",
+                  connectingDeviceId: _connectingScaleId,
+                  errorMessage: _scaleConnectionError,
+                  preferredDeviceId: widget.settingsController.preferredScaleId,
+                  onPreferredChanged: (id) =>
+                      widget.settingsController.setPreferredScaleId(id),
+                  onDeviceTapped: _handleScaleTapped,
+                ),
               ),
             ],
           ),
-        
-        // Device list
-        DeviceSelectionWidget(
-          deviceController: widget.deviceController,
-          deviceType: dev.DeviceType.machine,
-          showHeader: true,
-          headerText: "Select a machine from the list",
-          connectingDeviceId: _connectingDeviceId,
-          errorMessage: _connectionError,
-          preferredDeviceId: widget.settingsController.preferredMachineId,
-          onPreferredChanged: (id) => widget.settingsController.setPreferredMachineId(id),
-          onDeviceTapped: (device) => _handleDeviceTapped(device as De1Interface),
         ),
-        
+
         // Action buttons (shown when scanning is complete)
         if (!_isScanning)
           SizedBox(
@@ -569,10 +623,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                 Expanded(
                   child: ShadButton.secondary(
                     onPressed: () {
-                      Navigator.popAndPushNamed(
-                        context,
-                        HomeScreen.routeName,
-                      );
+                      Navigator.popAndPushNamed(context, HomeScreen.routeName);
                     },
                     child: Text('Dashboard'),
                   ),
