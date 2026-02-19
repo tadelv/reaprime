@@ -536,12 +536,14 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
         // Device list
         DeviceSelectionWidget(
           deviceController: widget.deviceController,
-          settingsController: widget.settingsController,
+          deviceType: dev.DeviceType.machine,
           showHeader: true,
           headerText: "Select a machine from the list",
           connectingDeviceId: _connectingDeviceId,
           errorMessage: _connectionError,
-          onDeviceTapped: _handleDeviceTapped,
+          preferredDeviceId: widget.settingsController.preferredMachineId,
+          onPreferredChanged: (id) => widget.settingsController.setPreferredMachineId(id),
+          onDeviceTapped: (device) => _handleDeviceTapped(device as De1Interface),
         ),
         
         // Action buttons (shown when scanning is complete)
