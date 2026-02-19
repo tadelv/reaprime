@@ -306,7 +306,10 @@ void main() async {
   deviceController.telemetryService = telemetryService;
   final de1Controller = De1Controller(controller: deviceController)
     ..defaultWorkflow = workflowController.currentWorkflow;
-  final scaleController = ScaleController(controller: deviceController);
+  final scaleController = ScaleController(
+    controller: deviceController,
+    preferredScaleId: settingsController.preferredScaleId,
+  );
   final sensorController = SensorController(controller: deviceController);
 
   workflowController.addListener(() {

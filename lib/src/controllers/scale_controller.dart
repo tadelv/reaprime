@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/weight_flow_calculator.dart';
@@ -15,23 +16,41 @@ class ScaleController {
 
   Scale? _scale;
 
+  String? _preferredScaleId;
+
   StreamSubscription<ConnectionState>? _scaleConnection;
   StreamSubscription<ScaleSnapshot>? _scaleSnapshot;
 
   final Logger log = Logger('ScaleController');
 
-  ScaleController({required DeviceController controller})
-    : _deviceController = controller {
+  ScaleController({
+    required DeviceController controller,
+    String? preferredScaleId,
+  }) : _deviceController = controller,
+       _preferredScaleId = preferredScaleId {
     _deviceStreamSubscription = _deviceController.deviceStream.listen((devices) async {
       var scales = devices.whereType<Scale>().toList();
       if (_scale == null &&
-          scales.firstOrNull != null &&
+          scales.isNotEmpty &&
           _deviceController.shouldAutoConnect) {
-        final scale = scales.first;
-        await connectToScale(scale);
+        if (_preferredScaleId != null) {
+          // Connect only to the preferred scale
+          final preferred = scales.firstWhereOrNull(
+            (s) => s.deviceId == _preferredScaleId,
+          );
+          if (preferred != null) {
+            await connectToScale(preferred);
+          }
+          // If preferred not found, don't connect to any scale
+        } else {
+          // No preference set — connect to first scale found (legacy behavior)
+          await connectToScale(scales.first);
+        }
       }
     });
   }
+
+  set preferredScaleId(String? id) => _preferredScaleId = id;
 
   void dispose() {
       _deviceStreamSubscription?.cancel();
