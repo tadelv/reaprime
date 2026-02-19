@@ -15,7 +15,7 @@ class UpdateCheckService {
   Timer? _periodicTimer;
   UpdateInfo? _availableUpdate;
   
-  static const Duration _checkInterval = Duration(hours: 12);
+  static const Duration _checkInterval = (const String.fromEnvironment("simulate") == "1") ? Duration(minutes: 1) : Duration(hours: 12);
 
   UpdateCheckService({
     required SettingsService settingsService,
@@ -74,6 +74,13 @@ class UpdateCheckService {
       await _settingsService.setLastUpdateCheckTime(DateTime.now());
 
       if (updateInfo != null) {
+        // Check if user has skipped this version
+        final skipped = await _settingsService.skippedVersion();
+        if (skipped != null && skipped == updateInfo.version) {
+          _log.info('Update ${updateInfo.version} skipped by user');
+          _availableUpdate = null;
+          return null;
+        }
         _log.info('Update available: ${updateInfo.version}');
         _availableUpdate = updateInfo;
       } else {
@@ -114,6 +121,16 @@ class UpdateCheckService {
 
   /// Clear the available update notification
   void clearAvailableUpdate() {
+    _availableUpdate = null;
+  }
+
+  /// Skip the current update version permanently
+  Future<void> skipCurrentUpdate() async {
+    final version = _availableUpdate?.version;
+    if (version != null) {
+      _log.info('User skipped update: $version');
+      await _settingsService.setSkippedVersion(version);
+    }
     _availableUpdate = null;
   }
 
