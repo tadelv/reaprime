@@ -328,7 +328,7 @@ class PluginLoaderService {
         final existingManifest = PluginManifest.fromJson(
           jsonDecode(await existingManifestFile.readAsString()),
         );
-        if (newManifest.version.compareTo(existingManifest.version) < 0) {
+        if (_compareVersions(newManifest.version, existingManifest.version) <= 0) {
           // existing plugin has same or newer version
           _log.fine(
             "not overriding bundled plugin: [bundled: ${newManifest.version}], [existing: ${existingManifest.version}]",
@@ -348,6 +348,20 @@ class PluginLoaderService {
         _log.warning('Failed to copy bundled plugins', e);
       }
     }
+  }
+
+  /// Compares two semver-style version strings numerically.
+  /// Returns negative if a < b, zero if equal, positive if a > b.
+  static int _compareVersions(String a, String b) {
+    final partsA = a.split('.').map((s) => int.tryParse(s) ?? 0).toList();
+    final partsB = b.split('.').map((s) => int.tryParse(s) ?? 0).toList();
+    final len = partsA.length > partsB.length ? partsA.length : partsB.length;
+    for (var i = 0; i < len; i++) {
+      final va = i < partsA.length ? partsA[i] : 0;
+      final vb = i < partsB.length ? partsB[i] : 0;
+      if (va != vb) return va - vb;
+    }
+    return 0;
   }
 
   Future<List<String>> _getBundledPluginPaths() async {
