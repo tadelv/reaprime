@@ -105,13 +105,30 @@ class AtomheartScale implements Scale {
   }
 
   @override
-  Future<void> startTimer() async {}
+  Future<void> startTimer() async {
+    await _transport.write(
+      serviceUUID,
+      commandUUID,
+      Uint8List.fromList([0x43, 0x01, 0x01]),
+      withResponse: false,
+    );
+  }
 
   @override
-  Future<void> stopTimer() async {}
+  Future<void> stopTimer() async {
+    await _transport.write(
+      serviceUUID,
+      commandUUID,
+      Uint8List.fromList([0x43, 0x00, 0x00]),
+      withResponse: false,
+    );
+  }
 
   @override
-  Future<void> resetTimer() async {}
+  Future<void> resetTimer() async {
+    // Atomheart resets timer via tare command
+    await tare();
+  }
 
   void _registerNotifications() async {
     await _transport.subscribe(serviceUUID, dataUUID, _parseNotification);

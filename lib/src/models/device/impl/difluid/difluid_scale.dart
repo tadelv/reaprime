@@ -166,12 +166,42 @@ class DifluidScale implements Scale {
     return bytes.getInt32(0, Endian.big);
   }
 
-  @override
-  Future<void> startTimer() async {}
+  static final List<int> _cmdTimerStart = [
+    0xDF, 0xDF, 0x03, 0x02, 0x01, 0x00, 0xC4
+  ];
+  static final List<int> _cmdTimerStop = [
+    0xDF, 0xDF, 0x03, 0x01, 0x01, 0x00, 0xC3
+  ];
 
   @override
-  Future<void> stopTimer() async {}
+  Future<void> startTimer() async {
+    await _transport.write(
+      serviceUUID,
+      dataUUID,
+      Uint8List.fromList(_cmdTimerStart),
+      withResponse: true,
+    );
+  }
 
   @override
-  Future<void> resetTimer() async {}
+  Future<void> stopTimer() async {
+    await _transport.write(
+      serviceUUID,
+      dataUUID,
+      Uint8List.fromList(_cmdTimerStop),
+      withResponse: true,
+    );
+    // DiFluid stop also resets; start command doubles as reset
+    await _transport.write(
+      serviceUUID,
+      dataUUID,
+      Uint8List.fromList(_cmdTimerStart),
+      withResponse: true,
+    );
+  }
+
+  @override
+  Future<void> resetTimer() async {
+    // DiFluid has no standalone reset; reset is handled as part of stopTimer
+  }
 }

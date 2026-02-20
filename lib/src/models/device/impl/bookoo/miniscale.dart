@@ -118,11 +118,29 @@ class BookooScale implements Scale {
   }
 
   @override
-  Future<void> startTimer() async {}
+  Future<void> startTimer() async {
+    await _transport.write(
+      serviceUUID,
+      cmdUUID,
+      Uint8List.fromList([0x03, 0x0A, 0x04, 0x00, 0x00, 0x0A]),
+    );
+  }
 
   @override
-  Future<void> stopTimer() async {}
+  Future<void> stopTimer() async {
+    await _transport.write(
+      serviceUUID,
+      cmdUUID,
+      Uint8List.fromList([0x03, 0x0A, 0x05, 0x00, 0x00, 0x0D]),
+    );
+  }
 
   @override
-  Future<void> resetTimer() async {}
+  Future<void> resetTimer() async {
+    await _transport.write(
+      serviceUUID,
+      cmdUUID,
+      Uint8List.fromList([0x03, 0x0A, 0x06, 0x00, 0x00, 0x0C]),
+    );
+  }
 }
