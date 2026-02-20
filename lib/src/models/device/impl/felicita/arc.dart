@@ -137,11 +137,17 @@ class FelicitaArc implements Scale {
   }
 
   @override
-  Future<void> startTimer() async {}
+  Future<void> startTimer() async {
+    await _transport.write(serviceUUID, dataUUID, Uint8List.fromList([0x52]));
+  }
 
   @override
-  Future<void> stopTimer() async {}
+  Future<void> stopTimer() async {
+    await _transport.write(serviceUUID, dataUUID, Uint8List.fromList([0x53]));
+  }
 
   @override
-  Future<void> resetTimer() async {}
+  Future<void> resetTimer() async {
+    await _transport.write(serviceUUID, dataUUID, Uint8List.fromList([0x43]));
+  }
 }

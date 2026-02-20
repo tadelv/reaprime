@@ -221,11 +221,32 @@ class Skale2Scale implements Scale {
   }
 
   @override
-  Future<void> startTimer() async {}
+  Future<void> startTimer() async {
+    await _transport.write(
+      serviceUUID,
+      commandCharacteristicUUID,
+      Uint8List.fromList([0xDD]),
+      withResponse: false,
+    );
+  }
 
   @override
-  Future<void> stopTimer() async {}
+  Future<void> stopTimer() async {
+    await _transport.write(
+      serviceUUID,
+      commandCharacteristicUUID,
+      Uint8List.fromList([0xD1]),
+      withResponse: false,
+    );
+  }
 
   @override
-  Future<void> resetTimer() async {}
+  Future<void> resetTimer() async {
+    await _transport.write(
+      serviceUUID,
+      commandCharacteristicUUID,
+      Uint8List.fromList([0xD0]),
+      withResponse: false,
+    );
+  }
 }

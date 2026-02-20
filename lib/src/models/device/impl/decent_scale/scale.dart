@@ -212,11 +212,20 @@ class DecentScale implements Scale {
   }
 
   @override
-  Future<void> startTimer() async {}
+  Future<void> startTimer() async {
+    List<int> payload = [0x03, 0x0B, 0x03, 0x00, 0x00, 0x00, 0x0B];
+    await _device.write(serviceUUID, writeUUID, Uint8List.fromList(payload));
+  }
 
   @override
-  Future<void> stopTimer() async {}
+  Future<void> stopTimer() async {
+    List<int> payload = [0x03, 0x0B, 0x00, 0x00, 0x00, 0x00, 0x08];
+    await _device.write(serviceUUID, writeUUID, Uint8List.fromList(payload));
+  }
 
   @override
-  Future<void> resetTimer() async {}
+  Future<void> resetTimer() async {
+    List<int> payload = [0x03, 0x0B, 0x02, 0x00, 0x00, 0x00, 0x0A];
+    await _device.write(serviceUUID, writeUUID, Uint8List.fromList(payload));
+  }
 }
