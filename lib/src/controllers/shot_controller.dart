@@ -194,8 +194,9 @@ class ShotController {
           skippedSteps.clear();
 
           if (_bypassSAW == false && scale != null) {
-            _log.info("Machine getting ready. Taring scale...");
+            _log.info("Machine getting ready. Taring scale and resetting timer...");
             scaleController.connectedScale().tare();
+            scaleController.connectedScale().resetTimer();
           }
           _state = ShotState.preheating;
           _stateStream.add(_state);
@@ -207,8 +208,9 @@ class ShotController {
         if (machine.state.substate == MachineSubstate.preinfusion ||
             machine.state.substate == MachineSubstate.pouring) {
           if (_bypassSAW == false && scale != null) {
-            _log.info("Taring scale again.");
+            _log.info("Taring scale again and starting timer.");
             scaleController.connectedScale().tare();
+            scaleController.connectedScale().startTimer();
           }
 
           // Start volume counting when shot begins
@@ -281,8 +283,11 @@ class ShotController {
         break;
 
       case ShotState.stopping:
-        // Stop volume counting
+        // Stop volume counting and scale timer
         _volumeCountingActive = false;
+        if (_bypassSAW == false && scale != null) {
+          scaleController.connectedScale().stopTimer();
+        }
 
         if (_stoppingStateFuture != null) {
           break;
