@@ -40,4 +40,13 @@ class TestScale implements Scale {
 
   @override
   Future<void> wakeDisplay() async {}
+
+  @override
+  Future<void> startTimer() async {}
+
+  @override
+  Future<void> stopTimer() async {}
+
+  @override
+  Future<void> resetTimer() async {}
 }

@@ -165,4 +165,13 @@ class DifluidScale implements Scale {
     }
     return bytes.getInt32(0, Endian.big);
   }
+
+  @override
+  Future<void> startTimer() async {}
+
+  @override
+  Future<void> stopTimer() async {}
+
+  @override
+  Future<void> resetTimer() async {}
 }

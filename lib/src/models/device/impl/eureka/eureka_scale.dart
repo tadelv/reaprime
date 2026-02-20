@@ -95,6 +95,7 @@ class EurekaScale implements Scale {
   }
 
   /// Start the scale timer
+  @override
   Future<void> startTimer() async {
     final writeData = Uint8List.fromList([0xAA, 0x02, 0x33, 0x33]);
     await _transport.write(
@@ -106,6 +107,7 @@ class EurekaScale implements Scale {
   }
 
   /// Stop the scale timer
+  @override
   Future<void> stopTimer() async {
     final writeData = Uint8List.fromList([0xAA, 0x02, 0x34, 0x34]);
     await _transport.write(
@@ -117,6 +119,7 @@ class EurekaScale implements Scale {
   }
 
   /// Reset the scale timer
+  @override
   Future<void> resetTimer() async {
     final writeData = Uint8List.fromList([0xAA, 0x02, 0x35, 0x35]);
     await _transport.write(

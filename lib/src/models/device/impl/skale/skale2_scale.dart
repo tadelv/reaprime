@@ -219,4 +219,13 @@ class Skale2Scale implements Scale {
     // Button press notifications - currently informational only.
     // Could be used to trigger tare or other actions in the future.
   }
+
+  @override
+  Future<void> startTimer() async {}
+
+  @override
+  Future<void> stopTimer() async {}
+
+  @override
+  Future<void> resetTimer() async {}
 }
