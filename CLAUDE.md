@@ -37,7 +37,26 @@ git push -u origin HEAD:feature/my-branch-name
 gh pr create --base main
 ```
 
-**Before committing:** Always run `flutter test` and `flutter analyze`. Confirm no new failures or analyzer errors.
+### Verification Loop
+
+**Before starting work, ask the user** which verification approach to use:
+- **Tests + analyze only** — automated checks only. Best for refactors, internal logic, well-tested code paths.
+- **Tests + run app** — run with `simulate=1` so user can visually verify. Best for GUI features, UX changes.
+- **Tests + API smoke test** — run app, then `curl` changed endpoints to verify responses. Best for API work.
+- **Tests + custom check** — user specifies what to verify (e.g., real hardware test, WebSocket stream check).
+
+**Ask the user** whether new/updated tests are needed for the change. If yes, write tests before or alongside the implementation — not as an afterthought.
+
+During development, after every meaningful code change:
+
+1. **Targeted check:** Run the specific test file(s) related to the change + `flutter analyze`.
+   ```bash
+   flutter test test/relevant_test.dart
+   flutter analyze
+   ```
+2. **Fix before continuing.** If tests fail or analyzer reports issues, fix them immediately — do not accumulate broken state.
+3. **Full suite at milestones:** Run `flutter test` (all tests) before committing, after completing a plan step, and before claiming work is done.
+4. **Final verification:** Perform the user's chosen verification approach before reporting completion. Never skip. Evidence before assertions.
 
 ### Plans
 
