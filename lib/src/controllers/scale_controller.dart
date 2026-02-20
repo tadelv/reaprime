@@ -112,6 +112,7 @@ class ScaleController {
         weight: snapshot.weight,
         weightFlow: weightFlowAverage.average,
         battery: snapshot.batteryLevel,
+        timerValue: snapshot.timerValue,
       ),
     );
   }
@@ -130,11 +131,13 @@ class WeightSnapshot {
   final double weight;
   final double weightFlow;
   final int? battery;
+  final Duration? timerValue;
   WeightSnapshot({
     required this.timestamp,
     required this.weight,
     required this.weightFlow,
     this.battery,
+    this.timerValue,
   });
 
   Map<String, dynamic> toJson() {
@@ -142,6 +145,7 @@ class WeightSnapshot {
       "timestamp": timestamp.toIso8601String(),
       "weight": weight,
       "weightFlow": weightFlow,
+      "timerValue": timerValue?.inMilliseconds,
     };
   }
 
@@ -150,6 +154,9 @@ class WeightSnapshot {
       timestamp: DateTime.parse(json["timestamp"]),
       weight: json["weight"],
       weightFlow: json["weightFlow"],
+      timerValue: json["timerValue"] != null
+          ? Duration(milliseconds: json["timerValue"])
+          : null,
     );
   }
 }
