@@ -1,0 +1,57 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:reaprime/src/models/device/impl/atomheart/atomheart_scale.dart';
+
+
+void main() {
+  group('AtomheartScale timer parsing', () {
+    test('parseFrame extracts timer from BLE frame', () {
+      // Build a valid 10-byte frame: 'W' + int32_le weight_mg + uint32_le timer_ms + xor
+      // Weight: 1500 mg = 0x000005DC LE => [0xDC, 0x05, 0x00, 0x00]
+      // Timer: 5000 ms = 0x00001388 LE => [0x88, 0x13, 0x00, 0x00]
+      final payload = [0xDC, 0x05, 0x00, 0x00, 0x88, 0x13, 0x00, 0x00];
+      var xor = 0;
+      for (var b in payload) {
+        xor ^= b;
+      }
+      final data = [0x57, ...payload, xor & 0xFF];
+
+      final snapshot = AtomheartScale.parseFrame(data);
+      expect(snapshot, isNotNull);
+      expect(snapshot!.weight, closeTo(1.5, 0.001));
+      expect(snapshot.timerValue, equals(Duration(milliseconds: 5000)));
+    });
+
+    test('parseFrame returns null timerValue when timer is 0', () {
+      // Weight: 2000 mg, Timer: 0 ms
+      final payload = [0xD0, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+      var xor = 0;
+      for (var b in payload) {
+        xor ^= b;
+      }
+      final data = [0x57, ...payload, xor & 0xFF];
+
+      final snapshot = AtomheartScale.parseFrame(data);
+      expect(snapshot, isNotNull);
+      expect(snapshot!.timerValue, isNull);
+    });
+
+    test('parseFrame returns null for short data', () {
+      expect(AtomheartScale.parseFrame([0x57, 0x01]), isNull);
+    });
+
+    test('parseFrame returns null for wrong header', () {
+      final payload = [0xDC, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+      var xor = 0;
+      for (var b in payload) {
+        xor ^= b;
+      }
+      final data = [0x42, ...payload, xor & 0xFF]; // Wrong header
+      expect(AtomheartScale.parseFrame(data), isNull);
+    });
+
+    test('parseFrame returns null for invalid XOR checksum', () {
+      final data = [0x57, 0xDC, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF]; // Bad XOR
+      expect(AtomheartScale.parseFrame(data), isNull);
+    });
+  });
+}

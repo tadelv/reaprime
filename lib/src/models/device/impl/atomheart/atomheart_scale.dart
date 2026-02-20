@@ -104,27 +104,31 @@ class AtomheartScale implements Scale {
     // Atomheart Eclair doesn't support display wake via BLE
   }
 
+  @override
+  Future<void> startTimer() async {}
+
+  @override
+  Future<void> stopTimer() async {}
+
+  @override
+  Future<void> resetTimer() async {}
+
   void _registerNotifications() async {
     await _transport.subscribe(serviceUUID, dataUUID, _parseNotification);
   }
 
-  bool _validateXor(List<int> data) {
-    if (data.length < 3) return false;
+  /// Parse a BLE notification frame into a ScaleSnapshot.
+  /// Returns null if the frame is invalid.
+  static ScaleSnapshot? parseFrame(List<int> data) {
+    if (data.length < 9) return null;
+    if (data[0] != 0x57) return null;
+
+    // Validate XOR checksum
     var xorResult = 0;
     for (var i = 1; i < data.length - 1; i++) {
       xorResult ^= data[i];
     }
-    return (xorResult & 0xFF) == (data.last & 0xFF);
-  }
-
-  void _parseNotification(List<int> data) {
-    if (data.length < 9) return;
-
-    // Header must be 'W' (0x57)
-    if (data[0] != 0x57) return;
-
-    // Validate XOR checksum
-    if (!_validateXor(data)) return;
+    if ((xorResult & 0xFF) != (data.last & 0xFF)) return null;
 
     // Extract weight as signed int32 little-endian from bytes 1-4
     final byteData = ByteData(4);
@@ -134,14 +138,26 @@ class AtomheartScale implements Scale {
     byteData.setUint8(3, data[4]);
     final weightMg = byteData.getInt32(0, Endian.little);
 
-    final weight = weightMg / 1000.0;
+    // Extract timer as uint32 little-endian from bytes 5-8
+    final timerData = ByteData(4);
+    timerData.setUint8(0, data[5]);
+    timerData.setUint8(1, data[6]);
+    timerData.setUint8(2, data[7]);
+    timerData.setUint8(3, data[8]);
+    final timerMs = timerData.getUint32(0, Endian.little);
 
-    _streamController.add(
-      ScaleSnapshot(
-        timestamp: DateTime.now(),
-        weight: weight,
-        batteryLevel: 0,
-      ),
+    return ScaleSnapshot(
+      timestamp: DateTime.now(),
+      weight: weightMg / 1000.0,
+      batteryLevel: 0,
+      timerValue: timerMs > 0 ? Duration(milliseconds: timerMs) : null,
     );
+  }
+
+  void _parseNotification(List<int> data) {
+    final snapshot = parseFrame(data);
+    if (snapshot != null) {
+      _streamController.add(snapshot);
+    }
   }
 }
