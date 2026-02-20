@@ -135,4 +135,13 @@ class FelicitaArc implements Scale {
       ),
     );
   }
+
+  @override
+  Future<void> startTimer() async {}
+
+  @override
+  Future<void> stopTimer() async {}
+
+  @override
+  Future<void> resetTimer() async {}
 }

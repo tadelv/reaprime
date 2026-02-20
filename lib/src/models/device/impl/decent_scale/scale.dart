@@ -210,4 +210,13 @@ class DecentScale implements Scale {
     _log.info('Waking Decent Scale display');
     await _sendOledOn();
   }
+
+  @override
+  Future<void> startTimer() async {}
+
+  @override
+  Future<void> stopTimer() async {}
+
+  @override
+  Future<void> resetTimer() async {}
 }
