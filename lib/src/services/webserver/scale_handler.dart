@@ -23,6 +23,29 @@ class ScaleHandler {
           return Response.notFound("");
       }
     });
+    app.put('/api/v1/scale/timer/<command>', (request, command) async {
+      try {
+        final scale = _controller.connectedScale();
+        switch (command) {
+          case 'start':
+            _log.fine("handling api timer start command");
+            await scale.startTimer();
+            return Response.ok('');
+          case 'stop':
+            _log.fine("handling api timer stop command");
+            await scale.stopTimer();
+            return Response.ok('');
+          case 'reset':
+            _log.fine("handling api timer reset command");
+            await scale.resetTimer();
+            return Response.ok('');
+          default:
+            return Response.notFound("");
+        }
+      } catch (e) {
+        return jsonError({'error': e.toString()});
+      }
+    });
     app.get('/ws/v1/scale/snapshot', sws.webSocketHandler(_handleSnapshot));
   }
 
