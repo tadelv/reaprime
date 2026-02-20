@@ -309,6 +309,39 @@ paths:
         "404":
           description: Scale not found
 
+  /api/v1/scale/timer/start:
+    put:
+      summary: Start Scale Timer
+      description: Starts the timer on the connected scale. No-op if the scale doesn't support hardware timers.
+      tags: [Scale]
+      responses:
+        "200":
+          description: Timer started
+        "500":
+          description: No scale connected or error
+
+  /api/v1/scale/timer/stop:
+    put:
+      summary: Stop Scale Timer
+      description: Stops the timer on the connected scale. No-op if the scale doesn't support hardware timers.
+      tags: [Scale]
+      responses:
+        "200":
+          description: Timer stopped
+        "500":
+          description: No scale connected or error
+
+  /api/v1/scale/timer/reset:
+    put:
+      summary: Reset Scale Timer
+      description: Resets the timer on the connected scale. No-op if the scale doesn't support hardware timers.
+      tags: [Scale]
+      responses:
+        "200":
+          description: Timer reset
+        "500":
+          description: No scale connected or error
+
   # Sensors API handling
   /api/v1/sensors:
     get:
@@ -1559,6 +1592,10 @@ components:
           type: number
         batteryLevel:
           type: integer
+        timerValue:
+          type: integer
+          nullable: true
+          description: Timer elapsed time in milliseconds. Null if scale doesn't support timers or timer hasn't been started.
     MachineSnapshot:
       type: object
       properties:

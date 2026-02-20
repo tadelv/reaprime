@@ -175,6 +175,10 @@ components:
           type: number
         batteryLevel:
           type: integer
+        timerValue:
+          type: integer
+          nullable: true
+          description: Timer elapsed time in milliseconds. Null if scale doesn't support timers or timer hasn't been started.
     MachineSnapshot:
       type: object
       properties:
