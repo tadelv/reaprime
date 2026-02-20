@@ -5,7 +5,7 @@ info:
   description: |
     This API provides endpoints to retrieve a list of Bluetooth devices, trigger a scan for new devices, manage DE1 espresso machine state and settings, and interact with a connected scale.
 servers:
-  - url: http://{tablet-ip}
+  - url: http://{tablet-ip}:8080
     variables:
       tablet-ip:
         default: localhost
