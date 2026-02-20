@@ -89,13 +89,13 @@ During development, after every meaningful code change:
 
 - **`DeviceController`:** Coordinates multiple `DeviceDiscoveryService` implementations → unified device stream
 - **`De1Controller`:** Machine operations (state, settings, profiles)
-- **`ShotController`:** Orchestrates shot execution, stops at target weight
+- **`ShotController`:** Orchestrates shot execution, stops at target weight. Timer lifecycle: reset on first tare (preparingForShot), start on second tare (preinfusion/pouring), stop when shot ends.
 - **`ProfileController`:** Profile library with content-based hash IDs for deduplication
 - **`WorkflowController`:** Multi-step espresso workflows
 
 ### Web Server
 
-Handler-based routing in `lib/src/services/webserver/`. Each handler has an `addRoutes()` method, registered in `webserver_service.dart`'s `_init()`. API docs served on port 4001. API specs in `assets/api/`.
+Handler-based routing in `lib/src/services/webserver/`. Each handler file is a `part of` `webserver_service.dart` (shares its imports — `Response`, `jsonError`, `sws`, etc.). Each handler has an `addRoutes()` method, registered in `_init()`. API docs served on port 4001. API specs in `assets/api/`.
 
 ### Data Flow (key paths)
 
