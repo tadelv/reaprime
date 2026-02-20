@@ -117,6 +117,7 @@ jobs:
           APP="build/macos/Build/Products/Release/Streamline-Bridge.app"
           codesign --deep --force \
             --options runtime \
+            --entitlements macos/Runner/Release.entitlements \
             --sign "Developer ID Application" \
             "$APP"
 
