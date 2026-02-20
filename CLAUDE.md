@@ -104,6 +104,11 @@ Controllers manage business logic and orchestrate between devices and services:
   - `SerialService` (desktop platforms) with platform-specific implementations
   - `SimulatedDeviceService` (for development without hardware)
 
+- **Settings Services:**
+  - `SettingsService` (abstract): Interface for storing/retrieving user settings
+  - `SharedPreferencesSettingsService`: Concrete implementation using `SharedPreferencesAsync`
+  - `MockSettingsService` (test only): In-memory implementation for widget tests
+
 - **Storage Services:**
   - `FileStorageService`: File-based persistence
   - `HiveStoreService`: Key-value store using Hive
@@ -193,9 +198,24 @@ See `doc/Plugins.md` for comprehensive plugin development guide.
 - Unit tests: `test/unit_test.dart`
 - Profile tests: `test/profile_test.dart` (21 comprehensive tests including hash mechanics)
 - Widget tests: `test/widget_test.dart`
+- Device selection widget tests: `test/device_selection_widget_test.dart` (9 tests — empty states, display, filtering, tap, connecting indicator, errors)
+- Device discovery view tests: `test/device_discovery_view_test.dart` (4 tests — searching state, discovered devices, scales alongside machines, timeout)
 - Simulated devices enable testing without physical hardware:
   - Set `simulate=1` compile-time variable
   - Or toggle in settings UI
+
+### Test Helpers (`test/helpers/`)
+
+- **`MockDeviceDiscoveryService`** (`mock_device_discovery_service.dart`): Controllable `DeviceDiscoveryService` for widget tests. Unlike `SimulatedDeviceService`, this lets tests add/remove specific devices at specific times via `addDevice()`, `removeDevice()`, and `clear()`.
+- **`TestScale`** (`test_scale.dart`): Lightweight `Scale` implementation for widget tests. Use this instead of `MockScale` — `MockScale` has a `Timer.periodic` that conflicts with `pumpAndSettle()` in tests.
+- **`MockSettingsService`** (`mock_settings_service.dart`): In-memory `SettingsService` implementation. Returns sensible defaults without touching `SharedPreferences`. Sets `telemetryPromptShown` and `telemetryConsentDialogShown` to `true` to skip dialogs in tests.
+
+### Widget Test Patterns
+
+- **Device stream propagation:** Add devices to `MockDeviceDiscoveryService` *before* building widgets, then call `await tester.pump()` to flush stream microtasks to `DeviceController` before `pumpWidget()`.
+- **ShadApp wrapping:** Wrap test widgets in `ShadApp(home: Scaffold(body: child))` — `Scaffold` provides the `Material` ancestor required by `ListTile` and `Checkbox`.
+- **Animations and timers:** Use `pump()` instead of `pumpAndSettle()` when the widget tree contains `CircularProgressIndicator` or other ongoing animations.
+- **Real async in DeviceDiscoveryView:** Use `tester.runAsync()` for tests involving `DeviceDiscoveryView` — it creates real `Future.delayed` timers and relies on stream microtask propagation.
 
 ## Common Workflows
 
@@ -328,6 +348,23 @@ See `doc/Skins.md` for complete skin development guide (API reference, WebSocket
 - **BLE characteristic reads:** Throttle rapid reads to avoid overwhelming Bluetooth stack
 - **Large data:** Shot records with many data points—consider pagination for history endpoints
 - **Plugin JS runtime:** Each plugin runs in isolated JS context; limit plugin count on resource-constrained devices
+
+## Branching & Workflow
+
+**Before starting any feature or fix, always ask the user:**
+
+1. **Branch strategy:** Should this work be done on a new branch, in a worktree, or directly on the current branch?
+2. **Completion strategy:** Should the result be a PR, a local merge back to main, or left as-is for manual handling?
+
+**Do not assume.** The default branch (`main`) has branch protection requiring PRs. Pushing directly to `main` bypasses these protections. When using worktrees created by `EnterWorktree`, the local branch tracks `origin/main` — pushing it will push directly to `main`, not create a remote feature branch.
+
+**To create a proper PR from a worktree:**
+1. Create a remote branch explicitly: `git push -u origin HEAD:feature/my-branch-name`
+2. Then use `gh pr create` against `main`
+
+**Verification before completion:**
+- Always run `flutter test` and `flutter analyze` before committing final changes
+- Confirm all new tests pass and no new analyzer errors were introduced
 
 ## Code Style from avante.md
 
