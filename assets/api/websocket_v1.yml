@@ -12,7 +12,7 @@ info:
     and sensors.
 servers:
   production:
-    host: '{tablet-ip}'
+    host: '{tablet-ip}:8080'
     protocol: ws
     description: WebSocket server providing live updates
     variables:
