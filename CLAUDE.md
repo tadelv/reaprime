@@ -1,375 +1,141 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Project Overview
 
-ReaPrime (REA/R1) is a Flutter-based gateway application for Decent Espresso machines. It connects to DE1 espresso machines and scales via Bluetooth/USB, exposing REST and WebSocket APIs for client applications. The app supports shot control, machine state management, profile uploads, and a JavaScript plugin system for extensibility.
+Streamline-Bridge (formerly REA/ReaPrime/R1) is a Flutter gateway app for Decent Espresso machines. Connects to DE1 machines and scales via BLE/USB, exposing REST (port 8080) and WebSocket APIs. Includes a JavaScript plugin system. Primary platform: Android (DE1 tablet), also macOS, Linux, Windows, iOS. Note: the rename is in progress — code, repo, and file references may still use the old names.
 
-**Primary Platform:** Android (DE1 tablet), with support for macOS, Linux, Windows, and iOS.
-
-## Development Commands
-
-### Running the App
+## Commands
 
 ```bash
-# Standard run (includes version injection from git commit)
-./flutter_with_commit.sh run
+# Run
+./flutter_with_commit.sh run              # Standard (injects git commit version)
+flutter run --dart-define=simulate=1      # Simulated devices (no hardware needed)
 
-# Run with simulated devices
-flutter run --dart-define=simulate=1
+# Test & Lint
+flutter test                              # All tests
+flutter test test/unit_test.dart          # Specific test file
+flutter analyze                           # Static analysis
+flutter format lib/ test/                 # Format code
 
-# Run tests
-flutter test
-
-# Run specific test
-flutter test test/unit_test.dart
+# Build (Linux via Docker/Colima)
+make build-arm                            # ARM64
+make build-amd                            # x86_64
+make dual-build                           # Both architectures
 ```
 
-### Building
+## Branching & Workflow
 
+**Before starting any feature or fix, always ask the user:**
+1. **Branch strategy:** New branch, worktree, or current branch?
+2. **Completion strategy:** PR, local merge to main, or leave as-is?
+
+**Do not assume.** `main` has branch protection requiring PRs. Pushing directly bypasses protections.
+
+**Worktree gotcha:** `EnterWorktree` branches track `origin/main` — pushing will push directly to `main`. To create a proper PR from a worktree:
 ```bash
-# Build for Linux ARM64 (using Docker/Colima)
-make build-arm
-
-# Build for Linux x86_64 (using Docker/Colima)
-make build-amd
-
-# Build both architectures
-make dual-build
-
-# Start Colima with ARM64 profile
-make colima-arm
-
-# Start Colima with x86_64 profile
-make colima-amd
+git push -u origin HEAD:feature/my-branch-name
+gh pr create --base main
 ```
 
-### Linting & Analysis
-
-```bash
-# Run Flutter analyzer
-flutter analyze
-
-# Format code
-flutter format lib/ test/
-```
-
-### Dependencies
-
-```bash
-# Get dependencies
-flutter pub get
-
-# Upgrade dependencies
-flutter pub upgrade
-```
+**Before committing:** Always run `flutter test` and `flutter analyze`. Confirm no new failures or analyzer errors.
 
 ## Architecture
 
-### Core Design Principles
+### Design Principles
 
-- **Transport abstraction:** All connection types (BLE, Serial, etc.) are abstracted through interfaces. Device implementations depend on injected transport interfaces, not concrete implementations.
-- **Constructor dependency injection:** Controllers and services receive dependencies through constructors.
-- **Single Responsibility Principle:** Each component has a clear, focused purpose.
+- **Transport abstraction:** Device implementations depend on injected transport interfaces (`DataTransport`, `BleTransport`, `SerialPort`), not concrete implementations.
+- **Constructor dependency injection:** No service locators. Dependencies passed through constructors.
+- **Single Responsibility:** Each controller/service has one focused purpose.
 
-### Key Architectural Layers
+### Layer Overview
 
-**1. Device Layer (`lib/src/models/device/`)**
-- **Abstract interfaces:** `Device`, `Machine`, `Scale`, `Sensor`
-- **Transport abstractions:** `DataTransport`, `BleTransport`, `SerialPort`
-- **Concrete implementations:**
-  - DE1 machines: `de1/de1.dart`, `serial_de1/serial_de1.dart`, `de1/unified_de1/unified_de1.dart`
-  - Scales: `felicita/arc.dart`, `decent_scale/scale.dart`, `bookoo/miniscale.dart`
-  - Sensors: `sensor/sensor_basket.dart`, `sensor/debug_port.dart`
-  - Mock devices: `mock_de1/`, `mock_scale/` for testing without hardware
+| Layer | Path | Purpose |
+|-------|------|---------|
+| Devices | `lib/src/models/device/` | Abstract interfaces (`Device`, `Machine`, `Scale`, `Sensor`) + implementations in `impl/` |
+| Controllers | `lib/src/controllers/` | Business logic orchestration between devices and services |
+| Services | `lib/src/services/` | Discovery, storage, settings, web server |
+| Plugins | `lib/src/plugins/` | JS plugin lifecycle, manifest, sandboxed runtime |
+| UI Features | `lib/src/` | `home_feature/`, `history_feature/`, `realtime_shot_feature/`, `settings/`, etc. |
+| WebUI Skins | `lib/src/webui_support/` | Web-based UI skin management and serving |
 
-**2. Controllers (`lib/src/controllers/`)**
+### Key Controllers
 
-Controllers manage business logic and orchestrate between devices and services:
-- **`DeviceController`:** Manages device discovery across multiple `DeviceDiscoveryService` implementations (BLE, Serial, Simulated)
-- **`De1Controller`:** Controls DE1 machine operations (state, settings, profiles)
-- **`ScaleController`:** Manages scale connections and weight data
-- **`SensorController`:** Handles sensor data streams
-- **`ShotController`:** Orchestrates shot execution, stopping at target weight
-- **`WorkflowController`:** Manages multi-step espresso workflows
-- **`ProfileController`:** Manages profile library with content-based hash IDs for automatic deduplication
-- **`PersistenceController`:** Handles saving/loading shots and workflows
+- **`DeviceController`:** Coordinates multiple `DeviceDiscoveryService` implementations → unified device stream
+- **`De1Controller`:** Machine operations (state, settings, profiles)
+- **`ShotController`:** Orchestrates shot execution, stops at target weight
+- **`ProfileController`:** Profile library with content-based hash IDs for deduplication
+- **`WorkflowController`:** Multi-step espresso workflows
 
-**3. Services (`lib/src/services/`)**
+### Web Server
 
-- **Discovery Services:**
-  - `BluePlusDiscoveryService` (Android/iOS/macOS/Linux)
-  - `UniversalBleDiscoveryService` (Windows)
-  - `SerialService` (desktop platforms) with platform-specific implementations
-  - `SimulatedDeviceService` (for development without hardware)
+Handler-based routing in `lib/src/services/webserver/`. Each handler has an `addRoutes()` method, registered in `webserver_service.dart`'s `_init()`. API docs served on port 4001. API specs in `assets/api/`.
 
-- **Settings Services:**
-  - `SettingsService` (abstract): Interface for storing/retrieving user settings
-  - `SharedPreferencesSettingsService`: Concrete implementation using `SharedPreferencesAsync`
-  - `MockSettingsService` (test only): In-memory implementation for widget tests
+### Data Flow (key paths)
 
-- **Storage Services:**
-  - `FileStorageService`: File-based persistence
-  - `HiveStoreService`: Key-value store using Hive
-  - `KvStoreService`: Abstract KV interface
-  - `ProfileStorageService`: Abstract interface for profile storage
-  - `HiveProfileStorageService`: Hive-based profile storage implementation
+1. **Discovery:** `DeviceController` → multiple `DeviceDiscoveryService` instances → unified device stream
+2. **Machine State:** Transport messages → DE1 parses → `De1Controller` broadcasts → WebSocket + Plugins
+3. **API Requests:** HTTP → Shelf router → Handler → Controller → Device
+4. **UI Scan:** Scan button → `DeviceController.scanForDevices()` → auto-connect (1 device) or selection dialog (multiple) or error (none)
 
-- **Web Server (`webserver_service.dart`):**
-  - REST API on port 8080
-  - WebSocket endpoints for real-time data
-  - API documentation server on port 4001
-  - Handler-based routing: `de1handler.dart`, `scale_handler.dart`, `devices_handler.dart`, `shots_handler.dart`, `workflow_handler.dart`, `sensors_handler.dart`, `plugins_handler.dart`, `kv_store_handler.dart`, `settings_handler.dart`, `profile_handler.dart`
+## Conventions & Gotchas
 
-**4. Plugin System (`lib/src/plugins/`)**
-
-REA features a JavaScript plugin system with sandboxed execution:
-- **`PluginLoaderService`:** Manages plugin lifecycle (install, load, unload)
-- **`PluginManager`:** Routes events between Flutter and JS runtime
-- **`PluginManifest`:** Defines plugin metadata, permissions, settings, API endpoints
-- **`PluginRuntime`:** Executes JavaScript via `flutter_js` bridge
-
-Plugins can:
-- React to machine state updates
-- Make HTTP requests (via `fetch`)
-- Store persistent data
-- Emit custom events exposed as WebSocket endpoints
-
-See `Plugins.md` for plugin development guide.
-
-**5. UI Features (`lib/src/`)**
-
-- `home_feature/`: Main UI with machine status tiles and control forms
-  - `StatusTile`: Displays DE1 state, temperatures, water levels, scale info with lifecycle-aware streams
-  - `SettingsTile`: Power controls, auxiliary functions (clean/descale), and device scanning
-  - `ProfileTile`: Profile selection and management
-- `history_feature/`: Shot history viewing
-- `realtime_shot_feature/`: Live shot visualization
-- `settings/`: App configuration, gateway mode settings
-- `sample_feature/`: Device discovery and debug view (`SampleItemListView`)
-
-### Data Flow
-
-1. **Device Discovery:** `DeviceController` coordinates multiple `DeviceDiscoveryService` instances → emits unified device stream
-2. **Connection:** User/API requests connection → Controller calls `device.onConnect()` → Device sets up transport subscriptions
-3. **Machine State:** DE1 sends BLE/Serial messages → `DataTransport` parses → DE1 implementation updates state → `De1Controller` broadcasts changes → WebSocket clients + Plugins receive updates
-4. **Shot Control:** `ShotController` subscribes to scale weight + machine state → stops shot when target weight reached
-5. **API Requests:** HTTP client → Shelf router → Handler (e.g., `De1Handler`) → Controller → Device
-6. **Plugin Events:** Machine state change → `PluginManager` sends `stateUpdate` event → JS runtime → Plugin emits custom event → WebSocket broadcasts to API clients
-7. **UI Scan Flow:** User clicks Scan button (when DE1 disconnected) → `SettingsTile._handleScan()` → `DeviceController.scanForDevices()` → If 1 DE1: auto-connect → If multiple: show `_DeviceSelectionDialog` → If none: show error dialog
-
-### Important Conventions
-
-- **RxDart Streams:** Controllers use `BehaviorSubject` for state broadcasting
-- **Async Initialization:** Services/controllers have `initialize()` methods called from `main.dart`
-- **Foreground Service:** On Android, app can run as foreground service to maintain BLE connection in background (`ForegroundTaskService`)
-- **Logging:** Uses `package:logging` with `Logger.root` configured in `main.dart`. Logs written to `~/Download/REA1/log.txt` on Android and app documents directory on other platforms.
-- **StreamBuilder Best Practices:** 
-  - Always check both `hasData` AND `data != null` for nullable streams (e.g., `De1Interface?`)
-  - Use explicit type parameters: `StreamBuilder<De1Interface?>` to avoid type inference issues
-  - For lifecycle-aware widgets, implement `WidgetsBindingObserver` and conditionally set stream to `null` when app is backgrounded to prevent unnecessary rebuilds
-
-## Documentation
-
-Comprehensive documentation is located in the `doc/` directory:
-
-- **`doc/Skins.md`** - Complete WebUI skin development guide (API reference, development workflow, deployment)
-- **`doc/Plugins.md`** - Plugin development guide (JavaScript API, manifest structure, event system)
-- **`doc/Profiles.md`** - Profile API documentation (content-based hashing, version tracking, management)
-- **`doc/DeviceManagement.md`** - Device discovery and connection management
-- **`doc/RELEASE.md`** - Release process and versioning guidelines
-
-## Plugin Development
-
-Plugins are `.reaplugin` directories containing `manifest.json` and `plugin.js`. Key points:
-
-- Bundled plugins in `assets/plugins/` are auto-copied to app documents directory on startup
-- Plugins can be installed by copying directories into the app's plugins folder
-- Manifest defines permissions (`log`, `api`, `emit`, `pluginStorage`), settings schema, and API endpoint definitions
-- JavaScript runtime provides: `host.log()`, `host.emit()`, `host.storage()`, `fetch()`, `btoa()`
-- Events: `stateUpdate` (machine telemetry), `storageRead`, `storageWrite`, `shutdown`
-- Plugin-emitted events are routed to WebSocket endpoints: `/ws/v1/plugins/{pluginId}/{eventName}`
-
-See `doc/Plugins.md` for comprehensive plugin development guide.
+- **RxDart:** Controllers use `BehaviorSubject` for state broadcasting
+- **Async init:** Services/controllers have `initialize()` methods called from `main.dart`
+- **Logging:** `package:logging`, configured in `main.dart`. Logs to `~/Download/REA1/log.txt` (Android) or app documents dir (other platforms)
+- **Foreground service:** Android uses `ForegroundTaskService` to maintain BLE in background
+- **StreamBuilder patterns:**
+  - Check both `hasData` AND `data != null` for nullable streams (e.g., `De1Interface?`)
+  - Use explicit type parameters: `StreamBuilder<De1Interface?>`
+  - Lifecycle-aware widgets: implement `WidgetsBindingObserver`, set stream to `null` when backgrounded
+- **Stream subscriptions:** Always cancel in `dispose()` methods
+- **BLE reads:** Throttle rapid characteristic reads to avoid overwhelming Bluetooth stack
 
 ## Testing
 
-- Unit tests: `test/unit_test.dart`
-- Profile tests: `test/profile_test.dart` (21 comprehensive tests including hash mechanics)
-- Widget tests: `test/widget_test.dart`
-- Device selection widget tests: `test/device_selection_widget_test.dart` (9 tests — empty states, display, filtering, tap, connecting indicator, errors)
-- Device discovery view tests: `test/device_discovery_view_test.dart` (4 tests — searching state, discovered devices, scales alongside machines, timeout)
-- Simulated devices enable testing without physical hardware:
-  - Set `simulate=1` compile-time variable
-  - Or toggle in settings UI
+Run with `flutter test`. Simulated devices available via `--dart-define=simulate=1` or settings UI toggle.
 
 ### Test Helpers (`test/helpers/`)
 
-- **`MockDeviceDiscoveryService`** (`mock_device_discovery_service.dart`): Controllable `DeviceDiscoveryService` for widget tests. Unlike `SimulatedDeviceService`, this lets tests add/remove specific devices at specific times via `addDevice()`, `removeDevice()`, and `clear()`.
-- **`TestScale`** (`test_scale.dart`): Lightweight `Scale` implementation for widget tests. Use this instead of `MockScale` — `MockScale` has a `Timer.periodic` that conflicts with `pumpAndSettle()` in tests.
-- **`MockSettingsService`** (`mock_settings_service.dart`): In-memory `SettingsService` implementation. Returns sensible defaults without touching `SharedPreferences`. Sets `telemetryPromptShown` and `telemetryConsentDialogShown` to `true` to skip dialogs in tests.
+- **`MockDeviceDiscoveryService`:** Controllable discovery for widget tests. Add/remove specific devices at specific times via `addDevice()`, `removeDevice()`, `clear()`.
+- **`TestScale`:** Use instead of `MockScale` — `MockScale` has `Timer.periodic` that conflicts with `pumpAndSettle()`.
+- **`MockSettingsService`:** In-memory `SettingsService`. Sets `telemetryPromptShown` and `telemetryConsentDialogShown` to `true` to skip dialogs.
 
 ### Widget Test Patterns
 
-- **Device stream propagation:** Add devices to `MockDeviceDiscoveryService` *before* building widgets, then call `await tester.pump()` to flush stream microtasks to `DeviceController` before `pumpWidget()`.
-- **ShadApp wrapping:** Wrap test widgets in `ShadApp(home: Scaffold(body: child))` — `Scaffold` provides the `Material` ancestor required by `ListTile` and `Checkbox`.
-- **Animations and timers:** Use `pump()` instead of `pumpAndSettle()` when the widget tree contains `CircularProgressIndicator` or other ongoing animations.
-- **Real async in DeviceDiscoveryView:** Use `tester.runAsync()` for tests involving `DeviceDiscoveryView` — it creates real `Future.delayed` timers and relies on stream microtask propagation.
+- **Stream propagation:** Add devices to mock service *before* building widgets, then `await tester.pump()` to flush microtasks before `pumpWidget()`.
+- **ShadApp wrapping:** Use `ShadApp(home: Scaffold(body: child))` — `Scaffold` provides `Material` ancestor for `ListTile`/`Checkbox`.
+- **Animations:** Use `pump()` not `pumpAndSettle()` when tree has `CircularProgressIndicator` or ongoing animations.
+- **DeviceDiscoveryView:** Use `tester.runAsync()` — it uses real `Future.delayed` and stream microtask propagation.
 
 ## Common Workflows
 
 ### Adding a New Device Type
 
 1. Create interface in `lib/src/models/device/` (extend `Device`, `Machine`, or `Scale`)
-2. Implement concrete device in `lib/src/models/device/impl/{device_name}/`
-3. Add device UUID mapping in `main.dart` discovery service configuration
-4. Create controller if device requires specialized logic
+2. Implement in `lib/src/models/device/impl/{device_name}/`
+3. Add UUID mapping in `main.dart` discovery config
+4. Create controller if needed in `lib/src/controllers/`
 5. Add API handler in `lib/src/services/webserver/`
 
 ### Adding a New API Endpoint
 
-1. Create or modify handler in `lib/src/services/webserver/`
-2. Add route in handler's `addRoutes()` method
-3. Register handler in `_init()` in `webserver_service.dart`
-4. Document endpoint in `assets/api/rest_v1.yml` or `websocket_v1.yml`
+1. Create/modify handler in `lib/src/services/webserver/`
+2. Add route in handler's `addRoutes()`
+3. Register in `webserver_service.dart` `_init()`
+4. Document in `assets/api/rest_v1.yml` or `websocket_v1.yml`
 
-### Working with Profiles
+## Documentation
 
-REA includes a complete Profiles API for managing espresso profiles:
+Detailed docs in `doc/`:
+- **`doc/Skins.md`** — WebUI skin development (API reference, deployment, examples)
+- **`doc/Plugins.md`** — Plugin development (JS API, manifest, events, permissions)
+- **`doc/Profiles.md`** — Profile API (content-based hashing, version tracking, endpoints)
+- **`doc/DeviceManagement.md`** — Device discovery and connection management
+- **`doc/RELEASE.md`** — Release process and versioning
 
-**Core Concepts:**
-- Profiles are v2 JSON format (same as de1app's `profiles_v2`)
-- **Content-based hash IDs**: Profiles use SHA-256 hashes of execution fields as IDs (format: `profile:<20_hex_chars>`)
-- **Three-hash system**: Profile hash (ID), metadata hash, compound hash for change detection
-- **Automatic deduplication**: Identical profiles share the same ID across all devices
-- **Version tracking**: Parent-child relationships via `parentId` for profile evolution
+## Code Style
 
-**Key Files:**
-- Profile data model: `lib/src/models/data/profile.dart`
-- Profile record envelope: `lib/src/models/data/profile_record.dart`
-- Hash calculation: `lib/src/models/data/profile_hash.dart`
-- Controller: `lib/src/controllers/profile_controller.dart`
-- Storage interface: `lib/src/services/storage/profile_storage_service.dart`
-- Hive implementation: `lib/src/services/storage/hive_profile_storage.dart`
-- REST API handler: `lib/src/services/webserver/profile_handler.dart`
-- Machine profile handling: `lib/src/models/device/impl/de1/de1.profile.dart`
-
-**API Endpoints:**
-- `GET /api/v1/profiles` - List all profiles (with filtering)
-- `POST /api/v1/profiles` - Create new profile
-- `GET /api/v1/profiles/{id}` - Get specific profile
-- `PUT /api/v1/profiles/{id}` - Update profile
-- `DELETE /api/v1/profiles/{id}` - Soft delete profile
-- `PUT /api/v1/profiles/{id}/visibility` - Change visibility
-- `GET /api/v1/profiles/{id}/lineage` - Get version history
-- `DELETE /api/v1/profiles/{id}/purge` - Permanently delete
-- `POST /api/v1/profiles/import` - Batch import
-- `GET /api/v1/profiles/export` - Export all profiles
-- `POST /api/v1/profiles/restore/{filename}` - Restore default profile
-
-**Usage:**
-- Upload profile to machine: `POST /api/v1/machine/profile`
-- Update via workflow: `PUT /api/v1/workflow` (recommended)
-- Default profiles in: `assets/defaultProfiles/` (auto-loaded on startup)
-
-See `doc/Profiles.md` for comprehensive documentation.
-
-### Working with WebUI Skins
-
-REA supports custom web-based user interfaces (skins) that connect to the gateway API:
-
-**Core Concepts:**
-- Skins are static web apps (HTML/CSS/JS) served via built-in HTTP server
-- Support for modern frameworks: Next.js, React, Vue, Svelte, etc.
-- GitHub Release/branch integration for version management
-- REST API for installation without recompiling app
-
-**Key Files:**
-- WebUI storage & models: `lib/src/webui_support/webui_storage.dart` (`WebUISkin`, `WebUIReaMetadata`)
-- WebUI HTTP server: `lib/src/webui_support/webui_service.dart`
-- REST API handler: `lib/src/services/webserver/webui_handler.dart`
-- Settings integration: `lib/src/settings/settings_controller.dart` (`defaultSkinId`)
-- Settings UI: `lib/src/settings/settings_view.dart` (WebUI section)
-
-**Installation Methods:**
-- From GitHub releases (with asset selection, prerelease support)
-- From GitHub branches (archive download)
-- From direct URLs (with ETag/Last-Modified caching)
-- From local filesystem (directory or ZIP)
-- Remote bundled skins (hardcoded list, auto-downloaded on startup)
-
-**API Endpoints:**
-- `GET /api/v1/webui/skins` - List all installed skins
-- `GET /api/v1/webui/skins/{id}` - Get specific skin
-- `GET /api/v1/webui/skins/default` - Get default skin (preference-based)
-- `PUT /api/v1/webui/skins/default` - Set default skin preference
-- `POST /api/v1/webui/skins/install/github-release` - Install from GitHub release
-- `POST /api/v1/webui/skins/install/github-branch` - Install from GitHub branch
-- `POST /api/v1/webui/skins/install/url` - Install from URL
-- `DELETE /api/v1/webui/skins/{id}` - Remove skin
-
-**Default Skin Behavior:**
-- User preference stored in `SettingsController.defaultSkinId`
-- Defaults to `'streamline_project-main'` if no preference set
-- Automatically saved when user selects skin in Settings view
-- Fallback order: preference → streamline_project-main → first bundled → first available
-- Persists across app restarts via SharedPreferences
-
-**Metadata & Version Tracking:**
-- `WebUIReaMetadata` tracks installation source, version info (etag, lastModified, commitHash), timestamps
-- Persisted to `web-ui/.rea_metadata.json` in app documents directory
-- Remote bundled skin IDs tracked in `web-ui/.remote_bundled_registry.json`
-- Bundled skins (asset + remote) are protected from user deletion
-
-**Remote Bundled Skins:**
-Edit `lib/src/webui_support/webui_storage.dart` to add hardcoded skins that auto-download on startup:
-```dart
-static const List<Map<String, dynamic>> _remoteWebUISources = [
-  {
-    'type': 'github_branch',
-    'repo': 'allofmeng/streamline_project',
-    'branch': 'main',
-  },
-];
-```
-
-**Current Limitations (future work):**
-- No defined manifest schema — `manifest.json` is optional and not validated on install
-- No skin settings/configuration system (unlike plugins which have settings schema)
-- No skin permissions or sandboxing
-- No skin integrity verification (checksums, signatures)
-
-See `doc/Skins.md` for complete skin development guide (API reference, WebSocket endpoints, example implementation).
-
-## Memory & Performance Considerations
-
-- **Stream subscriptions:** Always cancel subscriptions in `dispose()` methods
-- **BLE characteristic reads:** Throttle rapid reads to avoid overwhelming Bluetooth stack
-- **Large data:** Shot records with many data points—consider pagination for history endpoints
-- **Plugin JS runtime:** Each plugin runs in isolated JS context; limit plugin count on resource-constrained devices
-
-## Branching & Workflow
-
-**Before starting any feature or fix, always ask the user:**
-
-1. **Branch strategy:** Should this work be done on a new branch, in a worktree, or directly on the current branch?
-2. **Completion strategy:** Should the result be a PR, a local merge back to main, or left as-is for manual handling?
-
-**Do not assume.** The default branch (`main`) has branch protection requiring PRs. Pushing directly to `main` bypasses these protections. When using worktrees created by `EnterWorktree`, the local branch tracks `origin/main` — pushing it will push directly to `main`, not create a remote feature branch.
-
-**To create a proper PR from a worktree:**
-1. Create a remote branch explicitly: `git push -u origin HEAD:feature/my-branch-name`
-2. Then use `gh pr create` against `main`
-
-**Verification before completion:**
-- Always run `flutter test` and `flutter analyze` before committing final changes
-- Confirm all new tests pass and no new analyzer errors were introduced
-
-## Code Style from avante.md
-
-- Prioritize readable, maintainable code
+- Readable, maintainable code over cleverness
 - Follow Dart/Flutter best practices
-- Pay attention to memory leaks (especially stream subscriptions)
-- Use constructor dependency injection
-- Single Responsibility Principle for all components
+- Constructor dependency injection (no service locators)
+- Cancel stream subscriptions in `dispose()`
