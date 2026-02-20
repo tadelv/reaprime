@@ -46,9 +46,9 @@ class ShotController {
   }
 
   Future<void> _initialize() async {
-    _bypassSAW = await SettingsService().gatewayMode() == GatewayMode.full;
-    _weightFlowMultiplier = await SettingsService().weightFlowMultiplier();
-    _volumeFlowMultiplier = await SettingsService().volumeFlowMultiplier();
+    _bypassSAW = await SharedPreferencesSettingsService().gatewayMode() == GatewayMode.full;
+    _weightFlowMultiplier = await SharedPreferencesSettingsService().weightFlowMultiplier();
+    _volumeFlowMultiplier = await SharedPreferencesSettingsService().volumeFlowMultiplier();
     _log.info(
       "Initializing ShotController (weightFlowMultiplier: $_weightFlowMultiplier, volumeFlowMultiplier: $_volumeFlowMultiplier)",
     );

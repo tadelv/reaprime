@@ -41,7 +41,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
   @override
   initState() {
     super.initState();
-    SettingsService().gatewayMode().then((b) => _gatewayMode = b == GatewayMode.full);
+    SharedPreferencesSettingsService().gatewayMode().then((b) => _gatewayMode = b == GatewayMode.full);
     _shotController = widget.shotController;
     _resetCommandSubscription = _shotController.resetCommand.listen((event) {
       setState(() {

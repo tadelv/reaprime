@@ -293,7 +293,7 @@ void main() async {
     log.warning("loading default workflow failed", e);
   }
 
-  final settingsController = SettingsController(SettingsService());
+  final settingsController = SettingsController(SharedPreferencesSettingsService());
   settingsController.telemetryService = telemetryService;
 
   // Initialize profile storage and controller
@@ -368,7 +368,7 @@ void main() async {
 
   // Initialize update check service
   final updateCheckService = UpdateCheckService(
-    settingsService: SettingsService(),
+    settingsService: SharedPreferencesSettingsService(),
   );
   await updateCheckService.initialize();
 
