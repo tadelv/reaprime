@@ -39,6 +39,12 @@ gh pr create --base main
 
 **Before committing:** Always run `flutter test` and `flutter analyze`. Confirm no new failures or analyzer errors.
 
+### Plans
+
+- Write implementation plans as `.md` files in `doc/plans/`.
+- **Do not commit** plan files unless the user requests it or asks to save progress.
+- After a plan is fully implemented, ask the user whether to update relevant documentation with the outcome.
+
 ## Architecture
 
 ### Design Principles
