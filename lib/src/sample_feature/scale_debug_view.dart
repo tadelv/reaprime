@@ -58,6 +58,30 @@ class _ScaleDebugViewState extends State<ScaleDebugView> {
                         },
                         child: Text("Sleep"),
                       ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        spacing: 8,
+                        children: [
+                          FilledButton(
+                            onPressed: () async {
+                              await widget.scale.startTimer();
+                            },
+                            child: Text("Start Timer"),
+                          ),
+                          FilledButton(
+                            onPressed: () async {
+                              await widget.scale.stopTimer();
+                            },
+                            child: Text("Stop Timer"),
+                          ),
+                          FilledButton(
+                            onPressed: () async {
+                              await widget.scale.resetTimer();
+                            },
+                            child: Text("Reset Timer"),
+                          ),
+                        ],
+                      ),
                       FilledButton(
                         onPressed: () async {
                           await widget.scale.disconnect();

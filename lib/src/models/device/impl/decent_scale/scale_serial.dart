@@ -156,19 +156,27 @@ class HDSSerial implements Scale {
 
   @override
   Future<void> startTimer() async {
-    List<int> payload = [0x03, 0x0B, 0x03, 0x00, 0x00, 0x00, 0x0B];
-    await _transport.writeHexCommand(Uint8List.fromList(payload));
+    Uint8List cmd = Uint8List(5);
+    cmd[0] = 0x03;
+    cmd[1] = 0x0B;
+    cmd[2] = 0x03;
+    await _transport.writeHexCommand(cmd);
   }
 
   @override
   Future<void> stopTimer() async {
-    List<int> payload = [0x03, 0x0B, 0x00, 0x00, 0x00, 0x00, 0x08];
-    await _transport.writeHexCommand(Uint8List.fromList(payload));
+    Uint8List cmd = Uint8List(5);
+    cmd[0] = 0x03;
+    cmd[1] = 0x0B;
+    await _transport.writeHexCommand(cmd);
   }
 
   @override
   Future<void> resetTimer() async {
-    List<int> payload = [0x03, 0x0B, 0x02, 0x00, 0x00, 0x00, 0x0A];
-    await _transport.writeHexCommand(Uint8List.fromList(payload));
+    Uint8List cmd = Uint8List(5);
+    cmd[0] = 0x03;
+    cmd[1] = 0x0B;
+    cmd[2] = 0x02;
+    await _transport.writeHexCommand(cmd);
   }
 }
