@@ -71,32 +71,72 @@ paths:
   /api/v1/devices/connect:
     put:
       summary: Connect to specified device
+      description: |
+        Accepts deviceId via JSON body (preferred) or query parameter (backward compatible).
+        Device IDs may contain special characters (e.g. colons in BLE MAC addresses,
+        slashes in serial port paths), so the JSON body approach avoids URL encoding issues.
       tags: [Devices]
       parameters:
         - name: deviceId
           description: The id of the device, previously discovered with /api/v1/devices/scan request
           in: query
-          required: true
-          schema: 
+          required: false
+          schema:
             type: string
+      requestBody:
+        description: JSON object with deviceId
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deviceId:
+                  type: string
+                  description: The id of the device, previously discovered with /api/v1/devices/scan request
+              required:
+                - deviceId
       responses:
         "200":
           description: "Device connected successfully"
+        "400":
+          description: "Missing deviceId"
+        "404":
+          description: "Device not found"
 
   /api/v1/devices/disconnect:
     put:
       summary: Disconnect a specified device
+      description: |
+        Accepts deviceId via JSON body (preferred) or query parameter (backward compatible).
       tags: [Devices]
       parameters:
         - name: deviceId
           description: The id of the device to disconnect from
           in: query
-          required: true
-          schema: 
+          required: false
+          schema:
             type: string
+      requestBody:
+        description: JSON object with deviceId
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deviceId:
+                  type: string
+                  description: The id of the device to disconnect from
+              required:
+                - deviceId
       responses:
         "200":
           description: "Device disconnected successfully"
+        "400":
+          description: "Missing deviceId"
+        "404":
+          description: "Device not found"
 
   # Machine specific API
   

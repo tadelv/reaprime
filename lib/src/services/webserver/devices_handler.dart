@@ -58,11 +58,27 @@ class DevicesHandler {
     return devMap;
   }
 
+  /// Extract deviceId from JSON body or query parameter.
+  /// Body takes precedence; query param is kept for backward compatibility.
+  Future<String?> _extractDeviceId(Request req) async {
+    try {
+      final body = await req.readAsString();
+      if (body.isNotEmpty) {
+        final json = jsonDecode(body) as Map<String, dynamic>;
+        final id = json['deviceId'] as String?;
+        if (id != null) return id;
+      }
+    } catch (_) {
+      // Not valid JSON — fall through to query parameter
+    }
+    return req.requestedUri.queryParameters['deviceId'];
+  }
+
   Future<Response> _handleConnect(Request req) async {
     final devices = _controller.devices;
-    final deviceId = req.requestedUri.queryParameters['deviceId'];
+    final deviceId = await _extractDeviceId(req);
     if (deviceId == null) {
-      return Response.badRequest();
+      return jsonBadRequest({'error': 'Missing deviceId'});
     }
     final device = devices.firstWhereOrNull((e) => e.deviceId == deviceId);
     if (device == null) {
@@ -81,9 +97,9 @@ class DevicesHandler {
 
   Future<Response> _handleDisconnect(Request req) async {
     final devices = _controller.devices;
-    final deviceId = req.requestedUri.queryParameters['deviceId'];
+    final deviceId = await _extractDeviceId(req);
     if (deviceId == null) {
-      return Response.badRequest();
+      return jsonBadRequest({'error': 'Missing deviceId'});
     }
     final device = devices.firstWhereOrNull((e) => e.deviceId == deviceId);
     if (device == null) {
