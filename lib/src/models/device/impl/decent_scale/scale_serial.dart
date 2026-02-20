@@ -56,16 +56,18 @@ class HDSSerial implements Scale {
       },
     );
 
-    _stringSubscription = _transport.readStream.listen(
-      onStringData,
-      onError: (error) {
-        _log.warning("transport error", error);
-        disconnect();
-      },
-      onDone: () {
-        disconnect();
-      },
-    );
+    // N.B.: reads weight by reading the Serial.print reported weight
+    // too slow for coffee use case
+    // _stringSubscription = _transport.readStream.listen(
+    //   onStringData,
+    //   onError: (error) {
+    //     _log.warning("transport error", error);
+    //     disconnect();
+    //   },
+    //   onDone: () {
+    //     disconnect();
+    //   },
+    // );
     await _transport.writeHexCommand(Uint8List.fromList([0x03, 0x20, 0x01]));
     _connectionSubject.add(ConnectionState.connected);
   }
