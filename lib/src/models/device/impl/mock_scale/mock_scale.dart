@@ -46,6 +46,9 @@ class MockScale implements Scale {
       StreamController.broadcast();
 
   double _weight = 0;
+  final Stopwatch _timerStopwatch = Stopwatch();
+  Duration? _frozenTimerValue;
+  bool _timerRunning = false;
 
   MockScale() {
     Timer.periodic(Duration(milliseconds: 200), (_) {
@@ -53,8 +56,39 @@ class MockScale implements Scale {
       if (_weight > 100) {
         _weight = 0;
       }
+      Duration? timerValue;
+      if (_timerRunning) {
+        timerValue = _timerStopwatch.elapsed;
+      } else if (_frozenTimerValue != null) {
+        timerValue = _frozenTimerValue;
+      }
       _snapshotStream.add(ScaleSnapshot(
-          weight: _weight, timestamp: DateTime.now(), batteryLevel: 100));
+          weight: _weight,
+          timestamp: DateTime.now(),
+          batteryLevel: 100,
+          timerValue: timerValue));
     });
+  }
+
+  @override
+  Future<void> startTimer() async {
+    _frozenTimerValue = null;
+    _timerStopwatch.start();
+    _timerRunning = true;
+  }
+
+  @override
+  Future<void> stopTimer() async {
+    _timerStopwatch.stop();
+    _frozenTimerValue = _timerStopwatch.elapsed;
+    _timerRunning = false;
+  }
+
+  @override
+  Future<void> resetTimer() async {
+    _timerStopwatch.stop();
+    _timerStopwatch.reset();
+    _frozenTimerValue = null;
+    _timerRunning = false;
   }
 }
