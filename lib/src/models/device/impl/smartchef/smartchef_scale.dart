@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/subjects.dart';
 
@@ -7,8 +8,10 @@ import 'package:reaprime/src/models/device/device.dart';
 import '../../scale.dart';
 
 class SmartChefScale implements Scale {
-  static String serviceUUID = 'fff0';
-  static String dataUUID = 'fff1';
+  static final BleServiceIdentifier serviceIdentifier =
+      BleServiceIdentifier.short('fff0');
+  static final BleServiceIdentifier dataCharacteristic =
+      BleServiceIdentifier.short('fff1');
 
   final String _deviceId;
 
@@ -99,7 +102,7 @@ class SmartChefScale implements Scale {
   }
 
   void _registerNotifications() async {
-    await _transport.subscribe(serviceUUID, dataUUID, _parseNotification);
+    await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
   }
 
   double _lastRawWeight = 0.0;

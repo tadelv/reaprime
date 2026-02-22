@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/subjects.dart';
 
@@ -17,9 +18,12 @@ import '../../scale.dart';
 /// - Battery notification: command=0x85, length=0x01, battery%
 /// - Tare: 0xFA 0x82 0x01 0x01 0x82
 class VariaAkuScale implements Scale {
-  static String serviceUUID = 'fff0';
-  static String dataUUID = 'fff1';
-  static String commandUUID = 'fff2';
+  static final BleServiceIdentifier serviceIdentifier =
+      BleServiceIdentifier.short('fff0');
+  static final BleServiceIdentifier dataCharacteristic =
+      BleServiceIdentifier.short('fff1');
+  static final BleServiceIdentifier commandCharacteristic =
+      BleServiceIdentifier.short('fff2');
 
   final String _deviceId;
 
@@ -92,8 +96,8 @@ class VariaAkuScale implements Scale {
   @override
   Future<void> tare() async {
     await _transport.write(
-      serviceUUID,
-      commandUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       Uint8List.fromList([0xFA, 0x82, 0x01, 0x01, 0x82]),
       withResponse: false,
     );
@@ -110,7 +114,7 @@ class VariaAkuScale implements Scale {
   }
 
   void _registerNotifications() async {
-    await _transport.subscribe(serviceUUID, dataUUID, _parseNotification);
+    await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
   }
 
   void _parseNotification(List<int> data) {

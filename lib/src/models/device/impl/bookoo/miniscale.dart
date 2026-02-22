@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/subjects.dart';
 
@@ -8,9 +9,12 @@ import 'package:reaprime/src/models/device/device.dart';
 import '../../scale.dart';
 
 class BookooScale implements Scale {
-  static String serviceUUID = '0ffe';
-  static String dataUUID = 'ff11';
-  static String cmdUUID = 'ff12';
+  static final BleServiceIdentifier serviceIdentifier =
+      BleServiceIdentifier.short('0ffe');
+  static final BleServiceIdentifier dataCharacteristic =
+      BleServiceIdentifier.short('ff11');
+  static final BleServiceIdentifier commandCharacteristic =
+      BleServiceIdentifier.short('ff12');
 
   final BLETransport _transport;
 
@@ -76,8 +80,8 @@ class BookooScale implements Scale {
   @override
   Future<void> tare() async {
     await _transport.write(
-      serviceUUID,
-      cmdUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       Uint8List.fromList([0x03, 0x0A, 0x01, 0x00, 0x00, 0x08]),
     );
   }
@@ -96,7 +100,7 @@ class BookooScale implements Scale {
   }
 
   void _registerNotifications() async {
-    await _transport.subscribe(serviceUUID, dataUUID, _parseNotification);
+    await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
   }
 
   void _parseNotification(List<int> data) {
@@ -120,8 +124,8 @@ class BookooScale implements Scale {
   @override
   Future<void> startTimer() async {
     await _transport.write(
-      serviceUUID,
-      cmdUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       Uint8List.fromList([0x03, 0x0A, 0x04, 0x00, 0x00, 0x0A]),
     );
   }
@@ -129,8 +133,8 @@ class BookooScale implements Scale {
   @override
   Future<void> stopTimer() async {
     await _transport.write(
-      serviceUUID,
-      cmdUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       Uint8List.fromList([0x03, 0x0A, 0x05, 0x00, 0x00, 0x0D]),
     );
   }
@@ -138,8 +142,8 @@ class BookooScale implements Scale {
   @override
   Future<void> resetTimer() async {
     await _transport.write(
-      serviceUUID,
-      cmdUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       Uint8List.fromList([0x03, 0x0A, 0x06, 0x00, 0x00, 0x0C]),
     );
   }
