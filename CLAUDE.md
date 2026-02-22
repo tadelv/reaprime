@@ -27,7 +27,28 @@ make dual-build                           # Both architectures
 
 ## Branching & Workflow
 
-**Before starting any feature or fix, always ask the user:**
+### Planning Phase
+
+**For non-trivial features or fixes, start with planning:**
+
+1. **Enter plan mode:** Use `EnterPlanMode` to explore the codebase and design the implementation approach.
+2. **Write the plan:** Create a plan file in `doc/plans/` with:
+   - Implementation steps
+   - Files to modify/create
+   - Architectural considerations
+   - Testing approach
+3. **Plan annotation:** Present the plan to the user. The user will review and provide feedback, clarifications, or requested changes as annotations to the plan.
+4. **Iterate if needed:** Update the plan based on user feedback until approved.
+5. **Only after plan approval:** Proceed to the branching and implementation phase below.
+
+**Skip planning only for:**
+- Simple typo fixes
+- Single-line changes
+- Tasks with very specific, detailed instructions from the user
+
+### Branching Strategy
+
+**Before starting implementation, always ask the user:**
 1. **Branch strategy:** New branch, worktree, or current branch?
 2. **Completion strategy:** PR, local merge to main, or leave as-is?
 
@@ -159,3 +180,4 @@ Detailed docs in `doc/`:
 - **`doc/Profiles.md`** — Profile API (content-based hashing, version tracking, endpoints)
 - **`doc/DeviceManagement.md`** — Device discovery and connection management
 - **`doc/RELEASE.md`** — Release process and versioning
+
