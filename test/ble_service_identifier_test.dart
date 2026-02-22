@@ -52,5 +52,31 @@ void main() {
     test('both constructor requires at least one UUID', () {
       expect(() => BleServiceIdentifier.both('', ''), throwsArgumentError);
     });
+
+    test('identifiers with same long form are equal', () {
+      final id1 = BleServiceIdentifier.short('fff0');
+      final id2 =
+          BleServiceIdentifier.long('0000fff0-0000-1000-8000-00805f9b34fb');
+
+      expect(id1, equals(id2));
+      expect(id1.hashCode, equals(id2.hashCode));
+    });
+
+    test('identifiers with different long forms are not equal', () {
+      final id1 = BleServiceIdentifier.short('fff0');
+      final id2 = BleServiceIdentifier.short('ff08');
+
+      expect(id1, isNot(equals(id2)));
+    });
+
+    test('can be used as Map keys', () {
+      final map = <BleServiceIdentifier, String>{};
+      final key1 = BleServiceIdentifier.short('fff0');
+      final key2 =
+          BleServiceIdentifier.long('0000fff0-0000-1000-8000-00805f9b34fb');
+
+      map[key1] = 'value';
+      expect(map[key2], equals('value'));
+    });
   });
 }
