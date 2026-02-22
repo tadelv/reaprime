@@ -15,6 +15,16 @@ class BleServiceIdentifier {
       : _short = null,
         _long = _validateLong(uuid128bit);
 
+  factory BleServiceIdentifier.parse(String uuid) {
+    if (_shortPattern.hasMatch(uuid)) {
+      return BleServiceIdentifier.short(uuid);
+    } else if (_longPattern.hasMatch(uuid)) {
+      return BleServiceIdentifier.long(uuid);
+    }
+    throw ArgumentError(
+        'UUID must be 4 hex chars or xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx: $uuid');
+  }
+
   BleServiceIdentifier.both(String? short, String? long)
       : _short =
             short != null && short.isNotEmpty ? _validateShort(short) : null,

@@ -69,6 +69,29 @@ void main() {
       expect(id1, isNot(equals(id2)));
     });
 
+    test('parse auto-detects short UUID', () {
+      final id = BleServiceIdentifier.parse('fff0');
+      expect(id.short, equals('fff0'));
+      expect(id.long, equals('0000fff0-0000-1000-8000-00805f9b34fb'));
+    });
+
+    test('parse auto-detects long UUID', () {
+      final id = BleServiceIdentifier.parse(
+          '06c31822-8682-4744-9211-febc93e3bece');
+      expect(id.long, equals('06c31822-8682-4744-9211-febc93e3bece'));
+    });
+
+    test('parse throws on invalid UUID', () {
+      expect(() => BleServiceIdentifier.parse('zzzz'), throwsArgumentError);
+      expect(() => BleServiceIdentifier.parse('invalid'), throwsArgumentError);
+    });
+
+    test('parse result equals explicitly constructed identifiers', () {
+      final parsed = BleServiceIdentifier.parse('fff0');
+      final explicit = BleServiceIdentifier.short('fff0');
+      expect(parsed, equals(explicit));
+    });
+
     test('can be used as Map keys', () {
       final map = <BleServiceIdentifier, String>{};
       final key1 = BleServiceIdentifier.short('fff0');

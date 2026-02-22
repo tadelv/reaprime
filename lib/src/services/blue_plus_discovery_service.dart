@@ -34,7 +34,7 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
 
   Future<Device> Function(BLETransport)? _findFactory(List<Guid> serviceUuids) {
     for (final adv in serviceUuids) {
-      final id = BleServiceIdentifier.long(adv.str);
+      final id = BleServiceIdentifier.parse(adv.str);
       final factory = deviceMappings[id];
       if (factory != null) return factory;
     }
