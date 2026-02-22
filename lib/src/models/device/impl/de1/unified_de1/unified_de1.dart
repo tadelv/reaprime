@@ -12,6 +12,7 @@ import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.utils.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1_transport.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:rxdart/transformers.dart';
 
@@ -39,7 +40,8 @@ class _MMRConfig {
 }
 
 class UnifiedDe1 implements De1Interface {
-  static String advertisingUUID = 'ffff';
+  static final BleServiceIdentifier advertisingIdentifier =
+      BleServiceIdentifier.short('ffff');
   final UnifiedDe1Transport _transport;
 
   final Logger _log = Logger("DE1");
