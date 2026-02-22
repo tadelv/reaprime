@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/subjects.dart';
 
@@ -8,9 +9,12 @@ import 'package:reaprime/src/models/device/device.dart';
 import '../../scale.dart';
 
 class HiroiaScale implements Scale {
-  static String serviceUUID = '06c31822-8682-4744-9211-febc93e3bece';
-  static String dataUUID = '06c31824-8682-4744-9211-febc93e3bece';
-  static String writeUUID = '06c31823-8682-4744-9211-febc93e3bece';
+  static final BleServiceIdentifier serviceIdentifier =
+      BleServiceIdentifier.long('06c31822-8682-4744-9211-febc93e3bece');
+  static final BleServiceIdentifier dataCharacteristic =
+      BleServiceIdentifier.long('06c31824-8682-4744-9211-febc93e3bece');
+  static final BleServiceIdentifier writeCharacteristic =
+      BleServiceIdentifier.long('06c31823-8682-4744-9211-febc93e3bece');
 
   final String _deviceId;
 
@@ -82,8 +86,8 @@ class HiroiaScale implements Scale {
   Future<void> tare() async {
     final writeData = Uint8List.fromList([0x07, 0x00]);
     await _transport.write(
-      serviceUUID,
-      writeUUID,
+      serviceIdentifier.long,
+      writeCharacteristic.long,
       writeData,
       withResponse: false,
     );
@@ -103,15 +107,15 @@ class HiroiaScale implements Scale {
   }
 
   void _registerNotifications() async {
-    await _transport.subscribe(serviceUUID, dataUUID, _parseNotification);
+    await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
   }
 
   /// Send toggle unit command to switch the scale back to grams
   Future<void> _sendToggleUnit() async {
     final writeData = Uint8List.fromList([0x0b, 0x00]);
     await _transport.write(
-      serviceUUID,
-      writeUUID,
+      serviceIdentifier.long,
+      writeCharacteristic.long,
       writeData,
       withResponse: false,
     );

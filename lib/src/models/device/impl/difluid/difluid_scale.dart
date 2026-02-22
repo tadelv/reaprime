@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/subjects.dart';
 
@@ -8,8 +9,10 @@ import 'package:reaprime/src/models/device/device.dart';
 import '../../scale.dart';
 
 class DifluidScale implements Scale {
-  static String serviceUUID = '00ee';
-  static String dataUUID = 'aa01';
+  static final BleServiceIdentifier serviceIdentifier =
+      BleServiceIdentifier.short('00ee');
+  static final BleServiceIdentifier dataCharacteristic =
+      BleServiceIdentifier.short('aa01');
 
   static final List<int> _cmdStartWeightNotifications = [
     0xDF, 0xDF, 0x01, 0x00, 0x01, 0x01, 0xC1
@@ -90,8 +93,8 @@ class DifluidScale implements Scale {
   @override
   Future<void> tare() async {
     await _transport.write(
-      serviceUUID,
-      dataUUID,
+      serviceIdentifier.long,
+      dataCharacteristic.long,
       Uint8List.fromList(_cmdTare),
       withResponse: true,
     );
@@ -111,20 +114,20 @@ class DifluidScale implements Scale {
   }
 
   void _registerNotifications() async {
-    await _transport.subscribe(serviceUUID, dataUUID, _parseNotification);
+    await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
 
     // Send start weight notifications command
     await _transport.write(
-      serviceUUID,
-      dataUUID,
+      serviceIdentifier.long,
+      dataCharacteristic.long,
       Uint8List.fromList(_cmdStartWeightNotifications),
       withResponse: true,
     );
 
     // Set unit to grams
     await _transport.write(
-      serviceUUID,
-      dataUUID,
+      serviceIdentifier.long,
+      dataCharacteristic.long,
       Uint8List.fromList(_cmdSetUnitToGram),
       withResponse: true,
     );
@@ -138,8 +141,8 @@ class DifluidScale implements Scale {
     // If unit is not grams, send setUnitToGram command
     if (data[17] != 0) {
       _transport.write(
-        serviceUUID,
-        dataUUID,
+        serviceIdentifier.long,
+        dataCharacteristic.long,
         Uint8List.fromList(_cmdSetUnitToGram),
         withResponse: true,
       );
@@ -176,8 +179,8 @@ class DifluidScale implements Scale {
   @override
   Future<void> startTimer() async {
     await _transport.write(
-      serviceUUID,
-      dataUUID,
+      serviceIdentifier.long,
+      dataCharacteristic.long,
       Uint8List.fromList(_cmdTimerStart),
       withResponse: true,
     );
@@ -186,15 +189,15 @@ class DifluidScale implements Scale {
   @override
   Future<void> stopTimer() async {
     await _transport.write(
-      serviceUUID,
-      dataUUID,
+      serviceIdentifier.long,
+      dataCharacteristic.long,
       Uint8List.fromList(_cmdTimerStop),
       withResponse: true,
     );
     // DiFluid stop also resets; start command doubles as reset
     await _transport.write(
-      serviceUUID,
-      dataUUID,
+      serviceIdentifier.long,
+      dataCharacteristic.long,
       Uint8List.fromList(_cmdTimerStart),
       withResponse: true,
     );
