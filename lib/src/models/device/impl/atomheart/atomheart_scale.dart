@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/subjects.dart';
 
@@ -14,9 +15,12 @@ import '../../scale.dart';
 /// - Weight is in milligrams (signed), divided by 1000 for grams
 /// - XOR validation on payload bytes (bytes 1..end-1) must match last byte
 class AtomheartScale implements Scale {
-  static String serviceUUID = 'b905eaea-6c7e-4f73-b43d-2cdfcab29570';
-  static String dataUUID = 'b905eaeb-6c7e-4f73-b43d-2cdfcab29570';
-  static String commandUUID = 'b905eaec-6c7e-4f73-b43d-2cdfcab29570';
+  static final BleServiceIdentifier serviceIdentifier =
+      BleServiceIdentifier.long('b905eaea-6c7e-4f73-b43d-2cdfcab29570');
+  static final BleServiceIdentifier dataCharacteristic =
+      BleServiceIdentifier.long('b905eaeb-6c7e-4f73-b43d-2cdfcab29570');
+  static final BleServiceIdentifier commandCharacteristic =
+      BleServiceIdentifier.long('b905eaec-6c7e-4f73-b43d-2cdfcab29570');
 
   final String _deviceId;
 
@@ -87,8 +91,8 @@ class AtomheartScale implements Scale {
   @override
   Future<void> tare() async {
     await _transport.write(
-      serviceUUID,
-      commandUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       Uint8List.fromList([0x54, 0x01, 0x01]),
       withResponse: false,
     );
@@ -107,8 +111,8 @@ class AtomheartScale implements Scale {
   @override
   Future<void> startTimer() async {
     await _transport.write(
-      serviceUUID,
-      commandUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       Uint8List.fromList([0x43, 0x01, 0x01]),
       withResponse: false,
     );
@@ -117,8 +121,8 @@ class AtomheartScale implements Scale {
   @override
   Future<void> stopTimer() async {
     await _transport.write(
-      serviceUUID,
-      commandUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       Uint8List.fromList([0x43, 0x00, 0x00]),
       withResponse: false,
     );
@@ -131,7 +135,7 @@ class AtomheartScale implements Scale {
   }
 
   void _registerNotifications() async {
-    await _transport.subscribe(serviceUUID, dataUUID, _parseNotification);
+    await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
   }
 
   /// Parse a BLE notification frame into a ScaleSnapshot.

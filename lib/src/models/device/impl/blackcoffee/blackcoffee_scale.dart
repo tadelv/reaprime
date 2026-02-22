@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/subjects.dart';
 
@@ -8,8 +9,10 @@ import 'package:reaprime/src/models/device/device.dart';
 import '../../scale.dart';
 
 class BlackCoffeeScale implements Scale {
-  static String serviceUUID = 'ffb0';
-  static String dataUUID = 'ffb2';
+  static final BleServiceIdentifier serviceIdentifier =
+      BleServiceIdentifier.short('ffb0');
+  static final BleServiceIdentifier dataCharacteristic =
+      BleServiceIdentifier.short('ffb2');
 
   final String _deviceId;
 
@@ -102,7 +105,7 @@ class BlackCoffeeScale implements Scale {
   double _lastRawWeight = 0.0;
 
   void _registerNotifications() async {
-    await _transport.subscribe(serviceUUID, dataUUID, _parseNotification);
+    await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
   }
 
   void _parseNotification(List<int> data) {
