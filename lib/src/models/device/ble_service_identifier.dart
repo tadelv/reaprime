@@ -60,4 +60,13 @@ class BleServiceIdentifier {
     }
     throw StateError('No UUID available');
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is BleServiceIdentifier && other.long == long;
+  }
+
+  @override
+  int get hashCode => long.hashCode;
 }
