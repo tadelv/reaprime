@@ -10,6 +10,46 @@
 
 ---
 
+## Prerequisites & Context
+
+**Branch:** You are currently on branch `fix/ble-uuids`
+
+**Design Document:** See `doc/plans/2026-02-22-ble-128bit-uuid-support-design.md` for full architectural context.
+
+**Problem:** Users report BLE scales (Decent Scale, Skale2) not appearing in device discovery on Android 9 and 12. Scales never appear in logs, even at scan time. Hypothesis: older BLE firmware/stacks may not properly recognize 16-bit short UUIDs.
+
+**Solution:** Dual-UUID scanning - scan for both short (e.g., `fff0`) and expanded 128-bit (e.g., `0000fff0-0000-1000-8000-00805f9b34fb`) UUIDs simultaneously. Use 128-bit format for all post-discovery operations.
+
+**Key Files to Understand:**
+- Current UUID usage: All devices use `static String serviceUUID = 'fff0'` pattern
+- Discovery services: `lib/src/services/blue_plus_discovery_service.dart`, `lib/src/services/universal_ble_discovery_service.dart`
+- Device mappings: `lib/main.dart` around line 200
+- Example device: `lib/src/models/device/impl/skale/skale2_scale.dart`
+
+**Important Notes:**
+- Solo Barista scale uses `fff0` UUID but instantiates `EurekaScale` (same protocol)
+- Standard battery service/characteristic: `180f`/`2a19` (used by many scales)
+- Test directory structure: `test/unit/models/` for model tests
+- Always run `flutter analyze` after changes to catch errors early
+- TDD approach: write test, verify fail, implement, verify pass, commit
+
+**Verification Commands:**
+```bash
+# Run specific test file
+flutter test test/unit/models/ble_service_identifier_test.dart
+
+# Run all tests
+flutter test
+
+# Static analysis
+flutter analyze
+
+# Run app in simulator mode (no hardware needed)
+flutter run --dart-define=simulate=1
+```
+
+---
+
 ## Task 1: Implement BleServiceIdentifier Model
 
 **Files:**
@@ -880,8 +920,10 @@ final bleDeviceMappings = {
         name.contains('eureka') ||
         name.contains('precisa')) {
       return EurekaScale(transport: t);
-    } else if (name.contains('solo') || name.contains('barista')) {
-      return SoloBarista(transport: t);
+    } else if (name.contains('solo barista') ||
+        name.contains('lsj-001')) {
+      // Solo Barista uses the same protocol as Eureka Precisa
+      return EurekaScale(transport: t);
     } else if (name.contains('smartchef')) {
       return SmartChefScale(transport: t);
     } else if (name.contains('aku') || name.contains('varia')) {
