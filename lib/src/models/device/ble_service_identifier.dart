@@ -6,6 +6,10 @@ class BleServiceIdentifier {
       : _short = uuid16bit.toLowerCase(),
         _long = null;
 
+  BleServiceIdentifier.long(String uuid128bit)
+      : _short = null,
+        _long = uuid128bit.toLowerCase();
+
   String get short {
     if (_short != null) return _short;
     // Extract short from long if it matches base UUID pattern
