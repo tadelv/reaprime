@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/subjects.dart';
 
@@ -16,8 +17,10 @@ import '../../scale.dart';
 /// Uses a proprietary protocol with header bytes 0xEF 0xDD, message type,
 /// payload, and two checksum bytes over a single BLE characteristic.
 class AcaiaScale implements Scale {
-  static String serviceUUID = '1820';
-  static String characteristicUUID = '2a80';
+  static final BleServiceIdentifier serviceIdentifier =
+      BleServiceIdentifier.short('1820');
+  static final BleServiceIdentifier characteristic =
+      BleServiceIdentifier.short('2a80');
 
   final Logger _log = Logger('AcaiaScale');
   final String _deviceId;
@@ -158,8 +161,8 @@ class AcaiaScale implements Scale {
 
     // de1app IPS: t+100ms enable notifications, t+500ms send ident
     await _transport.subscribe(
-      serviceUUID,
-      characteristicUUID,
+      serviceIdentifier.long,
+      characteristic.long,
       _parseNotification,
     );
 
@@ -167,8 +170,8 @@ class AcaiaScale implements Scale {
 
     // Send ident (IPS: write without response)
     await _transport.write(
-      serviceUUID,
-      characteristicUUID,
+      serviceIdentifier.long,
+      characteristic.long,
       _encode(0x0B, _identPayload),
       withResponse: false,
     );
@@ -180,8 +183,8 @@ class AcaiaScale implements Scale {
     if (!_receivingNotifications) {
       _log.info('No response after ident, retrying...');
       await _transport.write(
-        serviceUUID,
-        characteristicUUID,
+        serviceIdentifier.long,
+        characteristic.long,
         _encode(0x0B, _identPayload),
         withResponse: false,
       );
@@ -190,8 +193,8 @@ class AcaiaScale implements Scale {
 
     // Send config
     await _transport.write(
-      serviceUUID,
-      characteristicUUID,
+      serviceIdentifier.long,
+      characteristic.long,
       _encode(0x0C, _configPayload),
       withResponse: false,
     );
@@ -208,8 +211,8 @@ class AcaiaScale implements Scale {
 
   void _sendHeartbeat() {
     _transport.write(
-      serviceUUID,
-      characteristicUUID,
+      serviceIdentifier.long,
+      characteristic.long,
       _encode(0x00, _heartbeatPayload),
       withResponse: false,
     );
@@ -217,8 +220,8 @@ class AcaiaScale implements Scale {
     _configTimer?.cancel();
     _configTimer = Timer(const Duration(seconds: 1), () {
       _transport.write(
-        serviceUUID,
-        characteristicUUID,
+        serviceIdentifier.long,
+        characteristic.long,
         _encode(0x0C, _configPayload),
         withResponse: false,
       );
@@ -230,8 +233,8 @@ class AcaiaScale implements Scale {
   @override
   Future<void> tare() async {
     await _transport.write(
-      serviceUUID,
-      characteristicUUID,
+      serviceIdentifier.long,
+      characteristic.long,
       _encode(0x04, List.filled(15, 0x00)),
       withResponse: false,
     );

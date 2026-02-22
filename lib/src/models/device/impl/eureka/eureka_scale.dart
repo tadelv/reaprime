@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/subjects.dart';
 
@@ -8,11 +9,16 @@ import 'package:reaprime/src/models/device/device.dart';
 import '../../scale.dart';
 
 class EurekaScale implements Scale {
-  static String serviceUUID = 'fff0';
-  static String dataUUID = 'fff1';
-  static String commandUUID = 'fff2';
-  static String batteryServiceUUID = '180f';
-  static String batteryCharUUID = '2a19';
+  static final BleServiceIdentifier serviceIdentifier =
+      BleServiceIdentifier.short('fff0');
+  static final BleServiceIdentifier dataCharacteristic =
+      BleServiceIdentifier.short('fff1');
+  static final BleServiceIdentifier commandCharacteristic =
+      BleServiceIdentifier.short('fff2');
+  static final BleServiceIdentifier batteryService =
+      BleServiceIdentifier.short('180f');
+  static final BleServiceIdentifier batteryCharacteristic =
+      BleServiceIdentifier.short('2a19');
 
   final String _deviceId;
 
@@ -87,8 +93,8 @@ class EurekaScale implements Scale {
   Future<void> tare() async {
     final writeData = Uint8List.fromList([0xAA, 0x02, 0x31, 0x31]);
     await _transport.write(
-      serviceUUID,
-      commandUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       writeData,
       withResponse: false,
     );
@@ -99,8 +105,8 @@ class EurekaScale implements Scale {
   Future<void> startTimer() async {
     final writeData = Uint8List.fromList([0xAA, 0x02, 0x33, 0x33]);
     await _transport.write(
-      serviceUUID,
-      commandUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       writeData,
       withResponse: false,
     );
@@ -111,8 +117,8 @@ class EurekaScale implements Scale {
   Future<void> stopTimer() async {
     final writeData = Uint8List.fromList([0xAA, 0x02, 0x34, 0x34]);
     await _transport.write(
-      serviceUUID,
-      commandUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       writeData,
       withResponse: false,
     );
@@ -123,8 +129,8 @@ class EurekaScale implements Scale {
   Future<void> resetTimer() async {
     final writeData = Uint8List.fromList([0xAA, 0x02, 0x35, 0x35]);
     await _transport.write(
-      serviceUUID,
-      commandUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       writeData,
       withResponse: false,
     );
@@ -144,12 +150,12 @@ class EurekaScale implements Scale {
   }
 
   void _registerNotifications() async {
-    await _transport.subscribe(serviceUUID, dataUUID, _parseNotification);
+    await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
   }
 
   void _readBattery() async {
     try {
-      final data = await _transport.read(batteryServiceUUID, batteryCharUUID);
+      final data = await _transport.read(batteryService.long, batteryCharacteristic.long);
       if (data.isNotEmpty) {
         _batteryLevel = data[0];
       }
