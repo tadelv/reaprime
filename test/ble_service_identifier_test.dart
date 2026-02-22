@@ -28,5 +28,29 @@ void main() {
           identifier.long, equals('06c31822-8682-4744-9211-febc93e3bece'));
       expect(() => identifier.short, throwsStateError);
     });
+
+    test('both constructor accepts explicit short and long UUIDs', () {
+      final identifier = BleServiceIdentifier.both(
+          'fff0', '0000fff0-0000-1000-8000-00805f9b34fb');
+
+      expect(identifier.short, equals('fff0'));
+      expect(
+          identifier.long, equals('0000fff0-0000-1000-8000-00805f9b34fb'));
+    });
+
+    test('short constructor validates 4 hex chars', () {
+      expect(() => BleServiceIdentifier.short('fff'), throwsArgumentError);
+      expect(() => BleServiceIdentifier.short('fffff'), throwsArgumentError);
+      expect(() => BleServiceIdentifier.short('gggg'), throwsArgumentError);
+    });
+
+    test('long constructor validates UUID pattern', () {
+      expect(() => BleServiceIdentifier.long('invalid'), throwsArgumentError);
+      expect(() => BleServiceIdentifier.long('0000fff0'), throwsArgumentError);
+    });
+
+    test('both constructor requires at least one UUID', () {
+      expect(() => BleServiceIdentifier.both('', ''), throwsArgumentError);
+    });
   });
 }
