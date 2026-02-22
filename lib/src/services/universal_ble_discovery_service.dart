@@ -20,14 +20,12 @@ class UniversalBleDiscoveryService extends DeviceDiscoveryService {
 
   Future<Device> Function(BLETransport)? _findFactory(List<String> serviceUuids) {
     for (final uid in serviceUuids) {
-      // Normalize the advertised UUID to 128-bit form for matching
-      final normalized = BleUuidParser.string(uid);
       try {
-        final id = BleServiceIdentifier.long(normalized);
+        final id = BleServiceIdentifier.parse(BleUuidParser.string(uid));
         final factory = deviceMappings[id];
         if (factory != null) return factory;
       } catch (_) {
-        // Skip UUIDs that don't parse as valid 128-bit
+        // Skip UUIDs that don't parse
       }
     }
     return null;
