@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/services/ble/universal_ble_transport.dart';
 import 'package:universal_ble/universal_ble.dart';
@@ -12,12 +13,25 @@ import 'package:logging/logging.dart' as logging;
 
 class UniversalBleDiscoveryService extends DeviceDiscoveryService {
   UniversalBleDiscoveryService({
-    required Map<String, Future<Device> Function(BLETransport)> mappings,
-  }) : deviceMappings = mappings.map((k, v) {
-         return MapEntry(BleUuidParser.string(k), v);
-       });
+    required Map<BleServiceIdentifier, Future<Device> Function(BLETransport)> mappings,
+  }) : deviceMappings = mappings;
 
-  Map<String, Future<Device> Function(BLETransport)> deviceMappings;
+  Map<BleServiceIdentifier, Future<Device> Function(BLETransport)> deviceMappings;
+
+  Future<Device> Function(BLETransport)? _findFactory(List<String> serviceUuids) {
+    for (final uid in serviceUuids) {
+      // Normalize the advertised UUID to 128-bit form for matching
+      final normalized = BleUuidParser.string(uid);
+      try {
+        final id = BleServiceIdentifier.long(normalized);
+        final factory = deviceMappings[id];
+        if (factory != null) return factory;
+      } catch (_) {
+        // Skip UUIDs that don't parse as valid 128-bit
+      }
+    }
+    return null;
+  }
 
   final Map<String, Device> _devices = {};
 
@@ -84,15 +98,16 @@ class UniversalBleDiscoveryService extends DeviceDiscoveryService {
     });
 
     // FIXME: determine correct way to specify services for linux
+    final serviceUuids = deviceMappings.keys.map((id) => id.long).toList();
     final List<String> services =
-        Platform.isLinux ? [] : deviceMappings.keys.toList();
+        Platform.isLinux ? [] : serviceUuids;
 
     final filter = ScanFilter(withServices: services);
 
     await UniversalBle.startScan(scanFilter: filter);
 
     final systemDevices = await UniversalBle.getSystemDevices(
-      withServices: deviceMappings.keys.toList(),
+      withServices: serviceUuids,
     );
     for (var d in systemDevices) {
       await _deviceScanned(d);
@@ -130,27 +145,25 @@ class UniversalBleDiscoveryService extends DeviceDiscoveryService {
     // TODO: duplicates scan filter
     // Only interrogate one result instance at a time (results can be duplicated)
     _currentlyScanning.add(device.deviceId);
-    for (String uid in device.services) {
-      final initializer = deviceMappings[uid];
-      if (initializer != null &&
-          _devices.containsKey(device.deviceId.toString()) == false) {
-        _devices[device.deviceId.toString()] = await initializer(
-          UniversalBleTransport(device: device),
-        );
-        _deviceStreamController.add(_devices.values.toList());
-        log.fine("found new device: ${device.name}");
-        log.fine("devices: ${_devices.toString()}");
-        _connections[device.deviceId.toString()] = _devices[device.deviceId
-                .toString()]!
-            .connectionState
-            .listen((connectionState) {
-              if (connectionState == ConnectionState.disconnected) {
-                _devices.remove(device.deviceId.toString());
-                _deviceStreamController.add(_devices.values.toList());
-              }
-            });
-      }
-      _currentlyScanning.remove(device.deviceId);
+    final initializer = _findFactory(device.services);
+    if (initializer != null &&
+        _devices.containsKey(device.deviceId.toString()) == false) {
+      _devices[device.deviceId.toString()] = await initializer(
+        UniversalBleTransport(device: device),
+      );
+      _deviceStreamController.add(_devices.values.toList());
+      log.fine("found new device: ${device.name}");
+      log.fine("devices: ${_devices.toString()}");
+      _connections[device.deviceId.toString()] = _devices[device.deviceId
+              .toString()]!
+          .connectionState
+          .listen((connectionState) {
+            if (connectionState == ConnectionState.disconnected) {
+              _devices.remove(device.deviceId.toString());
+              _deviceStreamController.add(_devices.values.toList());
+            }
+          });
     }
+    _currentlyScanning.remove(device.deviceId);
   }
 }

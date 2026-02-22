@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:collection/collection.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/services/ble/linux_blue_plus_transport.dart';
@@ -36,7 +37,7 @@ import 'package:reaprime/src/services/ble/linux_blue_plus_transport.dart';
 ///    the adapter before proceeding.
 class LinuxBleDiscoveryService implements DeviceDiscoveryService {
   final Logger _log = Logger("LinuxBleDiscoveryService");
-  Map<String, Future<Device> Function(BLETransport)> deviceMappings;
+  Map<BleServiceIdentifier, Future<Device> Function(BLETransport)> deviceMappings;
   final List<Device> _devices = [];
   final StreamController<List<Device>> _deviceStreamController =
       StreamController.broadcast();
@@ -74,10 +75,21 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
   static const Duration _adapterTimeout = Duration(seconds: 10);
 
   LinuxBleDiscoveryService({
-    required Map<String, Future<Device> Function(BLETransport)> mappings,
-  }) : deviceMappings = mappings.map((k, v) {
-         return MapEntry(Guid(k).str, v);
-       });
+    required Map<BleServiceIdentifier, Future<Device> Function(BLETransport)> mappings,
+  }) : deviceMappings = mappings;
+
+  List<Guid> _buildScanGuids() {
+    return deviceMappings.keys.map((id) => Guid(id.long)).toList();
+  }
+
+  Future<Device> Function(BLETransport)? _findFactory(List<Guid> serviceUuids) {
+    for (final adv in serviceUuids) {
+      final id = BleServiceIdentifier.long(adv.str);
+      final factory = deviceMappings[id];
+      if (factory != null) return factory;
+    }
+    return null;
+  }
 
   @override
   Stream<List<Device>> get devices => _deviceStreamController.stream;
@@ -193,21 +205,13 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
       );
 
       // Match against known service UUIDs
-      final matchedService =
-          r.advertisementData.serviceUuids.firstWhereOrNull(
-        (adv) =>
-            deviceMappings.keys.map((e) => Guid(e)).toList().contains(adv),
-      );
-      if (matchedService == null) return;
-
-      final deviceFactory = deviceMappings[matchedService.str];
+      final deviceFactory = _findFactory(r.advertisementData.serviceUuids);
       if (deviceFactory == null) return;
 
       // Check if already pending
       if (_pendingDevices.any((p) => p.deviceId == deviceId)) return;
 
-      _log.info("Queued $deviceId for post-scan processing "
-          "(service: ${matchedService.str})");
+      _log.info("Queued $deviceId for post-scan processing");
       _pendingDevices.add(_PendingDevice(deviceId, deviceFactory));
     }, onError: (e) => _log.warning("Scan result error: $e"));
 
@@ -218,7 +222,7 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
     );
     try {
       await FlutterBluePlus.startScan(
-        withServices: deviceMappings.keys.map((e) => Guid(e)).toList(),
+        withServices: _buildScanGuids(),
         oneByOne: true,
         // No timeout - we manage it ourselves
       );
@@ -284,11 +288,7 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
       if (_devicesBeingCreated.contains(foundId)) return;
       if (_devices.firstWhereOrNull((d) => d.deviceId == foundId) != null) return;
 
-      final s = r.advertisementData.serviceUuids.firstWhereOrNull(
-        (adv) => deviceMappings.keys.map((e) => Guid(e)).toList().contains(adv),
-      );
-      if (s == null) return;
-      final factory = deviceMappings[s.str];
+      final factory = _findFactory(r.advertisementData.serviceUuids);
       if (factory == null) return;
 
       _devicesBeingCreated.add(foundId);
@@ -299,7 +299,7 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
 
     await FlutterBluePlus.startScan(
       withRemoteIds: bleIds,
-      withServices: deviceMappings.keys.map((e) => Guid(e)).toList(),
+      withServices: _buildScanGuids(),
       oneByOne: true,
     );
 
@@ -422,7 +422,7 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
         "Refresh scan for ${_refreshScanDuration.inSeconds}s");
     try {
       await FlutterBluePlus.startScan(
-        withServices: deviceMappings.keys.map((e) => Guid(e)).toList(),
+        withServices: _buildScanGuids(),
         oneByOne: true,
       );
       await Future.delayed(_refreshScanDuration);
