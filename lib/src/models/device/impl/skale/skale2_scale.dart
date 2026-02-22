@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/subjects.dart';
 
@@ -14,12 +15,18 @@ import '../../scale.dart';
 /// controls. Weight is reported as a little-endian int32 divided by 2560.
 /// Battery level is read from the standard BLE Battery Service (0x180F).
 class Skale2Scale implements Scale {
-  static String serviceUUID = 'ff08';
-  static String weightCharacteristicUUID = 'ef81';
-  static String commandCharacteristicUUID = 'ef80';
-  static String buttonCharacteristicUUID = 'ef82';
-  static String batteryServiceUUID = '180f';
-  static String batteryCharacteristicUUID = '2a19';
+  static final BleServiceIdentifier serviceIdentifier =
+      BleServiceIdentifier.short('ff08');
+  static final BleServiceIdentifier weightCharacteristic =
+      BleServiceIdentifier.short('ef81');
+  static final BleServiceIdentifier commandCharacteristic =
+      BleServiceIdentifier.short('ef80');
+  static final BleServiceIdentifier buttonCharacteristic =
+      BleServiceIdentifier.short('ef82');
+  static final BleServiceIdentifier batteryService =
+      BleServiceIdentifier.short('180f');
+  static final BleServiceIdentifier batteryCharacteristic =
+      BleServiceIdentifier.short('2a19');
 
   final String _deviceId;
 
@@ -94,16 +101,16 @@ class Skale2Scale implements Scale {
   Future<void> _initScale() async {
     // Subscribe to weight notifications
     await _transport.subscribe(
-      serviceUUID,
-      weightCharacteristicUUID,
+      serviceIdentifier.long,
+      weightCharacteristic.long,
       _parseWeightNotification,
     );
 
     // Subscribe to button notifications (optional, best-effort)
     try {
       await _transport.subscribe(
-        serviceUUID,
-        buttonCharacteristicUUID,
+        serviceIdentifier.long,
+        buttonCharacteristic.long,
         _parseButtonNotification,
       );
     } catch (_) {
@@ -113,8 +120,8 @@ class Skale2Scale implements Scale {
     // Read battery level from standard BLE battery service
     try {
       final batteryData = await _transport.read(
-        batteryServiceUUID,
-        batteryCharacteristicUUID,
+        batteryService.long,
+        batteryCharacteristic.long,
       );
       if (batteryData.isNotEmpty) {
         _batteryLevel = batteryData[0];
@@ -129,8 +136,8 @@ class Skale2Scale implements Scale {
 
     // Set scale to grams
     await _transport.write(
-      serviceUUID,
-      commandCharacteristicUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       Uint8List.fromList([0x03]),
       withResponse: false,
     );
@@ -140,8 +147,8 @@ class Skale2Scale implements Scale {
 
   Future<void> _sendDisplayOn() async {
     await _transport.write(
-      serviceUUID,
-      commandCharacteristicUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       Uint8List.fromList([0xED]),
       withResponse: false,
     );
@@ -149,8 +156,8 @@ class Skale2Scale implements Scale {
 
   Future<void> _sendDisplayWeight() async {
     await _transport.write(
-      serviceUUID,
-      commandCharacteristicUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       Uint8List.fromList([0xEC]),
       withResponse: false,
     );
@@ -158,8 +165,8 @@ class Skale2Scale implements Scale {
 
   Future<void> _sendDisplayOff() async {
     await _transport.write(
-      serviceUUID,
-      commandCharacteristicUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       Uint8List.fromList([0xEE]),
       withResponse: false,
     );
@@ -170,8 +177,8 @@ class Skale2Scale implements Scale {
   @override
   Future<void> tare() async {
     await _transport.write(
-      serviceUUID,
-      commandCharacteristicUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       Uint8List.fromList([0x10]),
       withResponse: false,
     );
@@ -223,8 +230,8 @@ class Skale2Scale implements Scale {
   @override
   Future<void> startTimer() async {
     await _transport.write(
-      serviceUUID,
-      commandCharacteristicUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       Uint8List.fromList([0xDD]),
       withResponse: false,
     );
@@ -233,8 +240,8 @@ class Skale2Scale implements Scale {
   @override
   Future<void> stopTimer() async {
     await _transport.write(
-      serviceUUID,
-      commandCharacteristicUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       Uint8List.fromList([0xD1]),
       withResponse: false,
     );
@@ -243,8 +250,8 @@ class Skale2Scale implements Scale {
   @override
   Future<void> resetTimer() async {
     await _transport.write(
-      serviceUUID,
-      commandCharacteristicUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       Uint8List.fromList([0xD0]),
       withResponse: false,
     );
