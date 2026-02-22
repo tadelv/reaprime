@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:collection/collection.dart';
+import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/subjects.dart';
 
@@ -9,8 +10,10 @@ import 'package:reaprime/src/models/device/device.dart';
 import '../../scale.dart';
 
 class FelicitaArc implements Scale {
-  static String serviceUUID = 'ffe0';
-  static String dataUUID = 'ffe1';
+  static final BleServiceIdentifier serviceIdentifier =
+      BleServiceIdentifier.short('ffe0');
+  static final BleServiceIdentifier dataCharacteristic =
+      BleServiceIdentifier.short('ffe1');
 
   final String _deviceId;
 
@@ -84,8 +87,8 @@ class FelicitaArc implements Scale {
     final writeData = Uint8List(1);
     writeData[0] = 0x54;
     await _transport.write(
-      serviceUUID,
-      dataUUID,
+      serviceIdentifier.long,
+      dataCharacteristic.long,
       writeData
     );
   }
@@ -107,7 +110,7 @@ class FelicitaArc implements Scale {
   late StreamSubscription<Uint8List>? _notificationsSubscription;
 
   void _registerNotifications() async {
-    await _transport.subscribe(serviceUUID, dataUUID, _parseNotification);
+    await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
   }
 
   static const int minBattLevel = 129;
@@ -138,16 +141,16 @@ class FelicitaArc implements Scale {
 
   @override
   Future<void> startTimer() async {
-    await _transport.write(serviceUUID, dataUUID, Uint8List.fromList([0x52]));
+    await _transport.write(serviceIdentifier.long, dataCharacteristic.long, Uint8List.fromList([0x52]));
   }
 
   @override
   Future<void> stopTimer() async {
-    await _transport.write(serviceUUID, dataUUID, Uint8List.fromList([0x53]));
+    await _transport.write(serviceIdentifier.long, dataCharacteristic.long, Uint8List.fromList([0x53]));
   }
 
   @override
   Future<void> resetTimer() async {
-    await _transport.write(serviceUUID, dataUUID, Uint8List.fromList([0x43]));
+    await _transport.write(serviceIdentifier.long, dataCharacteristic.long, Uint8List.fromList([0x43]));
   }
 }

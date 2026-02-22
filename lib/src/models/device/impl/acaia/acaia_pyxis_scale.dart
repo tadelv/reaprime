@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/subjects.dart';
 
@@ -16,11 +17,12 @@ import '../../scale.dart';
 /// named scales. Uses separate command (write) and status (notify) characteristics.
 /// Always uses forced heartbeat and includes a watchdog to detect stale connections.
 class AcaiaPyxisScale implements Scale {
-  static String serviceUUID = '49535343-fe7d-4ae5-8fa9-9fafd205e455';
-  static String commandCharacteristicUUID =
-      '49535343-8841-43f4-a8d4-ecbe34729bb3';
-  static String statusCharacteristicUUID =
-      '49535343-1e4d-4bd9-ba61-23c647249616';
+  static final BleServiceIdentifier serviceIdentifier =
+      BleServiceIdentifier.long('49535343-fe7d-4ae5-8fa9-9fafd205e455');
+  static final BleServiceIdentifier commandCharacteristic =
+      BleServiceIdentifier.long('49535343-8841-43f4-a8d4-ecbe34729bb3');
+  static final BleServiceIdentifier statusCharacteristic =
+      BleServiceIdentifier.long('49535343-1e4d-4bd9-ba61-23c647249616');
 
   final Logger _log = Logger('AcaiaPyxisScale');
   final String _deviceId;
@@ -170,8 +172,8 @@ class AcaiaPyxisScale implements Scale {
     // de1app Pyxis: t+500ms enable notifications on status char,
     // t+1000ms send ident on cmd char
     await _transport.subscribe(
-      serviceUUID,
-      statusCharacteristicUUID,
+      serviceIdentifier.long,
+      statusCharacteristic.long,
       _parseNotification,
     );
 
@@ -179,8 +181,8 @@ class AcaiaPyxisScale implements Scale {
 
     // Send ident (Pyxis: write with response)
     await _transport.write(
-      serviceUUID,
-      commandCharacteristicUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       _encode(0x0B, _identPayload),
       withResponse: true,
     );
@@ -192,8 +194,8 @@ class AcaiaPyxisScale implements Scale {
     if (!_receivingNotifications) {
       _log.info('No response after ident, retrying...');
       await _transport.write(
-        serviceUUID,
-        commandCharacteristicUUID,
+        serviceIdentifier.long,
+        commandCharacteristic.long,
         _encode(0x0B, _identPayload),
         withResponse: true,
       );
@@ -202,8 +204,8 @@ class AcaiaPyxisScale implements Scale {
 
     // Send config
     await _transport.write(
-      serviceUUID,
-      commandCharacteristicUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       _encode(0x0C, _configPayload),
       withResponse: true,
     );
@@ -227,8 +229,8 @@ class AcaiaPyxisScale implements Scale {
 
   void _sendHeartbeat() {
     _transport.write(
-      serviceUUID,
-      commandCharacteristicUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       _encode(0x00, _heartbeatPayload),
       withResponse: true,
     );
@@ -236,8 +238,8 @@ class AcaiaPyxisScale implements Scale {
     _configTimer?.cancel();
     _configTimer = Timer(const Duration(seconds: 1), () {
       _transport.write(
-        serviceUUID,
-        commandCharacteristicUUID,
+        serviceIdentifier.long,
+        commandCharacteristic.long,
         _encode(0x0C, _configPayload),
         withResponse: true,
       );
@@ -257,8 +259,8 @@ class AcaiaPyxisScale implements Scale {
   @override
   Future<void> tare() async {
     await _transport.write(
-      serviceUUID,
-      commandCharacteristicUUID,
+      serviceIdentifier.long,
+      commandCharacteristic.long,
       _encode(0x04, List.filled(15, 0x00)),
       withResponse: true,
     );
