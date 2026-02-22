@@ -198,14 +198,14 @@ void main() async {
 
   // Device UUID mappings shared across BLE discovery services
   final bleDeviceMappings = {
-    UnifiedDe1.advertisingUUID.toUpperCase():
+    UnifiedDe1.advertisingIdentifier:
         (t) => MachineParser.machineFrom(transport: t),
-    FelicitaArc.serviceUUID.toUpperCase(): (t) async {
+    FelicitaArc.serviceIdentifier: (t) async {
       return FelicitaArc(transport: t);
     },
     // FFF0 is shared by Decent Scale, Eureka Precisa, Solo Barista,
     // SmartChef, and Varia AKU. Disambiguate by BLE advertising name.
-    DecentScale.serviceUUID.toUpperCase(): (t) async {
+    DecentScale.serviceIdentifier: (t) async {
       final name = t.name.toLowerCase();
       if (name.contains('cfs-9002') ||
           name.contains('eureka') ||
@@ -222,28 +222,28 @@ void main() async {
       }
       return DecentScale(transport: t);
     },
-    BookooScale.serviceUUID.toUpperCase(): (t) async {
+    BookooScale.serviceIdentifier: (t) async {
       return BookooScale(transport: t);
     },
-    AcaiaScale.serviceUUID.toUpperCase(): (t) async {
+    AcaiaScale.serviceIdentifier: (t) async {
       return AcaiaScale(transport: t);
     },
-    AcaiaPyxisScale.serviceUUID.toUpperCase(): (t) async {
+    AcaiaPyxisScale.serviceIdentifier: (t) async {
       return AcaiaPyxisScale(transport: t);
     },
-    Skale2Scale.serviceUUID.toUpperCase(): (t) async {
+    Skale2Scale.serviceIdentifier: (t) async {
       return Skale2Scale(transport: t);
     },
-    HiroiaScale.serviceUUID.toUpperCase(): (t) async {
+    HiroiaScale.serviceIdentifier: (t) async {
       return HiroiaScale(transport: t);
     },
-    DifluidScale.serviceUUID.toUpperCase(): (t) async {
+    DifluidScale.serviceIdentifier: (t) async {
       return DifluidScale(transport: t);
     },
-    BlackCoffeeScale.serviceUUID.toUpperCase(): (t) async {
+    BlackCoffeeScale.serviceIdentifier: (t) async {
       return BlackCoffeeScale(transport: t);
     },
-    AtomheartScale.serviceUUID.toUpperCase(): (t) async {
+    AtomheartScale.serviceIdentifier: (t) async {
       return AtomheartScale(transport: t);
     },
   };

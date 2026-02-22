@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:collection/collection.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/services/ble/android_blue_plus_transport.dart';
@@ -11,7 +12,7 @@ import 'package:reaprime/src/services/ble/blue_plus_transport.dart';
 
 class BluePlusDiscoveryService implements DeviceDiscoveryService {
   final Logger _log = Logger("BluePlusDiscoveryService");
-  Map<String, Future<Device> Function(BLETransport)> deviceMappings;
+  Map<BleServiceIdentifier, Future<Device> Function(BLETransport)> deviceMappings;
   final List<Device> _devices = [];
   final StreamController<List<Device>> _deviceStreamController =
       StreamController.broadcast();
@@ -24,10 +25,21 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
   StreamSubscription<String>? _logSubscription;
 
   BluePlusDiscoveryService({
-    required Map<String, Future<Device> Function(BLETransport)> mappings,
-  }) : deviceMappings = mappings.map((k, v) {
-         return MapEntry(Guid(k).str, v);
-       });
+    required Map<BleServiceIdentifier, Future<Device> Function(BLETransport)> mappings,
+  }) : deviceMappings = mappings;
+
+  List<Guid> _buildScanGuids() {
+    return deviceMappings.keys.map((id) => Guid(id.long)).toList();
+  }
+
+  Future<Device> Function(BLETransport)? _findFactory(List<Guid> serviceUuids) {
+    for (final adv in serviceUuids) {
+      final id = BleServiceIdentifier.long(adv.str);
+      final factory = deviceMappings[id];
+      if (factory != null) return factory;
+    }
+    return null;
+  }
 
   @override
   Stream<List<Device>> get devices => _deviceStreamController.stream;
@@ -117,12 +129,7 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
       if (_devices.firstWhereOrNull((d) => d.deviceId == foundId) != null) return;
       if (_devicesBeingCreated.contains(foundId)) return;
 
-      final s = r.advertisementData.serviceUuids.firstWhereOrNull(
-        (adv) => deviceMappings.keys.map((e) => Guid(e)).toList().contains(adv),
-      );
-      if (s == null) return;
-
-      final deviceFactory = deviceMappings[s.str];
+      final deviceFactory = _findFactory(r.advertisementData.serviceUuids);
       if (deviceFactory == null) return;
 
       _devicesBeingCreated.add(foundId);
@@ -137,7 +144,7 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
 
     await FlutterBluePlus.startScan(
       withRemoteIds: bleIds,
-      withServices: deviceMappings.keys.map((e) => Guid(e)).toList(),
+      withServices: _buildScanGuids(),
       oneByOne: true,
     );
 
@@ -182,24 +189,16 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
         return;
       }
 
-      final s = r.advertisementData.serviceUuids.firstWhereOrNull(
-        (adv) => deviceMappings.keys.map((e) => Guid(e)).toList().contains(adv),
-      );
-      if (s == null) {
+      final deviceFactory = _findFactory(r.advertisementData.serviceUuids);
+      if (deviceFactory == null) {
         _log.fine(
           '${r.device.remoteId}: "${r.advertisementData.advName}" found but no matching service UUID',
         );
         return;
       }
 
-      final deviceFactory = deviceMappings[s.str];
-      if (deviceFactory == null) {
-        return;
-      }
-
       _log.info(
-        'Matched device ${r.device.remoteId} "${r.advertisementData.advName}" '
-        'with service ${s.str}',
+        'Matched device ${r.device.remoteId} "${r.advertisementData.advName}"',
       );
 
       // Mark device as being created to prevent duplicates
@@ -228,10 +227,7 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
     // Start scanning w/ timeout
     // Optional: use `stopScan()` as an alternative to timeout
     await FlutterBluePlus.startScan(
-      withServices:
-          deviceMappings.keys
-              .map((e) => Guid(e))
-              .toList(), // match any of the specified services
+      withServices: _buildScanGuids(),
       oneByOne: true,
     );
 
