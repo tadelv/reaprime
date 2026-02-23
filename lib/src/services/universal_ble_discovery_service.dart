@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
-import 'package:reaprime/src/models/device/ble_service_identifier.dart';
-import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/services/ble/universal_ble_transport.dart';
+import 'package:reaprime/src/services/device_matcher.dart';
 import 'package:universal_ble/universal_ble.dart';
 import '../models/device/device.dart';
 import '../models/device/machine.dart';
@@ -12,24 +10,7 @@ import '../models/device/scale.dart';
 import 'package:logging/logging.dart' as logging;
 
 class UniversalBleDiscoveryService extends DeviceDiscoveryService {
-  UniversalBleDiscoveryService({
-    required Map<BleServiceIdentifier, Future<Device> Function(BLETransport)> mappings,
-  }) : deviceMappings = mappings;
-
-  Map<BleServiceIdentifier, Future<Device> Function(BLETransport)> deviceMappings;
-
-  Future<Device> Function(BLETransport)? _findFactory(List<String> serviceUuids) {
-    for (final uid in serviceUuids) {
-      try {
-        final id = BleServiceIdentifier.parse(BleUuidParser.string(uid));
-        final factory = deviceMappings[id];
-        if (factory != null) return factory;
-      } catch (_) {
-        // Skip UUIDs that don't parse
-      }
-    }
-    return null;
-  }
+  UniversalBleDiscoveryService();
 
   final Map<String, Device> _devices = {};
 
@@ -42,13 +23,14 @@ class UniversalBleDiscoveryService extends DeviceDiscoveryService {
 
   final List<String> _currentlyScanning = [];
 
+  bool _isScanning = false;
+
   @override
   Stream<List<Device>> get devices => _deviceStreamController.stream;
 
   @override
   Future<void> initialize() async {
     UniversalBle.queueType = QueueType.global;
-    // UniversalBle.onQueueUpdate
     if (await UniversalBle.getBluetoothAvailabilityState() !=
         AvailabilityState.poweredOn) {
       log.warning("Bluetooth not supported on this platform");
@@ -81,42 +63,46 @@ class UniversalBleDiscoveryService extends DeviceDiscoveryService {
 
   @override
   Future<void> scanForDevices() async {
-    log.info("mappings: ${deviceMappings}");
-    log.fine("Clearing stale connections");
-    _currentlyScanning.clear();
-
-    var sub = UniversalBle.scanStream.listen((result) async {
-      log.fine(
-        "Found: ${result.deviceId}: ${result.name}, adv: ${result.services}",
-      );
-      if (_currentlyScanning.contains(result.deviceId)) {
-        return;
-      }
-      await _deviceScanned(result);
-    });
-
-    // FIXME: determine correct way to specify services for linux
-    final serviceUuids = deviceMappings.keys.map((id) => id.long).toList();
-    final List<String> services =
-        Platform.isLinux ? [] : serviceUuids;
-
-    final filter = ScanFilter(withServices: services);
-
-    await UniversalBle.startScan(scanFilter: filter);
-
-    final systemDevices = await UniversalBle.getSystemDevices(
-      withServices: serviceUuids,
-    );
-    for (var d in systemDevices) {
-      await _deviceScanned(d);
+    if (_isScanning) {
+      log.warning('Scan already in progress, ignoring request');
+      return;
     }
 
-    // TODO: configurable delay?
-    await Future.delayed(Duration(seconds: 15), () async {
-      await UniversalBle.stopScan();
-      await sub.cancel();
-      _deviceStreamController.add(_devices.values.toList());
-    });
+    _isScanning = true;
+
+    try {
+      log.fine("Clearing stale connections");
+      _currentlyScanning.clear();
+
+      var sub = UniversalBle.scanStream.listen((result) async {
+        log.fine(
+          "Found: ${result.deviceId}: ${result.name}, adv: ${result.services}",
+        );
+        if (_currentlyScanning.contains(result.deviceId)) {
+          return;
+        }
+        await _deviceScanned(result);
+      });
+
+      // Unfiltered scan — empty services list
+      final filter = ScanFilter(withServices: []);
+      await UniversalBle.startScan(scanFilter: filter);
+
+      final systemDevices = await UniversalBle.getSystemDevices(
+        withServices: [],
+      );
+      for (var d in systemDevices) {
+        await _deviceScanned(d);
+      }
+
+      await Future.delayed(Duration(seconds: 15), () async {
+        await UniversalBle.stopScan();
+        await sub.cancel();
+        _deviceStreamController.add(_devices.values.toList());
+      });
+    } finally {
+      _isScanning = false;
+    }
   }
 
   // return machine with specific id
@@ -140,28 +126,36 @@ class UniversalBleDiscoveryService extends DeviceDiscoveryService {
   }
 
   Future<void> _deviceScanned(BleDevice device) async {
-    // TODO: duplicates scan filter
-    // Only interrogate one result instance at a time (results can be duplicated)
     _currentlyScanning.add(device.deviceId);
-    final initializer = _findFactory(device.services);
-    if (initializer != null &&
-        _devices.containsKey(device.deviceId.toString()) == false) {
-      _devices[device.deviceId.toString()] = await initializer(
-        UniversalBleTransport(device: device),
+
+    try {
+      final name = device.name ?? '';
+      if (name.isEmpty) return;
+
+      if (_devices.containsKey(device.deviceId.toString())) return;
+
+      final matchedDevice = await DeviceMatcher.match(
+        transport: UniversalBleTransport(device: device),
+        advertisedName: name,
       );
-      _deviceStreamController.add(_devices.values.toList());
-      log.fine("found new device: ${device.name}");
-      log.fine("devices: ${_devices.toString()}");
-      _connections[device.deviceId.toString()] = _devices[device.deviceId
-              .toString()]!
-          .connectionState
-          .listen((connectionState) {
-            if (connectionState == ConnectionState.disconnected) {
-              _devices.remove(device.deviceId.toString());
-              _deviceStreamController.add(_devices.values.toList());
-            }
-          });
+
+      if (matchedDevice != null) {
+        _devices[device.deviceId.toString()] = matchedDevice;
+        _deviceStreamController.add(_devices.values.toList());
+        log.fine("found new device: ${device.name}");
+
+        _connections[device.deviceId.toString()] = _devices[device.deviceId
+                .toString()]!
+            .connectionState
+            .listen((connectionState) {
+          if (connectionState == ConnectionState.disconnected) {
+            _devices.remove(device.deviceId.toString());
+            _deviceStreamController.add(_devices.values.toList());
+          }
+        });
+      }
+    } finally {
+      _currentlyScanning.remove(device.deviceId);
     }
-    _currentlyScanning.remove(device.deviceId);
   }
 }
