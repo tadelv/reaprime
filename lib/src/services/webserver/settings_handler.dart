@@ -4,14 +4,17 @@ class SettingsHandler {
   final SettingsController _controller;
   final WebUIService _webUIService;
   final WebUIStorage _webUIStorage;
+  final BatteryController? _batteryController;
 
   SettingsHandler({
     required SettingsController controller,
     required WebUIService service,
     required WebUIStorage webUIStorage,
+    BatteryController? batteryController,
   }) : _controller = controller,
        _webUIService = service,
-       _webUIStorage = webUIStorage;
+       _webUIStorage = webUIStorage,
+       _batteryController = batteryController;
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/settings', () async {
@@ -26,7 +29,7 @@ class SettingsHandler {
       final preferredScaleId = _controller.preferredScaleId;
       final defaultSkinId = _controller.defaultSkinId;
       final automaticUpdateCheck = _controller.automaticUpdateCheck;
-      return {
+      final result = <String, dynamic>{
         'gatewayMode': gatewayMode,
         'webUiPath': webPath,
         'logLevel': logLevel,
@@ -37,7 +40,15 @@ class SettingsHandler {
         'preferredScaleId': preferredScaleId,
         'defaultSkinId': defaultSkinId,
         'automaticUpdateCheck': automaticUpdateCheck,
+        'chargingMode': _controller.chargingMode.name,
+        'nightModeEnabled': _controller.nightModeEnabled,
+        'nightModeSleepTime': _controller.nightModeSleepTime,
+        'nightModeMorningTime': _controller.nightModeMorningTime,
       };
+      if (_batteryController?.currentChargingState != null) {
+        result['chargingState'] = _batteryController!.currentChargingState!.toJson();
+      }
+      return result;
     });
     app.post('/api/v1/settings', (Request request) async {
       final payload = await request.readAsString();
@@ -139,6 +150,45 @@ class SettingsHandler {
         } else {
           return Response.badRequest(
             body: {'message': 'automaticUpdateCheck must be a boolean'},
+          );
+        }
+      }
+      if (json.containsKey('chargingMode')) {
+        final mode = ChargingModeFromString.fromString(json['chargingMode']);
+        if (mode == null) {
+          return Response.badRequest(
+            body: {'message': '${json["chargingMode"]} is not a valid charging mode'},
+          );
+        }
+        await _controller.setChargingMode(mode);
+      }
+      if (json.containsKey('nightModeEnabled')) {
+        final value = json['nightModeEnabled'];
+        if (value is bool) {
+          await _controller.setNightModeEnabled(value);
+        } else {
+          return Response.badRequest(
+            body: {'message': 'nightModeEnabled must be a boolean'},
+          );
+        }
+      }
+      if (json.containsKey('nightModeSleepTime')) {
+        final value = json['nightModeSleepTime'];
+        if (value is int && value >= 0 && value < 1440) {
+          await _controller.setNightModeSleepTime(value);
+        } else {
+          return Response.badRequest(
+            body: {'message': 'nightModeSleepTime must be an integer 0-1439'},
+          );
+        }
+      }
+      if (json.containsKey('nightModeMorningTime')) {
+        final value = json['nightModeMorningTime'];
+        if (value is int && value >= 0 && value < 1440) {
+          await _controller.setNightModeMorningTime(value);
+        } else {
+          return Response.badRequest(
+            body: {'message': 'nightModeMorningTime must be an integer 0-1439'},
           );
         }
       }

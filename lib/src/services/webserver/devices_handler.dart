@@ -4,15 +4,18 @@ class DevicesHandler {
   final DeviceController _controller;
   final De1Controller _de1Controller;
   final ScaleController _scaleController;
+  final BatteryController? _batteryController;
   final Logger _log = Logger("Devices handler");
 
   DevicesHandler({
     required DeviceController controller,
     required De1Controller de1Controller,
     required ScaleController scaleController,
+    BatteryController? batteryController,
   }) : _controller = controller,
        _de1Controller = de1Controller,
-       _scaleController = scaleController;
+       _scaleController = scaleController,
+       _batteryController = batteryController;
 
   addRoutes(RouterPlus app) {
     app.get('/api/v1/devices', () async {
