@@ -2,7 +2,10 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reaprime/src/models/device/impl/acaia/acaia_pyxis_scale.dart';
+import 'package:reaprime/src/models/device/impl/acaia/acaia_scale.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
+import 'package:reaprime/src/models/device/impl/felicita/arc.dart';
 import 'package:reaprime/src/models/device/impl/skale/skale2_scale.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/services/device_matcher.dart';
@@ -70,6 +73,46 @@ void main() {
 
       expect(device, isNotNull);
       expect(device, isA<Skale2Scale>());
+    });
+
+    test('prefix match for Felicita', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'Felicita Arc',
+      );
+
+      expect(device, isNotNull);
+      expect(device, isA<FelicitaArc>());
+    });
+
+    test('contains match for Acaia', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'ACAIA LUNAR',
+      );
+
+      expect(device, isNotNull);
+      expect(device, isA<AcaiaScale>());
+    });
+
+    test('contains match for Acaia Pyxis', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'Acaia Pyxis',
+      );
+
+      expect(device, isNotNull);
+      expect(device, isA<AcaiaPyxisScale>());
+    });
+
+    test('matching is case-insensitive', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'acaia pearl',
+      );
+
+      expect(device, isNotNull);
+      expect(device, isA<AcaiaScale>());
     });
 
     test('returns null for unknown name', () async {
