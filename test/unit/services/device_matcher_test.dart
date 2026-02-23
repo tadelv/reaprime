@@ -4,9 +4,19 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/device/impl/acaia/acaia_pyxis_scale.dart';
 import 'package:reaprime/src/models/device/impl/acaia/acaia_scale.dart';
+import 'package:reaprime/src/models/device/impl/atomheart/atomheart_scale.dart';
+import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
+import 'package:reaprime/src/models/device/impl/blackcoffee/blackcoffee_scale.dart';
+import 'package:reaprime/src/models/device/impl/bookoo/miniscale.dart';
+import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
+import 'package:reaprime/src/models/device/impl/difluid/difluid_scale.dart';
+import 'package:reaprime/src/models/device/impl/eureka/eureka_scale.dart';
 import 'package:reaprime/src/models/device/impl/felicita/arc.dart';
+import 'package:reaprime/src/models/device/impl/hiroia/hiroia_scale.dart';
 import 'package:reaprime/src/models/device/impl/skale/skale2_scale.dart';
+import 'package:reaprime/src/models/device/impl/smartchef/smartchef_scale.dart';
+import 'package:reaprime/src/models/device/impl/varia/varia_aku_scale.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/services/device_matcher.dart';
 
@@ -115,10 +125,181 @@ void main() {
       expect(device, isA<AcaiaScale>());
     });
 
+    test('DE1 exact match', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'DE1',
+      );
+
+      expect(device, isA<UnifiedDe1>());
+    });
+
+    test('nrf5x matches to DE1', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'nrf5x',
+      );
+
+      expect(device, isA<UnifiedDe1>());
+    });
+
+    test('de1 prefix matches to DE1', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'de1_something',
+      );
+
+      expect(device, isA<UnifiedDe1>());
+    });
+
+    test('Bengle exact match', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'Bengle',
+      );
+
+      expect(device, isA<Bengle>());
+    });
+
+    test('Eureka matches to EurekaScale', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'Eureka Precisa',
+      );
+
+      expect(device, isA<EurekaScale>());
+    });
+
+    test('Solo Barista matches to EurekaScale', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'Solo Barista',
+      );
+
+      expect(device, isA<EurekaScale>());
+    });
+
+    test('CFS-9002 matches to EurekaScale', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'CFS-9002',
+      );
+
+      expect(device, isA<EurekaScale>());
+    });
+
+    test('LSJ-001 matches to EurekaScale', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'LSJ-001',
+      );
+
+      expect(device, isA<EurekaScale>());
+    });
+
+    test('SmartChef matches', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'SmartChef Scale',
+      );
+
+      expect(device, isA<SmartChefScale>());
+    });
+
+    test('Varia matches', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'Varia AKU',
+      );
+
+      expect(device, isA<VariaAkuScale>());
+    });
+
+    test('AKU matches to VariaAkuScale', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'AKU',
+      );
+
+      expect(device, isA<VariaAkuScale>());
+    });
+
+    test('Hiroia matches', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'Hiroia Jimmy',
+      );
+
+      expect(device, isA<HiroiaScale>());
+    });
+
+    test('Jimmy matches to HiroiaScale', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'Jimmy',
+      );
+
+      expect(device, isA<HiroiaScale>());
+    });
+
+    test('Difluid matches', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'Difluid R2',
+      );
+
+      expect(device, isA<DifluidScale>());
+    });
+
+    test('BlackCoffee prefix matches', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'Black Mirror',
+      );
+
+      expect(device, isA<BlackCoffeeScale>());
+    });
+
+    test('Atomheart matches', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'Atomheart Eclair',
+      );
+
+      expect(device, isA<AtomheartScale>());
+    });
+
+    test('Eclair matches to AtomheartScale', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'Eclair',
+      );
+
+      expect(device, isA<AtomheartScale>());
+    });
+
+    test('Bookoo matches', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'Bookoo Mini',
+      );
+
+      expect(device, isA<BookooScale>());
+    });
+
     test('returns null for unknown name', () async {
       final device = await DeviceMatcher.match(
         transport: mockTransport,
         advertisedName: 'Unknown Device',
+      );
+
+      expect(device, isNull);
+    });
+
+    test('returns null for empty name', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: '',
       );
 
       expect(device, isNull);
