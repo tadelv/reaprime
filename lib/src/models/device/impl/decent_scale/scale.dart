@@ -106,7 +106,7 @@ class DecentScale implements Scale {
 
   @override
   disconnect() async {
-    // await _sendPowerOff();
+    await _sendPowerOff();
     subscription?.cancel();
     _connectionStateController.add(ConnectionState.disconnected);
     _heartbeatTimer?.cancel();
