@@ -115,11 +115,14 @@ class DevicesHandler {
   void _emitStateNow(WebSocketChannel socket) async {
     try {
       final devices = await _deviceList();
-      final state = {
+      final state = <String, dynamic>{
         'timestamp': DateTime.now().toUtc().toIso8601String(),
         'devices': devices,
         'scanning': _controller.isScanning,
       };
+      if (_batteryController?.currentChargingState != null) {
+        state['charging'] = _batteryController!.currentChargingState!.toJson();
+      }
       socket.sink.add(jsonEncode(state));
     } catch (e, st) {
       _log.warning("failed to emit devices state", e, st);
@@ -183,6 +186,13 @@ class DevicesHandler {
     subscriptions.add(
       _controller.scanningStream.skip(1).listen((_) => emitState()),
     );
+
+    // Subscribe to charging state changes (skip initial replay)
+    if (_batteryController != null) {
+      subscriptions.add(
+        _batteryController.chargingState.skip(1).listen((_) => emitState()),
+      );
+    }
 
     // Set up initial per-device subscriptions
     updateDeviceSubscriptions(_controller.devices);
