@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
@@ -80,7 +81,14 @@ class UnifiedDe1Transport {
     if (_transport is! BLETransport) {
       throw "wrong transport type";
     }
-    await _transport.discoverServices();
+    final services = await _transport.discoverServices();
+    final de1Service = BleServiceIdentifier.parse(de1ServiceUUID);
+    if (!de1Service.matchesAny(services)) {
+      throw Exception(
+        'Expected DE1 service ${de1Service.long} not found. '
+        'Discovered services: $services',
+      );
+    }
 
     _stateNotification(
       ByteData.sublistView(
