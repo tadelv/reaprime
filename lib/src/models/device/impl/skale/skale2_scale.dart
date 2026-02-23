@@ -76,7 +76,13 @@ class Skale2Scale implements Scale {
         disconnectSub?.cancel();
       });
 
-      await _transport.discoverServices();
+      final services = await _transport.discoverServices();
+      if (!serviceIdentifier.matchesAny(services)) {
+        throw Exception(
+          'Expected service ${serviceIdentifier.long} not found. '
+          'Discovered services: $services',
+        );
+      }
       await _initScale();
       _connectionStateController.add(ConnectionState.connected);
     } catch (e) {

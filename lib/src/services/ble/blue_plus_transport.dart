@@ -40,7 +40,7 @@ class BluePlusTransport implements BLETransport {
   @override
   Future<List<String>> discoverServices() async {
     final list = await _device.discoverServices();
-    return list.map((e) => e.remoteId.str).toList();
+    return list.map((e) => e.serviceUuid.str).toList();
   }
 
   @override

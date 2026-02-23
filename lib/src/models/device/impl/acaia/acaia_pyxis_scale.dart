@@ -90,7 +90,13 @@ class AcaiaPyxisScale implements Scale {
         _watchdogTimer = null;
       });
 
-      await _transport.discoverServices();
+      final services = await _transport.discoverServices();
+      if (!serviceIdentifier.matchesAny(services)) {
+        throw Exception(
+          'Expected service ${serviceIdentifier.long} not found. '
+          'Discovered services: $services',
+        );
+      }
       await _initScale();
       _connectionStateController.add(ConnectionState.connected);
       _log.info('Scale initialized successfully');
