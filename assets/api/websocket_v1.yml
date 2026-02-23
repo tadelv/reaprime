@@ -372,9 +372,13 @@ components:
     DevicesState:
       type: object
       required:
+        - timestamp
         - devices
         - scanning
       properties:
+        timestamp:
+          type: string
+          format: date-time
         devices:
           type: array
           items:

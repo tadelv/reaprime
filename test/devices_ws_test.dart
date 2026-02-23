@@ -84,6 +84,7 @@ void main() {
       final first = await waitForState(messages);
 
       expect(first, containsPair('scanning', false));
+      expect(first['timestamp'], isA<String>());
       expect(first['devices'], isList);
       expect((first['devices'] as List), isEmpty);
 
