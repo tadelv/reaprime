@@ -4,6 +4,7 @@ class DevicesHandler {
   final DeviceController _controller;
   final De1Controller _de1Controller;
   final ScaleController _scaleController;
+  final Logger _log = Logger("Devices handler");
 
   DevicesHandler({
     required DeviceController controller,
@@ -41,6 +42,11 @@ class DevicesHandler {
 
     app.put('/api/v1/devices/connect', _handleConnect);
     app.put('/api/v1/devices/disconnect', _handleDisconnect);
+
+    app.get(
+      '/ws/v1/devices',
+      sws.webSocketHandler(_handleDevicesSocket),
+    );
   }
 
   Future<List<Map<String, String>>> _deviceList() async {
@@ -108,5 +114,166 @@ class DevicesHandler {
     await device.disconnect();
 
     return Response.ok(null);
+  }
+
+  // -- WebSocket handler --
+
+  void _handleDevicesSocket(WebSocketChannel socket, String? protocol) {
+    _log.fine("devices websocket connected");
+
+    final subscriptions = <StreamSubscription>[];
+    // Track per-device connectionState subscriptions by deviceId
+    final deviceStateSubs = <String, StreamSubscription>{};
+
+    void emitState() async {
+      try {
+        final devices = await _deviceList();
+        final state = {
+          'devices': devices,
+          'scanning': _controller.isScanning,
+        };
+        socket.sink.add(jsonEncode(state));
+      } catch (e, st) {
+        _log.warning("failed to emit devices state", e, st);
+      }
+    }
+
+    void updateDeviceSubscriptions(List<Device> devices) {
+      final currentIds = devices.map((d) => d.deviceId).toSet();
+
+      // Remove subscriptions for devices no longer in the list
+      final staleIds =
+          deviceStateSubs.keys.where((id) => !currentIds.contains(id)).toList();
+      for (final id in staleIds) {
+        deviceStateSubs.remove(id)?.cancel();
+      }
+
+      // Add subscriptions for new devices
+      for (final device in devices) {
+        if (!deviceStateSubs.containsKey(device.deviceId)) {
+          deviceStateSubs[device.deviceId] =
+              device.connectionState.listen((_) => emitState());
+        }
+      }
+    }
+
+    // Subscribe to device list changes (skip initial BehaviorSubject replay;
+    // initial state is sent explicitly below)
+    subscriptions.add(_controller.deviceStream.skip(1).listen((devices) {
+      updateDeviceSubscriptions(devices);
+      emitState();
+    }));
+
+    // Subscribe to scanning state changes (skip initial replay)
+    subscriptions.add(
+      _controller.scanningStream.skip(1).listen((_) => emitState()),
+    );
+
+    // Set up initial per-device subscriptions
+    updateDeviceSubscriptions(_controller.devices);
+
+    // Send initial state
+    emitState();
+
+    // Listen for incoming commands
+    socket.stream.listen(
+      (message) {
+        try {
+          final data = jsonDecode(message.toString()) as Map<String, dynamic>;
+          _handleCommand(data, socket);
+        } catch (e) {
+          socket.sink.add(jsonEncode({'error': 'Invalid JSON: $e'}));
+        }
+      },
+      onDone: () {
+        _log.fine("devices websocket disconnected");
+        for (final sub in subscriptions) {
+          sub.cancel();
+        }
+        for (final sub in deviceStateSubs.values) {
+          sub.cancel();
+        }
+        deviceStateSubs.clear();
+      },
+      onError: (e, st) {
+        _log.warning("devices websocket error", e, st);
+        for (final sub in subscriptions) {
+          sub.cancel();
+        }
+        for (final sub in deviceStateSubs.values) {
+          sub.cancel();
+        }
+        deviceStateSubs.clear();
+      },
+    );
+  }
+
+  void _handleCommand(Map<String, dynamic> data, WebSocketChannel socket) {
+    final command = data['command'] as String?;
+    if (command == null) {
+      socket.sink.add(jsonEncode({'error': 'Missing "command" field'}));
+      return;
+    }
+
+    switch (command) {
+      case 'scan':
+        final connect = data['connect'] as bool? ?? false;
+        final quick = data['quick'] as bool? ?? false;
+        _log.fine("ws scan command: connect=$connect, quick=$quick");
+        if (quick) {
+          _controller.scanForDevices(autoConnect: connect);
+        } else {
+          _controller.scanForDevices(autoConnect: connect).catchError((e) {
+            socket.sink.add(jsonEncode({'error': 'Scan failed: $e'}));
+          });
+        }
+
+      case 'connect':
+        final deviceId = data['deviceId'] as String?;
+        if (deviceId == null) {
+          socket.sink.add(jsonEncode({'error': 'Missing "deviceId" for connect'}));
+          return;
+        }
+        final device =
+            _controller.devices.firstWhereOrNull((e) => e.deviceId == deviceId);
+        if (device == null) {
+          socket.sink.add(jsonEncode({'error': 'Device not found: $deviceId'}));
+          return;
+        }
+        _connectDevice(device).catchError((e) {
+          socket.sink.add(jsonEncode({'error': 'Connect failed: $e'}));
+        });
+
+      case 'disconnect':
+        final deviceId = data['deviceId'] as String?;
+        if (deviceId == null) {
+          socket.sink
+              .add(jsonEncode({'error': 'Missing "deviceId" for disconnect'}));
+          return;
+        }
+        final device =
+            _controller.devices.firstWhereOrNull((e) => e.deviceId == deviceId);
+        if (device == null) {
+          socket.sink.add(jsonEncode({'error': 'Device not found: $deviceId'}));
+          return;
+        }
+        device.disconnect().catchError((e) {
+          socket.sink.add(jsonEncode({'error': 'Disconnect failed: $e'}));
+        });
+
+      default:
+        socket.sink.add(jsonEncode({'error': 'Unknown command: $command'}));
+    }
+  }
+
+  Future<void> _connectDevice(Device device) async {
+    switch (device.type) {
+      case DeviceType.machine:
+        await _de1Controller.connectToDe1(device as De1Interface);
+      case DeviceType.scale:
+        await _scaleController.connectToScale(device as Scale);
+      case DeviceType.sensor:
+        await (device as Sensor).onConnect();
+    }
   }
 }

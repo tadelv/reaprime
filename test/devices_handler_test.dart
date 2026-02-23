@@ -212,6 +212,29 @@ void main() {
       });
     });
 
+    group('scanning state', () {
+      test('isScanning is initially false', () {
+        expect(deviceController.isScanning, isFalse);
+      });
+
+      test('scanningStream emits true then false during scanForDevices',
+          () async {
+        final states = <bool>[];
+        final sub = deviceController.scanningStream.listen(states.add);
+
+        await deviceController.scanForDevices(autoConnect: false);
+        // Wait for the delayed callback to fire
+        await Future.delayed(Duration(milliseconds: 300));
+
+        sub.cancel();
+
+        // Should contain: initial false (BehaviorSubject), true, false
+        expect(states, contains(true));
+        expect(states.last, isFalse);
+      });
+
+    });
+
     group('device list', () {
       test('returns empty list when no devices', () async {
         final response = await sendGet('/api/v1/devices');
