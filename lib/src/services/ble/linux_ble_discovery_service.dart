@@ -4,10 +4,9 @@ import 'dart:io';
 import 'package:collection/collection.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:logging/logging.dart';
-import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/device.dart';
-import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/services/ble/linux_blue_plus_transport.dart';
+import 'package:reaprime/src/services/device_matcher.dart';
 
 /// Linux-specific BLE discovery service that handles BlueZ quirks.
 ///
@@ -37,11 +36,11 @@ import 'package:reaprime/src/services/ble/linux_blue_plus_transport.dart';
 ///    the adapter before proceeding.
 class LinuxBleDiscoveryService implements DeviceDiscoveryService {
   final Logger _log = Logger("LinuxBleDiscoveryService");
-  Map<BleServiceIdentifier, Future<Device> Function(BLETransport)> deviceMappings;
   final List<Device> _devices = [];
   final StreamController<List<Device>> _deviceStreamController =
       StreamController.broadcast();
   final Set<String> _devicesBeingCreated = {};
+  bool _isScanning = false;
 
   /// Queue of devices discovered during scan, processed after scan stops.
   final List<_PendingDevice> _pendingDevices = [];
@@ -74,22 +73,7 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
   /// Timeout for waiting for the adapter to become available.
   static const Duration _adapterTimeout = Duration(seconds: 10);
 
-  LinuxBleDiscoveryService({
-    required Map<BleServiceIdentifier, Future<Device> Function(BLETransport)> mappings,
-  }) : deviceMappings = mappings;
-
-  List<Guid> _buildScanGuids() {
-    return deviceMappings.keys.map((id) => Guid(id.long)).toList();
-  }
-
-  Future<Device> Function(BLETransport)? _findFactory(List<Guid> serviceUuids) {
-    for (final adv in serviceUuids) {
-      final id = BleServiceIdentifier.parse(adv.str);
-      final factory = deviceMappings[id];
-      if (factory != null) return factory;
-    }
-    return null;
-  }
+  LinuxBleDiscoveryService();
 
   @override
   Stream<List<Device>> get devices => _deviceStreamController.stream;
@@ -190,6 +174,7 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
 
       ScanResult r = results.last;
       final deviceId = r.device.remoteId.str;
+      final name = r.advertisementData.advName;
 
       // Skip if device already exists or is being created
       if (_devices.firstWhereOrNull(
@@ -199,33 +184,19 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
         return;
       }
 
-      _log.fine(
-        '$deviceId: "${r.advertisementData.advName}" found! '
-        'services: ${r.advertisementData.serviceUuids}',
-      );
-
-      // Match against known service UUIDs
-      final deviceFactory = _findFactory(r.advertisementData.serviceUuids);
-      if (deviceFactory == null) return;
-
       // Check if already pending
       if (_pendingDevices.any((p) => p.deviceId == deviceId)) return;
 
-      _log.info("Queued $deviceId for post-scan processing");
-      _pendingDevices.add(_PendingDevice(deviceId, deviceFactory));
+      _log.info("Queued $deviceId \"$name\" for post-scan processing");
+      _devicesBeingCreated.add(deviceId);
+      _pendingDevices.add(_PendingDevice(deviceId, name));
     }, onError: (e) => _log.warning("Scan result error: $e"));
 
     // Start scan WITHOUT timeout - we manage timing ourselves
-    _log.info(
-      "Starting BLE scan (duration: ${duration.inSeconds}s, "
-      "services: ${deviceMappings.keys.length})",
-    );
+    // Unfiltered scan — no withServices parameter
+    _log.info("Starting BLE scan (duration: ${duration.inSeconds}s)");
     try {
-      await FlutterBluePlus.startScan(
-        withServices: _buildScanGuids(),
-        oneByOne: true,
-        // No timeout - we manage it ourselves
-      );
+      await FlutterBluePlus.startScan(oneByOne: true);
     } catch (e) {
       _log.severe("Failed to start scan: $e");
       subscription.cancel();
@@ -244,8 +215,6 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
     }
 
     // Wait for in-flight scan results to flush through the stream.
-    // BlueZ delivers results asynchronously via D-Bus; results can arrive
-    // after the scan is reported as stopped.
     _log.fine(
       "Waiting ${_postScanSettleDelay.inSeconds}s for results to flush "
       "and BlueZ to settle",
@@ -285,21 +254,20 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
       if (results.isEmpty) return;
       final r = results.last;
       final foundId = r.device.remoteId.str;
+      final name = r.advertisementData.advName;
       if (_devicesBeingCreated.contains(foundId)) return;
-      if (_devices.firstWhereOrNull((d) => d.deviceId == foundId) != null) return;
-
-      final factory = _findFactory(r.advertisementData.serviceUuids);
-      if (factory == null) return;
+      if (_devices.firstWhereOrNull((d) => d.deviceId == foundId) != null) {
+        return;
+      }
 
       _devicesBeingCreated.add(foundId);
-      _pendingDevices.add(_PendingDevice(foundId, factory));
+      _pendingDevices.add(_PendingDevice(foundId, name));
     }, onError: (e) => _log.warning('Targeted scan error: $e'));
 
     FlutterBluePlus.cancelWhenScanComplete(sub);
 
     await FlutterBluePlus.startScan(
       withRemoteIds: bleIds,
-      withServices: _buildScanGuids(),
       oneByOne: true,
     );
 
@@ -312,7 +280,7 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
 
     if (_pendingDevices.isNotEmpty) {
       for (final pending in List.of(_pendingDevices)) {
-        await _createDevice(pending.deviceId, pending.factory);
+        await _createDeviceFromName(pending.deviceId, pending.name);
       }
       _pendingDevices.clear();
     }
@@ -322,58 +290,69 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
 
   @override
   Future<void> scanForDevices() async {
-    final adapterAvailable = await _waitForAdapter();
-    if (!adapterAvailable) {
-      _log.severe("Cannot scan: Bluetooth adapter not available");
-      _deviceStreamController.add(_devices.toList());
+    if (_isScanning) {
+      _log.warning('Scan already in progress, ignoring request');
       return;
     }
 
-    await _ensureScanStopped();
+    _isScanning = true;
 
-    // Run the main scan
-    await _runScan(_scanDuration);
-
-    // Process queued devices sequentially
-    if (_pendingDevices.isNotEmpty) {
-      // On BlueZ, the first connect after a long scan consistently fails
-      // with le-connection-abort-by-local. Running a brief "prep scan"
-      // resets BlueZ's internal state and makes the connect succeed on the
-      // first attempt, avoiding a costly retry cycle (~15s saved).
-      _log.info("Running connection prep scan before device processing");
-      await _ensureScanStopped();
-      await _runRefreshScan();
-
-      _log.info(
-        "Processing ${_pendingDevices.length} queued BLE device(s) "
-        "sequentially",
-      );
-
-      // Take a snapshot so we can clear the list
-      final toProcess = List<_PendingDevice>.from(_pendingDevices);
-      _pendingDevices.clear();
-
-      for (int i = 0; i < toProcess.length; i++) {
-        final pending = toProcess[i];
-
-        if (i > 0) {
-          _log.fine(
-            "Waiting ${_interDeviceDelay.inMilliseconds}ms before "
-            "next device",
-          );
-          await Future.delayed(_interDeviceDelay);
-        }
-
-        await _createDeviceWithRetry(pending.deviceId, pending.factory);
+    try {
+      final adapterAvailable = await _waitForAdapter();
+      if (!adapterAvailable) {
+        _log.severe("Cannot scan: Bluetooth adapter not available");
+        _deviceStreamController.add(_devices.toList());
+        return;
       }
-    }
 
-    _deviceStreamController.add(_devices.toList());
+      await _ensureScanStopped();
+
+      // Run the main scan
+      await _runScan(_scanDuration);
+
+      // Process queued devices sequentially
+      if (_pendingDevices.isNotEmpty) {
+        // On BlueZ, the first connect after a long scan consistently fails
+        // with le-connection-abort-by-local. Running a brief "prep scan"
+        // resets BlueZ's internal state and makes the connect succeed on the
+        // first attempt, avoiding a costly retry cycle (~15s saved).
+        _log.info("Running connection prep scan before device processing");
+        await _ensureScanStopped();
+        await _runRefreshScan();
+
+        _log.info(
+          "Processing ${_pendingDevices.length} queued BLE device(s) "
+          "sequentially",
+        );
+
+        // Take a snapshot so we can clear the list
+        final toProcess = List<_PendingDevice>.from(_pendingDevices);
+        _pendingDevices.clear();
+
+        for (int i = 0; i < toProcess.length; i++) {
+          final pending = toProcess[i];
+
+          if (i > 0) {
+            _log.fine(
+              "Waiting ${_interDeviceDelay.inMilliseconds}ms before "
+              "next device",
+            );
+            await Future.delayed(_interDeviceDelay);
+          }
+
+          await _createDeviceWithRetry(pending.deviceId, pending.name);
+        }
+      }
+
+      _deviceStreamController.add(_devices.toList());
+    } finally {
+      _isScanning = false;
+    }
   }
 
   Future<void> _createDeviceWithRetry(
     String deviceId,
-    Future<Device> Function(BLETransport) deviceFactory,
+    String name,
   ) async {
     _devicesBeingCreated.add(deviceId);
 
@@ -388,15 +367,12 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
           await Future.delayed(delay);
 
           // Re-scan briefly to refresh BlueZ's device cache.
-          // After a failed connection + disconnect, flutter_blue_plus_linux
-          // loses the device from its internal list, causing "Bad state:
-          // No element" on subsequent connect attempts.
           _log.info("Running refresh scan to restore device in BlueZ cache");
           await _ensureScanStopped();
           await _runRefreshScan();
         }
 
-        await _createDevice(deviceId, deviceFactory);
+        await _createDeviceFromName(deviceId, name);
         return;
       } catch (e) {
         _log.warning(
@@ -418,18 +394,12 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
 
   /// Brief scan to refresh BlueZ's internal device cache before a retry.
   Future<void> _runRefreshScan() async {
-    _log.fine(
-        "Refresh scan for ${_refreshScanDuration.inSeconds}s");
+    _log.fine("Refresh scan for ${_refreshScanDuration.inSeconds}s");
     try {
-      await FlutterBluePlus.startScan(
-        withServices: _buildScanGuids(),
-        oneByOne: true,
-      );
+      await FlutterBluePlus.startScan(oneByOne: true);
       await Future.delayed(_refreshScanDuration);
       await FlutterBluePlus.stopScan();
-      // Settle after refresh scan — must wait long enough for BlueZ to
-      // fully exit scanning mode, otherwise connect hits
-      // le-connection-abort-by-local.
+      // Settle after refresh scan
       await Future.delayed(const Duration(seconds: 2));
     } catch (e) {
       _log.warning("Refresh scan failed: $e");
@@ -439,13 +409,22 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
     }
   }
 
-  Future<void> _createDevice(
+  Future<void> _createDeviceFromName(
     String deviceId,
-    Future<Device> Function(BLETransport) deviceFactory,
+    String name,
   ) async {
     try {
       final transport = LinuxBluePlusTransport(remoteId: deviceId);
-      final device = await deviceFactory(transport);
+
+      final device = await DeviceMatcher.match(
+        transport: transport,
+        advertisedName: name,
+      );
+
+      if (device == null) {
+        _log.fine('No device match for name "$name"');
+        return;
+      }
 
       if (_devices.firstWhereOrNull((d) => d.deviceId == deviceId) != null) {
         _log.fine("Device $deviceId already added, skipping duplicate");
@@ -455,7 +434,7 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
 
       _devices.add(device);
       _deviceStreamController.add(_devices);
-      _log.info("Device $deviceId added successfully");
+      _log.info('Device $deviceId "$name" added successfully');
 
       StreamSubscription? sub;
       sub = device.connectionState.skip(1).listen((event) {
@@ -486,6 +465,6 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
 
 class _PendingDevice {
   final String deviceId;
-  final Future<Device> Function(BLETransport) factory;
-  _PendingDevice(this.deviceId, this.factory);
+  final String name;
+  _PendingDevice(this.deviceId, this.name);
 }
