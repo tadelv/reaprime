@@ -44,6 +44,8 @@ import 'package:reaprime/src/models/feedback/feedback_request.dart';
 import 'package:reaprime/src/plugins/plugin_manager.dart';
 import 'package:reaprime/src/services/feedback_service.dart';
 import 'package:reaprime/src/services/telemetry/log_buffer.dart';
+import 'package:reaprime/src/controllers/battery_controller.dart';
+import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/services/webview_log_service.dart';
 
 part 'webserver/de1handler.dart';
@@ -75,6 +77,7 @@ Future<void> startWebServer(
   ProfileController profileController,
   LogBuffer logBuffer,
   WebViewLogService webViewLogService,
+  BatteryController? batteryController,
 ) async {
   log.info("starting webserver");
   final de1Handler = De1Handler(controller: de1Controller);
@@ -83,11 +86,13 @@ Future<void> startWebServer(
     controller: deviceController,
     de1Controller: de1Controller,
     scaleController: scaleController,
+    batteryController: batteryController,
   );
   final settingsHandler = SettingsHandler(
     controller: settingsController,
     service: webUIService,
     webUIStorage: webUIStorage,
+    batteryController: batteryController,
   );
   final sensorsHandler = SensorsHandler(controller: sensorController);
   final workflowHandler = WorkflowHandler(

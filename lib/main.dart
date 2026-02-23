@@ -253,6 +253,14 @@ void main() async {
   final WebUIService webUIService = WebUIService();
   final WebUIStorage webUIStorage = WebUIStorage(settingsController);
 
+  BatteryController? batteryController;
+  if (Platform.isAndroid || Platform.isIOS) {
+    batteryController = BatteryController(
+      de1Controller: de1Controller,
+      settingsController: settingsController,
+    );
+  }
+
   try {
     await startWebServer(
       deviceController,
@@ -268,17 +276,10 @@ void main() async {
       profileController,
       logBuffer,
       webViewLogService,
+      batteryController,
     );
   } catch (e, st) {
     log.severe('failed to start web server', e, st);
-  }
-
-  BatteryController? batteryController;
-  if (Platform.isAndroid || Platform.isIOS) {
-    batteryController = BatteryController(
-      de1Controller: de1Controller,
-      settingsController: settingsController,
-    );
   }
   // Load the user's preferred theme while the splash screen is displayed.
   // This prevents a sudden theme change when the app is first displayed.
