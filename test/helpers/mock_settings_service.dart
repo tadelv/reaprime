@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
@@ -24,6 +25,10 @@ class MockSettingsService extends SettingsService {
   bool _telemetryPromptShown = true; // skip prompt in tests
   bool _telemetryConsentDialogShown = true; // skip dialog in tests
   String? _skippedVersion;
+  ChargingMode _chargingMode = ChargingMode.balanced;
+  bool _nightModeEnabled = false;
+  int _nightModeSleepTime = 1320;
+  int _nightModeMorningTime = 420;
 
   @override
   Future<ThemeMode> themeMode() async => _themeMode;
@@ -99,4 +104,20 @@ class MockSettingsService extends SettingsService {
   Future<String?> skippedVersion() async => _skippedVersion;
   @override
   Future<void> setSkippedVersion(String? version) async => _skippedVersion = version;
+  @override
+  Future<ChargingMode> chargingMode() async => _chargingMode;
+  @override
+  Future<void> setChargingMode(ChargingMode mode) async => _chargingMode = mode;
+  @override
+  Future<bool> nightModeEnabled() async => _nightModeEnabled;
+  @override
+  Future<void> setNightModeEnabled(bool value) async => _nightModeEnabled = value;
+  @override
+  Future<int> nightModeSleepTime() async => _nightModeSleepTime;
+  @override
+  Future<void> setNightModeSleepTime(int minutes) async => _nightModeSleepTime = minutes;
+  @override
+  Future<int> nightModeMorningTime() async => _nightModeMorningTime;
+  @override
+  Future<void> setNightModeMorningTime(int minutes) async => _nightModeMorningTime = minutes;
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -44,6 +45,14 @@ abstract class SettingsService {
   Future<void> setTelemetryConsentDialogShown(bool value);
   Future<String?> skippedVersion();
   Future<void> setSkippedVersion(String? version);
+  Future<ChargingMode> chargingMode();
+  Future<void> setChargingMode(ChargingMode mode);
+  Future<bool> nightModeEnabled();
+  Future<void> setNightModeEnabled(bool value);
+  Future<int> nightModeSleepTime();
+  Future<void> setNightModeSleepTime(int minutes);
+  Future<int> nightModeMorningTime();
+  Future<void> setNightModeMorningTime(int minutes);
 }
 
 /// SharedPreferences-backed implementation of [SettingsService].
@@ -257,6 +266,50 @@ class SharedPreferencesSettingsService extends SettingsService {
       await prefs.setString(SettingsKeys.skippedVersion.name, version);
     }
   }
+
+  @override
+  Future<ChargingMode> chargingMode() async {
+    return ChargingModeFromString.fromString(
+          await prefs.getString(SettingsKeys.chargingMode.name) ??
+              ChargingMode.balanced.name,
+        ) ??
+        ChargingMode.balanced;
+  }
+
+  @override
+  Future<void> setChargingMode(ChargingMode mode) async {
+    await prefs.setString(SettingsKeys.chargingMode.name, mode.name);
+  }
+
+  @override
+  Future<bool> nightModeEnabled() async {
+    return await prefs.getBool(SettingsKeys.nightModeEnabled.name) ?? false;
+  }
+
+  @override
+  Future<void> setNightModeEnabled(bool value) async {
+    await prefs.setBool(SettingsKeys.nightModeEnabled.name, value);
+  }
+
+  @override
+  Future<int> nightModeSleepTime() async {
+    return await prefs.getInt(SettingsKeys.nightModeSleepTime.name) ?? 1320;
+  }
+
+  @override
+  Future<void> setNightModeSleepTime(int minutes) async {
+    await prefs.setInt(SettingsKeys.nightModeSleepTime.name, minutes);
+  }
+
+  @override
+  Future<int> nightModeMorningTime() async {
+    return await prefs.getInt(SettingsKeys.nightModeMorningTime.name) ?? 420;
+  }
+
+  @override
+  Future<void> setNightModeMorningTime(int minutes) async {
+    await prefs.setInt(SettingsKeys.nightModeMorningTime.name, minutes);
+  }
 }
 
 enum SettingsKeys {
@@ -278,6 +331,10 @@ enum SettingsKeys {
   telemetryPromptShown,
   telemetryConsentDialogShown,
   skippedVersion,
+  chargingMode,
+  nightModeEnabled,
+  nightModeSleepTime,
+  nightModeMorningTime,
 }
 
 /// Position options for the skin view exit button
