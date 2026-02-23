@@ -90,14 +90,7 @@ class DevicesHandler {
     if (device == null) {
       return Response.notFound(null);
     }
-    switch (device.type) {
-      case DeviceType.machine:
-        await _de1Controller.connectToDe1(device as De1Interface);
-      case DeviceType.scale:
-        await _scaleController.connectToScale(device as Scale);
-      case DeviceType.sensor:
-        await (device as Sensor).onConnect();
-    }
+    await _connectDevice(device);
     return Response.ok(null);
   }
 
