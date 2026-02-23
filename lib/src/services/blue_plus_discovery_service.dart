@@ -17,6 +17,7 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
   final StreamController<List<Device>> _deviceStreamController =
       StreamController.broadcast();
   final Set<String> _devicesBeingCreated = {};
+  bool _isScanning = false;
 
   // On Linux, queue discovered devices and process after scan stops
   // to avoid BlueZ le-connection-abort-by-local errors
@@ -161,6 +162,14 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
 
   @override
   Future<void> scanForDevices() async {
+    if (_isScanning) {
+      _log.warning('Scan already in progress, ignoring request');
+      return;
+    }
+
+    _isScanning = true;
+
+    try {
     // listen to scan results
     // Note: `onScanResults` clears the results between scans. You should use
     //  `scanResults` if you want the current scan results *or* the results from the previous scan.
@@ -255,6 +264,9 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
     }
 
     _deviceStreamController.add(_devices.toList());
+    } finally {
+      _isScanning = false;
+    }
   }
 }
 
