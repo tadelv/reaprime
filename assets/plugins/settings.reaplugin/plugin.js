@@ -433,6 +433,68 @@ function createPlugin(host) {
             ` : '<div class="error" role="alert" aria-live="assertive">Failed to load REA settings</div>'}
             </section>
 
+            <!-- Battery & Charging -->
+            <section class="section" aria-labelledby="charging-settings-heading">
+                <h2 id="charging-settings-heading">Battery & Charging</h2>
+                ${reaSettings ? `
+                <div class="settings-grid" role="group" aria-label="Battery and charging settings">
+                    <div class="setting-item">
+                        <label class="setting-label" for="chargingMode">Charging Mode</label>
+                        <div class="setting-control">
+                            <select id="chargingMode">
+                                <option value="disabled" ${reaSettings.chargingMode === 'disabled' ? 'selected' : ''}>Disabled</option>
+                                <option value="longevity" ${reaSettings.chargingMode === 'longevity' ? 'selected' : ''}>Longevity (45-55%)</option>
+                                <option value="balanced" ${reaSettings.chargingMode === 'balanced' ? 'selected' : ''}>Balanced (40-80%)</option>
+                                <option value="highAvailability" ${reaSettings.chargingMode === 'highAvailability' ? 'selected' : ''}>High Availability (80-95%)</option>
+                            </select>
+                            <button class="btn btn-primary" onclick="updateReaSetting('chargingMode', document.getElementById('chargingMode').value)" aria-label="Save charging mode">Save</button>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label" for="nightModeEnabled">Night Mode</label>
+                        <div class="setting-control">
+                            <select id="nightModeEnabled">
+                                <option value="true" ${reaSettings.nightModeEnabled ? 'selected' : ''}>Enabled</option>
+                                <option value="false" ${!reaSettings.nightModeEnabled ? 'selected' : ''}>Disabled</option>
+                            </select>
+                            <button class="btn btn-primary" onclick="updateReaSetting('nightModeEnabled', document.getElementById('nightModeEnabled').value === 'true')" aria-label="Save night mode setting">Save</button>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label" for="nightModeSleepTime">Sleep Time</label>
+                        <div class="setting-control">
+                            <input type="time" id="nightModeSleepTime" value="${String(Math.floor((reaSettings.nightModeSleepTime || 1320) / 60)).padStart(2, '0')}:${String((reaSettings.nightModeSleepTime || 1320) % 60).padStart(2, '0')}" aria-describedby="nightModeSleepTime-desc">
+                            <span id="nightModeSleepTime-desc" class="visually-hidden">Time when the tablet goes to sleep (used for night mode charging schedule)</span>
+                            <button class="btn btn-primary" onclick="(function(){ const t = document.getElementById('nightModeSleepTime').value.split(':'); updateReaSetting('nightModeSleepTime', parseInt(t[0]) * 60 + parseInt(t[1])); })()" aria-label="Save sleep time">Save</button>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label" for="nightModeMorningTime">Morning Time</label>
+                        <div class="setting-control">
+                            <input type="time" id="nightModeMorningTime" value="${String(Math.floor((reaSettings.nightModeMorningTime || 420) / 60)).padStart(2, '0')}:${String((reaSettings.nightModeMorningTime || 420) % 60).padStart(2, '0')}" aria-describedby="nightModeMorningTime-desc">
+                            <span id="nightModeMorningTime-desc" class="visually-hidden">Time when the tablet wakes up (used for night mode charging schedule)</span>
+                            <button class="btn btn-primary" onclick="(function(){ const t = document.getElementById('nightModeMorningTime').value.split(':'); updateReaSetting('nightModeMorningTime', parseInt(t[0]) * 60 + parseInt(t[1])); })()" aria-label="Save morning time">Save</button>
+                        </div>
+                    </div>
+                    ${reaSettings.chargingState ? `
+                    <div class="setting-item">
+                        <span class="setting-label">Battery Level</span>
+                        <span class="readonly">${reaSettings.chargingState.batteryPercent}%</span>
+                    </div>
+                    <div class="setting-item">
+                        <span class="setting-label">Current Phase</span>
+                        <span class="readonly">${reaSettings.chargingState.currentPhase}</span>
+                    </div>
+                    <div class="setting-item">
+                        <span class="setting-label">USB Charger</span>
+                        <span class="readonly">${reaSettings.chargingState.usbChargerOn ? 'On' : 'Off'}</span>
+                    </div>
+                    ${reaSettings.chargingState.isEmergency ? '<div class="setting-item error"><span class="setting-label">Emergency charging active (battery critically low)</span></div>' : ''}
+                    ` : '<div class="setting-item"><span class="setting-label">Charging state not available</span><span class="readonly">Requires Android/iOS</span></div>'}
+                </div>
+                ` : '<div class="error" role="alert">Failed to load settings</div>'}
+            </section>
+
             <!-- Machine Settings -->
             <section class="section" aria-labelledby="machine-settings-heading">
                 <h2 id="machine-settings-heading">Machine Settings</h2>
@@ -730,7 +792,7 @@ function createPlugin(host) {
   // Return the plugin object
   return {
     id: "settings.reaplugin",
-    version: "0.0.11",
+    version: "0.0.12",
 
     onLoad(settings) {
       state.refreshInterval = settings.RefreshInterval !== undefined ? settings.RefreshInterval : 5;
