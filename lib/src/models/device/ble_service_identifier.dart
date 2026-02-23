@@ -71,6 +71,21 @@ class BleServiceIdentifier {
     throw StateError('No UUID available');
   }
 
+  /// Check if any of the given UUID strings match this identifier.
+  /// Handles both short and long UUID formats for cross-platform compatibility.
+  bool matchesAny(Iterable<String> uuids) {
+    for (final uuid in uuids) {
+      final lower = uuid.toLowerCase();
+      if (lower == long) return true;
+      try {
+        if (lower == short) return true;
+      } on StateError {
+        // Custom 128-bit UUID has no short form
+      }
+    }
+    return false;
+  }
+
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;

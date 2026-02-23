@@ -167,7 +167,7 @@ class LinuxBluePlusTransport implements BLETransport {
           continue;
         }
         _log.fine("Discovered ${list.length} services");
-        return list.map((e) => e.remoteId.str).toList();
+        return list.map((e) => e.serviceUuid.str).toList();
       } catch (e) {
         _log.warning("Service discovery attempt $attempt failed: $e");
         if (attempt < _maxDiscoveryRetries) {

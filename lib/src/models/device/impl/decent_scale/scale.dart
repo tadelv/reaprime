@@ -71,7 +71,13 @@ class DecentScale implements Scale {
         disconnect();
       });
 
-      await _device.discoverServices();
+      final services = await _device.discoverServices();
+      if (!serviceIdentifier.matchesAny(services)) {
+        throw Exception(
+          'Expected service ${serviceIdentifier.long} not found. '
+          'Discovered services: $services',
+        );
+      }
       _registerNotifications();
       _heartbeatTimer?.cancel();
       _heartbeatTimer = Timer.periodic(Duration(seconds: 4), (timer) async {

@@ -70,7 +70,13 @@ class DifluidScale implements Scale {
         disconnectSub?.cancel();
       });
 
-      await _transport.discoverServices();
+      final services = await _transport.discoverServices();
+      if (!serviceIdentifier.matchesAny(services)) {
+        throw Exception(
+          'Expected service ${serviceIdentifier.long} not found. '
+          'Discovered services: $services',
+        );
+      }
       _registerNotifications();
       _connectionStateController.add(ConnectionState.connected);
     } catch (e) {
