@@ -9,6 +9,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/sample_feature/sample_item_list_view.dart';
+import 'package:reaprime/src/settings/battery_charging_settings_page.dart';
+import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/gateway_mode_info_dialog.dart';
 import 'package:reaprime/src/settings/plugins_settings_view.dart';
@@ -72,6 +74,7 @@ class _SettingsViewState extends State<SettingsView> {
           children: [
             _buildAppearanceSection(),
             _buildGatewaySection(),
+            if (Platform.isAndroid || Platform.isIOS) _buildBatterySection(),
             _buildDeviceManagementSection(),
             _buildDataManagementSection(),
             _buildWebUISection(),
@@ -169,6 +172,76 @@ class _SettingsViewState extends State<SettingsView> {
         ),
       ],
     );
+  }
+
+  Widget _buildBatterySection() {
+    return ShadCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.battery_charging_full_outlined, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Battery & Charging',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Smart charging and night mode settings',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Mode: ${_chargingModeLabel(widget.controller.chargingMode)}',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          if (widget.controller.nightModeEnabled) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Night mode enabled',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+          const SizedBox(height: 12),
+          ShadButton.outline(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => BatteryChargingSettingsPage(
+                    controller: widget.controller,
+                  ),
+                ),
+              );
+            },
+            child: const Text('Configure'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _chargingModeLabel(ChargingMode mode) {
+    switch (mode) {
+      case ChargingMode.disabled:
+        return 'Disabled';
+      case ChargingMode.longevity:
+        return 'Longevity';
+      case ChargingMode.balanced:
+        return 'Balanced';
+      case ChargingMode.highAvailability:
+        return 'High Availability';
+    }
   }
 
   Widget _buildDeviceManagementSection() {
