@@ -85,7 +85,10 @@ During development, after every meaningful code change:
 
 - Write implementation plans as `.md` files in `doc/plans/`.
 - **Do not commit** plan files unless the user requests it or asks to save progress.
-- After a plan is fully implemented, ask the user whether to update relevant documentation with the outcome.
+- After a plan is fully implemented, ask the user whether to update relevant
+documentation with the outcome.
+- Finalized plans move to `doc/plans/archive/{name-of-feature}` for record keeping.  
+They are committed with users approval.
 
 ## Architecture
 
