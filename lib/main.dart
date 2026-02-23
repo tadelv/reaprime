@@ -24,21 +24,6 @@ import 'package:reaprime/src/controllers/sensor_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/device.dart';
-import 'package:reaprime/src/models/device/impl/acaia/acaia_scale.dart';
-import 'package:reaprime/src/models/device/impl/acaia/acaia_pyxis_scale.dart';
-import 'package:reaprime/src/models/device/impl/atomheart/atomheart_scale.dart';
-import 'package:reaprime/src/models/device/impl/blackcoffee/blackcoffee_scale.dart';
-import 'package:reaprime/src/models/device/impl/bookoo/miniscale.dart';
-import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
-import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
-import 'package:reaprime/src/models/device/impl/difluid/difluid_scale.dart';
-import 'package:reaprime/src/models/device/impl/eureka/eureka_scale.dart';
-import 'package:reaprime/src/models/device/impl/felicita/arc.dart';
-import 'package:reaprime/src/models/device/impl/hiroia/hiroia_scale.dart';
-import 'package:reaprime/src/models/device/impl/machine_parser.dart';
-import 'package:reaprime/src/models/device/impl/skale/skale2_scale.dart';
-import 'package:reaprime/src/models/device/impl/smartchef/smartchef_scale.dart';
-import 'package:reaprime/src/models/device/impl/varia/varia_aku_scale.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/services/blue_plus_discovery_service.dart';
 import 'package:reaprime/src/services/ble/linux_ble_discovery_service.dart';
@@ -196,75 +181,17 @@ void main() async {
 
   final List<DeviceDiscoveryService> services = [];
 
-  // Device UUID mappings shared across BLE discovery services
-  final bleDeviceMappings = {
-    UnifiedDe1.advertisingIdentifier:
-        (t) => MachineParser.machineFrom(transport: t),
-    FelicitaArc.serviceIdentifier: (t) async {
-      return FelicitaArc(transport: t);
-    },
-    // FFF0 is shared by Decent Scale, Eureka Precisa, Solo Barista,
-    // SmartChef, and Varia AKU. Disambiguate by BLE advertising name.
-    DecentScale.serviceIdentifier: (t) async {
-      final name = t.name.toLowerCase();
-      if (name.contains('cfs-9002') ||
-          name.contains('eureka') ||
-          name.contains('precisa')) {
-        return EurekaScale(transport: t);
-      } else if (name.contains('solo barista') ||
-          name.contains('lsj-001')) {
-        // Solo Barista uses the same protocol as Eureka Precisa
-        return EurekaScale(transport: t);
-      } else if (name.contains('smartchef')) {
-        return SmartChefScale(transport: t);
-      } else if (name.contains('aku') || name.contains('varia')) {
-        return VariaAkuScale(transport: t);
-      }
-      return DecentScale(transport: t);
-    },
-    BookooScale.serviceIdentifier: (t) async {
-      return BookooScale(transport: t);
-    },
-    AcaiaScale.serviceIdentifier: (t) async {
-      return AcaiaScale(transport: t);
-    },
-    AcaiaPyxisScale.serviceIdentifier: (t) async {
-      return AcaiaPyxisScale(transport: t);
-    },
-    Skale2Scale.serviceIdentifier: (t) async {
-      return Skale2Scale(transport: t);
-    },
-    HiroiaScale.serviceIdentifier: (t) async {
-      return HiroiaScale(transport: t);
-    },
-    DifluidScale.serviceIdentifier: (t) async {
-      return DifluidScale(transport: t);
-    },
-    BlackCoffeeScale.serviceIdentifier: (t) async {
-      return BlackCoffeeScale(transport: t);
-    },
-    AtomheartScale.serviceIdentifier: (t) async {
-      return AtomheartScale(transport: t);
-    },
-  };
-
   if (Platform.isLinux) {
     // Use Linux-specific BLE discovery service that handles BlueZ quirks:
     // - Stops scan before connecting (avoids le-connection-abort-by-local)
     // - Adapter state monitoring and recovery
     // - Connection retry logic with backoff
     // - Sequential device processing with settle delays
-    services.add(
-      LinuxBleDiscoveryService(mappings: bleDeviceMappings),
-    );
+    services.add(LinuxBleDiscoveryService());
   } else if (!Platform.isWindows) {
-    services.add(
-      BluePlusDiscoveryService(mappings: bleDeviceMappings),
-    );
+    services.add(BluePlusDiscoveryService());
   } else {
-    services.add(
-      UniversalBleDiscoveryService(mappings: bleDeviceMappings),
-    );
+    services.add(UniversalBleDiscoveryService());
   }
 
   await Hive.initFlutter('store');
