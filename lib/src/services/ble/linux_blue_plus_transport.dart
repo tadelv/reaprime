@@ -55,7 +55,7 @@ class LinuxBluePlusTransport implements BLETransport {
   Future<void> connect() async {
     _log.info("Connecting...");
 
-    // Skip if already connected (e.g. MachineParser left connection open).
+    // Skip if already connected.
     if (_device.isConnected) {
       _log.info("Already connected, skipping connect");
       return;
