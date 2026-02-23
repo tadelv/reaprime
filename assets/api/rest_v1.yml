@@ -1963,6 +1963,23 @@ components:
           type: string
           nullable: true
           example: "F4:12:FA:5C:3D:8E"
+        chargingMode:
+          type: string
+          enum: [disabled, longevity, balanced, highAvailability]
+          description: Smart charging mode
+        nightModeEnabled:
+          type: boolean
+          description: Enable or disable night mode
+        nightModeSleepTime:
+          type: integer
+          minimum: 0
+          maximum: 1439
+          description: Sleep time in minutes since midnight
+        nightModeMorningTime:
+          type: integer
+          minimum: 0
+          maximum: 1439
+          description: Morning time in minutes since midnight
 
     ReaSettings:
       type: object
@@ -1998,6 +2015,50 @@ components:
           type: string
           nullable: true
           example: "F4:12:FA:5C:3D:8E"
+        chargingMode:
+          type: string
+          enum: [disabled, longevity, balanced, highAvailability]
+          description: Smart charging mode controlling battery level targets
+        nightModeEnabled:
+          type: boolean
+          description: Whether night mode charging schedule is active
+        nightModeSleepTime:
+          type: integer
+          minimum: 0
+          maximum: 1439
+          description: Sleep time in minutes since midnight (e.g., 1320 = 22:00)
+        nightModeMorningTime:
+          type: integer
+          minimum: 0
+          maximum: 1439
+          description: Morning time in minutes since midnight (e.g., 420 = 07:00)
+        chargingState:
+          $ref: '#/components/schemas/ChargingState'
+
+    ChargingState:
+      type: object
+      nullable: true
+      description: Current charging state (only available on Android/iOS)
+      properties:
+        mode:
+          type: string
+          enum: [disabled, longevity, balanced, highAvailability]
+        nightModeEnabled:
+          type: boolean
+        currentPhase:
+          type: string
+          enum: [inactive, normal, hovering, chargingToMax, sleeping]
+          description: Current night mode phase
+        batteryPercent:
+          type: integer
+          minimum: 0
+          maximum: 100
+        usbChargerOn:
+          type: boolean
+          description: Whether the DE1 USB charger output is currently enabled
+        isEmergency:
+          type: boolean
+          description: Whether emergency charging is active (battery <= 15%)
 
     SensorManifest:
       type: object
