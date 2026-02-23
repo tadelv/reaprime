@@ -1,6 +1,7 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
@@ -50,6 +51,11 @@ class SettingsController with ChangeNotifier {
 
   late bool _telemetryConsentDialogShown;
 
+  late ChargingMode _chargingMode;
+  late bool _nightModeEnabled;
+  late int _nightModeSleepTime;
+  late int _nightModeMorningTime;
+
   TelemetryService? _telemetryService;
 
   // Allow Widgets to read the user's preferred ThemeMode.
@@ -68,6 +74,10 @@ class SettingsController with ChangeNotifier {
   bool get telemetryConsent => _telemetryConsent;
   bool get telemetryPromptShown => _telemetryPromptShown;
   bool get telemetryConsentDialogShown => _telemetryConsentDialogShown;
+  ChargingMode get chargingMode => _chargingMode;
+  bool get nightModeEnabled => _nightModeEnabled;
+  int get nightModeSleepTime => _nightModeSleepTime;
+  int get nightModeMorningTime => _nightModeMorningTime;
 
   set telemetryService(TelemetryService service) => _telemetryService = service;
 
@@ -90,6 +100,10 @@ class SettingsController with ChangeNotifier {
     _telemetryConsent = await _settingsService.telemetryConsent();
     _telemetryPromptShown = await _settingsService.telemetryPromptShown();
     _telemetryConsentDialogShown = await _settingsService.telemetryConsentDialogShown();
+    _chargingMode = await _settingsService.chargingMode();
+    _nightModeEnabled = await _settingsService.nightModeEnabled();
+    _nightModeSleepTime = await _settingsService.nightModeSleepTime();
+    _nightModeMorningTime = await _settingsService.nightModeMorningTime();
 
     // Sync telemetry consent to TelemetryService if it exists
     if (_telemetryService != null) {
@@ -260,6 +274,34 @@ class SettingsController with ChangeNotifier {
     }
     _telemetryConsentDialogShown = value;
     await _settingsService.setTelemetryConsentDialogShown(value);
+    notifyListeners();
+  }
+
+  Future<void> setChargingMode(ChargingMode mode) async {
+    if (mode == _chargingMode) return;
+    _chargingMode = mode;
+    await _settingsService.setChargingMode(mode);
+    notifyListeners();
+  }
+
+  Future<void> setNightModeEnabled(bool value) async {
+    if (value == _nightModeEnabled) return;
+    _nightModeEnabled = value;
+    await _settingsService.setNightModeEnabled(value);
+    notifyListeners();
+  }
+
+  Future<void> setNightModeSleepTime(int minutes) async {
+    if (minutes == _nightModeSleepTime) return;
+    _nightModeSleepTime = minutes;
+    await _settingsService.setNightModeSleepTime(minutes);
+    notifyListeners();
+  }
+
+  Future<void> setNightModeMorningTime(int minutes) async {
+    if (minutes == _nightModeMorningTime) return;
+    _nightModeMorningTime = minutes;
+    await _settingsService.setNightModeMorningTime(minutes);
     notifyListeners();
   }
 }
