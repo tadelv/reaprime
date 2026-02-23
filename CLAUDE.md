@@ -139,6 +139,7 @@ Handler-based routing in `lib/src/services/webserver/`. Each handler file is a `
   - Use explicit type parameters: `StreamBuilder<De1Interface?>`
   - Lifecycle-aware widgets: implement `WidgetsBindingObserver`, set stream to `null` when backgrounded
 - **Stream subscriptions:** Always cancel in `dispose()` methods
+- **BLE Discovery:** Device discovery uses unfiltered scans with name-based matching (`DeviceMatcher`). Service verification happens during `onConnect()` using `BleServiceIdentifier`. All BLE operations use 128-bit UUID format for maximum platform compatibility.
 - **BLE reads:** Throttle rapid characteristic reads to avoid overwhelming Bluetooth stack
 
 ## Testing
@@ -164,9 +165,10 @@ Run with `flutter test`. Simulated devices available via `--dart-define=simulate
 
 1. Create interface in `lib/src/models/device/` (extend `Device`, `Machine`, or `Scale`)
 2. Implement in `lib/src/models/device/impl/{device_name}/`
-3. Add UUID mapping in `main.dart` discovery config
-4. Create controller if needed in `lib/src/controllers/`
-5. Add API handler in `lib/src/services/webserver/`
+3. Add name matching rule in `lib/src/services/device_matcher.dart`
+4. Add service verification in the device's `onConnect()` using `BleServiceIdentifier.matchesAny()`
+5. Create controller if needed in `lib/src/controllers/`
+6. Add API handler in `lib/src/services/webserver/`
 
 ### Adding a New API Endpoint
 
