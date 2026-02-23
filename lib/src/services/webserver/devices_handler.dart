@@ -129,6 +129,7 @@ class DevicesHandler {
       try {
         final devices = await _deviceList();
         final state = {
+          'timestamp': DateTime.now().toUtc().toIso8601String(),
           'devices': devices,
           'scanning': _controller.isScanning,
         };
@@ -148,11 +149,12 @@ class DevicesHandler {
         deviceStateSubs.remove(id)?.cancel();
       }
 
-      // Add subscriptions for new devices
+      // Add subscriptions for new devices (skip initial replay — the current
+      // state is already captured by emitState())
       for (final device in devices) {
         if (!deviceStateSubs.containsKey(device.deviceId)) {
           deviceStateSubs[device.deviceId] =
-              device.connectionState.listen((_) => emitState());
+              device.connectionState.skip(1).listen((_) => emitState());
         }
       }
     }

@@ -116,7 +116,11 @@ class DeviceController {
         ),
       );
     } finally {
-      completer.future.then((_) async {
+      completer.future
+          .timeout(Duration(seconds: 30))
+          .then((_) {}, onError: (e) {
+        _log.warning("scan timed out or failed: $e");
+      }).whenComplete(() async {
         await Future.delayed(Duration(milliseconds: 200), () {
           _autoConnect = tmpAutoConnect;
           if (!_scanningStream.isClosed) _scanningStream.add(false);
