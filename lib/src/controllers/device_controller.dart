@@ -16,6 +16,11 @@ class DeviceController {
     [],
   );
 
+  final BehaviorSubject<bool> _scanningStream = BehaviorSubject.seeded(false);
+
+  Stream<bool> get scanningStream => _scanningStream.stream;
+  bool get isScanning => _scanningStream.value;
+
   final List<StreamSubscription> _serviceSubscriptions = [];
 
   // Telemetry service for reporting device state changes
@@ -76,6 +81,7 @@ class DeviceController {
   bool get shouldAutoConnect => _autoConnect;
 
   Future<void> scanForDevices({required bool autoConnect}) async {
+    _scanningStream.add(true);
     // throw out all disconnected devices
     _devices.forEach((_, devices) async {
       List<Device> devicesToRemove = [];
@@ -113,6 +119,7 @@ class DeviceController {
       completer.future.then((_) async {
         await Future.delayed(Duration(milliseconds: 200), () {
           _autoConnect = tmpAutoConnect;
+          if (!_scanningStream.isClosed) _scanningStream.add(false);
           _log.info("_autoConnect restored to $tmpAutoConnect");
           _log.info("current devices: $devices");
         });
@@ -140,6 +147,7 @@ class DeviceController {
     List<String> deviceIds, {
     required String awaitDeviceId,
   }) async {
+    _scanningStream.add(true);
     // BLE scan can take a few seconds, plus device creation (connect +
     // service discovery + inspection) adds ~3-5s on top. Use a generous
     // timeout to avoid false negatives.
@@ -163,6 +171,8 @@ class DeviceController {
       return true;
     } on TimeoutException {
       return false;
+    } finally {
+      _scanningStream.add(false);
     }
   }
 
@@ -256,5 +266,6 @@ class DeviceController {
     }
     _serviceSubscriptions.clear();
     _deviceStream.close();
+    _scanningStream.close();
   }
 }

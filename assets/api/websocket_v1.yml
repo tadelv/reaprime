@@ -6,10 +6,11 @@ info:
     AsyncAPI specification for Rea Prime WebSocket data streams.
 
 
-    All channels are WebSocket-based and only emit JSON messages to the client.
+    Most channels are WebSocket-based and emit JSON messages to the client.
+    The Devices channel is bidirectional, accepting commands and emitting state.
 
     These channels provide live updates from the DE1 espresso machine, scale,
-    and sensors.
+    sensors, and connected devices.
 servers:
   production:
     host: '{tablet-ip}:8080'
@@ -75,6 +76,18 @@ channels:
     messages:
       logMessage:
         $ref: '#/components/messages/LogMessage'
+  Devices:
+    description: >
+      Bidirectional channel for device list state and commands.
+      Emits full device state snapshots on connect, device list changes,
+      individual device connection state changes, and scanning state changes.
+      Accepts commands to scan, connect, and disconnect devices.
+    address: ws/v1/devices
+    messages:
+      devicesState:
+        $ref: '#/components/messages/DevicesState'
+      devicesCommand:
+        $ref: '#/components/messages/DevicesCommand'
 
 operations:
   machineSnapshot:
@@ -109,6 +122,18 @@ operations:
     action: receive
     channel:
       $ref: '#/channels/Logs'
+  devicesState:
+    action: receive
+    channel:
+      $ref: '#/channels/Devices'
+    messages:
+      - $ref: '#/channels/Devices/messages/devicesState'
+  devicesCommand:
+    action: send
+    channel:
+      $ref: '#/channels/Devices'
+    messages:
+      - $ref: '#/channels/Devices/messages/devicesCommand'
 
 components:
   messages:
@@ -157,6 +182,18 @@ components:
       title: Log message from Rea
       payload:
         $ref: '#/components/schemas/LogMessage'
+    DevicesState:
+      name: DevicesState
+      title: Device list state
+      summary: Full snapshot of all known devices and scanning state.
+      payload:
+        $ref: '#/components/schemas/DevicesState'
+    DevicesCommand:
+      name: DevicesCommand
+      title: Device command
+      summary: Command sent by the client to scan, connect, or disconnect devices.
+      payload:
+        $ref: '#/components/schemas/DevicesCommand'
   schemas:
     Error:
       type: object
@@ -324,11 +361,80 @@ components:
     LogMessage:
       type: object
       properties:
-        timestamp: 
+        timestamp:
           type: string
           format: date-time
         level:
           type: string
         message:
           type: string
+
+    DevicesState:
+      type: object
+      required:
+        - devices
+        - scanning
+      properties:
+        devices:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeviceInfo'
+        scanning:
+          type: boolean
+          description: Whether a BLE/USB scan is currently in progress.
+
+    DeviceInfo:
+      type: object
+      required:
+        - name
+        - id
+        - state
+        - type
+      properties:
+        name:
+          type: string
+          example: DE1
+        id:
+          type: string
+          description: Device identifier (BLE MAC, UUID, or serial port path).
+          example: 'AA:BB:CC:DD:EE:FF'
+        state:
+          type: string
+          enum:
+            - connecting
+            - connected
+            - disconnecting
+            - disconnected
+          example: connected
+        type:
+          type: string
+          enum:
+            - machine
+            - scale
+            - sensor
+          example: machine
+
+    DevicesCommand:
+      type: object
+      required:
+        - command
+      properties:
+        command:
+          type: string
+          enum:
+            - scan
+            - connect
+            - disconnect
+          description: The command to execute.
+        deviceId:
+          type: string
+          description: Device identifier. Required for connect and disconnect commands.
+        connect:
+          type: boolean
+          description: Whether to auto-connect discovered devices (scan command only).
+          default: false
+        quick:
+          type: boolean
+          description: Fire-and-forget scan without waiting for results (scan command only).
+          default: false
 
