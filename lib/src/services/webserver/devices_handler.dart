@@ -116,6 +116,20 @@ class DevicesHandler {
     return Response.ok(null);
   }
 
+  void _emitStateNow(WebSocketChannel socket) async {
+    try {
+      final devices = await _deviceList();
+      final state = {
+        'timestamp': DateTime.now().toUtc().toIso8601String(),
+        'devices': devices,
+        'scanning': _controller.isScanning,
+      };
+      socket.sink.add(jsonEncode(state));
+    } catch (e, st) {
+      _log.warning("failed to emit devices state", e, st);
+    }
+  }
+
   // -- WebSocket handler --
 
   void _handleDevicesSocket(WebSocketChannel socket, String? protocol) {
@@ -125,18 +139,21 @@ class DevicesHandler {
     // Track per-device connectionState subscriptions by deviceId
     final deviceStateSubs = <String, StreamSubscription>{};
 
-    void emitState() async {
-      try {
-        final devices = await _deviceList();
-        final state = {
-          'timestamp': DateTime.now().toUtc().toIso8601String(),
-          'devices': devices,
-          'scanning': _controller.isScanning,
-        };
-        socket.sink.add(jsonEncode(state));
-      } catch (e, st) {
-        _log.warning("failed to emit devices state", e, st);
+    // Debounce rapid-fire state changes (scan triggers multiple stream events
+    // within <1ms from scanningStream, deviceStream, and per-service updates)
+    Timer? debounceTimer;
+
+    void emitState({bool immediate = false}) {
+      if (immediate) {
+        debounceTimer?.cancel();
+        debounceTimer = null;
+        _emitStateNow(socket);
+        return;
       }
+      debounceTimer?.cancel();
+      debounceTimer = Timer(Duration(milliseconds: 100), () {
+        _emitStateNow(socket);
+      });
     }
 
     void updateDeviceSubscriptions(List<Device> devices) {
@@ -174,8 +191,8 @@ class DevicesHandler {
     // Set up initial per-device subscriptions
     updateDeviceSubscriptions(_controller.devices);
 
-    // Send initial state
-    emitState();
+    // Send initial state immediately (no debounce)
+    emitState(immediate: true);
 
     // Listen for incoming commands
     socket.stream.listen(
@@ -189,6 +206,7 @@ class DevicesHandler {
       },
       onDone: () {
         _log.fine("devices websocket disconnected");
+        debounceTimer?.cancel();
         for (final sub in subscriptions) {
           sub.cancel();
         }
@@ -199,6 +217,7 @@ class DevicesHandler {
       },
       onError: (e, st) {
         _log.warning("devices websocket error", e, st);
+        debounceTimer?.cancel();
         for (final sub in subscriptions) {
           sub.cancel();
         }
