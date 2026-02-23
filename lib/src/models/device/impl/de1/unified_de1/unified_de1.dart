@@ -180,6 +180,12 @@ class UnifiedDe1 implements De1Interface {
     }
 
     final model = _unpackMMRInt(await _mmrRead(MMRItem.v13Model));
+    if (model >= 128) {
+      _log.warning(
+        'Device model $model indicates non-DE1 hardware '
+        '(Bengle or similar). Advertised name may be misleading.',
+      );
+    }
     final ghcInfo = _unpackMMRInt(await _mmrRead(MMRItem.ghcInfo));
     final serial = _unpackMMRInt(await _mmrRead(MMRItem.serialN));
     final firmware = _unpackMMRInt(await _mmrRead(MMRItem.cpuFirmwareBuild));
