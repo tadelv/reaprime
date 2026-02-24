@@ -87,6 +87,23 @@ function createPlugin(host) {
   }
 
   /**
+   * Fetch presence & wake schedule settings
+   */
+  async function fetchPresenceSettings() {
+    try {
+      const res = await fetch("http://localhost:8080/api/v1/presence/settings");
+      if (!res.ok) {
+        log(`Failed to fetch presence settings: ${res.status}`);
+        return null;
+      }
+      return await res.json();
+    } catch (e) {
+      log(`Error fetching presence settings: ${e.message}`);
+      return null;
+    }
+  }
+
+  /**
    * Fetch machine advanced settings
    */
   async function fetchDe1AdvancedSettings() {
@@ -106,7 +123,7 @@ function createPlugin(host) {
   /**
    * Generate HTML page with all settings (with editable controls)
    */
-  function generateSettingsHTML(reaSettings, de1Settings, de1AdvancedSettings, webUISkins, calibrationSettings) {
+  function generateSettingsHTML(reaSettings, de1Settings, de1AdvancedSettings, webUISkins, calibrationSettings, presenceSettings) {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -626,6 +643,48 @@ function createPlugin(host) {
                 </div>
             ` : '<div class="error" role="alert">Failed to load calibration settings (machine may not be connected)</div>'}
             </section>
+
+            <!-- Presence & Sleep -->
+            <section class="section" aria-labelledby="presence-settings-heading">
+                <h2 id="presence-settings-heading">Presence & Sleep</h2>
+            ${presenceSettings ? `
+                <div class="settings-grid" role="group" aria-label="Presence and sleep settings">
+                    <div class="setting-item">
+                        <span class="setting-label">User Presence</span>
+                        <span class="readonly">${presenceSettings.userPresenceEnabled ? 'Enabled' : 'Disabled'}</span>
+                    </div>
+                    <div class="setting-item">
+                        <span class="setting-label">Sleep Timeout</span>
+                        <span class="readonly">${presenceSettings.sleepTimeoutMinutes ? presenceSettings.sleepTimeoutMinutes + ' minutes' : 'Disabled'}</span>
+                    </div>
+                </div>
+                ${presenceSettings.schedules && presenceSettings.schedules.length > 0 ? `
+                <h3 style="margin-top: 15px; margin-bottom: 10px; color: #2c3e50;">Wake Schedules</h3>
+                <table style="width: 100%; border-collapse: collapse; background: #f8f9fa; border-radius: 6px; overflow: hidden;">
+                    <thead>
+                        <tr style="background: #3498db; color: white;">
+                            <th style="padding: 10px; text-align: left;">Time</th>
+                            <th style="padding: 10px; text-align: left;">Days</th>
+                            <th style="padding: 10px; text-align: left;">Enabled</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${presenceSettings.schedules.map(schedule => {
+                            const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                            const days = !schedule.daysOfWeek || schedule.daysOfWeek.length === 0
+                                ? 'Every day'
+                                : schedule.daysOfWeek.map(d => dayNames[d - 1] || '?').join(', ');
+                            return `<tr style="border-bottom: 1px solid #ddd;">
+                            <td style="padding: 10px;">${schedule.time}</td>
+                            <td style="padding: 10px;">${days}</td>
+                            <td style="padding: 10px;">${schedule.enabled ? 'Yes' : 'No'}</td>
+                        </tr>`;
+                        }).join('')}
+                    </tbody>
+                </table>
+                ` : '<p style="margin-top: 10px; color: #666;">No wake schedules configured.</p>'}
+            ` : '<div class="error" role="alert">Failed to load presence settings</div>'}
+            </section>
         </main>
     </div>
 
@@ -792,7 +851,7 @@ function createPlugin(host) {
   // Return the plugin object
   return {
     id: "settings.reaplugin",
-    version: "0.0.12",
+    version: "0.0.13",
 
     onLoad(settings) {
       state.refreshInterval = settings.RefreshInterval !== undefined ? settings.RefreshInterval : 5;
@@ -814,9 +873,10 @@ function createPlugin(host) {
           fetchDe1Settings(),
           fetchDe1AdvancedSettings(),
           fetchWebUISkins(),
-          fetchCalibrationSettings()
-        ]).then(([reaSettings, de1Settings, de1AdvancedSettings, webUISkins, calibrationSettings]) => {
-          const html = generateSettingsHTML(reaSettings, de1Settings, de1AdvancedSettings, webUISkins, calibrationSettings);
+          fetchCalibrationSettings(),
+          fetchPresenceSettings()
+        ]).then(([reaSettings, de1Settings, de1AdvancedSettings, webUISkins, calibrationSettings, presenceSettings]) => {
+          const html = generateSettingsHTML(reaSettings, de1Settings, de1AdvancedSettings, webUISkins, calibrationSettings, presenceSettings);
           
           return {
             requestId: request.requestId,
