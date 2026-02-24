@@ -205,6 +205,8 @@ class UnifiedDe1 implements De1Interface {
     // TODO: User configurable setting
     // Set refill kit to autodetect
     await _mmrWrite(MMRItem.refillKitPresent, [0x02]);
+
+    await enableUserPresenceFeature();
   }
 
   final StreamController<De1RawMessage> _rawMessageController =
@@ -313,6 +315,16 @@ class UnifiedDe1 implements De1Interface {
   @override
   Future<void> setSteamPurgeMode(int mode) async {
     await _writeMMRInt(MMRItem.steamPurgeMode, mode);
+  }
+
+  @override
+  Future<void> enableUserPresenceFeature() async {
+    await _writeMMRInt(MMRItem.appFeatureFlags, 1);
+  }
+
+  @override
+  Future<void> sendUserPresent() async {
+    await _writeMMRInt(MMRItem.userPresent, 1);
   }
 
   @override

@@ -615,5 +615,11 @@ class MockDe1 implements De1Interface {
 
   @override
   Future<void> cancelFirmwareUpload() async {}
+
+  @override
+  Future<void> enableUserPresenceFeature() async {}
+
+  @override
+  Future<void> sendUserPresent() async {}
 }
 
