@@ -53,6 +53,12 @@ abstract class SettingsService {
   Future<void> setNightModeSleepTime(int minutes);
   Future<int> nightModeMorningTime();
   Future<void> setNightModeMorningTime(int minutes);
+  Future<bool> userPresenceEnabled();
+  Future<void> setUserPresenceEnabled(bool value);
+  Future<int> sleepTimeoutMinutes();
+  Future<void> setSleepTimeoutMinutes(int value);
+  Future<String> wakeSchedules();
+  Future<void> setWakeSchedules(String json);
 }
 
 /// SharedPreferences-backed implementation of [SettingsService].
@@ -310,6 +316,36 @@ class SharedPreferencesSettingsService extends SettingsService {
   Future<void> setNightModeMorningTime(int minutes) async {
     await prefs.setInt(SettingsKeys.nightModeMorningTime.name, minutes);
   }
+
+  @override
+  Future<bool> userPresenceEnabled() async {
+    return await prefs.getBool(SettingsKeys.userPresenceEnabled.name) ?? true;
+  }
+
+  @override
+  Future<void> setUserPresenceEnabled(bool value) async {
+    await prefs.setBool(SettingsKeys.userPresenceEnabled.name, value);
+  }
+
+  @override
+  Future<int> sleepTimeoutMinutes() async {
+    return await prefs.getInt(SettingsKeys.sleepTimeoutMinutes.name) ?? 30;
+  }
+
+  @override
+  Future<void> setSleepTimeoutMinutes(int value) async {
+    await prefs.setInt(SettingsKeys.sleepTimeoutMinutes.name, value);
+  }
+
+  @override
+  Future<String> wakeSchedules() async {
+    return await prefs.getString(SettingsKeys.wakeSchedules.name) ?? '[]';
+  }
+
+  @override
+  Future<void> setWakeSchedules(String json) async {
+    await prefs.setString(SettingsKeys.wakeSchedules.name, json);
+  }
 }
 
 enum SettingsKeys {
@@ -335,6 +371,9 @@ enum SettingsKeys {
   nightModeEnabled,
   nightModeSleepTime,
   nightModeMorningTime,
+  userPresenceEnabled,
+  sleepTimeoutMinutes,
+  wakeSchedules,
 }
 
 /// Position options for the skin view exit button
