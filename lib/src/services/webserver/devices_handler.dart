@@ -1,21 +1,180 @@
 part of '../webserver_service.dart';
 
+/// Aggregates device, scanning, and charging state into a single broadcast
+/// stream. One instance is shared across all WebSocket connections, avoiding
+/// duplicate subscriptions and ensuring correct cleanup when devices
+/// appear/disappear.
+class DevicesStateAggregator {
+  final DeviceController _controller;
+  final BatteryController? _batteryController;
+  final Logger _log = Logger("DevicesStateAggregator");
+
+  final List<StreamSubscription> _subscriptions = [];
+
+  /// Per-device connectionState subscriptions keyed by deviceId.
+  /// Stores both the Device reference (for identity comparison) and the
+  /// subscription so we can detect same-ID-different-object replacements.
+  final Map<String, (Device, StreamSubscription)> _deviceStateSubs = {};
+
+  final BehaviorSubject<Map<String, dynamic>> _stateStream =
+      BehaviorSubject<Map<String, dynamic>>();
+
+  Timer? _debounceTimer;
+
+  /// Broadcast stream of unified state snapshots.
+  Stream<Map<String, dynamic>> get stateStream => _stateStream.stream;
+
+  /// Number of active per-device connectionState subscriptions (for testing).
+  int get activeDeviceSubscriptionCount => _deviceStateSubs.length;
+
+  DevicesStateAggregator({
+    required DeviceController controller,
+    BatteryController? batteryController,
+  })  : _controller = controller,
+        _batteryController = batteryController {
+    _start();
+  }
+
+  void _start() {
+    // Subscribe to device list changes (skip initial BehaviorSubject replay;
+    // initial state is sent via the seeded emitState below)
+    _subscriptions.add(_controller.deviceStream.skip(1).listen((devices) {
+      _updateDeviceSubscriptions(devices);
+      _emitState();
+    }));
+
+    // Subscribe to scanning state changes (skip initial replay)
+    _subscriptions.add(
+      _controller.scanningStream.skip(1).listen((_) => _emitState()),
+    );
+
+    // Subscribe to charging state changes (skip initial replay)
+    if (_batteryController != null) {
+      _subscriptions.add(
+        _batteryController.chargingState.skip(1).listen((_) => _emitState()),
+      );
+    }
+
+    // Set up initial per-device subscriptions
+    _updateDeviceSubscriptions(_controller.devices);
+
+    // Emit initial state immediately (no debounce)
+    _emitState(immediate: true);
+  }
+
+  void _updateDeviceSubscriptions(List<Device> devices) {
+    final currentIds = devices.map((d) => d.deviceId).toSet();
+
+    // Remove subscriptions for devices no longer in the list
+    final staleIds =
+        _deviceStateSubs.keys.where((id) => !currentIds.contains(id)).toList();
+    for (final id in staleIds) {
+      _deviceStateSubs.remove(id)?.$2.cancel();
+    }
+
+    // Add or replace subscriptions for devices in the list
+    for (final device in devices) {
+      final existing = _deviceStateSubs[device.deviceId];
+      if (existing != null) {
+        // Same ID exists — check if it's the same object instance
+        if (identical(existing.$1, device)) {
+          continue; // Same object, subscription is still valid
+        }
+        // Different object with same ID (BLE reconnect) — replace subscription
+        existing.$2.cancel();
+      }
+      // New device or replacement: subscribe (skip initial replay — the
+      // current state is already captured by _buildSnapshot)
+      final sub =
+          device.connectionState.skip(1).listen((_) => _emitState());
+      _deviceStateSubs[device.deviceId] = (device, sub);
+    }
+  }
+
+  void _emitState({bool immediate = false}) {
+    if (immediate) {
+      _debounceTimer?.cancel();
+      _debounceTimer = null;
+      _emitStateNow();
+      return;
+    }
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(Duration(milliseconds: 100), () {
+      _emitStateNow();
+    });
+  }
+
+  void _emitStateNow() async {
+    try {
+      final snapshot = await _buildSnapshot();
+      _stateStream.add(snapshot);
+    } catch (e, st) {
+      _log.warning("failed to build devices state snapshot", e, st);
+    }
+  }
+
+  Future<Map<String, dynamic>> _buildSnapshot() async {
+    final devices = _controller.devices;
+    final devList = <Map<String, String>>[];
+    for (var device in devices) {
+      var state = await device.connectionState.first;
+      devList.add({
+        'name': device.name,
+        'id': device.deviceId,
+        'state': state.name,
+        'type': device.type.name,
+      });
+    }
+
+    final snapshot = <String, dynamic>{
+      'timestamp': DateTime.now().toUtc().toIso8601String(),
+      'devices': devList,
+      'scanning': _controller.isScanning,
+    };
+    if (_batteryController?.currentChargingState != null) {
+      snapshot['charging'] =
+          _batteryController!.currentChargingState!.toJson();
+    }
+    return snapshot;
+  }
+
+  void dispose() {
+    _debounceTimer?.cancel();
+    for (final sub in _subscriptions) {
+      sub.cancel();
+    }
+    _subscriptions.clear();
+    for (final entry in _deviceStateSubs.values) {
+      entry.$2.cancel();
+    }
+    _deviceStateSubs.clear();
+    _stateStream.close();
+  }
+}
+
 class DevicesHandler {
   final DeviceController _controller;
   final De1Controller _de1Controller;
   final ScaleController _scaleController;
-  final BatteryController? _batteryController;
   final Logger _log = Logger("Devices handler");
+  final DevicesStateAggregator _aggregator;
 
   DevicesHandler({
     required DeviceController controller,
     required De1Controller de1Controller,
     required ScaleController scaleController,
     BatteryController? batteryController,
-  }) : _controller = controller,
-       _de1Controller = de1Controller,
-       _scaleController = scaleController,
-       _batteryController = batteryController;
+  })  : _controller = controller,
+        _de1Controller = de1Controller,
+        _scaleController = scaleController,
+        _aggregator = DevicesStateAggregator(
+          controller: controller,
+          batteryController: batteryController,
+        );
+
+  void dispose() {
+    _aggregator.dispose();
+  }
 
   addRoutes(RouterPlus app) {
     app.get('/api/v1/devices', () async {
@@ -112,93 +271,21 @@ class DevicesHandler {
     return Response.ok(null);
   }
 
-  void _emitStateNow(WebSocketChannel socket) async {
-    try {
-      final devices = await _deviceList();
-      final state = <String, dynamic>{
-        'timestamp': DateTime.now().toUtc().toIso8601String(),
-        'devices': devices,
-        'scanning': _controller.isScanning,
-      };
-      if (_batteryController?.currentChargingState != null) {
-        state['charging'] = _batteryController!.currentChargingState!.toJson();
-      }
-      socket.sink.add(jsonEncode(state));
-    } catch (e, st) {
-      _log.warning("failed to emit devices state", e, st);
-    }
-  }
-
   // -- WebSocket handler --
 
   void _handleDevicesSocket(WebSocketChannel socket, String? protocol) {
     _log.fine("devices websocket connected");
 
-    final subscriptions = <StreamSubscription>[];
-    // Track per-device connectionState subscriptions by deviceId
-    final deviceStateSubs = <String, StreamSubscription>{};
-
-    // Debounce rapid-fire state changes (scan triggers multiple stream events
-    // within <1ms from scanningStream, deviceStream, and per-service updates)
-    Timer? debounceTimer;
-
-    void emitState({bool immediate = false}) {
-      if (immediate) {
-        debounceTimer?.cancel();
-        debounceTimer = null;
-        _emitStateNow(socket);
-        return;
+    // Subscribe to the shared aggregator stream — each WebSocket connection
+    // gets a lightweight listener on the single broadcast output instead of
+    // creating its own set of upstream subscriptions.
+    final sub = _aggregator.stateStream.listen((snapshot) {
+      try {
+        socket.sink.add(jsonEncode(snapshot));
+      } catch (e, st) {
+        _log.warning("failed to send devices state to websocket", e, st);
       }
-      debounceTimer?.cancel();
-      debounceTimer = Timer(Duration(milliseconds: 100), () {
-        _emitStateNow(socket);
-      });
-    }
-
-    void updateDeviceSubscriptions(List<Device> devices) {
-      final currentIds = devices.map((d) => d.deviceId).toSet();
-
-      // Remove subscriptions for devices no longer in the list
-      final staleIds =
-          deviceStateSubs.keys.where((id) => !currentIds.contains(id)).toList();
-      for (final id in staleIds) {
-        deviceStateSubs.remove(id)?.cancel();
-      }
-
-      // Add subscriptions for new devices (skip initial replay — the current
-      // state is already captured by emitState())
-      for (final device in devices) {
-        if (!deviceStateSubs.containsKey(device.deviceId)) {
-          deviceStateSubs[device.deviceId] =
-              device.connectionState.skip(1).listen((_) => emitState());
-        }
-      }
-    }
-
-    // Subscribe to device list changes (skip initial BehaviorSubject replay;
-    // initial state is sent explicitly below)
-    subscriptions.add(_controller.deviceStream.skip(1).listen((devices) {
-      updateDeviceSubscriptions(devices);
-      emitState();
-    }));
-
-    // Subscribe to scanning state changes (skip initial replay)
-    subscriptions.add(
-      _controller.scanningStream.skip(1).listen((_) => emitState()),
-    );
-
-    // Subscribe to charging state changes (skip initial replay)
-    if (_batteryController != null) {
-      subscriptions.add(
-        _batteryController.chargingState.skip(1).listen((_) => emitState()),
-      );
-    }
-
-    // Set up initial per-device subscriptions
-    updateDeviceSubscriptions(_controller.devices);
-
-    // Send initial state immediately (no debounce)
-    emitState(immediate: true);
+    });
 
     // Listen for incoming commands
     socket.stream.listen(
@@ -212,25 +299,11 @@ class DevicesHandler {
       },
       onDone: () {
         _log.fine("devices websocket disconnected");
-        debounceTimer?.cancel();
-        for (final sub in subscriptions) {
-          sub.cancel();
-        }
-        for (final sub in deviceStateSubs.values) {
-          sub.cancel();
-        }
-        deviceStateSubs.clear();
+        sub.cancel();
       },
       onError: (e, st) {
         _log.warning("devices websocket error", e, st);
-        debounceTimer?.cancel();
-        for (final sub in subscriptions) {
-          sub.cancel();
-        }
-        for (final sub in deviceStateSubs.values) {
-          sub.cancel();
-        }
-        deviceStateSubs.clear();
+        sub.cancel();
       },
     );
   }
@@ -304,3 +377,4 @@ class DevicesHandler {
     }
   }
 }
+

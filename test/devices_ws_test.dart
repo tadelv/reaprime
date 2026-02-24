@@ -9,6 +9,7 @@ import 'package:web_socket_channel/io.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
 
 import 'helpers/mock_device_discovery_service.dart';
@@ -19,6 +20,7 @@ void main() {
   late De1Controller de1Controller;
   late ScaleController scaleController;
   late MockDeviceDiscoveryService mockDiscovery;
+  late DevicesHandler devicesHandler;
   late HttpServer server;
   late Uri wsUri;
 
@@ -30,7 +32,7 @@ void main() {
     de1Controller = De1Controller(controller: deviceController);
     scaleController = ScaleController(controller: deviceController);
 
-    final devicesHandler = DevicesHandler(
+    devicesHandler = DevicesHandler(
       controller: deviceController,
       de1Controller: de1Controller,
       scaleController: scaleController,
@@ -45,6 +47,7 @@ void main() {
 
   tearDown(() async {
     await server.close(force: true);
+    devicesHandler.dispose();
     deviceController.dispose();
   });
 
@@ -320,6 +323,168 @@ void main() {
       await Future.delayed(Duration(milliseconds: 100));
 
       await channel.sink.close();
+    });
+
+    test('emits update when device connection state changes', () async {
+      final scale = TestScale(deviceId: 'scale-1', name: 'Scale');
+      mockDiscovery.addDevice(scale);
+      await Future.delayed(Duration.zero);
+
+      final (channel, messages) = connectWs();
+
+      // Wait for initial state showing connected
+      await messages
+          .where((msg) =>
+              msg.containsKey('devices') &&
+              (msg['devices'] as List).isNotEmpty &&
+              (msg['devices'] as List)[0]['state'] == 'connected')
+          .first
+          .timeout(Duration(seconds: 2));
+
+      // Change connection state on the device
+      scale.setConnectionState(ConnectionState.disconnected);
+
+      // WebSocket should receive an update with the new state
+      final update = await messages
+          .where((msg) =>
+              msg.containsKey('devices') &&
+              (msg['devices'] as List).isNotEmpty &&
+              (msg['devices'] as List)[0]['state'] == 'disconnected')
+          .first
+          .timeout(Duration(seconds: 2));
+
+      expect((update['devices'] as List)[0]['state'], 'disconnected');
+
+      await channel.sink.close();
+    });
+
+    test('handles device reappearance with same ID', () async {
+      final scale1 = TestScale(deviceId: 'scale-1', name: 'Scale');
+      mockDiscovery.addDevice(scale1);
+      await Future.delayed(Duration.zero);
+
+      final (channel, messages) = connectWs();
+
+      // Wait for initial state with device
+      await messages
+          .where((msg) =>
+              msg.containsKey('devices') &&
+              (msg['devices'] as List).isNotEmpty)
+          .first
+          .timeout(Duration(seconds: 2));
+
+      // Remove device
+      mockDiscovery.removeDevice('scale-1');
+      await messages
+          .where((msg) =>
+              msg.containsKey('devices') &&
+              (msg['devices'] as List).isEmpty)
+          .first
+          .timeout(Duration(seconds: 2));
+
+      // Re-add with same ID but in connecting state
+      final scale2 = TestScale(
+        deviceId: 'scale-1',
+        name: 'Scale',
+        initialState: ConnectionState.connecting,
+      );
+      mockDiscovery.addDevice(scale2);
+
+      // Should see the new device with connecting state
+      final update = await messages
+          .where((msg) =>
+              msg.containsKey('devices') &&
+              (msg['devices'] as List).isNotEmpty &&
+              (msg['devices'] as List)[0]['state'] == 'connecting')
+          .first
+          .timeout(Duration(seconds: 2));
+
+      expect((update['devices'] as List)[0]['state'], 'connecting');
+
+      // New object's state changes should be observed
+      scale2.setConnectionState(ConnectionState.connected);
+
+      final connected = await messages
+          .where((msg) =>
+              msg.containsKey('devices') &&
+              (msg['devices'] as List).isNotEmpty &&
+              (msg['devices'] as List)[0]['state'] == 'connected')
+          .first
+          .timeout(Duration(seconds: 2));
+
+      expect((connected['devices'] as List)[0]['state'], 'connected');
+
+      await channel.sink.close();
+    });
+
+    test('multiple clients receive same state updates', () async {
+      final (channel1, messages1) = connectWs();
+      final (channel2, messages2) = connectWs();
+
+      // Both should receive initial state
+      await waitForState(messages1);
+      await waitForState(messages2);
+
+      // Set up futures BEFORE triggering the action to avoid missing events
+      final deviceAdded1 = messages1
+          .where((msg) =>
+              msg.containsKey('devices') &&
+              (msg['devices'] as List).isNotEmpty)
+          .first
+          .timeout(Duration(seconds: 2));
+
+      final deviceAdded2 = messages2
+          .where((msg) =>
+              msg.containsKey('devices') &&
+              (msg['devices'] as List).isNotEmpty)
+          .first
+          .timeout(Duration(seconds: 2));
+
+      // Add a device
+      final scale = TestScale(deviceId: 'scale-1', name: 'Scale');
+      mockDiscovery.addDevice(scale);
+
+      // Both clients should receive the update
+      final update1 = await deviceAdded1;
+      final update2 = await deviceAdded2;
+
+      expect((update1['devices'] as List)[0]['id'], 'scale-1');
+      expect((update2['devices'] as List)[0]['id'], 'scale-1');
+
+      // Set up futures for the state change BEFORE triggering it
+      final stateChanged1 = messages1
+          .where((msg) =>
+              msg.containsKey('devices') &&
+              (msg['devices'] as List).isNotEmpty &&
+              (msg['devices'] as List)[0]['state'] == 'disconnected')
+          .first
+          .timeout(Duration(seconds: 2));
+
+      final stateChanged2 = messages2
+          .where((msg) =>
+              msg.containsKey('devices') &&
+              (msg['devices'] as List).isNotEmpty &&
+              (msg['devices'] as List)[0]['state'] == 'disconnected')
+          .first
+          .timeout(Duration(seconds: 2));
+
+      // Connection state change should reach both clients
+      scale.setConnectionState(ConnectionState.disconnected);
+
+      final stateUpdate1 = await stateChanged1;
+      final stateUpdate2 = await stateChanged2;
+
+      expect(
+        (stateUpdate1['devices'] as List)[0]['state'],
+        'disconnected',
+      );
+      expect(
+        (stateUpdate2['devices'] as List)[0]['state'],
+        'disconnected',
+      );
+
+      await channel1.sink.close();
+      await channel2.sink.close();
     });
   });
 }
