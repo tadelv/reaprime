@@ -10,7 +10,6 @@ import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/sample_feature/sample_item_list_view.dart';
 import 'package:reaprime/src/settings/battery_charging_settings_page.dart';
-import 'package:reaprime/src/settings/presence_settings_page.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/gateway_mode_info_dialog.dart';
@@ -76,7 +75,6 @@ class _SettingsViewState extends State<SettingsView> {
             _buildAppearanceSection(),
             _buildGatewaySection(),
             if (Platform.isAndroid || Platform.isIOS) _buildBatterySection(),
-            _buildPresenceSection(),
             _buildDeviceManagementSection(),
             _buildDataManagementSection(),
             _buildWebUISection(),
@@ -244,71 +242,6 @@ class _SettingsViewState extends State<SettingsView> {
       case ChargingMode.highAvailability:
         return 'High Availability';
     }
-  }
-
-  Widget _buildPresenceSection() {
-    final enabled = widget.controller.userPresenceEnabled;
-    final timeout = widget.controller.sleepTimeoutMinutes;
-
-    String subtitle;
-    if (!enabled) {
-      subtitle = 'Disabled';
-    } else if (timeout > 0) {
-      subtitle = 'Sleep after $timeout min';
-    } else {
-      subtitle = 'Enabled, no sleep timeout';
-    }
-
-    return ShadCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.schedule_outlined, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Presence & Sleep',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Automatic sleep and scheduled wake settings',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7),
-                ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            subtitle,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 12),
-          ShadButton.outline(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => PresenceSettingsPage(
-                    controller: widget.controller,
-                  ),
-                ),
-              );
-            },
-            child: const Text('Configure'),
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _buildDeviceManagementSection() {
