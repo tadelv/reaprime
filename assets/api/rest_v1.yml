@@ -2104,7 +2104,7 @@ components:
           description: Current water height in the tank (mm)
         refillLevel:
           type: number
-          description: Water level threshold for refill warning (mm)
+          description: Water level threshold for refill warning (mm). Value is truncated to integer before being sent to the machine.
     De1SettingsRequest:
       type: object
       properties:
