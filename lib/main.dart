@@ -18,6 +18,7 @@ import 'package:reaprime/src/controllers/battery_controller.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
+import 'package:reaprime/src/controllers/presence_controller.dart';
 import 'package:reaprime/src/controllers/profile_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/sensor_controller.dart';
@@ -239,6 +240,12 @@ void main() async {
   );
   final sensorController = SensorController(controller: deviceController);
 
+  final presenceController = PresenceController(
+    de1Controller: de1Controller,
+    settingsController: settingsController,
+  );
+  presenceController.initialize();
+
   workflowController.addListener(() {
     persistenceController.saveWorkflow(workflowController.currentWorkflow);
     de1Controller.defaultWorkflow = workflowController.currentWorkflow;
@@ -277,6 +284,7 @@ void main() async {
       logBuffer,
       webViewLogService,
       batteryController,
+      presenceController,
     );
   } catch (e, st) {
     log.severe('failed to start web server', e, st);
@@ -337,6 +345,7 @@ void main() async {
         webUIStorage: webUIStorage,
         updateCheckService: updateCheckService,
         webViewLogService: webViewLogService,
+        presenceController: presenceController,
       ),
     ),
   );
@@ -482,6 +491,7 @@ class AppRoot extends StatefulWidget {
   final WebUIStorage webUIStorage;
   final UpdateCheckService? updateCheckService;
   final WebViewLogService webViewLogService;
+  final PresenceController presenceController;
 
   const AppRoot({
     super.key,
@@ -495,6 +505,7 @@ class AppRoot extends StatefulWidget {
     required this.webUIService,
     required this.webUIStorage,
     required this.webViewLogService,
+    required this.presenceController,
     this.updateCheckService,
   });
 
@@ -546,6 +557,7 @@ class _AppRootState extends State<AppRoot> {
         webUIStorage: widget.webUIStorage,
         updateCheckService: widget.updateCheckService,
         webViewLogService: widget.webViewLogService,
+        presenceController: widget.presenceController,
       ),
     );
   }

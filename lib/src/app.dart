@@ -7,6 +7,8 @@ import 'package:reaprime/main.dart';
 // import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:reaprime/src/controllers/de1_state_manager.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
+import 'package:reaprime/src/controllers/presence_controller.dart';
+import 'package:reaprime/src/controllers/presence_navigator_observer.dart';
 import 'package:reaprime/src/controllers/shot_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/history_feature/history_feature.dart';
@@ -58,6 +60,7 @@ class MyApp extends StatefulWidget {
     required this.webUIService,
     required this.webUIStorage,
     required this.webViewLogService,
+    required this.presenceController,
     this.updateCheckService,
   });
 
@@ -71,6 +74,7 @@ class MyApp extends StatefulWidget {
   final WebUIService webUIService;
   final WebUIStorage webUIStorage;
   final WebViewLogService webViewLogService;
+  final PresenceController presenceController;
   final UpdateCheckService? updateCheckService;
 
   @override
@@ -186,6 +190,9 @@ class _MyAppState extends State<MyApp> {
             themeMode: widget.settingsController.themeMode,
 
             navigatorKey: NavigationService.navigatorKey,
+            navigatorObservers: [
+              PresenceNavigatorObserver(presenceController: widget.presenceController),
+            ],
             // Define a function to handle named routes in order to support
             // Flutter web url navigation and deep linking.
             onGenerateRoute: (RouteSettings routeSettings) {
