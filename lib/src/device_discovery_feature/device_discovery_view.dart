@@ -235,6 +235,17 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 
     try {
       await widget.de1controller.connectToDe1(device);
+
+      // Auto-connect to a discovered scale if no preferred scale is set
+      if (widget.settingsController.preferredScaleId == null) {
+        final scale = widget.deviceController.devices
+            .whereType<device_scale.Scale>()
+            .firstOrNull;
+        if (scale != null) {
+          widget.scaleController.connectToScale(scale);
+        }
+      }
+
       if (mounted) await _navigateAfterConnection();
     } catch (e) {
       widget.logger.severe('Direct connect failed: $e');
