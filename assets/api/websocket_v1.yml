@@ -305,9 +305,11 @@ components:
       type: object
       properties:
         currentLevel:
-          type: integer
+          type: number
+          description: Current water height in the tank (mm)
         refillLevel:
-          type: integer
+          type: number
+          description: Water level threshold for refill warning (mm)
     De1RawMessage:
       type: object
       required:

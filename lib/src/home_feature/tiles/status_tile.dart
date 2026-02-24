@@ -298,7 +298,7 @@ class _StatusTileState extends State<StatusTile> {
             child: WaterLevelsForm(
               apply: (newLevels) {
                 Navigator.of(context).pop();
-                controller.connectedDe1().setRefillLevel(newLevels.refillLevel);
+                controller.connectedDe1().setRefillLevel(newLevels.refillLevel.toInt());
               },
               levels: waterLevels,
             ),
@@ -422,7 +422,7 @@ class _StatusTileState extends State<StatusTile> {
                     color: Theme.of(context).colorScheme.onSurface,
                   ),
                   Text(
-                    "${_waterLevels!.currentLevel}mm",
+                    "${_waterLevels!.currentLevel.toStringAsFixed(1)}mm",
                     style: TextStyle(
                       color:
                           _waterLevels!.currentLevel > 10

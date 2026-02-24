@@ -37,7 +37,7 @@ class _WaterLevelsFormState extends State<WaterLevelsForm> {
         mainAxisSize: MainAxisSize.min,
         spacing: 16,
         children: [
-          Text("Refill level: ${settings.refillLevel}mm"),
+          Text("Refill level: ${settings.refillLevel.toStringAsFixed(1)}mm"),
           ShadSlider(
             initialValue: settings.refillLevel.toDouble(),
             min: 0,
@@ -49,7 +49,7 @@ class _WaterLevelsFormState extends State<WaterLevelsForm> {
               setState(() {
                 settings = De1WaterLevels(
                   currentLevel: settings.currentLevel,
-                  refillLevel: val.toInt(),
+                  refillLevel: val,
                 );
               });
             },
