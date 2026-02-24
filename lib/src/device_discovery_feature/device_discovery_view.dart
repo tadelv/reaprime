@@ -31,6 +31,7 @@ class DeviceDiscoveryView extends StatefulWidget {
   final WebUIService webUIService;
   final WebUIStorage webUIStorage;
   final Logger logger;
+  final Duration? scanTimeout;
 
   const DeviceDiscoveryView({
     super.key,
@@ -41,6 +42,7 @@ class DeviceDiscoveryView extends StatefulWidget {
     required this.webUIService,
     required this.webUIStorage,
     required this.logger,
+    this.scanTimeout,
   });
 
   static String getRandomCoffeeMessage() {
@@ -89,7 +91,8 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   // On Linux, BLE scanning and connection is much slower due to BlueZ quirks:
   // 12s scan + 3s settle + ~7s prep scan + connect + service discovery.
   // Total can be ~35s, so we use a generous 50s timeout.
-  final Duration _timeoutDuration = Duration(seconds: Platform.isLinux ? 50 : 10);
+  Duration get _timeoutDuration =>
+      widget.scanTimeout ?? Duration(seconds: Platform.isLinux ? 50 : 10);
 
   /// Navigates to the appropriate screen after device connection
   ///

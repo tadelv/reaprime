@@ -55,6 +55,7 @@ void main() {
             webUIService: webUIService,
             webUIStorage: webUIStorage,
             logger: Logger('test'),
+            scanTimeout: Duration(milliseconds: 100),
           ),
         ),
       ),
@@ -126,8 +127,8 @@ void main() {
         await tester.pumpWidget(buildDiscoveryView());
         await tester.pump();
 
-        // Advance time past the 10-second timeout
-        await Future.delayed(Duration(seconds: 11));
+        // Advance time past the scan timeout (100ms in tests)
+        await Future.delayed(Duration(milliseconds: 200));
         await tester.pump();
 
         expect(find.text('No Decent Machines Found'), findsOneWidget);
