@@ -30,9 +30,10 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
 
   Future<void> _createDeviceFromName(String deviceId, String name) async {
     try {
-      final transport = Platform.isAndroid
-          ? AndroidBluePlusTransport(remoteId: deviceId)
-          : BluePlusTransport(remoteId: deviceId);
+      final transport =
+          Platform.isAndroid
+              ? AndroidBluePlusTransport(remoteId: deviceId)
+              : BluePlusTransport(remoteId: deviceId);
 
       final device = await DeviceMatcher.match(
         transport: transport,
@@ -110,6 +111,10 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
       final foundId = r.device.remoteId.str;
       final name = r.advertisementData.advName;
 
+      if (deviceIds.contains(foundId) == false) {
+        return;
+      }
+
       if (_devices.firstWhereOrNull((d) => d.deviceId == foundId) != null) {
         return;
       }
@@ -126,14 +131,15 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
         .first;
 
     await FlutterBluePlus.startScan(
-      withRemoteIds: bleIds,
+      // withRemoteIds: bleIds,
       oneByOne: true,
     );
 
     // Stop after timeout (device found earlier stops via cancelWhenScanComplete)
-    final timeout = Platform.isLinux
-        ? const Duration(seconds: 20)
-        : const Duration(seconds: 8);
+    final timeout =
+        Platform.isLinux
+            ? const Duration(seconds: 20)
+            : const Duration(seconds: 8);
     await Future.delayed(timeout, () async {
       await FlutterBluePlus.stopScan();
     });
@@ -200,8 +206,7 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
         });
 
         if (_pendingDevices.isNotEmpty) {
-          _log.info(
-              "Processing ${_pendingDevices.length} queued BLE devices");
+          _log.info("Processing ${_pendingDevices.length} queued BLE devices");
           await Future.delayed(Duration(milliseconds: 200));
           for (final pending in _pendingDevices) {
             await _createDeviceFromName(pending.deviceId, pending.name);
