@@ -56,10 +56,6 @@ class SettingsController with ChangeNotifier {
   late int _nightModeSleepTime;
   late int _nightModeMorningTime;
 
-  late bool _userPresenceEnabled;
-  late int _sleepTimeoutMinutes;
-  late String _wakeSchedules;
-
   TelemetryService? _telemetryService;
 
   // Allow Widgets to read the user's preferred ThemeMode.
@@ -82,9 +78,6 @@ class SettingsController with ChangeNotifier {
   bool get nightModeEnabled => _nightModeEnabled;
   int get nightModeSleepTime => _nightModeSleepTime;
   int get nightModeMorningTime => _nightModeMorningTime;
-  bool get userPresenceEnabled => _userPresenceEnabled;
-  int get sleepTimeoutMinutes => _sleepTimeoutMinutes;
-  String get wakeSchedules => _wakeSchedules;
 
   set telemetryService(TelemetryService service) => _telemetryService = service;
 
@@ -111,9 +104,6 @@ class SettingsController with ChangeNotifier {
     _nightModeEnabled = await _settingsService.nightModeEnabled();
     _nightModeSleepTime = await _settingsService.nightModeSleepTime();
     _nightModeMorningTime = await _settingsService.nightModeMorningTime();
-    _userPresenceEnabled = await _settingsService.userPresenceEnabled();
-    _sleepTimeoutMinutes = await _settingsService.sleepTimeoutMinutes();
-    _wakeSchedules = await _settingsService.wakeSchedules();
 
     // Sync telemetry consent to TelemetryService if it exists
     if (_telemetryService != null) {
@@ -312,27 +302,6 @@ class SettingsController with ChangeNotifier {
     if (minutes == _nightModeMorningTime) return;
     _nightModeMorningTime = minutes;
     await _settingsService.setNightModeMorningTime(minutes);
-    notifyListeners();
-  }
-
-  Future<void> setUserPresenceEnabled(bool value) async {
-    if (value == _userPresenceEnabled) return;
-    _userPresenceEnabled = value;
-    await _settingsService.setUserPresenceEnabled(value);
-    notifyListeners();
-  }
-
-  Future<void> setSleepTimeoutMinutes(int value) async {
-    if (value == _sleepTimeoutMinutes) return;
-    _sleepTimeoutMinutes = value;
-    await _settingsService.setSleepTimeoutMinutes(value);
-    notifyListeners();
-  }
-
-  Future<void> setWakeSchedules(String json) async {
-    if (json == _wakeSchedules) return;
-    _wakeSchedules = json;
-    await _settingsService.setWakeSchedules(json);
     notifyListeners();
   }
 }

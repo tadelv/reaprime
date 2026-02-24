@@ -29,9 +29,6 @@ class MockSettingsService extends SettingsService {
   bool _nightModeEnabled = false;
   int _nightModeSleepTime = 1320;
   int _nightModeMorningTime = 420;
-  bool _userPresenceEnabled = true;
-  int _sleepTimeoutMinutes = 30;
-  String _wakeSchedules = '[]';
 
   @override
   Future<ThemeMode> themeMode() async => _themeMode;
@@ -123,16 +120,4 @@ class MockSettingsService extends SettingsService {
   Future<int> nightModeMorningTime() async => _nightModeMorningTime;
   @override
   Future<void> setNightModeMorningTime(int minutes) async => _nightModeMorningTime = minutes;
-  @override
-  Future<bool> userPresenceEnabled() async => _userPresenceEnabled;
-  @override
-  Future<void> setUserPresenceEnabled(bool value) async => _userPresenceEnabled = value;
-  @override
-  Future<int> sleepTimeoutMinutes() async => _sleepTimeoutMinutes;
-  @override
-  Future<void> setSleepTimeoutMinutes(int value) async => _sleepTimeoutMinutes = value;
-  @override
-  Future<String> wakeSchedules() async => _wakeSchedules;
-  @override
-  Future<void> setWakeSchedules(String json) async => _wakeSchedules = json;
 }
