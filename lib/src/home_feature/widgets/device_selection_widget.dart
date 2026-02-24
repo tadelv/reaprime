@@ -152,6 +152,7 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
                               widget.onPreferredChanged?.call(
                                 value == true ? device.deviceId : null,
                               );
+                              widget.onDeviceTapped(device);
                               setState(() {});
                             },
                           ),
