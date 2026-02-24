@@ -1593,6 +1593,320 @@ paths:
         "500":
           description: Internal Server Error
 
+  # Presence API
+  #
+  # User presence detection and wake schedule management.
+  # The heartbeat endpoint signals user activity to prevent the machine from sleeping.
+  # Wake schedules allow the machine to be woken at specific times on specific days.
+  #
+  /api/v1/machine/heartbeat:
+    post:
+      summary: Signal user presence
+      description: |
+        Signals user presence to reset the sleep timeout. Forwards the heartbeat
+        to the DE1 machine if connected. Returns the number of seconds remaining
+        on the current sleep timeout.
+      tags: [Presence]
+      responses:
+        "200":
+          description: Heartbeat accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  timeout:
+                    type: integer
+                    description: Seconds remaining on sleep timeout. -1 if presence tracking is disabled.
+                    example: 1800
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/v1/presence/settings:
+    get:
+      summary: Get presence and wake schedule settings
+      description: Returns the current user presence settings including whether presence tracking is enabled, the sleep timeout, and all configured wake schedules.
+      tags: [Presence]
+      responses:
+        "200":
+          description: Current presence settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userPresenceEnabled:
+                    type: boolean
+                    description: Whether user presence tracking is enabled
+                  sleepTimeoutMinutes:
+                    type: integer
+                    description: Minutes of inactivity before the machine is put to sleep
+                    example: 30
+                  schedules:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/WakeSchedule"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      summary: Update presence settings
+      description: |
+        Updates presence settings. Supports partial updates — only include the
+        fields you want to change. Returns the full settings after update.
+      tags: [Presence]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userPresenceEnabled:
+                  type: boolean
+                  description: Whether user presence tracking is enabled
+                sleepTimeoutMinutes:
+                  type: integer
+                  description: Minutes of inactivity before the machine is put to sleep
+            examples:
+              enablePresence:
+                summary: Enable presence tracking with 30 minute timeout
+                value:
+                  userPresenceEnabled: true
+                  sleepTimeoutMinutes: 30
+              disablePresence:
+                summary: Disable presence tracking
+                value:
+                  userPresenceEnabled: false
+              changeTimeout:
+                summary: Change only the timeout
+                value:
+                  sleepTimeoutMinutes: 45
+      responses:
+        "200":
+          description: Settings updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userPresenceEnabled:
+                    type: boolean
+                  sleepTimeoutMinutes:
+                    type: integer
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/v1/presence/schedules:
+    get:
+      summary: Get all wake schedules
+      description: Returns an array of all configured wake schedules.
+      tags: [Presence]
+      responses:
+        "200":
+          description: Array of wake schedules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WakeSchedule"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      summary: Add a new wake schedule
+      description: |
+        Creates a new wake schedule. The `time` field accepts "HH:MM" format.
+        Alternatively, `hour` and `minute` fields can be provided directly.
+        Returns the created schedule with a generated ID.
+      tags: [Presence]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                time:
+                  type: string
+                  description: 'Wake time in "HH:MM" format'
+                  example: "06:00"
+                hour:
+                  type: integer
+                  description: Wake hour (0-23). Alternative to `time` field.
+                  example: 6
+                minute:
+                  type: integer
+                  description: Wake minute (0-59). Alternative to `time` field.
+                  example: 0
+                daysOfWeek:
+                  type: array
+                  items:
+                    type: integer
+                  description: "Days of week (1=Monday through 7=Sunday). Empty array or omitted = every day."
+                  example: [1, 2, 3, 4, 5]
+                enabled:
+                  type: boolean
+                  description: Whether the schedule is active. Defaults to true if omitted.
+                  default: true
+            examples:
+              weekdayMorning:
+                summary: Weekday morning schedule
+                value:
+                  time: "06:00"
+                  daysOfWeek: [1, 2, 3, 4, 5]
+                  enabled: true
+              everyDay:
+                summary: Every day schedule using hour/minute
+                value:
+                  hour: 7
+                  minute: 30
+                  enabled: true
+      responses:
+        "201":
+          description: Schedule created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WakeSchedule"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/v1/presence/schedules/{id}:
+    put:
+      summary: Update a wake schedule
+      description: |
+        Updates an existing wake schedule by ID. Supports partial updates —
+        only include the fields you want to change.
+      tags: [Presence]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Schedule ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                time:
+                  type: string
+                  description: 'Wake time in "HH:MM" format'
+                  example: "07:00"
+                hour:
+                  type: integer
+                  description: Wake hour (0-23). Alternative to `time` field.
+                minute:
+                  type: integer
+                  description: Wake minute (0-59). Alternative to `time` field.
+                daysOfWeek:
+                  type: array
+                  items:
+                    type: integer
+                  description: "Days of week (1=Monday through 7=Sunday)"
+                enabled:
+                  type: boolean
+                  description: Whether the schedule is active
+            examples:
+              changeTime:
+                summary: Change wake time
+                value:
+                  time: "07:30"
+              disableSchedule:
+                summary: Disable a schedule
+                value:
+                  enabled: false
+              weekendOnly:
+                summary: Change to weekends only
+                value:
+                  daysOfWeek: [6, 7]
+      responses:
+        "200":
+          description: Schedule updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WakeSchedule"
+        "404":
+          description: Schedule not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  id:
+                    type: string
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      summary: Delete a wake schedule
+      description: Permanently deletes a wake schedule by ID.
+      tags: [Presence]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Schedule ID
+      responses:
+        "200":
+          description: Schedule deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: string
+                    description: ID of the deleted schedule
+        "404":
+          description: Schedule not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  id:
+                    type: string
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
 components:
   schemas:
     Error:
@@ -2510,7 +2824,31 @@ components:
           nullable: true
           description: When updates were last checked
 
-
-
-
+    WakeSchedule:
+      type: object
+      required:
+        - id
+        - time
+        - daysOfWeek
+        - enabled
+      properties:
+        id:
+          type: string
+          description: Unique schedule identifier (UUID)
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        time:
+          type: string
+          description: 'Wake time in "HH:MM" format (24-hour)'
+          example: "06:00"
+        daysOfWeek:
+          type: array
+          items:
+            type: integer
+            minimum: 1
+            maximum: 7
+          description: "ISO 8601 weekday numbers: 1=Monday through 7=Sunday. Empty array means every day."
+          example: [1, 2, 3, 4, 5]
+        enabled:
+          type: boolean
+          description: Whether this schedule is currently active
 
