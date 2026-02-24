@@ -328,14 +328,11 @@ class UnifiedDe1 implements De1Interface {
   }
 
   @override
-  Future<void> setRefillLevel(int newThresholdPercentage) async {
+  Future<void> setRefillLevel(int newRefillLevel) async {
     ByteData value = ByteData(4);
     try {
-      // 00 00 0c 00
-      // 00 00 00 07
-      // TODO; check percentaeg
       value.setInt16(0, 0, Endian.big);
-      value.setInt16(2, newThresholdPercentage * 256, Endian.big);
+      value.setInt16(2, newRefillLevel * 256, Endian.big);
       _transport.writeWithResponse(
         Endpoint.waterLevels,
         value.buffer.asUint8List(),

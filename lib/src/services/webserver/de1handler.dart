@@ -44,7 +44,7 @@ class De1Handler {
       return withDe1((de1) async {
         var json = jsonDecode(await r.readAsString());
         if (json['refillLevel'] != null) {
-          await de1.setRefillLevel(json['refillLevel']);
+          await de1.setRefillLevel((json['refillLevel'] as num).toInt());
         }
         return Response(202);
       });

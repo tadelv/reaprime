@@ -165,8 +165,8 @@ final class De1ShotSettings {
 }
 
 final class De1WaterLevels {
-  final int currentLevel;
-  final int refillLevel;
+  final double currentLevel;
+  final double refillLevel;
 
   De1WaterLevels({
     required this.currentLevel,

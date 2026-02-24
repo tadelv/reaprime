@@ -310,7 +310,7 @@ paths:
 
   /api/v1/machine/waterLevels:
     post:
-      summary: Set new water level threshold, only the warningThresholdPercentage field is important here
+      summary: Set water level refill threshold. Only the refillLevel field is used.
       tags: [Machine]
       requestBody:
         required: true
@@ -2100,10 +2100,11 @@ components:
       type: object
       properties:
         currentLevel:
-          type: integer
-          description: Water height in the tank (mm)
+          type: number
+          description: Current water height in the tank (mm)
         refillLevel:
-          type: integer
+          type: number
+          description: Water level threshold for refill warning (mm)
     De1SettingsRequest:
       type: object
       properties:
