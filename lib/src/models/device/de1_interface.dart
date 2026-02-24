@@ -50,10 +50,6 @@ abstract class De1Interface extends Machine {
   //// Steam Purge
   Future<void> setSteamPurgeMode(int mode);
   Future<int> getSteamPurgeMode();
-
-  //// User Presence
-  Future<void> enableUserPresenceFeature();
-  Future<void> sendUserPresent();
   
   //// Device Info
   //Future<int> getFirmwareBuild();

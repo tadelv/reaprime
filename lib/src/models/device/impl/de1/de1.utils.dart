@@ -8,11 +8,9 @@ MachineState mapDe1ToMachineState(De1StateEnum de1State) {
       return MachineState.sleeping;
 
     case De1StateEnum.idle:
+    case De1StateEnum.schedIdle:
     case De1StateEnum.noRequest:
       return MachineState.idle;
-
-    case De1StateEnum.schedIdle:
-      return MachineState.schedIdle;
 
     case De1StateEnum.init:
     case De1StateEnum.inBootLoader:

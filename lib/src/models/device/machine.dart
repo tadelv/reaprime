@@ -141,7 +141,6 @@ enum MachineState {
   booting,
   busy,
   idle,
-  schedIdle,
   sleeping,
   heating,
   preheating,

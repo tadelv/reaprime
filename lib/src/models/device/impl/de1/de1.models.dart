@@ -113,8 +113,6 @@ enum De1StateEnum {
         return De1StateEnum.fwUpgrade;
       case MachineState.busy:
         return De1StateEnum.busy;
-      case MachineState.schedIdle:
-        return De1StateEnum.schedIdle;
       case MachineState.steamRinse:
         return De1StateEnum.steamRinse;
       case MachineState.calibration:
@@ -256,8 +254,7 @@ enum MMRItem {
   steamPurgeMode(0x00803850, 4, "Steam Purge Mode"),
   allowUSBCharging(0x00803854, 4, "Allow USB charging"),
   appFeatureFlags(0x00803858, 4, "App Feature Flags"),
-  refillKitPresent(0x0080385C, 4, "Refill Kit Present"),
-  userPresent(0x00803860, 4, "Is User Present");
+  refillKitPresent(0x0080385C, 4, "Refill Kit Present");
 
   final int address;
   final int length;
