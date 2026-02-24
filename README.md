@@ -84,6 +84,7 @@ Similar to the original DE1 app, Streamline Bridge supports loading and displayi
 
 - **Network access**: From any device on your local network at `http://<device-ip>:3000`
 - **In-app WebView**: On supported platforms, use the embedded browser to access skins directly
+- **Display Form Factor**: Tablets are the primary target form factor. Other devices, such as phones, may not render correctly.
 
 ### Android WebView Compatibility
 
