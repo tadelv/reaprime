@@ -25,16 +25,20 @@ class _BatteryChargingSettingsPageState
       body: ListenableBuilder(
         listenable: widget.controller,
         builder: (context, _) {
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: 16,
-              children: [
-                _buildChargingModeSection(),
-                _buildNightModeSection(),
-                _buildEmergencyFloorSection(),
-              ],
+          return SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: 16,
+                children: [
+                  _buildChargingModeSection(),
+                  _buildNightModeSection(),
+                  _buildEmergencyFloorSection(),
+                ],
+              ),
             ),
           );
         },
