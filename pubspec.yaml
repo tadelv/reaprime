@@ -27,6 +27,8 @@ dependencies:
   shelf_web_socket: ^3.0.0
   shelf_router: ^1.1.4
   battery_plus: ^7.0.0
+  wakelock_plus: ^1.4.0
+  screen_brightness: ^2.1.7
   collection: ^1.19.0
   shelf_plus: ^1.11.0
   shadcn_ui: ^0.46.0
