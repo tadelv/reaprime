@@ -88,6 +88,21 @@ channels:
         $ref: '#/components/messages/DevicesState'
       devicesCommand:
         $ref: '#/components/messages/DevicesCommand'
+  Display:
+    address: ws/v1/display
+    description: |
+      Streams display state changes (wake-lock and brightness) in real-time.
+      Also accepts commands via WebSocket messages:
+      - `{"command": "dim"}` — dim the screen
+      - `{"command": "restore"}` — restore brightness
+      - `{"command": "requestWakeLock"}` — request wake-lock override
+      - `{"command": "releaseWakeLock"}` — release wake-lock override
+      Wake-lock overrides requested via this WebSocket are automatically released when the connection closes.
+    messages:
+      displayState:
+        $ref: '#/components/messages/DisplayState'
+      displayCommand:
+        $ref: '#/components/messages/DisplayCommand'
 
 operations:
   machineSnapshot:
@@ -134,6 +149,18 @@ operations:
       $ref: '#/channels/Devices'
     messages:
       - $ref: '#/channels/Devices/messages/devicesCommand'
+  displayState:
+    action: receive
+    channel:
+      $ref: '#/channels/Display'
+    messages:
+      - $ref: '#/channels/Display/messages/displayState'
+  displayCommand:
+    action: send
+    channel:
+      $ref: '#/channels/Display'
+    messages:
+      - $ref: '#/channels/Display/messages/displayCommand'
 
 components:
   messages:
@@ -194,6 +221,18 @@ components:
       summary: Command sent by the client to scan, connect, or disconnect devices.
       payload:
         $ref: '#/components/schemas/DevicesCommand'
+    DisplayState:
+      name: DisplayState
+      title: Display state
+      summary: Current display state including wake-lock and brightness status.
+      payload:
+        $ref: '#/components/schemas/DisplayState'
+    DisplayCommand:
+      name: DisplayCommand
+      title: Display command
+      summary: Command sent by the client to control display brightness and wake-lock.
+      payload:
+        $ref: '#/components/schemas/DisplayCommand'
   schemas:
     Error:
       type: object
@@ -443,4 +482,41 @@ components:
           type: boolean
           description: Fire-and-forget scan without waiting for results (scan command only).
           default: false
+
+    DisplayState:
+      type: object
+      properties:
+        wakeLockEnabled:
+          type: boolean
+          description: Whether wake-lock is currently active
+        wakeLockOverride:
+          type: boolean
+          description: Whether a skin has requested a wake-lock override
+        brightness:
+          type: string
+          enum: [normal, dimmed]
+          description: Current brightness state
+        platformSupported:
+          type: object
+          properties:
+            brightness:
+              type: boolean
+              description: Whether brightness control is supported on this platform
+            wakeLock:
+              type: boolean
+              description: Whether wake-lock is supported on this platform
+
+    DisplayCommand:
+      type: object
+      required:
+        - command
+      properties:
+        command:
+          type: string
+          enum:
+            - dim
+            - restore
+            - requestWakeLock
+            - releaseWakeLock
+          description: The display command to execute.
 
