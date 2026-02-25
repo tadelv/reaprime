@@ -27,9 +27,25 @@ make dual-build                           # Both architectures
 
 ## Branching & Workflow
 
+### Branching Strategy
+
+**Before any planning or implementation, always ask the user first:**
+1. **Branch strategy:** New branch, worktree, or current branch?
+2. **Completion strategy:** PR, local merge to main, or leave as-is?
+
+**Check out the chosen branch/worktree before writing anything** — plans, code, or docs should all be written on the feature branch, not on `main`.
+
+**Do not assume.** `main` has branch protection requiring PRs. Pushing directly bypasses protections.
+
+**Worktree gotcha:** `EnterWorktree` branches track `origin/main` — pushing will push directly to `main`. To create a proper PR from a worktree:
+```bash
+git push -u origin HEAD:feature/my-branch-name
+gh pr create --base main
+```
+
 ### Planning Phase
 
-**For non-trivial features or fixes, start with planning:**
+**For non-trivial features or fixes, start with planning (on the feature branch):**
 
 1. **Enter plan mode:** Use `EnterPlanMode` to explore the codebase and design the implementation approach.
 2. **Write the plan:** Create a plan file in `doc/plans/` with:
@@ -39,26 +55,12 @@ make dual-build                           # Both architectures
    - Testing approach
 3. **Plan annotation:** Present the plan to the user. The user will review and provide feedback, clarifications, or requested changes as annotations to the plan.
 4. **Iterate if needed:** Update the plan based on user feedback until approved.
-5. **Only after plan approval:** Proceed to the branching and implementation phase below.
+5. **Only after plan approval:** Proceed to implementation.
 
 **Skip planning only for:**
 - Simple typo fixes
 - Single-line changes
 - Tasks with very specific, detailed instructions from the user
-
-### Branching Strategy
-
-**Before starting implementation, always ask the user:**
-1. **Branch strategy:** New branch, worktree, or current branch?
-2. **Completion strategy:** PR, local merge to main, or leave as-is?
-
-**Do not assume.** `main` has branch protection requiring PRs. Pushing directly bypasses protections.
-
-**Worktree gotcha:** `EnterWorktree` branches track `origin/main` — pushing will push directly to `main`. To create a proper PR from a worktree:
-```bash
-git push -u origin HEAD:feature/my-branch-name
-gh pr create --base main
-```
 
 ### Verification Loop
 
@@ -86,9 +88,10 @@ During development, after every meaningful code change:
 - Write implementation plans as `.md` files in `doc/plans/`.
 - **Do not commit** plan files unless the user requests it or asks to save progress.
 - After a plan is fully implemented, ask the user whether to update relevant
-documentation with the outcome.
-- Finalized plans move to `doc/plans/archive/{name-of-feature}` for record keeping.  
-They are committed with users approval.
+  documentation with the outcome.
+- **When creating a PR or finishing a branch**, ask the user to archive the plan:
+  move it to `doc/plans/archive/` and commit it as part of the branch.
+  This keeps the plan alongside the implementation for future reference.
 
 ## Architecture
 
