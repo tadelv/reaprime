@@ -1907,6 +1907,73 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  # Display API
+  #
+  # Screen brightness and wake-lock management for the tablet display.
+  #
+  /api/v1/display:
+    get:
+      summary: Get current display state
+      description: Returns the current display state including wake-lock and brightness status.
+      tags: [Display]
+      responses:
+        "200":
+          description: Current display state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisplayState"
+
+  /api/v1/display/dim:
+    post:
+      summary: Dim the screen
+      description: Dims the tablet screen brightness.
+      tags: [Display]
+      responses:
+        "200":
+          description: Screen dimmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisplayState"
+
+  /api/v1/display/restore:
+    post:
+      summary: Restore screen brightness
+      description: Restores the tablet screen to normal brightness.
+      tags: [Display]
+      responses:
+        "200":
+          description: Screen brightness restored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisplayState"
+
+  /api/v1/display/wakelock:
+    post:
+      summary: Request wake-lock override
+      description: Requests a wake-lock override to keep the screen on.
+      tags: [Display]
+      responses:
+        "200":
+          description: Wake-lock override requested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisplayState"
+    delete:
+      summary: Release wake-lock override
+      description: Releases a previously requested wake-lock override.
+      tags: [Display]
+      responses:
+        "200":
+          description: Wake-lock override released
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisplayState"
+
 components:
   schemas:
     Error:
@@ -2852,4 +2919,27 @@ components:
         enabled:
           type: boolean
           description: Whether this schedule is currently active
+
+    DisplayState:
+      type: object
+      properties:
+        wakeLockEnabled:
+          type: boolean
+          description: Whether wake-lock is currently active
+        wakeLockOverride:
+          type: boolean
+          description: Whether a skin has requested a wake-lock override
+        brightness:
+          type: string
+          enum: [normal, dimmed]
+          description: Current brightness state
+        platformSupported:
+          type: object
+          properties:
+            brightness:
+              type: boolean
+              description: Whether brightness control is supported on this platform
+            wakeLock:
+              type: boolean
+              description: Whether wake-lock is supported on this platform
 
