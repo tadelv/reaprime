@@ -194,6 +194,18 @@ class _TestDe1Controller extends De1Controller {
   }
 }
 
+/// Creates a DisplayController with no-op platform operations for testing.
+/// This allows tests to verify actual state transitions without platform deps.
+DisplayController _createController(_TestDe1Controller de1Controller) {
+  return DisplayController(
+    de1Controller: de1Controller,
+    setBrightness: (_) async {},
+    resetBrightness: () async {},
+    enableWakeLock: () async {},
+    disableWakeLock: () async {},
+  );
+}
+
 void main() {
   late _TestDe1Controller de1Controller;
   late _TestDe1 testDe1;
@@ -208,7 +220,7 @@ void main() {
   group('initial state', () {
     test('starts with wake-lock disabled, normal brightness, no override', () {
       fakeAsync((async) {
-        final controller = DisplayController(de1Controller: de1Controller);
+        final controller = _createController(de1Controller);
         controller.initialize();
         async.flushMicrotasks();
 
@@ -223,7 +235,7 @@ void main() {
 
     test('platformSupported reports correct values', () {
       fakeAsync((async) {
-        final controller = DisplayController(de1Controller: de1Controller);
+        final controller = _createController(de1Controller);
         controller.initialize();
         async.flushMicrotasks();
 
@@ -239,88 +251,73 @@ void main() {
   });
 
   group('auto wake-lock', () {
-    // NOTE: WakelockPlus platform calls will throw MissingPluginException in
-    // test environment. The controller's try/catch handles this gracefully,
-    // but _updateState (inside the try block, after the platform call) will
-    // NOT be reached. So wakeLockEnabled state won't actually change.
-    // We test that the controller doesn't crash and that the logical flow
-    // (subscriptions, disconnect handling) works correctly.
-
-    test('connects to DE1 without crashing — subscribes to snapshots', () {
+    test('enables wake-lock when DE1 connects', () {
       fakeAsync((async) {
-        final controller = DisplayController(de1Controller: de1Controller);
+        final controller = _createController(de1Controller);
         controller.initialize();
         async.flushMicrotasks();
 
-        // Connect DE1
         de1Controller.setDe1(testDe1);
         async.flushMicrotasks();
 
-        // Should not crash — platform calls fail gracefully
-        expect(controller.currentState.brightness, DisplayBrightness.normal);
+        expect(controller.currentState.wakeLockEnabled, isTrue);
 
         controller.dispose();
       });
     });
 
-    test('disconnect DE1 does not crash', () {
+    test('disables wake-lock when DE1 disconnects', () {
       fakeAsync((async) {
-        final controller = DisplayController(de1Controller: de1Controller);
+        final controller = _createController(de1Controller);
         controller.initialize();
         async.flushMicrotasks();
 
-        // Connect then disconnect
         de1Controller.setDe1(testDe1);
         async.flushMicrotasks();
+        expect(controller.currentState.wakeLockEnabled, isTrue);
 
         de1Controller.setDe1(null);
         async.flushMicrotasks();
-
-        // Should not crash
-        expect(controller.currentState.brightness, DisplayBrightness.normal);
+        expect(controller.currentState.wakeLockEnabled, isFalse);
 
         controller.dispose();
       });
     });
 
-    test('sleep state transition does not crash', () {
+    test('disables wake-lock when machine enters sleep', () {
       fakeAsync((async) {
-        final controller = DisplayController(de1Controller: de1Controller);
+        final controller = _createController(de1Controller);
+        controller.initialize();
+        async.flushMicrotasks();
+
+        de1Controller.setDe1(testDe1);
+        async.flushMicrotasks();
+        expect(controller.currentState.wakeLockEnabled, isTrue);
+
+        testDe1.emitState(MachineState.sleeping);
+        async.flushMicrotasks();
+        expect(controller.currentState.wakeLockEnabled, isFalse);
+
+        controller.dispose();
+      });
+    });
+
+    test('re-enables wake-lock when machine wakes from sleep', () {
+      fakeAsync((async) {
+        final controller = _createController(de1Controller);
         controller.initialize();
         async.flushMicrotasks();
 
         de1Controller.setDe1(testDe1);
         async.flushMicrotasks();
 
-        // Transition to sleeping
         testDe1.emitState(MachineState.sleeping);
         async.flushMicrotasks();
-
-        // Should not crash
-        expect(controller.currentState.brightness, DisplayBrightness.normal);
-
-        controller.dispose();
-      });
-    });
-
-    test('wake from sleep does not crash', () {
-      fakeAsync((async) {
-        final controller = DisplayController(de1Controller: de1Controller);
-        controller.initialize();
-        async.flushMicrotasks();
-
-        de1Controller.setDe1(testDe1);
-        async.flushMicrotasks();
-
-        // Sleep then wake
-        testDe1.emitState(MachineState.sleeping);
-        async.flushMicrotasks();
+        expect(controller.currentState.wakeLockEnabled, isFalse);
 
         testDe1.emitState(MachineState.idle);
         async.flushMicrotasks();
-
-        // Should not crash
-        expect(controller.currentState.brightness, DisplayBrightness.normal);
+        expect(controller.currentState.wakeLockEnabled, isTrue);
 
         controller.dispose();
       });
@@ -328,84 +325,85 @@ void main() {
   });
 
   group('wake-lock override', () {
-    test('requestWakeLock sets override flag in state', () {
+    test('requestWakeLock enables wake-lock and sets override flag', () {
       fakeAsync((async) {
-        final controller = DisplayController(de1Controller: de1Controller);
+        final controller = _createController(de1Controller);
         controller.initialize();
         async.flushMicrotasks();
 
         controller.requestWakeLock();
         async.flushMicrotasks();
 
-        // Override flag is set by _updateState AFTER the platform call.
-        // requestWakeLock calls _applyWakeLock (which fails) then _updateState.
-        // But _updateState for override is called OUTSIDE the try/catch in
-        // requestWakeLock, so it WILL be reached.
         expect(controller.currentState.wakeLockOverride, isTrue);
+        expect(controller.currentState.wakeLockEnabled, isTrue);
 
         controller.dispose();
       });
     });
 
-    test('releaseWakeLock clears override flag in state', () {
+    test('releaseWakeLock clears override and disables wake-lock when disconnected',
+        () {
       fakeAsync((async) {
-        final controller = DisplayController(de1Controller: de1Controller);
+        final controller = _createController(de1Controller);
         controller.initialize();
         async.flushMicrotasks();
 
         controller.requestWakeLock();
         async.flushMicrotasks();
         expect(controller.currentState.wakeLockOverride, isTrue);
+        expect(controller.currentState.wakeLockEnabled, isTrue);
 
         controller.releaseWakeLock();
         async.flushMicrotasks();
         expect(controller.currentState.wakeLockOverride, isFalse);
+        expect(controller.currentState.wakeLockEnabled, isFalse);
 
         controller.dispose();
       });
     });
 
-    test('override works without DE1 connected', () {
+    test('override keeps wake-lock enabled even when machine sleeps', () {
       fakeAsync((async) {
-        final controller = DisplayController(de1Controller: de1Controller);
-        controller.initialize();
-        async.flushMicrotasks();
-
-        // No DE1 connected
-        controller.requestWakeLock();
-        async.flushMicrotasks();
-
-        expect(controller.currentState.wakeLockOverride, isTrue);
-
-        controller.dispose();
-      });
-    });
-
-    test('releasing override re-evaluates wake-lock without crashing', () {
-      fakeAsync((async) {
-        final controller = DisplayController(de1Controller: de1Controller);
+        final controller = _createController(de1Controller);
         controller.initialize();
         async.flushMicrotasks();
 
         de1Controller.setDe1(testDe1);
         async.flushMicrotasks();
 
-        // Set override
         controller.requestWakeLock();
         async.flushMicrotasks();
-        expect(controller.currentState.wakeLockOverride, isTrue);
 
-        // Put machine to sleep
         testDe1.emitState(MachineState.sleeping);
         async.flushMicrotasks();
 
-        // Release override — should re-evaluate (machine sleeping, no override)
+        expect(controller.currentState.wakeLockEnabled, isTrue);
+        expect(controller.currentState.wakeLockOverride, isTrue);
+
+        controller.dispose();
+      });
+    });
+
+    test('releasing override while machine sleeping disables wake-lock', () {
+      fakeAsync((async) {
+        final controller = _createController(de1Controller);
+        controller.initialize();
+        async.flushMicrotasks();
+
+        de1Controller.setDe1(testDe1);
+        async.flushMicrotasks();
+
+        controller.requestWakeLock();
+        async.flushMicrotasks();
+
+        testDe1.emitState(MachineState.sleeping);
+        async.flushMicrotasks();
+
         controller.releaseWakeLock();
         async.flushMicrotasks();
 
         expect(controller.currentState.wakeLockOverride, isFalse);
-        // wake-lock state may not update due to platform call failure,
-        // but the controller should not crash
+        expect(controller.currentState.wakeLockEnabled, isFalse);
 
         controller.dispose();
       });
@@ -413,65 +411,57 @@ void main() {
   });
 
   group('brightness', () {
-    // NOTE: ScreenBrightness platform calls will throw MissingPluginException
-    // in test environment. The try/catch handles this, but _updateState won't
-    // be reached (it's inside the try block after the platform call).
-    // So brightness state stays 'normal' regardless.
-
-    test('dim does not crash (platform call fails gracefully)', () {
+    test('dim sets brightness to dimmed', () {
       fakeAsync((async) {
-        final controller = DisplayController(de1Controller: de1Controller);
+        final controller = _createController(de1Controller);
         controller.initialize();
         async.flushMicrotasks();
 
         controller.dim();
         async.flushMicrotasks();
 
-        // Brightness stays normal because the platform call fails before
-        // _updateState is called
-        expect(controller.currentState.brightness, DisplayBrightness.normal);
+        expect(controller.currentState.brightness, DisplayBrightness.dimmed);
 
         controller.dispose();
       });
     });
 
-    test('restore does not crash (platform call fails gracefully)', () {
+    test('restore sets brightness to normal', () {
       fakeAsync((async) {
-        final controller = DisplayController(de1Controller: de1Controller);
+        final controller = _createController(de1Controller);
         controller.initialize();
         async.flushMicrotasks();
 
+        controller.dim();
+        async.flushMicrotasks();
+        expect(controller.currentState.brightness, DisplayBrightness.dimmed);
+
         controller.restore();
         async.flushMicrotasks();
-
         expect(controller.currentState.brightness, DisplayBrightness.normal);
 
         controller.dispose();
       });
     });
 
-    test('auto-restore on machine wake does not crash', () {
+    test('auto-restores brightness when machine wakes from sleep', () {
       fakeAsync((async) {
-        final controller = DisplayController(de1Controller: de1Controller);
+        final controller = _createController(de1Controller);
         controller.initialize();
         async.flushMicrotasks();
 
         de1Controller.setDe1(testDe1);
         async.flushMicrotasks();
 
-        // Try to dim (fails silently in test env)
         controller.dim();
         async.flushMicrotasks();
+        expect(controller.currentState.brightness, DisplayBrightness.dimmed);
 
-        // Put machine to sleep
         testDe1.emitState(MachineState.sleeping);
         async.flushMicrotasks();
 
-        // Wake machine — should trigger auto-restore attempt (which also
-        // fails silently in test env, but shouldn't crash)
         testDe1.emitState(MachineState.idle);
         async.flushMicrotasks();
-
         expect(controller.currentState.brightness, DisplayBrightness.normal);
 
         controller.dispose();
@@ -482,7 +472,7 @@ void main() {
   group('state broadcasting', () {
     test('stream emits initial state', () {
       fakeAsync((async) {
-        final controller = DisplayController(de1Controller: de1Controller);
+        final controller = _createController(de1Controller);
         controller.initialize();
         async.flushMicrotasks();
 
@@ -503,7 +493,7 @@ void main() {
 
     test('stream emits on wake-lock override changes', () {
       fakeAsync((async) {
-        final controller = DisplayController(de1Controller: de1Controller);
+        final controller = _createController(de1Controller);
         controller.initialize();
         async.flushMicrotasks();
 
@@ -516,9 +506,9 @@ void main() {
         controller.requestWakeLock();
         async.flushMicrotasks();
 
-        // Should have emitted at least one new state for override change
         expect(emissions.length, greaterThan(initialCount));
         expect(emissions.last.wakeLockOverride, isTrue);
+        expect(emissions.last.wakeLockEnabled, isTrue);
 
         controller.releaseWakeLock();
         async.flushMicrotasks();
@@ -532,7 +522,7 @@ void main() {
 
     test('stream emits on DE1 connect/disconnect', () {
       fakeAsync((async) {
-        final controller = DisplayController(de1Controller: de1Controller);
+        final controller = _createController(de1Controller);
         controller.initialize();
         async.flushMicrotasks();
 
@@ -545,16 +535,13 @@ void main() {
         de1Controller.setDe1(testDe1);
         async.flushMicrotasks();
 
-        // Connect triggers _evaluateWakeLock via _onSnapshot which may or
-        // may not emit depending on platform call success. At minimum, the
-        // subscription should be active without errors.
+        expect(emissions.length, greaterThan(preConnectCount));
+        expect(emissions.last.wakeLockEnabled, isTrue);
 
         de1Controller.setDe1(null);
         async.flushMicrotasks();
 
-        // Disconnect triggers _evaluateWakeLock which may emit.
-        // The key assertion is that we don't crash.
-        expect(emissions.length, greaterThanOrEqualTo(preConnectCount));
+        expect(emissions.last.wakeLockEnabled, isFalse);
 
         sub.cancel();
         controller.dispose();
@@ -562,10 +549,9 @@ void main() {
     });
 
     test('dispose closes state stream', () async {
-      final controller = DisplayController(de1Controller: de1Controller);
+      final controller = _createController(de1Controller);
       controller.initialize();
 
-      // Use a real async test so onDone propagates properly
       final completer = Completer<void>();
       final sub = controller.state.listen(
         (_) {},
@@ -574,13 +560,46 @@ void main() {
 
       controller.dispose();
 
-      // Wait for onDone — should complete quickly since close() is synchronous
       await completer.future.timeout(
         const Duration(seconds: 2),
         onTimeout: () => fail('Stream onDone was not called after dispose'),
       );
 
       await sub.cancel();
+    });
+  });
+
+  group('snapshot deduplication', () {
+    test('repeated same-state snapshots do not trigger redundant evaluations',
+        () {
+      fakeAsync((async) {
+        final controller = _createController(de1Controller);
+        controller.initialize();
+        async.flushMicrotasks();
+
+        de1Controller.setDe1(testDe1);
+        async.flushMicrotasks();
+
+        final emissions = <DisplayState>[];
+        final sub = controller.state.listen(emissions.add);
+        async.flushMicrotasks();
+
+        final countAfterConnect = emissions.length;
+
+        // Emit same state multiple times — guard should skip re-evaluation
+        testDe1.emitState(MachineState.idle);
+        async.flushMicrotasks();
+        testDe1.emitState(MachineState.idle);
+        async.flushMicrotasks();
+        testDe1.emitState(MachineState.idle);
+        async.flushMicrotasks();
+
+        // No new emissions since machine state didn't change
+        expect(emissions.length, countAfterConnect);
+
+        sub.cancel();
+        controller.dispose();
+      });
     });
   });
 
