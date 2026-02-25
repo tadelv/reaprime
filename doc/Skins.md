@@ -11,6 +11,8 @@ A **skin** is a web application that communicates with the Streamline-Bridge gat
 - Control espresso shot execution and machine state
 - Manage profiles and workflows
 - Visualize shot data in real-time
+- Control screen brightness and wake-lock behavior
+- Manage machine sleep schedules and presence-based auto-sleep
 - Customize the user experience with different UI/UX paradigms
 
 ### Example Skin
@@ -1062,6 +1064,215 @@ Content-Type: application/json
 
 ---
 
+### Display Control
+
+Control the tablet's screen brightness and wake-lock (keep-screen-on) behavior. Useful for skins that want to dim the screen during idle periods or prevent the screen from turning off during active use.
+
+#### Get Display State
+```http
+GET /api/v1/display
+```
+
+**Response:**
+```json
+{
+  "wakeLockEnabled": true,
+  "wakeLockOverride": false,
+  "brightness": "normal",
+  "platformSupported": {
+    "brightness": true,
+    "wakeLock": true
+  }
+}
+```
+
+**Fields:**
+- `wakeLockEnabled` (boolean): Whether the screen is currently prevented from turning off
+- `wakeLockOverride` (boolean): Whether a skin has manually requested wake-lock (overrides auto-management)
+- `brightness` (`"normal"` | `"dimmed"`): Current screen brightness state
+- `platformSupported.brightness` (boolean): Whether brightness control is available on this platform (Android/iOS only)
+- `platformSupported.wakeLock` (boolean): Whether wake-lock control is available on this platform
+
+#### Dim Screen
+```http
+POST /api/v1/display/dim
+```
+
+Dims the screen to low brightness (5%). Only supported on Android and iOS — on other platforms the call succeeds but has no effect.
+
+**Response:** Updated `DisplayState` JSON (same format as GET).
+
+#### Restore Screen Brightness
+```http
+POST /api/v1/display/restore
+```
+
+Restores the screen to system default brightness.
+
+**Response:** Updated `DisplayState` JSON.
+
+#### Request Wake-Lock Override
+```http
+POST /api/v1/display/wakelock
+```
+
+Forces the screen to stay on regardless of machine state. Normally, wake-lock is auto-managed (on when machine is connected and awake, off when sleeping). This endpoint overrides that behavior.
+
+**Response:** Updated `DisplayState` JSON.
+
+#### Release Wake-Lock Override
+```http
+DELETE /api/v1/display/wakelock
+```
+
+Returns to auto-managed wake-lock behavior based on machine state.
+
+**Response:** Updated `DisplayState` JSON.
+
+**Wake-Lock Auto-Management:**
+- When no override is active, wake-lock is automatically enabled when the machine is connected and not sleeping, and disabled when the machine sleeps or disconnects.
+- Brightness automatically restores to normal when the machine transitions from sleeping to idle.
+
+---
+
+### Presence & Sleep Management
+
+Manage user presence detection and scheduled wake times. Presence tracking lets the machine auto-sleep after a configurable timeout, and wake schedules let users pre-program the machine to warm up at specific times.
+
+#### Signal User Presence (Heartbeat)
+```http
+POST /api/v1/machine/heartbeat
+```
+
+Call this endpoint periodically (e.g., on user interaction) to signal that a user is actively using the skin. This resets the auto-sleep timer.
+
+**Response:**
+```json
+{
+  "timeout": 1800
+}
+```
+
+- `timeout` (number): Seconds remaining before auto-sleep, or `-1` if presence tracking is disabled or no machine is connected.
+
+**Notes:**
+- Heartbeats are throttled to the DE1 machine (minimum 30-second interval between actual commands), but the endpoint always responds immediately.
+- Requires `userPresenceEnabled: true` in presence settings and a connected DE1.
+
+#### Get Presence Settings
+```http
+GET /api/v1/presence/settings
+```
+
+**Response:**
+```json
+{
+  "userPresenceEnabled": true,
+  "sleepTimeoutMinutes": 30,
+  "schedules": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "time": "06:30",
+      "daysOfWeek": [1, 2, 3, 4, 5],
+      "enabled": true
+    }
+  ]
+}
+```
+
+#### Update Presence Settings
+```http
+POST /api/v1/presence/settings
+Content-Type: application/json
+
+{
+  "userPresenceEnabled": true,
+  "sleepTimeoutMinutes": 45
+}
+```
+
+Supports partial updates — only include the fields you want to change.
+
+**Response:** Updated settings (without schedules).
+
+#### List Wake Schedules
+```http
+GET /api/v1/presence/schedules
+```
+
+**Response:**
+```json
+[
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "time": "06:30",
+    "daysOfWeek": [1, 2, 3, 4, 5],
+    "enabled": true
+  }
+]
+```
+
+#### Create Wake Schedule
+```http
+POST /api/v1/presence/schedules
+Content-Type: application/json
+
+{
+  "time": "06:30",
+  "daysOfWeek": [1, 2, 3, 4, 5],
+  "enabled": true
+}
+```
+
+Alternatively, you can specify time as separate fields:
+```json
+{
+  "hour": 6,
+  "minute": 30,
+  "daysOfWeek": [1, 2, 3, 4, 5]
+}
+```
+
+**Schedule Fields:**
+- `time` (string): Time in 24-hour `"HH:MM"` format (e.g., `"06:30"`, `"14:00"`)
+- `hour` / `minute` (integers): Alternative to `time` — specify hour and minute separately
+- `daysOfWeek` (array of integers): ISO 8601 weekday numbers — 1=Monday through 7=Sunday. Empty array `[]` means every day.
+- `enabled` (boolean): Defaults to `true` if omitted
+
+**Response:** 201 Created with the new schedule including its generated `id`.
+
+#### Update Wake Schedule
+```http
+PUT /api/v1/presence/schedules/{id}
+Content-Type: application/json
+
+{
+  "time": "07:00",
+  "daysOfWeek": [6, 7],
+  "enabled": true
+}
+```
+
+Supports partial updates. Returns 404 if the schedule ID doesn't exist.
+
+**Response:** Updated schedule object.
+
+#### Delete Wake Schedule
+```http
+DELETE /api/v1/presence/schedules/{id}
+```
+
+**Response:**
+```json
+{
+  "deleted": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+Returns 404 if the schedule ID doesn't exist.
+
+---
+
 ## WebSocket Endpoints
 
 All WebSocket endpoints are at `ws://<gateway-ip>:8080/ws/v1/...`
@@ -1233,6 +1444,64 @@ pluginWs.onmessage = (event) => {
   "level": "INFO",
   "message": "Machine state changed to espresso"
 }
+```
+
+### 9. Display State Stream
+
+**Endpoint:** `ws/v1/display`
+
+**Purpose:** Real-time display state updates with bidirectional command support. Preferred over polling `GET /api/v1/display` for reactive UIs.
+
+**Outgoing Messages (server → client):**
+
+Sent whenever display state changes (brightness, wake-lock):
+
+```json
+{
+  "wakeLockEnabled": true,
+  "wakeLockOverride": false,
+  "brightness": "normal",
+  "platformSupported": {
+    "brightness": true,
+    "wakeLock": true
+  }
+}
+```
+
+**Incoming Commands (client → server):**
+
+Send JSON commands to control the display:
+
+```json
+{"command": "dim"}
+{"command": "restore"}
+{"command": "requestWakeLock"}
+{"command": "releaseWakeLock"}
+```
+
+**Auto-Cleanup:** If a client sends `requestWakeLock`, the wake-lock override is automatically released when the WebSocket connection closes. This prevents orphaned wake-locks if a skin disconnects unexpectedly.
+
+**Example:**
+```javascript
+const displayWs = new WebSocket('ws://192.168.1.100:8080/ws/v1/display');
+
+displayWs.onopen = () => {
+  // Keep screen on while skin is active
+  displayWs.send(JSON.stringify({ command: 'requestWakeLock' }));
+};
+
+displayWs.onmessage = (event) => {
+  const state = JSON.parse(event.data);
+  console.log('Brightness:', state.brightness);
+  console.log('Wake-lock:', state.wakeLockEnabled);
+
+  // Adapt UI based on platform support
+  if (!state.platformSupported.brightness) {
+    hideBrightnessControls();
+  }
+};
+
+// Wake-lock is automatically released when this WebSocket closes
 ```
 
 ---
@@ -1713,7 +1982,110 @@ machine.on('stateChange', (newState) => {
 });
 ```
 
-### 4. Plugin Integration
+### 4. Display & Presence Integration
+
+Combine display control with user presence to build a polished idle experience:
+
+```javascript
+class IdleManager {
+  constructor(gatewayUrl) {
+    this.gatewayUrl = gatewayUrl;
+    this.displayWs = null;
+    this.idleTimer = null;
+    this.dimAfterMs = 60000;  // Dim after 1 minute of inactivity
+  }
+
+  start() {
+    // Connect to display WebSocket for real-time state + auto-cleanup
+    this.displayWs = new WebSocket(
+      `${this.gatewayUrl.replace('http', 'ws')}/ws/v1/display`
+    );
+
+    this.displayWs.onopen = () => {
+      // Keep screen on while skin is active
+      this.displayWs.send(JSON.stringify({ command: 'requestWakeLock' }));
+    };
+
+    this.displayWs.onmessage = (event) => {
+      const state = JSON.parse(event.data);
+      updateDisplayIndicator(state);
+    };
+
+    // Track user activity
+    document.addEventListener('pointerdown', () => this.onUserActivity());
+    document.addEventListener('keydown', () => this.onUserActivity());
+
+    this.resetIdleTimer();
+  }
+
+  onUserActivity() {
+    this.resetIdleTimer();
+
+    // Restore brightness if dimmed
+    this.displayWs?.send(JSON.stringify({ command: 'restore' }));
+
+    // Signal presence to prevent machine auto-sleep
+    fetch(`${this.gatewayUrl}/api/v1/machine/heartbeat`, { method: 'POST' });
+  }
+
+  resetIdleTimer() {
+    clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(() => {
+      // Dim screen when user is idle
+      this.displayWs?.send(JSON.stringify({ command: 'dim' }));
+    }, this.dimAfterMs);
+  }
+
+  stop() {
+    clearTimeout(this.idleTimer);
+    this.displayWs?.close();  // Auto-releases wake-lock
+  }
+}
+
+// Usage
+const idle = new IdleManager('http://192.168.1.100:8080');
+idle.start();
+```
+
+### 5. Wake Schedule Management
+
+Let users configure automatic machine wake times:
+
+```javascript
+async function setupMorningSchedule() {
+  // Create a weekday morning schedule
+  const schedule = await sendCommand('/api/v1/presence/schedules', 'POST', {
+    time: '06:30',
+    daysOfWeek: [1, 2, 3, 4, 5],  // Monday-Friday
+    enabled: true
+  });
+
+  console.log('Created schedule:', schedule.id);
+  return schedule;
+}
+
+async function renderScheduleUI() {
+  const settings = await sendCommand('/api/v1/presence/settings');
+
+  // Show all schedules
+  for (const schedule of settings.schedules) {
+    const days = schedule.daysOfWeek.length === 0
+      ? 'Every day'
+      : schedule.daysOfWeek.map(d =>
+          ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d]
+        ).join(', ');
+
+    console.log(`${schedule.time} - ${days} (${schedule.enabled ? 'on' : 'off'})`);
+  }
+
+  // Show auto-sleep settings
+  if (settings.userPresenceEnabled) {
+    console.log(`Auto-sleep after ${settings.sleepTimeoutMinutes} minutes of inactivity`);
+  }
+}
+```
+
+### 6. Plugin Integration
 
 Listen to plugin events for extended functionality:
 
