@@ -43,15 +43,13 @@ extension MessageParsing on UnifiedDe1 {
     );
   }
 
-  static const double _waterLevelMmCorrection = 5.0;
-
   De1WaterLevels _parseWaterLevels(ByteData data) {
     try {
       var waterlevel = data.getUint16(0, Endian.big);
       var waterThreshold = data.getUint16(2, Endian.big);
 
       return De1WaterLevels(
-        currentLevel: waterlevel / 256 + _waterLevelMmCorrection,
+        currentLevel: waterlevel / 256,
         refillLevel: waterThreshold / 256,
       );
     } catch (e) {
