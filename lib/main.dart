@@ -17,6 +17,7 @@ import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/battery_controller.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/controllers/display_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/presence_controller.dart';
 import 'package:reaprime/src/controllers/profile_controller.dart';
@@ -246,6 +247,9 @@ void main() async {
   );
   presenceController.initialize();
 
+  final displayController = DisplayController(de1Controller: de1Controller);
+  displayController.initialize();
+
   workflowController.addListener(() {
     persistenceController.saveWorkflow(workflowController.currentWorkflow);
     de1Controller.defaultWorkflow = workflowController.currentWorkflow;
@@ -285,6 +289,7 @@ void main() async {
       webViewLogService,
       batteryController,
       presenceController,
+      displayController,
     );
   } catch (e, st) {
     log.severe('failed to start web server', e, st);

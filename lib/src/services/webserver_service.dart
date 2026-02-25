@@ -46,6 +46,7 @@ import 'package:reaprime/src/plugins/plugin_manager.dart';
 import 'package:reaprime/src/services/feedback_service.dart';
 import 'package:reaprime/src/services/telemetry/log_buffer.dart';
 import 'package:reaprime/src/controllers/battery_controller.dart';
+import 'package:reaprime/src/controllers/display_controller.dart';
 import 'package:reaprime/src/controllers/presence_controller.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/models/wake_schedule.dart';
@@ -64,6 +65,7 @@ part 'webserver/feedback_handler.dart';
 part 'webserver/logs_handler.dart';
 part 'webserver/webview_logs_handler.dart';
 part 'webserver/presence_handler.dart';
+part 'webserver/display_handler.dart';
 
 final log = Logger("Webservice");
 
@@ -83,6 +85,7 @@ Future<void> startWebServer(
   WebViewLogService webViewLogService,
   BatteryController? batteryController,
   PresenceController? presenceController,
+  DisplayController? displayController,
 ) async {
   log.info("starting webserver");
   final de1Handler = De1Handler(controller: de1Controller);
@@ -140,6 +143,11 @@ Future<void> startWebServer(
     );
   }
 
+  DisplayHandler? displayHandler;
+  if (displayController != null) {
+    displayHandler = DisplayHandler(displayController: displayController);
+  }
+
   final kvStoreHandler = KvStoreHandler();
   await kvStoreHandler.store.initialize();
   // Start server
@@ -160,6 +168,7 @@ Future<void> startWebServer(
       logsHandler,
       webViewLogsHandler,
       presenceHandler,
+      displayHandler,
     ),
     '0.0.0.0',
     8080,
@@ -187,6 +196,7 @@ Handler _init(
   LogsHandler logsHandler,
   WebViewLogsHandler webViewLogsHandler,
   PresenceHandler? presenceHandler,
+  DisplayHandler? displayHandler,
 ) {
   log.info("called _init");
   var app = Router().plus;
@@ -239,6 +249,9 @@ Handler _init(
   webViewLogsHandler.addRoutes(app);
   if (presenceHandler != null) {
     presenceHandler.addRoutes(app);
+  }
+  if (displayHandler != null) {
+    displayHandler.addRoutes(app);
   }
 
   final handler = const Pipeline()
