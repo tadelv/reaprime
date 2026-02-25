@@ -72,6 +72,15 @@ class DisplayController {
   final De1Controller _de1Controller;
   final Logger _log = Logger('DisplayController');
 
+  static const double _dimBrightness = 0.05;
+  static final ScreenBrightness _defaultScreenBrightness = ScreenBrightness();
+
+  // --- Injectable platform operations (for testability) ---
+  final Future<void> Function(double) _setBrightness;
+  final Future<void> Function() _resetBrightness;
+  final Future<void> Function() _enableWakeLock;
+  final Future<void> Function() _disableWakeLock;
+
   // --- Platform support detection ---
   late final DisplayPlatformSupport _platformSupport;
 
@@ -87,8 +96,19 @@ class DisplayController {
   StreamSubscription<MachineSnapshot>? _snapshotSubscription;
   bool _wakeLockOverride = false;
 
-  DisplayController({required De1Controller de1Controller})
-      : _de1Controller = de1Controller {
+  DisplayController({
+    required De1Controller de1Controller,
+    Future<void> Function(double)? setBrightness,
+    Future<void> Function()? resetBrightness,
+    Future<void> Function()? enableWakeLock,
+    Future<void> Function()? disableWakeLock,
+  })  : _de1Controller = de1Controller,
+        _setBrightness = setBrightness ??
+            _defaultScreenBrightness.setApplicationScreenBrightness,
+        _resetBrightness = resetBrightness ??
+            _defaultScreenBrightness.resetApplicationScreenBrightness,
+        _enableWakeLock = enableWakeLock ?? WakelockPlus.enable,
+        _disableWakeLock = disableWakeLock ?? WakelockPlus.disable {
     _platformSupport = DisplayPlatformSupport(
       brightness: Platform.isAndroid || Platform.isIOS || Platform.isMacOS,
       wakeLock: true, // wakelock_plus supports all platforms
@@ -122,7 +142,7 @@ class DisplayController {
   Future<void> dim() async {
     if (!_platformSupport.brightness) return;
     try {
-      await ScreenBrightness().setApplicationScreenBrightness(0.05);
+      await _setBrightness(_dimBrightness);
       _updateState(brightness: DisplayBrightness.dimmed);
       _log.fine('Screen dimmed');
     } catch (e) {
@@ -134,7 +154,7 @@ class DisplayController {
   Future<void> restore() async {
     if (!_platformSupport.brightness) return;
     try {
-      await ScreenBrightness().resetApplicationScreenBrightness();
+      await _resetBrightness();
       _updateState(brightness: DisplayBrightness.normal);
       _log.fine('Screen brightness restored');
     } catch (e) {
@@ -185,6 +205,8 @@ class DisplayController {
     final previousState = _currentMachineState;
     _currentMachineState = snapshot.state.state;
 
+    if (previousState == _currentMachineState) return;
+
     // Auto-restore brightness when machine wakes from sleep
     if (previousState == MachineState.sleeping &&
         (_currentMachineState == MachineState.idle ||
@@ -218,9 +240,9 @@ class DisplayController {
   Future<void> _applyWakeLock(bool enable) async {
     try {
       if (enable) {
-        await WakelockPlus.enable();
+        await _enableWakeLock();
       } else {
-        await WakelockPlus.disable();
+        await _disableWakeLock();
       }
       _updateState(wakeLockEnabled: enable);
     } catch (e) {
