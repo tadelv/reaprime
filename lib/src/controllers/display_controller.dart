@@ -110,7 +110,7 @@ class DisplayController {
         _enableWakeLock = enableWakeLock ?? WakelockPlus.enable,
         _disableWakeLock = disableWakeLock ?? WakelockPlus.disable {
     _platformSupport = DisplayPlatformSupport(
-      brightness: Platform.isAndroid || Platform.isIOS || Platform.isMacOS,
+      brightness: Platform.isAndroid || Platform.isIOS,
       wakeLock: true, // wakelock_plus supports all platforms
     );
 
