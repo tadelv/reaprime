@@ -39,6 +39,8 @@ complexity of machine communication and device connectivity.
 - **Profile management** with content-based hashing and automatic deduplication
 - **Auto-connect** to preferred devices on startup
 - **Gateway modes** for flexible control delegation
+- **Display control** — screen brightness and wake-lock management via API
+- **Presence-based auto-sleep** with configurable timeouts and scheduled wake times
 - **Plugin system** for extensibility
 - **WebUI support** with multiple skins
 - **Cross-platform** support (Android, macOS, Linux, Windows, iOS)
@@ -123,10 +125,17 @@ Similar to the original DE1 app, Streamline Bridge supports loading and displayi
 - ✅ Set target weight for automatic shot stopping
 - ✅ Profile selection per workflow
 
+### Display & Presence
+
+- ✅ Screen brightness control (dim/restore) via REST and WebSocket
+- ✅ Wake-lock management (keep screen on) with auto-cleanup
+- ✅ User presence heartbeats with configurable auto-sleep timeout
+- ✅ Scheduled wake times (e.g., warm up the machine every weekday at 6:30 AM)
+
 ### Additional Features
 
 - ✅ **Auto-connect**: Set preferred devices for automatic connection on startup
-- ✅ **Gateway modes**: 
+- ✅ **Gateway modes**:
   - **Disabled**: Full local control
   - **Tracking**: Monitor and stop at target weight
   - **Full**: Complete remote control
