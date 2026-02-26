@@ -32,7 +32,7 @@ class DeviceMatcher {
     if (name == 'DE1' || name == 'nRF5x' || nameLower.startsWith('de1')) {
       return UnifiedDe1(transport: transport);
     }
-    if (name == 'Bengle') return Bengle(transport: transport);
+    if (name == 'Bengle' || name.startsWith("Bengle")) return Bengle(transport: transport);
 
     // Prefix matches
     if (nameLower.startsWith('felicita')) {
