@@ -1,8 +1,22 @@
 # ReaPrime Coffee Equipment & Metadata Schema Proposal
 
-**Version:** Draft 1.0  
-**Date:** 2026-02-26  
-**Context:** Based on Beanconqueror analysis, DE1/DYE legacy field review, and GitHub discussions #61–#66
+**Version:** Draft 2.0
+**Date:** 2026-02-26
+**Context:** Based on Beanconqueror analysis, DE1/DYE legacy field review, GitHub discussions #61–#66, and collaborative design review
+
+---
+
+## Executive Summary
+
+This proposal adds structured data models for everything involved in making espresso — beans, grinders, equipment, water — and wires them into the existing Workflow/ShotRecord lifecycle.
+
+**6 new entities:** Bean (coffee identity), BeanBatch (specific bag/purchase), Grinder (model + DYE2 UI config), Equipment (generic typed accessories), Water (mineral profile), and ShotAnnotations (post-shot extraction, tasting, beverage data).
+
+**2 modified objects:** WorkflowContext (replaces DoseData/GrinderData/CoffeeData on Workflow, adds entity references + snapshots + prep techniques) and ShotRecord (replaces unused `metadata` field with typed ShotAnnotations).
+
+**Key patterns:** Reference IDs + snapshot objects for historical accuracy on all entity types. Pre-shot target vs post-shot actual for dose weight. `finalBeverageType` as a single workflow-level field (not duplicated on annotations). Typed core fields + `extras` Map for extensibility. DE1/Visualizer/Beanconqueror compatibility mappings documented.
+
+**Deferred:** Storage layer evolution, Beanconqueror import/export, preparation method abstraction.
 
 ---
 
@@ -27,18 +41,50 @@
 │ Grinder │──ref─┐       │
 └─────────┘      │       │
                  ▼       ▼
-┌─────────┐   ┌──────────────────┐     ┌─────────────────┐
-│  Water  │──▶│    Workflow       │────▶│   ShotRecord     │
-└─────────┘   │  .context {      │     │  .annotations {  │
-              │    grinder: ref  │     │    extraction     │
-┌─────────┐   │    beanBatch:ref │     │    beverage       │
-│Equipment│──▶│    water: ref    │     │    tasting        │
-│ (generic)│  │    equipment:refs│     │    people          │
-└─────────┘   │    shotPrep      │     │  }               │
-              │  }               │     │  .extras: Map     │
-              │  .extras: Map    │     └─────────────────┘
-              └──────────────────┘
+┌─────────┐   ┌──────────────────────────┐     ┌───────────────────┐
+│  Water  │──▶│    Workflow               │────▶│   ShotRecord       │
+└─────────┘   │  .context {              │     │  .annotations {    │
+              │    grinder: ref+snapshot │     │    extraction       │
+┌─────────┐   │    beanBatch: ref+snap  │     │    beverage         │
+│Equipment│──▶│    water: ref+snapshot   │     │    tasting          │
+│ (generic)│  │    equipment: refs+snaps │     │    people           │
+└─────────┘   │    finalBeverageType     │     │  }                 │
+              │    shotPrep              │     │  .extras: Map       │
+              │  }                       │
+              │  .profile                │  (ShotRecord embeds full
+              │  .steamSettings          │   annotations are
+              │  .hotWaterData           │   post-shot data)
+              │  .rinseData              │
+              └──────────────────────────┘
 ```
+
+### Snapshot Strategy
+
+Every entity reference follows the same pattern:
+- **Reference ID** (e.g., `grinderId`) — live FK for resolving the current entity state
+- **Snapshot object** (e.g., `GrinderSnapshot`) — frozen state at shot time for historical accuracy
+
+Consumer logic: display snapshot data for history; resolve reference for navigation/editing. If the entity is archived/deleted, the snapshot preserves what was used.
+
+### Workflow Structure
+
+`WorkflowContext` **replaces** the existing `DoseData`, `GrinderData`, and `CoffeeData` classes on Workflow. The other existing Workflow fields (`Profile`, `SteamSettings`, `HotWaterData`, `RinseData`) remain alongside it.
+
+### Pre-Shot vs Post-Shot Pattern
+
+Some fields exist on both WorkflowContext and ShotAnnotations as intent vs outcome:
+
+| Concept | Pre-shot (WorkflowContext) | Post-shot (ShotAnnotations) |
+|---|---|---|
+| Dose | `doseWeight` (target) | `doseWeight` (actual) |
+
+Consumer logic: post-shot value wins if present, otherwise fall back to pre-shot value.
+
+**Note:** `finalBeverageType` lives **only** on WorkflowContext. It's a workflow property — not a post-shot annotation. Since the ShotRecord embeds the full Workflow, the value is captured automatically. When a user edits the beverage type after a shot, they update the embedded Workflow. On "repeat," the Workflow (including `finalBeverageType`) is copied to the new WorkflowController state.
+
+### ShotRecord.metadata → ShotAnnotations
+
+The existing `ShotRecord.metadata: Map<String, dynamic>?` field (currently unused) is **replaced** by the typed `ShotAnnotations` object. The `annotations.extras` map serves the same escape-hatch purpose.
 
 ---
 
@@ -211,28 +257,33 @@ Full mineral profile matching Beanconqueror's level of detail.
 
 ## 6. WorkflowContext (Pre-Shot Data on Workflow)
 
-Nested object on the existing Workflow entity. Contains references to entities plus per-shot preparation parameters.
+Nested object on the existing Workflow entity. **Replaces** the existing `DoseData`, `GrinderData`, and `CoffeeData` classes. Contains references to entities plus per-shot preparation parameters.
+
+The existing `Profile`, `SteamSettings`, `HotWaterData`, and `RinseData` remain as separate fields on Workflow alongside `WorkflowContext`.
 
 ```dart
 class WorkflowContext {
-  // === Entity References (live-resolvable) ===
+  // === Entity References (live-resolvable FKs) ===
   String? grinderId;
   String? beanBatchId;
   String? waterId;
   List<String>? equipmentIds;  // multiple accessories per shot
 
-  // === Snapshots (historical accuracy) ===
+  // === Snapshots (frozen at shot time for historical accuracy) ===
   GrinderSnapshot? grinderSnapshot;
   BeanSnapshot? beanSnapshot;
+  WaterSnapshot? waterSnapshot;
+  List<EquipmentSnapshot>? equipmentSnapshots;
 
   // === Per-Shot Grinder Settings ===
   String? grinderSetting;     // DE1: grinder_setting (String to support stepped/click/named positions)
   double? grinderRpm;         // grinder_rpm
-  double? doseWeight;         // DE1: grinder_dose_weight
+  double? doseWeight;         // DE1: grinder_dose_weight — template default / target
 
   // === Target / Intent ===
   double? targetYield;        // target beverage weight in grams (pre-shot intent)
   double? targetDoseYieldRatio; // ratio of output to input, e.g., 2.0 means 1:2 (18g in → 36g out)
+  String? finalBeverageType;    // what you're making: "flat white", "cappuccino", etc.
 
   // === Shot Preparation Technique ===
   String? distributionTechnique;
@@ -241,20 +292,14 @@ class WorkflowContext {
   bool? slowFeeding;
   String? puckPrepNotes;
 
-  // === Equipment Snapshot (which accessories used) ===
-  String? portafilterModel;    // snapshot from equipment
-  String? basketName;          // snapshot from equipment
-  String? filterTop;           // snapshot from equipment
-  String? filterBottom;        // snapshot from equipment
-  String? tamperName;          // snapshot from equipment
-  String? distributionToolName;// snapshot from equipment
-
   // === Extras ===
   Map<String, dynamic>? extras;
 }
 ```
 
 ### Snapshot Objects
+
+All snapshots follow the same pattern: frozen state at shot time, paired with a reference ID for live resolution.
 
 ```dart
 class GrinderSnapshot {
@@ -263,32 +308,63 @@ class GrinderSnapshot {
 }
 
 class BeanSnapshot {
-  String roaster;        // from Bean
-  String name;           // from Bean
-  String? roastLevel;    // from BeanBatch
-  DateTime? roastDate;   // from BeanBatch
+  // From Bean entity
+  String roaster;
+  String name;
+  String? country;
+  String? processing;
+  List<String>? variety;
+  // From BeanBatch entity
+  String? roastLevel;
+  DateTime? roastDate;
+}
+
+class WaterSnapshot {
+  String name;
+  double? tds;           // the one number most users care about
+}
+
+class EquipmentSnapshot {
+  EquipmentType type;    // portafilter, basket, tamper, etc.
+  String name;           // user-facing name
+  String? brand;
 }
 ```
+
+### Migration from Existing Workflow Fields
+
+| Old Field | New Location |
+|---|---|
+| `DoseData.doseIn` | `WorkflowContext.doseWeight` |
+| `DoseData.doseOut` | `WorkflowContext.targetYield` |
+| `GrinderData.setting` | `WorkflowContext.grinderSetting` |
+| `GrinderData.manufacturer` | `GrinderSnapshot.model` (via Grinder entity) |
+| `GrinderData.model` | `GrinderSnapshot.model` (via Grinder entity) |
+| `CoffeeData.roaster` | `BeanSnapshot.roaster` (via Bean entity) |
+| `CoffeeData.name` | `BeanSnapshot.name` (via Bean entity) |
 
 ### Notes
 - `grinderSetting` is a **String**, not a number. Stepped grinders use click notation ("28 clicks", "7.2.1"), some use letters, and even numeric grinders can have decimal formats that vary. The Grinder entity's `settingType` and `settingValues` define how the UI interprets and presents this value.
 - `targetYield` is the pre-shot *intent* ("I want 36g out"). The post-shot *actual* `drinkWeight` lives in ShotAnnotations. Comparing these is useful for tracking how consistently you hit your target.
 - `targetDoseYieldRatio` is the output-to-input multiplier as a double — a value of `2.0` means "1:2" (e.g., 18g dose → 36g yield). Using a double avoids string parsing and makes calculation trivial: `targetYield = doseWeight * targetDoseYieldRatio`. The UI can display it as "1:2" for readability.
-- `doseWeight` lives here (pre-shot) because it's a setting you decide before pulling the shot. It also appears on the ShotRecord as `grinder_dose_weight` for DE1 compatibility — same value, just accessible from both sides.
-- Equipment snapshots are simple name strings. We don't need the full Equipment object frozen in time — just enough to know what was used.
+- `doseWeight` on WorkflowContext is the **template default / target** ("I aim for 18g"). The `doseWeight` on ShotAnnotations is the **recorded actual** ("I measured 18.2g for this shot"). If ShotAnnotations.doseWeight is null, consumers should fall back to the WorkflowContext value.
+- `finalBeverageType` is a **workflow-level label** describing what you're making ("flat white", "cappuccino"). It's stored as a free-form String. A configurable `BeverageTypeMapping` (in settings) maps known values to GHC machine functions for DYE2 auto-favorites. Since the ShotRecord embeds the full Workflow, this value is captured automatically. On "repeat shot," the entire Workflow (including `finalBeverageType`) is copied to the new workflow context.
 - Techniques (distribution, tamping, RDT, slow feeding) are per-shot actions. These are what apaperclip requested a home for in #63.
+- Snapshots are populated at shot time by resolving the entity references. The Workflow template stores only the reference IDs; snapshots are null until a shot is recorded.
 
 ---
 
 ## 7. ShotRecord Annotations (Post-Shot Data)
 
-Extended typed fields on the existing ShotRecord entity. These are user-entered after the shot.
+**Replaces** the existing `ShotRecord.metadata: Map<String, dynamic>?` field (currently unused) and `ShotRecord.shotNotes: String?` with a typed `ShotAnnotations` object. The `annotations.extras` map serves as the escape hatch for custom/future fields.
+
+These are user-entered after the shot.
 
 ### 7a. Extraction
 
 | Field | Type | Notes | DE1 Alias |
 |-------|------|-------|-----------|
-| `doseWeight` | double? | Dry coffee in (grams) | `grinder_dose_weight` |
+| `doseWeight` | double? | Actual dry coffee in (grams) — overrides WorkflowContext target | `grinder_dose_weight` |
 | `drinkWeight` | double? | Beverage out (grams) | `drink_weight` |
 | `drinkTds` | double? | Total Dissolved Solids (%) | `drink_tds` |
 | `drinkEy` | double? | Extraction Yield (%) | `drink_ey` |
@@ -311,13 +387,12 @@ Extended typed fields on the existing ShotRecord entity. These are user-entered 
 | Field | Type | Notes | DE1 Alias |
 |-------|------|-------|-----------|
 | `beverageType` | String? | From profile (espresso, lungo, etc.) | `beverage_type` |
-| `finalBeverageType` | String? | User-defined drink (cappuccino, latte, americano) | `final_beverage_type` |
 | `addedLiquidType` | String? | Milk, water, oat milk, etc. | `added_liquid_type` |
 | `addedLiquidWeight` | double? | Grams | `added_liquid_weight` |
 | `addedLiquidTemperature` | double? | °C | `added_liquid_temperature` |
 | `addedLiquidQuality` | String? | Steaming quality assessment | `added_liquid_quality` |
 
-**Note from Enrique (#66):** `finalBeverageType` is critical for DYE2 auto-favorites. Should map to GHC machine functions (espresso, steam, hot water). Consider making this an enum or at least maintaining a recommended values list.
+**Note:** `finalBeverageType` lives on `WorkflowContext`, not here. Since the ShotRecord embeds the full Workflow, the beverage type is available via `shotRecord.workflow.context.finalBeverageType`. See section 6 for details.
 
 ### 7d. Tasting
 
@@ -325,13 +400,13 @@ Structured tasting notes with quality/intensity/notes triples per attribute.
 
 ```dart
 class TastingAttribute {
-  double? quality;     // 0-10 or 0-100 scale
-  double? intensity;   // 0-10 or 0-100 scale
+  double? quality;     // 0.0–10.0 scale (decimals allowed for granularity)
+  double? intensity;   // 0.0–10.0 scale (decimals allowed for granularity)
   String? notes;       // free text
 }
 
 class TastingAnnotation {
-  double? enjoyment;           // DE1: enjoyment (overall score)
+  double? enjoyment;           // DE1: enjoyment (0–100 scale, legacy)
   List<String>? scentone;      // flavour wheel descriptors (DE1: scentone)
 
   TastingAttribute? aroma;
@@ -346,6 +421,8 @@ class TastingAnnotation {
 }
 ```
 
+**Scale decision:** Individual tasting attributes use a **0.0–10.0 scale** with decimals for intuitive scoring with enough granularity. The `enjoyment` field retains its **0–100 legacy scale** for DE1 compatibility.
+
 ### 7e. Notes & Media
 
 | Field | Type | Notes | DE1 Alias |
@@ -358,7 +435,7 @@ class TastingAnnotation {
 ```dart
 class ShotAnnotations {
   // Extraction
-  double? doseWeight;
+  double? doseWeight;          // actual measured dose (overrides WorkflowContext.doseWeight if set)
   double? drinkWeight;
   double? drinkTds;
   double? drinkEy;
@@ -375,7 +452,6 @@ class ShotAnnotations {
 
   // Beverage
   String? beverageType;
-  String? finalBeverageType;
   String? addedLiquidType;
   double? addedLiquidWeight;
   double? addedLiquidTemperature;
@@ -395,7 +471,7 @@ class ShotAnnotations {
 
 ---
 
-## 11. DE1 Legacy Field Mapping
+## 8. DE1 Legacy Field Mapping
 
 For import/export compatibility with .shot files and the Tcl app history.
 
@@ -409,15 +485,17 @@ For import/export compatibility with .shot files and the Tcl app history.
 | `Grinder.model` | `grinder_model` |
 | `WorkflowContext.grinderSetting` | `grinder_setting` |
 | `WorkflowContext.doseWeight` | `grinder_dose_weight` |
+| `ShotAnnotations.doseWeight` | `grinder_dose_weight` (actual, takes precedence) |
 | `ShotAnnotations.drinkWeight` | `drink_weight` |
 | `ShotAnnotations.drinkTds` | `drink_tds` |
 | `ShotAnnotations.drinkEy` | `drink_ey` |
 | `ShotAnnotations.espressoNotes` | `espresso_notes` |
 | `ShotAnnotations.beverageType` | `beverage_type` |
-| `ShotAnnotations.enjoyment` → `tasting.enjoyment` | `enjoyment` |
+| `ShotAnnotations.tasting.enjoyment` | `enjoyment` |
 | `ShotAnnotations.baristaName` | `my_name` |
 | `ShotAnnotations.drinkerName` | `drinker_name` |
-| `ShotAnnotations.scentone` → `tasting.scentone` | `scentone` |
+| `ShotAnnotations.tasting.scentone` | `scentone` |
+| `WorkflowContext.finalBeverageType` | `final_beverage_type` |
 
 ---
 
@@ -504,20 +582,26 @@ Bean field mapping:
 
 ---
 
-## 12. Summary of Decisions
+## 11. Summary of Decisions
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Entity architecture | First-class with own tables | CRUD, lifecycle, independence from shots (#64 Enrique) |
 | Bean model | Two-level Bean + BeanBatch | Same coffee, multiple bags. Correlation across purchases. |
 | Grinder model | Rich entity with UI config | DYE2 needs setting_type/step sizes (#62 Enrique) |
-| Equipment model | Generic typed entity | Type enum covers baskets, tampers, WDT, etc. |
+| Equipment model | Generic typed entity with extras | Type enum covers baskets, tampers, WDT, refractometers, etc. Type-specific data in extras. YAGNI — no need for separate refractometer entity yet. |
 | Water model | Full mineral profile | Match BC level; simple users ignore optional fields |
 | Field flexibility | Typed core + extras Map | Queryable known fields + open extensibility |
 | Naming | Modern names internally | DE1 aliases at serialization boundary only |
-| Workflow integration | Nested context object | `workflow.context.grinder`, `.beans`, etc. |
-| Shot annotations | Typed fields on ShotRecord | All post-shot data as explicit `ShotAnnotations` object |
-| Historical accuracy | Reference IDs + snapshots | Edit entity → change propagates. Snapshot preserves shot-time state. |
+| Workflow integration | WorkflowContext replaces DoseData/GrinderData/CoffeeData | Single context object with entity refs, snapshots, prep techniques. Other Workflow fields (Profile, SteamSettings, HotWaterData, RinseData) remain alongside. |
+| Shot annotations | ShotAnnotations replaces metadata + shotNotes | All post-shot data as explicit typed object with extras escape hatch |
+| Historical accuracy | Reference IDs + uniform snapshots | Every entity type gets both a reference ID and a snapshot object (Grinder, Bean, Water, Equipment). Edit entity → change propagates. Snapshot preserves shot-time state. |
+| Snapshot richness | Fattened BeanSnapshot | Includes country, processing, variety for origin-based queries without entity resolution. Negligible storage cost vs time-series data. |
+| Tasting scale | 0.0–10.0 for attributes, 0–100 for enjoyment | Intuitive base-10 with decimal granularity; enjoyment retains legacy 0–100 scale |
+| Beverage type | Single field on WorkflowContext | `finalBeverageType` on WorkflowContext only — not duplicated on ShotAnnotations. Embedded in ShotRecord via Workflow snapshot. On repeat, carried forward automatically. Free-form String with configurable GHC function mapping in settings. |
+| Dose weight | Intent + actual pattern | WorkflowContext.doseWeight is template default/target; ShotAnnotations.doseWeight is recorded actual. Fallback: actual ?? target. |
+| Referential integrity | Schema doesn't enforce | Archived/deleted entities leave dangling refs — snapshots preserve historical data. Controller/UI decides how to handle (e.g., show "(archived)" indicator). |
 | Preparation method | Not needed now | Espresso-only; entity shape allows adding later |
 | BC compatibility | Deferred, schema-compatible | Field superset enables future import/export |
 | Visualizer compatibility | Schema-aligned | Snapshots provide flat fields needed for upload; CSV meta format maps cleanly |
+| Storage layer | Prefer reference resolution; consider document DB | Primary query path is entity resolution. Fattened snapshots are fallback. Storage layer evolution is a separate design topic. |
