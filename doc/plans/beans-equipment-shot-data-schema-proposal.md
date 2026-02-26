@@ -384,10 +384,11 @@ These are user-entered after the shot.
 | `drinkEy` | double? | Extraction Yield (%) | `drink_ey` |
 | `calcEyFromTds` | bool? | Whether EY was calculated from TDS | `calc_ey_from_tds` |
 | `drinkBrix` | double? | Brix reading | `drink_brix` |
-| `refractometerModel` | String? | Which refractometer used | `refractometer_model` |
 | `refractometerTemperature` | double? | Sample temp at measurement | `refractometer_temperature` |
 | `refractometerTechnique` | String? | Measurement method | `refractometer_technique` |
 | `pourQuality` | String? | Visual assessment of pour | `pour_quality` |
+
+**Note:** Refractometer model is identified via `EquipmentSnapshot` (type=refractometer) on WorkflowContext, not duplicated here. Only per-shot measurement context (temperature, technique) lives on annotations.
 
 ### 7b. People
 
@@ -455,8 +456,7 @@ class ShotAnnotations {
   double? drinkEy;
   bool? calcEyFromTds;
   double? drinkBrix;
-  String? refractometerModel;
-  double? refractometerTemperature;
+  double? refractometerTemperature;  // refractometer model via EquipmentSnapshot
   String? refractometerTechnique;
   String? pourQuality;
 
