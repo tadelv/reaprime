@@ -37,19 +37,19 @@ This proposal adds structured data models for everything involved in making espr
                         (CRUD, stored independently)                      (embedded in each other)
 
   ┌──────────┐      ┌──────────────┐
-  │   Bean   │─1:*─▶│  BeanBatch   │─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
-  └──────────┘      └──────────────┘                       │
-                                                           │ ref + snapshot
-  ┌──────────┐                                             │
-  │ Grinder  │─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┤
-  └──────────┘                                             │
-                                                           ▼
+  │   Bean   │─1:*─▶│  BeanBatch   │──┐
+  └──────────┘      └──────────────┘  │
+                                      │ ref + snapshot
+  ┌──────────┐                        │
+  │ Grinder  │────────────────────────┤
+  └──────────┘                        │
+                                      ▼
   ┌──────────┐      ┌─────────────────────────────┐      ┌─────────────────────────┐
-  │  Water   │─ ─ ─▶│       WorkflowContext       │      │       ShotRecord        │
+  │  Water   │─────▶│       WorkflowContext       │      │       ShotRecord        │
   └──────────┘      │                             │      │                         │
                     │  grinderId    + snapshot    │      │  workflow (embedded)    │
   ┌──────────┐      │  beanBatchId  + snapshot    │      │    └─ context           │
-  │Equipment │─ ─ ─▶│  waterId      + snapshot    │      │    └─ profile           │
+  │Equipment │─────▶│  waterId      + snapshot    │      │    └─ profile           │
   │ (generic)│      │  equipmentIds + snapshots   │      │    └─ steam/hotwater    │
   └──────────┘      │                             │      │                         │
                     │  grinderSetting, doseWeight │      │  annotations            │
@@ -119,7 +119,6 @@ The coffee itself — origin, producer, variety. Immutable identity; batches tra
 | `altitude` | String? | Elevation (e.g., "1800-2000 masl") | `bean_altitude` |
 | `processing` | String? | Washed, Natural, Honey, Anaerobic, etc. | `bean_processing` |
 | `notes` | String? | General notes about this coffee | `bean_notes` |
-| `decaf` | bool | Default false | *(new, from BC)* |
 | `archived` | bool | Soft delete / hide from active lists | *(new, from BC)* |
 | `createdAt` | DateTime | | — |
 | `updatedAt` | DateTime | | — |
