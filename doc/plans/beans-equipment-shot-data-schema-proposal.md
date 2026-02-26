@@ -33,29 +33,43 @@ This proposal adds structured data models for everything involved in making espr
 ## Entity Relationship Overview
 
 ```
-┌─────────┐       ┌─────────────┐
-│  Bean    │ 1───* │  BeanBatch  │
-└─────────┘       └──────┬──────┘
-                         │ ref
-┌─────────┐              │
-│ Grinder │──ref─┐       │
-└─────────┘      │       │
-                 ▼       ▼
-┌─────────┐   ┌──────────────────────────┐     ┌───────────────────┐
-│  Water  │──▶│    Workflow               │────▶│   ShotRecord       │
-└─────────┘   │  .context {              │     │  .annotations {    │
-              │    grinder: ref+snapshot │     │    extraction       │
-┌─────────┐   │    beanBatch: ref+snap  │     │    beverage         │
-│Equipment│──▶│    water: ref+snapshot   │     │    tasting          │
-│ (generic)│  │    equipment: refs+snaps │     │    people           │
-└─────────┘   │    finalBeverageType     │     │  }                 │
-              │    shotPrep              │     │  .extras: Map       │
-              │  }                       │
-              │  .profile                │  (ShotRecord embeds full
-              │  .steamSettings          │   annotations are
-              │  .hotWaterData           │   post-shot data)
-              │  .rinseData              │
-              └──────────────────────────┘
+                        ENTITIES                                          COMPOSITES
+                        (CRUD, stored independently)                      (embedded in each other)
+
+  ┌──────────┐      ┌──────────────┐
+  │   Bean   │─1:*─▶│  BeanBatch   │─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
+  └──────────┘      └──────────────┘                       │
+                                                           │ ref + snapshot
+  ┌──────────┐                                             │
+  │ Grinder  │─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┤
+  └──────────┘                                             │
+                                                           ▼
+  ┌──────────┐      ┌─────────────────────────────┐      ┌─────────────────────────┐
+  │  Water   │─ ─ ─▶│       WorkflowContext       │      │       ShotRecord        │
+  └──────────┘      │                             │      │                         │
+                    │  grinderId    + snapshot    │      │  workflow (embedded)    │
+  ┌──────────┐      │  beanBatchId  + snapshot    │      │    └─ context           │
+  │Equipment │─ ─ ─▶│  waterId      + snapshot    │      │    └─ profile           │
+  │ (generic)│      │  equipmentIds + snapshots   │      │    └─ steam/hotwater    │
+  └──────────┘      │                             │      │                         │
+                    │  grinderSetting, doseWeight │      │  annotations            │
+                    │  targetYield, ratio         │      │    └─ extraction        │
+                    │  finalBeverageType          │      │    └─ tasting           │
+                    │  shotPrep techniques        │      │    └─ beverage/people   │
+                    │  extras                     │      │    └─ extras            │
+                    └──────────┬──────────────────┘      │                         │
+                               │                         │  measurements[]         │
+                               │  nested in              └─────────────────────────┘
+                               ▼                                   ▲
+                    ┌─────────────────────┐                        │
+                    │      Workflow       │───── embeds full ──────┘
+                    │                     │      snapshot at
+                    │  context            │      shot finish
+                    │  profile            │
+                    │  steamSettings      │
+                    │  hotWaterData       │
+                    │  rinseData          │
+                    └─────────────────────┘
 ```
 
 ### Snapshot Strategy
