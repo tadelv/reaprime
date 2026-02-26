@@ -25,7 +25,7 @@ This proposal adds structured data models for everything involved in making espr
 1. **First-class entities** — Beans, Grinders, Equipment, Water each have their own tables/stores with UUIDs and full CRUD lifecycle
 2. **Typed core + extras map** — Every entity and context object has strongly-typed fields for known properties, plus a `Map<String, dynamic> extras` for future/custom fields
 3. **Reference + snapshot** — Workflows and shot records store entity IDs for live resolution *and* snapshot key fields for historical accuracy
-4. **Better names internally** — Use clear, modern field names (e.g., `roaster` not `bean_brand`); handle DE1 legacy name mapping only at the serialization/import boundary
+4. **Greenfield schema** — This is a new data model with no legacy constraints. We structure fields as makes sense for us; adapters handle mapping to/from external services (Visualizer, Beanconqueror, DE1 .shot files) at the boundary
 5. **Espresso-first, extensible** — No preparation method abstraction now, but entity shapes don't preclude adding one later
 
 ---
@@ -516,25 +516,28 @@ For import/export compatibility with .shot files and the Tcl app history.
 
 [Visualizer](https://visualizer.coffee) (by Miha Rekar) is the primary cloud platform for Decent Espresso shot sharing and analysis (~7,000 users, 3.6M+ shots). ReaPrime already uploads shots to Visualizer, so schema compatibility is important.
 
-### Visualizer's Shot Export Schema (CSV meta fields)
+### Visualizer's Shot Schema
 
-From the profile CSV export format, Visualizer stores these metadata fields per shot:
+Visualizer stores these shot-level metadata fields (from `shots` table schema):
 
-| Visualizer Field | ReaPrime Mapping | Notes |
+| Visualizer DB Column | ReaPrime Mapping | Notes |
 |---|---|---|
-| `Name` | Profile name (already on ShotRecord) | Shot profile title |
-| `Date` | ShotRecord timestamp | ISO8601 |
-| `Roasting Date` | `BeanSnapshot.roastDate` / `BeanBatch.roastDate` | |
-| `Roastery` | `BeanSnapshot.roaster` / `Bean.roaster` | DE1: `bean_brand` |
-| `Beans` | `BeanSnapshot.name` / `Bean.name` | DE1: `bean_type` |
-| `Description` | Free text — bean notes | Maps to `Bean.notes` or extras |
-| `Roast Color` | `BeanSnapshot.roastLevel` / `BeanBatch.roastLevel` | DE1: `roast_level` |
-| `Operator` | `ShotAnnotations.baristaName` | DE1: `my_name` |
-| `Grinder Brand` | `GrinderSnapshot.model` / `Grinder.model` | Often brand+model combined |
-| `Grinder Model` | `GrinderSnapshot.model` / `Grinder.model` | Often same as Brand |
-| `Grinder Setting` | `WorkflowContext.grinderSetting` | DE1: `grinder_setting` |
-| `Weight` | `ShotAnnotations.drinkWeight` | DE1: `drink_weight` |
-| `Tds` | `ShotAnnotations.drinkTds` | DE1: `drink_tds` |
+| `profile_title` | Profile name (already on ShotRecord) | Shot profile title |
+| `start_time` | ShotRecord timestamp | DateTime |
+| `roast_date` | `BeanSnapshot.roastDate` / `BeanBatch.roastDate` | |
+| `bean_brand` | `BeanSnapshot.roaster` / `Bean.roaster` | Roastery/brand |
+| `bean_type` | `BeanSnapshot.name` / `Bean.name` | Coffee name |
+| `bean_notes` | `Bean.notes` | |
+| `roast_level` | `BeanSnapshot.roastLevel` / `BeanBatch.roastLevel` | |
+| `barista` | `ShotAnnotations.baristaName` | DE1: `my_name` |
+| `grinder_model` | `GrinderSnapshot.model` / `Grinder.model` | |
+| `grinder_setting` | `WorkflowContext.grinderSetting` | |
+| `bean_weight` | `WorkflowContext.doseWeight` | DE1: `grinder_dose_weight` |
+| `drink_weight` | `ShotAnnotations.drinkWeight` | |
+| `drink_tds` | `ShotAnnotations.drinkTds` | |
+| `drink_ey` | `ShotAnnotations.drinkEy` | |
+| `espresso_enjoyment` | `ShotAnnotations.tasting.enjoyment` | Integer |
+| `espresso_notes` | `ShotAnnotations.espressoNotes` | |
 
 ### Visualizer's Coffee Management (Premium)
 
@@ -550,15 +553,13 @@ Visualizer solved the "everyone wants different fields" problem with user-define
 
 ### Key Insights from Visualizer for ReaPrime
 
-1. **Grinder Brand vs Model split**: Visualizer has both `Grinder Brand` and `Grinder Model` as separate fields, but in practice users almost always set them to the same value (e.g., "DF64 SSP MP" for both). Our single `Grinder.model` field is cleaner. If a brand/model distinction is ever needed, it can go in `extras` or we add `Grinder.brand` later.
+1. **Single grinder field**: Visualizer uses a single `grinder_model` field. Our `Grinder.model` aligns perfectly.
 
-2. **The `Description` field**: Visualizer uses a free-text Description that often contains structured bean data (origin, variety, elevation, processing) as unstructured text. Our schema captures all of these as typed fields on Bean — a strict improvement. For Visualizer upload, we can compose this Description from our structured fields.
+2. **`bean_notes` as free text**: Visualizer's `bean_notes` field often contains structured bean data (origin, variety, elevation, processing) as unstructured text. Our schema captures all of these as typed fields on Bean — a strict improvement. For Visualizer upload, we can compose `bean_notes` from our structured fields.
 
 3. **Upload compatibility**: When uploading to Visualizer, ReaPrime needs to map its structured data back to Visualizer's flat field set. The snapshot fields (`GrinderSnapshot`, `BeanSnapshot`) serve exactly this purpose — they contain the denormalized data that Visualizer expects.
 
 4. **Loffee Labs Bean Base integration**: Visualizer recently added search against Loffee Labs' Bean Base (a community coffee database). Our Bean entity fields (roaster, name, country, region, variety, processing, elevation) are a superset of what Loffee Labs provides, making future integration straightforward.
-
-5. **Time-series data format**: Visualizer's CSV uses `moment` rows with columns for elapsed, pressure, weight, flow_in, flow_out, and three temperature readings (boiler, in, basket). ReaPrime's existing ShotRecord time-series should map to this format for upload.
 
 ---
 
