@@ -184,7 +184,9 @@ class LinuxBluePlusTransport implements BLETransport {
   String get id => _device.remoteId.str;
 
   @override
-  String get name => _device.advName;
+  String get name => _device.platformName.isNotEmpty
+      ? _device.platformName
+      : _device.advName;
 
   @override
   Future<Uint8List> read(

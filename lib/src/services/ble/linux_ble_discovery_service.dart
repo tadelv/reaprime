@@ -174,7 +174,11 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
 
       ScanResult r = results.last;
       final deviceId = r.device.remoteId.str;
-      final name = r.advertisementData.advName;
+      // On BlueZ, flutter_blue_plus_linux always sets advName to null —
+      // device names come through platformName (BlueZ D-Bus Name property).
+      final name = r.device.platformName.isNotEmpty
+          ? r.device.platformName
+          : r.advertisementData.advName;
 
       // Skip if device already exists or is being created
       if (_devices.firstWhereOrNull(
@@ -186,6 +190,12 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
 
       // Check if already pending
       if (_pendingDevices.any((p) => p.deviceId == deviceId)) return;
+
+      // Skip devices with no name — we can't match them
+      if (name.isEmpty) {
+        _log.fine("Skipping $deviceId — no advertised name available");
+        return;
+      }
 
       _log.info("Queued $deviceId \"$name\" for post-scan processing");
       _devicesBeingCreated.add(deviceId);
@@ -254,7 +264,9 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
       if (results.isEmpty) return;
       final r = results.last;
       final foundId = r.device.remoteId.str;
-      final name = r.advertisementData.advName;
+      final name = r.device.platformName.isNotEmpty
+          ? r.device.platformName
+          : r.advertisementData.advName;
       if (_devicesBeingCreated.contains(foundId)) return;
       if (_devices.firstWhereOrNull((d) => d.deviceId == foundId) != null) {
         return;
@@ -422,7 +434,8 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
       );
 
       if (device == null) {
-        _log.fine('No device match for name "$name"');
+        _log.warning('No device match for "$name" ($deviceId)');
+        _devicesBeingCreated.remove(deviceId);
         return;
       }
 
