@@ -45,7 +45,6 @@ class _SettingsTileState extends State<SettingsTile> {
           ),
         ),
         Expanded(child: _auxFunctions()),
-        Spacer(),
         ShadButton.secondary(
           onPressed: () async {
             // TODO: clean exit
