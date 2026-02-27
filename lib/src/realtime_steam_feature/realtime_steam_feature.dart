@@ -32,7 +32,6 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
   late De1Controller _de1Controller;
   final List<ShotSnapshot> _steamSnapshots = [];
   late StreamSubscription<ShotSnapshot> _steamSubscription;
-  late bool _gatewayMode;
   bool _steamActive = false;
   double _steamFlow = 1.0; // Default steam flow in ml/s
   int _steamDuration = 30; // Default steam duration in seconds
@@ -48,8 +47,6 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
     _steamDuration = widget.initialSteamSettings.duration;
     _remainingTime = _steamDuration;
     _steamStartTime = DateTime.now();
-
-    _gatewayMode = widget.gatewayMode == GatewayMode.full;
 
     // Subscribe to DE1 data
     _steamSubscription = _de1Controller
@@ -140,32 +137,6 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
   @override
   Widget build(BuildContext context) {
     // Navigation guard - only allow if gateway mode is 'tracking' or 'disabled'
-    if (_gatewayMode) {
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'Steam Feature Not Available',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Steam feature is only available when gateway mode is "tracking" or "disabled"',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-              ShadButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Go Back'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
       body: SafeArea(
         child: Center(
