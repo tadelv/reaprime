@@ -131,7 +131,14 @@ class De1StateManager with WidgetsBindingObserver {
   bool get _isHomeScreenActive {
     final context = _navigatorKey.currentContext;
     if (context == null || !context.mounted) return false;
-    final route = ModalRoute.of(context);
+    final navigator = Navigator.of(context);
+    Route<dynamic>? result;
+    navigator.popUntil((route) {
+      result = route;
+      return true;
+    });
+    final route = result; //ModalRoute.of(context);
+
     return route?.settings.name == HomeScreen.routeName && route!.isCurrent;
   }
 
@@ -163,7 +170,9 @@ class De1StateManager with WidgetsBindingObserver {
     }
     // For desktop platforms, also check on other foreground transitions if needed
     if (!Platform.isAndroid && !Platform.isIOS) {
-      _logger.fine('Desktop platform state change: ${state.name}, ensuring navigation context');
+      _logger.fine(
+        'Desktop platform state change: ${state.name}, ensuring navigation context',
+      );
       _checkNavigationContext();
     }
   }
@@ -274,8 +283,7 @@ class De1StateManager with WidgetsBindingObserver {
       }
 
       // If scale is connected and mode is displayOff, wake the display
-      if (scaleConnected &&
-          scalePowerMode == ScalePowerMode.displayOff) {
+      if (scaleConnected && scalePowerMode == ScalePowerMode.displayOff) {
         try {
           final scale = _scaleController.connectedScale();
           scale.wakeDisplay().catchError((e) {
@@ -412,18 +420,20 @@ class De1StateManager with WidgetsBindingObserver {
     // For mobile platforms, only attempt navigation if app is in foreground
     // For desktop platforms, we can attempt navigation more liberally
     bool canNavigate = _navigationContextReady;
-    
+
     if (Platform.isAndroid || Platform.isIOS) {
       // Mobile: require app to be in foreground
       canNavigate = canNavigate && _appIsInForeground;
     }
-    // Desktop platforms can attempt navigation even if app is "inactive" 
+    // Desktop platforms can attempt navigation even if app is "inactive"
     // but we still need a valid context
 
     if (canNavigate) {
       final context = _navigatorKey.currentContext;
       if (context != null && context.mounted) {
-        _logger.info('Navigating to RealtimeShotFeature in disabled mode (platform: ${Platform.operatingSystem})');
+        _logger.info(
+          'Navigating to RealtimeShotFeature in disabled mode (platform: ${Platform.operatingSystem})',
+        );
         _isRealtimeFeatureActive = true;
 
         Navigator.pushNamed(
@@ -470,7 +480,7 @@ class De1StateManager with WidgetsBindingObserver {
 
     // Platform-specific navigation logic
     bool canNavigate = _navigationContextReady;
-    
+
     if (Platform.isAndroid || Platform.isIOS) {
       // Mobile: require app to be in foreground
       canNavigate = canNavigate && _appIsInForeground;
