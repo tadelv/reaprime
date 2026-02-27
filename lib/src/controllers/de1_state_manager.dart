@@ -15,6 +15,7 @@ import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
 import 'package:reaprime/src/realtime_steam_feature/realtime_steam_feature.dart';
+import 'package:reaprime/src/home_feature/home_feature.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
@@ -124,6 +125,14 @@ class De1StateManager with WidgetsBindingObserver {
     final context = _navigatorKey.currentContext;
     _navigationContextReady = context != null && context.mounted;
     _logger.fine('Navigation context ready: $_navigationContextReady');
+  }
+
+  /// Returns true if the home screen is the current top-level route.
+  bool get _isHomeScreenActive {
+    final context = _navigatorKey.currentContext;
+    if (context == null || !context.mounted) return false;
+    final route = ModalRoute.of(context);
+    return route?.settings.name == HomeScreen.routeName && route!.isCurrent;
   }
 
   /// Returns true if the current app state is considered "background" for the platform.
@@ -328,7 +337,17 @@ class De1StateManager with WidgetsBindingObserver {
   }
 
   /// Handles espresso state based on the current gateway mode.
+  ///
+  /// If the home screen is active and the app is in the foreground, navigates
+  /// to the realtime shot feature regardless of gateway mode. Otherwise, falls
+  /// back to gateway-mode-specific behavior.
   void _handleEspressoState(MachineSnapshot snapshot, GatewayMode gatewayMode) {
+    // Navigate to realtime feature if home screen is showing, regardless of mode
+    if (_appIsInForeground && _isHomeScreenActive) {
+      _handleDisabledModeForEspresso();
+      return;
+    }
+
     switch (gatewayMode) {
       case GatewayMode.full:
         // Full gateway mode, not touching anything
@@ -343,7 +362,17 @@ class De1StateManager with WidgetsBindingObserver {
   }
 
   /// Handles steam state based on the current gateway mode.
+  ///
+  /// If the home screen is active and the app is in the foreground, navigates
+  /// to the realtime steam feature regardless of gateway mode. Otherwise, falls
+  /// back to gateway-mode-specific behavior.
   void _handleSteamState(MachineSnapshot snapshot, GatewayMode gatewayMode) {
+    // Navigate to realtime feature if home screen is showing, regardless of mode
+    if (_appIsInForeground && _isHomeScreenActive) {
+      _handleDisabledModeForSteam();
+      return;
+    }
+
     switch (gatewayMode) {
       case GatewayMode.full:
       case GatewayMode.tracking:
