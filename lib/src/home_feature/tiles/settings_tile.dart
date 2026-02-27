@@ -193,7 +193,7 @@ class _SettingsTileState extends State<SettingsTile> {
             ? 'Cleaning instructions'
             : 'Descaling instructions';
 
-    showDialog(
+    showShadDialog(
       context: context,
       builder:
           (context) => ShadDialog(
