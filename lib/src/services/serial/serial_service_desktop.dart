@@ -121,11 +121,20 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       final port = SerialPort(p);
       final transport = port.transport.toTransport();
       final name = port.name ?? '';
+      final productName = port.productName ?? '';
       port.dispose();
       if (transport == "Bluetooth") return false;
-      // Only scan USB serial ports
+      // Known device productNames — always scan regardless of port name
+      if (productName == 'DE1' || productName == 'Half Decent Scale') {
+        return true;
+      }
+      // Unix-style USB serial port names
       if (name.contains('serial') || name.contains('usbmodem') ||
           name.contains('ttyACM') || name.contains('ttyUSB')) {
+        return true;
+      }
+      // Windows COM ports with USB transport
+      if (transport == "USB" && name.startsWith('COM')) {
         return true;
       }
       return false;
