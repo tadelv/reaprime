@@ -1974,6 +1974,99 @@ paths:
               schema:
                 $ref: "#/components/schemas/DisplayState"
 
+  # Data Management
+  /api/v1/data/export:
+    get:
+      summary: Export all app data
+      description: |
+        Exports all persistent app data as a ZIP archive containing separate JSON
+        files for each data type. Includes profiles, shots, workflow, settings,
+        and KV store data. The archive also contains a metadata.json with export
+        information (format version, app version, commit SHA, timestamp, platform).
+
+        ZIP contents:
+        - metadata.json — export metadata (formatVersion, appVersion, commitSha, branch, exportTimestamp, platform)
+        - profiles.json — all profiles (including hidden and deleted)
+        - shots.json — all shot records
+        - workflow.json — current workflow/recipe
+        - settings.json — all settings, wake schedules, device preferences
+        - store.json — all KV store namespaces and key/value pairs
+      tags: [Data Management]
+      responses:
+        "200":
+          description: ZIP archive containing all app data
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              description: 'attachment; filename="streamline_bridge_export_{timestamp}.zip"'
+        "500":
+          description: Internal server error
+  /api/v1/data/import:
+    post:
+      summary: Import app data from archive
+      description: |
+        Imports app data from a ZIP archive previously created by the export
+        endpoint. Each JSON file in the archive is processed independently —
+        missing files are skipped. Unknown files are ignored for forward
+        compatibility. Use the onConflict parameter to control how duplicate
+        records are handled.
+      tags: [Data Management]
+      parameters:
+        - in: query
+          name: onConflict
+          schema:
+            type: string
+            enum: [skip, overwrite]
+            default: skip
+          description: |
+            How to handle records that already exist.
+            'skip' keeps existing records (default).
+            'overwrite' replaces existing records with imported ones.
+      requestBody:
+        required: true
+        content:
+          application/zip:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: Import completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  profiles:
+                    $ref: "#/components/schemas/SectionImportResult"
+                  shots:
+                    $ref: "#/components/schemas/SectionImportResult"
+                  workflow:
+                    $ref: "#/components/schemas/SectionImportResult"
+                  settings:
+                    $ref: "#/components/schemas/SectionImportResult"
+                  store:
+                    $ref: "#/components/schemas/SectionImportResult"
+        "400":
+          description: Invalid archive, unsupported format version, or invalid onConflict value
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  message:
+                    type: string
+        "500":
+          description: Internal server error
+
 components:
   schemas:
     Error:
@@ -2942,4 +3035,25 @@ components:
             wakeLock:
               type: boolean
               description: Whether wake-lock is supported on this platform
+
+    SectionImportResult:
+      type: object
+      description: Result of importing a single data section from an archive
+      properties:
+        imported:
+          type: integer
+          description: Number of records successfully imported
+        skipped:
+          type: integer
+          description: Number of records skipped (duplicates when using skip strategy)
+        errors:
+          type: array
+          items:
+            type: string
+          description: Error messages for records that failed to import
+        warnings:
+          type: array
+          items:
+            type: string
+          description: Warning messages (e.g., platform mismatch for device preferences)
 
