@@ -40,6 +40,30 @@ class HiveStoreService implements KeyValueStoreService {
     await box.put(key, value);
   }
 
+  @override
+  List<String> get namespaces {
+    final result = <String>{defaultNamespace};
+    for (final key in _boxes.keys) {
+      if (key != 'default') {
+        result.add(key);
+      }
+    }
+    return result.toList();
+  }
+
+  @override
+  Future<Map<String, Object>> getAll({String? namespace}) async {
+    final box = await _getOrCreateNamespace(namespace ?? defaultNamespace);
+    final result = <String, Object>{};
+    for (final key in box.keys) {
+      final value = box.get(key);
+      if (value != null) {
+        result[key.toString()] = value;
+      }
+    }
+    return result;
+  }
+
   Future<Box> _getOrCreateNamespace(String namespace) async {
     if (_boxes.containsKey(namespace)) {
       return _boxes[namespace]!;
