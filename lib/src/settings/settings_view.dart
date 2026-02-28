@@ -7,6 +7,7 @@ import 'package:archive/archive_io.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/build_info.dart';
+import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/sample_feature/sample_item_list_view.dart';
 import 'package:reaprime/src/settings/battery_charging_settings_page.dart';
@@ -35,6 +36,7 @@ class SettingsView extends StatefulWidget {
     super.key,
     required this.controller,
     required this.persistenceController,
+    required this.deviceController,
     required this.webUIService,
     required this.webUIStorage,
     this.updateCheckService,
@@ -44,6 +46,7 @@ class SettingsView extends StatefulWidget {
 
   final SettingsController controller;
   final PersistenceController persistenceController;
+  final DeviceController deviceController;
   final WebUIService webUIService;
   final WebUIStorage webUIStorage;
   final UpdateCheckService? updateCheckService;
