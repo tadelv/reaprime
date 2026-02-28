@@ -204,11 +204,13 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
   }
 
   void _showSavedSnackbar() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Preference saved. Takes effect on next app start.'),
-        duration: Duration(seconds: 3),
-      ),
-    );
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Preference saved. Takes effect on next app start.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
   }
 }
