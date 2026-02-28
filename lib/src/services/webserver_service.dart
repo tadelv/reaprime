@@ -22,6 +22,12 @@ import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/plugins/plugin_manifest.dart';
 import 'package:reaprime/src/services/storage/hive_store_service.dart';
 import 'package:reaprime/src/services/webserver/json_response.dart';
+import 'package:reaprime/src/services/webserver/data_export_handler.dart';
+import 'package:reaprime/src/services/webserver/data_export/profile_export_section.dart';
+import 'package:reaprime/src/services/webserver/data_export/shot_export_section.dart';
+import 'package:reaprime/src/services/webserver/data_export/workflow_export_section.dart';
+import 'package:reaprime/src/services/webserver/data_export/settings_export_section.dart';
+import 'package:reaprime/src/services/webserver/data_export/kv_store_export_section.dart';
 import 'package:reaprime/src/services/webserver/shots_handler.dart';
 import 'package:reaprime/src/services/webserver/workflow_handler.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
@@ -150,6 +156,17 @@ Future<void> startWebServer(
 
   final kvStoreHandler = KvStoreHandler();
   await kvStoreHandler.store.initialize();
+
+  final dataExportHandler = DataExportHandler(
+    sections: [
+      ProfileExportSection(controller: profileController),
+      ShotExportSection(controller: persistenceController),
+      WorkflowExportSection(controller: workflowController),
+      SettingsExportSection(controller: settingsController),
+      KvStoreExportSection(store: kvStoreHandler.store),
+    ],
+  );
+
   // Start server
   final server = await io.serve(
     _init(
@@ -169,6 +186,7 @@ Future<void> startWebServer(
       webViewLogsHandler,
       presenceHandler,
       displayHandler,
+      dataExportHandler,
     ),
     '0.0.0.0',
     8080,
@@ -197,6 +215,7 @@ Handler _init(
   WebViewLogsHandler webViewLogsHandler,
   PresenceHandler? presenceHandler,
   DisplayHandler? displayHandler,
+  DataExportHandler dataExportHandler,
 ) {
   log.info("called _init");
   var app = Router().plus;
@@ -253,6 +272,7 @@ Handler _init(
   if (displayHandler != null) {
     displayHandler.addRoutes(app);
   }
+  dataExportHandler.addRoutes(app);
 
   final handler = const Pipeline()
       .addMiddleware(
