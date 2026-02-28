@@ -11,6 +11,7 @@ import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/sample_feature/sample_item_list_view.dart';
 import 'package:reaprime/src/settings/battery_charging_settings_page.dart';
+import 'package:reaprime/src/settings/device_management_page.dart';
 import 'package:reaprime/src/settings/presence_settings_page.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
@@ -315,105 +316,81 @@ class _SettingsViewState extends State<SettingsView> {
   }
 
   Widget _buildDeviceManagementSection() {
-    return _SettingsSection(
-      title: 'Device Management',
-      icon: Icons.devices_outlined,
-      description: 'Configure device connections and simulation options',
-      children: [
-        // Auto-Connect Device
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Auto-Connect Device',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.info_outline, size: 18),
-              onPressed: () => _showPreferredDeviceInfo(context),
-              tooltip: 'Learn more',
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        if (widget.controller.preferredMachineId != null) ...[
-          Text(
-            'Device ID: ${widget.controller.preferredMachineId}',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 12),
-          ShadButton.destructive(
-            onPressed: () async {
-              await widget.controller.setPreferredMachineId(null);
-            },
-            child: const Text('Clear Auto-Connect Device'),
-          ),
-        ] else ...[
-          Text(
-            'No auto-connect device set',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontStyle: FontStyle.italic,
+    // Resolve device names from DeviceController if available
+    final machineId = widget.controller.preferredMachineId;
+    final scaleId = widget.controller.preferredScaleId;
+
+    final machineName = _resolveDeviceName(machineId);
+    final scaleName = _resolveDeviceName(scaleId);
+
+    return ShadCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.devices_outlined, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Device Management',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                 ),
+              ),
+            ],
           ),
           const SizedBox(height: 4),
           Text(
-            'To set an auto-connect device, check the "Auto-connect to this machine" checkbox when selecting a device during startup.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
-        const Divider(height: 32),
-        // Auto-Connect Scale
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Auto-Connect Scale',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        if (widget.controller.preferredScaleId != null) ...[
-          Text(
-            'Scale ID: ${widget.controller.preferredScaleId}',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 12),
-          ShadButton.destructive(
-            onPressed: () async {
-              await widget.controller.setPreferredScaleId(null);
-            },
-            child: const Text('Clear Auto-Connect Scale'),
-          ),
-        ] else ...[
-          Text(
-            'No auto-connect scale set',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontStyle: FontStyle.italic,
+            'Configure preferred auto-connect devices',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.7),
                 ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Machine: ${machineName ?? "Not set"}',
+            style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 4),
           Text(
-            'To set an auto-connect scale, check the "Auto-connect to this scale" checkbox when selecting a device during startup.',
-            style: Theme.of(context).textTheme.bodySmall,
+            'Scale: ${scaleName ?? "Not set"}',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 12),
+          ShadButton.outline(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => DeviceManagementPage(
+                    settingsController: widget.controller,
+                    deviceController: widget.deviceController,
+                  ),
+                ),
+              );
+            },
+            child: const Text('Configure'),
+          ),
+          const Divider(height: 32),
+          // Simulated Devices toggle stays here
+          ShadSwitch(
+            value: widget.controller.simulatedDevices,
+            onChanged: (v) async {
+              _log.info("toggle sim to $v");
+              await widget.controller.setSimulatedDevices(v);
+            },
+            label: const Text("Show simulated devices"),
+            sublabel: const Text(
+              "Whether simulated devices should be shown in scan results",
+            ),
           ),
         ],
-        const Divider(height: 32),
-        // Simulated Devices
-        ShadSwitch(
-          value: widget.controller.simulatedDevices,
-          onChanged: (v) async {
-            _log.info("toggle sim to $v");
-            await widget.controller.setSimulatedDevices(v);
-          },
-          label: const Text("Show simulated devices"),
-          sublabel: const Text(
-            "Whether simulated devices should be shown in scan results",
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -1191,73 +1168,22 @@ class _SettingsViewState extends State<SettingsView> {
     }
   }
 
-  // MARK: - Info Dialogs
+  // MARK: - Helpers
 
-  void _showPreferredDeviceInfo(BuildContext context) {
-    showShadDialog(
-      context: context,
-      builder: (context) => ShadDialog(
-        title: const Text('Auto-Connect Devices'),
-        description: const Text('Automatically connect to your preferred machine and scale on startup'),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 12,
-          children: [
-            Text(
-              'When you set an auto-connect device, ReaPrime will:',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-            ),
-            _InfoPoint(
-              icon: Icons.bluetooth_searching,
-              text: 'Scan for devices on startup',
-            ),
-            _InfoPoint(
-              icon: Icons.link,
-              text: 'Automatically connect to your preferred machine when found',
-            ),
-            _InfoPoint(
-              icon: Icons.speed,
-              text: 'Skip the device selection screen for faster startup',
-            ),
-            _InfoPoint(
-              icon: Icons.scale,
-              text: 'Also connect to your preferred scale if set',
-            ),
-            const Divider(height: 20),
-            Text(
-              'How to set:',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-            ),
-            Text(
-              'During device selection at startup, check the "Auto-connect" checkbox next to your preferred machine or scale.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'How to change:',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-            ),
-            Text(
-              'Clear the current auto-connect device using the button above, then restart the app and select a different device with the checkbox.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-        actions: [
-          ShadButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Got it'),
-          ),
-        ],
-      ),
-    );
+  String? _resolveDeviceName(String? deviceId) {
+    if (deviceId == null) return null;
+    try {
+      final device = widget.deviceController.devices.firstWhere(
+        (d) => d.deviceId == deviceId,
+      );
+      return device.name;
+    } catch (_) {
+      // Device not currently known — show truncated ID
+      if (deviceId.length > 8) {
+        return '...${deviceId.substring(deviceId.length - 8)}';
+      }
+      return deviceId;
+    }
   }
 }
 
@@ -1383,30 +1309,6 @@ class _InfoRow extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _InfoPoint extends StatelessWidget {
-  final IconData icon;
-  final String text;
-
-  const _InfoPoint({
-    required this.icon,
-    required this.text,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(text, style: Theme.of(context).textTheme.bodySmall),
-        ),
-      ],
     );
   }
 }
