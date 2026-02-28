@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/sample_feature/sample_item_list_view.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -84,6 +85,13 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
                       await widget.settingsController.setPreferredScaleId(id);
                       if (mounted) _showSavedSnackbar();
                     },
+                  ),
+                  ShadButton.outline(
+                    onPressed: () => Navigator.pushNamed(
+                      context,
+                      SampleItemListView.routeName,
+                    ),
+                    child: const Text('Debug view'),
                   ),
                 ],
               ),

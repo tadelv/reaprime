@@ -9,7 +9,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
-import 'package:reaprime/src/sample_feature/sample_item_list_view.dart';
 import 'package:reaprime/src/settings/battery_charging_settings_page.dart';
 import 'package:reaprime/src/settings/device_management_page.dart';
 import 'package:reaprime/src/settings/presence_settings_page.dart';
@@ -560,10 +559,6 @@ class _SettingsViewState extends State<SettingsView> {
             ShadButton.outline(
               onPressed: () => Navigator.of(context).pushNamed(PluginsSettingsView.routeName),
               child: const Text("Plugins"),
-            ),
-            ShadButton.outline(
-              onPressed: () => Navigator.pushNamed(context, SampleItemListView.routeName),
-              child: const Text("Debug view"),
             ),
             ShadButton.outline(
               onPressed: () => _checkForUpdates(context),
