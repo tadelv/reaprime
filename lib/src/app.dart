@@ -204,6 +204,7 @@ class _MyAppState extends State<MyApp> {
                       return SettingsView(
                         controller: widget.settingsController,
                         persistenceController: widget.persistenceController,
+                        deviceController: widget.deviceController,
                         webUIService: widget.webUIService,
                         webUIStorage: widget.webUIStorage,
                         updateCheckService: widget.updateCheckService,
