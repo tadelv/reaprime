@@ -5,4 +5,10 @@ abstract class KeyValueStoreService {
     Future<Object?> get({String namespace = "default", required String key});
 
     Future<List<String>> keys({String namespace = "default"});
+
+    /// Returns all currently opened namespace names.
+    List<String> get namespaces;
+
+    /// Returns all key-value pairs in the given namespace.
+    Future<Map<String, Object>> getAll({String namespace = "default"});
   }
