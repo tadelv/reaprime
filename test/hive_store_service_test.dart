@@ -12,8 +12,8 @@ void main() {
   });
 
   tearDown(() async {
-    await Hive.deleteFromDisk();
     await Hive.close();
+    await Hive.deleteFromDisk();
   });
 
   group('namespaces', () {
