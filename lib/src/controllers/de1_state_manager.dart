@@ -417,6 +417,10 @@ class De1StateManager with WidgetsBindingObserver {
       return;
     }
 
+    // Always create a single ShotController owned by De1StateManager.
+    // This controller handles persistence; RealtimeShotFeature only displays.
+    _startShotController();
+
     // For mobile platforms, only attempt navigation if app is in foreground
     // For desktop platforms, we can attempt navigation more liberally
     bool canNavigate = _navigationContextReady;
@@ -439,13 +443,7 @@ class De1StateManager with WidgetsBindingObserver {
         Navigator.pushNamed(
               context,
               RealtimeShotFeature.routeName,
-              arguments: ShotController(
-                scaleController: _scaleController,
-                de1controller: _de1Controller,
-                persistenceController: _persistenceController,
-                targetProfile: _workflowController.currentWorkflow.profile,
-                doseData: _workflowController.currentWorkflow.doseData,
-              ),
+              arguments: _currentShotController,
             )
             .then((_) {
               _isRealtimeFeatureActive = false;
@@ -453,21 +451,17 @@ class De1StateManager with WidgetsBindingObserver {
             .catchError((error) {
               _logger.warning('Navigation failed: $error');
               _isRealtimeFeatureActive = false;
-              // Fallback to tracking if navigation fails
-              _startShotController();
             });
       } else {
         _logger.warning(
-          'Navigation context not available, falling back to tracking',
+          'Navigation context not available, tracking shot in background',
         );
         _navigationContextReady = false;
-        _startShotController(); // Fallback to tracking
       }
     } else {
       _logger.info(
-        'Cannot navigate (foreground: $_appIsInForeground, context: $_navigationContextReady), starting shot tracking',
+        'Cannot navigate (foreground: $_appIsInForeground, context: $_navigationContextReady), tracking shot in background',
       );
-      _startShotController(); // Fallback to tracking
     }
   }
 
