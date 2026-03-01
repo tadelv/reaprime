@@ -241,7 +241,11 @@ class _DataManagementPageState extends State<DataManagementPage> {
         );
 
         if (outputFile != null) {
-          await File(outputFile).writeAsBytes(responseBytes);
+          // On desktop, saveFile(bytes:) doesn't write — we must write manually.
+          // On mobile (Android/iOS), the SAF/picker writes the file for us.
+          if (!Platform.isAndroid && !Platform.isIOS) {
+            await File(outputFile).writeAsBytes(responseBytes);
+          }
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -283,7 +287,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
         bytes: bytes,
       );
       if (outputFile != null) {
-        await File(outputFile).writeAsBytes(bytes);
+        if (!Platform.isAndroid && !Platform.isIOS) {
+          await File(outputFile).writeAsBytes(bytes);
+        }
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
