@@ -11,6 +11,7 @@ import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/feedback_feature/feedback_view.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/util/shot_exporter.dart';
+import 'package:reaprime/src/util/shot_importer.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 final Logger _log = Logger("DataManagement");
@@ -141,9 +142,29 @@ class _DataManagementPageState extends State<DataManagementPage> {
                 ),
           ),
           const SizedBox(height: 16),
-          ShadButton.outline(
-            onPressed: _importFullBackup,
-            child: const Text('Import Full Backup'),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              ShadButton.outline(
+                onPressed: _importFullBackup,
+                child: const Text('Import Full Backup'),
+              ),
+              ShadButton.outline(
+                onPressed: _importLegacyShots,
+                child: const Text('Import Shots (JSON)'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Use "Import Shots (JSON)" for legacy shot exports — single JSON files or arrays of shot records.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.5),
+                ),
           ),
         ],
       ),
@@ -441,6 +462,73 @@ class _DataManagementPageState extends State<DataManagementPage> {
         Navigator.of(context).pop(); // Pop progress dialog
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to import backup: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _importLegacyShots() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+      dialogTitle: 'Select shots JSON file',
+    );
+
+    if (result == null || result.files.isEmpty) return;
+
+    final filePath = result.files.single.path;
+    if (filePath == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to access file')),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    _showProgressDialog(context, 'Importing shots...');
+
+    try {
+      final importer = ShotImporter(
+        storage: widget.persistenceController.storageService,
+      );
+      final file = File(filePath);
+      final content = await file.readAsString();
+      final decoded = jsonDecode(content);
+
+      int count = 0;
+      if (decoded is List) {
+        count = await importer.importShotsJson(content);
+      } else {
+        await importer.importShotJson(content);
+        count = 1;
+      }
+
+      widget.persistenceController.loadShots();
+
+      if (!mounted) return;
+      Navigator.of(context).pop();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Successfully imported $count shot${count == 1 ? '' : 's'}',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e, st) {
+      _log.severe("Legacy shot import failed", e, st);
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Import failed: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
