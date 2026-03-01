@@ -1,15 +1,13 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:archive/archive_io.dart';
 import 'package:logging/logging.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/settings/battery_charging_settings_page.dart';
+import 'package:reaprime/src/settings/data_management_page.dart';
 import 'package:reaprime/src/settings/device_management_page.dart';
 import 'package:reaprime/src/settings/presence_settings_page.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
@@ -20,9 +18,6 @@ import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:reaprime/src/settings/update_dialog.dart';
 import 'package:reaprime/src/services/android_updater.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
-import 'package:reaprime/src/util/shot_exporter.dart';
-import 'package:reaprime/src/feedback_feature/feedback_view.dart';
-import 'package:reaprime/src/util/shot_importer.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -394,40 +389,56 @@ class _SettingsViewState extends State<SettingsView> {
   }
 
   Widget _buildDataManagementSection() {
-    return _SettingsSection(
-      title: 'Data Management',
-      icon: Icons.storage_outlined,
-      description: 'Import, export, and manage your shot data and logs',
-      children: [
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            ShadButton.outline(
-              onPressed: _exportLogs,
-              child: const Text("Export logs"),
-            ),
-            ShadButton.outline(
-              onPressed: _exportShots,
-              child: const Text("Export all shots"),
-            ),
-            ShadButton.outline(
-              onPressed: () => _showImportDialog(context),
-              child: const Text("Import shots"),
-            ),
-            ShadButton.outline(
-              onPressed: () => showFeedbackDialog(
-                context,
-                githubToken: const String.fromEnvironment(
-                  'GITHUB_FEEDBACK_TOKEN',
-                  defaultValue: '',
+    return ShadCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.storage_outlined, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Data Management',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                 ),
               ),
-              child: const Text("Send Feedback"),
-            ),
-          ],
-        ),
-      ],
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Export, import, and backup your data',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.7),
+                ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Backup, restore, and privacy settings',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 12),
+          ShadButton.outline(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => DataManagementPage(
+                    controller: widget.controller,
+                    persistenceController: widget.persistenceController,
+                  ),
+                ),
+              );
+            },
+            child: const Text('Configure'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -482,18 +493,6 @@ class _SettingsViewState extends State<SettingsView> {
       icon: Icons.tune_outlined,
       description: 'Developer tools and advanced configuration',
       children: [
-        ShadSwitch(
-          value: widget.controller.telemetryConsent,
-          onChanged: (v) async {
-            await widget.controller.setTelemetryConsent(v);
-            setState(() {});
-          },
-          label: const Text("Anonymous crash reporting"),
-          sublabel: const Text(
-            "Share anonymized crash reports and diagnostics to help fix connectivity issues",
-          ),
-        ),
-        const Divider(height: 24),
         _SettingRow(
           label: 'Log Level',
           child: DropdownButton<String>(
@@ -661,84 +660,6 @@ class _SettingsViewState extends State<SettingsView> {
         ),
       ],
     );
-  }
-
-  // MARK: - Data Management Actions
-
-  Future<void> _exportLogs() async {
-    try {
-      final docs = await getApplicationDocumentsDirectory();
-      final logFile = File('${docs.path}/log.txt');
-      final bytes = await logFile.readAsBytes();
-
-      final outputFile = await FilePicker.platform.saveFile(
-        fileName: "R1-logs.txt",
-        dialogTitle: "Choose where to save logs",
-        bytes: bytes,
-      );
-
-      if (outputFile != null) {
-        await File(outputFile).writeAsBytes(bytes);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Logs exported successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      _log.severe("Failed to export logs", e);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to export logs: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _exportShots() async {
-    try {
-      final exporter = ShotExporter(
-        storage: widget.persistenceController.storageService,
-      );
-      final jsonData = await exporter.exportJson();
-      final tempDir = await getTemporaryDirectory();
-      final source = File("${tempDir.path}/shots.json");
-      await source.writeAsString(jsonData);
-
-      final destination = await FilePicker.platform.getDirectoryPath(
-        dialogTitle: "Pick export dir",
-      );
-
-      if (destination != null) {
-        final tempFile = File('$destination/R1_shots.zip');
-        final archive = Archive();
-        final sourceBytes = await source.readAsBytes();
-        final archiveFile = ArchiveFile('shots.json', sourceBytes.length, sourceBytes);
-        archive.addFile(archiveFile);
-
-        final zipData = ZipEncoder().encode(archive);
-        await tempFile.writeAsBytes(zipData!);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Shots exported successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      }
-    } catch (e, st) {
-      _log.severe("Failed to export shots", e, st);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to export shots: $e')),
-        );
-      }
-    }
   }
 
   // MARK: - WebUI Actions
@@ -982,184 +903,6 @@ class _SettingsViewState extends State<SettingsView> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to check for updates: $e')),
       );
-    }
-  }
-
-  // MARK: - Import Actions
-
-  Future<void> _showImportDialog(BuildContext context) async {
-    final result = await showShadDialog<String>(
-      context: context,
-      builder: (context) => ShadDialog(
-        title: const Text('Import Shots'),
-        description: const Text('Choose how you want to import your shots'),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          spacing: 12,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ShadButton(
-              onPressed: () => Navigator.of(context).pop('file'),
-              child: const Text('Import from JSON file'),
-            ),
-            ShadButton.secondary(
-              onPressed: () => Navigator.of(context).pop('folder'),
-              child: const Text('Import from folder'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (result == 'file') {
-      await _importFromFile(context);
-    } else if (result == 'folder') {
-      await _importFromFolder(context);
-    }
-  }
-
-  void _showProgressDialog(BuildContext context, String message) {
-    showShadDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => ShadDialog(
-        title: Text(message),
-        child: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(height: 16),
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Please wait...'),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _importFromFile(BuildContext context) async {
-    final importer = ShotImporter(
-      storage: widget.persistenceController.storageService,
-    );
-
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['json'],
-      dialogTitle: "Select shots JSON file",
-    );
-
-    if (result == null || result.files.isEmpty) return;
-
-    final filePath = result.files.single.path;
-    if (filePath == null) {
-      _log.warning("File path is null");
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to access file')),
-        );
-      }
-      return;
-    }
-
-    if (!context.mounted) return;
-    _showProgressDialog(context, 'Importing shots');
-
-    try {
-      final file = File(filePath);
-      final content = await file.readAsString();
-      final decoded = jsonDecode(content);
-
-      int count = 0;
-      if (decoded is List) {
-        count = await importer.importShotsJson(content);
-      } else {
-        await importer.importShotJson(content);
-        count = 1;
-      }
-
-      widget.persistenceController.loadShots();
-
-      if (context.mounted) Navigator.of(context).pop();
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Successfully imported $count shot${count == 1 ? '' : 's'}'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e, st) {
-      _log.severe("Shot import failed", e, st);
-      if (context.mounted) Navigator.of(context).pop();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Import failed: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
-  Future<void> _importFromFolder(BuildContext context) async {
-    final importer = ShotImporter(
-      storage: widget.persistenceController.storageService,
-    );
-
-    final sourceDirPath = await FilePicker.platform.getDirectoryPath();
-    if (sourceDirPath == null) return;
-
-    if (!context.mounted) return;
-    _showProgressDialog(context, 'Importing shots from folder');
-
-    try {
-      final sourceDir = Directory(sourceDirPath);
-      final files = await sourceDir.list().toList();
-
-      int successCount = 0;
-      int failCount = 0;
-
-      for (final file in files) {
-        if (file is! File) continue;
-        final f = File(file.path);
-        if (!f.path.endsWith('.json')) continue;
-
-        try {
-          final content = await f.readAsString();
-          await importer.importShotJson(content);
-          successCount++;
-        } catch (e, st) {
-          _log.warning("Shot import failed", e, st);
-          failCount++;
-        }
-      }
-
-      widget.persistenceController.loadShots();
-
-      if (context.mounted) Navigator.of(context).pop();
-
-      if (context.mounted) {
-        final hasFailures = failCount > 0;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              successCount > 0
-                  ? 'Imported $successCount shot${successCount == 1 ? '' : 's'}${hasFailures ? ' ($failCount failed)' : ''}'
-                  : 'No shots imported${hasFailures ? ' ($failCount files failed)' : ''}',
-            ),
-            backgroundColor: successCount > 0
-                ? (hasFailures ? Colors.orange : Colors.green)
-                : Colors.red,
-          ),
-        );
-      }
-    } catch (e, st) {
-      _log.severe("Folder import failed", e, st);
-      if (context.mounted) Navigator.of(context).pop();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Import failed: $e'), backgroundColor: Colors.red),
-        );
-      }
     }
   }
 
