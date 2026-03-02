@@ -99,6 +99,8 @@ Some fields exist on both WorkflowContext and ShotAnnotations as intent vs outco
 | Concept | Pre-shot (WorkflowContext) | Post-shot (ShotAnnotations) |
 |---|---|---|
 | Dose | `doseWeight` (target) | `doseWeight` (actual) |
+| Barista | `baristaName` (default) | `baristaName` (override) |
+| Drinker | `drinkerName` (default) | `drinkerName` (override) |
 
 Consumer logic: post-shot value wins if present, otherwise fall back to pre-shot value.
 
@@ -322,6 +324,10 @@ class WorkflowContext {
   double? targetDoseYieldRatio; // ratio of output to input, e.g., 2.0 means 1:2 (18g in → 36g out)
   String? finalBeverageType;    // what you're making: "flat white", "cappuccino", etc.
 
+  // === People (defaults, overridable per-shot in ShotAnnotations) ===
+  String? baristaName;        // DE1: my_name — who usually makes the coffee
+  String? drinkerName;        // DE1: drinker_name — who usually drinks it
+
   // === Shot Preparation Technique ===
   String? distributionTechnique;
   String? tampingTechnique;
@@ -543,6 +549,8 @@ For import/export compatibility with .shot files and the Tcl app history.
 | `Grinder.model` | `grinder_model` |
 | `WorkflowContext.grinderSetting` | `grinder_setting` |
 | `WorkflowContext.doseWeight` | `grinder_dose_weight` |
+| `WorkflowContext.baristaName` | `my_name` (default) |
+| `WorkflowContext.drinkerName` | `drinker_name` (default) |
 | `ShotAnnotations.doseWeight` | `grinder_dose_weight` (actual, takes precedence) |
 | `ShotAnnotations.drinkWeight` | `drink_weight` |
 | `ShotAnnotations.drinkTds` | `drink_tds` |
@@ -550,8 +558,8 @@ For import/export compatibility with .shot files and the Tcl app history.
 | `ShotAnnotations.espressoNotes` | `espresso_notes` |
 | `ShotAnnotations.beverageType` | `beverage_type` |
 | `ShotAnnotations.tasting.enjoyment` | `enjoyment` |
-| `ShotAnnotations.baristaName` | `my_name` |
-| `ShotAnnotations.drinkerName` | `drinker_name` |
+| `ShotAnnotations.baristaName` | `my_name` (override, takes precedence) |
+| `ShotAnnotations.drinkerName` | `drinker_name` (override, takes precedence) |
 | `ShotAnnotations.tasting.scentone` | `scentone` |
 | `WorkflowContext.finalBeverageType` | `final_beverage_type` |
 
