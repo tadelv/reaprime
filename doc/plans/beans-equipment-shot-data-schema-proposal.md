@@ -674,7 +674,7 @@ This schema change is a **clean break** on v1 (developer preview). The workflow 
 |----------|-------------|
 | `GET/PUT /api/v1/workflow` | `doseData`, `grinderData`, `coffeeData` replaced by `context` (WorkflowContext). `profile`, `steamSettings`, `hotWaterData`, `rinseData` unchanged. |
 | `GET /api/v1/shots`, `GET /api/v1/shots/<id>` | `shotNotes` and `metadata` replaced by `annotations` (ShotAnnotations). Embedded `workflow` uses new structure. |
-| `PUT /api/v1/shots/<id>` | Partial update now targets `annotations` instead of `shotNotes`/`metadata`. Deep merge still works. |
+| `PUT /api/v1/shots/<id>` | Partial update accepts both `annotations` and `workflow` fields. Deep merge on both. |
 
 ### 11.2 New Endpoints
 
@@ -744,7 +744,24 @@ When a skin reads a workflow or shot, entity references are returned as **IDs + 
 
 Snapshots are `null` on the live workflow template (populated at shot time). A skin displaying current workflow shows IDs and resolves them if it wants labels. A skin displaying shot history uses the embedded snapshots — no extra API calls needed.
 
-### 11.5 Skin Complexity Tiers
+### 11.5 Post-Shot Workflow Updates
+
+`PUT /api/v1/shots/<id>` accepts partial updates to both `annotations` **and** `workflow` (deep merge). This enables correcting the embedded workflow snapshot after a shot has been recorded.
+
+**Use case:** A user pulls a shot, the ShotRecord is created with the current workflow snapshot. They then adjust steam settings before steaming milk. The shot record now has the wrong steam settings. A skin can detect this change and prompt the user to update the shot record:
+
+```json
+PUT /api/v1/shots/<id>
+{
+  "workflow": {
+    "steamSettings": { "steamTemperature": 155 }
+  }
+}
+```
+
+This is entirely skin-driven — the API just supports the update. Simple skins don't need to care. Smart skins can detect workflow changes between shot end and drink completion (e.g., steam settings changed before steaming) and prompt the user whether to update the shot record.
+
+### 11.6 Skin Complexity Tiers
 
 Not every skin needs every endpoint. The schema is designed so skins can adopt progressively:
 
@@ -822,7 +839,7 @@ PUT /api/v1/shots/<id>
 }
 ```
 
-### 11.6 TODO
+### 11.7 TODO
 
 - [ ] Update `doc/Skins.md` with new workflow/shot response shapes, entity endpoints, pagination, and tier examples once the schema is finalized and implemented
 
