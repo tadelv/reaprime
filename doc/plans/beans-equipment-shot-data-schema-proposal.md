@@ -14,7 +14,7 @@ This proposal adds structured data models for everything involved in making espr
 
 **2 modified objects:** WorkflowContext (replaces DoseData/GrinderData/CoffeeData on Workflow, adds entity references + snapshots + prep techniques) and ShotRecord (replaces unused `metadata` field with typed ShotAnnotations).
 
-**Key patterns:** Reference IDs + snapshot objects for historical accuracy on all entity types. Pre-shot target vs post-shot actual for dose weight. `finalBeverageType` as a single workflow-level field (not duplicated on annotations). Typed core fields + `extras` Map for extensibility. DE1/Visualizer/Beanconqueror compatibility mappings documented.
+**Key patterns:** Reference IDs + snapshot objects for historical accuracy on all entity types, using component objects (`BeanBatchComponent`, `EquipmentComponent`) for list references. Pre-shot target vs post-shot actual for dose weight. `finalBeverageType` as a single workflow-level field (not duplicated on annotations). Typed core fields + `extras` Map for extensibility. Bean supports decaf flag + process, commercial blend components, and user-created per-shot blends (multi-batch). DE1/Visualizer/Beanconqueror compatibility mappings documented.
 
 **Companion proposal:** `persistence-layer-proposal.md` covers Drift (SQLite) storage layer design.
 
@@ -40,25 +40,27 @@ This proposal adds structured data models for everything involved in making espr
 
   ┌──────────┐      ┌──────────────┐
   │   Bean   │─1:*─▶│  BeanBatch   │──┐
-  └──────────┘      └──────────────┘  │
-                                      │ ref + snapshot
+  │  +blend  │      └──────────────┘  │ via BeanBatchComponent
+  │  +decaf  │                        │ (batchId + weight? + snapshot)
+  └──────────┘                        │
+                                      │
   ┌──────────┐                        │
   │ Grinder  │────────────────────────┤
-  └──────────┘                        │
+  └──────────┘   (grinderId+snapshot) │
                                       ▼
   ┌──────────┐      ┌─────────────────────────────┐      ┌─────────────────────────┐
   │  Water   │─────▶│       WorkflowContext       │      │       ShotRecord        │
   └──────────┘      │                             │      │                         │
-                    │  grinderId    + snapshot    │      │  workflow (embedded)    │
-  ┌──────────┐      │  beanBatchId  + snapshot    │      │    └─ context           │
-  │Equipment │─────▶│  waterId      + snapshot    │      │    └─ profile           │
-  │ (generic)│      │  equipmentIds + snapshots   │      │    └─ steam/hotwater    │
-  └──────────┘      │                             │      │                         │
-                    │  grinderSetting, doseWeight │      │  annotations            │
-                    │  targetYield, ratio         │      │    └─ extraction        │
-                    │  finalBeverageType          │      │    └─ tasting           │
-                    │  shotPrep techniques        │      │    └─ beverage/people   │
-                    │  extras                     │      │    └─ extras            │
+   (waterId +       │  grinderId + snapshot       │      │  workflow (embedded)    │
+    snapshot)       │  beanBatches[] (components) │      │    └─ context           │
+                    │  equipment[]  (components)  │      │    └─ profile           │
+  ┌──────────┐      │  waterId + snapshot         │      │    └─ steam/hotwater    │
+  │Equipment │─────▶│                             │      │                         │
+  │ (generic)│      │  grinderSetting, doseWeight │      │  annotations            │
+  └──────────┘      │  targetYield, ratio         │      │    └─ extraction        │
+   via Equipment-   │  finalBeverageType          │      │    └─ tasting           │
+   Component        │  shotPrep techniques        │      │    └─ beverage/people   │
+   (eqId+snapshot)  │  extras                     │      │    └─ extras            │
                     └──────────┬──────────────────┘      │                         │
                                │                         │  measurements[]         │
                                │  nested in              └─────────────────────────┘
@@ -79,6 +81,10 @@ This proposal adds structured data models for everything involved in making espr
 Every entity reference follows the same pattern:
 - **Reference ID** (e.g., `grinderId`) — live FK for resolving the current entity state
 - **Snapshot object** (e.g., `GrinderSnapshot`) — frozen state at shot time for historical accuracy
+
+Two structural variants:
+- **Direct fields** — Grinder and Water use `grinderId` + `grinderSnapshot` as separate fields on WorkflowContext (single reference per shot)
+- **Component objects** — Bean batches and Equipment use `BeanBatchComponent` / `EquipmentComponent` which co-locate the ID and snapshot in a list item (supports multiple refs per shot, avoids parallel list sync)
 
 Consumer logic: display snapshot data for history; resolve reference for navigation/editing. If the entity is archived/deleted, the snapshot preserves what was used.
 
@@ -114,6 +120,8 @@ The coffee itself — origin, producer, variety. Immutable identity; batches tra
 | `roaster` | String | Company/brand that roasted it | `bean_brand` |
 | `name` | String | Coffee name/blend name | `bean_type` |
 | `species` | String? | Arabica, Robusta, Liberica | *(new)* |
+| `decaf` | bool | Is this a decaffeinated coffee. Default false. | *(new)* |
+| `decafProcess` | String? | Swiss Water, EA/Sugarcane, CO2, Mountain Water, MC, etc. | *(new)* |
 | `country` | String? | Country of origin | `bean_country` |
 | `region` | String? | Region/state/province | `bean_region` |
 | `producer` | String? | Farm/estate/cooperative | `bean_producer` |
@@ -124,11 +132,27 @@ The coffee itself — origin, producer, variety. Immutable identity; batches tra
 | `archived` | bool | Soft delete / hide from active lists | *(new, from BC)* |
 | `createdAt` | DateTime | | — |
 | `updatedAt` | DateTime | | — |
+| `blendComponents` | List\<BlendComponent\>? | Non-empty = commercial blend. Null/empty = single origin. | *(new)* |
 | `extras` | Map\<String, dynamic\> | Future fields (density, SCA score, etc.) | — |
 
+### BlendComponent
+
+Informational metadata about what coffees make up a commercial blend. Optional — most users won't fill this in.
+
+```dart
+class BlendComponent {
+  String? beanId;        // FK → Bean (optional — component may not exist in user's library)
+  String? description;   // text fallback: "Ethiopian Yirgacheffe"
+  double? percentage;    // optional, e.g., 60.0
+}
+```
+
 ### Notes
-- `variety` is a List because blends or multi-variety lots are common
+- `variety` is a List because multi-variety single-origin lots are common (e.g., SL28 + SL34)
+- `species` is a String (not List) because multi-species coffees are always blends, and blends express their species through `blendComponents`
 - `species` separated from `variety` per apaperclip's clarification in #61
+- `decaf` + `decafProcess` added per apaperclip's feedback in #61; decaf is a property of the coffee identity, not a batch attribute
+- `blendComponents` is informational — a Bean with components is a blend, without is single-origin. `beanId` on each component is optional because a user may not have the component bean in their library (they just know "it's 60% Ethiopian")
 - Enrique's concern about renaming: handled at serialization boundary. Internal model uses `roaster`; DE1 .shot file export maps to `bean_brand`
 
 ---
@@ -278,17 +302,15 @@ The existing `Profile`, `SteamSettings`, `HotWaterData`, and `RinseData` remain 
 
 ```dart
 class WorkflowContext {
-  // === Entity References (live-resolvable FKs) ===
+  // === Entity References (ID + snapshot co-located) ===
   String? grinderId;
-  String? beanBatchId;
-  String? waterId;
-  List<String>? equipmentIds;  // multiple accessories per shot
-
-  // === Snapshots (frozen at shot time for historical accuracy) ===
   GrinderSnapshot? grinderSnapshot;
-  BeanSnapshot? beanSnapshot;
+
+  List<BeanBatchComponent>? beanBatches;  // single bean = 1 element; user-created blend = multiple
+  List<EquipmentComponent>? equipment;    // multiple accessories per shot
+
+  String? waterId;
   WaterSnapshot? waterSnapshot;
-  List<EquipmentSnapshot>? equipmentSnapshots;
 
   // === Per-Shot Grinder Settings ===
   String? grinderSetting;     // DE1: grinder_setting (String to support stepped/click/named positions)
@@ -312,9 +334,29 @@ class WorkflowContext {
 }
 ```
 
+### Component Objects
+
+Entity references and their snapshots are co-located in component objects. This keeps the ID and historical state together, especially important for lists (beans, equipment) where separate ID and snapshot lists would need to stay in sync.
+
+```dart
+class BeanBatchComponent {
+  String beanBatchId;       // FK → BeanBatch
+  double? weight;           // grams from this batch (optional, for user-created blends)
+  BeanSnapshot? snapshot;   // frozen at shot time
+}
+
+class EquipmentComponent {
+  String equipmentId;           // FK → Equipment
+  EquipmentSnapshot? snapshot;  // frozen at shot time
+}
+```
+
+Single bean shot: `beanBatches: [{beanBatchId: 'x', snapshot: {...}}]`
+User-created blend: `beanBatches: [{beanBatchId: 'x', weight: 10, snapshot: {...}}, {beanBatchId: 'y', weight: 8, snapshot: {...}}]`
+
 ### Snapshot Objects
 
-All snapshots follow the same pattern: frozen state at shot time, paired with a reference ID for live resolution.
+Frozen state at shot time. Grinder and Water snapshots are paired with their reference IDs directly on WorkflowContext. Bean and Equipment snapshots are embedded in their component objects above.
 
 ```dart
 class GrinderSnapshot {
@@ -355,8 +397,8 @@ class EquipmentSnapshot {
 | `GrinderData.setting` | `WorkflowContext.grinderSetting` |
 | `GrinderData.manufacturer` | `GrinderSnapshot.model` (via Grinder entity) |
 | `GrinderData.model` | `GrinderSnapshot.model` (via Grinder entity) |
-| `CoffeeData.roaster` | `BeanSnapshot.roaster` (via Bean entity) |
-| `CoffeeData.name` | `BeanSnapshot.name` (via Bean entity) |
+| `CoffeeData.roaster` | `BeanBatchComponent.snapshot.roaster` (via Bean entity) |
+| `CoffeeData.name` | `BeanBatchComponent.snapshot.name` (via Bean entity) |
 
 ### Notes
 - `grinderSetting` is a **String**, not a number. Stepped grinders use click notation ("28 clicks", "7.2.1"), some use letters, and even numeric grinders can have decimal formats that vary. The Grinder entity's `settingType` and `settingValues` define how the UI interprets and presents this value.
@@ -365,6 +407,7 @@ class EquipmentSnapshot {
 - `doseWeight` on WorkflowContext is the **template default / target** ("I aim for 18g"). The `doseWeight` on ShotAnnotations is the **recorded actual** ("I measured 18.2g for this shot"). If ShotAnnotations.doseWeight is null, consumers should fall back to the WorkflowContext value.
 - `finalBeverageType` is a **workflow-level label** describing what you're making ("flat white", "cappuccino"). It's stored as a free-form String. A configurable `BeverageTypeMapping` (in settings) maps known values to GHC machine functions for DYE2 auto-favorites. Since the ShotRecord embeds the full Workflow, this value is captured automatically. On "repeat shot," the entire Workflow (including `finalBeverageType`) is copied to the new workflow context.
 - Techniques (distribution, tamping, RDT, slow feeding) are per-shot actions. These are what apaperclip requested a home for in #63.
+- `beanBatches` and `equipment` use component objects that co-locate the entity reference ID and snapshot. For beans, this also supports user-created blends (multiple batches with optional per-batch weight). A single-bean shot is just a list with one element.
 - Snapshots are populated at shot time by resolving the entity references. The Workflow template stores only the reference IDs; snapshots are null until a shot is recorded.
 
 ---
@@ -663,8 +706,12 @@ When a skin reads a workflow or shot, entity references are returned as **IDs + 
   "context": {
     "grinderId": "uuid-abc",
     "grinderSnapshot": { "model": "Niche Zero", "burrs": "63mm Mazzer" },
-    "beanBatchId": "uuid-def",
-    "beanSnapshot": { "roaster": "Sey", "name": "La Esperanza", "country": "Colombia" },
+    "beanBatches": [
+      {
+        "beanBatchId": "uuid-def",
+        "snapshot": { "roaster": "Sey", "name": "La Esperanza", "country": "Colombia" }
+      }
+    ],
     "grinderSetting": "18.5",
     "doseWeight": 18.0,
     "targetYield": 36.0
@@ -707,14 +754,14 @@ A skin that tracks which grinder and coffee are being used, but doesn't manage f
 **Additional endpoints:**
 - `GET /api/v1/grinders` — list available grinders for a picker
 - `GET /api/v1/beans` + `GET /api/v1/beans/<id>/batches` — list beans and batches for a picker
-- `PUT /api/v1/workflow` with `context.grinderId`, `context.beanBatchId`, `context.grinderSetting`
+- `PUT /api/v1/workflow` with `context.grinderId`, `context.beanBatches`, `context.grinderSetting`
 
 **Workflow PUT example (standard):**
 ```json
 {
   "context": {
     "grinderId": "uuid-abc",
-    "beanBatchId": "uuid-def",
+    "beanBatches": [{ "beanBatchId": "uuid-def" }],
     "grinderSetting": "18.5",
     "doseWeight": 18.0,
     "targetYield": 36.0,
@@ -764,6 +811,10 @@ PUT /api/v1/shots/<id>
 |----------|--------|-----------|
 | Entity architecture | First-class with own tables | CRUD, lifecycle, independence from shots (#64 Enrique) |
 | Bean model | Two-level Bean + BeanBatch | Same coffee, multiple bags. Correlation across purchases. |
+| Decaf | `decaf` bool + `decafProcess` String? on Bean | First-class fields per apaperclip's #61 feedback. Decaf is a coffee identity property, not batch-specific. |
+| Species | `String?` (not List) | Multi-species coffees are always blends — expressed via `blendComponents`, not a species list. |
+| Bean blends (commercial) | `blendComponents: List<BlendComponent>?` on Bean | Informational metadata. Optional beanId FK + description + percentage. Non-empty = blend. |
+| Bean blends (user-created) | `beanBatches: List<BeanBatchComponent>?` on WorkflowContext | Per-shot multi-batch tracking. Each component has batchId + optional weight + snapshot. Single bean = 1-element list. |
 | Grinder model | Rich entity with UI config | DYE2 needs setting_type/step sizes (#62 Enrique) |
 | Equipment model | Generic typed entity with extras | Type enum covers baskets, tampers, WDT, refractometers, etc. Type-specific data in extras. YAGNI — no need for separate refractometer entity yet. |
 | Water model | Full mineral profile | Match BC level; simple users ignore optional fields |
@@ -771,7 +822,7 @@ PUT /api/v1/shots/<id>
 | Naming | Modern names internally | DE1 aliases at serialization boundary only |
 | Workflow integration | WorkflowContext replaces DoseData/GrinderData/CoffeeData | Single context object with entity refs, snapshots, prep techniques. Other Workflow fields (Profile, SteamSettings, HotWaterData, RinseData) remain alongside. |
 | Shot annotations | ShotAnnotations replaces metadata + shotNotes | All post-shot data as explicit typed object with extras escape hatch |
-| Historical accuracy | Reference IDs + uniform snapshots | Every entity type gets both a reference ID and a snapshot object (Grinder, Bean, Water, Equipment). Edit entity → change propagates. Snapshot preserves shot-time state. |
+| Historical accuracy | Reference IDs + uniform snapshots | Every entity type gets both a reference ID and a snapshot object. Grinder and Water use ID+snapshot fields on WorkflowContext. Bean and Equipment use component objects (ID+snapshot co-located in list items) to support multiple refs and avoid list sync issues. |
 | Snapshot richness | Fattened BeanSnapshot | Includes country, processing, variety for origin-based queries without entity resolution. Negligible storage cost vs time-series data. |
 | Tasting scale | 0.0–10.0 for attributes, 0–100 for enjoyment | Intuitive base-10 with decimal granularity; enjoyment retains legacy 0–100 scale |
 | Beverage type | Single field on WorkflowContext | `finalBeverageType` on WorkflowContext only — not duplicated on ShotAnnotations. Embedded in ShotRecord via Workflow snapshot. On repeat, carried forward automatically. Free-form String with configurable GHC function mapping in settings. |
@@ -783,5 +834,6 @@ PUT /api/v1/shots/<id>
 | Storage layer | Drift (SQLite) — see companion proposal | See `persistence-layer-proposal.md` for full design |
 | API break strategy | Clean break on v1 | Developer preview, no backward compat needed |
 | Entity resolution on GET | IDs + snapshots, no inline resolution | Keeps responses lean; skins call entity endpoints if they need full objects |
+| Component pattern | Co-located ID + snapshot in list items | `BeanBatchComponent` and `EquipmentComponent` bundle reference + snapshot. Avoids parallel list sync. Single-item lists for the common (non-blend) case. |
 | Shot pagination | `limit`/`offset` on `/api/v1/shots` | Current endpoint returns all shots — doesn't scale |
 | Skin complexity | Three tiers: Minimal, Standard, Full | Skins adopt progressively; minimal skin ignores all entity endpoints |
