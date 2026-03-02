@@ -16,7 +16,9 @@ This proposal adds structured data models for everything involved in making espr
 
 **Key patterns:** Reference IDs + snapshot objects for historical accuracy on all entity types. Pre-shot target vs post-shot actual for dose weight. `finalBeverageType` as a single workflow-level field (not duplicated on annotations). Typed core fields + `extras` Map for extensibility. DE1/Visualizer/Beanconqueror compatibility mappings documented.
 
-**Deferred:** Storage layer evolution, Beanconqueror import/export, preparation method abstraction.
+**Companion proposal:** `persistence-layer-proposal.md` covers Drift (SQLite) storage layer design.
+
+**Deferred:** Beanconqueror import/export, preparation method abstraction.
 
 ---
 
@@ -596,7 +598,167 @@ Bean field mapping:
 
 ---
 
-## 11. Summary of Decisions
+## 11. API Surface & Skin Developer Impact
+
+This schema change is a **clean break** on v1 (developer preview). The workflow response shape changes, new entity endpoints are added, and shot history includes the new structures. No backward-compatible shim is needed.
+
+### 11.1 Breaking Changes
+
+| Endpoint | What Changes |
+|----------|-------------|
+| `GET/PUT /api/v1/workflow` | `doseData`, `grinderData`, `coffeeData` replaced by `context` (WorkflowContext). `profile`, `steamSettings`, `hotWaterData`, `rinseData` unchanged. |
+| `GET /api/v1/shots`, `GET /api/v1/shots/<id>` | `shotNotes` and `metadata` replaced by `annotations` (ShotAnnotations). Embedded `workflow` uses new structure. |
+| `PUT /api/v1/shots/<id>` | Partial update now targets `annotations` instead of `shotNotes`/`metadata`. Deep merge still works. |
+
+### 11.2 New Endpoints
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET/POST /api/v1/beans` | List / create beans |
+| `GET/PUT/DELETE /api/v1/beans/<id>` | Bean CRUD |
+| `GET/POST /api/v1/beans/<id>/batches` | List / create batches for a bean |
+| `GET/PUT/DELETE /api/v1/bean-batches/<id>` | BeanBatch CRUD |
+| `GET/POST /api/v1/grinders` | List / create grinders |
+| `GET/PUT/DELETE /api/v1/grinders/<id>` | Grinder CRUD |
+| `GET/POST /api/v1/equipment` | List / create equipment |
+| `GET/PUT/DELETE /api/v1/equipment/<id>` | Equipment CRUD |
+| `GET/POST /api/v1/waters` | List / create water profiles |
+| `GET/PUT/DELETE /api/v1/waters/<id>` | Water CRUD |
+
+All entity list endpoints support `?archived=true` to include archived items.
+
+### 11.3 Pagination on Shot Listing
+
+`GET /api/v1/shots` adds pagination (currently missing — returns all shots at once):
+
+```
+GET /api/v1/shots?limit=50&offset=0&orderBy=timestamp&order=desc
+```
+
+| Parameter | Default | Notes |
+|-----------|---------|-------|
+| `limit` | 50 | Max items per page |
+| `offset` | 0 | Skip N items |
+| `orderBy` | `timestamp` | Sort field (only `timestamp` supported initially) |
+| `order` | `desc` | `asc` or `desc` |
+
+Response includes pagination metadata:
+
+```json
+{
+  "items": [ ... ],
+  "total": 342,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+### 11.4 Entity Reference Resolution on GET
+
+When a skin reads a workflow or shot, entity references are returned as **IDs + snapshots** (if available). The API does **not** inline-resolve the full entity object. If a skin needs the full entity, it calls the entity endpoint directly.
+
+```json
+// GET /api/v1/workflow — context excerpt
+{
+  "context": {
+    "grinderId": "uuid-abc",
+    "grinderSnapshot": { "model": "Niche Zero", "burrs": "63mm Mazzer" },
+    "beanBatchId": "uuid-def",
+    "beanSnapshot": { "roaster": "Sey", "name": "La Esperanza", "country": "Colombia" },
+    "grinderSetting": "18.5",
+    "doseWeight": 18.0,
+    "targetYield": 36.0
+  }
+}
+```
+
+Snapshots are `null` on the live workflow template (populated at shot time). A skin displaying current workflow shows IDs and resolves them if it wants labels. A skin displaying shot history uses the embedded snapshots — no extra API calls needed.
+
+### 11.5 Skin Complexity Tiers
+
+Not every skin needs every endpoint. The schema is designed so skins can adopt progressively:
+
+#### Tier 1: Minimal (dose + profile only)
+
+A skin that just controls shot execution. No entity management, no annotations.
+
+**Endpoints used:**
+- `GET/PUT /api/v1/workflow` — read/set `context.doseWeight`, `context.targetYield`, `profile`
+- `GET /api/v1/machine/state` + WebSocket snapshot — real-time machine control
+- `GET /api/v1/shots/latest` — show last shot result
+
+**Workflow PUT example (minimal):**
+```json
+{
+  "context": {
+    "doseWeight": 18.0,
+    "targetYield": 36.0
+  },
+  "profile": { ... }
+}
+```
+
+Everything else (`grinderId`, `beanBatchId`, snapshots, prep techniques) stays null/omitted. The deep-merge behavior means you only send what you want to change.
+
+#### Tier 2: Standard (+ grinder & coffee tracking)
+
+A skin that tracks which grinder and coffee are being used, but doesn't manage full entity libraries.
+
+**Additional endpoints:**
+- `GET /api/v1/grinders` — list available grinders for a picker
+- `GET /api/v1/beans` + `GET /api/v1/beans/<id>/batches` — list beans and batches for a picker
+- `PUT /api/v1/workflow` with `context.grinderId`, `context.beanBatchId`, `context.grinderSetting`
+
+**Workflow PUT example (standard):**
+```json
+{
+  "context": {
+    "grinderId": "uuid-abc",
+    "beanBatchId": "uuid-def",
+    "grinderSetting": "18.5",
+    "doseWeight": 18.0,
+    "targetYield": 36.0,
+    "finalBeverageType": "espresso"
+  }
+}
+```
+
+The skin doesn't create entities — the user manages their library through another skin or the native UI.
+
+#### Tier 3: Full (entity management + annotations)
+
+A skin that provides full CRUD for all entities, post-shot annotation entry, and detailed history browsing.
+
+**Additional endpoints:**
+- Full CRUD on `/api/v1/beans`, `/api/v1/grinders`, `/api/v1/equipment`, `/api/v1/waters`
+- `PUT /api/v1/shots/<id>` with `annotations` — post-shot TDS, tasting, notes
+- `GET /api/v1/shots?limit=50&offset=0` — paginated history with filtering
+
+**Shot annotation example:**
+```json
+PUT /api/v1/shots/<id>
+{
+  "annotations": {
+    "doseWeight": 18.2,
+    "drinkWeight": 37.1,
+    "drinkTds": 8.5,
+    "drinkEy": 21.3,
+    "tasting": {
+      "enjoyment": 85,
+      "acidity": { "quality": 7.5, "intensity": 6.0, "notes": "bright, citric" }
+    },
+    "espressoNotes": "Pulled slightly long but tasty"
+  }
+}
+```
+
+### 11.6 TODO
+
+- [ ] Update `doc/Skins.md` with new workflow/shot response shapes, entity endpoints, pagination, and tier examples once the schema is finalized and implemented
+
+---
+
+## 12. Summary of Decisions
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
@@ -618,4 +780,8 @@ Bean field mapping:
 | Preparation method | Not needed now | Espresso-only; entity shape allows adding later |
 | BC compatibility | Deferred, schema-compatible | Field superset enables future import/export |
 | Visualizer compatibility | Schema-aligned | Snapshots provide flat fields needed for upload; CSV meta format maps cleanly |
-| Storage layer | Prefer reference resolution; consider document DB | Primary query path is entity resolution. Fattened snapshots are fallback. Storage layer evolution is a separate design topic. |
+| Storage layer | Drift (SQLite) — see companion proposal | See `persistence-layer-proposal.md` for full design |
+| API break strategy | Clean break on v1 | Developer preview, no backward compat needed |
+| Entity resolution on GET | IDs + snapshots, no inline resolution | Keeps responses lean; skins call entity endpoints if they need full objects |
+| Shot pagination | `limit`/`offset` on `/api/v1/shots` | Current endpoint returns all shots — doesn't scale |
+| Skin complexity | Three tiers: Minimal, Standard, Full | Skins adopt progressively; minimal skin ignores all entity endpoints |
