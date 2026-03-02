@@ -118,7 +118,7 @@ lib/src/services/database/
     grinder_tables.dart      # Grinders table definition
     equipment_tables.dart    # Equipments table definition
     water_tables.dart        # Waters table definition
-    shot_tables.dart         # ShotRecords, ShotEquipment table definitions
+    shot_tables.dart         # ShotRecords, ShotBeanBatches, ShotEquipment table definitions
     workflow_tables.dart     # Workflows table definition
     profile_tables.dart      # ProfileRecords table definition
   daos/
@@ -231,16 +231,19 @@ class Beans extends Table {
   TextColumn get roaster => text()();
   TextColumn get name => text()();
   TextColumn get species => text().nullable()();
+  BoolColumn get decaf => boolean().withDefault(const Constant(false))();
+  TextColumn get decafProcess => text().nullable()();
   TextColumn get country => text().nullable()();
   TextColumn get region => text().nullable()();
   TextColumn get producer => text().nullable()();
   TextColumn get variety => text().map(const StringListConverter()).nullable()();
-  TextColumn get altitude => text().nullable()();
+  TextColumn get altitude => text().map(const IntListConverter()).nullable()();  // [1800] or [1800, 2000]
   TextColumn get processing => text().nullable()();
   TextColumn get notes => text().nullable()();
   BoolColumn get archived => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
+  TextColumn get blendComponents => text().map(const BlendComponentListConverter()).nullable()();
   TextColumn get extras => text().map(const JsonMapConverter()).nullable()();
 
   @override
@@ -372,17 +375,17 @@ class ShotRecords extends Table {
   // Denormalized entity references for indexed querying
   // (also present inside workflow.context, but pulled up for SQL WHERE/JOIN)
   TextColumn get grinderId => text().nullable()();
-  TextColumn get beanBatchId => text().nullable()();
   TextColumn get waterId => text().nullable()();
+  // Bean batch and equipment IDs are many-to-many — see junction tables below
 
   @override
   Set<Column> get primaryKey => {id};
 }
 ```
 
-**Why denormalize entity IDs on the shot row?**
+**Why denormalize entity IDs?**
 
-The canonical references live inside `workflow.context.grinderId` etc. (a JSON column). But SQL can't efficiently index into JSON for queries like "all shots with grinder X." Pulling these IDs up to real columns enables indexed queries while the JSON column remains the source of truth for the full workflow snapshot.
+The canonical references live inside `workflow.context` (a JSON column). But SQL can't efficiently index into JSON for queries like "all shots with grinder X." Single-valued references (grinder, water) are pulled up to real columns on the shot row. Multi-valued references (bean batches, equipment) use junction tables — see section 3.3.
 
 #### Workflows (Current/Active)
 
@@ -422,7 +425,22 @@ class ProfileRecords extends Table {
 }
 ```
 
-### 3.3 Junction Table
+### 3.3 Junction Tables
+
+#### ShotBeanBatches (many-to-many: shots ↔ bean batches)
+
+Supports both single-bean shots and user-created blends (multiple batches per shot).
+
+```dart
+class ShotBeanBatches extends Table {
+  TextColumn get shotId => text().references(ShotRecords, #id)();
+  TextColumn get beanBatchId => text().references(BeanBatches, #id)();
+  RealColumn get weight => real().nullable()();  // grams from this batch (for blends)
+
+  @override
+  Set<Column> get primaryKey => {shotId, beanBatchId};
+}
+```
 
 #### ShotEquipment (many-to-many: shots ↔ equipment)
 
@@ -442,10 +460,15 @@ class ShotEquipment extends Table {
 // Shot queries by time range
 @TableIndex(name: 'idx_shots_timestamp', columns: {#timestamp})
 
-// Shot queries by entity
+// Shot queries by entity (single-valued refs on shot row)
 @TableIndex(name: 'idx_shots_grinder', columns: {#grinderId})
-@TableIndex(name: 'idx_shots_bean_batch', columns: {#beanBatchId})
 @TableIndex(name: 'idx_shots_water', columns: {#waterId})
+
+// Junction table indexes (multi-valued refs)
+@TableIndex(name: 'idx_shot_bean_batches_shot', columns: {#shotId})
+@TableIndex(name: 'idx_shot_bean_batches_batch', columns: {#beanBatchId})
+@TableIndex(name: 'idx_shot_equipment_shot', columns: {#shotId})
+@TableIndex(name: 'idx_shot_equipment_equipment', columns: {#equipmentId})
 
 // Bean batch lookup by parent bean
 @TableIndex(name: 'idx_bean_batches_bean', columns: {#beanId})
@@ -473,6 +496,8 @@ Complex objects that are always read/written as a unit use Drift TypeConverters 
 | Entity scalar fields | Native columns | Queryable, indexable |
 | `extras` Map | JSON text column | Schema-free by design |
 | `variety` (List\<String\>) | JSON text column | Simple list, no need for junction table |
+| `altitude` (List\<int\>) | JSON text column | Single value or range |
+| `blendComponents` (List\<BlendComponent\>) | JSON text column | Informational blend composition |
 | `WorkflowContext` | JSON text column | Composite embedded object, written as unit |
 | `ShotAnnotations` | JSON text column | Composite embedded object, written as unit |
 | `Profile` | JSON text column | Complex nested structure (steps array), already has JSON serialization |
@@ -582,6 +607,7 @@ The existing `StorageService` interface is extended with entity-filtered queries
 ```dart
 // Additions to existing StorageService or a new ShotStorageService
 Future<void> updateAnnotations(String shotId, ShotAnnotations annotations);
+Future<void> updateShotWorkflow(String shotId, Map<String, dynamic> partialWorkflow);  // deep merge
 Stream<List<ShotRecord>> watchShots({int limit = 50, int offset = 0});
 Future<List<ShotRecord>> getShotsForGrinder(String grinderId);
 Future<List<ShotRecord>> getShotsForBeanBatch(String batchId);
@@ -645,7 +671,7 @@ class BeanDao extends DatabaseAccessor<AppDatabase> with _$BeanDaoMixin {
 | `GrinderStorageService` | `GrinderDao` | Grinders | CRUD, watch active grinders |
 | `EquipmentStorageService` | `EquipmentDao` | Equipments | CRUD by type, watch active equipment |
 | `WaterStorageService` | `WaterDao` | Waters | CRUD, watch active waters |
-| `StorageService` (extended) | `ShotDao` | ShotRecords, ShotEquipment | CRUD, paginated history, filter by entity, annotation updates |
+| `StorageService` (extended) | `ShotDao` | ShotRecords, ShotBeanBatches, ShotEquipment | CRUD, paginated history, filter by entity, annotation + workflow updates |
 | `StorageService` | `WorkflowDao` | Workflows | Load/save current workflow |
 | `ProfileStorageService` | `ProfileDao` | ProfileRecords | CRUD, visibility filtering, parent chain, dedup check |
 
@@ -682,10 +708,11 @@ class BeanController {
 
 When a shot finishes, the `ShotController` / `PersistenceController` needs to:
 
-1. Resolve entity references from the current WorkflowContext (grinderId → Grinder, beanBatchId → BeanBatch + Bean, etc.)
-2. Build snapshot objects (GrinderSnapshot, BeanSnapshot, etc.)
-3. Populate them on the WorkflowContext before embedding in the ShotRecord
+1. Resolve entity references from the current WorkflowContext (grinderId → Grinder, beanBatches[].beanBatchId → BeanBatch + Bean, equipment[].equipmentId → Equipment, waterId → Water)
+2. Build snapshot objects (GrinderSnapshot, BeanSnapshot, WaterSnapshot, EquipmentSnapshot)
+3. Populate snapshots on the WorkflowContext — directly for grinder/water, on each component for beanBatches/equipment
 4. Store the ShotRecord with the fully-populated context
+5. Populate junction tables (ShotBeanBatches, ShotEquipment) for indexed querying
 
 This is controller logic, not storage logic. The storage service just persists the result.
 
@@ -772,7 +799,7 @@ Each existing shot JSON file maps to a ShotRecord row:
 | `workflow` | Full workflow JSON stored in `workflow` column |
 | `workflow.doseData` | Extracted into `WorkflowContext.doseWeight` / `targetYield` |
 | `workflow.grinderData` | Extracted into `WorkflowContext.grinderSetting` + `GrinderSnapshot` |
-| `workflow.coffeeData` | Extracted into `WorkflowContext.beanSnapshot` (no entity reference — legacy) |
+| `workflow.coffeeData` | Extracted into `WorkflowContext.beanBatches[0].snapshot` (no entity reference — legacy) |
 | `shotNotes` | Moved to `ShotAnnotations.espressoNotes` |
 | `metadata` | Moved to `ShotAnnotations.extras` (if non-null) |
 
@@ -781,7 +808,7 @@ Each existing shot JSON file maps to a ShotRecord row:
 During migration, scan all shots to auto-create entity entries:
 
 1. **Grinders:** Unique `(manufacturer, model)` pairs from `GrinderData` → create Grinder entries. Link shots via `grinderId`.
-2. **Beans:** Unique `(roaster, name)` pairs from `CoffeeData` → create Bean entries + a single BeanBatch per Bean. Link shots via `beanBatchId`.
+2. **Beans:** Unique `(roaster, name)` pairs from `CoffeeData` → create Bean entries + a single BeanBatch per Bean. Link shots via `ShotBeanBatches` junction table.
 
 This is best-effort — the legacy data is sparse (just grinder model + coffee name/roaster). Users can enrich entities later.
 
@@ -814,10 +841,11 @@ SQLite foreign keys are **not enforced by default**. We enable them via `PRAGMA 
 |-----------|-------------|-----------|
 | BeanBatch → Bean | Hard FK | Batch always belongs to a bean; cascade on bean delete |
 | ShotRecord → Grinder | **Soft** (nullable, no FK constraint) | Archived/deleted grinders should not cascade-delete shot history |
-| ShotRecord → BeanBatch | **Soft** (nullable, no FK constraint) | Same reasoning — snapshots preserve historical data |
-| ShotRecord → Water | **Soft** (nullable, no FK constraint) | Same |
-| ShotEquipment → Equipment | **Soft** (nullable, no FK constraint) | Same |
+| ShotRecord → Water | **Soft** (nullable, no FK constraint) | Same reasoning — snapshots preserve historical data |
+| ShotBeanBatches → ShotRecord | Hard FK with CASCADE delete | Deleting a shot removes junction rows |
+| ShotBeanBatches → BeanBatch | **Soft** (no FK constraint) | Snapshots in WorkflowContext preserve historical data |
 | ShotEquipment → ShotRecord | Hard FK with CASCADE delete | Deleting a shot removes junction rows |
+| ShotEquipment → Equipment | **Soft** (no FK constraint) | Same — snapshots preserve historical data |
 
 **Why soft references for shots?** Per the schema proposal: "Archived/deleted entities leave dangling refs — snapshots preserve historical data." If a user deletes a grinder, we don't want to lose 500 shots. The snapshot embedded in the WorkflowContext preserves what was used.
 
