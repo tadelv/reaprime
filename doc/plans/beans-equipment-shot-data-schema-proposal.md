@@ -99,6 +99,7 @@ Some fields exist on both WorkflowContext and ShotAnnotations as intent vs outco
 | Concept | Pre-shot (WorkflowContext) | Post-shot (ShotAnnotations) |
 |---|---|---|
 | Dose | `doseWeight` (target) | `doseWeight` (actual) |
+| Yield | `targetYield` (target) | `actualYield` (actual) |
 | Barista | `baristaName` (default) | `baristaName` (override) |
 | Drinker | `drinkerName` (default) | `drinkerName` (override) |
 | Added liquid type | `addedLiquidType` (default) | `addedLiquidType` (override) |
@@ -416,7 +417,7 @@ class EquipmentSnapshot {
 
 ### Notes
 - `grinderSetting` is a **String**, not a number. Stepped grinders use click notation ("28 clicks", "7.2.1"), some use letters, and even numeric grinders can have decimal formats that vary. The Grinder entity's `settingType` and `settingValues` define how the UI interprets and presents this value.
-- `targetYield` is the pre-shot *intent* ("I want 36g out"). The post-shot *actual* `drinkWeight` lives in ShotAnnotations. Comparing these is useful for tracking how consistently you hit your target.
+- `targetYield` is the pre-shot *intent* ("I want 36g out"). The post-shot *actual* `actualYield` lives in ShotAnnotations. Comparing these is useful for tracking how consistently you hit your target.
 - `targetDoseYieldRatio` is the output-to-input multiplier as a double — a value of `2.0` means "1:2" (e.g., 18g dose → 36g yield). Using a double avoids string parsing and makes calculation trivial: `targetYield = doseWeight * targetDoseYieldRatio`. The UI can display it as "1:2" for readability.
 - `doseWeight` on WorkflowContext is the **template default / target** ("I aim for 18g"). The `doseWeight` on ShotAnnotations is the **recorded actual** ("I measured 18.2g for this shot"). If ShotAnnotations.doseWeight is null, consumers should fall back to the WorkflowContext value.
 - `finalBeverageType` is a **workflow-level label** describing what you're making ("flat white", "cappuccino"). It's stored as a free-form String. A configurable `BeverageTypeMapping` (in settings) maps known values to GHC machine functions for DYE2 auto-favorites. Since the ShotRecord embeds the full Workflow, this value is captured automatically. On "repeat shot," the entire Workflow (including `finalBeverageType`) is copied to the new workflow context.
@@ -437,7 +438,7 @@ These are user-entered after the shot.
 | Field | Type | Notes | DE1 Alias |
 |-------|------|-------|-----------|
 | `doseWeight` | double? | Actual dry coffee in (grams) — overrides WorkflowContext target | `grinder_dose_weight` |
-| `drinkWeight` | double? | Beverage out (grams) | `drink_weight` |
+| `actualYield` | double? | Actual espresso yield out (grams) | `drink_weight` |
 | `drinkTds` | double? | Total Dissolved Solids (%) | `drink_tds` |
 | `drinkEy` | double? | Extraction Yield (%) | `drink_ey` |
 | `calcEyFromTds` | bool? | Whether EY was calculated from TDS | `calc_ey_from_tds` |
@@ -509,7 +510,7 @@ class TastingAnnotation {
 class ShotAnnotations {
   // Extraction
   double? doseWeight;          // actual measured dose (overrides WorkflowContext.doseWeight if set)
-  double? drinkWeight;
+  double? actualYield;
   double? drinkTds;
   double? drinkEy;
   bool? calcEyFromTds;
@@ -563,7 +564,7 @@ For import/export compatibility with .shot files and the Tcl app history.
 | `WorkflowContext.addedLiquidWeight` | `added_liquid_weight` (default) |
 | `WorkflowContext.addedLiquidTemperature` | `added_liquid_temperature` (default) |
 | `ShotAnnotations.doseWeight` | `grinder_dose_weight` (actual, takes precedence) |
-| `ShotAnnotations.drinkWeight` | `drink_weight` |
+| `ShotAnnotations.actualYield` | `drink_weight` |
 | `ShotAnnotations.drinkTds` | `drink_tds` |
 | `ShotAnnotations.drinkEy` | `drink_ey` |
 | `ShotAnnotations.espressoNotes` | `espresso_notes` |
@@ -600,7 +601,7 @@ Visualizer stores these shot-level metadata fields (from `shots` table schema):
 | `grinder_model` | `GrinderSnapshot.model` / `Grinder.model` | |
 | `grinder_setting` | `WorkflowContext.grinderSetting` | |
 | `bean_weight` | `WorkflowContext.doseWeight` | DE1: `grinder_dose_weight` |
-| `drink_weight` | `ShotAnnotations.drinkWeight` | |
+| `drink_weight` | `ShotAnnotations.actualYield` | |
 | `drink_tds` | `ShotAnnotations.drinkTds` | |
 | `drink_ey` | `ShotAnnotations.drinkEy` | |
 | `espresso_enjoyment` | `ShotAnnotations.tasting.enjoyment` | Integer |
@@ -809,7 +810,7 @@ PUT /api/v1/shots/<id>
 {
   "annotations": {
     "doseWeight": 18.2,
-    "drinkWeight": 37.1,
+    "actualYield": 37.1,
     "drinkTds": 8.5,
     "drinkEy": 21.3,
     "tasting": {
