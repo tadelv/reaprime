@@ -126,7 +126,7 @@ The coffee itself — origin, producer, variety. Immutable identity; batches tra
 | `region` | String? | Region/state/province | `bean_region` |
 | `producer` | String? | Farm/estate/cooperative | `bean_producer` |
 | `variety` | List\<String\>? | Geisha, SL28, Pink Bourbon, etc. | `bean_variety` |
-| `altitude` | String? | Elevation (e.g., "1800-2000 masl") | `bean_altitude` |
+| `altitude` | List\<int\>? | Elevation in masl — single value `[1800]` or range `[1800, 2000]` | `bean_altitude` |
 | `processing` | String? | Washed, Natural, Honey, Anaerobic, etc. | `bean_processing` |
 | `notes` | String? | General notes about this coffee | `bean_notes` |
 | `archived` | bool | Soft delete / hide from active lists | *(new, from BC)* |
