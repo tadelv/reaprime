@@ -101,6 +101,9 @@ Some fields exist on both WorkflowContext and ShotAnnotations as intent vs outco
 | Dose | `doseWeight` (target) | `doseWeight` (actual) |
 | Barista | `baristaName` (default) | `baristaName` (override) |
 | Drinker | `drinkerName` (default) | `drinkerName` (override) |
+| Added liquid type | `addedLiquidType` (default) | `addedLiquidType` (override) |
+| Added liquid weight | `addedLiquidWeight` (target) | `addedLiquidWeight` (actual) |
+| Added liquid temp | `addedLiquidTemperature` (target) | `addedLiquidTemperature` (actual) |
 
 Consumer logic: post-shot value wins if present, otherwise fall back to pre-shot value.
 
@@ -328,6 +331,11 @@ class WorkflowContext {
   String? baristaName;        // DE1: my_name — who usually makes the coffee
   String? drinkerName;        // DE1: drinker_name — who usually drinks it
 
+  // === Added Liquid (defaults, overridable per-shot in ShotAnnotations) ===
+  String? addedLiquidType;         // milk, oat milk, water, etc.
+  double? addedLiquidWeight;       // target weight in grams
+  double? addedLiquidTemperature;  // target temperature in °C
+
   // === Shot Preparation Technique ===
   String? distributionTechnique;
   String? tampingTechnique;
@@ -551,12 +559,18 @@ For import/export compatibility with .shot files and the Tcl app history.
 | `WorkflowContext.doseWeight` | `grinder_dose_weight` |
 | `WorkflowContext.baristaName` | `my_name` (default) |
 | `WorkflowContext.drinkerName` | `drinker_name` (default) |
+| `WorkflowContext.addedLiquidType` | `added_liquid_type` (default) |
+| `WorkflowContext.addedLiquidWeight` | `added_liquid_weight` (default) |
+| `WorkflowContext.addedLiquidTemperature` | `added_liquid_temperature` (default) |
 | `ShotAnnotations.doseWeight` | `grinder_dose_weight` (actual, takes precedence) |
 | `ShotAnnotations.drinkWeight` | `drink_weight` |
 | `ShotAnnotations.drinkTds` | `drink_tds` |
 | `ShotAnnotations.drinkEy` | `drink_ey` |
 | `ShotAnnotations.espressoNotes` | `espresso_notes` |
 | `ShotAnnotations.beverageType` | `beverage_type` |
+| `ShotAnnotations.addedLiquidType` | `added_liquid_type` (override, takes precedence) |
+| `ShotAnnotations.addedLiquidWeight` | `added_liquid_weight` (override, takes precedence) |
+| `ShotAnnotations.addedLiquidTemperature` | `added_liquid_temperature` (override, takes precedence) |
 | `ShotAnnotations.tasting.enjoyment` | `enjoyment` |
 | `ShotAnnotations.baristaName` | `my_name` (override, takes precedence) |
 | `ShotAnnotations.drinkerName` | `drinker_name` (override, takes precedence) |
