@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
+import 'package:reaprime/src/models/data/workflow_context.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/workflow_export_section.dart';
 
@@ -24,7 +25,7 @@ Workflow _makeWorkflow({
       targetWeight: 36.0,
       targetVolumeCountStart: 0,
     ),
-    doseData: DoseData(doseIn: 18.0, doseOut: 36.0),
+    context: WorkflowContext(targetDoseWeight: 18.0, targetYield: 36.0),
     steamSettings: SteamSettings.defaults(),
     hotWaterData: HotWaterData.defaults(),
     rinseData: RinseData.defaults(),
@@ -59,6 +60,7 @@ void main() {
       expect(map['name'], equals('My Workflow'));
       expect(map['id'], equals('wf-1'));
       expect(map['profile'], isA<Map<String, dynamic>>());
+      expect(map['context'], isA<Map<String, dynamic>>());
       expect(map['doseData'], isA<Map<String, dynamic>>());
     });
 

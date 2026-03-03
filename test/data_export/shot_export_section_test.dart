@@ -1,8 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
+import 'package:reaprime/src/models/data/shot_annotations.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
+import 'package:reaprime/src/models/data/workflow_context.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/shot_export_section.dart';
@@ -85,12 +87,12 @@ ShotRecord _makeShotRecord({
         targetWeight: 36.0,
         targetVolumeCountStart: 0,
       ),
-      doseData: DoseData(doseIn: 18.0, doseOut: 36.0),
+      context: WorkflowContext(targetDoseWeight: 18.0, targetYield: 36.0),
       steamSettings: SteamSettings.defaults(),
       hotWaterData: HotWaterData.defaults(),
       rinseData: RinseData.defaults(),
     ),
-    shotNotes: shotNotes,
+    annotations: shotNotes != null ? ShotAnnotations(espressoNotes: shotNotes) : null,
   );
 }
 
@@ -221,7 +223,7 @@ void main() {
 
       final stored = await storage.getShot('shot-1');
       expect(stored, isNotNull);
-      expect(stored!.shotNotes, equals('updated'));
+      expect(stored!.annotations?.espressoNotes, equals('updated'));
     });
 
     test('returns error for non-list data', () async {

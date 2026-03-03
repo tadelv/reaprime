@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
+import 'package:reaprime/src/models/data/shot_annotations.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/util/shot_chart.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -104,22 +105,17 @@ class _HistoryFeatureState extends State<HistoryFeature> {
         }
         
         // Search in grinder model
-        if (record.workflow.grinderData?.model?.toLowerCase().contains(text) ?? false) {
+        if (record.workflow.context?.grinderModel?.toLowerCase().contains(text) ?? false) {
           return true;
         }
-        
-        // Search in grinder manufacturer
-        if (record.workflow.grinderData?.manufacturer?.toLowerCase().contains(text) ?? false) {
-          return true;
-        }
-        
+
         // Search in shot notes
-        if (record.shotNotes?.toLowerCase().contains(text) ?? false) {
+        if (record.annotations?.espressoNotes?.toLowerCase().contains(text) ?? false) {
           return true;
         }
-        
-        // Search in metadata values (recursive search through nested structures)
-        if (record.metadata != null && _searchInMetadata(record.metadata!, text)) {
+
+        // Search in extras (recursive search through nested structures)
+        if (record.annotations?.extras != null && _searchInMetadata(record.annotations!.extras!, text)) {
           return true;
         }
         
@@ -339,7 +335,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                           ),
                           
                           // Grinder info
-                          if (record.workflow.grinderData != null) ...[
+                          if (record.workflow.context?.grinderModel != null || record.workflow.context?.grinderSetting != null) ...[
                             const SizedBox(height: 6),
                             Row(
                               children: [
@@ -347,7 +343,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
-                                    "${record.workflow.grinderData!.model ?? 'Grinder'}: ${record.workflow.grinderData!.setting}",
+                                    "${record.workflow.context?.grinderModel ?? 'Grinder'}: ${record.workflow.context?.grinderSetting ?? ''}",
                                     style: Theme.of(context).textTheme.bodySmall,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -358,7 +354,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                           ],
                           
                           // Notes preview
-                          if (record.shotNotes != null && record.shotNotes!.isNotEmpty) ...[
+                          if (record.annotations?.espressoNotes != null && record.annotations!.espressoNotes!.isNotEmpty) ...[
                             const SizedBox(height: 8),
                             Container(
                               padding: const EdgeInsets.all(6),
@@ -373,7 +369,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                                   const SizedBox(width: 4),
                                   Expanded(
                                     child: Text(
-                                      record.shotNotes!,
+                                      record.annotations!.espressoNotes!,
                                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                         fontStyle: FontStyle.italic,
                                       ),
@@ -387,13 +383,13 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                           ],
                           
                           // Metadata tags
-                          if (record.metadata != null && record.metadata!['tags'] != null) ...[
+                          if (record.annotations?.extras != null && record.annotations!.extras!['tags'] != null) ...[
                             const SizedBox(height: 6),
                             Wrap(
                               spacing: 4,
                               runSpacing: 4,
                               children: [
-                                for (var tag in (record.metadata!['tags'] as List).take(3))
+                                for (var tag in (record.annotations!.extras!['tags'] as List).take(3))
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
@@ -618,30 +614,25 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                     value: record.workflow.profile.title,
                     context: context,
                   ),
-                  if (record.workflow.grinderData != null) ...[
+                  if (record.workflow.context?.grinderModel != null || record.workflow.context?.grinderSetting != null) ...[
                     _DetailRow(
                       label: "Grinder",
-                      value: record.workflow.grinderData!.model ?? "Unknown",
+                      value: record.workflow.context?.grinderModel ?? "Unknown",
                       context: context,
                     ),
-                    if (record.workflow.grinderData!.manufacturer != null)
+                    if (record.workflow.context?.grinderSetting != null)
                       _DetailRow(
-                        label: "Brand",
-                        value: record.workflow.grinderData!.manufacturer!,
+                        label: "Setting",
+                        value: record.workflow.context!.grinderSetting!,
                         context: context,
                       ),
-                    _DetailRow(
-                      label: "Setting",
-                      value: record.workflow.grinderData!.setting,
-                      context: context,
-                    ),
                   ],
                 ],
               ),
             ),
             
             // Notes section
-            if (record.shotNotes != null && record.shotNotes!.isNotEmpty) ...[
+            if (record.annotations?.espressoNotes != null && record.annotations!.espressoNotes!.isNotEmpty) ...[
               SizedBox(height: 16),
               ShadCard(
                 padding: EdgeInsets.all(16),
@@ -662,7 +653,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                     ),
                     SizedBox(height: 12),
                     Text(
-                      record.shotNotes!,
+                      record.annotations!.espressoNotes!,
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
@@ -670,8 +661,8 @@ class _HistoryFeatureState extends State<HistoryFeature> {
               ),
             ],
             
-            // Metadata section
-            if (record.metadata != null && record.metadata!.isNotEmpty) ...[
+            // Extras section
+            if (record.annotations?.extras != null && record.annotations!.extras!.isNotEmpty) ...[
               SizedBox(height: 16),
               ShadCard(
                 padding: EdgeInsets.all(16),
@@ -691,7 +682,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                       ],
                     ),
                     SizedBox(height: 12),
-                    ...record.metadata!.entries.map((entry) {
+                    ...record.annotations!.extras!.entries.map((entry) {
                       if (entry.key == 'tags' && entry.value is List) {
                         return Padding(
                           padding: EdgeInsets.only(bottom: 8),
@@ -771,7 +762,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
   }
 
   void _showEditDialog(BuildContext context, ShotRecord record) {
-    final notesController = TextEditingController(text: record.shotNotes ?? '');
+    final notesController = TextEditingController(text: record.annotations?.espressoNotes ?? '');
 
     showShadDialog(
       context: context,
@@ -801,8 +792,11 @@ class _HistoryFeatureState extends State<HistoryFeature> {
             child: const Text('Save'),
             onPressed: () async {
               try {
+                final newNotes = notesController.text.isEmpty ? null : notesController.text;
+                final updatedAnnotations = (record.annotations ?? const ShotAnnotations())
+                    .copyWith(espressoNotes: newNotes ?? '');
                 final updatedShot = record.copyWith(
-                  shotNotes: notesController.text.isEmpty ? null : notesController.text,
+                  annotations: updatedAnnotations,
                 );
                 await widget.persistenceController.updateShot(updatedShot);
                 Navigator.of(context).pop();

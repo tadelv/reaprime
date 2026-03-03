@@ -532,7 +532,7 @@ class De1StateManager with WidgetsBindingObserver {
       de1controller: _de1Controller,
       persistenceController: _persistenceController,
       targetProfile: _workflowController.currentWorkflow.profile,
-      doseData: _workflowController.currentWorkflow.doseData,
+      targetYield: _workflowController.currentWorkflow.context?.targetYield ?? 0,
     );
 
     _currentShotSnapshots.clear();

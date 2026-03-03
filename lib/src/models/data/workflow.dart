@@ -1,5 +1,6 @@
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/utils.dart';
+import 'package:reaprime/src/models/data/workflow_context.dart';
 import 'package:uuid/uuid.dart';
 
 class Workflow {
@@ -7,64 +8,104 @@ class Workflow {
   final String name;
   final String description;
   final Profile profile;
-  final DoseData doseData;
-  final GrinderData? grinderData;
-  final CoffeeData? coffeeData;
+  final WorkflowContext? context;
   final SteamSettings steamSettings;
   final HotWaterData hotWaterData;
   final RinseData rinseData;
 
-  const Workflow({
+  // Legacy fields kept for backward compatibility during migration.
+  // These are stored privately and exposed via deprecated getters.
+  final DoseData _doseData;
+  final GrinderData? _grinderData;
+  final CoffeeData? _coffeeData;
+
+  Workflow({
     required this.id,
     required this.name,
     this.description = '',
     required this.profile,
-    required this.doseData,
-    this.grinderData,
-    this.coffeeData,
+    this.context,
+    DoseData? doseData,
+    GrinderData? grinderData,
+    CoffeeData? coffeeData,
     required this.steamSettings,
     required this.hotWaterData,
     required this.rinseData,
-  });
+  })  : _doseData = doseData ?? DoseData(
+          doseIn: context?.targetDoseWeight ?? 16.0,
+          doseOut: context?.targetYield ?? 36.0,
+        ),
+        _grinderData = grinderData ?? (context != null
+            ? GrinderData(
+                setting: context.grinderSetting ?? '',
+                model: context.grinderModel,
+              )
+            : null),
+        _coffeeData = coffeeData ?? (context != null
+            ? CoffeeData(
+                name: context.coffeeName ?? '',
+                roaster: context.coffeeRoaster,
+              )
+            : null);
+
+  /// Synthesized from context when available, otherwise from legacy field.
+  @Deprecated('Use context?.targetDoseWeight and context?.targetYield instead')
+  DoseData get doseData => _doseData;
+
+  @Deprecated('Use context?.grinderModel and context?.grinderSetting instead')
+  GrinderData? get grinderData => _grinderData;
+
+  @Deprecated('Use context?.coffeeName and context?.coffeeRoaster instead')
+  CoffeeData? get coffeeData => _coffeeData;
 
   factory Workflow.fromJson(Map<String, dynamic> json) {
+    // Read context from new format, or synthesize from legacy fields
+    WorkflowContext? ctx;
+    if (json['context'] != null) {
+      ctx = WorkflowContext.fromJson(json['context']);
+    } else if (json['doseData'] != null) {
+      ctx = WorkflowContext.fromLegacyJson(json);
+    }
+
     return Workflow(
       id: json['id'],
       name: json['name'],
       description: json['description'],
       profile: Profile.fromJson(json['profile']),
-      doseData: DoseData.fromJson(json['doseData']),
-      coffeeData:
-          json['coffeeData'] != null
-              ? CoffeeData.fromJson(json['coffeeData'])
-              : null,
-      grinderData:
-          json['grinderData'] != null
-              ? GrinderData.fromJson(json['grinderData'])
-              : null,
-      steamSettings:
-          json['steamSettings'] != null
-              ? SteamSettings.fromJson(json['steamSettings'])
-              : SteamSettings.defaults(),
-      hotWaterData:
-          json['hotWaterData'] != null
-              ? HotWaterData.fromJson(json['hotWaterData'])
-              : HotWaterData.defaults(),
-      rinseData:
-          json['rinseData'] != null
-              ? RinseData.fromJson(json['rinseData'])
-              : RinseData.defaults(),
+      context: ctx,
+      // Still parse legacy fields for backward compat with old callers
+      doseData: json['doseData'] != null
+          ? DoseData.fromJson(json['doseData'])
+          : null,
+      coffeeData: json['coffeeData'] != null
+          ? CoffeeData.fromJson(json['coffeeData'])
+          : null,
+      grinderData: json['grinderData'] != null
+          ? GrinderData.fromJson(json['grinderData'])
+          : null,
+      steamSettings: json['steamSettings'] != null
+          ? SteamSettings.fromJson(json['steamSettings'])
+          : SteamSettings.defaults(),
+      hotWaterData: json['hotWaterData'] != null
+          ? HotWaterData.fromJson(json['hotWaterData'])
+          : HotWaterData.defaults(),
+      rinseData: json['rinseData'] != null
+          ? RinseData.fromJson(json['rinseData'])
+          : RinseData.defaults(),
     );
   }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'name': name,
       'description': description,
       'profile': profile.toJson(),
-      'doseData': doseData.toJson(),
-      'coffeeData': coffeeData?.toJson(),
-      'grinderData': grinderData?.toJson(),
+      if (context != null) 'context': context!.toJson(),
+      // Write legacy fields too for backward compat with older app versions
+      'doseData': _doseData.toJson(),
+      'coffeeData': _coffeeData?.toJson(),
+      'grinderData': _grinderData?.toJson(),
       'steamSettings': steamSettings.toJson(),
       'hotWaterData': hotWaterData.toJson(),
       'rinseData': rinseData.toJson(),
@@ -75,6 +116,7 @@ class Workflow {
     String? name,
     String? description,
     Profile? profile,
+    WorkflowContext? context,
     DoseData? doseData,
     GrinderData? grinderData,
     CoffeeData? coffeeData,
@@ -87,9 +129,10 @@ class Workflow {
       name: name ?? this.name,
       description: description ?? this.description,
       profile: profile ?? this.profile,
-      doseData: doseData ?? this.doseData,
-      grinderData: grinderData ?? this.grinderData,
-      coffeeData: coffeeData ?? this.coffeeData,
+      context: context ?? this.context,
+      doseData: doseData ?? _doseData,
+      grinderData: grinderData ?? _grinderData,
+      coffeeData: coffeeData ?? _coffeeData,
       steamSettings: steamSettings ?? this.steamSettings,
       hotWaterData: hotWaterData ?? this.hotWaterData,
       rinseData: rinseData ?? this.rinseData,
@@ -98,7 +141,6 @@ class Workflow {
 }
 
 class DoseData {
-  // TODO: final?
   double doseIn;
   double doseOut;
 

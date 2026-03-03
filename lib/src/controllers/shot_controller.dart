@@ -6,7 +6,6 @@ import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
-import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/settings/gateway_mode.dart';
@@ -38,7 +37,7 @@ class ShotController {
     required this.de1controller,
     required this.persistenceController,
     required this.targetProfile,
-    required this.doseData,
+    required this.targetYield,
   }) {
     Future.value(_initialize()).then((_) {
       _log.info("ShotController initialized");
@@ -120,7 +119,7 @@ class ShotController {
   DateTime _shotStartTime = DateTime.now();
   DateTime get shotStartTime => _shotStartTime;
 
-  final DoseData doseData;
+  final double targetYield;
   ShotState _state = ShotState.idle;
 
   _processSnapshot(ShotSnapshot snapshot) {
@@ -245,9 +244,9 @@ class ShotController {
               de1controller.connectedDe1().requestState(MachineState.skipStep);
             }
           }
-          if (doseData.doseOut > 0 && projectedWeight >= doseData.doseOut) {
+          if (targetYield > 0 && projectedWeight >= targetYield) {
             _log.info(
-              "Target weight ${doseData.doseOut}g reached (projected: $projectedWeight). Stopping shot.",
+              "Target weight ${targetYield}g reached (projected: $projectedWeight). Stopping shot.",
             );
             de1controller.connectedDe1().requestState(
               MachineState.idle,
