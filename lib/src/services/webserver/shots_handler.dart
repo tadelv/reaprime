@@ -23,34 +23,83 @@ class ShotsHandler {
   }
 
   Future<Response> _getShots(Request req) async {
-    // TODO: pagination required
-
     _log.fine('params: ${req.url.queryParametersAll}');
-    List<ShotRecord> shots = await _controller.shots.first;
-    var ids = req.url.queryParametersAll['ids'];
-    if (ids != null) {
-      shots =
-          shots.where((e) {
-            return ids.contains(e.id);
-          }).toList();
+
+    final params = req.url.queryParameters;
+
+    // Pagination params
+    final limit = int.tryParse(params['limit'] ?? '') ?? 20;
+    final offset = int.tryParse(params['offset'] ?? '') ?? 0;
+
+    // Filter params
+    final grinderId = params['grinderId'];
+    final grinderModel = params['grinderModel'];
+    final beanBatchId = params['beanBatchId'];
+    final coffeeName = params['coffeeName'];
+    final coffeeRoaster = params['coffeeRoaster'];
+    final profileTitle = params['profileTitle'];
+
+    // Legacy: support filtering by ids
+    final ids = req.url.queryParametersAll['ids'];
+    final hasFilters = grinderId != null ||
+        grinderModel != null ||
+        beanBatchId != null ||
+        coffeeName != null ||
+        coffeeRoaster != null ||
+        profileTitle != null;
+
+    // If filtering by IDs (legacy), use the old path
+    if (ids != null && ids.isNotEmpty && !hasFilters) {
+      List<ShotRecord> shots = await _controller.shots.first;
+      shots = shots.where((e) => ids.contains(e.id)).toList();
+
+      final order = params['order'] ?? 'desc';
+      if (order != 'asc' && order != 'desc') {
+        return jsonBadRequest(
+            {"error": "Invalid order value. Supported: asc, desc"});
+      }
+      shots.sort((a, b) => order == 'asc'
+          ? a.timestamp.compareTo(b.timestamp)
+          : b.timestamp.compareTo(a.timestamp));
+
+      return jsonOk(shots.map((e) => e.toJson()).toList());
     }
 
-    final orderBy = req.url.queryParameters['orderBy'];
-    if (orderBy != null && orderBy != 'timestamp') {
-      return jsonBadRequest({"error": "Invalid orderBy value. Supported: timestamp"});
+    // Paginated + filtered path
+    try {
+      final shots = await _controller.storageService.getShotsPaginated(
+        limit: limit.clamp(1, 100),
+        offset: offset.clamp(0, 1 << 30),
+        grinderId: grinderId,
+        grinderModel: grinderModel,
+        beanBatchId: beanBatchId,
+        coffeeName: coffeeName,
+        coffeeRoaster: coffeeRoaster,
+        profileTitle: profileTitle,
+      );
+
+      final total = await _controller.storageService.countShots(
+        grinderId: grinderId,
+        grinderModel: grinderModel,
+        beanBatchId: beanBatchId,
+        coffeeName: coffeeName,
+        coffeeRoaster: coffeeRoaster,
+        profileTitle: profileTitle,
+      );
+
+      // Strip measurements from list response for performance
+      final items = shots.map((s) => s.toJsonWithoutMeasurements()).toList();
+
+      return jsonOk({
+        'items': items,
+        'total': total,
+        'limit': limit,
+        'offset': offset,
+      });
+    } catch (e, st) {
+      _log.severe('Error getting paginated shots', e, st);
+      return jsonError({"error": e.toString()});
     }
-
-    final order = req.url.queryParameters['order'] ?? 'desc';
-    if (order != 'asc' && order != 'desc') {
-      return jsonBadRequest({"error": "Invalid order value. Supported: asc, desc"});
-    }
-
-    shots.sort((a, b) => order == 'asc'
-        ? a.timestamp.compareTo(b.timestamp)
-        : b.timestamp.compareTo(a.timestamp));
-
-    final shotObjects = shots.map((e) => e.toJson()).toList();
-    return jsonOk(shotObjects);
   }
 
   Future<Response> _getIds(Request req) async {
@@ -75,8 +124,13 @@ class ShotsHandler {
   }
 
   Future<Response> _getLatestShot(Request req) async {
-    List<ShotRecord> shots = await _controller.shots.first;
-    return jsonOk(shots.firstOrNull?.toJson());
+    try {
+      final shot = await _controller.storageService.getLatestShot();
+      return jsonOk(shot?.toJson());
+    } catch (e, st) {
+      _log.severe('Error getting latest shot', e, st);
+      return jsonError({"error": e.toString()});
+    }
   }
 
   Future<Response> _getShot(Request req, String id) async {

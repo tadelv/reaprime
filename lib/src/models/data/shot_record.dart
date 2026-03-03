@@ -45,6 +45,18 @@ class ShotRecord {
     };
   }
 
+  /// JSON without measurements — used for paginated list responses.
+  Map<String, dynamic> toJsonWithoutMeasurements() {
+    return {
+      "id": id,
+      "timestamp": timestamp.toIso8601String(),
+      "workflow": workflow.toJson(),
+      if (annotations != null) "annotations": annotations!.toJson(),
+      if (_shotNotes != null) "shotNotes": _shotNotes,
+      if (_metadata != null) "metadata": _metadata,
+    };
+  }
+
   factory ShotRecord.fromJson(Map<String, dynamic> json) {
     // Read annotations from new format, or synthesize from legacy fields
     ShotAnnotations? ann;

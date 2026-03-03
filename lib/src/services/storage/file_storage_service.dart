@@ -91,6 +91,50 @@ class FileStorageService implements StorageService {
   }
 
   @override
+  Future<List<ShotRecord>> getShotsPaginated({
+    int limit = 20,
+    int offset = 0,
+    String? grinderId,
+    String? grinderModel,
+    String? beanBatchId,
+    String? coffeeName,
+    String? coffeeRoaster,
+    String? profileTitle,
+  }) async {
+    // File-based fallback: load all, filter in memory, paginate.
+    var shots = await getAllShots();
+    shots.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    if (profileTitle != null) {
+      shots = shots.where((s) => s.workflow.profile.title == profileTitle).toList();
+    }
+    return shots.skip(offset).take(limit).toList();
+  }
+
+  @override
+  Future<int> countShots({
+    String? grinderId,
+    String? grinderModel,
+    String? beanBatchId,
+    String? coffeeName,
+    String? coffeeRoaster,
+    String? profileTitle,
+  }) async {
+    var shots = await getAllShots();
+    if (profileTitle != null) {
+      shots = shots.where((s) => s.workflow.profile.title == profileTitle).toList();
+    }
+    return shots.length;
+  }
+
+  @override
+  Future<ShotRecord?> getLatestShot() async {
+    final shots = await getAllShots();
+    if (shots.isEmpty) return null;
+    shots.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return shots.first;
+  }
+
+  @override
   Future<Workflow?> loadCurrentWorkflow() async {
     File file = File('${dataPath.path}/defaultWorkflow.json');
     String contents = await file.readAsString();

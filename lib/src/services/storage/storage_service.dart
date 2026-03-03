@@ -9,6 +9,32 @@ abstract class StorageService {
   Future<List<ShotRecord>> getAllShots();
   Future<ShotRecord?> getShot(String id);
 
-	Future<void> storeCurrentWorkflow(Workflow workflow);
-	Future<Workflow?> loadCurrentWorkflow();
+  Future<void> storeCurrentWorkflow(Workflow workflow);
+  Future<Workflow?> loadCurrentWorkflow();
+
+  /// Get paginated shots with optional filters.
+  /// Returns shots without measurement data for list views.
+  Future<List<ShotRecord>> getShotsPaginated({
+    int limit = 20,
+    int offset = 0,
+    String? grinderId,
+    String? grinderModel,
+    String? beanBatchId,
+    String? coffeeName,
+    String? coffeeRoaster,
+    String? profileTitle,
+  });
+
+  /// Count total shots matching the given filters.
+  Future<int> countShots({
+    String? grinderId,
+    String? grinderModel,
+    String? beanBatchId,
+    String? coffeeName,
+    String? coffeeRoaster,
+    String? profileTitle,
+  });
+
+  /// Get the most recent shot.
+  Future<ShotRecord?> getLatestShot();
 }
