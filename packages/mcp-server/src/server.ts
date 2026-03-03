@@ -16,6 +16,8 @@ import { AppManager } from "./lifecycle/app-manager.js";
 import { registerLifecycleTools } from "./tools/lifecycle.js";
 import { WsClient } from "./bridge/ws-client.js";
 import { registerStreamingTools } from "./tools/streaming.js";
+import { registerStaticResources } from "./resources/static-docs.js";
+import { registerLiveResources } from "./resources/live-state.js";
 
 export interface ServerConfig {
   host: string;
@@ -63,6 +65,10 @@ export function createServer(config: ServerConfig) {
 
   const wsClient = new WsClient(`http://${config.host}:${config.port}`);
   registerStreamingTools(server, wsClient);
+
+  // Resources
+  registerStaticResources(server, config.projectRoot);
+  registerLiveResources(server, restClient);
 
   // Cleanup on process exit
   process.on("exit", () => { appManager.stop().catch(() => {}); wsClient.unsubscribeAll(); });
