@@ -28,8 +28,12 @@ import 'package:reaprime/src/services/webserver/data_export/shot_export_section.
 import 'package:reaprime/src/services/webserver/data_export/workflow_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/settings_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/kv_store_export_section.dart';
+import 'package:reaprime/src/services/webserver/beans_handler.dart';
+import 'package:reaprime/src/services/webserver/grinders_handler.dart';
 import 'package:reaprime/src/services/webserver/shots_handler.dart';
 import 'package:reaprime/src/services/webserver/workflow_handler.dart';
+import 'package:reaprime/src/services/storage/bean_storage_service.dart';
+import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
@@ -91,8 +95,10 @@ Future<void> startWebServer(
   WebViewLogService webViewLogService,
   BatteryController? batteryController,
   PresenceController? presenceController,
-  DisplayController? displayController,
-) async {
+  DisplayController? displayController, {
+  BeanStorageService? beanStorage,
+  GrinderStorageService? grinderStorage,
+}) async {
   log.info("starting webserver");
   final de1Handler = De1Handler(controller: de1Controller);
   final scaleHandler = ScaleHandler(controller: scaleController);
@@ -154,6 +160,16 @@ Future<void> startWebServer(
     displayHandler = DisplayHandler(displayController: displayController);
   }
 
+  BeansHandler? beansHandler;
+  if (beanStorage != null) {
+    beansHandler = BeansHandler(storage: beanStorage);
+  }
+
+  GrindersHandler? grindersHandler;
+  if (grinderStorage != null) {
+    grindersHandler = GrindersHandler(storage: grinderStorage);
+  }
+
   final kvStoreHandler = KvStoreHandler();
   await kvStoreHandler.store.initialize();
 
@@ -187,6 +203,8 @@ Future<void> startWebServer(
       presenceHandler,
       displayHandler,
       dataExportHandler,
+      beansHandler,
+      grindersHandler,
     ),
     '0.0.0.0',
     8080,
@@ -216,6 +234,8 @@ Handler _init(
   PresenceHandler? presenceHandler,
   DisplayHandler? displayHandler,
   DataExportHandler dataExportHandler,
+  BeansHandler? beansHandler,
+  GrindersHandler? grindersHandler,
 ) {
   log.info("called _init");
   var app = Router().plus;
@@ -273,6 +293,12 @@ Handler _init(
     displayHandler.addRoutes(app);
   }
   dataExportHandler.addRoutes(app);
+  if (beansHandler != null) {
+    beansHandler.addRoutes(app);
+  }
+  if (grindersHandler != null) {
+    grindersHandler.addRoutes(app);
+  }
 
   final handler = const Pipeline()
       .addMiddleware(
