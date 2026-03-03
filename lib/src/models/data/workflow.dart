@@ -63,7 +63,24 @@ class Workflow {
     WorkflowContext? ctx;
     if (json['context'] != null) {
       ctx = WorkflowContext.fromJson(json['context']);
-    } else if (json['doseData'] != null) {
+    }
+
+    // Backfill context from legacy fields when present (e.g. API deep-merge
+    // updates grinderData/coffeeData but context only has dose fields).
+    final dose = json['doseData'] as Map<String, dynamic>?;
+    final grinder = json['grinderData'] as Map<String, dynamic>?;
+    final coffee = json['coffeeData'] as Map<String, dynamic>?;
+
+    if (ctx != null && (grinder != null || coffee != null || dose != null)) {
+      ctx = ctx.copyWith(
+        targetDoseWeight: ctx.targetDoseWeight ?? parseOptionalDouble(dose?['doseIn']),
+        targetYield: ctx.targetYield ?? parseOptionalDouble(dose?['doseOut']),
+        grinderSetting: ctx.grinderSetting ?? grinder?['setting'] as String?,
+        grinderModel: ctx.grinderModel ?? grinder?['model'] as String?,
+        coffeeName: ctx.coffeeName ?? coffee?['name'] as String?,
+        coffeeRoaster: ctx.coffeeRoaster ?? coffee?['roaster'] as String?,
+      );
+    } else if (ctx == null && (dose != null || grinder != null || coffee != null)) {
       ctx = WorkflowContext.fromLegacyJson(json);
     }
 

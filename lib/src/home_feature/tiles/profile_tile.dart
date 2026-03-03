@@ -523,8 +523,9 @@ class _ProfileState extends State<ProfileTile> {
           children: [
             Text("Grind setting"),
             Expanded(
-              child: Autocomplete(
+              child: Autocomplete<String>(
                 optionsBuilder: (TextEditingValue val) {
+                  if (val.text.isEmpty) return const [];
                   final options =
                       widget.persistenceController
                           .grinderOptions()
@@ -534,9 +535,10 @@ class _ProfileState extends State<ProfileTile> {
                             ),
                           )
                           .map((e) => e.setting)
-                          .toSet();
-                  if (options.isEmpty) {
-                    return [val.text];
+                          .toSet()
+                          .toList();
+                  if (!options.contains(val.text)) {
+                    return [val.text, ...options];
                   }
                   return options;
                 },
@@ -560,8 +562,9 @@ class _ProfileState extends State<ProfileTile> {
           children: [
             Text("Grinder model"),
             Expanded(
-              child: Autocomplete(
+              child: Autocomplete<String>(
                 optionsBuilder: (TextEditingValue val) {
+                  if (val.text.isEmpty) return const [];
                   final options =
                       widget.persistenceController
                           .grinderOptions()
@@ -578,9 +581,10 @@ class _ProfileState extends State<ProfileTile> {
                             }
                             return r;
                           })
-                          .toSet();
-                  if (options.isEmpty) {
-                    return [val.text];
+                          .toSet()
+                          .toList();
+                  if (!options.contains(val.text)) {
+                    return [val.text, ...options];
                   }
                   return options;
                 },
@@ -648,6 +652,7 @@ class _ProfileState extends State<ProfileTile> {
             Expanded(
               child: Autocomplete<String>(
                 optionsBuilder: (TextEditingValue val) {
+                  if (val.text.isEmpty) return const [];
                   final options =
                       widget.persistenceController
                           .coffeeOptions()
@@ -657,9 +662,10 @@ class _ProfileState extends State<ProfileTile> {
                             ),
                           )
                           .map((e) => e.name)
-                          .toSet();
-                  if (options.isEmpty) {
-                    return [val.text];
+                          .toSet()
+                          .toList();
+                  if (!options.contains(val.text)) {
+                    return [val.text, ...options];
                   }
                   return options;
                 },
@@ -685,6 +691,7 @@ class _ProfileState extends State<ProfileTile> {
             Expanded(
               child: Autocomplete<String>(
                 optionsBuilder: (TextEditingValue val) {
+                  if (val.text.isEmpty) return const [];
                   final options =
                       widget.persistenceController
                           .coffeeOptions()
@@ -701,9 +708,10 @@ class _ProfileState extends State<ProfileTile> {
                             }
                             return r;
                           })
-                          .toSet();
-                  if (options.isEmpty) {
-                    return [val.text];
+                          .toSet()
+                          .toList();
+                  if (!options.contains(val.text)) {
+                    return [val.text, ...options];
                   }
                   return options;
                 },
