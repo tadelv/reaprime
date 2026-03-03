@@ -120,9 +120,40 @@ During development, after every meaningful code change:
 - **`ProfileController`:** Profile library with content-based hash IDs for deduplication
 - **`WorkflowController`:** Multi-step espresso workflows
 
+### Storage
+
+Persistence uses Drift (SQLite) via `AppDatabase` in `lib/src/services/database/`. DAOs in `daos/` subfolder, mappers in `mappers/`. Storage service interfaces in `lib/src/services/storage/`:
+
+- **`StorageService`** — Shot CRUD + pagination/filtering + workflow persistence. Implemented by `DriftStorageService` (production) and `FileStorageService` (legacy fallback).
+- **`ProfileStorageService`** — Profile CRUD with visibility states. Implemented by `DriftProfileStorageService`.
+- **`BeanStorageService`** — Coffee bean + batch CRUD. Implemented by `DriftBeanStorageService`.
+- **`GrinderStorageService`** — Grinder CRUD. Implemented by `DriftGrinderStorageService`.
+
+**Ambiguous imports:** Domain models and Drift-generated code share class names (`ShotRecord`, `Workflow`, `ProfileRecord`). Use prefixed imports: `import '...shot_record.dart' as domain;` or `hide Workflow` on the database import.
+
 ### Web Server
 
-Handler-based routing in `lib/src/services/webserver/`. Each handler file is a `part of` `webserver_service.dart` (shares its imports — `Response`, `jsonError`, `sws`, etc.). Each handler has an `addRoutes()` method, registered in `_init()`. API docs served on port 4001. API specs in `assets/api/`.
+Handler-based routing in `lib/src/services/webserver/`. Standalone handlers (`ShotsHandler`, `WorkflowHandler`, `BeansHandler`, `GrindersHandler`) are imported and wired via `addRoutes()` in `webserver_service.dart`. Legacy `part of` handlers share the file's imports. Each handler has an `addRoutes()` method, registered in `_init()`. API docs served on port 4001. API specs in `assets/api/`.
+
+### REST API Overview
+
+| Resource | Base Path | Handler |
+|----------|-----------|---------|
+| Machine | `/api/v1/machine/` | `webserver_service.dart` (part of) |
+| Shots | `/api/v1/shots` | `shots_handler.dart` — paginated list `{items, total, limit, offset}`, filters by grinderId/grinderModel/beanBatchId/coffeeName/coffeeRoaster/profileTitle |
+| Profiles | `/api/v1/profiles` | `profiles_handler.dart` |
+| Workflow | `/api/v1/workflow` | `workflow_handler.dart` — GET/PUT with deep merge |
+| Beans | `/api/v1/beans` | `beans_handler.dart` — CRUD + `/api/v1/beans/<id>/batches` for batches, `/api/v1/bean-batches/<id>` for individual batch ops |
+| Grinders | `/api/v1/grinders` | `grinders_handler.dart` — CRUD |
+| Devices | `/api/v1/devices` | `webserver_service.dart` (part of) |
+
+### MCP Server
+
+The MCP server in `packages/mcp-server/` bridges Claude to the Flutter app's REST/WebSocket APIs. Tool files in `src/tools/`, registered in `src/server.ts`. Lifecycle management (start/stop/reload) in `src/lifecycle/app-manager.ts`.
+
+**When using MCP hot reload:** Always try `app_hot_reload` first (preserves state). Only use `app_hot_restart` if reload fails. Both have 30-second timeouts.
+
+**Adding MCP tools:** Create a tool file in `src/tools/`, export a `register*Tools(server, rest)` function, import and call it in `server.ts`. Follow existing patterns (Zod schemas, REST client delegation, JSON responses).
 
 ### Data Flow (key paths)
 
@@ -144,6 +175,7 @@ Handler-based routing in `lib/src/services/webserver/`. Each handler file is a `
 - **Stream subscriptions:** Always cancel in `dispose()` methods
 - **BLE Discovery:** Device discovery uses unfiltered scans with name-based matching (`DeviceMatcher`). Service verification happens during `onConnect()` using `BleServiceIdentifier`. All BLE operations use 128-bit UUID format for maximum platform compatibility.
 - **BLE reads:** Throttle rapid characteristic reads to avoid overwhelming Bluetooth stack
+- **Workflow dual representation:** Workflow JSON has both `context` (new: `WorkflowContext` with `grinderModel`, `coffeeName`, etc.) and legacy fields (`grinderData`, `coffeeData`, `doseData`). `Workflow.fromJson()` backfills context from legacy fields. UI reads from `context`; API clients can write to either. Always keep both in sync when modifying serialization.
 
 ## Testing
 
@@ -178,7 +210,8 @@ Run with `flutter test`. Simulated devices available via `--dart-define=simulate
 1. Create/modify handler in `lib/src/services/webserver/`
 2. Add route in handler's `addRoutes()`
 3. Register in `webserver_service.dart` `_init()`
-4. Document in `assets/api/rest_v1.yml` or `websocket_v1.yml`
+4. Add corresponding MCP tool in `packages/mcp-server/src/tools/` and register in `server.ts`
+5. Document in `assets/api/rest_v1.yml` or `websocket_v1.yml`
 
 ## Documentation
 
