@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:drift_flutter/drift_flutter.dart';
 import 'package:reaprime/src/services/database/converters/json_converters.dart';
 import 'package:reaprime/src/services/database/daos/bean_dao.dart';
 import 'package:reaprime/src/services/database/daos/grinder_dao.dart';
@@ -32,6 +33,11 @@ part 'database.g.dart';
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
+
+  /// Create with the platform-default SQLite location.
+  factory AppDatabase.defaults() {
+    return AppDatabase(driftDatabase(name: 'streamline_bridge'));
+  }
 
   @override
   int get schemaVersion => 1;
