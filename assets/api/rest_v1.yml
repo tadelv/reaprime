@@ -506,20 +506,22 @@ paths:
     put:
       summary: Update current workflow
       description: |
-        Updates the current workflow. This is the **recommended method** for applying changes 
+        Updates the current workflow. This is the **recommended method** for applying changes
         to the machine and brewing parameters in one atomic operation.
-        
+
         You can update the complete workflow or just specific fields:
+        - **context**: Set dose, grinder, coffee, and people metadata (recommended)
         - **profile**: Update the brewing profile
-        - **doseData**: Change input/output dose targets
-        - **grinderData**: Update grinder settings
-        - **coffeeData**: Change coffee information
         - **steamSettings**: Modify steam temperature, duration, and flow
         - **hotWaterData**: Adjust hot water temperature, volume, duration, and flow
         - **rinseData**: Update rinse temperature, duration, and flow
-        
-        This approach is preferred over updating individual settings via separate endpoints 
-        as it ensures all related settings are applied together and uploaded to the machine 
+
+        Use `context` for dose, grinder, and coffee parameters. Legacy fields
+        (`doseData`, `grinderData`, `coffeeData`) are still accepted for backward
+        compatibility but `context` takes precedence when both are provided.
+
+        This approach is preferred over updating individual settings via separate endpoints
+        as it ensures all related settings are applied together and uploaded to the machine
         as a cohesive recipe.
       tags: [Workflow]
       requestBody:
@@ -529,6 +531,28 @@ paths:
             schema:
               $ref: "#/components/schemas/WorkflowRequest"
             examples:
+              updateContext:
+                summary: Update dose and grinder via context (recommended)
+                value:
+                  context:
+                    targetDoseWeight: 18.5
+                    targetYield: 37.0
+                    grinderModel: "Niche Zero"
+                    grinderSetting: "5.2"
+                    coffeeName: "Ethiopia Yirgacheffe"
+                    coffeeRoaster: "Square Mile"
+              updateWithEntityIds:
+                summary: Link to managed grinder and bean batch
+                value:
+                  context:
+                    targetDoseWeight: 18.0
+                    targetYield: 36.0
+                    grinderId: "550e8400-e29b-41d4-a716-446655440000"
+                    grinderModel: "Niche Zero"
+                    grinderSetting: "5.2"
+                    beanBatchId: "660e8400-e29b-41d4-a716-446655440001"
+                    coffeeName: "Red Brick"
+                    coffeeRoaster: "Square Mile"
               updateProfile:
                 summary: Update just the profile
                 value:
@@ -536,16 +560,6 @@ paths:
                     version: "2"
                     title: "Updated Profile"
                     steps: []
-              updateDoseAndGrinder:
-                summary: Update dose and grinder settings
-                value:
-                  doseData:
-                    doseIn: 18.5
-                    doseOut: 37.0
-                  grinderData:
-                    setting: "2.8"
-                    manufacturer: "Niche"
-                    model: "Zero"
               updateSteamSettings:
                 summary: Update steam settings
                 value:
@@ -562,16 +576,14 @@ paths:
                     version: "2"
                     title: "Classic Profile"
                     steps: []
-                  doseData:
-                    doseIn: 18.0
-                    doseOut: 36.0
-                  grinderData:
-                    setting: "2.5"
-                    manufacturer: "Niche"
-                    model: "Zero"
-                  coffeeData:
-                    name: "Ethiopia Yirgacheffe"
-                    roaster: "Local Roaster"
+                  context:
+                    targetDoseWeight: 18.0
+                    targetYield: 36.0
+                    grinderModel: "Niche Zero"
+                    grinderSetting: "2.5"
+                    coffeeName: "Ethiopia Yirgacheffe"
+                    coffeeRoaster: "Local Roaster"
+                    finalBeverageType: "espresso"
                   steamSettings:
                     targetTemperature: 150
                     duration: 50
@@ -596,12 +608,71 @@ paths:
   # REA Shot history API
   /api/v1/shots:
     get:
-      summary: Get a list of shots stored by REA
+      summary: List shots (paginated and filtered)
+      description: |
+        Returns a paginated list of shot records. Measurements are excluded from
+        the list response for performance — use GET /api/v1/shots/{id} to retrieve
+        full shot data including measurements.
+
+        Supports filtering by grinder, coffee, and profile to help find specific shots.
       tags: [Shots History]
       parameters:
         - in: query
+          name: limit
+          description: Number of shots per page (1-100)
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - in: query
+          name: offset
+          description: Number of shots to skip
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - in: query
+          name: grinderId
+          description: Filter by grinder entity ID
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: grinderModel
+          description: Filter by grinder model name
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: beanBatchId
+          description: Filter by bean batch entity ID
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: coffeeName
+          description: Filter by coffee name
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: coffeeRoaster
+          description: Filter by coffee roaster
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: profileTitle
+          description: Filter by profile title
+          required: false
+          schema:
+            type: string
+        - in: query
           name: ids
-          description: identifiers of the shots, comma separated
+          description: "Legacy: filter by shot IDs (comma separated). Prefer limit/offset pagination."
           required: false
           schema:
             type: array
@@ -625,12 +696,11 @@ paths:
             default: desc
       responses:
         "200":
+          description: Paginated list of shots (without measurements)
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ShotRecord"
+                $ref: "#/components/schemas/PaginatedShots"
   /api/v1/shots/ids:
     get:
       summary: Get a list of identifiers of all the shots
@@ -816,6 +886,742 @@ paths:
                 properties:
                   error:
                     type: string
+
+  # Beans API
+  #
+  # Manage coffee beans and their batches (purchases/roasts).
+  # Beans represent a coffee origin/blend. Batches track individual purchases with
+  # roast dates, weight, pricing, and consumption.
+  #
+  /api/v1/beans:
+    get:
+      summary: List all beans
+      description: Returns all coffee beans, optionally including archived ones.
+      tags: [Beans]
+      parameters:
+        - name: includeArchived
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Include archived beans in results
+      responses:
+        "200":
+          description: Array of beans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Bean"
+        "500":
+          description: Internal Server Error
+    post:
+      summary: Create a new bean
+      description: Creates a new coffee bean entry. Requires roaster and name.
+      tags: [Beans]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - roaster
+                - name
+              properties:
+                roaster:
+                  type: string
+                  description: Coffee roaster name
+                name:
+                  type: string
+                  description: Coffee bean name
+                species:
+                  type: string
+                  nullable: true
+                decaf:
+                  type: boolean
+                  default: false
+                decafProcess:
+                  type: string
+                  nullable: true
+                country:
+                  type: string
+                  nullable: true
+                region:
+                  type: string
+                  nullable: true
+                producer:
+                  type: string
+                  nullable: true
+                variety:
+                  type: array
+                  items:
+                    type: string
+                  nullable: true
+                altitude:
+                  type: array
+                  items:
+                    type: integer
+                  nullable: true
+                  description: "Altitude range [min, max] in meters"
+                processing:
+                  type: string
+                  nullable: true
+                notes:
+                  type: string
+                  nullable: true
+                extras:
+                  type: object
+                  nullable: true
+                  additionalProperties: true
+            examples:
+              simpleBean:
+                summary: Minimal bean entry
+                value:
+                  roaster: "Square Mile"
+                  name: "Red Brick"
+              detailedBean:
+                summary: Detailed bean entry
+                value:
+                  roaster: "Square Mile"
+                  name: "Red Brick"
+                  country: "Brazil"
+                  region: "Cerrado"
+                  processing: "natural"
+                  variety: ["Yellow Bourbon"]
+                  altitude: [1100, 1300]
+      responses:
+        "201":
+          description: Bean created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bean"
+        "400":
+          description: Bad Request (missing required fields)
+        "500":
+          description: Internal Server Error
+
+  /api/v1/beans/{id}:
+    get:
+      summary: Get bean by ID
+      tags: [Beans]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Bean ID (UUID)
+      responses:
+        "200":
+          description: Bean found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bean"
+        "404":
+          description: Bean not found
+        "500":
+          description: Internal Server Error
+    put:
+      summary: Update a bean
+      description: Updates an existing bean. Pass only the fields to change.
+      tags: [Beans]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Bean ID (UUID)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                roaster:
+                  type: string
+                name:
+                  type: string
+                species:
+                  type: string
+                  nullable: true
+                decaf:
+                  type: boolean
+                decafProcess:
+                  type: string
+                  nullable: true
+                country:
+                  type: string
+                  nullable: true
+                region:
+                  type: string
+                  nullable: true
+                producer:
+                  type: string
+                  nullable: true
+                variety:
+                  type: array
+                  items:
+                    type: string
+                  nullable: true
+                altitude:
+                  type: array
+                  items:
+                    type: integer
+                  nullable: true
+                processing:
+                  type: string
+                  nullable: true
+                notes:
+                  type: string
+                  nullable: true
+                archived:
+                  type: boolean
+                extras:
+                  type: object
+                  nullable: true
+                  additionalProperties: true
+      responses:
+        "200":
+          description: Bean updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bean"
+        "400":
+          description: Bad Request
+        "404":
+          description: Bean not found
+        "500":
+          description: Internal Server Error
+    delete:
+      summary: Delete a bean
+      description: Permanently deletes a bean and all its batches.
+      tags: [Beans]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Bean ID (UUID)
+      responses:
+        "200":
+          description: Bean deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  id:
+                    type: string
+        "404":
+          description: Bean not found
+        "500":
+          description: Internal Server Error
+
+  /api/v1/beans/{beanId}/batches:
+    get:
+      summary: List batches for a bean
+      description: Returns all batches for a specific bean, optionally including archived ones.
+      tags: [Beans]
+      parameters:
+        - name: beanId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Parent bean ID
+        - name: includeArchived
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Include archived batches
+      responses:
+        "200":
+          description: Array of batches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BeanBatch"
+        "500":
+          description: Internal Server Error
+    post:
+      summary: Create a new batch for a bean
+      description: |
+        Creates a new batch (purchase/roast) for a bean. All fields are optional
+        except the parent bean ID (from the URL path). When weight is provided,
+        weightRemaining is automatically initialized to the same value.
+      tags: [Beans]
+      parameters:
+        - name: beanId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Parent bean ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                roastDate:
+                  type: string
+                  format: date-time
+                  nullable: true
+                roastLevel:
+                  type: string
+                  nullable: true
+                harvestDate:
+                  type: string
+                  nullable: true
+                qualityScore:
+                  type: number
+                  format: double
+                  nullable: true
+                price:
+                  type: number
+                  format: double
+                  nullable: true
+                currency:
+                  type: string
+                  nullable: true
+                weight:
+                  type: number
+                  format: double
+                  nullable: true
+                  description: Total weight in grams. weightRemaining is auto-set to this value.
+                buyDate:
+                  type: string
+                  format: date-time
+                  nullable: true
+                openDate:
+                  type: string
+                  format: date-time
+                  nullable: true
+                bestBeforeDate:
+                  type: string
+                  format: date-time
+                  nullable: true
+                notes:
+                  type: string
+                  nullable: true
+                extras:
+                  type: object
+                  nullable: true
+                  additionalProperties: true
+            examples:
+              simpleBatch:
+                summary: Basic batch with roast info
+                value:
+                  roastDate: "2026-02-28T00:00:00Z"
+                  roastLevel: "medium-light"
+                  weight: 250
+              detailedBatch:
+                summary: Detailed batch with pricing
+                value:
+                  roastDate: "2026-02-28T00:00:00Z"
+                  roastLevel: "medium-light"
+                  weight: 250
+                  price: 18.50
+                  currency: "EUR"
+                  qualityScore: 87.5
+      responses:
+        "201":
+          description: Batch created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeanBatch"
+        "400":
+          description: Bad Request
+        "500":
+          description: Internal Server Error
+
+  /api/v1/bean-batches/{id}:
+    get:
+      summary: Get a batch by ID
+      tags: [Beans]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Batch ID (UUID)
+      responses:
+        "200":
+          description: Batch found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeanBatch"
+        "404":
+          description: Batch not found
+        "500":
+          description: Internal Server Error
+    put:
+      summary: Update a batch
+      description: Updates an existing batch. Pass only the fields to change.
+      tags: [Beans]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Batch ID (UUID)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                roastDate:
+                  type: string
+                  format: date-time
+                  nullable: true
+                roastLevel:
+                  type: string
+                  nullable: true
+                harvestDate:
+                  type: string
+                  nullable: true
+                qualityScore:
+                  type: number
+                  format: double
+                  nullable: true
+                price:
+                  type: number
+                  format: double
+                  nullable: true
+                currency:
+                  type: string
+                  nullable: true
+                weight:
+                  type: number
+                  format: double
+                  nullable: true
+                weightRemaining:
+                  type: number
+                  format: double
+                  nullable: true
+                  description: Remaining weight in grams
+                frozen:
+                  type: boolean
+                archived:
+                  type: boolean
+                notes:
+                  type: string
+                  nullable: true
+                extras:
+                  type: object
+                  nullable: true
+                  additionalProperties: true
+      responses:
+        "200":
+          description: Batch updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeanBatch"
+        "400":
+          description: Bad Request
+        "404":
+          description: Batch not found
+        "500":
+          description: Internal Server Error
+    delete:
+      summary: Delete a batch
+      description: Permanently deletes a bean batch.
+      tags: [Beans]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Batch ID (UUID)
+      responses:
+        "200":
+          description: Batch deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  id:
+                    type: string
+        "404":
+          description: Batch not found
+        "500":
+          description: Internal Server Error
+
+  # Grinders API
+  #
+  # Manage grinder equipment. Supports numeric (continuous dial) and preset
+  # (named positions) setting types.
+  #
+  /api/v1/grinders:
+    get:
+      summary: List all grinders
+      description: Returns all grinders, optionally including archived ones.
+      tags: [Grinders]
+      parameters:
+        - name: includeArchived
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Include archived grinders in results
+      responses:
+        "200":
+          description: Array of grinders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Grinder"
+        "500":
+          description: Internal Server Error
+    post:
+      summary: Create a new grinder
+      description: Creates a new grinder entry. Requires model name.
+      tags: [Grinders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - model
+              properties:
+                model:
+                  type: string
+                  description: Grinder model name
+                burrs:
+                  type: string
+                  nullable: true
+                burrSize:
+                  type: number
+                  format: double
+                  nullable: true
+                  description: Burr diameter in mm
+                burrType:
+                  type: string
+                  nullable: true
+                  description: "Burr geometry (e.g., flat, conical)"
+                notes:
+                  type: string
+                  nullable: true
+                settingType:
+                  type: string
+                  enum: [numeric, preset]
+                  default: "numeric"
+                settingValues:
+                  type: array
+                  items:
+                    type: string
+                  nullable: true
+                  description: Named positions (for preset type)
+                settingSmallStep:
+                  type: number
+                  format: double
+                  nullable: true
+                settingBigStep:
+                  type: number
+                  format: double
+                  nullable: true
+                rpmSmallStep:
+                  type: number
+                  format: double
+                  nullable: true
+                rpmBigStep:
+                  type: number
+                  format: double
+                  nullable: true
+                extras:
+                  type: object
+                  nullable: true
+                  additionalProperties: true
+            examples:
+              simpleGrinder:
+                summary: Simple grinder entry
+                value:
+                  model: "Niche Zero"
+              detailedGrinder:
+                summary: Detailed grinder with burr info
+                value:
+                  model: "Niche Zero"
+                  burrs: "Stock 63mm"
+                  burrSize: 63.0
+                  burrType: "conical"
+                  settingType: "numeric"
+                  settingSmallStep: 0.5
+                  settingBigStep: 5.0
+              presetGrinder:
+                summary: Grinder with preset positions
+                value:
+                  model: "Baratza Encore"
+                  settingType: "preset"
+                  settingValues: ["1", "5", "10", "15", "20", "25", "30", "35", "40"]
+      responses:
+        "201":
+          description: Grinder created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Grinder"
+        "400":
+          description: Bad Request (missing required fields)
+        "500":
+          description: Internal Server Error
+
+  /api/v1/grinders/{id}:
+    get:
+      summary: Get grinder by ID
+      tags: [Grinders]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Grinder ID (UUID)
+      responses:
+        "200":
+          description: Grinder found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Grinder"
+        "404":
+          description: Grinder not found
+        "500":
+          description: Internal Server Error
+    put:
+      summary: Update a grinder
+      description: Updates an existing grinder. Pass only the fields to change.
+      tags: [Grinders]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Grinder ID (UUID)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                model:
+                  type: string
+                burrs:
+                  type: string
+                  nullable: true
+                burrSize:
+                  type: number
+                  format: double
+                  nullable: true
+                burrType:
+                  type: string
+                  nullable: true
+                notes:
+                  type: string
+                  nullable: true
+                archived:
+                  type: boolean
+                settingType:
+                  type: string
+                  enum: [numeric, preset]
+                settingValues:
+                  type: array
+                  items:
+                    type: string
+                  nullable: true
+                settingSmallStep:
+                  type: number
+                  format: double
+                  nullable: true
+                settingBigStep:
+                  type: number
+                  format: double
+                  nullable: true
+                rpmSmallStep:
+                  type: number
+                  format: double
+                  nullable: true
+                rpmBigStep:
+                  type: number
+                  format: double
+                  nullable: true
+                extras:
+                  type: object
+                  nullable: true
+                  additionalProperties: true
+      responses:
+        "200":
+          description: Grinder updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Grinder"
+        "400":
+          description: Bad Request
+        "404":
+          description: Grinder not found
+        "500":
+          description: Internal Server Error
+    delete:
+      summary: Delete a grinder
+      description: Permanently deletes a grinder.
+      tags: [Grinders]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Grinder ID (UUID)
+      responses:
+        "200":
+          description: Grinder deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  id:
+                    type: string
+        "404":
+          description: Grinder not found
+        "500":
+          description: Internal Server Error
 
   # REA Key-Value Store for clients
   /api/v1/store/{namespace}:
@@ -2628,12 +3434,24 @@ components:
           type: string
         profile:
           $ref: "#/components/schemas/Profile"
+        context:
+          $ref: "#/components/schemas/WorkflowContext"
+          description: |
+            Unified shot metadata (dose, grinder, coffee, people). This is the recommended
+            way to set workflow parameters. Legacy fields (doseData, grinderData, coffeeData)
+            are still accepted for backward compatibility but context takes precedence.
         doseData:
           $ref: "#/components/schemas/DoseData"
+          deprecated: true
+          description: "Deprecated: use context.targetDoseWeight and context.targetYield instead"
         grinderData:
           $ref: "#/components/schemas/GrinderData"
+          deprecated: true
+          description: "Deprecated: use context.grinderModel, context.grinderSetting, and context.grinderId instead"
         coffeeData:
           $ref: "#/components/schemas/CoffeeData"
+          deprecated: true
+          description: "Deprecated: use context.coffeeName, context.coffeeRoaster, and context.beanBatchId instead"
         steamSettings:
           $ref: "#/components/schemas/SteamSettings"
         hotWaterData:
@@ -3056,4 +3874,399 @@ components:
           items:
             type: string
           description: Warning messages (e.g., platform mismatch for device preferences)
+
+    WorkflowContext:
+      type: object
+      description: |
+        Unified shot metadata containing dose, grinder, coffee, and people information.
+        All fields are nullable for flexible usage — from minimal (dose only) to full
+        (with entity IDs linking to managed beans/grinders).
+      properties:
+        targetDoseWeight:
+          type: number
+          format: double
+          nullable: true
+          description: Input dose weight in grams (dry coffee)
+          example: 18.0
+        targetYield:
+          type: number
+          format: double
+          nullable: true
+          description: Target output weight in grams (beverage)
+          example: 36.0
+        grinderId:
+          type: string
+          nullable: true
+          description: ID of a managed Grinder entity. When set, links to a grinder in /api/v1/grinders.
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        grinderModel:
+          type: string
+          nullable: true
+          description: Grinder model name (display string)
+          example: "Niche Zero"
+        grinderSetting:
+          type: string
+          nullable: true
+          description: Current grinder setting value
+          example: "5.2"
+        beanBatchId:
+          type: string
+          nullable: true
+          description: ID of a managed BeanBatch entity. When set, links to a batch in /api/v1/bean-batches.
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        coffeeName:
+          type: string
+          nullable: true
+          description: Coffee bean name (display string)
+          example: "Ethiopia Yirgacheffe"
+        coffeeRoaster:
+          type: string
+          nullable: true
+          description: Coffee roaster name (display string)
+          example: "Square Mile"
+        finalBeverageType:
+          type: string
+          nullable: true
+          description: Beverage classification (e.g., espresso, filter, lungo)
+          example: "espresso"
+        baristaName:
+          type: string
+          nullable: true
+          description: Name of the person pulling the shot
+          example: "Alice"
+        drinkerName:
+          type: string
+          nullable: true
+          description: Name of the person drinking the beverage
+          example: "Bob"
+        extras:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Arbitrary key-value pairs for plugin data or custom fields
+
+    Bean:
+      type: object
+      required:
+        - id
+        - roaster
+        - name
+        - decaf
+        - archived
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: Unique bean identifier (UUID)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        roaster:
+          type: string
+          description: Coffee roaster name
+          example: "Square Mile"
+        name:
+          type: string
+          description: Coffee bean name
+          example: "Red Brick"
+        species:
+          type: string
+          nullable: true
+          description: Coffee species (e.g., arabica, robusta)
+          example: "arabica"
+        decaf:
+          type: boolean
+          description: Whether the coffee is decaffeinated
+          default: false
+        decafProcess:
+          type: string
+          nullable: true
+          description: Decaffeination method (e.g., Swiss Water, CO2)
+        country:
+          type: string
+          nullable: true
+          description: Country of origin
+          example: "Ethiopia"
+        region:
+          type: string
+          nullable: true
+          description: Growing region
+          example: "Yirgacheffe"
+        producer:
+          type: string
+          nullable: true
+          description: Farm or producer name
+        variety:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: Bean varieties
+          example: ["Heirloom", "74110"]
+        altitude:
+          type: array
+          nullable: true
+          items:
+            type: integer
+          description: "Altitude range [min, max] in meters"
+          example: [1800, 2200]
+        processing:
+          type: string
+          nullable: true
+          description: Processing method (e.g., washed, natural, honey)
+          example: "washed"
+        notes:
+          type: string
+          nullable: true
+          description: Tasting notes or other information
+        archived:
+          type: boolean
+          description: Whether this bean is archived (hidden from default listings)
+          default: false
+        createdAt:
+          type: string
+          format: date-time
+          description: When the bean was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the bean was last updated
+        extras:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Arbitrary key-value pairs for custom data
+
+    BeanBatch:
+      type: object
+      description: |
+        A specific purchase or roast of a bean. Tracks roast date, weight, pricing,
+        and consumption. Multiple batches can exist for the same bean.
+      required:
+        - id
+        - beanId
+        - frozen
+        - archived
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: Unique batch identifier (UUID)
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        beanId:
+          type: string
+          description: Parent bean ID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        roastDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the coffee was roasted
+        roastLevel:
+          type: string
+          nullable: true
+          description: Roast level (e.g., light, medium, dark)
+          example: "medium-light"
+        harvestDate:
+          type: string
+          nullable: true
+          description: Harvest date or season
+        qualityScore:
+          type: number
+          format: double
+          nullable: true
+          description: Cupping or quality score
+          example: 87.5
+        price:
+          type: number
+          format: double
+          nullable: true
+          description: Purchase price
+          example: 18.50
+        currency:
+          type: string
+          nullable: true
+          description: Price currency code
+          example: "EUR"
+        weight:
+          type: number
+          format: double
+          nullable: true
+          description: Total weight in grams
+          example: 250.0
+        weightRemaining:
+          type: number
+          format: double
+          nullable: true
+          description: Remaining weight in grams (initialized to weight on creation)
+          example: 180.0
+        buyDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the batch was purchased
+        openDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the bag was opened
+        bestBeforeDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: Best before date
+        freezeDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the batch was frozen
+        unfreezeDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the batch was thawed
+        frozen:
+          type: boolean
+          description: Whether the batch is currently frozen
+          default: false
+        archived:
+          type: boolean
+          description: Whether this batch is archived
+          default: false
+        notes:
+          type: string
+          nullable: true
+          description: Notes about this batch
+        createdAt:
+          type: string
+          format: date-time
+          description: When the batch was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the batch was last updated
+        extras:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Arbitrary key-value pairs for custom data
+
+    Grinder:
+      type: object
+      required:
+        - id
+        - model
+        - archived
+        - settingType
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: Unique grinder identifier (UUID)
+          example: "770e8400-e29b-41d4-a716-446655440002"
+        model:
+          type: string
+          description: Grinder model name
+          example: "Niche Zero"
+        burrs:
+          type: string
+          nullable: true
+          description: Burr set name
+          example: "Stock 63mm"
+        burrSize:
+          type: number
+          format: double
+          nullable: true
+          description: Burr diameter in millimeters
+          example: 63.0
+        burrType:
+          type: string
+          nullable: true
+          description: Burr geometry (e.g., flat, conical)
+          example: "conical"
+        notes:
+          type: string
+          nullable: true
+          description: Notes about the grinder
+        archived:
+          type: boolean
+          description: Whether this grinder is archived
+          default: false
+        settingType:
+          type: string
+          enum: [numeric, preset]
+          description: |
+            How grinder settings are specified:
+            - `numeric`: Continuous dial with numeric values (use settingSmallStep/settingBigStep for increments)
+            - `preset`: Named positions defined in settingValues array
+          default: "numeric"
+        settingValues:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: Named setting positions (only used when settingType is "preset")
+          example: ["Fine", "Medium-Fine", "Medium", "Coarse"]
+        settingSmallStep:
+          type: number
+          format: double
+          nullable: true
+          description: Fine grind adjustment increment (for numeric type)
+          example: 0.1
+        settingBigStep:
+          type: number
+          format: double
+          nullable: true
+          description: Coarse grind adjustment increment (for numeric type)
+          example: 1.0
+        rpmSmallStep:
+          type: number
+          format: double
+          nullable: true
+          description: Fine RPM adjustment increment
+        rpmBigStep:
+          type: number
+          format: double
+          nullable: true
+          description: Coarse RPM adjustment increment
+        createdAt:
+          type: string
+          format: date-time
+          description: When the grinder was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the grinder was last updated
+        extras:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Arbitrary key-value pairs for custom data
+
+    PaginatedShots:
+      type: object
+      required:
+        - items
+        - total
+        - limit
+        - offset
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShotRecord"
+          description: Shot records (measurements excluded for performance — use GET /api/v1/shots/{id} for full data)
+        total:
+          type: integer
+          description: Total number of matching shots
+          example: 142
+        limit:
+          type: integer
+          description: Page size used
+          example: 20
+        offset:
+          type: integer
+          description: Offset used
+          example: 0
 

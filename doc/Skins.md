@@ -10,7 +10,9 @@ A **skin** is a web application that communicates with the Streamline-Bridge gat
 - Display real-time machine state (temperatures, pressures, flow rates)
 - Control espresso shot execution and machine state
 - Manage profiles and workflows
+- Manage coffee beans, grinder equipment, and link them to workflows
 - Visualize shot data in real-time
+- Browse and filter shot history
 - Control screen brightness and wake-lock behavior
 - Manage machine sleep schedules and presence-based auto-sleep
 - Customize the user experience with different UI/UX paradigms
@@ -382,7 +384,7 @@ Instead of uploading profiles and updating settings separately:
 GET /api/v1/workflow
 ```
 
-Retrieves the complete current workflow including profile, dose settings, grinder data, coffee information, and all machine settings (steam, hot water, rinse).
+Retrieves the complete current workflow including profile, context (dose, grinder, coffee metadata), and all machine settings (steam, hot water, rinse).
 
 **Response:**
 ```json
@@ -401,18 +403,16 @@ Retrieves the complete current workflow including profile, dose settings, grinde
     "target_weight": 36,
     "tank_temperature": 0
   },
-  "doseData": {
-    "doseIn": 18.0,
-    "doseOut": 36.0
-  },
-  "grinderData": {
-    "setting": "2.5",
-    "manufacturer": "Niche",
-    "model": "Zero"
-  },
-  "coffeeData": {
-    "name": "Ethiopia Yirgacheffe",
-    "roaster": "Local Roaster"
+  "context": {
+    "targetDoseWeight": 18.0,
+    "targetYield": 36.0,
+    "grinderId": "550e8400-...",
+    "grinderModel": "Niche Zero",
+    "grinderSetting": "2.5",
+    "beanBatchId": "660e8400-...",
+    "coffeeName": "Ethiopia Yirgacheffe",
+    "coffeeRoaster": "Square Mile",
+    "finalBeverageType": "espresso"
   },
   "steamSettings": {
     "targetTemperature": 150,
@@ -433,13 +433,16 @@ Retrieves the complete current workflow including profile, dose settings, grinde
 }
 ```
 
+> **Note:** The response also includes legacy fields (`doseData`, `grinderData`, `coffeeData`) for backward compatibility. New code should read from `context`.
+```
+
 #### Update Workflow
 ```http
 PUT /api/v1/workflow
 Content-Type: application/json
 ```
 
-You can update the complete workflow or just specific fields. Any fields provided will be updated and automatically uploaded to the machine.
+You can update the complete workflow or just specific fields. Any fields provided will be updated and automatically uploaded to the machine. Use `context` for dose, grinder, and coffee parameters.
 
 **Complete Workflow Update:**
 ```json
@@ -451,18 +454,14 @@ You can update the complete workflow or just specific fields. Any fields provide
     "title": "Gentle Profile",
     "steps": [...]
   },
-  "doseData": {
-    "doseIn": 18.5,
-    "doseOut": 37.0
-  },
-  "grinderData": {
-    "setting": "2.8",
-    "manufacturer": "Niche",
-    "model": "Zero"
-  },
-  "coffeeData": {
-    "name": "Colombia Decaf",
-    "roaster": "Local Roaster"
+  "context": {
+    "targetDoseWeight": 18.5,
+    "targetYield": 37.0,
+    "grinderModel": "Niche Zero",
+    "grinderSetting": "2.8",
+    "coffeeName": "Colombia Decaf",
+    "coffeeRoaster": "Local Roaster",
+    "finalBeverageType": "espresso"
   },
   "steamSettings": {
     "targetTemperature": 155,
@@ -485,15 +484,28 @@ You can update the complete workflow or just specific fields. Any fields provide
 
 **Partial Update Examples:**
 
-Update just dose and grinder settings:
+Update dose and grinder via context:
 ```json
 {
-  "doseData": {
-    "doseIn": 18.5,
-    "doseOut": 37.0
-  },
-  "grinderData": {
-    "setting": "2.8"
+  "context": {
+    "targetDoseWeight": 18.5,
+    "targetYield": 37.0,
+    "grinderModel": "Niche Zero",
+    "grinderSetting": "2.8"
+  }
+}
+```
+
+Link to managed entities (grinder and bean batch):
+```json
+{
+  "context": {
+    "grinderId": "550e8400-...",
+    "grinderModel": "Niche Zero",
+    "grinderSetting": "5.2",
+    "beanBatchId": "660e8400-...",
+    "coffeeName": "Red Brick",
+    "coffeeRoaster": "Square Mile"
   }
 }
 ```
@@ -524,18 +536,21 @@ Update just the profile:
 
 #### Workflow Data Structure Reference
 
-**DoseData:**
-- `doseIn` (number): Input dose (dry coffee weight in grams)
-- `doseOut` (number): Target output dose (beverage weight in grams)
+**WorkflowContext** (recommended — all fields nullable):
+- `targetDoseWeight` (number): Input dose in grams (dry coffee)
+- `targetYield` (number): Target output in grams (beverage)
+- `grinderId` (string): ID of a managed Grinder entity (see Grinders API)
+- `grinderModel` (string): Grinder model name (display string)
+- `grinderSetting` (string): Current grinder setting
+- `beanBatchId` (string): ID of a managed BeanBatch entity (see Beans API)
+- `coffeeName` (string): Coffee bean name (display string)
+- `coffeeRoaster` (string): Coffee roaster name (display string)
+- `finalBeverageType` (string): Beverage classification (e.g., "espresso", "filter")
+- `baristaName` (string): Person pulling the shot
+- `drinkerName` (string): Person drinking
+- `extras` (object): Arbitrary key-value pairs for custom data
 
-**GrinderData:**
-- `setting` (string): Grinder setting (e.g., "2.5", "15")
-- `manufacturer` (string, optional): Grinder manufacturer name
-- `model` (string, optional): Grinder model name
-
-**CoffeeData:**
-- `name` (string): Coffee name or variety
-- `roaster` (string, optional): Roaster name
+> **Backward compatibility:** Legacy fields `doseData`, `grinderData`, and `coffeeData` are still accepted for writes. When `context` is not provided, the system backfills it from legacy fields automatically.
 
 **SteamSettings:**
 - `targetTemperature` (integer): Target steam temperature in Celsius
@@ -557,12 +572,62 @@ Update just the profile:
 
 ### Shot History
 
-#### Get All Shot IDs
+#### List Shots (Paginated)
 ```http
-GET /api/v1/shots/ids
+GET /api/v1/shots?limit=20&offset=0
 ```
 
-Returns array of all shot identifiers.
+Returns a paginated list of shots. Measurements are **excluded** from the list response for performance — use `GET /api/v1/shots/{id}` to get full data including measurements.
+
+**Query Parameters:**
+- `limit` (integer, default 20): Page size (1-100)
+- `offset` (integer, default 0): Number of shots to skip
+
+**Filter Parameters** (all optional):
+- `grinderId`: Filter by grinder entity ID
+- `grinderModel`: Filter by grinder model name
+- `beanBatchId`: Filter by bean batch entity ID
+- `coffeeName`: Filter by coffee name
+- `coffeeRoaster`: Filter by coffee roaster
+- `profileTitle`: Filter by profile title
+
+**Examples:**
+```http
+GET /api/v1/shots?limit=10&coffeeRoaster=Square%20Mile
+GET /api/v1/shots?limit=5&grinderId=550e8400-...
+GET /api/v1/shots?limit=20&offset=40&profileTitle=Blooming
+```
+
+**Response:**
+```json
+{
+  "items": [
+    {
+      "id": "shot-2026-02-06-103045",
+      "timestamp": "2026-02-06T10:30:45Z",
+      "workflow": {
+        "name": "Morning Shot",
+        "context": {
+          "targetDoseWeight": 18.0,
+          "targetYield": 36.0,
+          "coffeeName": "Red Brick",
+          "coffeeRoaster": "Square Mile"
+        }
+      }
+    }
+  ],
+  "total": 142,
+  "limit": 20,
+  "offset": 0
+}
+```
+
+#### Get All Shot IDs
+```http
+GET /api/v1/shots/ids?order=desc
+```
+
+Returns array of all shot identifiers. Useful for lightweight syncing.
 
 **Response:**
 ```json
@@ -573,60 +638,58 @@ Returns array of all shot identifiers.
 ]
 ```
 
-#### Get Shots
-```http
-GET /api/v1/shots?ids=shot-abc123,shot-def456
-```
-
-Returns shot records for the specified IDs. Omit `ids` parameter to get all shots.
-
-**Response:**
-```json
-[
-  {
-    "id": "shot-2026-02-06-103045",
-    "timestamp": "2026-02-06T10:30:45Z",
-    "measurements": [
-      {
-        "machine": {
-          "timestamp": "2026-02-06T10:30:45.100Z",
-          "state": { "state": "espresso", "substate": "pouring" },
-          "flow": 2.5,
-          "pressure": 9.1,
-          "mixTemperature": 93.2
-        },
-        "scale": {
-          "timestamp": "2026-02-06T10:30:45.100Z",
-          "weight": 18.5,
-          "weightFlow": 2.1,
-          "batteryLevel": 85
-        },
-        "volume": 15.3
-      }
-    ],
-    "workflow": {
-      "name": "Morning Shot",
-      "doseData": { "doseIn": 18.0, "doseOut": 36.0 }
-    }
-  }
-]
-```
-
 #### Get Latest Shot
 ```http
 GET /api/v1/shots/latest
 ```
 
-Returns the most recent shot record.
+Returns the most recent shot record (with measurements).
 
 #### Get Specific Shot
 ```http
 GET /api/v1/shots/{id}
 ```
 
-Returns a single shot record by ID.
+Returns a single shot record by ID, **including full measurements**.
 
-**Response:** Same as shot object in array above, plus optional `shotNotes` and `metadata` fields.
+**Response:**
+```json
+{
+  "id": "shot-2026-02-06-103045",
+  "timestamp": "2026-02-06T10:30:45Z",
+  "measurements": [
+    {
+      "machine": {
+        "timestamp": "2026-02-06T10:30:45.100Z",
+        "state": { "state": "espresso", "substate": "pouring" },
+        "flow": 2.5,
+        "pressure": 9.1,
+        "mixTemperature": 93.2
+      },
+      "scale": {
+        "timestamp": "2026-02-06T10:30:45.100Z",
+        "weight": 18.5,
+        "weightFlow": 2.1,
+        "batteryLevel": 85
+      },
+      "volume": 15.3
+    }
+  ],
+  "workflow": {
+    "name": "Morning Shot",
+    "context": {
+      "targetDoseWeight": 18.0,
+      "targetYield": 36.0,
+      "grinderModel": "Niche Zero",
+      "grinderSetting": "2.5",
+      "coffeeName": "Red Brick",
+      "coffeeRoaster": "Square Mile"
+    }
+  },
+  "shotNotes": "Excellent extraction!",
+  "metadata": { "rating": 4.5 }
+}
+```
 
 #### Update Shot
 ```http
@@ -634,27 +697,21 @@ PUT /api/v1/shots/{id}
 Content-Type: application/json
 
 {
-  "id": "shot-2026-02-06-103045",
-  "timestamp": "2026-02-06T10:30:45Z",
-  "measurements": [...],
-  "workflow": {...},
   "shotNotes": "Excellent extraction! Bright acidity with chocolate notes.",
   "metadata": {
     "rating": 4.5,
     "tags": ["morning", "sweet"],
-    "favorite": true,
-    "barista": "Alice"
+    "favorite": true
   }
 }
 ```
 
-Updates an existing shot record. Commonly used to add tasting notes or metadata after the fact.
+Supports partial updates via deep merge — only include the fields you want to change. Commonly used to add tasting notes or metadata after the fact.
 
 **Metadata Field**: The `metadata` object is a flexible dictionary that can store any custom data:
 - `rating`: Numerical rating (e.g., 1-5)
 - `tags`: Array of strings for categorization
 - `favorite`: Boolean flag
-- `barista`: Name of person who pulled the shot
 - Any custom fields your application needs
 
 **Response:** Returns the updated shot record.
@@ -672,6 +729,223 @@ Permanently deletes a shot record.
   "success": true,
   "id": "shot-2026-02-06-103045"
 }
+```
+
+---
+
+### Coffee Beans, Grinders & Workflows
+
+Streamline-Bridge manages coffee beans, bean batches, and grinders as first-class entities that can be linked to workflows and shot records.
+
+#### How It Fits Together
+
+```
+┌──────────────┐     ┌──────────────┐
+│   Bean       │     │   Grinder    │
+│ (origin,     │     │ (model,      │
+│  roaster)    │     │  burrs,      │
+│              │     │  settings)   │
+└──────┬───────┘     └──────┬───────┘
+       │ has many           │
+       ▼                    │
+┌──────────────┐            │
+│  BeanBatch   │            │
+│ (roast date, │            │
+│  weight,     │            │
+│  price)      │            │
+└──────┬───────┘            │
+       │                    │
+       ▼ beanBatchId        ▼ grinderId
+┌─────────────────────────────────────┐
+│         WorkflowContext             │
+│  (links entities + display strings  │
+│   + dose targets + people)          │
+└──────────────────┬──────────────────┘
+                   │
+                   ▼ saved with each shot
+            ┌──────────────┐
+            │  ShotRecord  │
+            └──────────────┘
+```
+
+- **Bean** represents a coffee origin (roaster + name + metadata). A bean can have multiple **BeanBatches** — each batch tracks a specific purchase with roast date, weight remaining, price, and frozen state.
+- **Grinder** represents grinder equipment with its burr info and setting type (numeric dial or named presets).
+- **WorkflowContext** ties everything together in a workflow. Set `grinderId` and `beanBatchId` to link to managed entities. Also include display strings (`grinderModel`, `coffeeName`, etc.) so UIs can show the info without extra lookups.
+- When a shot is pulled, the current workflow context is saved with the shot record, creating a permanent record of which beans, grinder, and settings were used.
+
+#### Typical Workflow
+
+1. Create a grinder: `POST /api/v1/grinders`
+2. Create a bean: `POST /api/v1/beans`
+3. Add a batch to the bean: `POST /api/v1/beans/{beanId}/batches`
+4. Set up the workflow with entity IDs:
+   ```json
+   PUT /api/v1/workflow
+   {
+     "context": {
+       "targetDoseWeight": 18.0,
+       "targetYield": 36.0,
+       "grinderId": "<grinder-uuid>",
+       "grinderModel": "Niche Zero",
+       "grinderSetting": "15",
+       "beanBatchId": "<batch-uuid>",
+       "coffeeName": "Red Brick",
+       "coffeeRoaster": "Square Mile"
+     }
+   }
+   ```
+5. Pull a shot — the context is saved with the shot record
+6. Later, filter shot history: `GET /api/v1/shots?coffeeRoaster=Square%20Mile`
+
+---
+
+### Beans API
+
+Manage coffee beans and their batches (purchases/roasts).
+
+#### List Beans
+```http
+GET /api/v1/beans?includeArchived=false
+```
+
+**Response:**
+```json
+[
+  {
+    "id": "550e8400-...",
+    "roaster": "Square Mile",
+    "name": "Red Brick",
+    "country": "Brazil",
+    "processing": "natural",
+    "variety": ["Yellow Bourbon"],
+    "archived": false,
+    "createdAt": "2026-02-15T12:00:00Z",
+    "updatedAt": "2026-02-15T12:00:00Z"
+  }
+]
+```
+
+#### Create Bean
+```http
+POST /api/v1/beans
+Content-Type: application/json
+
+{
+  "roaster": "Square Mile",
+  "name": "Red Brick",
+  "country": "Brazil",
+  "processing": "natural",
+  "variety": ["Yellow Bourbon"],
+  "altitude": [1100, 1300]
+}
+```
+
+Only `roaster` and `name` are required. **Response:** 201 Created with the full bean object.
+
+#### Get, Update, Delete Bean
+```http
+GET /api/v1/beans/{id}
+PUT /api/v1/beans/{id}       # partial update — only include fields to change
+DELETE /api/v1/beans/{id}    # permanently deletes bean and all its batches
+```
+
+#### List Batches for a Bean
+```http
+GET /api/v1/beans/{beanId}/batches?includeArchived=false
+```
+
+Returns all batches for the bean. A batch represents a specific purchase or roast — use it to track roast dates, weight consumption, and pricing.
+
+#### Create Batch
+```http
+POST /api/v1/beans/{beanId}/batches
+Content-Type: application/json
+
+{
+  "roastDate": "2026-02-28T00:00:00Z",
+  "roastLevel": "medium-light",
+  "weight": 250,
+  "price": 18.50,
+  "currency": "EUR"
+}
+```
+
+All fields are optional. When `weight` is provided, `weightRemaining` is auto-initialized to the same value.
+
+**Key batch use cases:**
+- **Freshness tracking:** Use `roastDate` and `openDate` to calculate days since roast
+- **Inventory:** Track `weight` / `weightRemaining` as you use the coffee
+- **Cost:** Record `price` and `currency` per batch
+- **Freezing:** Set `frozen: true` when you freeze a batch for later use
+
+**Response:** 201 Created with the full batch object.
+
+#### Get, Update, Delete Batch
+```http
+GET /api/v1/bean-batches/{id}
+PUT /api/v1/bean-batches/{id}       # partial update
+DELETE /api/v1/bean-batches/{id}
+```
+
+---
+
+### Grinders API
+
+Manage grinder equipment. Supports two setting types: **numeric** (continuous dial) and **preset** (named positions).
+
+#### List Grinders
+```http
+GET /api/v1/grinders?includeArchived=false
+```
+
+**Response:**
+```json
+[
+  {
+    "id": "770e8400-...",
+    "model": "Niche Zero",
+    "burrs": "Stock 63mm",
+    "burrSize": 63.0,
+    "burrType": "conical",
+    "settingType": "numeric",
+    "settingSmallStep": 0.5,
+    "settingBigStep": 5.0,
+    "archived": false,
+    "createdAt": "2026-02-15T12:00:00Z",
+    "updatedAt": "2026-02-15T12:00:00Z"
+  }
+]
+```
+
+#### Create Grinder
+```http
+POST /api/v1/grinders
+Content-Type: application/json
+
+{
+  "model": "Niche Zero",
+  "burrs": "Stock 63mm",
+  "burrSize": 63.0,
+  "burrType": "conical",
+  "settingType": "numeric",
+  "settingSmallStep": 0.5,
+  "settingBigStep": 5.0
+}
+```
+
+Only `model` is required.
+
+**Setting types:**
+- `numeric` (default): Continuous dial — use `settingSmallStep` / `settingBigStep` for increment hints
+- `preset`: Named positions — provide `settingValues` array (e.g., `["Fine", "Medium", "Coarse"]`)
+
+**Response:** 201 Created with the full grinder object.
+
+#### Get, Update, Delete Grinder
+```http
+GET /api/v1/grinders/{id}
+PUT /api/v1/grinders/{id}       # partial update
+DELETE /api/v1/grinders/{id}
 ```
 
 ---
