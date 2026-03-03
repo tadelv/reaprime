@@ -305,6 +305,19 @@ void main() async {
   });
   await settingsController.loadSettings();
 
+  // Dart-define overrides for preferred devices — allows headless/MCP launches
+  // to bypass the device selection screen by seeding the direct-connect path.
+  const envMachineId = String.fromEnvironment("preferredMachineId");
+  const envScaleId = String.fromEnvironment("preferredScaleId");
+  if (envMachineId.isNotEmpty) {
+    await settingsController.setPreferredMachineId(envMachineId);
+    log.info("preferredMachineId overridden from dart-define: $envMachineId");
+  }
+  if (envScaleId.isNotEmpty) {
+    await settingsController.setPreferredScaleId(envScaleId);
+    log.info("preferredScaleId overridden from dart-define: $envScaleId");
+  }
+
   Logger.root.level =
       Level.LEVELS.firstWhereOrNull(
         (e) => e.name == settingsController.logLevel,
