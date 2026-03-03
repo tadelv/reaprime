@@ -15,7 +15,7 @@ export interface AppManagerConfig {
 }
 
 const MAX_LOG_LINES = 1000;
-const READY_TIMEOUT_MS = 60_000;
+const READY_TIMEOUT_MS = 120_000;
 const STOP_TIMEOUT_MS = 5_000;
 const POLL_INTERVAL_MS = 1_000;
 
@@ -189,7 +189,9 @@ export class AppManager {
 
   private async waitForReady(): Promise<void> {
     const start = Date.now();
-    const url = `http://${this.config.host}:${this.config.port}/api/v1/machine/state`;
+    // Use /api/v1/devices — it responds 200 even before a machine is connected,
+    // unlike /api/v1/machine/state which returns 500 until a DE1 is connected.
+    const url = `http://${this.config.host}:${this.config.port}/api/v1/devices`;
 
     while (Date.now() - start < READY_TIMEOUT_MS) {
       try {
