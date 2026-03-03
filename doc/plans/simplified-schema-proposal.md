@@ -78,7 +78,7 @@ The coffee itself — origin, producer, variety. Immutable identity; batches tra
 #### Notes
 - `variety` is a List because multi-variety single-origin lots are common (e.g., SL28 + SL34)
 - `species` is a String (not List) — multi-species coffees are blends, and blends are expressed through separate Bean entries, not a species list
-- `BlendComponent` from the full proposal is **deferred** — commercial blend composition metadata can live in `extras` if needed
+- **Commercial blends:** A Bean that is a blend (e.g., a house espresso mix) stores its composition in `extras` under a known key. The Streamline/DYE2 plugin manages this. Convention: `extras.blendComponents: [{description: "Ethiopian Yirgacheffe", percentage: 60, beanId: "uuid-or-null"}, ...]`. Each component has a text description (always present), an optional percentage, and an optional `beanId` FK if the component bean exists in the user's library. A Bean with non-empty `blendComponents` in extras is a blend; without is single-origin. The full proposal's typed `BlendComponent` class is not needed — the JSON structure in extras is sufficient and keeps the core Bean model simple
 
 ### 2. BeanBatch (Specific Bag/Purchase)
 
@@ -584,6 +584,7 @@ Plugins communicate additional data through `extras` on WorkflowContext and Shot
 
 | Feature | Channel | Notes |
 |---------|---------|-------|
+| Commercial blend composition | `Bean.extras.blendComponents` | `[{description, percentage?, beanId?}, ...]` — plugin-managed |
 | Equipment references | `context.extras` | Plugin tracks baskets, portafilters, tampers |
 | Water profile references | `context.extras` | Plugin tracks water chemistry |
 | Shot prep techniques | `context.extras` | Distribution, tamping, RDT, slow feeding |
@@ -772,7 +773,7 @@ The persistence layer proposal (`persistence-layer-proposal.md`) remains the ref
 | Enjoyment scale | 0.0–10.0 | Single intuitive scale; multiply by 10 for export |
 | Tasting attributes | Plugin via annotations.extras | Power-user territory |
 | Photo attachments | Deferred to plugin | Needs proper design later |
-| Blends (commercial) | Bean.extras | Rare; not worth a BlendComponent class |
+| Blends (commercial) | `Bean.extras.blendComponents` | Plugin-managed JSON list; convention documented; not worth a typed class in core |
 | Blends (user-created) | Plugin | Single batch per shot in core |
 | Shot filtering | Denormalized ID + string columns | Both entity-based and string-based queries supported |
 | Measurement lazy loading | Nullable measurements on ShotRecord | List queries exclude; detail queries include |
