@@ -1,0 +1,350 @@
+import 'dart:convert';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:reaprime/src/models/data/bean.dart';
+import 'package:reaprime/src/services/storage/bean_storage_service.dart';
+import 'package:reaprime/src/services/webserver/beans_handler.dart';
+import 'package:shelf_plus/shelf_plus.dart';
+
+class MockBeanStorageService implements BeanStorageService {
+  final List<Bean> beans = [];
+  final List<BeanBatch> batches = [];
+
+  @override
+  Future<List<Bean>> getAllBeans({bool includeArchived = false}) async {
+    if (includeArchived) return List.of(beans);
+    return beans.where((b) => !b.archived).toList();
+  }
+
+  @override
+  Stream<List<Bean>> watchAllBeans({bool includeArchived = false}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<Bean?> getBeanById(String id) async {
+    return beans.where((b) => b.id == id).firstOrNull;
+  }
+
+  @override
+  Future<void> insertBean(Bean bean) async {
+    beans.add(bean);
+  }
+
+  @override
+  Future<void> updateBean(Bean bean) async {
+    beans.removeWhere((b) => b.id == bean.id);
+    beans.add(bean);
+  }
+
+  @override
+  Future<void> deleteBean(String id) async {
+    beans.removeWhere((b) => b.id == id);
+  }
+
+  @override
+  Future<List<BeanBatch>> getBatchesForBean(String beanId,
+      {bool includeArchived = false}) async {
+    final filtered = batches.where((b) => b.beanId == beanId);
+    if (includeArchived) return filtered.toList();
+    return filtered.where((b) => !b.archived).toList();
+  }
+
+  @override
+  Stream<List<BeanBatch>> watchBatchesForBean(String beanId,
+      {bool includeArchived = false}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<BeanBatch?> getBatchById(String id) async {
+    return batches.where((b) => b.id == id).firstOrNull;
+  }
+
+  @override
+  Future<void> insertBatch(BeanBatch batch) async {
+    batches.add(batch);
+  }
+
+  @override
+  Future<void> updateBatch(BeanBatch batch) async {
+    batches.removeWhere((b) => b.id == batch.id);
+    batches.add(batch);
+  }
+
+  @override
+  Future<void> deleteBatch(String id) async {
+    batches.removeWhere((b) => b.id == id);
+  }
+
+  @override
+  Future<void> decrementBatchWeight(String batchId, double amount) async {
+    final idx = batches.indexWhere((b) => b.id == batchId);
+    if (idx >= 0) {
+      final batch = batches[idx];
+      final remaining =
+          ((batch.weightRemaining ?? batch.weight ?? 0) - amount)
+              .clamp(0.0, double.infinity)
+              .toDouble();
+      batches[idx] = batch.copyWith(weightRemaining: remaining);
+    }
+  }
+}
+
+void main() {
+  late MockBeanStorageService storage;
+  late Handler handler;
+
+  setUp(() {
+    storage = MockBeanStorageService();
+    final beansHandler = BeansHandler(storage: storage);
+    final app = Router().plus;
+    beansHandler.addRoutes(app);
+    handler = app.call;
+  });
+
+  Future<Response> sendGet(String path) async {
+    return await handler(
+      Request('GET', Uri.parse('http://localhost$path')),
+    );
+  }
+
+  Future<Response> sendPost(String path, Map<String, dynamic> body) async {
+    return await handler(
+      Request(
+        'POST',
+        Uri.parse('http://localhost$path'),
+        body: jsonEncode(body),
+        headers: {'content-type': 'application/json'},
+      ),
+    );
+  }
+
+  Future<Response> sendPut(String path, Map<String, dynamic> body) async {
+    return await handler(
+      Request(
+        'PUT',
+        Uri.parse('http://localhost$path'),
+        body: jsonEncode(body),
+        headers: {'content-type': 'application/json'},
+      ),
+    );
+  }
+
+  Future<Response> sendDelete(String path) async {
+    return await handler(
+      Request('DELETE', Uri.parse('http://localhost$path')),
+    );
+  }
+
+  group('BeansHandler - Beans', () {
+    test('GET /api/v1/beans returns empty list', () async {
+      final response = await sendGet('/api/v1/beans');
+      expect(response.statusCode, 200);
+      final body = jsonDecode(await response.readAsString()) as List;
+      expect(body, isEmpty);
+    });
+
+    test('POST /api/v1/beans creates a bean', () async {
+      final response = await sendPost('/api/v1/beans', {
+        'roaster': 'Sey',
+        'name': 'Gichathaini',
+        'country': 'Kenya',
+      });
+      expect(response.statusCode, 201);
+      final body = jsonDecode(await response.readAsString());
+      expect(body['roaster'], 'Sey');
+      expect(body['name'], 'Gichathaini');
+      expect(body['country'], 'Kenya');
+      expect(body['id'], isNotEmpty);
+    });
+
+    test('GET /api/v1/beans returns created beans', () async {
+      await sendPost('/api/v1/beans', {
+        'roaster': 'Sey',
+        'name': 'Gichathaini',
+      });
+      await sendPost('/api/v1/beans', {
+        'roaster': 'George Howell',
+        'name': 'Mamuto AA',
+      });
+
+      final response = await sendGet('/api/v1/beans');
+      final body = jsonDecode(await response.readAsString()) as List;
+      expect(body, hasLength(2));
+    });
+
+    test('GET /api/v1/beans/<id> returns a specific bean', () async {
+      final createRes = await sendPost('/api/v1/beans', {
+        'roaster': 'Sey',
+        'name': 'Gichathaini',
+      });
+      final created = jsonDecode(await createRes.readAsString());
+      final id = created['id'];
+
+      final response = await sendGet('/api/v1/beans/$id');
+      expect(response.statusCode, 200);
+      final body = jsonDecode(await response.readAsString());
+      expect(body['id'], id);
+      expect(body['roaster'], 'Sey');
+    });
+
+    test('GET /api/v1/beans/<id> returns 404 for missing bean', () async {
+      final response = await sendGet('/api/v1/beans/nonexistent');
+      expect(response.statusCode, 404);
+    });
+
+    test('PUT /api/v1/beans/<id> updates a bean', () async {
+      final createRes = await sendPost('/api/v1/beans', {
+        'roaster': 'Sey',
+        'name': 'Gichathaini',
+      });
+      final created = jsonDecode(await createRes.readAsString());
+      final id = created['id'];
+
+      final response = await sendPut('/api/v1/beans/$id', {
+        'name': 'Gichathaini AA',
+        'country': 'Kenya',
+      });
+      expect(response.statusCode, 200);
+      final body = jsonDecode(await response.readAsString());
+      expect(body['name'], 'Gichathaini AA');
+      expect(body['country'], 'Kenya');
+      expect(body['roaster'], 'Sey');
+    });
+
+    test('PUT /api/v1/beans/<id> returns 404 for missing bean', () async {
+      final response = await sendPut('/api/v1/beans/nonexistent', {
+        'name': 'Test',
+      });
+      expect(response.statusCode, 404);
+    });
+
+    test('DELETE /api/v1/beans/<id> deletes a bean', () async {
+      final createRes = await sendPost('/api/v1/beans', {
+        'roaster': 'Sey',
+        'name': 'Gichathaini',
+      });
+      final created = jsonDecode(await createRes.readAsString());
+      final id = created['id'];
+
+      final response = await sendDelete('/api/v1/beans/$id');
+      expect(response.statusCode, 200);
+
+      final getRes = await sendGet('/api/v1/beans/$id');
+      expect(getRes.statusCode, 404);
+    });
+
+    test('GET /api/v1/beans filters out archived by default', () async {
+      final createRes = await sendPost('/api/v1/beans', {
+        'roaster': 'Sey',
+        'name': 'Gichathaini',
+      });
+      final created = jsonDecode(await createRes.readAsString());
+      final id = created['id'];
+
+      // Archive the bean
+      await sendPut('/api/v1/beans/$id', {'archived': true});
+
+      // Default: excludes archived
+      final response = await sendGet('/api/v1/beans');
+      final body = jsonDecode(await response.readAsString()) as List;
+      expect(body, isEmpty);
+
+      // With includeArchived=true
+      final archivedRes =
+          await sendGet('/api/v1/beans?includeArchived=true');
+      final archivedBody =
+          jsonDecode(await archivedRes.readAsString()) as List;
+      expect(archivedBody, hasLength(1));
+    });
+  });
+
+  group('BeansHandler - Batches', () {
+    late String beanId;
+
+    setUp(() async {
+      final createRes = await sendPost('/api/v1/beans', {
+        'roaster': 'Sey',
+        'name': 'Gichathaini',
+      });
+      final created = jsonDecode(await createRes.readAsString());
+      beanId = created['id'];
+    });
+
+    test('POST /api/v1/beans/<beanId>/batches creates a batch', () async {
+      final response = await sendPost('/api/v1/beans/$beanId/batches', {
+        'roastLevel': 'light',
+        'weight': 250.0,
+      });
+      expect(response.statusCode, 201);
+      final body = jsonDecode(await response.readAsString());
+      expect(body['beanId'], beanId);
+      expect(body['roastLevel'], 'light');
+      expect(body['weight'], 250.0);
+    });
+
+    test('GET /api/v1/beans/<beanId>/batches returns batches', () async {
+      await sendPost('/api/v1/beans/$beanId/batches', {
+        'roastLevel': 'light',
+        'weight': 250.0,
+      });
+      await sendPost('/api/v1/beans/$beanId/batches', {
+        'roastLevel': 'medium',
+        'weight': 500.0,
+      });
+
+      final response = await sendGet('/api/v1/beans/$beanId/batches');
+      expect(response.statusCode, 200);
+      final body = jsonDecode(await response.readAsString()) as List;
+      expect(body, hasLength(2));
+    });
+
+    test('GET /api/v1/bean-batches/<id> returns a specific batch', () async {
+      final createRes = await sendPost('/api/v1/beans/$beanId/batches', {
+        'roastLevel': 'light',
+        'weight': 250.0,
+      });
+      final created = jsonDecode(await createRes.readAsString());
+      final batchId = created['id'];
+
+      final response = await sendGet('/api/v1/bean-batches/$batchId');
+      expect(response.statusCode, 200);
+      final body = jsonDecode(await response.readAsString());
+      expect(body['id'], batchId);
+    });
+
+    test('PUT /api/v1/bean-batches/<id> updates a batch', () async {
+      final createRes = await sendPost('/api/v1/beans/$beanId/batches', {
+        'roastLevel': 'light',
+        'weight': 250.0,
+      });
+      final created = jsonDecode(await createRes.readAsString());
+      final batchId = created['id'];
+
+      final response = await sendPut('/api/v1/bean-batches/$batchId', {
+        'roastLevel': 'medium',
+        'notes': 'Very good batch',
+      });
+      expect(response.statusCode, 200);
+      final body = jsonDecode(await response.readAsString());
+      expect(body['roastLevel'], 'medium');
+      expect(body['notes'], 'Very good batch');
+    });
+
+    test('DELETE /api/v1/bean-batches/<id> deletes a batch', () async {
+      final createRes = await sendPost('/api/v1/beans/$beanId/batches', {
+        'roastLevel': 'light',
+        'weight': 250.0,
+      });
+      final created = jsonDecode(await createRes.readAsString());
+      final batchId = created['id'];
+
+      final response = await sendDelete('/api/v1/bean-batches/$batchId');
+      expect(response.statusCode, 200);
+
+      final getRes = await sendGet('/api/v1/bean-batches/$batchId');
+      expect(getRes.statusCode, 404);
+    });
+  });
+}
