@@ -12,6 +12,8 @@ import { registerWorkflowTools } from "./tools/workflow.js";
 import { registerSettingsTools } from "./tools/settings.js";
 import { registerPluginTools } from "./tools/plugins.js";
 import { registerSensorTools } from "./tools/sensors.js";
+import { AppManager } from "./lifecycle/app-manager.js";
+import { registerLifecycleTools } from "./tools/lifecycle.js";
 
 export interface ServerConfig {
   host: string;
@@ -49,7 +51,20 @@ export function createServer(config: ServerConfig) {
   registerPluginTools(server, restClient);
   registerSensorTools(server, restClient);
 
-  return { server, restClient, config };
+  const appManager = new AppManager({
+    flutterCmd: config.flutterCmd,
+    projectRoot: config.projectRoot,
+    host: config.host,
+    port: config.port,
+  });
+  registerLifecycleTools(server, appManager, restClient);
+
+  // Cleanup on process exit
+  process.on("exit", () => { appManager.stop().catch(() => {}); });
+  process.on("SIGINT", () => { appManager.stop().then(() => process.exit(0)); });
+  process.on("SIGTERM", () => { appManager.stop().then(() => process.exit(0)); });
+
+  return { server, restClient, appManager, config };
 }
 
 function findProjectRoot(): string {
