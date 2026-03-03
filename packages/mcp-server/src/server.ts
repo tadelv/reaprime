@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { RestClient } from "./bridge/rest-client.js";
+import { registerMachineTools } from "./tools/machine.js";
 
 export interface ServerConfig {
   host: string;
@@ -29,6 +30,8 @@ export function createServer(config: ServerConfig) {
   });
 
   const restClient = new RestClient(`http://${config.host}:${config.port}`);
+
+  registerMachineTools(server, restClient);
 
   return { server, restClient, config };
 }
