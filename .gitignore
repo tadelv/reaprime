@@ -1,6 +1,10 @@
 # Environment files (secrets)
 .env*
 
+# Override global gitignore /Packages rule (matches packages/ on macOS)
+!/packages/
+packages/*/node_modules/
+
 # Miscellaneous
 *.class
 *.log
