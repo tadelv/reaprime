@@ -12,6 +12,8 @@ import { registerWorkflowTools } from "./tools/workflow.js";
 import { registerSettingsTools } from "./tools/settings.js";
 import { registerPluginTools } from "./tools/plugins.js";
 import { registerSensorTools } from "./tools/sensors.js";
+import { registerBeanTools } from "./tools/beans.js";
+import { registerGrinderTools } from "./tools/grinders.js";
 import { AppManager } from "./lifecycle/app-manager.js";
 import { registerLifecycleTools } from "./tools/lifecycle.js";
 import { WsClient } from "./bridge/ws-client.js";
@@ -54,6 +56,8 @@ export function createServer(config: ServerConfig) {
   registerSettingsTools(server, restClient);
   registerPluginTools(server, restClient);
   registerSensorTools(server, restClient);
+  registerBeanTools(server, restClient);
+  registerGrinderTools(server, restClient);
 
   const appManager = new AppManager({
     flutterCmd: config.flutterCmd,
