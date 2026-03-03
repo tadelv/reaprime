@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
+import 'package:reaprime/src/models/data/workflow_context.dart';
 import 'package:uuid/uuid.dart';
 
 class WorkflowController extends ChangeNotifier {
@@ -11,7 +12,7 @@ class WorkflowController extends ChangeNotifier {
     name: "Workflow",
     description: "Description",
     profile: Defaults.createDefaultProfile(),
-    doseData: DoseData(doseIn: 18.0, doseOut: 36.0),
+    context: WorkflowContext(targetDoseWeight: 18.0, targetYield: 36.0),
     steamSettings: SteamSettings.defaults(),
     hotWaterData: HotWaterData.defaults(),
     rinseData: RinseData.defaults(),
@@ -23,7 +24,7 @@ class WorkflowController extends ChangeNotifier {
       name: "Workflow",
       description: "Description",
       profile: Defaults.createDefaultProfile(),
-      doseData: DoseData(doseIn: 18.0, doseOut: 36.0),
+      context: WorkflowContext(targetDoseWeight: 18.0, targetYield: 36.0),
       steamSettings: SteamSettings.defaults(),
       hotWaterData: HotWaterData.defaults(),
       rinseData: RinseData.defaults(),
@@ -41,9 +42,10 @@ class WorkflowController extends ChangeNotifier {
     String? name,
     String? description,
     Profile? profile,
-    DoseData? doseData,
-    GrinderData? grinderData,
-    CoffeeData? coffeeData,
+    WorkflowContext? context,
+    @Deprecated('Use context instead') DoseData? doseData,
+    @Deprecated('Use context instead') GrinderData? grinderData,
+    @Deprecated('Use context instead') CoffeeData? coffeeData,
     SteamSettings? steamSettings,
     HotWaterData? hotWaterData,
     RinseData? rinseData,
@@ -52,6 +54,7 @@ class WorkflowController extends ChangeNotifier {
       name: name,
       description: description,
       profile: profile,
+      context: context,
       doseData: doseData,
       grinderData: grinderData,
       coffeeData: coffeeData,

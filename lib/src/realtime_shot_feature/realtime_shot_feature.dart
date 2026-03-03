@@ -205,7 +205,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
         ShotDataView(
           firstLine: "Profile: ${_shotController.targetProfile.title}",
           secondLine:
-              "Target weight: ${_shotController.doseData.doseOut.toStringAsFixed(1)}g",
+              "Target weight: ${_shotController.targetYield.toStringAsFixed(1)}g",
         ),
         Spacer(),
         ShadButton.destructive(

@@ -161,13 +161,13 @@ function createPlugin(host) {
       app: {
         data: {
           settings: {
-            bean_weight: String(reaShot.workflow.doseData.doseIn),
+            bean_weight: String(reaShot.workflow.context?.targetDoseWeight ?? reaShot.workflow.doseData?.doseIn ?? 0),
             drink_weight: String(lastMeasurement.scale?.weight ?? 0),
             target_weight: String(reaShot.workflow.profile.target_weight),
-            grinder_model: reaShot.workflow.grinderData?.model,
-            grinder_setting: reaShot.workflow.grinderData?.setting,
-            bean_brand: reaShot.workflow.coffeeData?.roaster,
-            bean_type: reaShot.workflow.coffeeData?.name,
+            grinder_model: reaShot.workflow.context?.grinderModel ?? reaShot.workflow.grinderData?.model,
+            grinder_setting: reaShot.workflow.context?.grinderSetting ?? reaShot.workflow.grinderData?.setting,
+            bean_brand: reaShot.workflow.context?.coffeeRoaster ?? reaShot.workflow.coffeeData?.roaster,
+            bean_type: reaShot.workflow.context?.coffeeName ?? reaShot.workflow.coffeeData?.name,
           }
         }
       },

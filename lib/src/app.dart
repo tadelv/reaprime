@@ -259,11 +259,12 @@ class _MyAppState extends State<MyApp> {
                           persistenceController: widget.persistenceController,
                           targetProfile:
                               widget.workflowController.currentWorkflow.profile,
-                          doseData:
+                          targetYield:
                               widget
                                   .workflowController
                                   .currentWorkflow
-                                  .doseData,
+                                  .context
+                                  ?.targetYield ?? 0,
                         );
                       }
                       return RealtimeShotFeature(
