@@ -54,4 +54,53 @@ class DriftStorageService implements StorageService {
     final row = await _db.workflowDao.loadCurrentWorkflow();
     return row == null ? null : WorkflowMapper.fromRow(row);
   }
+
+  @override
+  Future<List<domain.ShotRecord>> getShotsPaginated({
+    int limit = 20,
+    int offset = 0,
+    String? grinderId,
+    String? grinderModel,
+    String? beanBatchId,
+    String? coffeeName,
+    String? coffeeRoaster,
+    String? profileTitle,
+  }) async {
+    final rows = await _db.shotDao.getShotsPaginated(
+      limit: limit,
+      offset: offset,
+      grinderId: grinderId,
+      grinderModel: grinderModel,
+      beanBatchId: beanBatchId,
+      coffeeName: coffeeName,
+      coffeeRoaster: coffeeRoaster,
+      profileTitle: profileTitle,
+    );
+    return rows.map(ShotMapper.fromRow).toList();
+  }
+
+  @override
+  Future<int> countShots({
+    String? grinderId,
+    String? grinderModel,
+    String? beanBatchId,
+    String? coffeeName,
+    String? coffeeRoaster,
+    String? profileTitle,
+  }) {
+    return _db.shotDao.countShots(
+      grinderId: grinderId,
+      grinderModel: grinderModel,
+      beanBatchId: beanBatchId,
+      coffeeName: coffeeName,
+      coffeeRoaster: coffeeRoaster,
+      profileTitle: profileTitle,
+    );
+  }
+
+  @override
+  Future<domain.ShotRecord?> getLatestShot() async {
+    final row = await _db.shotDao.getLatestShot();
+    return row == null ? null : ShotMapper.fromRow(row);
+  }
 }

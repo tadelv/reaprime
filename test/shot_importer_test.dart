@@ -58,8 +58,39 @@ class MockStorageService implements StorageService {
 
   @override
   Future<void> updateShot(ShotRecord record) {
-    // TODO: implement updateShot
     throw UnimplementedError();
+  }
+
+  @override
+  Future<List<ShotRecord>> getShotsPaginated({
+    int limit = 20,
+    int offset = 0,
+    String? grinderId,
+    String? grinderModel,
+    String? beanBatchId,
+    String? coffeeName,
+    String? coffeeRoaster,
+    String? profileTitle,
+  }) async {
+    return storedShots.skip(offset).take(limit).toList();
+  }
+
+  @override
+  Future<int> countShots({
+    String? grinderId,
+    String? grinderModel,
+    String? beanBatchId,
+    String? coffeeName,
+    String? coffeeRoaster,
+    String? profileTitle,
+  }) async {
+    return storedShots.length;
+  }
+
+  @override
+  Future<ShotRecord?> getLatestShot() async {
+    if (storedShots.isEmpty) return null;
+    return storedShots.last;
   }
 }
 

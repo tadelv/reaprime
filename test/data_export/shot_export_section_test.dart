@@ -57,6 +57,38 @@ class MockStorageService implements StorageService {
     return _currentWorkflow;
   }
 
+  @override
+  Future<List<ShotRecord>> getShotsPaginated({
+    int limit = 20,
+    int offset = 0,
+    String? grinderId,
+    String? grinderModel,
+    String? beanBatchId,
+    String? coffeeName,
+    String? coffeeRoaster,
+    String? profileTitle,
+  }) async {
+    return _shots.values.skip(offset).take(limit).toList();
+  }
+
+  @override
+  Future<int> countShots({
+    String? grinderId,
+    String? grinderModel,
+    String? beanBatchId,
+    String? coffeeName,
+    String? coffeeRoaster,
+    String? profileTitle,
+  }) async {
+    return _shots.length;
+  }
+
+  @override
+  Future<ShotRecord?> getLatestShot() async {
+    if (_shots.isEmpty) return null;
+    return _shots.values.last;
+  }
+
   void reset() {
     _shots.clear();
     _currentWorkflow = null;
