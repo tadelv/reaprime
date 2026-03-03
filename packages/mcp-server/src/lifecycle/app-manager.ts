@@ -155,7 +155,7 @@ export class AppManager {
     this.process.stdin?.write("r");
 
     // Wait for reload confirmation in stdout
-    return this.waitForLogPattern(/reloaded/i, 10_000, logLenBefore);
+    return this.waitForLogPattern(/reloaded/i, 30_000, logLenBefore);
   }
 
   async hotRestart(): Promise<string> {
@@ -167,7 +167,7 @@ export class AppManager {
     this.process.stdin?.write("R");
 
     // Wait for restart confirmation in stdout
-    return this.waitForLogPattern(/restarted/i, 15_000, logLenBefore);
+    return this.waitForLogPattern(/restarted/i, 30_000, logLenBefore);
   }
 
   getLogs(count: number, filter?: string): string[] {
