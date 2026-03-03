@@ -18,14 +18,18 @@ export function registerLifecycleTools(
         .string()
         .optional()
         .describe("Device name to auto-connect (e.g. 'MockDe1')"),
+      connectScale: z
+        .string()
+        .optional()
+        .describe("Scale name to auto-connect (e.g. 'MockScale')"),
       dartDefines: z
         .array(z.string())
         .optional()
         .describe("Additional --dart-define flags (simulate=1 is always included)"),
     }),
-  }, async ({ connectDevice, dartDefines }) => {
+  }, async ({ connectDevice, connectScale, dartDefines }) => {
     try {
-      const result = await appManager.start({ connectDevice, dartDefines });
+      const result = await appManager.start({ connectDevice, connectScale, dartDefines });
       return {
         content: [{
           type: "text",

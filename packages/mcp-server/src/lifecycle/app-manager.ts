@@ -23,7 +23,7 @@ export class AppManager {
   private process: ChildProcess | null = null;
   private logBuffer: string[] = [];
   private _state: AppState = AppState.Stopped;
-  private startParams: { connectDevice?: string; dartDefines?: string[] } = {};
+  private startParams: { connectDevice?: string; connectScale?: string; dartDefines?: string[] } = {};
 
   constructor(private config: AppManagerConfig) {}
 
@@ -41,6 +41,7 @@ export class AppManager {
 
   async start(options?: {
     connectDevice?: string;
+    connectScale?: string;
     dartDefines?: string[];
   }): Promise<{ pid: number; connectionStatus?: string }> {
     if (this._state !== AppState.Stopped) {
@@ -51,9 +52,19 @@ export class AppManager {
     this.logBuffer = [];
     this.startParams = options ?? {};
 
+    // Build dart-define flags — inject preferred device IDs so the Flutter UI
+    // bypasses the device selection screen via its direct-connect fast-path.
+    const defines = ["simulate=1"];
+    if (options?.connectDevice) {
+      defines.push(`preferredMachineId=${options.connectDevice}`);
+    }
+    if (options?.connectScale) {
+      defines.push(`preferredScaleId=${options.connectScale}`);
+    }
+
     const args = [
       "run",
-      "--dart-define=simulate=1",
+      ...defines.map((d) => `--dart-define=${d}`),
       ...(options?.dartDefines?.map((d) => `--dart-define=${d}`) ?? []),
     ];
 
