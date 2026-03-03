@@ -2,8 +2,7 @@
   "mcpServers": {
     "streamline-bridge": {
       "command": "npx",
-      "args": ["tsx", "src/index.ts"],
-      "cwd": "packages/mcp-server",
+      "args": ["tsx", "packages/mcp-server/src/index.ts"],
       "env": {
         "STREAMLINE_HOST": "localhost",
         "STREAMLINE_PORT": "8080"
