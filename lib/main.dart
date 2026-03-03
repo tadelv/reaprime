@@ -29,11 +29,14 @@ import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/services/blue_plus_discovery_service.dart';
 import 'package:reaprime/src/services/ble/linux_ble_discovery_service.dart';
+import 'package:reaprime/src/services/database/database.dart' hide Workflow;
+import 'package:reaprime/src/services/storage/drift_bean_storage.dart';
+import 'package:reaprime/src/services/storage/drift_grinder_storage.dart';
+import 'package:reaprime/src/services/storage/drift_profile_storage.dart';
+import 'package:reaprime/src/services/storage/drift_storage_service.dart';
 import 'package:reaprime/src/services/storage/hive_store_service.dart';
-import 'package:reaprime/src/services/storage/hive_profile_storage.dart';
 import 'package:reaprime/src/services/universal_ble_discovery_service.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
-import 'package:reaprime/src/services/storage/file_storage_service.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
@@ -206,11 +209,17 @@ void main() async {
     simulatedDevicesService.simulationEnabled = true;
     log.info("enabling Simulated Service");
   }
-  final storagePath = await getApplicationDocumentsDirectory();
+  // Initialize Drift database
+  final appDatabase = AppDatabase.defaults();
+
   final persistenceController = PersistenceController(
-    storageService: FileStorageService(path: storagePath),
+    storageService: DriftStorageService(appDatabase),
   );
   persistenceController.loadShots();
+
+  // Entity storage services
+  final beanStorage = DriftBeanStorageService(appDatabase);
+  final grinderStorage = DriftGrinderStorageService(appDatabase);
 
   final WorkflowController workflowController = WorkflowController();
   try {
@@ -227,7 +236,7 @@ void main() async {
 
   // Initialize profile storage and controller
   final profileController = ProfileController(
-    storage: HiveProfileStorageService(),
+    storage: DriftProfileStorageService(appDatabase),
   );
   await profileController.initialize();
 
@@ -290,6 +299,8 @@ void main() async {
       batteryController,
       presenceController,
       displayController,
+      beanStorage: beanStorage,
+      grinderStorage: grinderStorage,
     );
   } catch (e, st) {
     log.severe('failed to start web server', e, st);
