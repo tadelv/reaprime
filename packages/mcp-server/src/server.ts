@@ -14,6 +14,8 @@ import { registerPluginTools } from "./tools/plugins.js";
 import { registerSensorTools } from "./tools/sensors.js";
 import { AppManager } from "./lifecycle/app-manager.js";
 import { registerLifecycleTools } from "./tools/lifecycle.js";
+import { WsClient } from "./bridge/ws-client.js";
+import { registerStreamingTools } from "./tools/streaming.js";
 
 export interface ServerConfig {
   host: string;
@@ -59,12 +61,15 @@ export function createServer(config: ServerConfig) {
   });
   registerLifecycleTools(server, appManager, restClient);
 
-  // Cleanup on process exit
-  process.on("exit", () => { appManager.stop().catch(() => {}); });
-  process.on("SIGINT", () => { appManager.stop().then(() => process.exit(0)); });
-  process.on("SIGTERM", () => { appManager.stop().then(() => process.exit(0)); });
+  const wsClient = new WsClient(`http://${config.host}:${config.port}`);
+  registerStreamingTools(server, wsClient);
 
-  return { server, restClient, appManager, config };
+  // Cleanup on process exit
+  process.on("exit", () => { appManager.stop().catch(() => {}); wsClient.unsubscribeAll(); });
+  process.on("SIGINT", () => { wsClient.unsubscribeAll(); appManager.stop().then(() => process.exit(0)); });
+  process.on("SIGTERM", () => { wsClient.unsubscribeAll(); appManager.stop().then(() => process.exit(0)); });
+
+  return { server, restClient, appManager, wsClient, config };
 }
 
 function findProjectRoot(): string {
