@@ -11,12 +11,12 @@
 
 The full schema proposal introduces 6 new entities, 4 snapshot types, 2 component types, junction tables, and ~50 new classes. This simplified proposal keeps the high-value entities (Bean, BeanBatch, Grinder) as first-class core data with Drift tables and REST API, but eliminates the complexity overhead (snapshot objects, component wrappers, junction tables) and defers lower-value entities (Equipment, Water) to the plugin system.
 
-**Key architectural pattern: Core = data layer, Skins = UI layer.** The core app owns entity tables and exposes CRUD APIs. Skins (primarily DYE2) provide entity management UI, pickers, and selection flows. The core app has no bean/grinder management screens.
+**Key architectural pattern: Core = data layer, plugins/skins = UI layer.** The core app owns entity tables and exposes CRUD APIs. Plugins (primarily Streamline/DYE2) and skins provide entity management UI, pickers, and selection flows. The core app has no bean/grinder management screens.
 
 **Core entities (Drift tables + API):**
 - `Bean` — coffee identity (roaster, name, origin, variety, processing, species, decaf) — full fields from original proposal
 - `BeanBatch` — specific bag/purchase (roast date, weight tracking, dates, price) — full fields from original proposal
-- `Grinder` — model info + DYE2 UI configuration (setting types, step sizes, burrs) — merged from original Grinder + GrinderConfig
+- `Grinder` — model info + Streamline/DYE2 UI configuration (setting types, step sizes, burrs) — merged from original Grinder + GrinderConfig
 
 **Core composites (embedded in Workflow/ShotRecord):**
 - `WorkflowContext` — replaces `DoseData`/`GrinderData`/`CoffeeData` with flat fields: entity IDs for linking + display strings for history + per-shot parameters
@@ -38,7 +38,7 @@ The full schema proposal introduces 6 new entities, 4 snapshot types, 2 componen
 
 ## Design Principles
 
-1. **Core = data, skins = UI** — The core app provides Drift tables and REST API for entity CRUD. Skins provide the management UI. The core app has no entity management screens. This lets any skin (DYE2, a simple skin, a third-party skin) share one entity library.
+1. **Core = data, plugins/skins = UI** — The core app provides Drift tables and REST API for entity CRUD. Plugins and skins provide the management UI. The core app has no entity management screens. This lets any plugin or skin (Streamline/DYE2, a simple skin, a third-party plugin) share one entity library.
 2. **ID + strings pattern** — WorkflowContext stores both entity IDs (for relational linking) and display strings (for history and compatibility). When a skin selects a bean batch, it writes both. If the entity is later deleted, the strings survive on historical shots. No snapshot objects needed.
 3. **Unambiguous field names** — Pre-shot targets use `target*` prefixes; post-shot actuals use `actual*` prefixes. No fallback logic.
 4. **Derived values are not stored** — `targetDoseYieldRatio` is computed from `targetDoseWeight / targetYield`. Not persisted.
@@ -114,7 +114,7 @@ A physical bag of a specific Bean. Tracks inventory, dates, and batch-specific a
 
 ### 3. Grinder
 
-Model info + DYE2 UI configuration. Merges the original proposal's Grinder entity with the DYE2 config fields from #62.
+Model info + Streamline/DYE2 UI configuration. Merges the original proposal's Grinder entity with the Streamline/DYE2 config fields from #62.
 
 | Field | Type | Notes | DE1 Alias |
 |-------|------|-------|-----------|
@@ -125,7 +125,7 @@ Model info + DYE2 UI configuration. Merges the original proposal's Grinder entit
 | `burrType` | String? | Flat, Conical, Ghost, Hybrid | — |
 | `notes` | String? | | — |
 | `archived` | bool | | — |
-| **DYE2 UI Configuration** | | | |
+| **Streamline/DYE2 UI Configuration** | | | |
 | `settingType` | enum | `numeric` or `values` | — |
 | `settingValues` | List\<String\>? | When settingType=values: valid positions | — |
 | `settingSmallStep` | double? | +/- button increment | — |
@@ -181,7 +181,7 @@ class WorkflowContext {
 
 1. **Minimal:** Set `targetDoseWeight` + `targetYield`. Everything else null.
 2. **Standard:** Add `grinderModel` + `grinderSetting` + `coffeeName` + `coffeeRoaster` as strings. No entity IDs needed.
-3. **Full:** DYE2 skin sets entity IDs (`grinderId`, `beanBatchId`) alongside the display strings. Entity management via API.
+3. **Full:** Streamline/DYE2 plugin sets entity IDs (`grinderId`, `beanBatchId`) alongside the display strings. Entity management via API.
 
 #### The ID + Strings Pattern
 
@@ -364,7 +364,7 @@ class Grinders extends Table {
   TextColumn get burrType => text().nullable()();
   TextColumn get notes => text().nullable()();
   BoolColumn get archived => boolean().withDefault(const Constant(false))();
-  // DYE2 UI Configuration
+  // Streamline/DYE2 UI Configuration
   TextColumn get settingType => textEnum<GrinderSettingType>()();
   TextColumn get settingValues => text().map(const StringListConverter()).nullable()();
   RealColumn get settingSmallStep => real().nullable()();
@@ -548,7 +548,7 @@ PUT /api/v1/workflow
 
 #### Tier 3: Full (entity management + annotations)
 
-DYE2 skin manages entity library via API, sets entity IDs on workflow, records post-shot annotations.
+Streamline/DYE2 plugin manages entity library via API, sets entity IDs on workflow, records post-shot annotations.
 
 ```json
 PUT /api/v1/workflow
@@ -591,6 +591,27 @@ Plugins communicate additional data through `extras` on WorkflowContext and Shot
 | Photo attachments | `annotations.extras` | File paths; base64 only for import/export |
 | Beverage details | `annotations.extras` | Added liquid type/weight/temperature |
 | People overrides | `annotations.extras` | Per-shot barista/drinker if different from workflow defaults |
+
+### Querying Plugin Data in Extras
+
+Plugin data stored in `extras` is searchable via SQLite JSON functions. Since `extras` lives inside the `workflow` and `annotations` JSON columns on ShotRecords, queries use `json_extract()`:
+
+```sql
+-- Shots where Streamline/DYE2 plugin set a manual blend
+SELECT * FROM shot_records
+WHERE json_extract(workflow, '$.context.extras.dye2.manualBlend') IS NOT NULL;
+
+-- Shots where Streamline/DYE2 plugin recorded acidity quality > 7
+SELECT * FROM shot_records
+WHERE json_extract(annotations, '$.extras.dye2.tasting.acidity.quality') > 7.0;
+```
+
+Drift supports this via custom expressions. **Tradeoffs:**
+- **Not indexed** — each query scans the JSON column (no index on JSON paths)
+- **Adequate at scale** — for a personal espresso journal (few thousand shots), full-scan JSON queries are fast enough
+- **Promotion path** — if a specific extras query becomes frequent enough to need indexing, promote it to a denormalized column on ShotRecords in a future schema version (same pattern used for `grinderId`, `coffeeName`, etc.)
+
+This means plugins can query their own data in extras without core schema changes, and the core app can promote high-traffic query patterns to indexed columns as usage patterns emerge.
 
 ### Plugin Storage
 
@@ -683,7 +704,7 @@ The persistence layer proposal (`persistence-layer-proposal.md`) remains the ref
 | Two-layer model architecture (2.1) | **Unchanged** |
 | Directory structure (2.2) | **Simplified** — no `equipment_tables.dart`, `water_tables.dart`, junction tables, or corresponding DAOs/mappers |
 | Bean tables (3.1) | **Kept** — Beans + BeanBatches as defined in full proposal |
-| Grinder table (3.1) | **Kept** — merged with DYE2 config fields |
+| Grinder table (3.1) | **Kept** — merged with Streamline/DYE2 config fields |
 | Equipment/Water tables (3.1) | **Removed** — deferred to plugin |
 | Shot table (3.2) | **Simplified** — denormalized string + ID columns instead of only FK columns; no junction tables |
 | Junction tables (3.3) | **Removed** — ShotBeanBatches, ShotEquipment eliminated |
@@ -740,7 +761,7 @@ The persistence layer proposal (`persistence-layer-proposal.md`) remains the ref
 |----------|--------|-----------|
 | Architecture | Core = data layer, skins = UI layer | Shared entity library; no management screens in core app |
 | Bean/BeanBatch | Core entity (Drift + API), full field set | High-value entities; avoid string-to-entity migration later; skins manage UI |
-| Grinder | Core entity (merged model + DYE2 config) | First-party DYE2 requirement (#62); model info + UI config in one entity |
+| Grinder | Core entity (merged model + Streamline/DYE2 config) | First-party Streamline/DYE2 requirement (#62); model info + UI config in one entity |
 | Equipment | Deferred to plugin | Not earning its keep as a typed entity; type-specific data all in extras |
 | Water | Deferred to plugin | Power-user feature; casual users don't track water |
 | Entity references on shots | ID + display strings (no snapshots) | IDs for linking/querying, strings for display/history/compat. No snapshot objects. |
