@@ -23,7 +23,7 @@ export class AppManager {
   private process: ChildProcess | null = null;
   private logBuffer: string[] = [];
   private _state: AppState = AppState.Stopped;
-  private startParams: { connectDevice?: string; connectScale?: string; dartDefines?: string[] } = {};
+  private startParams: { connectDevice?: string; connectScale?: string; platform?: string; dartDefines?: string[] } = {};
 
   constructor(private config: AppManagerConfig) {}
 
@@ -42,6 +42,7 @@ export class AppManager {
   async start(options?: {
     connectDevice?: string;
     connectScale?: string;
+    platform?: string;
     dartDefines?: string[];
   }): Promise<{ pid: number; connectionStatus?: string }> {
     if (this._state !== AppState.Stopped) {
@@ -64,6 +65,7 @@ export class AppManager {
 
     const args = [
       "run",
+      ...(options?.platform ? ["-d", options.platform] : []),
       ...defines.map((d) => `--dart-define=${d}`),
       ...(options?.dartDefines?.map((d) => `--dart-define=${d}`) ?? []),
     ];

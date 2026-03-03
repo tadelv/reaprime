@@ -22,14 +22,18 @@ export function registerLifecycleTools(
         .string()
         .optional()
         .describe("Scale name to auto-connect (e.g. 'MockScale')"),
+      platform: z
+        .string()
+        .optional()
+        .describe("Target platform/device (-d flag, e.g. 'macos', 'linux', 'chrome', or a device ID)"),
       dartDefines: z
         .array(z.string())
         .optional()
         .describe("Additional --dart-define flags (simulate=1 is always included)"),
     }),
-  }, async ({ connectDevice, connectScale, dartDefines }) => {
+  }, async ({ connectDevice, connectScale, platform, dartDefines }) => {
     try {
-      const result = await appManager.start({ connectDevice, connectScale, dartDefines });
+      const result = await appManager.start({ connectDevice, connectScale, platform, dartDefines });
       return {
         content: [{
           type: "text",

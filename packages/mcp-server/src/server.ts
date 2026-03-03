@@ -33,7 +33,7 @@ export function createConfig(): ServerConfig {
     projectRoot:
       process.env.STREAMLINE_PROJECT_ROOT ??
       findProjectRoot(),
-    flutterCmd: process.env.STREAMLINE_FLUTTER_CMD ?? "flutter",
+    flutterCmd: process.env.STREAMLINE_FLUTTER_CMD ?? "./flutter_with_commit.sh",
   };
 }
 
