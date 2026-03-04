@@ -12,6 +12,14 @@ export class RestClientError extends Error {
 export class RestClient {
   constructor(private baseUrl: string) {}
 
+  setBaseUrl(url: string): void {
+    this.baseUrl = url;
+  }
+
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
   async get<T = unknown>(path: string, params?: Record<string, string>): Promise<T> {
     const url = this.buildUrl(path, params);
     return this.request<T>(url, { method: "GET" });

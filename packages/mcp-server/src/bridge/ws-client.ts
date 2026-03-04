@@ -15,6 +15,15 @@ export class WsClient {
 
   constructor(private baseUrl: string) {}
 
+  setBaseUrl(url: string): void {
+    this.unsubscribeAll();
+    this.baseUrl = url;
+  }
+
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
   subscribe(endpoint: string): string {
     const id = `sub_${this.nextId++}`;
     const wsUrl = this.baseUrl.replace(/^http/, "ws") + endpoint;

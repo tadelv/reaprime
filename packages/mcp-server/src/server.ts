@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
 import { existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -69,6 +70,31 @@ export function createServer(config: ServerConfig) {
 
   const wsClient = new WsClient(`http://${config.host}:${config.port}`);
   registerStreamingTools(server, wsClient);
+
+  // Connection target
+  server.tool(
+    "set_target",
+    "Change the Streamline Bridge target host and port at runtime. Closes any open WebSocket subscriptions.",
+    { host: z.string().describe("Hostname or IP address (e.g. '192.168.1.100')"), port: z.number().int().optional().default(8080).describe("Port number (default 8080)") },
+    async ({ host, port }) => {
+      const url = `http://${host}:${port}`;
+      restClient.setBaseUrl(url);
+      wsClient.setBaseUrl(url);
+      const reachable = await restClient.isReachable();
+      return { content: [{ type: "text" as const, text: JSON.stringify({ target: url, reachable }) }] };
+    }
+  );
+
+  server.tool(
+    "get_target",
+    "Get the current Streamline Bridge target URL.",
+    {},
+    async () => {
+      const url = restClient.getBaseUrl();
+      const reachable = await restClient.isReachable();
+      return { content: [{ type: "text" as const, text: JSON.stringify({ target: url, reachable }) }] };
+    }
+  );
 
   // Resources
   registerStaticResources(server, config.projectRoot);
