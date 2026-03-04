@@ -1,5 +1,8 @@
 /// <reference path="./host.d.ts" />
 
+import { renderBeansPage } from "./pages/beans";
+import { renderGrindersPage } from "./pages/grinders";
+
 export default function createPlugin(host: PluginHost): PluginInstance {
   function log(msg: string) {
     host.log(`[dye2] ${msg}`);
@@ -26,34 +29,10 @@ export default function createPlugin(host: PluginHost): PluginInstance {
 
       switch (request.endpoint) {
         case "beans":
-          return {
-            requestId: request.requestId,
-            status: 200,
-            headers: { "Content-Type": "text/html; charset=utf-8" },
-            body: `<!DOCTYPE html>
-<html>
-<head><title>DYE2 - Beans</title></head>
-<body>
-  <h1>Streamline/DYE2 - Beans Management</h1>
-  <p>Plugin scaffold working. Components coming soon.</p>
-</body>
-</html>`,
-          };
+          return renderBeansPage(request);
 
         case "grinders":
-          return {
-            requestId: request.requestId,
-            status: 200,
-            headers: { "Content-Type": "text/html; charset=utf-8" },
-            body: `<!DOCTYPE html>
-<html>
-<head><title>DYE2 - Grinders</title></head>
-<body>
-  <h1>Streamline/DYE2 - Grinders Management</h1>
-  <p>Plugin scaffold working. Components coming soon.</p>
-</body>
-</html>`,
-          };
+          return renderGrindersPage(request);
 
         case "bean-picker":
         case "grinder-picker":
