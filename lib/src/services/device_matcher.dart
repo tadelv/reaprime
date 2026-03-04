@@ -26,13 +26,13 @@ class DeviceMatcher {
 
     // Exact matches
     if (name == 'Decent Scale') return DecentScale(transport: transport);
-    if (name == 'Skale2') return Skale2Scale(transport: transport);
+    if (name == 'Skale2' || nameLower.startsWith("skale")) return Skale2Scale(transport: transport);
 
     // DE1 family — check before generic prefix matches
     if (name == 'DE1' || nameLower == 'nrf5x' || nameLower.startsWith('de1')) {
       return UnifiedDe1(transport: transport);
     }
-    if (name == 'Bengle' || name.startsWith("Bengle")) return Bengle(transport: transport);
+    if (name == 'Bengle' || nameLower.startsWith("bengle")) return Bengle(transport: transport);
 
     // Prefix matches
     if (nameLower.startsWith('felicita')) {
