@@ -56,6 +56,17 @@ export function sharedStyles(): string {
     .text-muted { color: #888; }
     .text-small { font-size: 0.8rem; }
     .hidden { display: none; }
+    .icon-btn {
+      background: none;
+      border: none;
+      color: #888;
+      padding: 4px 8px;
+      font-size: 1.1rem;
+      line-height: 1;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .icon-btn:hover { background: #0f3460; color: #e0e0e0; }
     .tag {
       display: inline-block;
       background: #0f3460;
