@@ -377,6 +377,7 @@ class PluginLoaderService {
       'assets/plugins/time-to-ready.reaplugin',
       'assets/plugins/visualizer.reaplugin',
       'assets/plugins/settings.reaplugin',
+      'assets/plugins/dye2.reaplugin',
       // Add more bundled plugins here as they are added to the app
     ];
   }
