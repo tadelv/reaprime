@@ -1,0 +1,16 @@
+{
+  "id": "dye2.reaplugin",
+  "author": "Streamline",
+  "name": "Streamline/DYE2",
+  "description": "Bean, grinder, and equipment management for Decent Espresso",
+  "version": "0.1.0",
+  "apiVersion": 1,
+  "permissions": ["log", "api", "emit", "pluginStorage"],
+  "settings": {},
+  "api": [
+    { "id": "beans", "type": "http", "data": {} },
+    { "id": "grinders", "type": "http", "data": {} },
+    { "id": "bean-picker", "type": "http", "data": {} },
+    { "id": "grinder-picker", "type": "http", "data": {} }
+  ]
+}
