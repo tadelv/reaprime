@@ -11,6 +11,11 @@ class Dye2GrinderList extends HTMLElement {
     this._showArchived = false;
   }
 
+  _esc(val) {
+    if (val == null) return '';
+    return String(val).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
   connectedCallback() {
     this.render();
     this.fetchGrinders();
@@ -20,6 +25,7 @@ class Dye2GrinderList extends HTMLElement {
     try {
       const params = this._showArchived ? '?includeArchived=true' : '';
       const res = await fetch('/api/v1/grinders' + params);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
       this._grinders = await res.json();
       this.render();
     } catch (err) {
@@ -51,19 +57,19 @@ class Dye2GrinderList extends HTMLElement {
           <div class="card" data-grinder-id="\${g.id}">
             <div class="flex-between">
               <div>
-                <strong>\${g.model || 'Unnamed'}</strong>
+                <strong>\${this._esc(g.model) || 'Unnamed'}</strong>
               </div>
               <div class="flex">
                 \${g.archived ? '<span class="tag">archived</span>' : ''}
-                \${g.settingType ? '<span class="tag">' + g.settingType + '</span>' : ''}
+                \${g.settingType ? '<span class="tag">' + this._esc(g.settingType) + '</span>' : ''}
               </div>
             </div>
             <div class="flex text-small text-muted mt-8">
-              \${g.burrs ? '<span>Burrs: ' + g.burrs + '</span>' : ''}
-              \${g.burrType ? '<span>Type: ' + g.burrType + '</span>' : ''}
-              \${g.burrSize ? '<span>Size: ' + g.burrSize + 'mm</span>' : ''}
+              \${g.burrs ? '<span>Burrs: ' + this._esc(g.burrs) + '</span>' : ''}
+              \${g.burrType ? '<span>Type: ' + this._esc(g.burrType) + '</span>' : ''}
+              \${g.burrSize ? '<span>Size: ' + this._esc(g.burrSize) + 'mm</span>' : ''}
             </div>
-            \${g.notes ? '<div class="text-small text-muted mt-8">' + g.notes + '</div>' : ''}
+            \${g.notes ? '<div class="text-small text-muted mt-8">' + this._esc(g.notes) + '</div>' : ''}
           </div>
         \`).join('')
       }
