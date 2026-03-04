@@ -141,15 +141,18 @@ class Workflow {
     HotWaterData? hotWaterData,
     RinseData? rinseData,
   }) {
+    // When context is explicitly provided, don't carry forward stale legacy
+    // fields — let the constructor re-synthesize them from the new context.
+    final contextChanged = context != null;
     return Workflow(
       id: Uuid().v4(),
       name: name ?? this.name,
       description: description ?? this.description,
       profile: profile ?? this.profile,
       context: context ?? this.context,
-      doseData: doseData ?? _doseData,
-      grinderData: grinderData ?? _grinderData,
-      coffeeData: coffeeData ?? _coffeeData,
+      doseData: doseData ?? (contextChanged ? null : _doseData),
+      grinderData: grinderData ?? (contextChanged ? null : _grinderData),
+      coffeeData: coffeeData ?? (contextChanged ? null : _coffeeData),
       steamSettings: steamSettings ?? this.steamSettings,
       hotWaterData: hotWaterData ?? this.hotWaterData,
       rinseData: rinseData ?? this.rinseData,

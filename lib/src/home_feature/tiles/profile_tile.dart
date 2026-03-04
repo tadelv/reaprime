@@ -1006,6 +1006,53 @@ class _BeanBatchPickerWidgetState extends State<_BeanBatchPickerWidget> {
     }
   }
 
+  Widget _buildSelectedBatchInfo() {
+    final selectedBatch = widget.currentBatchId != null
+        ? _batches.where((b) => b.id == widget.currentBatchId).firstOrNull
+        : null;
+    if (selectedBatch == null) return const SizedBox.shrink();
+
+    final details = <String>[];
+    if (selectedBatch.roastLevel != null) details.add(selectedBatch.roastLevel!);
+    if (selectedBatch.roastDate != null) {
+      details.add('roasted ${selectedBatch.roastDate!.toLocal().toString().split(' ').first}');
+    }
+    if (selectedBatch.weightRemaining != null) {
+      details.add('${selectedBatch.weightRemaining!.toStringAsFixed(0)}g remaining');
+    } else if (selectedBatch.weight != null) {
+      details.add('${selectedBatch.weight!.toStringAsFixed(0)}g');
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            details.join(' · '),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          if (selectedBatch.notes != null && selectedBatch.notes!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                selectedBatch.notes!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontStyle: FontStyle.italic,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   String _batchDisplayText(BeanBatch batch) {
     final parts = <String>[];
     if (batch.roastLevel != null) parts.add(batch.roastLevel!);
@@ -1120,6 +1167,9 @@ class _BeanBatchPickerWidgetState extends State<_BeanBatchPickerWidget> {
                 widget.onBatchSelected(bean, batch);
               },
             ),
+          // Show selected batch info
+          if (!_loadingBatches && _batches.isNotEmpty)
+            _buildSelectedBatchInfo(),
         ],
       ],
     );
