@@ -10,7 +10,7 @@
     "skipLibCheck": true,
     "declaration": false,
     "sourceMap": false,
-    "lib": ["ES2020"]
+    "lib": ["ES2020", "DOM"]
   },
   "include": ["src/**/*"]
 }
