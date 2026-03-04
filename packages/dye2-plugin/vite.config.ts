@@ -1,6 +1,6 @@
 import { defineConfig } from "vite";
 import { resolve } from "path";
-import { readFileSync, mkdirSync, copyFileSync } from "fs";
+import { mkdirSync, copyFileSync } from "fs";
 
 export default defineConfig({
   build: {
