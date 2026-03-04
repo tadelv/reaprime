@@ -1,6 +1,6 @@
 /// <reference path="./host.d.ts" />
 
-function createPlugin(host: PluginHost): PluginInstance {
+export default function createPlugin(host: PluginHost): PluginInstance {
   function log(msg: string) {
     host.log(`[dye2] ${msg}`);
   }
