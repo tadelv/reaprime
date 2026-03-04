@@ -1,0 +1,16 @@
+{
+  "name": "@streamline/dye2-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Streamline/DYE2 plugin for bean and grinder management",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0",
+    "vite": "^6.0.0",
+    "vite-plugin-dts": "^4.0.0"
+  }
+}
