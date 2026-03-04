@@ -1,6 +1,6 @@
 # DYE2 Plugin
 
-DYE2 (Decent Your Espresso 2) is a first-party plugin for [Streamline Bridge](../../README.md) that provides bean, grinder, and equipment management UI for Decent Espresso machines.
+DYE2 (Describe Your Espresso 2) is a first-party plugin for [Streamline Bridge](../../README.md) that provides bean, grinder, and equipment management UI for Decent Espresso machines.
 
 ## Goal
 
