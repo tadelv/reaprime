@@ -90,12 +90,12 @@ class _HistoryFeatureState extends State<HistoryFeature> {
     setState(() {
       _filteredShots = _shots.where((record) {
         // Search in coffee name
-        if (record.workflow.coffeeData?.name.toLowerCase().contains(text) ?? false) {
+        if (record.workflow.context?.coffeeName?.toLowerCase().contains(text) ?? false) {
           return true;
         }
-        
+
         // Search in roaster
-        if (record.workflow.coffeeData?.roaster?.toLowerCase().contains(text) ?? false) {
+        if (record.workflow.context?.coffeeRoaster?.toLowerCase().contains(text) ?? false) {
           return true;
         }
         
@@ -264,14 +264,14 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                           const SizedBox(height: 8),
                           
                           // Coffee and roaster
-                          if (record.workflow.coffeeData != null) ...[
+                          if (record.workflow.context?.coffeeName != null) ...[
                             Row(
                               children: [
                                 Icon(Icons.coffee, size: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
-                                    record.workflow.coffeeData!.name,
+                                    record.workflow.context!.coffeeName!,
                                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                       fontWeight: FontWeight.w500,
                                     ),
@@ -281,11 +281,11 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                                 ),
                               ],
                             ),
-                            if (record.workflow.coffeeData!.roaster != null)
+                            if (record.workflow.context?.coffeeRoaster != null)
                               Padding(
                                 padding: const EdgeInsets.only(left: 18, top: 2),
                                 child: Text(
-                                  record.workflow.coffeeData!.roaster!,
+                                  record.workflow.context!.coffeeRoaster!,
                                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                     color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                                   ),
@@ -314,25 +314,29 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                           const SizedBox(height: 6),
                           
                           // Dose ratio
-                          Row(
-                            children: [
-                              Icon(Icons.scale, size: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
-                              const SizedBox(width: 4),
-                              Text(
-                                "${record.workflow.doseData.doseIn}g → ${record.workflow.doseData.doseOut}g",
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  fontWeight: FontWeight.w500,
+                          if (record.workflow.context?.targetDoseWeight != null) ...[
+                            Row(
+                              children: [
+                                Icon(Icons.scale, size: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+                                const SizedBox(width: 4),
+                                Text(
+                                  "${record.workflow.context!.targetDoseWeight!}g → ${record.workflow.context?.targetYield ?? 0}g",
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                "(1:${(record.workflow.doseData.doseOut / record.workflow.doseData.doseIn).toStringAsFixed(1)})",
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                                ),
-                              ),
-                            ],
-                          ),
+                                if (record.workflow.context?.ratio != null) ...[
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    "(1:${record.workflow.context!.ratio!.toStringAsFixed(1)})",
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
                           
                           // Grinder info
                           if (record.workflow.context?.grinderModel != null || record.workflow.context?.grinderSetting != null) ...[
@@ -434,7 +438,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
     final duration = record.measurements.isNotEmpty
         ? record.measurements.last.machine.timestamp.difference(record.timestamp)
         : Duration.zero;
-    final ratio = record.workflow.doseData.doseOut / record.workflow.doseData.doseIn;
+    final ratio = record.workflow.context?.ratio;
     
     return SingleChildScrollView(
       child: Padding(
@@ -452,7 +456,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        record.workflow.coffeeData?.name ?? "Shot Details",
+                        record.workflow.context?.coffeeName ?? "Shot Details",
                         style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -528,7 +532,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                   child: _StatCard(
                     icon: Icons.scale,
                     label: "Ratio",
-                    value: "1:${ratio.toStringAsFixed(1)}",
+                    value: ratio != null ? "1:${ratio.toStringAsFixed(1)}" : "–",
                     context: context,
                   ),
                 ),
@@ -537,7 +541,9 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                   child: _StatCard(
                     icon: Icons.arrow_forward,
                     label: "Yield",
-                    value: "${record.workflow.doseData.doseOut}g",
+                    value: record.workflow.context?.targetYield != null
+                        ? "${record.workflow.context!.targetYield!}g"
+                        : "–",
                     context: context,
                   ),
                 ),
@@ -566,25 +572,27 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                   SizedBox(height: 12),
                   _DetailRow(
                     label: "Bean",
-                    value: record.workflow.coffeeData?.name ?? "Not specified",
+                    value: record.workflow.context?.coffeeName ?? "Not specified",
                     context: context,
                   ),
-                  if (record.workflow.coffeeData?.roaster != null)
+                  if (record.workflow.context?.coffeeRoaster != null)
                     _DetailRow(
                       label: "Roaster",
-                      value: record.workflow.coffeeData!.roaster!,
+                      value: record.workflow.context!.coffeeRoaster!,
                       context: context,
                     ),
-                  _DetailRow(
-                    label: "Dose In",
-                    value: "${record.workflow.doseData.doseIn}g",
-                    context: context,
-                  ),
-                  _DetailRow(
-                    label: "Dose Out",
-                    value: "${record.workflow.doseData.doseOut}g",
-                    context: context,
-                  ),
+                  if (record.workflow.context?.targetDoseWeight != null)
+                    _DetailRow(
+                      label: "Dose In",
+                      value: "${record.workflow.context!.targetDoseWeight!}g",
+                      context: context,
+                    ),
+                  if (record.workflow.context?.targetYield != null)
+                    _DetailRow(
+                      label: "Dose Out",
+                      value: "${record.workflow.context!.targetYield!}g",
+                      context: context,
+                    ),
                 ],
               ),
             ),
