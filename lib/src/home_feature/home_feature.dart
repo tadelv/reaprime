@@ -15,6 +15,8 @@ import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/gateway_mode_info_dialog.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/skin_feature/skin_view.dart';
+import 'package:reaprime/src/services/storage/bean_storage_service.dart';
+import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -33,6 +35,8 @@ class HomeScreen extends StatefulWidget {
     required this.settingsController,
     required this.webUIService,
     required this.webUIStorage,
+    this.beanStorage,
+    this.grinderStorage,
   });
 
   final DeviceController deviceController;
@@ -43,6 +47,8 @@ class HomeScreen extends StatefulWidget {
   final SettingsController settingsController;
   final WebUIService webUIService;
   final WebUIStorage webUIStorage;
+  final BeanStorageService? beanStorage;
+  final GrinderStorageService? grinderStorage;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -155,6 +161,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         de1controller: widget.de1controller,
         workflowController: widget.workflowController,
         persistenceController: widget.persistenceController,
+        beanStorage: widget.beanStorage,
+        grinderStorage: widget.grinderStorage,
       ),
       _statusCard(context),
       _settingsCard(context),

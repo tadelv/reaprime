@@ -8,6 +8,10 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
+import 'package:reaprime/src/models/data/bean.dart';
+import 'package:reaprime/src/models/data/grinder.dart';
+import 'package:reaprime/src/services/storage/bean_storage_service.dart';
+import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
@@ -18,12 +22,16 @@ class ProfileTile extends StatefulWidget {
   final De1Controller de1controller;
   final WorkflowController workflowController;
   final PersistenceController persistenceController;
+  final BeanStorageService? beanStorage;
+  final GrinderStorageService? grinderStorage;
 
   const ProfileTile({
     super.key,
     required this.de1controller,
     required this.workflowController,
     required this.persistenceController,
+    this.beanStorage,
+    this.grinderStorage,
   });
 
   @override
@@ -492,7 +500,7 @@ class _ProfileState extends State<ProfileTile> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     spacing: 16,
                     children: [
-                      grinderDataForm(context),
+                      _grinderDataFormWithPicker(context),
                       ShadButton(
                         child: Text("Done"),
                         onPressed: () {
@@ -513,8 +521,94 @@ class _ProfileState extends State<ProfileTile> {
     );
   }
 
-  Column grinderDataForm(BuildContext context) {
-    final ctx = widget.workflowController.currentWorkflow.context ?? WorkflowContext();
+  Widget _grinderDataFormWithPicker(BuildContext context) {
+    return StatefulBuilder(
+      builder: (context, setDialogState) {
+        return FutureBuilder<List<Grinder>>(
+          future: widget.grinderStorage?.getAllGrinders() ?? Future.value([]),
+          builder: (context, snapshot) {
+            final grinders = snapshot.data ?? [];
+            final ctx = widget.workflowController.currentWorkflow.context ?? WorkflowContext();
+            final selectedGrinder = ctx.grinderId != null
+                ? grinders.where((g) => g.id == ctx.grinderId).firstOrNull
+                : null;
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (widget.grinderStorage != null && grinders.isNotEmpty) ...[
+                  Row(
+                    spacing: 8,
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          decoration: const InputDecoration(
+                            labelText: 'Select grinder',
+                            isDense: true,
+                          ),
+                          value: selectedGrinder?.id,
+                          hint: const Text('Choose a grinder...'),
+                          isExpanded: true,
+                          items: grinders.map((g) {
+                            final subtitle = [
+                              if (g.burrs != null) g.burrs,
+                              if (g.burrSize != null) '${g.burrSize}mm',
+                            ].join(' ');
+                            return DropdownMenuItem<String>(
+                              value: g.id,
+                              child: Text(
+                                subtitle.isNotEmpty ? '${g.model} ($subtitle)' : g.model,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (grinderId) {
+                            final grinder = grinders.firstWhere((g) => g.id == grinderId);
+                            setState(() {
+                              widget.workflowController.setWorkflow(
+                                widget.workflowController.currentWorkflow.copyWith(
+                                  context: ctx.copyWith(
+                                    grinderId: grinder.id,
+                                    grinderModel: grinder.model,
+                                  ),
+                                ),
+                              );
+                            });
+                            setDialogState(() {});
+                          },
+                        ),
+                      ),
+                      if (selectedGrinder != null)
+                        IconButton(
+                          icon: const Icon(Icons.clear, size: 20),
+                          tooltip: 'Clear grinder selection',
+                          onPressed: () {
+                            setState(() {
+                              widget.workflowController.setWorkflow(
+                                widget.workflowController.currentWorkflow.copyWith(
+                                  context: ctx.clearGrinder(),
+                                ),
+                              );
+                            });
+                            setDialogState(() {});
+                          },
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                ],
+                _grinderFreeformFields(context, ctx, setDialogState),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _grinderFreeformFields(BuildContext context, WorkflowContext ctx, StateSetter setDialogState) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -552,6 +646,7 @@ class _ProfileState extends State<ProfileTile> {
                       ),
                     );
                   });
+                  setDialogState(() {});
                 },
               ),
             ),
@@ -592,17 +687,33 @@ class _ProfileState extends State<ProfileTile> {
                 initialValue: TextEditingValue(text: ctx.grinderModel ?? ""),
                 onSelected: (val) {
                   setState(() {
+                    // Clear grinderId when freeform model is manually edited
+                    final newCtx = ctx.grinderId != null
+                        ? ctx.clearGrinder().copyWith(grinderModel: val)
+                        : ctx.copyWith(grinderModel: val);
                     widget.workflowController.setWorkflow(
                       widget.workflowController.currentWorkflow.copyWith(
-                        context: ctx.copyWith(grinderModel: val),
+                        context: newCtx,
                       ),
                     );
                   });
+                  setDialogState(() {});
                 },
               ),
             ),
           ],
         ),
+      ],
+    );
+  }
+
+  // Keep for backward compatibility (used in tests)
+  Column grinderDataForm(BuildContext context) {
+    final ctx = widget.workflowController.currentWorkflow.context ?? WorkflowContext();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _grinderFreeformFields(context, ctx, (fn) => fn()),
       ],
     );
   }
@@ -623,7 +734,7 @@ class _ProfileState extends State<ProfileTile> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     spacing: 16,
                     children: [
-                      _coffeeDataForm(),
+                      _coffeeDataFormWithPicker(context),
                       ShadButton(
                         child: Text("Done"),
                         onPressed: () {
@@ -640,8 +751,85 @@ class _ProfileState extends State<ProfileTile> {
     );
   }
 
-  Column _coffeeDataForm() {
-    final ctx = widget.workflowController.currentWorkflow.context ?? WorkflowContext();
+  Widget _coffeeDataFormWithPicker(BuildContext context) {
+    return StatefulBuilder(
+      builder: (context, setDialogState) {
+        return FutureBuilder<List<Bean>>(
+          future: widget.beanStorage?.getAllBeans() ?? Future.value([]),
+          builder: (context, snapshot) {
+            final beans = snapshot.data ?? [];
+            final ctx = widget.workflowController.currentWorkflow.context ?? WorkflowContext();
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (widget.beanStorage != null && beans.isNotEmpty) ...[
+                  _beanBatchPicker(context, ctx, beans, setDialogState),
+                  const SizedBox(height: 8),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                ],
+                _coffeeFreeformFields(ctx, setDialogState),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _beanBatchPicker(
+    BuildContext context,
+    WorkflowContext ctx,
+    List<Bean> beans,
+    StateSetter setDialogState,
+  ) {
+    // Find current bean from beanBatchId
+    return _BeanBatchPickerWidget(
+      beans: beans,
+      beanStorage: widget.beanStorage!,
+      currentBatchId: ctx.beanBatchId,
+      onBatchSelected: (bean, batch) {
+        setState(() {
+          widget.workflowController.setWorkflow(
+            widget.workflowController.currentWorkflow.copyWith(
+              context: ctx.copyWith(
+                beanBatchId: batch.id,
+                coffeeName: bean.name,
+                coffeeRoaster: bean.roaster,
+              ),
+            ),
+          );
+        });
+        setDialogState(() {});
+      },
+      onBeanSelectedNoBatch: (bean) {
+        setState(() {
+          widget.workflowController.setWorkflow(
+            widget.workflowController.currentWorkflow.copyWith(
+              context: ctx.copyWith(
+                coffeeName: bean.name,
+                coffeeRoaster: bean.roaster,
+              ),
+            ),
+          );
+        });
+        setDialogState(() {});
+      },
+      onCleared: () {
+        setState(() {
+          widget.workflowController.setWorkflow(
+            widget.workflowController.currentWorkflow.copyWith(
+              context: ctx.clearBeanBatch(),
+            ),
+          );
+        });
+        setDialogState(() {});
+      },
+    );
+  }
+
+  Widget _coffeeFreeformFields(WorkflowContext ctx, StateSetter setDialogState) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -673,12 +861,17 @@ class _ProfileState extends State<ProfileTile> {
                 initialValue: TextEditingValue(text: ctx.coffeeName ?? ""),
                 onSelected: (val) {
                   setState(() {
+                    // Clear beanBatchId when freeform is manually edited
+                    final newCtx = ctx.beanBatchId != null
+                        ? ctx.clearBeanBatch().copyWith(coffeeName: val)
+                        : ctx.copyWith(coffeeName: val);
                     widget.workflowController.setWorkflow(
                       widget.workflowController.currentWorkflow.copyWith(
-                        context: ctx.copyWith(coffeeName: val),
+                        context: newCtx,
                       ),
                     );
                   });
+                  setDialogState(() {});
                 },
               ),
             ),
@@ -719,17 +912,215 @@ class _ProfileState extends State<ProfileTile> {
                 initialValue: TextEditingValue(text: ctx.coffeeRoaster ?? ""),
                 onSelected: (val) {
                   setState(() {
+                    // Clear beanBatchId when freeform is manually edited
+                    final newCtx = ctx.beanBatchId != null
+                        ? ctx.clearBeanBatch().copyWith(coffeeRoaster: val)
+                        : ctx.copyWith(coffeeRoaster: val);
                     widget.workflowController.setWorkflow(
                       widget.workflowController.currentWorkflow.copyWith(
-                        context: ctx.copyWith(coffeeRoaster: val),
+                        context: newCtx,
                       ),
                     );
                   });
+                  setDialogState(() {});
                 },
               ),
             ),
           ],
         ),
+      ],
+    );
+  }
+
+  // Keep for backward compatibility (used in tests)
+  Column _coffeeDataForm() {
+    final ctx = widget.workflowController.currentWorkflow.context ?? WorkflowContext();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _coffeeFreeformFields(ctx, (fn) => fn()),
+      ],
+    );
+  }
+}
+
+/// Two-step bean → batch picker widget with its own state for batch loading.
+class _BeanBatchPickerWidget extends StatefulWidget {
+  final List<Bean> beans;
+  final BeanStorageService beanStorage;
+  final String? currentBatchId;
+  final void Function(Bean bean, BeanBatch batch) onBatchSelected;
+  final void Function(Bean bean) onBeanSelectedNoBatch;
+  final VoidCallback onCleared;
+
+  const _BeanBatchPickerWidget({
+    required this.beans,
+    required this.beanStorage,
+    required this.currentBatchId,
+    required this.onBatchSelected,
+    required this.onBeanSelectedNoBatch,
+    required this.onCleared,
+  });
+
+  @override
+  State<_BeanBatchPickerWidget> createState() => _BeanBatchPickerWidgetState();
+}
+
+class _BeanBatchPickerWidgetState extends State<_BeanBatchPickerWidget> {
+  String? _selectedBeanId;
+  List<BeanBatch> _batches = [];
+  bool _loadingBatches = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // If there's a current batch ID, find which bean it belongs to
+    if (widget.currentBatchId != null) {
+      _resolveCurrentBatch();
+    }
+  }
+
+  Future<void> _resolveCurrentBatch() async {
+    final batch = await widget.beanStorage.getBatchById(widget.currentBatchId!);
+    if (batch != null && mounted) {
+      setState(() {
+        _selectedBeanId = batch.beanId;
+      });
+      await _loadBatches(batch.beanId);
+    }
+  }
+
+  Future<void> _loadBatches(String beanId) async {
+    setState(() => _loadingBatches = true);
+    final batches = await widget.beanStorage.getBatchesForBean(beanId);
+    if (mounted) {
+      setState(() {
+        _batches = batches;
+        _loadingBatches = false;
+      });
+      // Auto-select if only one batch
+      if (batches.length == 1) {
+        final bean = widget.beans.firstWhere((b) => b.id == beanId);
+        widget.onBatchSelected(bean, batches.first);
+      }
+    }
+  }
+
+  String _batchDisplayText(BeanBatch batch) {
+    final parts = <String>[];
+    if (batch.roastLevel != null) parts.add(batch.roastLevel!);
+    if (batch.roastDate != null) {
+      parts.add('roasted ${batch.roastDate!.toLocal().toString().split(' ').first}');
+    }
+    if (batch.weightRemaining != null) {
+      parts.add('${batch.weightRemaining!.toStringAsFixed(0)}g left');
+    } else if (batch.weight != null) {
+      parts.add('${batch.weight!.toStringAsFixed(0)}g');
+    }
+    return parts.isEmpty ? batch.id.substring(0, 8) : parts.join(' · ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasSelection = widget.currentBatchId != null;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Bean dropdown
+        Row(
+          spacing: 8,
+          children: [
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                decoration: const InputDecoration(
+                  labelText: 'Select coffee bean',
+                  isDense: true,
+                ),
+                value: _selectedBeanId,
+                hint: const Text('Choose a bean...'),
+                isExpanded: true,
+                items: widget.beans.map((b) {
+                  return DropdownMenuItem<String>(
+                    value: b.id,
+                    child: Text(
+                      '${b.name} — ${b.roaster}',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                }).toList(),
+                onChanged: (beanId) {
+                  if (beanId == null) return;
+                  setState(() {
+                    _selectedBeanId = beanId;
+                    _batches = [];
+                  });
+                  final bean = widget.beans.firstWhere((b) => b.id == beanId);
+                  widget.onBeanSelectedNoBatch(bean);
+                  _loadBatches(beanId);
+                },
+              ),
+            ),
+            if (hasSelection)
+              IconButton(
+                icon: const Icon(Icons.clear, size: 20),
+                tooltip: 'Clear coffee selection',
+                onPressed: () {
+                  setState(() {
+                    _selectedBeanId = null;
+                    _batches = [];
+                  });
+                  widget.onCleared();
+                },
+              ),
+          ],
+        ),
+        // Batch dropdown (only when a bean is selected)
+        if (_selectedBeanId != null) ...[
+          const SizedBox(height: 8),
+          if (_loadingBatches)
+            const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else if (_batches.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Text('No batches for this bean'),
+            )
+          else if (_batches.length > 1)
+            DropdownButtonFormField<String>(
+              decoration: const InputDecoration(
+                labelText: 'Select batch',
+                isDense: true,
+              ),
+              value: widget.currentBatchId != null &&
+                      _batches.any((b) => b.id == widget.currentBatchId)
+                  ? widget.currentBatchId
+                  : null,
+              hint: const Text('Choose a batch...'),
+              isExpanded: true,
+              items: _batches.map((batch) {
+                return DropdownMenuItem<String>(
+                  value: batch.id,
+                  child: Text(
+                    _batchDisplayText(batch),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                );
+              }).toList(),
+              onChanged: (batchId) {
+                if (batchId == null) return;
+                final batch = _batches.firstWhere((b) => b.id == batchId);
+                final bean = widget.beans.firstWhere((b) => b.id == _selectedBeanId);
+                widget.onBatchSelected(bean, batch);
+              },
+            ),
+        ],
       ],
     );
   }

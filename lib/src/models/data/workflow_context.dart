@@ -105,6 +105,36 @@ class WorkflowContext {
     };
   }
 
+  WorkflowContext clearGrinder() => WorkflowContext(
+    targetDoseWeight: targetDoseWeight,
+    targetYield: targetYield,
+    grinderId: null,
+    grinderModel: null,
+    grinderSetting: grinderSetting,
+    beanBatchId: beanBatchId,
+    coffeeName: coffeeName,
+    coffeeRoaster: coffeeRoaster,
+    finalBeverageType: finalBeverageType,
+    baristaName: baristaName,
+    drinkerName: drinkerName,
+    extras: extras,
+  );
+
+  WorkflowContext clearBeanBatch() => WorkflowContext(
+    targetDoseWeight: targetDoseWeight,
+    targetYield: targetYield,
+    grinderId: grinderId,
+    grinderModel: grinderModel,
+    grinderSetting: grinderSetting,
+    beanBatchId: null,
+    coffeeName: null,
+    coffeeRoaster: null,
+    finalBeverageType: finalBeverageType,
+    baristaName: baristaName,
+    drinkerName: drinkerName,
+    extras: extras,
+  );
+
   WorkflowContext copyWith({
     double? targetDoseWeight,
     double? targetYield,
