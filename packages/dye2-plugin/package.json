@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite build --watch"
+    "dev": "vite build --watch",
+    "serve": "node dev-server.mjs"
   },
   "devDependencies": {
     "typescript": "^5.8.0",

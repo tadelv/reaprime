@@ -114,6 +114,36 @@ After building, the Flutter app picks up the plugin from `assets/plugins/dye2.re
 1. Run `npm run build` (or use `npm run dev` for watch mode)
 2. Hot restart the Flutter app, or restart it fully
 
+## Dev Server
+
+For fast UI iteration without restarting the Flutter app, use the dev server. It loads the built `plugin.js` in a Node.js VM, serves pages directly, and proxies `/api/v1/*` requests to a running Streamline Bridge instance.
+
+```bash
+# Terminal 1: watch-build the plugin
+npm run dev
+
+# Terminal 2: start the dev server
+npm run serve
+```
+
+Open `http://localhost:4444` to see available pages. The server auto-reloads `plugin.js` when it changes on disk.
+
+### Requirements
+
+- A built plugin (`npm run build` at least once)
+- A running Streamline Bridge instance for API calls (e.g., `flutter run --dart-define=simulate=1`)
+
+### Configuration
+
+| Env var | Default | Description |
+|---------|---------|-------------|
+| `PORT` | `4444` | Dev server port |
+| `BRIDGE_URL` | `http://localhost:8080` | Streamline Bridge URL to proxy API calls to |
+
+```bash
+PORT=4000 BRIDGE_URL=http://192.168.1.5:8080 npm run serve
+```
+
 ## HTTP Endpoints
 
 The plugin registers four HTTP endpoints, accessible at:
