@@ -28,6 +28,8 @@ import 'package:reaprime/src/services/webserver/data_export/shot_export_section.
 import 'package:reaprime/src/services/webserver/data_export/workflow_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/settings_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/kv_store_export_section.dart';
+import 'package:reaprime/src/services/webserver/data_export/bean_export_section.dart';
+import 'package:reaprime/src/services/webserver/data_export/grinder_export_section.dart';
 import 'package:reaprime/src/services/webserver/beans_handler.dart';
 import 'package:reaprime/src/services/webserver/grinders_handler.dart';
 import 'package:reaprime/src/services/webserver/shots_handler.dart';
@@ -180,6 +182,8 @@ Future<void> startWebServer(
       WorkflowExportSection(controller: workflowController),
       SettingsExportSection(controller: settingsController),
       KvStoreExportSection(store: kvStoreHandler.store),
+      if (beanStorage != null) BeanExportSection(storage: beanStorage),
+      if (grinderStorage != null) GrinderExportSection(storage: grinderStorage),
     ],
   );
 
