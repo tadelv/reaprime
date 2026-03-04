@@ -113,7 +113,7 @@ class _HistoryTileState extends State<HistoryTile> {
   }
 
   Widget _shotDetails(BuildContext context, ShotRecord shot) {
-    var shotStart =
+    final shotStart =
         shot.measurements
             .firstWhere(
               (el) =>
@@ -123,6 +123,16 @@ class _HistoryTileState extends State<HistoryTile> {
             )
             .machine
             .timestamp;
+    final doseIn =
+        shot.annotations?.actualDoseWeight ??
+        shot.workflow.context?.targetDoseWeight;
+    final doseOut =
+        shot.workflow.context?.targetYield;
+    final yield =
+        shot.annotations?.actualYield ??
+        shot.workflow.context?.targetYield ??
+        shot.measurements.last.scale?.weight ??
+        0.0;
     return Column(
       children: [
         SizedBox(
@@ -135,21 +145,24 @@ class _HistoryTileState extends State<HistoryTile> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text("${shot.workflow.profile.title}"),
-            Text(
-              "${shot.workflow.doseData.doseIn.toStringAsFixed(1)} : ${shot.workflow.doseData.doseOut.toStringAsFixed(1)}",
-            ),
-            Text("${shot.measurements.last.scale?.weight.toStringAsFixed(1)}g"),
+            Text(shot.workflow.profile.title),
+            if (doseIn != null && doseOut != null)
+              Text(
+                "${doseIn.toStringAsFixed(1)} : ${doseOut.toStringAsFixed(1)}",
+              ),
+            Text("${yield.toStringAsFixed(1)}g"),
           ],
         ),
-        if (shot.workflow.coffeeData != null)
-          Row(children: [Text("${shot.workflow.coffeeData!.name}")]),
-        if (shot.workflow.grinderData != null)
+        if (shot.workflow.context?.coffeeName != null)
+          Row(children: [Text(shot.workflow.context!.coffeeName!)]),
+        if (shot.workflow.context?.grinderModel != null || shot.workflow.context?.grinderSetting != null)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              Text("${shot.workflow.grinderData!.model}"),
-              Text("${shot.workflow.grinderData!.setting}"),
+              if (shot.workflow.context?.grinderModel != null)
+                Text(shot.workflow.context!.grinderModel!),
+              if (shot.workflow.context?.grinderSetting != null)
+                Text(shot.workflow.context!.grinderSetting!),
             ],
           ),
       ],
