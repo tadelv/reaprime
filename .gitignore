@@ -19,6 +19,7 @@ packages/*/dist/
 .svn/
 .swiftpm/
 migrate_working_dir/
+test_hive_*/
 
 # IntelliJ related
 *.iml
