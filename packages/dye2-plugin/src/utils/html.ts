@@ -1,7 +1,7 @@
 /**
  * Tagged template literal for HTML strings.
- * Provides a visual marker for syntax highlighting in editors
- * and escapes interpolated values.
+ * Provides a visual marker for syntax highlighting in editors.
+ * Does NOT escape interpolated values — use escapeHtml() for user data.
  */
 export function html(
   strings: TemplateStringsArray,

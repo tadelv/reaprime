@@ -11,6 +11,11 @@ class Dye2BeanList extends HTMLElement {
     this._showArchived = false;
   }
 
+  _esc(val) {
+    if (val == null) return '';
+    return String(val).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
   connectedCallback() {
     this.render();
     this.fetchBeans();
@@ -20,6 +25,7 @@ class Dye2BeanList extends HTMLElement {
     try {
       const params = this._showArchived ? '?includeArchived=true' : '';
       const res = await fetch('/api/v1/beans' + params);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
       this._beans = await res.json();
       this.render();
     } catch (err) {
@@ -51,16 +57,16 @@ class Dye2BeanList extends HTMLElement {
           <div class="card" data-bean-id="\${bean.id}">
             <div class="flex-between">
               <div>
-                <strong>\${bean.name || 'Unnamed'}</strong>
-                <span class="text-muted"> by \${bean.roaster || 'Unknown roaster'}</span>
+                <strong>\${this._esc(bean.name) || 'Unnamed'}</strong>
+                <span class="text-muted"> by \${this._esc(bean.roaster) || 'Unknown roaster'}</span>
               </div>
               <div class="flex">
                 \${bean.archived ? '<span class="tag">archived</span>' : ''}
-                \${bean.country ? '<span class="tag">' + bean.country + '</span>' : ''}
-                \${bean.processing ? '<span class="tag">' + bean.processing + '</span>' : ''}
+                \${bean.country ? '<span class="tag">' + this._esc(bean.country) + '</span>' : ''}
+                \${bean.processing ? '<span class="tag">' + this._esc(bean.processing) + '</span>' : ''}
               </div>
             </div>
-            \${bean.variety && bean.variety.length ? '<div class="text-small text-muted mt-8">' + bean.variety.join(', ') + '</div>' : ''}
+            \${bean.variety && bean.variety.length ? '<div class="text-small text-muted mt-8">' + bean.variety.map(v => this._esc(v)).join(', ') + '</div>' : ''}
           </div>
         \`).join('')
       }
