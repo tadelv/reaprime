@@ -387,37 +387,53 @@ git commit -m "feat(dye2): register as bundled plugin asset"
 
 ---
 
-## Task 5: End-to-End Smoke Test
+## Task 5: End-to-End Smoke Test (via MCP)
 
-Verify the full pipeline: build plugin → Flutter bundles it → plugin loads → HTTP endpoint serves HTML.
+Verify the full pipeline: build plugin → Flutter bundles it → plugin loads → HTTP endpoint serves HTML. Use the Streamline Bridge MCP tools for all verification.
 
 **Step 1: Build the plugin**
 
 Run: `cd packages/dye2-plugin && npm run build`
 
-**Step 2: Run the app in simulate mode**
+**Step 2: Start the app via MCP**
 
-Run: `flutter run --dart-define=simulate=1`
+Use `app_start` with `connectDevice: "MockDe1"`. Wait for ready confirmation.
 
-Or use the MCP tool:
+**Step 3: Verify app is running**
+
+Use `app_status` — confirm app is reachable and MockDe1 is connected.
+
+**Step 4: Verify plugin loads**
+
+Use `plugins_list` — response must include an entry with `id: "dye2.reaplugin"`.
+
+If the plugin is NOT in the list:
+- Check `app_logs` with filter `"dye2"` for loading errors
+- Common issues: IIFE format mismatch, `createPlugin` not found, manifest parse error
+
+**Step 5: Verify HTTP endpoints via MCP plugin tools**
+
+The MCP tools don't have a direct "call plugin HTTP endpoint" function, so use `WebFetch` or curl:
+
+```bash
+curl http://localhost:8080/api/v1/plugins/dye2.reaplugin/beans
 ```
-app_start with connectDevice: "MockDe1"
-```
-
-**Step 3: Verify plugin loads**
-
-Run: `curl http://localhost:8080/api/v1/plugins`
-Expected: Response includes an entry with `"id": "dye2.reaplugin"`
-
-**Step 4: Verify HTTP endpoint**
-
-Run: `curl http://localhost:8080/api/v1/plugins/dye2.reaplugin/beans`
 Expected: HTML response with "Streamline/DYE2 - Beans Management"
 
-Run: `curl http://localhost:8080/api/v1/plugins/dye2.reaplugin/grinders`
+```bash
+curl http://localhost:8080/api/v1/plugins/dye2.reaplugin/grinders
+```
 Expected: HTML response with "Streamline/DYE2 - Grinders Management"
 
-**Step 5: Commit success**
+**Step 6: Check for runtime errors**
+
+Use `app_logs` with filter `"dye2"` — should show "DYE2 plugin loaded" and HTTP request logs, no errors.
+
+**Step 7: Stop the app**
+
+Use `app_stop`.
+
+**Step 8: Commit success**
 
 No code changes needed if everything works. If fixes were required, commit them:
 
@@ -1067,19 +1083,23 @@ git commit -m "ci: add DYE2 plugin build step to CI workflows"
 
 ---
 
-## Task 14: End-to-End Verification
+## Task 14: End-to-End Verification (via MCP)
 
-Full pipeline test with the complete plugin.
+Full pipeline test with the complete plugin using Streamline Bridge MCP tools.
 
 **Step 1: Build plugin**
 
 Run: `cd packages/dye2-plugin && npm run build`
 
-**Step 2: Run app**
+**Step 2: Start app via MCP**
 
-Run: `flutter run --dart-define=simulate=1`
+Use `app_start` with `connectDevice: "MockDe1"`, `connectScale: "MockScale"`.
 
-**Step 3: Verify all endpoints**
+**Step 3: Verify plugin is loaded**
+
+Use `plugins_list` — confirm `dye2.reaplugin` is in the list.
+
+**Step 4: Verify all HTTP endpoints**
 
 ```bash
 curl http://localhost:8080/api/v1/plugins/dye2.reaplugin/beans
@@ -1090,30 +1110,56 @@ curl http://localhost:8080/api/v1/plugins/dye2.reaplugin/grinder-picker
 
 All should return valid HTML with Web Components.
 
-**Step 4: Test in browser**
+**Step 5: Test bean CRUD via MCP**
 
-Open `http://localhost:8080/api/v1/plugins/dye2.reaplugin/beans` in a browser. The page should render, fetch beans from the API (empty list initially), and show "No beans yet" message.
+Use `beans_create` with `roaster: "Sey"`, `name: "La Esperanza"`, `country: "Colombia"`.
+Use `beans_list` — verify the bean appears.
+Use `beans_create_batch` for the bean with `roastDate`, `weight: 250`.
+Use `beans_list_batches` — verify the batch appears.
 
-Create a bean via curl to verify the list updates:
+Then curl the beans page and verify the HTML includes "La Esperanza":
 ```bash
-curl -X POST http://localhost:8080/api/v1/beans \
-  -H "Content-Type: application/json" \
-  -d '{"roaster": "Sey", "name": "La Esperanza"}'
+curl http://localhost:8080/api/v1/plugins/dye2.reaplugin/beans
 ```
 
-Refresh the beans page — should show the new bean.
+**Step 6: Test grinder CRUD via MCP**
 
-**Step 5: Test picker workflow**
+Use `grinders_create` with `model: "Niche Zero"`.
+Use `grinders_list` — verify the grinder appears.
 
-Open `http://localhost:8080/api/v1/plugins/dye2.reaplugin/bean-picker` in browser. Select the bean/batch. Check workflow was updated:
-
+Curl the grinders page:
 ```bash
-curl http://localhost:8080/api/v1/workflow
+curl http://localhost:8080/api/v1/plugins/dye2.reaplugin/grinders
 ```
 
-Should show `context.coffeeName: "La Esperanza"`, `context.coffeeRoaster: "Sey"`.
+**Step 7: Test picker → workflow integration via MCP**
 
-**Step 6: Run flutter analyze**
+Get the bean batch ID from step 5.
+Manually call the picker's workflow update by using `workflow_update`:
+```json
+{
+  "context": {
+    "beanBatchId": "<batch-id>",
+    "coffeeName": "La Esperanza",
+    "coffeeRoaster": "Sey",
+    "grinderId": "<grinder-id>",
+    "grinderModel": "Niche Zero"
+  }
+}
+```
+
+Use `workflow_get` — verify context fields are set correctly.
+
+**Step 8: Check logs for errors**
+
+Use `app_logs` with filter `"dye2"` — should show plugin loaded, HTTP requests handled, no errors.
+Use `app_logs` with filter `"error"` — no plugin-related errors.
+
+**Step 9: Stop app**
+
+Use `app_stop`.
+
+**Step 10: Run flutter analyze**
 
 Run: `flutter analyze`
 Expected: No issues related to plugin changes.
