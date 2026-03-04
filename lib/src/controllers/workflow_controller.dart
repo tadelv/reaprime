@@ -35,6 +35,19 @@ class WorkflowController extends ChangeNotifier {
 
   void setWorkflow(Workflow newWorkflow) {
     _currentWorkflow = newWorkflow;
+    if (newWorkflow.context != null) {
+      notifyListeners();
+      return;
+    }
+    final ctx = WorkflowContext(
+      targetDoseWeight: newWorkflow.doseData.doseIn,
+      targetYield: newWorkflow.doseData.doseOut,
+      grinderSetting: newWorkflow.grinderData?.setting,
+      grinderModel: newWorkflow.grinderData?.model,
+      coffeeName: newWorkflow.coffeeData?.name,
+      coffeeRoaster: newWorkflow.coffeeData?.roaster,
+    );
+    _currentWorkflow = _currentWorkflow.copyWith(context: ctx);
     notifyListeners();
   }
 
