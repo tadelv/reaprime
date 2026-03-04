@@ -114,24 +114,66 @@ After building, the Flutter app picks up the plugin from `assets/plugins/dye2.re
 1. Run `npm run build` (or use `npm run dev` for watch mode)
 2. Hot restart the Flutter app, or restart it fully
 
-## Dev Server
+## Local Development
 
-For fast UI iteration without restarting the Flutter app, use the dev server. It loads the built `plugin.js` in a Node.js VM, serves pages directly, and proxies `/api/v1/*` requests to a running Streamline Bridge instance.
+The normal workflow — build plugin, hot-restart Flutter app, navigate to the plugin page — is slow for UI iteration. The dev server shortcuts this: it loads the built `plugin.js` in a Node.js VM, serves pages directly in the browser, and proxies REST API calls to a running Streamline Bridge instance. Edit source, save, and the browser shows the result within seconds.
+
+### Prerequisites
+
+- Node.js 20+
+- `npm install` (one time)
+- A running Streamline Bridge instance (for API data). Start one with:
+  ```bash
+  # From the repo root
+  flutter run --dart-define=simulate=1 -d macos   # or linux, chrome, etc.
+  ```
+
+### Quick start
+
+Open three terminals in `packages/dye2-plugin/`:
 
 ```bash
-# Terminal 1: watch-build the plugin
+# Terminal 1 — watch-build the plugin (rebuilds on source changes)
 npm run dev
 
-# Terminal 2: start the dev server
+# Terminal 2 — start the dev server
 npm run serve
+
+# Terminal 3 — your editor
 ```
 
-Open `http://localhost:4444` to see available pages. The server auto-reloads `plugin.js` when it changes on disk.
+Then open `http://localhost:4444` in a browser. You'll see an index page listing all available plugin pages.
 
-### Requirements
+### Development loop
 
-- A built plugin (`npm run build` at least once)
-- A running Streamline Bridge instance for API calls (e.g., `flutter run --dart-define=simulate=1`)
+1. Edit a source file in `src/` (component, page, plugin router, etc.)
+2. Vite rebuilds `plugin.js` automatically (`npm run dev` in terminal 1)
+3. The dev server detects the file change and reloads the plugin
+4. Refresh the browser to see your changes
+
+The pages served by the dev server are functionally identical to what the Flutter plugin framework serves — same HTML, same Web Components, same REST API calls. The only difference is that API calls (`/api/v1/*`) are proxied to the bridge instead of being handled directly.
+
+### How it works
+
+```
+Browser                    Dev Server (:4444)              Streamline Bridge (:8080)
+──────                    ──────────────────              ─────────────────────────
+  │ GET /beans                  │                                │
+  │────────────────────────────>│                                │
+  │                             │ vm.Script runs plugin.js       │
+  │                             │ __httpRequestHandler("beans")  │
+  │         HTML response       │                                │
+  │<────────────────────────────│                                │
+  │                             │                                │
+  │ fetch /api/v1/beans         │                                │
+  │────────────────────────────>│ proxy ────────────────────────>│
+  │              JSON           │<──────────────────────────────│
+  │<────────────────────────────│                                │
+```
+
+- Plugin pages (`/beans`, `/grinders`, `/bean-picker`, `/grinder-picker`) are served by running the plugin's `__httpRequestHandler` in a Node.js VM sandbox
+- API requests (`/api/v1/*`) are proxied to the Streamline Bridge instance
+- `plugin.js` is watched with `fs.watch()` and auto-reloaded on change (debounced)
 
 ### Configuration
 
@@ -141,8 +183,14 @@ Open `http://localhost:4444` to see available pages. The server auto-reloads `pl
 | `BRIDGE_URL` | `http://localhost:8080` | Streamline Bridge URL to proxy API calls to |
 
 ```bash
-PORT=4000 BRIDGE_URL=http://192.168.1.5:8080 npm run serve
+PORT=5000 BRIDGE_URL=http://192.168.1.5:8080 npm run serve
 ```
+
+### Tips
+
+- **Use with browser DevTools** — since pages load in a real browser, you get full access to the Elements inspector, Console, Network tab, and CSS editing. This is much faster than debugging inside the Flutter WebView.
+- **No need to restart the dev server** when source changes — Vite rebuilds and the server reloads automatically. Just refresh the browser.
+- **API data comes from the bridge** — create test beans/grinders via the bridge's REST API or the Flutter app UI, and they'll appear in the dev server pages.
 
 ## HTTP Endpoints
 
