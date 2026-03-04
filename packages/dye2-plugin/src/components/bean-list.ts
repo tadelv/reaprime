@@ -64,6 +64,7 @@ class Dye2BeanList extends HTMLElement {
                 \${bean.archived ? '<span class="tag">archived</span>' : ''}
                 \${bean.country ? '<span class="tag">' + this._esc(bean.country) + '</span>' : ''}
                 \${bean.processing ? '<span class="tag">' + this._esc(bean.processing) + '</span>' : ''}
+                <button class="icon-btn" data-edit-bean-id="\${bean.id}" title="Edit bean">&hellip;</button>
               </div>
             </div>
             \${bean.variety && bean.variety.length ? '<div class="text-small text-muted mt-8">' + bean.variety.map(v => this._esc(v)).join(', ') + '</div>' : ''}
@@ -79,6 +80,14 @@ class Dye2BeanList extends HTMLElement {
     const createBtn = this.querySelector('[data-action="create"]');
     if (createBtn) createBtn.addEventListener('click', () => {
       this.dispatchEvent(new CustomEvent('create-bean', { bubbles: true }));
+    });
+
+    this.querySelectorAll('[data-edit-bean-id]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.getAttribute('data-edit-bean-id');
+        this.dispatchEvent(new CustomEvent('edit-bean', { detail: { id }, bubbles: true }));
+      });
     });
 
     this.querySelectorAll('[data-bean-id]').forEach(card => {

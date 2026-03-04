@@ -93,6 +93,7 @@ class Dye2BeanBatchList extends HTMLElement {
         <div class="flex">
           <button data-action="back">&larr; Back to beans</button>
           <h2 style="margin:0;">Batches</h2>
+          <button data-action="edit-bean">Edit Bean</button>
         </div>
         <div class="flex">
           <label class="flex" style="cursor:pointer;">
@@ -134,6 +135,11 @@ class Dye2BeanBatchList extends HTMLElement {
     const backBtn = this.querySelector('[data-action="back"]');
     if (backBtn) backBtn.addEventListener('click', () => {
       this.dispatchEvent(new CustomEvent('back-to-beans', { bubbles: true }));
+    });
+
+    const editBeanBtn = this.querySelector('[data-action="edit-bean"]');
+    if (editBeanBtn) editBeanBtn.addEventListener('click', () => {
+      this.dispatchEvent(new CustomEvent('edit-bean', { detail: { id: this._beanId }, bubbles: true }));
     });
 
     const createBtn = this.querySelector('[data-action="create"]');

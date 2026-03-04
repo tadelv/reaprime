@@ -33,6 +33,13 @@ document.addEventListener('select-bean', (e) => {
   bl.connectedCallback();
 });
 
+document.addEventListener('edit-bean', (e) => {
+  const form = beanForm();
+  form.setAttribute('bean-id', e.detail.id);
+  form.classList.remove('hidden');
+  form.connectedCallback();
+});
+
 document.addEventListener('bean-saved', () => {
   beanForm().classList.add('hidden');
   beanList().fetchBeans();
