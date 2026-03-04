@@ -2,6 +2,8 @@
 
 import { renderBeansPage } from "./pages/beans";
 import { renderGrindersPage } from "./pages/grinders";
+import { renderBeanPickerPage } from "./pages/bean-picker";
+import { renderGrinderPickerPage } from "./pages/grinder-picker";
 
 export default function createPlugin(host: PluginHost): PluginInstance {
   function log(msg: string) {
@@ -35,20 +37,10 @@ export default function createPlugin(host: PluginHost): PluginInstance {
           return renderGrindersPage(request);
 
         case "bean-picker":
+          return renderBeanPickerPage(request);
+
         case "grinder-picker":
-          return {
-            requestId: request.requestId,
-            status: 200,
-            headers: { "Content-Type": "text/html; charset=utf-8" },
-            body: `<!DOCTYPE html>
-<html>
-<head><title>DYE2 - Picker</title></head>
-<body>
-  <h1>Streamline/DYE2 - ${request.endpoint}</h1>
-  <p>Picker scaffold working.</p>
-</body>
-</html>`,
-          };
+          return renderGrinderPickerPage(request);
 
         default:
           return {
