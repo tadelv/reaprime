@@ -33,7 +33,9 @@ import 'package:reaprime/src/services/database/database.dart' hide Workflow;
 import 'package:reaprime/src/services/storage/drift_bean_storage.dart';
 import 'package:reaprime/src/services/storage/drift_grinder_storage.dart';
 import 'package:reaprime/src/services/storage/drift_profile_storage.dart';
+import 'package:reaprime/src/services/storage/bean_storage_service.dart';
 import 'package:reaprime/src/services/storage/drift_storage_service.dart';
+import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/services/storage/hive_store_service.dart';
 import 'package:reaprime/src/services/universal_ble_discovery_service.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
@@ -375,6 +377,8 @@ void main() async {
         updateCheckService: updateCheckService,
         webViewLogService: webViewLogService,
         presenceController: presenceController,
+        beanStorage: beanStorage,
+        grinderStorage: grinderStorage,
       ),
     ),
   );
@@ -521,6 +525,8 @@ class AppRoot extends StatefulWidget {
   final UpdateCheckService? updateCheckService;
   final WebViewLogService webViewLogService;
   final PresenceController presenceController;
+  final BeanStorageService? beanStorage;
+  final GrinderStorageService? grinderStorage;
 
   const AppRoot({
     super.key,
@@ -536,6 +542,8 @@ class AppRoot extends StatefulWidget {
     required this.webViewLogService,
     required this.presenceController,
     this.updateCheckService,
+    this.beanStorage,
+    this.grinderStorage,
   });
 
   static void restart(BuildContext context) {
@@ -587,6 +595,8 @@ class _AppRootState extends State<AppRoot> {
         updateCheckService: widget.updateCheckService,
         webViewLogService: widget.webViewLogService,
         presenceController: widget.presenceController,
+        beanStorage: widget.beanStorage,
+        grinderStorage: widget.grinderStorage,
       ),
     );
   }

@@ -29,6 +29,8 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/sample_feature/scale_debug_view.dart';
+import 'package:reaprime/src/services/storage/bean_storage_service.dart';
+import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
 import 'package:reaprime/src/services/webview_log_service.dart';
 import 'package:reaprime/src/settings/plugins_settings_view.dart';
@@ -62,6 +64,8 @@ class MyApp extends StatefulWidget {
     required this.webViewLogService,
     required this.presenceController,
     this.updateCheckService,
+    this.beanStorage,
+    this.grinderStorage,
   });
 
   final SettingsController settingsController;
@@ -76,6 +80,8 @@ class MyApp extends StatefulWidget {
   final WebViewLogService webViewLogService;
   final PresenceController presenceController;
   final UpdateCheckService? updateCheckService;
+  final BeanStorageService? beanStorage;
+  final GrinderStorageService? grinderStorage;
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -291,6 +297,8 @@ class _MyAppState extends State<MyApp> {
                         settingsController: widget.settingsController,
                         webUIService: widget.webUIService,
                         webUIStorage: widget.webUIStorage,
+                        beanStorage: widget.beanStorage,
+                        grinderStorage: widget.grinderStorage,
                       );
                     case HistoryFeature.routeName:
                       final possibleShot = routeSettings.arguments as String;
