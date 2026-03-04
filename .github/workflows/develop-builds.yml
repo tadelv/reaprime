@@ -45,6 +45,17 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build DYE2 plugin
+        run: |
+          cd packages/dye2-plugin
+          npm ci
+          npm run build
+
       - name: Build Android APK
         run: ./flutter_with_commit.sh build apk --release
         env:
@@ -75,6 +86,17 @@ jobs:
 
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build DYE2 plugin
+        run: |
+          cd packages/dye2-plugin
+          npm ci
+          npm run build
 
       # ---- Import signing certificate ----
       - name: Import signing certificate
@@ -173,6 +195,17 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build DYE2 plugin
+        run: |
+          cd packages/dye2-plugin
+          npm ci
+          npm run build
+
       - name: Build Linux app (unsigned)
         run: ./flutter_with_commit.sh build linux --release
         env:
@@ -206,6 +239,17 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build DYE2 plugin
+        run: |
+          cd packages/dye2-plugin
+          npm ci
+          npm run build
+
       - name: Build Linux app (ARM64)
         run: ./flutter_with_commit.sh build linux --release
         env:
@@ -230,6 +274,17 @@ jobs:
 
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build DYE2 plugin
+        run: |
+          cd packages/dye2-plugin
+          npm ci
+          npm run build
 
       - name: Build Windows app (unsigned)
         shell: bash
