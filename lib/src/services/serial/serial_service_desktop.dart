@@ -222,7 +222,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
         _log.info("Detected: Sensor Basket");
         return SensorBasket(transport: transport);
       } else {
-        // TODO: better DE1 detection
+        // Detect DE1 by sending state commands and checking for valid responses
         final messages = <String>[];
         final stateSubscription = transport.readStream.listen(messages.add);
 

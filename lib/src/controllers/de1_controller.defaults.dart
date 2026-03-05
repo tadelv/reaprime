@@ -4,8 +4,6 @@ extension Defaults on De1Controller {
   Future<void> _setDe1Defaults() async {
     await _de1?.setFanThreshhold(55);
 
-    // TODO: set heater defaults
-
     if (defaultWorkflow == null) {
       return;
     }

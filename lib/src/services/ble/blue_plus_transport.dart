@@ -33,7 +33,6 @@ class BluePlusTransport implements BLETransport {
 
   @override
   Future<void> disconnect() async {
-    // TODO: implement disconnect
     await _device.disconnect();
   }
 

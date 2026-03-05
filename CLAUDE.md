@@ -120,6 +120,7 @@ Handler-based routing in `lib/src/services/webserver/`. Each handler has `addRou
 | Grinders | `/api/v1/grinders` | `grinders_handler.dart` — CRUD |
 | Devices | `/api/v1/devices` | `webserver_service.dart` (part of) |
 | Data Export | `/api/v1/data/export`, `/import` | `data_export_handler.dart` — ZIP-based full data export/import |
+| Feedback | `/api/v1/feedback` | `feedback_handler.dart` — POST creates GitHub issue with optional logs/screenshots as Gist. Requires `GITHUB_FEEDBACK_TOKEN` at build time. |
 
 ### MCP Server
 
