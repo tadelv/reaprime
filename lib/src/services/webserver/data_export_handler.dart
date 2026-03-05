@@ -30,6 +30,7 @@ class DataExportHandler {
       final metadata = {
         'formatVersion': _currentFormatVersion,
         'appVersion': BuildInfo.version,
+        'buildNumber': BuildInfo.buildNumber,
         'commitSha': BuildInfo.commitShort,
         'branch': BuildInfo.branch,
         'exportTimestamp': DateTime.now().toUtc().toIso8601String(),

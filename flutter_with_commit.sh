@@ -32,6 +32,13 @@ else
   VERSION="${TAG#v}"
 fi
 
+# --- Build number from commit count (monotonically increasing) ---
+BUILD_NUMBER=$(git rev-list --count HEAD 2>/dev/null || echo "1")
+
+# --- Build name: semver part only (strip pre-release suffix for native platforms) ---
+# e.g. "1.2.3-beta.1" -> build-name "1.2.3", but VERSION dart-define keeps the full string
+BUILD_NAME="${VERSION%%-*}"
+
 # --- Command required ---
 if [ $# -lt 1 ]; then
   echo "Usage: $0 <flutter command> [arguments...]"
@@ -54,11 +61,14 @@ if [ "$COMMAND" = "build" ]; then
     REMAINDER=("${EXTRA_ARGS[@]:1}")
 
     flutter build "$TARGET" \
+      --build-name="$BUILD_NAME" \
+      --build-number="$BUILD_NUMBER" \
       --dart-define=COMMIT="$COMMIT" \
       --dart-define=COMMIT_SHORT="$COMMIT_SHORT" \
       --dart-define=BRANCH="$BRANCH" \
       --dart-define=BUILD_TIME="$BUILD_TIME" \
       --dart-define=VERSION="$VERSION" \
+      --dart-define=BUILD_NUMBER="$BUILD_NUMBER" \
       "${FEEDBACK_TOKEN_DEFINE[@]}" \
       "${REMAINDER[@]}"
 
@@ -72,5 +82,6 @@ flutter "$COMMAND" \
   --dart-define=BRANCH="$BRANCH" \
   --dart-define=BUILD_TIME="$BUILD_TIME" \
   --dart-define=VERSION="$VERSION" \
+  --dart-define=BUILD_NUMBER="$BUILD_NUMBER" \
   "${FEEDBACK_TOKEN_DEFINE[@]}" \
   "${EXTRA_ARGS[@]}"

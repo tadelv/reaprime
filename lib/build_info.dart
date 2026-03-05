@@ -5,4 +5,8 @@ class BuildInfo {
   static const String branch = String.fromEnvironment('BRANCH', defaultValue: 'unknown');
   static const String buildTime = String.fromEnvironment('BUILD_TIME', defaultValue: 'unknown'); // ISO8601
   static const String version = String.fromEnvironment('VERSION', defaultValue: '0.0.0-dev');
+  static const String buildNumber = String.fromEnvironment('BUILD_NUMBER', defaultValue: '0');
+
+  /// Full version string including build number (e.g., "1.2.3+456")
+  static String get fullVersion => '$version+$buildNumber';
 }

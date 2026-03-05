@@ -96,7 +96,7 @@ class FeedbackService {
   String _collectSystemInfo() {
     final info = StringBuffer();
     info.writeln('**System Information:**');
-    info.writeln('- App Version: ${BuildInfo.version}');
+    info.writeln('- App Version: ${BuildInfo.version} (build ${BuildInfo.buildNumber})');
     info.writeln('- Commit: ${BuildInfo.commitShort}');
     info.writeln('- Branch: ${BuildInfo.branch}');
     info.writeln('- Platform: ${Platform.operatingSystem}');
