@@ -67,7 +67,7 @@ gh pr create --base main
 **Before starting work, ask the user** which verification approach to use:
 - **Tests + analyze only** — automated checks only. Best for refactors, internal logic, well-tested code paths.
 - **Tests + run app** — run with `simulate=1` so user can visually verify. Best for GUI features, UX changes.
-- **Tests + API smoke test** — run app, then `curl` changed endpoints to verify responses. Best for API work.
+- **Tests + MCP smoke test** — use the local MCP tools (`streamline-bridge` server) to start the app in simulate mode and exercise changed endpoints/state directly. Preferred for API, workflow, and data changes since MCP tools provide richer verification than raw `curl`.
 - **Tests + custom check** — user specifies what to verify (e.g., real hardware test, WebSocket stream check).
 
 **Ask the user** whether new/updated tests are needed for the change. If yes, write tests before or alongside the implementation — not as an afterthought.
@@ -109,6 +109,7 @@ During development, after every meaningful code change:
 | Controllers | `lib/src/controllers/` | Business logic orchestration between devices and services |
 | Services | `lib/src/services/` | Discovery, storage, settings, web server |
 | Plugins | `lib/src/plugins/` | JS plugin lifecycle, manifest, sandboxed runtime |
+| Bundled Plugins | `packages/dye2-plugin/` | DYE2 (Describe Your Espresso) — TypeScript/Vite plugin for bean & grinder management. Reference implementation for bundled plugins. |
 | UI Features | `lib/src/` | `home_feature/`, `history_feature/`, `realtime_shot_feature/`, `settings/`, etc. |
 | WebUI Skins | `lib/src/webui_support/` | Web-based UI skin management and serving |
 
@@ -124,7 +125,7 @@ During development, after every meaningful code change:
 
 Persistence uses Drift (SQLite) via `AppDatabase` in `lib/src/services/database/`. DAOs in `daos/` subfolder, mappers in `mappers/`. Storage service interfaces in `lib/src/services/storage/`:
 
-- **`StorageService`** — Shot CRUD + pagination/filtering + workflow persistence. Implemented by `DriftStorageService` (production) and `FileStorageService` (legacy fallback).
+- **`StorageService`** — Shot CRUD + pagination/filtering + workflow persistence. Implemented by `DriftStorageService`.
 - **`ProfileStorageService`** — Profile CRUD with visibility states. Implemented by `DriftProfileStorageService`.
 - **`BeanStorageService`** — Coffee bean + batch CRUD. Implemented by `DriftBeanStorageService`.
 - **`GrinderStorageService`** — Grinder CRUD. Implemented by `DriftGrinderStorageService`.
@@ -146,6 +147,7 @@ Handler-based routing in `lib/src/services/webserver/`. Standalone handlers (`Sh
 | Beans | `/api/v1/beans` | `beans_handler.dart` — CRUD + `/api/v1/beans/<id>/batches` for batches, `/api/v1/bean-batches/<id>` for individual batch ops |
 | Grinders | `/api/v1/grinders` | `grinders_handler.dart` — CRUD |
 | Devices | `/api/v1/devices` | `webserver_service.dart` (part of) |
+| Data Export | `/api/v1/data/export`, `/import` | `data_export_handler.dart` — ZIP-based full data export/import |
 
 ### MCP Server
 
@@ -154,6 +156,8 @@ The MCP server in `packages/mcp-server/` bridges Claude to the Flutter app's RES
 **When using MCP hot reload:** Always try `app_hot_reload` first (preserves state). Only use `app_hot_restart` if reload fails. Both have 30-second timeouts.
 
 **Adding MCP tools:** Create a tool file in `src/tools/`, export a `register*Tools(server, rest)` function, import and call it in `server.ts`. Follow existing patterns (Zod schemas, REST client delegation, JSON responses).
+
+**Using MCP for verification:** When the app is running (or can be started via `app_start`), prefer MCP tools over raw `curl` for smoke-testing changes. Use `app_start` with `connectDevice: "MockDe1"` and/or `connectScale: "MockScale"` for simulated testing. MCP tools can read machine state, exercise REST endpoints, subscribe to WebSocket streams, and manage workflows — all from within the conversation.
 
 ### Data Flow (key paths)
 
@@ -221,4 +225,5 @@ Detailed docs in `doc/`:
 - **`doc/Profiles.md`** — Profile API (content-based hashing, version tracking, endpoints)
 - **`doc/DeviceManagement.md`** — Device discovery and connection management
 - **`doc/RELEASE.md`** — Release process and versioning
+- **`packages/dye2-plugin/README.md`** — DYE2 bundled plugin (architecture, build, dev server, extension guide)
 
