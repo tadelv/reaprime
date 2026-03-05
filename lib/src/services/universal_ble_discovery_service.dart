@@ -1,12 +1,8 @@
 import 'dart:async';
-import 'dart:io';
-
 import 'package:reaprime/src/services/ble/universal_ble_transport.dart';
 import 'package:reaprime/src/services/device_matcher.dart';
 import 'package:universal_ble/universal_ble.dart';
 import '../models/device/device.dart';
-import '../models/device/machine.dart';
-import '../models/device/scale.dart';
 import 'package:logging/logging.dart' as logging;
 
 class UniversalBleDiscoveryService extends DeviceDiscoveryService {
@@ -103,26 +99,6 @@ class UniversalBleDiscoveryService extends DeviceDiscoveryService {
     } finally {
       _isScanning = false;
     }
-  }
-
-  // return machine with specific id
-  @override
-  Future<Machine> connectToMachine({String? deviceId}) async {
-    throw "Not implemented yet";
-  }
-
-  // return scale with specific id
-  @override
-  Future<Scale> connectToScale({String? deviceId}) async {
-    throw "Not implemented yet";
-  }
-
-  // disconnect (and dispose of?) device
-  @override
-  Future<void> disconnect(Device device) async {
-    device.disconnect();
-    _devices.remove(device.deviceId);
-    _deviceStreamController.add(_devices.values.toList());
   }
 
   Future<void> _deviceScanned(BleDevice device) async {

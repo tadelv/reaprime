@@ -32,6 +32,8 @@
 	<string>Needed for local storage</string>
 	<key>NSDownloadsFolderUsageDescription</key>
 	<string>Needed for local storage</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2025-2026 Decent Espresso. Licensed under GPL v3.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Needed to discover local devices</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
@@ -40,8 +42,27 @@
 	<string>Needed to discover local devices</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Needed to discover local devices</string>
-	<key>NSHumanReadableCopyright</key>
-	<string>Copyright © 2025-2026 Decent Espresso. Licensed under GPL v3.</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>UIWindowScene</string>
+					<key>UISceneConfigurationName</key>
+					<string>flutter</string>
+					<key>UISceneDelegateClassName</key>
+					<string>FlutterSceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>
