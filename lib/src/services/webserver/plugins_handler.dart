@@ -216,7 +216,14 @@ final class PluginsHandler {
     return _extractPluginId(req, (req, id) async {
       final body = await req.readAsString();
       final json = await jsonDecode(body);
-      await pluginService.savePluginSettings(id, json);
+      try {
+        await pluginService.savePluginSettings(id, json);
+      } on PluginSettingsValidationException catch (e) {
+        return Response.badRequest(
+          body: jsonEncode({'error': e.message}),
+          headers: {'content-type': 'application/json'},
+        );
+      }
       await pluginService.reloadPlugin(id);
       return Response.ok(body);
     });

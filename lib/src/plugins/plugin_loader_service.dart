@@ -10,6 +10,14 @@ import 'package:reaprime/src/plugins/plugin_manager.dart';
 import 'package:reaprime/src/plugins/plugin_manifest.dart';
 import 'package:reaprime/src/plugins/plugin_runtime.dart';
 
+class PluginSettingsValidationException implements Exception {
+  final String message;
+  PluginSettingsValidationException(this.message);
+
+  @override
+  String toString() => message;
+}
+
 class PluginLoaderService {
   final PluginManager pluginManager;
   final _log = Logger('PluginLoaderService');
@@ -496,7 +504,7 @@ class PluginLoaderService {
     // Validate each setting against schema
     for (final key in settings.keys) {
       if (!manifestSettings.containsKey(key)) {
-        throw Exception('Setting "$key" not defined in plugin manifest');
+        throw PluginSettingsValidationException('Setting "$key" not defined in plugin manifest');
       }
 
       // TODO: Add more sophisticated validation based on schema type
