@@ -371,9 +371,20 @@ it in Rea UI.
 - No filesystem access beyond the plugin's own directory
 - No network access to localhost/private IPs (except for REA API)
 
+## Reference Implementation: DYE2 Plugin
+
+The DYE2 (Describe Your Espresso) plugin in `packages/dye2-plugin/` is a production bundled plugin that demonstrates advanced patterns:
+
+- **TypeScript + Vite build pipeline** — compiles to flutter_js-compatible IIFE bundle
+- **REST API client** — calls back into the Streamline-Bridge REST API for bean/grinder CRUD
+- **HTML template rendering** — server-side HTML generation with form handling
+- **Dev server** — Vite dev server for fast iteration without rebuilding the Flutter app
+
+See `packages/dye2-plugin/README.md` for architecture details, build instructions, and extension guide.
+
 ## Next Steps
 
-1. Review the example plugins in `assets/plugins/`
+1. Review the example plugins in `assets/plugins/` and the DYE2 plugin in `packages/dye2-plugin/`
 2. Start with a simple plugin that logs `stateUpdate` events
 3. Add settings and persistent storage
 4. Implement HTTP communication with external services
