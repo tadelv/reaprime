@@ -47,20 +47,11 @@ gh pr create --base main
 
 **For non-trivial features or fixes, start with planning (on the feature branch):**
 
-1. **Enter plan mode:** Use `EnterPlanMode` to explore the codebase and design the implementation approach.
-2. **Write the plan:** Create a plan file in `doc/plans/` with:
-   - Implementation steps
-   - Files to modify/create
-   - Architectural considerations
-   - Testing approach
-3. **Plan annotation:** Present the plan to the user. The user will review and provide feedback, clarifications, or requested changes as annotations to the plan.
-4. **Iterate if needed:** Update the plan based on user feedback until approved.
-5. **Only after plan approval:** Proceed to implementation.
+1. Use `EnterPlanMode` to explore the codebase and design the approach.
+2. Write a plan in `doc/plans/` covering: steps, files to change, architecture considerations, testing.
+3. Present to user for review. Iterate until approved. Only then implement.
 
-**Skip planning only for:**
-- Simple typo fixes
-- Single-line changes
-- Tasks with very specific, detailed instructions from the user
+**Skip planning only for:** simple typo fixes, single-line changes, or tasks with very specific instructions.
 
 ### Verification Loop
 
@@ -72,26 +63,12 @@ gh pr create --base main
 
 **Ask the user** whether new/updated tests are needed for the change. If yes, write tests before or alongside the implementation — not as an afterthought.
 
-During development, after every meaningful code change:
+After every meaningful code change:
+1. Run relevant tests + `flutter analyze`. Fix immediately if anything fails.
+2. Run full `flutter test` before committing and before claiming done.
+3. Perform the user's chosen verification approach before reporting completion. Evidence before assertions.
 
-1. **Targeted check:** Run the specific test file(s) related to the change + `flutter analyze`.
-   ```bash
-   flutter test test/relevant_test.dart
-   flutter analyze
-   ```
-2. **Fix before continuing.** If tests fail or analyzer reports issues, fix them immediately — do not accumulate broken state.
-3. **Full suite at milestones:** Run `flutter test` (all tests) before committing, after completing a plan step, and before claiming work is done.
-4. **Final verification:** Perform the user's chosen verification approach before reporting completion. Never skip. Evidence before assertions.
-
-### Plans
-
-- Write implementation plans as `.md` files in `doc/plans/`.
-- **Do not commit** plan files unless the user requests it or asks to save progress.
-- After a plan is fully implemented, ask the user whether to update relevant
-  documentation with the outcome.
-- **When creating a PR or finishing a branch**, ask the user to archive the plan:
-  move it to `doc/plans/archive/` and commit it as part of the branch.
-  This keeps the plan alongside the implementation for future reference.
+Plans go in `doc/plans/`. Don't commit unless asked. When finishing a branch, ask user to archive to `doc/plans/archive/`. After implementation, ask whether to update related docs.
 
 ## Architecture
 
@@ -123,25 +100,20 @@ During development, after every meaningful code change:
 
 ### Storage
 
-Persistence uses Drift (SQLite) via `AppDatabase` in `lib/src/services/database/`. DAOs in `daos/` subfolder, mappers in `mappers/`. Storage service interfaces in `lib/src/services/storage/`:
-
-- **`StorageService`** — Shot CRUD + pagination/filtering + workflow persistence. Implemented by `DriftStorageService`.
-- **`ProfileStorageService`** — Profile CRUD with visibility states. Implemented by `DriftProfileStorageService`.
-- **`BeanStorageService`** — Coffee bean + batch CRUD. Implemented by `DriftBeanStorageService`.
-- **`GrinderStorageService`** — Grinder CRUD. Implemented by `DriftGrinderStorageService`.
+Persistence uses Drift (SQLite) via `AppDatabase` in `lib/src/services/database/`. DAOs in `daos/` subfolder, mappers in `mappers/`. Storage service interfaces in `lib/src/services/storage/`, all backed by Drift implementations: `StorageService` (shots, workflow), `ProfileStorageService` (profiles), `BeanStorageService` (beans + batches), `GrinderStorageService` (grinders).
 
 **Ambiguous imports:** Domain models and Drift-generated code share class names (`ShotRecord`, `Workflow`, `ProfileRecord`). Use prefixed imports: `import '...shot_record.dart' as domain;` or `hide Workflow` on the database import.
 
 ### Web Server
 
-Handler-based routing in `lib/src/services/webserver/`. Standalone handlers (`ShotsHandler`, `WorkflowHandler`, `BeansHandler`, `GrindersHandler`) are imported and wired via `addRoutes()` in `webserver_service.dart`. Legacy `part of` handlers share the file's imports. Each handler has an `addRoutes()` method, registered in `_init()`. API docs served on port 4001. API specs in `assets/api/`.
+Handler-based routing in `lib/src/services/webserver/`. Each handler has `addRoutes()`, registered in `webserver_service.dart` `_init()`. Newer handlers are standalone imports; legacy ones use `part of`. API docs on port 4001, specs in `assets/api/`.
 
 ### REST API Overview
 
 | Resource | Base Path | Handler |
 |----------|-----------|---------|
 | Machine | `/api/v1/machine/` | `webserver_service.dart` (part of) |
-| Shots | `/api/v1/shots` | `shots_handler.dart` — paginated list `{items, total, limit, offset}`, filters by grinderId/grinderModel/beanBatchId/coffeeName/coffeeRoaster/profileTitle |
+| Shots | `/api/v1/shots` | `shots_handler.dart` — paginated list with filtering (see `assets/api/rest_v1.yml`) |
 | Profiles | `/api/v1/profiles` | `profiles_handler.dart` |
 | Workflow | `/api/v1/workflow` | `workflow_handler.dart` — GET/PUT with deep merge |
 | Beans | `/api/v1/beans` | `beans_handler.dart` — CRUD + `/api/v1/beans/<id>/batches` for batches, `/api/v1/bean-batches/<id>` for individual batch ops |
