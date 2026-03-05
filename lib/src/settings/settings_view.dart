@@ -576,6 +576,7 @@ class _SettingsViewState extends State<SettingsView> {
       description: 'Version and build information',
       children: [
         _InfoRow('Version', BuildInfo.version),
+        _InfoRow('Build', BuildInfo.buildNumber),
         _InfoRow('Commit', BuildInfo.commitShort),
         _InfoRow('Branch', BuildInfo.branch),
         const Divider(height: 24),
