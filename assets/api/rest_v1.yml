@@ -733,14 +733,18 @@ paths:
 
   /api/v1/shots/latest:
     get:
-      summary: Get the latest shot details
+      summary: Get the latest shot metadata
+      description: |
+        Returns the most recent shot record without measurements for performance.
+        Use GET /api/v1/shots/{id} to retrieve full shot data including measurements.
       tags: [Shots History]
       responses:
         "200":
+          description: Latest shot metadata (without measurements)
           content:
             application/json:
-              schema: 
-                $ref: "#/components/schemas/ShotRecord"
+              schema:
+                $ref: "#/components/schemas/ShotRecordSummary"
 
   /api/v1/shots/{id}:
     get:
@@ -3612,6 +3616,57 @@ components:
             favorite: true
             barista: "Alice"
 
+    ShotRecordSummary:
+      type: object
+      description: |
+        Shot record without measurements. Returned by list and latest endpoints
+        for performance. Use GET /api/v1/shots/{id} for the full record.
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+        workflow:
+          $ref: "#/components/schemas/WorkflowRequest"
+        annotations:
+          type: object
+          nullable: true
+          description: Post-shot annotations (enjoyment, tasting notes, extraction data)
+          properties:
+            actualDoseWeight:
+              type: number
+              nullable: true
+            actualYield:
+              type: number
+              nullable: true
+            drinkTds:
+              type: number
+              nullable: true
+            drinkEy:
+              type: number
+              nullable: true
+            enjoyment:
+              type: number
+              nullable: true
+            espressoNotes:
+              type: string
+              nullable: true
+            extras:
+              type: object
+              nullable: true
+              additionalProperties: true
+        shotNotes:
+          type: string
+          nullable: true
+          deprecated: true
+          description: "Legacy field — use annotations.espressoNotes instead"
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+          deprecated: true
+          description: "Legacy field — use annotations.extras instead"
+
     ShotSnapshot:
       type: object
       properties:
@@ -4255,7 +4310,7 @@ components:
         items:
           type: array
           items:
-            $ref: "#/components/schemas/ShotRecord"
+            $ref: "#/components/schemas/ShotRecordSummary"
           description: Shot records (measurements excluded for performance — use GET /api/v1/shots/{id} for full data)
         total:
           type: integer

@@ -35,6 +35,9 @@ abstract class StorageService {
     String? profileTitle,
   });
 
-  /// Get the most recent shot.
+  /// Get the most recent shot (full row including measurements).
   Future<ShotRecord?> getLatestShot();
+
+  /// Get the most recent shot metadata (excludes measurements).
+  Future<ShotRecord?> getLatestShotMeta();
 }

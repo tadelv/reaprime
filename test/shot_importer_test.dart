@@ -92,6 +92,9 @@ class MockStorageService implements StorageService {
     if (storedShots.isEmpty) return null;
     return storedShots.last;
   }
+
+  @override
+  Future<ShotRecord?> getLatestShotMeta() => getLatestShot();
 }
 
 void main() {

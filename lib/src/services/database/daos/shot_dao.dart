@@ -127,11 +127,27 @@ class ShotDao extends DatabaseAccessor<AppDatabase> with _$ShotDaoMixin {
     return (delete(shotRecords)..where((s) => s.id.equals(id))).go();
   }
 
-  /// Get the most recent shot.
+  /// Get the most recent shot (full row including measurements).
   Future<ShotRecord?> getLatestShot() {
     return (select(shotRecords)
           ..orderBy([(s) => OrderingTerm.desc(s.timestamp)])
           ..limit(1))
         .getSingleOrNull();
+  }
+
+  /// Get the most recent shot metadata (excludes measurementsJson from SQL).
+  /// Returns a [ShotRecord] with measurementsJson set to '[]'.
+  Future<ShotRecord?> getLatestShotMeta() async {
+    final cols = shotRecords.$columns
+        .where((c) => c.$name != 'measurements_json')
+        .map((c) => c.$name)
+        .join(', ');
+    final result = await customSelect(
+      "SELECT $cols, '[]' AS measurements_json "
+      'FROM shot_records ORDER BY timestamp DESC LIMIT 1',
+      readsFrom: {shotRecords},
+    ).getSingleOrNull();
+    if (result == null) return null;
+    return shotRecords.map(result.data);
   }
 }
