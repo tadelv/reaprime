@@ -11,7 +11,7 @@ class BluePlusTransport implements BLETransport {
   final Logger _log;
   final BluetoothDevice _device;
 
-  final BehaviorSubject<bool> _connectionStateSubject = BehaviorSubject<bool>();
+  final BehaviorSubject<bool> _connectionStateSubject = BehaviorSubject<bool>.seeded(false);
   StreamSubscription? _nativeConnectionSub;
 
   BluePlusTransport({required String remoteId})

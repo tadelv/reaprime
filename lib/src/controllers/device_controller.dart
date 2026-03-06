@@ -87,7 +87,9 @@ class DeviceController {
       final devices = entry.value;
       final toRemove = <Device>[];
       for (final device in devices) {
-        final state = await device.connectionState.first;
+        final state = await device.connectionState.first
+            .timeout(const Duration(seconds: 2),
+                onTimeout: () => ConnectionState.disconnected);
         if (state != ConnectionState.connected) {
           toRemove.add(device);
         }

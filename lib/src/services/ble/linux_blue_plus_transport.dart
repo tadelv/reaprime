@@ -49,7 +49,7 @@ class LinuxBluePlusTransport implements BLETransport {
   /// Settle time after stopping the cache-refresh scan before connecting.
   static const Duration _cacheRefreshSettleDelay = Duration(seconds: 2);
 
-  final BehaviorSubject<bool> _connectionStateSubject = BehaviorSubject<bool>();
+  final BehaviorSubject<bool> _connectionStateSubject = BehaviorSubject<bool>.seeded(false);
   StreamSubscription? _nativeConnectionSub;
 
   LinuxBluePlusTransport({required String remoteId})
