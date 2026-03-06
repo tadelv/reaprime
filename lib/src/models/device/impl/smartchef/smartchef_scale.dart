@@ -36,7 +36,7 @@ class SmartChefScale implements Scale {
   String get name => "SmartChef Scale";
 
   final StreamController<ConnectionState> _connectionStateController =
-      BehaviorSubject.seeded(ConnectionState.connecting);
+      BehaviorSubject.seeded(ConnectionState.discovered);
 
   @override
   Stream<ConnectionState> get connectionState =>

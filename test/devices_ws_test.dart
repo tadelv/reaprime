@@ -382,24 +382,24 @@ void main() {
           .first
           .timeout(Duration(seconds: 2));
 
-      // Re-add with same ID but in connecting state
+      // Re-add with same ID but in discovered state
       final scale2 = TestScale(
         deviceId: 'scale-1',
         name: 'Scale',
-        initialState: ConnectionState.connecting,
+        initialState: ConnectionState.discovered,
       );
       mockDiscovery.addDevice(scale2);
 
-      // Should see the new device with connecting state
+      // Should see the new device with discovered state
       final update = await messages
           .where((msg) =>
               msg.containsKey('devices') &&
               (msg['devices'] as List).isNotEmpty &&
-              (msg['devices'] as List)[0]['state'] == 'connecting')
+              (msg['devices'] as List)[0]['state'] == 'discovered')
           .first
           .timeout(Duration(seconds: 2));
 
-      expect((update['devices'] as List)[0]['state'], 'connecting');
+      expect((update['devices'] as List)[0]['state'], 'discovered');
 
       // New object's state changes should be observed
       scale2.setConnectionState(ConnectionState.connected);

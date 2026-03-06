@@ -16,7 +16,7 @@ class HDSSerial implements Scale {
   }
 
   final BehaviorSubject<ConnectionState> _connectionSubject =
-      BehaviorSubject.seeded(ConnectionState.connecting);
+      BehaviorSubject.seeded(ConnectionState.discovered);
   @override
   Stream<ConnectionState> get connectionState =>
       _connectionSubject.asBroadcastStream();

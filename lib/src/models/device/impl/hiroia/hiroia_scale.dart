@@ -37,7 +37,7 @@ class HiroiaScale implements Scale {
   String get name => "Hiroia Jimmy";
 
   final StreamController<ConnectionState> _connectionStateController =
-      BehaviorSubject.seeded(ConnectionState.connecting);
+      BehaviorSubject.seeded(ConnectionState.discovered);
 
   @override
   Stream<ConnectionState> get connectionState =>

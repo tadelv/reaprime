@@ -51,9 +51,19 @@ class UnifiedDe1 implements De1Interface {
   UnifiedDe1({required DataTransport transport})
     : _transport = UnifiedDe1Transport(transport: transport);
 
+  bool _hasBeenConnected = false;
+
   @override
   Stream<ConnectionState> get connectionState => _transport.connectionState.map(
-    (e) => e ? ConnectionState.connected : ConnectionState.disconnected,
+    (e) {
+      if (e) {
+        _hasBeenConnected = true;
+        return ConnectionState.connected;
+      }
+      return _hasBeenConnected
+          ? ConnectionState.disconnected
+          : ConnectionState.discovered;
+    },
   );
 
   @override
