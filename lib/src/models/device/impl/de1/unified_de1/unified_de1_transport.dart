@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
+import 'package:reaprime/src/models/device/transport/ble_timeout_exception.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
@@ -360,6 +361,9 @@ class UnifiedDe1Transport {
           throw ("Unknown transport type: $_transportType");
       }
     } catch (e, st) {
+      if (_isBleTimeout(e)) {
+        await _handleBleTimeout(e, st);
+      }
       _log.severe("failed to write", e, st);
       rethrow;
     }
@@ -385,8 +389,35 @@ class UnifiedDe1Transport {
           throw ("Unknown transport type: $_transportType");
       }
     } catch (e, st) {
+      if (_isBleTimeout(e)) {
+        await _handleBleTimeout(e, st);
+      }
       _log.severe("failed to write", e, st);
       rethrow;
+    }
+  }
+
+  bool _isBleTimeout(Object error) {
+    return _transportType == TransportType.ble &&
+        error is BleTimeoutException;
+  }
+
+  Future<void> _handleBleTimeout(Object error, StackTrace st) async {
+    _log.warning('BLE write timed out, attempting reconnect');
+    try {
+      await _transport.disconnect();
+      await _transport.connect();
+      await _bleConnect();
+      _log.info('BLE reconnect successful after timeout');
+    } catch (reconnectError) {
+      _log.severe(
+        'BLE reconnect failed, disconnecting',
+        reconnectError,
+      );
+      try {
+        // Don't await — BLE stack may be unresponsive
+        _transport.disconnect();
+      } catch (_) {}
     }
   }
 
