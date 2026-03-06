@@ -38,7 +38,7 @@ class AndroidBluePlusTransport implements BLETransport {
   /// Delay between service discovery retry attempts.
   static const Duration _discoveryRetryDelay = Duration(milliseconds: 500);
 
-  final BehaviorSubject<bool> _connectionStateSubject = BehaviorSubject<bool>();
+  final BehaviorSubject<bool> _connectionStateSubject = BehaviorSubject<bool>.seeded(false);
   StreamSubscription? _nativeConnectionSub;
 
   AndroidBluePlusTransport({required String remoteId})
