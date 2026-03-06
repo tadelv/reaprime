@@ -55,19 +55,6 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
       _devices.add(device);
       _deviceStreamController.add(_devices);
       _log.info('Device $deviceId "$name" added successfully');
-
-      // Set up cleanup listener for when device disconnects.
-      StreamSubscription? sub;
-      sub = device.connectionState.skip(1).listen((event) {
-        if (event == ConnectionState.disconnected) {
-          _log.info(
-            "Device $deviceId disconnected, removing from discovery list",
-          );
-          _devices.removeWhere((d) => d.deviceId == deviceId);
-          _deviceStreamController.add(_devices);
-          sub?.cancel();
-        }
-      });
     } catch (e) {
       _log.severe("Error creating device $deviceId: $e");
     } finally {
