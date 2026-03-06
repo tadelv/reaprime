@@ -40,20 +40,31 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration {
     return MigrationStrategy(
       onCreate: (Migrator m) async {
         await m.createAll();
-        // Enable foreign keys
         await customStatement('PRAGMA foreign_keys = ON');
+        await _createIndices();
+      },
+      onUpgrade: (Migrator m, int from, int to) async {
+        if (from < 2) {
+          await _createIndices();
+        }
       },
       beforeOpen: (details) async {
-        // Always enable foreign keys on each connection
         await customStatement('PRAGMA foreign_keys = ON');
       },
+    );
+  }
+
+  Future<void> _createIndices() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_shot_records_timestamp '
+      'ON shot_records (timestamp DESC)',
     );
   }
 }

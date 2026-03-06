@@ -89,6 +89,9 @@ class MockStorageService implements StorageService {
     return _shots.values.last;
   }
 
+  @override
+  Future<ShotRecord?> getLatestShotMeta() => getLatestShot();
+
   void reset() {
     _shots.clear();
     _currentWorkflow = null;

@@ -15,8 +15,14 @@ After wake-up, the BLE connection becomes stale/degraded. Instead of catching th
 
 - [x] **1. Disconnect on BLE write timeout** — In `UnifiedDe1Transport`, when a BLE write times out (FlutterBluePlusException with timeout), trigger a disconnect of the device. This forces a clean reconnect cycle instead of leaving a stale connection that will keep timing out and congesting the event loop.
 
+- [ ] **1b. Integration test BLE timeout recovery** — Use local Streamline-Bridge MCP server to test how well the new disconnect/reconnect performs in practice (simulate timeout scenario, verify reconnect cycle works cleanly).
+
 - [ ] **2. Optimize `getLatestShot()` query** — The Visualizer plugin polls `/api/v1/shots/latest` every 10s. Currently `getLatestShot()` does `ORDER BY timestamp DESC LIMIT 1` loading the full row including `measurementsJson` (which can be large). Two improvements:
   - a. Add a DB index on `timestamp` for the `shot_records` table
   - b. Create a lightweight variant that excludes `measurementsJson` (or return `toJsonWithoutMeasurements()` from the handler, matching what the paginated list endpoint already does)
+
+- [ ] **2b. MCP smoke test for shots/latest and Visualizer plugin** — Use the MCP server to:
+  - Start the app in simulate mode, pull a shot, and verify `/api/v1/shots/latest` returns correct metadata without measurements.
+  - Test the Visualizer plugin's event-driven upload flow (requires user to supply Visualizer credentials).
 
 - [ ] **3. Investigate wake-up scan BLE congestion** — Understand why the BLE scan + reconnect after wake-up floods the event loop (response times degrade to 330ms even before any write timeout). Look at the scan flow, notification subscriptions, and whether we can throttle/debounce BLE events during reconnection.
