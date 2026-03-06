@@ -53,18 +53,18 @@ class DifluidScale implements Scale {
 
   @override
   Future<void> onConnect() async {
-    if (await _transport.connectionState.first == true) {
+    if (await _transport.connectionState.first == ConnectionState.connected) {
       return;
     }
     _connectionStateController.add(ConnectionState.connecting);
 
-    StreamSubscription<bool>? disconnectSub;
+    StreamSubscription<ConnectionState>? disconnectSub;
 
     try {
       await _transport.connect();
 
       disconnectSub = _transport.connectionState
-          .where((state) => !state)
+          .where((state) => state == ConnectionState.disconnected)
           .listen((_) {
         _connectionStateController.add(ConnectionState.disconnected);
         disconnectSub?.cancel();
