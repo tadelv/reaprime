@@ -126,9 +126,15 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
 
     FlutterBluePlus.cancelWhenScanComplete(subscription);
 
-    await FlutterBluePlus.adapterState
-        .where((val) => val == BluetoothAdapterState.on)
-        .first;
+    try {
+      await FlutterBluePlus.adapterState
+          .where((val) => val == BluetoothAdapterState.on)
+          .first
+          .timeout(const Duration(seconds: 5));
+    } on TimeoutException {
+      _log.warning("Adapter state timeout in targeted scan — Bluetooth may be off");
+      return;
+    }
 
     await FlutterBluePlus.startScan(
       // withRemoteIds: bleIds,
@@ -190,9 +196,17 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
       FlutterBluePlus.cancelWhenScanComplete(subscription);
 
       // Wait for Bluetooth enabled & permission granted
-      await FlutterBluePlus.adapterState
-          .where((val) => val == BluetoothAdapterState.on)
-          .first;
+      _log.info("Waiting for adapter state...");
+      try {
+        await FlutterBluePlus.adapterState
+            .where((val) => val == BluetoothAdapterState.on)
+            .first
+            .timeout(const Duration(seconds: 5));
+      } on TimeoutException {
+        _log.warning("Adapter state timeout — Bluetooth may be off or unavailable");
+        return;
+      }
+      _log.info("Adapter ready, starting scan...");
 
       // Unfiltered scan — no withServices parameter
       await FlutterBluePlus.startScan(oneByOne: true);
