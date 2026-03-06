@@ -14,7 +14,7 @@ abstract class Device {
   Stream<ConnectionState> get connectionState;
 }
 
-enum ConnectionState { connecting, connected, disconnecting, disconnected }
+enum ConnectionState { discovered, connecting, connected, disconnecting, disconnected }
 
 abstract class DeviceDiscoveryService {
   Stream<List<Device>> get devices;

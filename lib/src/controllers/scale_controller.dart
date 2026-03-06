@@ -84,7 +84,7 @@ class ScaleController {
   }
 
   final BehaviorSubject<ConnectionState> _connectionController =
-      BehaviorSubject.seeded(ConnectionState.disconnected);
+      BehaviorSubject.seeded(ConnectionState.discovered);
 
   Stream<ConnectionState> get connectionState => _connectionController.stream;
 

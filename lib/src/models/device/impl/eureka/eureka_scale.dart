@@ -43,7 +43,7 @@ class EurekaScale implements Scale {
   String get name => "Eureka Precisa";
 
   final StreamController<ConnectionState> _connectionStateController =
-      BehaviorSubject.seeded(ConnectionState.connecting);
+      BehaviorSubject.seeded(ConnectionState.discovered);
 
   @override
   Stream<ConnectionState> get connectionState =>

@@ -51,7 +51,7 @@ class AcaiaScale implements Scale {
       _transport.name.isNotEmpty ? _transport.name : 'Acaia Scale';
 
   final StreamController<ConnectionState> _connectionStateController =
-      BehaviorSubject.seeded(ConnectionState.connecting);
+      BehaviorSubject.seeded(ConnectionState.discovered);
 
   @override
   Stream<ConnectionState> get connectionState =>

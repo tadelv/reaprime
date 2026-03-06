@@ -90,6 +90,8 @@ class De1Controller {
       _de1!.connectionState.listen(
         (connectionData) {
           switch (connectionData) {
+            case ConnectionState.discovered:
+              _log.info("device $_de1 discovered");
             case ConnectionState.connecting:
               _log.info("device $_de1 connecting");
             case ConnectionState.connected:

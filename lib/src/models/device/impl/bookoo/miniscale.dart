@@ -32,7 +32,7 @@ class BookooScale implements Scale {
   String get name => "Bookoo Mini Scale";
 
   final StreamController<ConnectionState> _connectionStateController =
-      BehaviorSubject.seeded(ConnectionState.connecting);
+      BehaviorSubject.seeded(ConnectionState.discovered);
 
   @override
   Stream<ConnectionState> get connectionState =>

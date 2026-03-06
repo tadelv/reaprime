@@ -45,7 +45,7 @@ class DifluidScale implements Scale {
   String get name => "Difluid Microbalance";
 
   final StreamController<ConnectionState> _connectionStateController =
-      BehaviorSubject.seeded(ConnectionState.connecting);
+      BehaviorSubject.seeded(ConnectionState.discovered);
 
   @override
   Stream<ConnectionState> get connectionState =>
