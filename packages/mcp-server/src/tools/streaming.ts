@@ -54,6 +54,38 @@ export function registerStreamingTools(server: McpServer, wsClient: WsClient) {
     }
   });
 
+  server.registerTool("stream_send", {
+    title: "Send to Stream",
+    description:
+      "Send a JSON message through an existing WebSocket subscription. " +
+      "Useful for bidirectional WebSocket endpoints like /ws/v1/devices which accepts commands: " +
+      '{"command": "scan", "connect": true} to scan and auto-connect, ' +
+      '{"command": "connect", "deviceId": "..."} to connect a specific device, ' +
+      '{"command": "disconnect", "deviceId": "..."} to disconnect a device.',
+    inputSchema: z.object({
+      subscriptionId: z.string().describe("Subscription ID from stream_subscribe"),
+      message: z.record(z.unknown()).describe("JSON message to send"),
+    }),
+  }, async ({ subscriptionId, message }) => {
+    try {
+      wsClient.send(subscriptionId, JSON.stringify(message));
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({ status: "sent", subscriptionId }, null, 2),
+        }],
+      };
+    } catch (err) {
+      return {
+        content: [{
+          type: "text",
+          text: `Error: ${err instanceof Error ? err.message : String(err)}`,
+        }],
+        isError: true,
+      };
+    }
+  });
+
   server.registerTool("stream_unsubscribe", {
     title: "Unsubscribe from Stream",
     description: "Close a WebSocket subscription and discard its buffer.",
