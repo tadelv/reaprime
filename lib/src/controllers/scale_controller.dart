@@ -58,7 +58,7 @@ class ScaleController {
 
   Future<void> connectToScale(Scale scale) async {
     _onDisconnect();
-    _scaleConnection = scale.connectionState.listen(_processConnection);
+    _scaleConnection = scale.connectionState.skip(1).listen(_processConnection);
     _scaleSnapshot = scale.currentSnapshot.listen(_processSnapshot);
     await scale.onConnect();
     // Only set _scale if we're still connected (onConnect may have failed
