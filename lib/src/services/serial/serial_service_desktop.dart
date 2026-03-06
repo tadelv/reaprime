@@ -261,10 +261,10 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
 class _DesktopSerialPort implements SerialTransport {
   final SerialPort _port;
   late Logger _log;
-  final BehaviorSubject<bool> _open = BehaviorSubject.seeded(false);
+  final BehaviorSubject<ConnectionState> _open = BehaviorSubject.seeded(ConnectionState.discovered);
 
   @override
-  Stream<bool> get connectionState => _open.asBroadcastStream();
+  Stream<ConnectionState> get connectionState => _open.asBroadcastStream();
 
   _DesktopSerialPort({required SerialPort port}) : _port = port {
     _log = Logger("SerialPort:${port.name}");
@@ -274,7 +274,7 @@ class _DesktopSerialPort implements SerialTransport {
   Future<void> disconnect() async {
     _portSubscription?.cancel();
     _port.close();
-    _open.add(false);
+    _open.add(ConnectionState.disconnected);
   }
 
   @override
@@ -341,7 +341,7 @@ class _DesktopSerialPort implements SerialTransport {
       );
       _log.fine("port subscribed: ${_portSubscription}");
     });
-    _open.add(true);
+    _open.add(ConnectionState.connected);
   }
 
   final StreamController<String> _readController =

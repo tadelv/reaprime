@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/transport/ble_timeout_exception.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/rxdart.dart';
@@ -49,7 +50,8 @@ class LinuxBluePlusTransport implements BLETransport {
   /// Settle time after stopping the cache-refresh scan before connecting.
   static const Duration _cacheRefreshSettleDelay = Duration(seconds: 2);
 
-  final BehaviorSubject<bool> _connectionStateSubject = BehaviorSubject<bool>.seeded(false);
+  final BehaviorSubject<device.ConnectionState> _connectionStateSubject =
+      BehaviorSubject<device.ConnectionState>.seeded(device.ConnectionState.discovered);
   StreamSubscription? _nativeConnectionSub;
 
   LinuxBluePlusTransport({required String remoteId})
@@ -63,8 +65,11 @@ class LinuxBluePlusTransport implements BLETransport {
     // Forward native connection state to our subject
     _nativeConnectionSub?.cancel();
     _nativeConnectionSub = _device.connectionState.listen((state) {
-      _connectionStateSubject
-          .add(state == BluetoothConnectionState.connected);
+      _connectionStateSubject.add(
+        state == BluetoothConnectionState.connected
+            ? device.ConnectionState.connected
+            : device.ConnectionState.disconnected,
+      );
     });
 
     // Skip if already connected.
@@ -151,7 +156,7 @@ class LinuxBluePlusTransport implements BLETransport {
   }
 
   @override
-  Stream<bool> get connectionState => _connectionStateSubject.stream;
+  Stream<device.ConnectionState> get connectionState => _connectionStateSubject.stream;
 
   @override
   Future<void> disconnect() async {
@@ -159,7 +164,7 @@ class LinuxBluePlusTransport implements BLETransport {
       await _device.disconnect(queue: false, timeout: 5);
     } catch (e) {
       _log.warning("Error during disconnect: $e");
-      _connectionStateSubject.add(false);
+      _connectionStateSubject.add(device.ConnectionState.disconnected);
     }
   }
 

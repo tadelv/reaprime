@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/subjects.dart';
 import 'package:universal_ble/universal_ble.dart';
@@ -10,11 +11,11 @@ class UniversalBleTransport implements BLETransport {
 
   late Logger _log;
 
-  final BehaviorSubject<bool> _connectionStateSubject = BehaviorSubject.seeded(
-    false,
+  final BehaviorSubject<device.ConnectionState> _connectionStateSubject = BehaviorSubject.seeded(
+    device.ConnectionState.discovered,
   );
 
-  StreamSubscription<bool>? _connectionStateSubscription;
+  StreamSubscription? _connectionStateSubscription;
 
   UniversalBleTransport({required BleDevice device}) : _device = device {
     _log = Logger("BLETransport-${device.deviceId}");
@@ -25,7 +26,9 @@ class UniversalBleTransport implements BLETransport {
     _connectionStateSubscription = UniversalBle.connectionStream(
       _device.deviceId,
     ).listen((d) {
-      _connectionStateSubject.add(d);
+      _connectionStateSubject.add(
+        d ? device.ConnectionState.connected : device.ConnectionState.disconnected,
+      );
     });
     await UniversalBle.connect(
       _device.deviceId,
@@ -34,7 +37,7 @@ class UniversalBleTransport implements BLETransport {
   }
 
   @override
-  Stream<bool> get connectionState =>
+  Stream<device.ConnectionState> get connectionState =>
       _connectionStateSubject.asBroadcastStream();
 
   @override
@@ -52,7 +55,7 @@ class UniversalBleTransport implements BLETransport {
       );
     } catch (e) {
       _log.warning("failed to disconnect", e);
-      _connectionStateSubject.add(false);
+      _connectionStateSubject.add(device.ConnectionState.disconnected);
     }
     _connectionStateSubscription?.cancel();
   }

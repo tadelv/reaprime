@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/transport/ble_timeout_exception.dart';
@@ -20,7 +21,7 @@ class UnifiedDe1Transport {
 
   late StreamSubscription<String> _transportSubscription;
 
-  Stream<bool> get connectionState => _transport.connectionState;
+  Stream<device.ConnectionState> get connectionState => _transport.connectionState;
 
   String get id => _transport.id;
 
@@ -271,7 +272,7 @@ class UnifiedDe1Transport {
   }
 
   Future<ByteData> read(Endpoint e) async {
-    if (await _transport.connectionState.first != true) {
+    if (await _transport.connectionState.first != device.ConnectionState.connected) {
       throw ("de1 not connected");
     }
 
@@ -341,7 +342,7 @@ class UnifiedDe1Transport {
   }
 
   Future<void> write(Endpoint e, Uint8List data) async {
-    if (await _transport.connectionState.first != true) {
+    if (await _transport.connectionState.first != device.ConnectionState.connected) {
       throw ("de1 not connected");
     }
     try {
@@ -370,7 +371,7 @@ class UnifiedDe1Transport {
   }
 
   Future<void> writeWithResponse(Endpoint e, Uint8List data) async {
-    if (await _transport.connectionState.first != true) {
+    if (await _transport.connectionState.first != device.ConnectionState.connected) {
       throw ("de1 not connected");
     }
     try {
