@@ -205,6 +205,10 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   }
 
   Future<void> _startDirectConnect(String deviceId, {List<String> alsoScanFor = const []}) async {
+    // Consume _autoConnectDeviceId immediately so the device stream listener
+    // doesn't race us and call _handleDeviceTapped for the same device.
+    _autoConnectDeviceId = null;
+
     final allIds = [deviceId, ...alsoScanFor];
     final found = await widget.deviceController.scanForSpecificDevices(
       allIds,
@@ -215,6 +219,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 
     if (!found) {
       widget.logger.info('Preferred device $deviceId not found, falling back to full scan');
+      _autoConnectDeviceId = deviceId; // restore for stream listener fallback
       _fallbackToFullScan(keepAutoConnect: true);
       _startNormalScanWithTimeout();
       return;
