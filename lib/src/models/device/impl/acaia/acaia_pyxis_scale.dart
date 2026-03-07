@@ -55,7 +55,7 @@ class AcaiaPyxisScale implements Scale {
       _transport.name.isNotEmpty ? _transport.name : 'Acaia Pyxis';
 
   final StreamController<ConnectionState> _connectionStateController =
-      BehaviorSubject.seeded(ConnectionState.connecting);
+      BehaviorSubject.seeded(ConnectionState.discovered);
 
   @override
   Stream<ConnectionState> get connectionState =>
@@ -63,12 +63,12 @@ class AcaiaPyxisScale implements Scale {
 
   @override
   Future<void> onConnect() async {
-    if (await _transport.connectionState.first == true) {
+    if (await _transport.connectionState.first == ConnectionState.connected) {
       return;
     }
     _connectionStateController.add(ConnectionState.connecting);
 
-    StreamSubscription<bool>? disconnectSub;
+    StreamSubscription<ConnectionState>? disconnectSub;
 
     try {
       await _transport.connect();
@@ -77,7 +77,7 @@ class AcaiaPyxisScale implements Scale {
       // The transport's BehaviorSubject now holds `true`, so the
       // .where(!state) filter won't fire until a real disconnect.
       disconnectSub = _transport.connectionState
-          .where((state) => !state)
+          .where((state) => state == ConnectionState.disconnected)
           .listen((_) {
         _log.info('Transport disconnected');
         _connectionStateController.add(ConnectionState.disconnected);

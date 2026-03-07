@@ -17,6 +17,7 @@ import 'package:reaprime/src/models/device/impl/hiroia/hiroia_scale.dart';
 import 'package:reaprime/src/models/device/impl/skale/skale2_scale.dart';
 import 'package:reaprime/src/models/device/impl/smartchef/smartchef_scale.dart';
 import 'package:reaprime/src/models/device/impl/varia/varia_aku_scale.dart';
+import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/services/device_matcher.dart';
 
@@ -28,7 +29,7 @@ class _MockBLETransport extends BLETransport {
   String get name => 'Mock';
 
   @override
-  Stream<bool> get connectionState => Stream.value(false);
+  Stream<ConnectionState> get connectionState => Stream.value(ConnectionState.discovered);
 
   @override
   Future<void> connect() async {}

@@ -52,9 +52,7 @@ class UnifiedDe1 implements De1Interface {
     : _transport = UnifiedDe1Transport(transport: transport);
 
   @override
-  Stream<ConnectionState> get connectionState => _transport.connectionState.map(
-    (e) => e ? ConnectionState.connected : ConnectionState.disconnected,
-  );
+  Stream<ConnectionState> get connectionState => _transport.connectionState;
 
   @override
   Stream<MachineSnapshot> get currentSnapshot =>
@@ -216,7 +214,9 @@ class UnifiedDe1 implements De1Interface {
   Stream<De1RawMessage> get rawOutStream => _rawMessageController.stream;
 
   @override
-  Stream<bool> get ready => _transport.connectionState.asBroadcastStream();
+  Stream<bool> get ready => _transport.connectionState
+      .map((state) => state == ConnectionState.connected)
+      .asBroadcastStream();
 
   @override
   Future<void> requestState(MachineState newState) async {

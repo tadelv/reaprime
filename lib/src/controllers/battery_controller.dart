@@ -4,11 +4,13 @@ import 'package:battery_plus/battery_plus.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/charging_logic.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
+import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:rxdart/rxdart.dart';
 
 class BatteryController {
   final De1Controller _de1Controller;
+  final DeviceController _deviceController;
   final SettingsController _settingsController;
   final Battery _battery = Battery();
   final Logger _log = Logger("Battery");
@@ -24,8 +26,10 @@ class BatteryController {
 
   BatteryController({
     required De1Controller de1Controller,
+    required DeviceController deviceController,
     required SettingsController settingsController,
   })  : _de1Controller = de1Controller,
+        _deviceController = deviceController,
         _settingsController = settingsController {
     _checkTimer = Timer.periodic(
       const Duration(seconds: 60),
@@ -68,12 +72,16 @@ class BatteryController {
         'reason: ${decision.reason}',
       );
 
-      // Apply to DE1
-      try {
-        final de1 = _de1Controller.connectedDe1();
-        await de1.setUsbChargerMode(decision.shouldCharge);
-      } catch (e) {
-        _log.warning('Failed to set USB charger mode', e);
+      // Apply to DE1 — skip during BLE scan to avoid congesting the adapter
+      if (_deviceController.isScanning) {
+        _log.fine('Skipping USB charger mode update during BLE scan');
+      } else {
+        try {
+          final de1 = _de1Controller.connectedDe1();
+          await de1.setUsbChargerMode(decision.shouldCharge);
+        } catch (e) {
+          _log.warning('Failed to set USB charger mode', e);
+        }
       }
 
       // Emit state

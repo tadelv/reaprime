@@ -279,6 +279,7 @@ void main() async {
   if (Platform.isAndroid || Platform.isIOS) {
     batteryController = BatteryController(
       de1Controller: de1Controller,
+      deviceController: deviceController,
       settingsController: settingsController,
     );
   }

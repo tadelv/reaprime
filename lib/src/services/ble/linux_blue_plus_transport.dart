@@ -3,7 +3,10 @@ import 'dart:typed_data';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/models/device/device.dart' as device;
+import 'package:reaprime/src/models/device/transport/ble_timeout_exception.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:rxdart/rxdart.dart';
 
 /// Linux-specific BLE transport that wraps flutter_blue_plus with
 /// BlueZ-appropriate handling.
@@ -47,6 +50,10 @@ class LinuxBluePlusTransport implements BLETransport {
   /// Settle time after stopping the cache-refresh scan before connecting.
   static const Duration _cacheRefreshSettleDelay = Duration(seconds: 2);
 
+  final BehaviorSubject<device.ConnectionState> _connectionStateSubject =
+      BehaviorSubject<device.ConnectionState>.seeded(device.ConnectionState.discovered);
+  StreamSubscription? _nativeConnectionSub;
+
   LinuxBluePlusTransport({required String remoteId})
     : _device = BluetoothDevice(remoteId: DeviceIdentifier(remoteId)),
       _log = Logger("LinuxBPTransport-$remoteId");
@@ -54,6 +61,16 @@ class LinuxBluePlusTransport implements BLETransport {
   @override
   Future<void> connect() async {
     _log.info("Connecting...");
+
+    // Forward native connection state to our subject
+    _nativeConnectionSub?.cancel();
+    _nativeConnectionSub = _device.connectionState.listen((state) {
+      _connectionStateSubject.add(
+        state == BluetoothConnectionState.connected
+            ? device.ConnectionState.connected
+            : device.ConnectionState.disconnected,
+      );
+    });
 
     // Skip if already connected.
     if (_device.isConnected) {
@@ -139,17 +156,15 @@ class LinuxBluePlusTransport implements BLETransport {
   }
 
   @override
-  Stream<bool> get connectionState =>
-      _device.connectionState
-          .map((e) => e == BluetoothConnectionState.connected)
-          .asBroadcastStream();
+  Stream<device.ConnectionState> get connectionState => _connectionStateSubject.stream;
 
   @override
   Future<void> disconnect() async {
     try {
-      await _device.disconnect();
+      await _device.disconnect(queue: false, timeout: 5);
     } catch (e) {
       _log.warning("Error during disconnect: $e");
+      _connectionStateSubject.add(device.ConnectionState.disconnected);
     }
   }
 
@@ -248,11 +263,18 @@ class LinuxBluePlusTransport implements BLETransport {
     final characteristic = service.characteristics.firstWhere(
       (c) => c.characteristicUuid == Guid(characteristicUUID),
     );
-    await characteristic.write(
-      data.toList(),
-      withoutResponse: !withResponse,
-      timeout: timeout?.inSeconds ?? 15,
-    );
+    try {
+      await characteristic.write(
+        data.toList(),
+        withoutResponse: !withResponse,
+        timeout: timeout?.inSeconds ?? 15,
+      );
+    } on FlutterBluePlusException catch (e) {
+      if (e.description != null && e.description!.contains('Timed out')) {
+        throw BleTimeoutException('writeCharacteristic', e);
+      }
+      rethrow;
+    }
   }
 
   @override

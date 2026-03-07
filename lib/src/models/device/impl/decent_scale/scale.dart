@@ -46,17 +46,17 @@ class DecentScale implements Scale {
   String get name => "Decent Scale";
 
   final StreamController<ConnectionState> _connectionStateController =
-      BehaviorSubject.seeded(ConnectionState.connecting);
+      BehaviorSubject.seeded(ConnectionState.discovered);
 
   @override
   Stream<ConnectionState> get connectionState =>
       _connectionStateController.stream;
 
-  StreamSubscription<bool>? subscription;
+  StreamSubscription<ConnectionState>? subscription;
   @override
   Future<void> onConnect() async {
     _log.info("on connect");
-    if (await _device.connectionState.first == true) {
+    if (await _device.connectionState.first == ConnectionState.connected) {
       return;
     }
     _connectionStateController.add(ConnectionState.connecting);
@@ -65,7 +65,7 @@ class DecentScale implements Scale {
       await _device.connect();
 
       subscription = _device.connectionState
-          .where((state) => !state)
+          .where((state) => state == ConnectionState.disconnected)
           .listen((_) {
         _log.info("Transport disconnected");
         disconnect();
@@ -111,7 +111,7 @@ class DecentScale implements Scale {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
     final connected = await _device.connectionState.first;
-    if (!connected) return;
+    if (connected != ConnectionState.connected) return;
     _sendPowerOff();
     await _device.disconnect();
   }

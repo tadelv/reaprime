@@ -103,4 +103,10 @@ class DriftStorageService implements StorageService {
     final row = await _db.shotDao.getLatestShot();
     return row == null ? null : ShotMapper.fromRow(row);
   }
+
+  @override
+  Future<domain.ShotRecord?> getLatestShotMeta() async {
+    final row = await _db.shotDao.getLatestShotMeta();
+    return row == null ? null : ShotMapper.fromRow(row);
+  }
 }

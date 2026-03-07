@@ -205,6 +205,10 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   }
 
   Future<void> _startDirectConnect(String deviceId, {List<String> alsoScanFor = const []}) async {
+    // Consume _autoConnectDeviceId immediately so the device stream listener
+    // doesn't race us and call _handleDeviceTapped for the same device.
+    _autoConnectDeviceId = null;
+
     final allIds = [deviceId, ...alsoScanFor];
     final found = await widget.deviceController.scanForSpecificDevices(
       allIds,
@@ -215,6 +219,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 
     if (!found) {
       widget.logger.info('Preferred device $deviceId not found, falling back to full scan');
+      _autoConnectDeviceId = deviceId; // restore for stream listener fallback
       _fallbackToFullScan(keepAutoConnect: true);
       _startNormalScanWithTimeout();
       return;
@@ -239,13 +244,13 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
     try {
       await widget.de1controller.connectToDe1(device);
 
-      // Auto-connect to a discovered scale if no preferred scale is set
+      // Connect to scale after machine is established
       if (widget.settingsController.preferredScaleId == null) {
         final scale = widget.deviceController.devices
             .whereType<device_scale.Scale>()
             .firstOrNull;
         if (scale != null) {
-          widget.scaleController.connectToScale(scale);
+          await widget.scaleController.connectToScale(scale);
         }
       }
 
@@ -373,19 +378,38 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   Future<void> _handleContinue() async {
     if (_selectedMachine == null) return;
 
-    // Connect to scale if selected (fire and forget — doesn't block navigation)
-    if (_selectedScale != null) {
-      final scale = _selectedScale!;
-      final scaleDevice = widget.deviceController.devices
-          .whereType<device_scale.Scale>()
-          .firstWhereOrNull((s) => s.deviceId == scale.deviceId);
-      if (scaleDevice != null) {
-        widget.scaleController.connectToScale(scaleDevice);
-      }
-    }
+    // Connect to machine first, then scale before navigating.
+    // Serializing avoids overwhelming the BLE stack on constrained hardware.
+    if (_connectingDeviceId != null) return;
+    setState(() {
+      _connectingDeviceId = _selectedMachine!.deviceId;
+      _connectionError = null;
+    });
+    try {
+      await widget.de1controller.connectToDe1(_selectedMachine!);
 
-    // Connect to machine (this triggers navigation)
-    await _handleDeviceTapped(_selectedMachine!);
+      // Connect to scale after machine is established
+      if (_selectedScale != null) {
+        final scaleDevice = widget.deviceController.devices
+            .whereType<device_scale.Scale>()
+            .firstWhereOrNull((s) => s.deviceId == _selectedScale!.deviceId);
+        if (scaleDevice != null) {
+          await widget.scaleController.connectToScale(scaleDevice);
+        }
+      }
+
+      if (mounted) {
+        await _navigateAfterConnection();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _connectingDeviceId = null;
+          _connectionError = 'Failed to connect: $e';
+        });
+      }
+      widget.logger.severe('Connect failed: $e');
+    }
   }
 
   Widget _resultsView(BuildContext context) {

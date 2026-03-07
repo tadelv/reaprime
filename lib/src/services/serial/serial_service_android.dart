@@ -253,10 +253,10 @@ class AndroidSerialPort implements SerialTransport {
   final UsbDevice _device;
   final UsbPort _port;
   late Logger _log;
-  final BehaviorSubject<bool> _open = BehaviorSubject.seeded(false);
+  final BehaviorSubject<ConnectionState> _open = BehaviorSubject.seeded(ConnectionState.discovered);
 
   @override
-  Stream<bool> get connectionState => _open.asBroadcastStream();
+  Stream<ConnectionState> get connectionState => _open.asBroadcastStream();
 
   AndroidSerialPort({required UsbDevice device, required UsbPort port})
     : _device = device,
@@ -265,7 +265,7 @@ class AndroidSerialPort implements SerialTransport {
   }
   @override
   Future<void> disconnect() async {
-    _open.add(false);
+    _open.add(ConnectionState.disconnected);
     _portSubscription?.cancel();
     await _port.close();
   }
@@ -279,7 +279,7 @@ class AndroidSerialPort implements SerialTransport {
   StreamSubscription<Uint8List>? _portSubscription;
   @override
   Future<void> connect() async {
-    if (await _open.first) {
+    if (await _open.first == ConnectionState.connected) {
       _log.warning('port already open');
       return;
     }
@@ -313,7 +313,7 @@ class AndroidSerialPort implements SerialTransport {
         disconnect();
       },
     );
-    _open.add(true);
+    _open.add(ConnectionState.connected);
   }
 
   final StreamController<Uint8List> _rawController =

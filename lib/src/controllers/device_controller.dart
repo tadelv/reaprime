@@ -83,19 +83,21 @@ class DeviceController {
   Future<void> scanForDevices({required bool autoConnect}) async {
     _scanningStream.add(true);
     // throw out all disconnected devices
-    _devices.forEach((_, devices) async {
-      List<Device> devicesToRemove = [];
-      for (var device in devices) {
-        var state = await device.connectionState.first;
+    for (final entry in _devices.entries) {
+      final devices = entry.value;
+      final toRemove = <Device>[];
+      for (final device in devices) {
+        final state = await device.connectionState.first
+            .timeout(const Duration(seconds: 2),
+                onTimeout: () => ConnectionState.disconnected);
         if (state != ConnectionState.connected) {
-          // devices.remove(device);
-          devicesToRemove.add(device);
+          toRemove.add(device);
         }
       }
-      for (var device in devicesToRemove) {
+      for (final device in toRemove) {
         devices.remove(device);
       }
-    });
+    }
     final tmpAutoConnect = _autoConnect;
     _autoConnect = autoConnect;
     _deviceStream.add(devices);

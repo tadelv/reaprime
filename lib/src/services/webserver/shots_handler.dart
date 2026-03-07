@@ -125,8 +125,8 @@ class ShotsHandler {
 
   Future<Response> _getLatestShot(Request req) async {
     try {
-      final shot = await _controller.storageService.getLatestShot();
-      return jsonOk(shot?.toJson());
+      final shot = await _controller.storageService.getLatestShotMeta();
+      return jsonOk(shot?.toJsonWithoutMeasurements());
     } catch (e, st) {
       _log.severe('Error getting latest shot', e, st);
       return jsonError({"error": e.toString()});

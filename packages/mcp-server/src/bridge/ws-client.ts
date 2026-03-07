@@ -74,6 +74,17 @@ export class WsClient {
     }
   }
 
+  send(subscriptionId: string, message: string): void {
+    const sub = this.subscriptions.get(subscriptionId);
+    if (!sub) {
+      throw new Error(`Subscription ${subscriptionId} not found`);
+    }
+    if (sub.ws.readyState !== WebSocket.OPEN) {
+      throw new Error(`WebSocket for ${subscriptionId} is not open (state: ${sub.ws.readyState})`);
+    }
+    sub.ws.send(message);
+  }
+
   listSubscriptions(): Array<{ id: string; endpoint: string; buffered: number }> {
     return Array.from(this.subscriptions.values()).map((s) => ({
       id: s.id,

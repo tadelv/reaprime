@@ -386,18 +386,27 @@ Future<void> connectToScale(Scale scale) async {
 
 ```dart
 enum ConnectionState {
-  disconnected,
+  discovered,
   connecting,
   connected,
   disconnecting,
+  disconnected,
 }
 ```
+
+**Lifecycle:** `discovered → connecting → connected → disconnecting → disconnected`
+
+- `discovered` — device created by discovery service, never connected
+- `connecting` — connection in progress
+- `connected` — connection established
+- `disconnecting` — disconnection in progress
+- `disconnected` — was connected, connection lost or explicitly closed
 
 ### State Transitions
 
 **Devices:**
 ```
-disconnected → connecting → connected → disconnecting → disconnected
+discovered → connecting → connected → disconnecting → disconnected
 ```
 
 **Controllers:**
@@ -666,7 +675,7 @@ Use `BehaviorSubject` for stateful streams:
 
 ```dart
 final BehaviorSubject<ConnectionState> _connectionController =
-  BehaviorSubject.seeded(ConnectionState.disconnected);
+  BehaviorSubject.seeded(ConnectionState.discovered);
 
 Stream<ConnectionState> get connectionState => _connectionController.stream;
 ```

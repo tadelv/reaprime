@@ -403,19 +403,19 @@ void main() {
       final scale2 = TestScale(
         deviceId: 'scale-1',
         name: 'Scale 1',
-        initialState: ConnectionState.connecting,
+        initialState: ConnectionState.discovered,
       );
       mockDiscovery.addDevice(scale2);
 
-      // Should see the new device's initial state (connecting)
+      // Should see the new device's initial state (discovered)
       final state = await aggregator.stateStream
           .where((s) =>
               (s['devices'] as List).isNotEmpty &&
-              (s['devices'] as List)[0]['state'] == 'connecting')
+              (s['devices'] as List)[0]['state'] == 'discovered')
           .first
           .timeout(Duration(seconds: 2));
 
-      expect((state['devices'] as List)[0]['state'], 'connecting');
+      expect((state['devices'] as List)[0]['state'], 'discovered');
 
       // Verify new object's state changes are observed
       scale2.setConnectionState(ConnectionState.connected);
