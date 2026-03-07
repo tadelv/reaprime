@@ -21,7 +21,7 @@ After wake-up, the BLE connection becomes stale/degraded. Instead of catching th
   - a. Add a DB index on `timestamp` for the `shot_records` table
   - b. Create a lightweight variant that excludes `measurementsJson` (or return `toJsonWithoutMeasurements()` from the handler, matching what the paginated list endpoint already does)
 
-- [ ] **2b. MCP smoke test for shots/latest and Visualizer plugin** — Use the MCP server to:
+- [x] **2b. MCP smoke test for shots/latest and Visualizer plugin** — Use the MCP server to:
   - Start the app in simulate mode, pull a shot, and verify `/api/v1/shots/latest` returns correct metadata without measurements.
   - Test the Visualizer plugin's event-driven upload flow (requires user to supply Visualizer credentials).
 
