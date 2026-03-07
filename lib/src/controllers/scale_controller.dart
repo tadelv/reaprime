@@ -15,6 +15,7 @@ class ScaleController {
   StreamSubscription<List<Device>>? _deviceStreamSubscription;
 
   Scale? _scale;
+  bool _isConnecting = false;
 
   String? _preferredScaleId;
 
@@ -31,6 +32,7 @@ class ScaleController {
     _deviceStreamSubscription = _deviceController.deviceStream.listen((devices) async {
       var scales = devices.whereType<Scale>().toList();
       if (_scale == null &&
+          !_isConnecting &&
           scales.isNotEmpty &&
           _deviceController.shouldAutoConnect) {
         if (_preferredScaleId != null) {
@@ -58,13 +60,18 @@ class ScaleController {
 
   Future<void> connectToScale(Scale scale) async {
     _onDisconnect();
+    _isConnecting = true;
     _scaleConnection = scale.connectionState.skip(1).listen(_processConnection);
     _scaleSnapshot = scale.currentSnapshot.listen(_processSnapshot);
-    await scale.onConnect();
-    // Only set _scale if we're still connected (onConnect may have failed
-    // and triggered _onDisconnect which nulls _scaleConnection).
-    if (_scaleConnection != null) {
-      _scale = scale;
+    try {
+      await scale.onConnect();
+      // Only set _scale if we're still connected (onConnect may have failed
+      // and triggered _onDisconnect which nulls _scaleConnection).
+      if (_scaleConnection != null) {
+        _scale = scale;
+      }
+    } finally {
+      _isConnecting = false;
     }
   }
 
@@ -72,6 +79,7 @@ class ScaleController {
     _scaleSnapshot?.cancel();
     _scaleConnection?.cancel();
     _scale = null;
+    _isConnecting = false;
     _scaleConnection = null;
     _flowCalculator = FlowCalculator(windowDuration: smoothingWindowDuration);
   }
