@@ -45,9 +45,13 @@ class ShotController {
   }
 
   Future<void> _initialize() async {
-    _bypassSAW = await SharedPreferencesSettingsService().gatewayMode() == GatewayMode.full;
-    _weightFlowMultiplier = await SharedPreferencesSettingsService().weightFlowMultiplier();
-    _volumeFlowMultiplier = await SharedPreferencesSettingsService().volumeFlowMultiplier();
+    _bypassSAW =
+        await SharedPreferencesSettingsService().gatewayMode() ==
+        GatewayMode.full;
+    _weightFlowMultiplier =
+        await SharedPreferencesSettingsService().weightFlowMultiplier();
+    _volumeFlowMultiplier =
+        await SharedPreferencesSettingsService().volumeFlowMultiplier();
     _log.info(
       "Initializing ShotController (weightFlowMultiplier: $_weightFlowMultiplier, volumeFlowMultiplier: $_volumeFlowMultiplier)",
     );
@@ -55,7 +59,20 @@ class ShotController {
       final state = await scaleController.connectionState.first;
       _log.info("Scale state: $state");
       if (state != device.ConnectionState.connected) {
-        throw Exception("Scale not connected");
+        _log.info("Continuing without scale");
+
+        // Fallback: Only DE1 data if the scale is not connected
+        _snapshotSubscription = de1controller
+            .connectedDe1()
+            .currentSnapshot
+            .map((snapshot) => ShotSnapshot(machine: snapshot))
+            .listen(
+              _processSnapshot,
+              onError:
+                  (error) =>
+                      _log.warning("Error processing DE1 snapshot: $error"),
+            );
+        return;
       }
 
       // Combine DE1 and scale data if the scale is connected
@@ -73,20 +90,8 @@ class ShotController {
             (error) =>
                 _log.warning("Error processing combined snapshot: $error"),
       );
-    } catch (e) {
-      _log.warning("Continuing without scale: $e");
-
-      // Fallback: Only DE1 data if the scale is not connected
-      _snapshotSubscription = de1controller
-          .connectedDe1()
-          .currentSnapshot
-          .map((snapshot) => ShotSnapshot(machine: snapshot))
-          .listen(
-            _processSnapshot,
-            onError:
-                (error) =>
-                    _log.warning("Error processing DE1 snapshot: $error"),
-          );
+    } catch (e, st) {
+      _log.warning("unknown failure:", e, st);
     }
   }
 
@@ -193,7 +198,9 @@ class ShotController {
           skippedSteps.clear();
 
           if (_bypassSAW == false && scale != null) {
-            _log.info("Machine getting ready. Taring scale and resetting timer...");
+            _log.info(
+              "Machine getting ready. Taring scale and resetting timer...",
+            );
             scaleController.connectedScale().tare();
             scaleController.connectedScale().resetTimer();
           }
