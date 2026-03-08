@@ -7,6 +7,7 @@ part of '../webserver_service.dart';
 class DevicesStateAggregator {
   final DeviceController _controller;
   final BatteryController? _batteryController;
+  final ConnectionManager? _connectionManager;
   final Logger _log = Logger("DevicesStateAggregator");
 
   final List<StreamSubscription> _subscriptions = [];
@@ -30,8 +31,10 @@ class DevicesStateAggregator {
   DevicesStateAggregator({
     required DeviceController controller,
     BatteryController? batteryController,
+    ConnectionManager? connectionManager,
   })  : _controller = controller,
-        _batteryController = batteryController {
+        _batteryController = batteryController,
+        _connectionManager = connectionManager {
     _start();
   }
 
@@ -52,6 +55,13 @@ class DevicesStateAggregator {
     if (_batteryController != null) {
       _subscriptions.add(
         _batteryController.chargingState.skip(1).listen((_) => _emitState()),
+      );
+    }
+
+    // Subscribe to connection status changes (skip initial replay)
+    if (_connectionManager != null) {
+      _subscriptions.add(
+        _connectionManager.status.skip(1).listen((_) => _emitState()),
       );
     }
 
@@ -135,6 +145,30 @@ class DevicesStateAggregator {
       snapshot['charging'] =
           _batteryController!.currentChargingState!.toJson();
     }
+    if (_connectionManager != null) {
+      final cs = _connectionManager.currentStatus;
+      snapshot['connectionStatus'] = {
+        'phase': cs.phase.name,
+        'foundMachines': cs.foundMachines
+            .map((m) => {
+                  'name': m.name,
+                  'id': m.deviceId,
+                  'state': 'discovered',
+                  'type': DeviceType.machine.name,
+                })
+            .toList(),
+        'foundScales': cs.foundScales
+            .map((s) => {
+                  'name': s.name,
+                  'id': s.deviceId,
+                  'state': 'discovered',
+                  'type': DeviceType.scale.name,
+                })
+            .toList(),
+        'pendingAmbiguity': cs.pendingAmbiguity?.name,
+        'error': cs.error,
+      };
+    }
     return snapshot;
   }
 
@@ -156,6 +190,7 @@ class DevicesHandler {
   final DeviceController _controller;
   final De1Controller _de1Controller;
   final ScaleController _scaleController;
+  final ConnectionManager? _connectionManager;
   final Logger _log = Logger("Devices handler");
   final DevicesStateAggregator _aggregator;
 
@@ -164,12 +199,15 @@ class DevicesHandler {
     required De1Controller de1Controller,
     required ScaleController scaleController,
     BatteryController? batteryController,
+    ConnectionManager? connectionManager,
   })  : _controller = controller,
         _de1Controller = de1Controller,
         _scaleController = scaleController,
+        _connectionManager = connectionManager,
         _aggregator = DevicesStateAggregator(
           controller: controller,
           batteryController: batteryController,
+          connectionManager: connectionManager,
         );
 
   void dispose() {
@@ -193,11 +231,19 @@ class DevicesHandler {
       final bool quickScan =
           req.requestedUri.queryParametersAll["quick"]?.firstOrNull == "true";
       log.info("running scan, connect = $shouldConnect, quick = $quickScan");
-      if (quickScan) {
-        _controller.scanForDevices(autoConnect: shouldConnect);
-        return [];
+      if (_connectionManager != null) {
+        if (quickScan) {
+          _connectionManager.connect();
+          return [];
+        }
+        await _connectionManager.connect();
+      } else {
+        if (quickScan) {
+          _controller.scanForDevices(autoConnect: shouldConnect);
+          return [];
+        }
+        await _controller.scanForDevices(autoConnect: shouldConnect);
       }
-      await _controller.scanForDevices(autoConnect: shouldConnect);
 
       return await _deviceList();
     });
@@ -320,12 +366,22 @@ class DevicesHandler {
         final connect = data['connect'] as bool? ?? false;
         final quick = data['quick'] as bool? ?? false;
         _log.fine("ws scan command: connect=$connect, quick=$quick");
-        if (quick) {
-          _controller.scanForDevices(autoConnect: connect);
+        if (_connectionManager != null) {
+          if (quick) {
+            _connectionManager.connect();
+          } else {
+            _connectionManager.connect().catchError((e) {
+              socket.sink.add(jsonEncode({'error': 'Scan failed: $e'}));
+            });
+          }
         } else {
-          _controller.scanForDevices(autoConnect: connect).catchError((e) {
-            socket.sink.add(jsonEncode({'error': 'Scan failed: $e'}));
-          });
+          if (quick) {
+            _controller.scanForDevices(autoConnect: connect);
+          } else {
+            _controller.scanForDevices(autoConnect: connect).catchError((e) {
+              socket.sink.add(jsonEncode({'error': 'Scan failed: $e'}));
+            });
+          }
         }
 
       case 'connect':
@@ -367,13 +423,25 @@ class DevicesHandler {
   }
 
   Future<void> _connectDevice(Device device) async {
-    switch (device.type) {
-      case DeviceType.machine:
-        await _de1Controller.connectToDe1(device as De1Interface);
-      case DeviceType.scale:
-        await _scaleController.connectToScale(device as Scale);
-      case DeviceType.sensor:
-        await (device as Sensor).onConnect();
+    if (_connectionManager != null) {
+      switch (device.type) {
+        case DeviceType.machine:
+          await _connectionManager.connectMachine(device as De1Interface);
+        case DeviceType.scale:
+          await _connectionManager.connectScale(device as Scale);
+        case DeviceType.sensor:
+          await (device as Sensor).onConnect();
+      }
+    } else {
+      // Legacy fallback when no ConnectionManager is provided
+      switch (device.type) {
+        case DeviceType.machine:
+          await _de1Controller.connectToDe1(device as De1Interface);
+        case DeviceType.scale:
+          await _scaleController.connectToScale(device as Scale);
+        case DeviceType.sensor:
+          await (device as Sensor).onConnect();
+      }
     }
   }
 }
