@@ -582,7 +582,7 @@ void main() {
         await sub.cancel();
       });
 
-      test('stays at ready phase on failure (non-blocking)', () async {
+      test('stays at idle on failure when no machine connected', () async {
         mockScaleController.shouldFailConnect = true;
 
         final phases = <ConnectionPhase>[];
@@ -597,7 +597,7 @@ void main() {
         expect(phases, [
           ConnectionPhase.idle, // initial
           ConnectionPhase.connectingScale,
-          ConnectionPhase.ready, // non-blocking failure
+          ConnectionPhase.idle, // no machine connected, so idle
         ]);
 
         // Error should be null (silently handled)

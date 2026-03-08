@@ -15,6 +15,7 @@ import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
+import 'package:reaprime/src/models/device/scale.dart' as device_scale;
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 
@@ -285,8 +286,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                   onPreferredChanged: (id) =>
                       widget.settingsController.setPreferredScaleId(id),
                   onDeviceTapped: (device) {
-                    // Scale selection sets preference; ConnectionManager handles connection
-                    // after machine connects
+                    widget.connectionManager.connectScale(device as device_scale.Scale);
                   },
                 ),
               ),
