@@ -1,3 +1,4 @@
+import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
@@ -58,6 +59,8 @@ class ConnectionManager {
   final ScaleController scaleController;
   final SettingsController settingsController;
 
+  final _log = Logger('ConnectionManager');
+
   final BehaviorSubject<ConnectionStatus> _statusSubject =
       BehaviorSubject.seeded(const ConnectionStatus());
 
@@ -73,6 +76,105 @@ class ConnectionManager {
     required this.scaleController,
     required this.settingsController,
   });
+
+  /// Main entry point: scan for devices and connect based on preference policy.
+  ///
+  /// 1. Scans for all devices (autoConnect: false)
+  /// 2. Applies machine preference policy (auto-connect, picker, or idle)
+  /// 3. On successful machine connection, applies scale preference policy
+  Future<void> connect() async {
+    // Emit scanning phase
+    _statusSubject.add(currentStatus.copyWith(
+      phase: ConnectionPhase.scanning,
+      error: () => null,
+      pendingAmbiguity: () => null,
+    ));
+
+    // Run full unfiltered scan
+    deviceController.scanForDevices(autoConnect: false);
+
+    // Wait for scan to complete (scanningStream emits false)
+    await deviceController.scanningStream.firstWhere((scanning) => !scanning);
+
+    // Collect found devices
+    final allDevices = deviceController.devices;
+    final machines = allDevices.whereType<De1Interface>().toList();
+    final scales = allDevices.whereType<Scale>().toList();
+
+    _log.fine(
+        'Scan complete: ${machines.length} machines, ${scales.length} scales');
+
+    // Store found devices in status for UI pickers
+    _statusSubject.add(currentStatus.copyWith(
+      foundMachines: machines,
+      foundScales: scales,
+    ));
+
+    // Apply machine preference policy
+    final preferredMachineId = settingsController.preferredMachineId;
+
+    if (preferredMachineId != null) {
+      // Preferred machine is set
+      final preferred = machines
+          .where((m) => m.deviceId == preferredMachineId)
+          .toList();
+
+      if (preferred.isNotEmpty) {
+        // Found preferred machine — connect directly
+        await connectMachine(preferred.first);
+        await _connectScalePhase(scales);
+      } else if (machines.isNotEmpty) {
+        // Preferred not found but others available — picker
+        _statusSubject.add(currentStatus.copyWith(
+          phase: ConnectionPhase.idle,
+          pendingAmbiguity: () => AmbiguityReason.machinePicker,
+        ));
+      } else {
+        // No machines at all
+        _statusSubject.add(currentStatus.copyWith(
+          phase: ConnectionPhase.idle,
+        ));
+      }
+    } else {
+      // No preferred machine set
+      if (machines.isEmpty) {
+        _statusSubject.add(currentStatus.copyWith(
+          phase: ConnectionPhase.idle,
+        ));
+      } else if (machines.length == 1) {
+        // Exactly one machine — auto-connect
+        await connectMachine(machines.first);
+        await _connectScalePhase(scales);
+      } else {
+        // Multiple machines — picker
+        _statusSubject.add(currentStatus.copyWith(
+          phase: ConnectionPhase.idle,
+          pendingAmbiguity: () => AmbiguityReason.machinePicker,
+        ));
+      }
+    }
+  }
+
+  /// Apply scale preference policy after machine connects.
+  Future<void> _connectScalePhase(List<Scale> scales) async {
+    final preferredScaleId = settingsController.preferredScaleId;
+
+    if (preferredScaleId != null) {
+      // Preferred scale is set
+      final preferred =
+          scales.where((s) => s.deviceId == preferredScaleId).toList();
+      if (preferred.isNotEmpty) {
+        await connectScale(preferred.first);
+      }
+      // If preferred not found, do nothing — phase stays ready
+    } else {
+      // No preferred scale set
+      if (scales.length == 1) {
+        await connectScale(scales.first);
+      }
+      // 0 or many scales — skip silently
+    }
+  }
 
   Future<void> connectMachine(De1Interface machine) async {
     if (_isConnectingMachine) return;
