@@ -197,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       child: ShadCard(
         child: SettingsTile(
           controller: widget.de1controller,
-          deviceController: widget.deviceController,
+          connectionManager: widget.connectionManager!,
         ),
       ),
     );

@@ -1,11 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
-import 'package:reaprime/src/controllers/device_controller.dart';
-import 'package:reaprime/src/home_feature/widgets/device_selection_widget.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
-import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/services/foreground_service.dart';
 import 'package:reaprime/src/settings/settings_view.dart';
@@ -14,12 +12,12 @@ import 'package:url_launcher/url_launcher.dart';
 
 class SettingsTile extends StatefulWidget {
   final De1Controller controller;
-  final DeviceController deviceController;
+  final ConnectionManager connectionManager;
 
   const SettingsTile({
     super.key,
     required this.controller,
-    required this.deviceController,
+    required this.connectionManager,
   });
 
   @override
@@ -266,126 +264,9 @@ class _SettingsTileState extends State<SettingsTile> {
   }
 
   Future<void> _handleScan(BuildContext context) async {
-    // Step 1: Check if DE1 controller already has a connected device
-    final currentDe1 = await widget.controller.de1.first;
-    if (currentDe1 != null) {
-      final connectionState = await currentDe1.connectionState.first;
-      if (connectionState == dev.ConnectionState.connected) {
-        // Already connected, nothing to do
-        setState(() {});
-        return;
-      }
-    }
-
-    // Step 2: Check if there are already discovered DE1 devices in DeviceController
-    List<De1Interface> de1Machines =
-        widget.deviceController.devices
-            .where((device) => device.type == dev.DeviceType.machine)
-            .cast<De1Interface>()
-            .toList();
-
-    if (de1Machines.isNotEmpty) {
-      // Found available DE1(s), connect to first one
-      final de1 = de1Machines.first;
-      await widget.controller.connectToDe1(de1);
-      return;
-    }
-
-    // Step 3: No DE1 available, trigger device scan
-    setState(() {
-      _isScanning = true;
-    });
-
-    try {
-      // Trigger scan
-      await widget.deviceController.scanForDevices(autoConnect: false);
-
-      // Wait for devices to be discovered and interrogated.
-      // DE1 machines need to be connected to and interrogated for model type.
-      // On Linux, the BLE flow is much slower (scan + prep scan + connect).
-      await Future.delayed(Duration(seconds: Platform.isLinux ? 45 : 10));
-
-      // Get all DE1 machines
-      de1Machines =
-          widget.deviceController.devices
-              .where((device) => device.type == dev.DeviceType.machine)
-              .cast<De1Interface>()
-              .toList();
-
-      if (!context.mounted) return;
-
-      if (de1Machines.isEmpty) {
-        // No DE1s found, show message
-        showShadDialog(
-          context: context,
-          builder:
-              (context) => ShadDialog(
-                title: Text('No Machine Found'),
-                description: Text(
-                  'No espresso machines were found during the scan. Make sure your machine is powered on and Bluetooth is enabled.',
-                ),
-                actions: [
-                  ShadButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text('OK'),
-                  ),
-                ],
-              ),
-        );
-      } else if (de1Machines.length == 1) {
-        // Single DE1 found, auto-connect
-        final de1 = de1Machines.first;
-        await widget.controller.connectToDe1(de1);
-      } else {
-        // Multiple DE1s found, show selection dialog
-        showShadDialog(
-          context: context,
-          builder: (dialogContext) {
-            String? dialogConnectingId;
-            String? dialogError;
-            return StatefulBuilder(
-              builder: (context, setDialogState) => ShadDialog(
-                title: Text('Select Machine'),
-                description: Text(
-                  'Multiple espresso machines found. Select one to connect:',
-                ),
-                child: DeviceSelectionWidget(
-                  deviceController: widget.deviceController,
-                  deviceType: dev.DeviceType.machine,
-                  connectingDeviceId: dialogConnectingId,
-                  errorMessage: dialogError,
-                  onDeviceTapped: (device) async {
-                    final de1 = device as De1Interface;
-                    if (dialogConnectingId != null) return;
-                    setDialogState(() {
-                      dialogConnectingId = de1.deviceId;
-                      dialogError = null;
-                    });
-                    try {
-                      await widget.controller.connectToDe1(de1);
-                      if (dialogContext.mounted) {
-                        Navigator.of(dialogContext).pop();
-                      }
-                    } catch (e) {
-                      setDialogState(() {
-                        dialogConnectingId = null;
-                        dialogError = 'Failed to connect: $e';
-                      });
-                    }
-                  },
-                ),
-              ),
-            );
-          },
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isScanning = false;
-        });
-      }
-    }
+    setState(() => _isScanning = true);
+    await widget.connectionManager.connect();
+    if (mounted) setState(() => _isScanning = false);
   }
 }
 
