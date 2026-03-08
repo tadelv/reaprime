@@ -67,8 +67,10 @@ class ConnectionManager {
   Stream<ConnectionStatus> get status => _statusSubject.stream;
   ConnectionStatus get currentStatus => _statusSubject.value;
 
+  bool _isConnecting = false;
   bool _isConnectingMachine = false;
   bool _isConnectingScale = false;
+  bool _machineConnected = false;
 
   ConnectionManager({
     required this.deviceController,
@@ -83,6 +85,17 @@ class ConnectionManager {
   /// 2. Applies machine preference policy (auto-connect, picker, or idle)
   /// 3. On successful machine connection, applies scale preference policy
   Future<void> connect() async {
+    if (_isConnecting) return;
+    _isConnecting = true;
+
+    try {
+      await _connectImpl();
+    } finally {
+      _isConnecting = false;
+    }
+  }
+
+  Future<void> _connectImpl() async {
     // Emit scanning phase
     _statusSubject.add(currentStatus.copyWith(
       phase: ConnectionPhase.scanning,
@@ -188,6 +201,7 @@ class ConnectionManager {
     try {
       await de1Controller.connectToDe1(machine);
       await settingsController.setPreferredMachineId(machine.deviceId);
+      _machineConnected = true;
       _statusSubject.add(currentStatus.copyWith(phase: ConnectionPhase.ready));
     } catch (e) {
       _statusSubject.add(currentStatus.copyWith(
@@ -216,11 +230,28 @@ class ConnectionManager {
     } catch (e) {
       // Scale failure is non-blocking — stay at ready if machine connected, else idle
       _statusSubject.add(currentStatus.copyWith(
-        phase: ConnectionPhase.ready,
+        phase: _machineConnected ? ConnectionPhase.ready : ConnectionPhase.idle,
         error: () => null,
       ));
     } finally {
       _isConnectingScale = false;
+    }
+  }
+
+  Future<void> disconnectMachine() async {
+    final de1 = await de1Controller.de1.first;
+    if (de1 != null) {
+      await de1.disconnect();
+    }
+    _statusSubject.add(currentStatus.copyWith(phase: ConnectionPhase.idle));
+  }
+
+  Future<void> disconnectScale() async {
+    try {
+      final scale = scaleController.connectedScale();
+      await scale.disconnect();
+    } catch (_) {
+      // No scale connected — nothing to disconnect
     }
   }
 

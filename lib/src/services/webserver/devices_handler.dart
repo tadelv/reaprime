@@ -226,11 +226,9 @@ class DevicesHandler {
       }
     });
     app.get('/api/v1/devices/scan', (Request req) async {
-      final bool shouldConnect =
-          req.requestedUri.queryParametersAll["connect"]?.firstOrNull == "true";
       final bool quickScan =
           req.requestedUri.queryParametersAll["quick"]?.firstOrNull == "true";
-      log.info("running scan, connect = $shouldConnect, quick = $quickScan");
+      log.info("running scan, quick = $quickScan");
       if (_connectionManager != null) {
         if (quickScan) {
           _connectionManager.connect();
