@@ -9,11 +9,19 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// Displays detailed information about a SampleItem.
 class De1DebugView extends StatefulWidget {
-  const De1DebugView({super.key, required this.machine});
+  const De1DebugView({
+    super.key,
+    required this.machine,
+    this.inspect = false,
+  });
 
   static const routeName = '/debug_details';
 
   final De1Interface machine;
+
+  /// When true, calls [machine.onConnect()] in initState for raw inspection.
+  /// When false, assumes the device is already connected via ConnectionManager.
+  final bool inspect;
 
   @override
   State<De1DebugView> createState() => _De1DebugViewState();
@@ -21,6 +29,14 @@ class De1DebugView extends StatefulWidget {
 
 class _De1DebugViewState extends State<De1DebugView> {
   var _lastDate = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.inspect) {
+      widget.machine.onConnect();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
