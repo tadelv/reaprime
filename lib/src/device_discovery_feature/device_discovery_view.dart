@@ -1,48 +1,39 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:collection/collection.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/home_feature/home_feature.dart';
 import 'package:reaprime/src/home_feature/widgets/device_selection_widget.dart';
 import 'package:reaprime/src/landing_feature/landing_feature.dart';
 import 'package:reaprime/src/skin_feature/skin_view.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
-import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
-import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
-import 'package:reaprime/src/models/device/scale.dart' as device_scale;
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 
-enum DiscoveryState { directConnecting, searching, foundMany, foundNone }
-
 class DeviceDiscoveryView extends StatefulWidget {
+  final ConnectionManager connectionManager;
   final DeviceController deviceController;
-  final De1Controller de1controller;
-  final ScaleController scaleController;
   final SettingsController settingsController;
   final WebUIService webUIService;
   final WebUIStorage webUIStorage;
   final Logger logger;
-  final Duration? scanTimeout;
 
   const DeviceDiscoveryView({
     super.key,
+    required this.connectionManager,
     required this.deviceController,
-    required this.de1controller,
-    required this.scaleController,
     required this.settingsController,
     required this.webUIService,
     required this.webUIStorage,
     required this.logger,
-    this.scanTimeout,
   });
 
   static String getRandomCoffeeMessage() {
@@ -75,29 +66,45 @@ class DeviceDiscoveryView extends StatefulWidget {
 }
 
 class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
-  DiscoveryState _state = DiscoveryState.searching;
-  bool _isScanning = true; // Start as true since we begin scanning immediately
-  String? _connectingDeviceId;
-  String? _connectionError;
-  // When set, the discovery subscription will auto-connect to this device
-  // when it appears. Persists through fallback from direct-connect to full scan.
-  String? _autoConnectDeviceId;
+  late StreamSubscription<ConnectionStatus> _statusSubscription;
+  ConnectionStatus _status = const ConnectionStatus();
 
-  De1Interface? _selectedMachine;
-  dev.Device? _selectedScale;
+  @override
+  void initState() {
+    super.initState();
 
-  late StreamSubscription<List<dev.Device>> _discoverySubscription;
+    // Show telemetry consent dialog once (non-blocking, after frame renders)
+    if (!widget.settingsController.telemetryConsentDialogShown) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showTelemetryConsentDialog();
+      });
+    }
 
-  // On Linux, BLE scanning and connection is much slower due to BlueZ quirks:
-  // 12s scan + 3s settle + ~7s prep scan + connect + service discovery.
-  // Total can be ~35s, so we use a generous 50s timeout.
-  Duration get _timeoutDuration =>
-      widget.scanTimeout ?? Duration(seconds: Platform.isLinux ? 50 : 10);
+    _statusSubscription = widget.connectionManager.status.listen((status) {
+      if (!mounted) return;
+
+      // Navigate when ready
+      if (status.phase == ConnectionPhase.ready) {
+        _navigateAfterConnection();
+        return;
+      }
+
+      setState(() {
+        _status = status;
+      });
+    });
+
+    // Kick off the connection flow
+    widget.connectionManager.connect();
+  }
+
+  @override
+  void dispose() {
+    _statusSubscription.cancel();
+    super.dispose();
+  }
 
   /// Navigates to the appropriate screen after device connection
-  ///
-  /// Ensures WebUI is ready before navigating to SkinView on supported platforms.
-  /// Falls back to LandingFeature if WebUI is not available.
   Future<void> _navigateAfterConnection() async {
     // Check platform - only use WebView on iOS, Android, macOS
     final supportedPlatforms =
@@ -153,213 +160,49 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
     }
   }
 
-  Future<void> _handleDeviceTapped(De1Interface de1) async {
-    if (_connectingDeviceId != null) return; // guard against double-tap
-    setState(() {
-      _connectingDeviceId = de1.deviceId;
-      _connectionError = null;
-    });
-    try {
-      await widget.de1controller.connectToDe1(de1);
-      if (mounted) {
-        await _navigateAfterConnection();
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _connectingDeviceId = null;
-          _connectionError = 'Failed to connect: $e';
-        });
-      }
-      widget.logger.severe('Manual connect failed: $e');
-    }
-  }
-
-  Widget _directConnectingView(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      spacing: 16,
-      children: [
-        SizedBox(width: 200, child: ShadProgress()),
-        Text(
-          'Connecting to your machine...',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        TextButton(
-          onPressed: _fallbackToFullScan,
-          child: Text('Scan for all devices', style: theme.textTheme.muted),
-        ),
-      ],
-    );
-  }
-
-  void _fallbackToFullScan({bool keepAutoConnect = false}) {
-    if (!keepAutoConnect) {
-      _autoConnectDeviceId = null;
-    }
-    setState(() {
-      _state = DiscoveryState.searching;
-    });
-    widget.deviceController.scanForDevices(autoConnect: false);
-  }
-
-  Future<void> _startDirectConnect(String deviceId, {List<String> alsoScanFor = const []}) async {
-    // Consume _autoConnectDeviceId immediately so the device stream listener
-    // doesn't race us and call _handleDeviceTapped for the same device.
-    _autoConnectDeviceId = null;
-
-    final allIds = [deviceId, ...alsoScanFor];
-    final found = await widget.deviceController.scanForSpecificDevices(
-      allIds,
-      awaitDeviceId: deviceId,
-    );
-
-    if (!mounted) return;
-
-    if (!found) {
-      widget.logger.info('Preferred device $deviceId not found, falling back to full scan');
-      _autoConnectDeviceId = deviceId; // restore for stream listener fallback
-      _fallbackToFullScan(keepAutoConnect: true);
-      _startNormalScanWithTimeout();
-      return;
-    }
-
-    // Device is now in the stream — find and connect
-    final device = widget.deviceController.devices
-        .whereType<De1Interface>()
-        .firstWhereOrNull((d) => d.deviceId == deviceId);
-
-    if (device == null) {
-      widget.logger.warning('Device appeared then vanished: $deviceId');
-      _fallbackToFullScan();
-      _startNormalScanWithTimeout();
-      return;
-    }
-
-    setState(() {
-      _connectingDeviceId = device.deviceId;
-    });
-
-    try {
-      await widget.de1controller.connectToDe1(device);
-
-      // Connect to scale after machine is established
-      if (widget.settingsController.preferredScaleId == null) {
-        final scale = widget.deviceController.devices
-            .whereType<device_scale.Scale>()
-            .firstOrNull;
-        if (scale != null) {
-          await widget.scaleController.connectToScale(scale);
-        }
-      }
-
-      if (mounted) await _navigateAfterConnection();
-    } catch (e) {
-      widget.logger.severe('Direct connect failed: $e');
-      if (mounted) {
-        setState(() {
-          _connectingDeviceId = null;
-        });
-        _fallbackToFullScan();
-        _startNormalScanWithTimeout();
-      }
-    }
-  }
-
-  void _startNormalScanWithTimeout() {
-    Future.delayed(_timeoutDuration, () {
-      if (!mounted) return;
-      final discoveredDevices =
-          widget.deviceController.devices.whereType<De1Interface>().toList();
-      setState(() {
-        _isScanning = false;
-        if (discoveredDevices.isEmpty && _state != DiscoveryState.foundMany) {
-          _state = DiscoveryState.foundNone;
-        }
-      });
-    });
-  }
-
-  @override
-  void initState() {
-    super.initState();
-
-    // Show telemetry consent dialog once (non-blocking, after frame renders)
-    if (!widget.settingsController.telemetryConsentDialogShown) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _showTelemetryConsentDialog();
-      });
-    }
-
-    final preferredMachineId = widget.settingsController.preferredMachineId;
-    final preferredScaleId = widget.settingsController.preferredScaleId;
-
-    if (preferredMachineId != null) {
-      // Fast-connect path: single BLE scan for machine + scale together
-      _state = DiscoveryState.directConnecting;
-      _autoConnectDeviceId = preferredMachineId;
-      _startDirectConnect(
-        preferredMachineId,
-        alsoScanFor: [if (preferredScaleId != null) preferredScaleId],
-      );
-    } else if (preferredScaleId != null) {
-      // No preferred machine but have a preferred scale — targeted scale scan
-      // (ScaleController auto-connects when it appears in the device stream)
-      widget.deviceController.scanForSpecificDevice(preferredScaleId);
-    }
-
-    // Always listen to device stream for the normal foundMany path
-    _discoverySubscription = widget.deviceController.deviceStream.listen((data) {
-      final discoveredMachines = data.whereType<De1Interface>().toList();
-      if (discoveredMachines.isEmpty) return;
-
-      // Auto-connect if the preferred machine appeared (handles late discovery
-      // after targeted scan timeout + fallback to full scan)
-      if (_autoConnectDeviceId != null && _connectingDeviceId == null) {
-        final target = discoveredMachines.firstWhereOrNull(
-          (d) => d.deviceId == _autoConnectDeviceId,
-        );
-        if (target != null) {
-          _autoConnectDeviceId = null; // consume — only try once
-          _handleDeviceTapped(target);
-          return;
-        }
-      }
-
-      if (_state != DiscoveryState.directConnecting) {
-        setState(() {
-          _state = DiscoveryState.foundMany;
-        });
-      }
-    });
-
-    // Normal search path: start a full scan (initialize() no longer auto-scans
-    // to avoid competing with a targeted scan)
-    if (preferredMachineId == null) {
-      widget.deviceController.scanForDevices(autoConnect: false);
-      _startNormalScanWithTimeout();
-    }
-  }
-
-  @override
-  void dispose() {
-    _discoverySubscription.cancel();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
-    switch (_state) {
-      case DiscoveryState.directConnecting:
-        return _directConnectingView(context);
-      case DiscoveryState.searching:
-        return _searchingView(context);
-      case DiscoveryState.foundMany:
-        return _resultsView(context);
-      case DiscoveryState.foundNone:
-        return _noDevicesFoundView(context);
+    // Error state
+    if (_status.error != null &&
+        _status.phase == ConnectionPhase.idle) {
+      return _errorView(context);
     }
+
+    // Scanning
+    if (_status.phase == ConnectionPhase.scanning) {
+      return _searchingView(context);
+    }
+
+    // Connecting to machine or scale
+    if (_status.phase == ConnectionPhase.connectingMachine ||
+        _status.phase == ConnectionPhase.connectingScale) {
+      return _connectingView(context);
+    }
+
+    // Ambiguity: machine picker
+    if (_status.pendingAmbiguity == AmbiguityReason.machinePicker) {
+      return _resultsView(context);
+    }
+
+    // Ambiguity: scale picker
+    if (_status.pendingAmbiguity == AmbiguityReason.scalePicker) {
+      return _resultsView(context);
+    }
+
+    // Idle with no machines found
+    if (_status.phase == ConnectionPhase.idle &&
+        _status.foundMachines.isEmpty) {
+      return _noDevicesFoundView(context);
+    }
+
+    // Idle with machines (shouldn't normally happen without ambiguity, but fallback)
+    if (_status.phase == ConnectionPhase.idle &&
+        _status.foundMachines.isNotEmpty) {
+      return _resultsView(context);
+    }
+
+    // Default: searching
+    return _searchingView(context);
   }
 
   Widget _searchingView(BuildContext context) {
@@ -375,65 +218,34 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
     );
   }
 
-  Future<void> _handleContinue() async {
-    if (_selectedMachine == null) return;
-
-    // Connect to machine first, then scale before navigating.
-    // Serializing avoids overwhelming the BLE stack on constrained hardware.
-    if (_connectingDeviceId != null) return;
-    setState(() {
-      _connectingDeviceId = _selectedMachine!.deviceId;
-      _connectionError = null;
-    });
-    try {
-      await widget.de1controller.connectToDe1(_selectedMachine!);
-
-      // Connect to scale after machine is established
-      if (_selectedScale != null) {
-        final scaleDevice = widget.deviceController.devices
-            .whereType<device_scale.Scale>()
-            .firstWhereOrNull((s) => s.deviceId == _selectedScale!.deviceId);
-        if (scaleDevice != null) {
-          await widget.scaleController.connectToScale(scaleDevice);
-        }
-      }
-
-      if (mounted) {
-        await _navigateAfterConnection();
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _connectingDeviceId = null;
-          _connectionError = 'Failed to connect: $e';
-        });
-      }
-      widget.logger.severe('Connect failed: $e');
-    }
+  Widget _connectingView(BuildContext context) {
+    final label = _status.phase == ConnectionPhase.connectingMachine
+        ? 'Connecting to your machine...'
+        : 'Connecting to your scale...';
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 16,
+      children: [
+        SizedBox(width: 200, child: ShadProgress()),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+      ],
+    );
   }
 
   Widget _resultsView(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final isConnecting = _status.phase == ConnectionPhase.connectingMachine ||
+        _status.phase == ConnectionPhase.connectingScale;
+    final connectingDeviceId = isConnecting
+        ? (_status.foundMachines.isNotEmpty ? _status.foundMachines.first.deviceId : null)
+        : null;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       spacing: 8,
       children: [
-        // Scanning indicator
-        if (_isScanning)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            spacing: 8,
-            children: [
-              SizedBox(
-                width: 12,
-                height: 12,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              Text('Scanning...', style: theme.textTheme.muted),
-            ],
-          ),
-
         // Two-column device lists
         ConstrainedBox(
           constraints: BoxConstraints(maxHeight: 260, maxWidth: 460),
@@ -447,16 +259,16 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                   deviceType: dev.DeviceType.machine,
                   showHeader: true,
                   headerText: "Machines",
-                  connectingDeviceId: _connectingDeviceId,
-                  errorMessage: _connectionError,
-                  selectedDeviceId: _selectedMachine?.deviceId,
+                  connectingDeviceId: connectingDeviceId,
+                  errorMessage: _status.error,
+                  selectedDeviceId: null,
                   preferredDeviceId: widget.settingsController.preferredMachineId,
                   onPreferredChanged: (id) =>
                       widget.settingsController.setPreferredMachineId(id),
                   onDeviceTapped: (device) {
-                    setState(() {
-                      _selectedMachine = device as De1Interface;
-                    });
+                    if (device is De1Interface) {
+                      widget.connectionManager.connectMachine(device);
+                    }
                   },
                 ),
               ),
@@ -468,14 +280,13 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                   deviceType: dev.DeviceType.scale,
                   showHeader: true,
                   headerText: "Scales",
-                  selectedDeviceId: _selectedScale?.deviceId,
+                  selectedDeviceId: null,
                   preferredDeviceId: widget.settingsController.preferredScaleId,
                   onPreferredChanged: (id) =>
                       widget.settingsController.setPreferredScaleId(id),
                   onDeviceTapped: (device) {
-                    setState(() {
-                      _selectedScale = device;
-                    });
+                    // Scale selection sets preference; ConnectionManager handles connection
+                    // after machine connects
                   },
                 ),
               ),
@@ -487,10 +298,10 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
           mainAxisSize: MainAxisSize.min,
           spacing: 8,
           children: [
-            if (!_isScanning && _connectingDeviceId == null)
+            if (!isConnecting)
               ShadButton.outline(
                 size: ShadButtonSize.sm,
-                onPressed: _retryScan,
+                onPressed: () => widget.connectionManager.connect(),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   spacing: 4,
@@ -502,10 +313,8 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
               ),
             ShadButton(
               size: ShadButtonSize.sm,
-              onPressed: _selectedMachine != null && _connectingDeviceId == null
-                  ? _handleContinue
-                  : null,
-              child: _connectingDeviceId != null
+              onPressed: null, // Selection is handled by tapping a device directly
+              child: isConnecting
                   ? Row(
                       mainAxisSize: MainAxisSize.min,
                       spacing: 4,
@@ -514,9 +323,9 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                         Text('Connecting...'),
                       ],
                     )
-                  : Text('Continue'),
+                  : Text('Select a machine'),
             ),
-            if (!_isScanning && _connectingDeviceId == null)
+            if (!isConnecting)
               ShadButton.secondary(
                 size: ShadButtonSize.sm,
                 onPressed: () {
@@ -530,8 +339,40 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
     );
   }
 
+  Widget _errorView(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 16,
+      children: [
+        Icon(LucideIcons.triangleAlert, size: 48, color: theme.colorScheme.destructive),
+        Text(
+          'Connection Error',
+          style: theme.textTheme.h4,
+        ),
+        Text(
+          _status.error ?? 'An unknown error occurred.',
+          style: theme.textTheme.muted,
+          textAlign: TextAlign.center,
+        ),
+        ShadButton(
+          onPressed: () => widget.connectionManager.connect(),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 8,
+            children: [
+              Icon(LucideIcons.refreshCw, size: 16),
+              Text('Retry'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _noDevicesFoundView(BuildContext context) {
     final theme = ShadTheme.of(context);
+    final isScanning = _status.phase == ConnectionPhase.scanning;
 
     return ConstrainedBox(
       constraints: BoxConstraints(maxWidth: 600),
@@ -567,7 +408,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                 spacing: 12,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (_isScanning)
+                  if (isScanning)
                     ShadButton(
                       onPressed: null,
                       child: Row(
@@ -585,7 +426,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                     )
                   else
                     ShadButton(
-                      onPressed: _retryScan,
+                      onPressed: () => widget.connectionManager.connect(),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         spacing: 8,
@@ -662,49 +503,6 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       widget.logger.info('Telemetry consent granted by user');
     } else {
       widget.logger.info('Telemetry consent declined by user');
-    }
-  }
-
-  Future<void> _retryScan() async {
-    setState(() {
-      _isScanning = true;
-    });
-
-    try {
-      await widget.deviceController.scanForDevices(autoConnect: false);
-
-      // Wait for scan to complete
-      await Future.delayed(_timeoutDuration);
-
-      if (mounted) {
-        final discoveredDevices =
-            widget.deviceController.devices.whereType<De1Interface>().toList();
-
-        setState(() {
-          _isScanning = false;
-          if (discoveredDevices.isEmpty) {
-            _state = DiscoveryState.foundNone;
-          } else if (discoveredDevices.length == 1) {
-            // Auto-connect if only one device found
-            widget.de1controller.connectToDe1(discoveredDevices.first).then((
-              _,
-            ) async {
-              if (mounted) {
-                await _navigateAfterConnection();
-              }
-            });
-          } else {
-            _state = DiscoveryState.foundMany;
-          }
-        });
-      }
-    } catch (e) {
-      widget.logger.severe('Retry scan failed: $e');
-      if (mounted) {
-        setState(() {
-          _isScanning = false;
-        });
-      }
     }
   }
 

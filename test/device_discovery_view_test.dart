@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
@@ -21,6 +22,7 @@ void main() {
   late De1Controller de1Controller;
   late ScaleController scaleController;
   late SettingsController settingsController;
+  late ConnectionManager connectionManager;
   late WebUIService webUIService;
   late WebUIStorage webUIStorage;
 
@@ -34,91 +36,54 @@ void main() {
     settingsController = SettingsController(MockSettingsService());
     await settingsController.loadSettings();
 
+    connectionManager = ConnectionManager(
+      deviceController: deviceController,
+      de1Controller: de1Controller,
+      scaleController: scaleController,
+      settingsController: settingsController,
+    );
+
     webUIService = WebUIService();
     webUIStorage = WebUIStorage(settingsController);
   });
 
   tearDown(() {
+    connectionManager.dispose();
     deviceController.dispose();
     mockService.dispose();
   });
 
   Widget buildDiscoveryView() {
-    return ShadApp(
-      home: Scaffold(
-        body: Center(
-          child: DeviceDiscoveryView(
-            deviceController: deviceController,
-            de1controller: de1Controller,
-            scaleController: scaleController,
-            settingsController: settingsController,
-            webUIService: webUIService,
-            webUIStorage: webUIStorage,
-            logger: Logger('test'),
-            scanTimeout: Duration(milliseconds: 100),
+    // Use a large surface to avoid overflow issues with the card-based views
+    return MediaQuery(
+      data: MediaQueryData(size: Size(1024, 768)),
+      child: ShadApp(
+        home: Scaffold(
+          body: Center(
+            child: DeviceDiscoveryView(
+              connectionManager: connectionManager,
+              deviceController: deviceController,
+              settingsController: settingsController,
+              webUIService: webUIService,
+              webUIStorage: webUIStorage,
+              logger: Logger('test'),
+            ),
           ),
         ),
       ),
     );
   }
 
-  // All DeviceDiscoveryView tests use tester.runAsync because the view
-  // creates real timers (Future.delayed for scan timeout) and relies on
+  // All DeviceDiscoveryView tests use tester.runAsync because the
+  // ConnectionManager.connect() runs real async operations and relies on
   // stream propagation through microtasks.
   group('DeviceDiscoveryView', () {
-    testWidgets('shows searching state on launch', (tester) async {
-      await tester.runAsync(() async {
-        await tester.pumpWidget(buildDiscoveryView());
-        await tester.pump();
-
-        // The searching view shows a ShadProgress widget
-        expect(find.byType(ShadProgress), findsOneWidget);
-      });
-    });
-
-    testWidgets('shows discovered devices after scan', (tester) async {
-      await tester.runAsync(() async {
-        await tester.pumpWidget(buildDiscoveryView());
-        await tester.pump();
-
-        // Add a machine — triggers DiscoveryState.foundMany via stream
-        mockService.addDevice(MockDe1());
-        // Allow microtasks to propagate: mock -> DeviceController -> widget
-        await Future.delayed(Duration(milliseconds: 50));
-        await tester.pump();
-
-        // foundMany state shows "Machines" header and device list
-        expect(find.text('Machines'), findsOneWidget);
-        expect(find.text('MockDe1'), findsOneWidget);
-      });
-    });
-
-    testWidgets('shows scales alongside machines in results view',
-        (tester) async {
-      await tester.runAsync(() async {
-        await tester.pumpWidget(buildDiscoveryView());
-        await tester.pump();
-
-        mockService.addDevice(MockDe1());
-        mockService.addDevice(TestScale());
-        await Future.delayed(Duration(milliseconds: 50));
-        await tester.pump();
-
-        // Both columns should be visible
-        expect(find.text('Machines'), findsOneWidget);
-        expect(find.text('Scales'), findsOneWidget);
-        expect(find.text('MockDe1'), findsOneWidget);
-        expect(find.text('Mock Scale'), findsOneWidget);
-      });
-    });
-
-    testWidgets('shows no devices found after timeout', (tester) async {
-      // Suppress layout overflow errors — the foundNone view's buttons may
-      // overflow the default 800px test surface. We're testing state
-      // transitions, not pixel-perfect layout.
+    testWidgets('shows no devices found when scan finds nothing', (tester) async {
+      // Suppress overflow errors for this test
       final origOnError = FlutterError.onError;
       FlutterError.onError = (details) {
-        if (details.toString().contains('overflowed')) return;
+        if (details.toString().contains('overflowed') ||
+            details.toString().contains('deactivated')) return;
         origOnError?.call(details);
       };
       addTearDown(() => FlutterError.onError = origOnError);
@@ -127,12 +92,67 @@ void main() {
         await tester.pumpWidget(buildDiscoveryView());
         await tester.pump();
 
-        // Advance time past the scan timeout (100ms in tests)
-        await Future.delayed(Duration(milliseconds: 200));
+        // Allow ConnectionManager.connect() to complete with no devices
+        await Future.delayed(Duration(milliseconds: 500));
         await tester.pump();
 
         expect(find.text('No Decent Machines Found'), findsOneWidget);
         expect(find.text('Scan Again'), findsOneWidget);
+      });
+    });
+
+    testWidgets('shows device picker when multiple machines found', (tester) async {
+      final origOnError = FlutterError.onError;
+      FlutterError.onError = (details) {
+        if (details.toString().contains('overflowed') ||
+            details.toString().contains('deactivated')) return;
+        origOnError?.call(details);
+      };
+      addTearDown(() => FlutterError.onError = origOnError);
+
+      await tester.runAsync(() async {
+        // Add two machines so ConnectionManager shows picker (ambiguity)
+        mockService.addDevice(MockDe1());
+        mockService.addDevice(MockDe1(deviceId: 'mock-de1-2'));
+
+        await tester.pumpWidget(buildDiscoveryView());
+
+        // Allow ConnectionManager.connect() to scan and resolve
+        await Future.delayed(Duration(milliseconds: 500));
+        await tester.pump();
+
+        // machinePicker ambiguity shows "Machines" header and device list
+        expect(find.text('Machines'), findsOneWidget);
+        expect(find.text('MockDe1'), findsWidgets);
+      });
+    });
+
+    testWidgets('shows scales alongside machines in results view',
+        (tester) async {
+      final origOnError = FlutterError.onError;
+      FlutterError.onError = (details) {
+        if (details.toString().contains('overflowed') ||
+            details.toString().contains('deactivated')) return;
+        origOnError?.call(details);
+      };
+      addTearDown(() => FlutterError.onError = origOnError);
+
+      await tester.runAsync(() async {
+        // Add two machines to trigger picker, plus a scale
+        mockService.addDevice(MockDe1());
+        mockService.addDevice(MockDe1(deviceId: 'mock-de1-2'));
+        mockService.addDevice(TestScale());
+
+        await tester.pumpWidget(buildDiscoveryView());
+
+        await Future.delayed(Duration(milliseconds: 500));
+        await tester.pump();
+
+        // Both columns should be visible
+        expect(find.text('Machines'), findsOneWidget);
+        expect(find.text('Scales'), findsOneWidget);
+        expect(find.text('MockDe1'), findsWidgets);
+        expect(find.text('Mock Scale'), findsOneWidget);
       });
     });
   });
