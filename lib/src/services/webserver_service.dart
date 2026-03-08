@@ -111,6 +111,7 @@ Future<void> startWebServer(
     de1Controller: de1Controller,
     scaleController: scaleController,
     batteryController: batteryController,
+    connectionManager: connectionManager,
   );
   final settingsHandler = SettingsHandler(
     controller: settingsController,
