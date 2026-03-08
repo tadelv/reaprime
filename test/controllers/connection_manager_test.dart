@@ -15,11 +15,22 @@ import '../helpers/test_scale.dart';
 
 /// Minimal De1Interface stub for testing.
 /// Uses noSuchMethod so we don't need to implement every member.
+/// Provides real implementations for fields that DeviceController accesses.
 class _FakeDe1 implements De1Interface {
   @override
   final String deviceId;
 
-  _FakeDe1({this.deviceId = 'fake-de1'});
+  @override
+  final String name;
+
+  @override
+  DeviceType get type => DeviceType.machine;
+
+  @override
+  Stream<ConnectionState> get connectionState =>
+      Stream.value(ConnectionState.connected);
+
+  _FakeDe1({this.deviceId = 'fake-de1'}) : name = 'DE1-$deviceId';
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
@@ -193,6 +204,208 @@ void main() {
     test('initial status is idle', () {
       expect(connectionManager.currentStatus.phase, ConnectionPhase.idle);
       expect(connectionManager.currentStatus.error, isNull);
+    });
+
+    group('connect', () {
+      setUp(() async {
+        // connect() requires DeviceController to be initialized so
+        // device discovery streams are wired up.
+        await deviceController.initialize();
+      });
+
+      test('emits scanning phase during scan', () async {
+        final phases = <ConnectionPhase>[];
+        final sub = connectionManager.status.listen((s) {
+          phases.add(s.phase);
+        });
+
+        await connectionManager.connect();
+        await Future.delayed(Duration.zero);
+
+        expect(phases, contains(ConnectionPhase.scanning));
+
+        await sub.cancel();
+      });
+
+      test('no preferred, 0 machines → stays idle', () async {
+        // No devices added → scan finds nothing
+        await connectionManager.connect();
+        await Future.delayed(Duration.zero);
+
+        expect(connectionManager.currentStatus.phase, ConnectionPhase.idle);
+        expect(connectionManager.currentStatus.pendingAmbiguity, isNull);
+        expect(mockDe1Controller.connectCalls, isEmpty);
+      });
+
+      test('no preferred, 1 machine → auto-connects and saves preference',
+          () async {
+        final fakeDe1 = _FakeDe1(deviceId: 'solo-de1');
+        discoveryService.addDevice(fakeDe1);
+        // Let stream propagate
+        await Future.delayed(Duration.zero);
+
+        await connectionManager.connect();
+        await Future.delayed(Duration.zero);
+
+        expect(mockDe1Controller.connectCalls, hasLength(1));
+        expect(mockDe1Controller.connectCalls.first, same(fakeDe1));
+        expect(settingsController.preferredMachineId, 'solo-de1');
+        expect(
+            connectionManager.currentStatus.phase, ConnectionPhase.ready);
+      });
+
+      test('no preferred, many machines → emits machinePicker ambiguity',
+          () async {
+        final de1a = _FakeDe1(deviceId: 'de1-a');
+        final de1b = _FakeDe1(deviceId: 'de1-b');
+        discoveryService.addDevice(de1a);
+        discoveryService.addDevice(de1b);
+        await Future.delayed(Duration.zero);
+
+        await connectionManager.connect();
+        await Future.delayed(Duration.zero);
+
+        expect(connectionManager.currentStatus.phase, ConnectionPhase.idle);
+        expect(connectionManager.currentStatus.pendingAmbiguity,
+            AmbiguityReason.machinePicker);
+        expect(
+            connectionManager.currentStatus.foundMachines, hasLength(2));
+        expect(mockDe1Controller.connectCalls, isEmpty);
+      });
+
+      test('preferred machine found → connects directly', () async {
+        await settingsController.setPreferredMachineId('pref-de1');
+
+        final prefDe1 = _FakeDe1(deviceId: 'pref-de1');
+        discoveryService.addDevice(prefDe1);
+        await Future.delayed(Duration.zero);
+
+        await connectionManager.connect();
+        await Future.delayed(Duration.zero);
+
+        expect(mockDe1Controller.connectCalls, hasLength(1));
+        expect(
+            mockDe1Controller.connectCalls.first.deviceId, 'pref-de1');
+        expect(
+            connectionManager.currentStatus.phase, ConnectionPhase.ready);
+      });
+
+      test(
+          'preferred machine not found, others available → emits machinePicker ambiguity',
+          () async {
+        await settingsController.setPreferredMachineId('missing-de1');
+
+        final otherDe1 = _FakeDe1(deviceId: 'other-de1');
+        discoveryService.addDevice(otherDe1);
+        await Future.delayed(Duration.zero);
+
+        await connectionManager.connect();
+        await Future.delayed(Duration.zero);
+
+        expect(connectionManager.currentStatus.phase, ConnectionPhase.idle);
+        expect(connectionManager.currentStatus.pendingAmbiguity,
+            AmbiguityReason.machinePicker);
+        expect(mockDe1Controller.connectCalls, isEmpty);
+      });
+
+      test('preferred machine not found, no others → stays idle', () async {
+        await settingsController.setPreferredMachineId('missing-de1');
+
+        await connectionManager.connect();
+        await Future.delayed(Duration.zero);
+
+        expect(connectionManager.currentStatus.phase, ConnectionPhase.idle);
+        expect(connectionManager.currentStatus.pendingAmbiguity, isNull);
+        expect(mockDe1Controller.connectCalls, isEmpty);
+      });
+
+      group('scale phase', () {
+        test('preferred scale found → connects after machine', () async {
+          await settingsController.setPreferredScaleId('pref-scale');
+
+          final fakeDe1 = _FakeDe1(deviceId: 'de1');
+          final testScale = TestScale(deviceId: 'pref-scale');
+          discoveryService.addDevice(fakeDe1);
+          discoveryService.addDevice(testScale);
+          await Future.delayed(Duration.zero);
+
+          await connectionManager.connect();
+          await Future.delayed(Duration.zero);
+
+          expect(mockDe1Controller.connectCalls, hasLength(1));
+          expect(mockScaleController.connectCalls, hasLength(1));
+          expect(mockScaleController.connectCalls.first.deviceId,
+              'pref-scale');
+          expect(settingsController.preferredScaleId, 'pref-scale');
+        });
+
+        test('no preferred, 1 scale → connects silently', () async {
+          final fakeDe1 = _FakeDe1(deviceId: 'de1');
+          final testScale = TestScale(deviceId: 'only-scale');
+          discoveryService.addDevice(fakeDe1);
+          discoveryService.addDevice(testScale);
+          await Future.delayed(Duration.zero);
+
+          await connectionManager.connect();
+          await Future.delayed(Duration.zero);
+
+          expect(mockScaleController.connectCalls, hasLength(1));
+          expect(
+              mockScaleController.connectCalls.first.deviceId, 'only-scale');
+        });
+
+        test('no preferred, many scales → skips scale', () async {
+          final fakeDe1 = _FakeDe1(deviceId: 'de1');
+          final scale1 = TestScale(deviceId: 'scale-1');
+          final scale2 = TestScale(deviceId: 'scale-2');
+          discoveryService.addDevice(fakeDe1);
+          discoveryService.addDevice(scale1);
+          discoveryService.addDevice(scale2);
+          await Future.delayed(Duration.zero);
+
+          await connectionManager.connect();
+          await Future.delayed(Duration.zero);
+
+          expect(mockScaleController.connectCalls, isEmpty);
+        });
+
+        test('preferred scale not found → does nothing, phase stays ready',
+            () async {
+          await settingsController.setPreferredScaleId('missing-scale');
+
+          final fakeDe1 = _FakeDe1(deviceId: 'de1');
+          discoveryService.addDevice(fakeDe1);
+          await Future.delayed(Duration.zero);
+
+          await connectionManager.connect();
+          await Future.delayed(Duration.zero);
+
+          expect(mockScaleController.connectCalls, isEmpty);
+          expect(connectionManager.currentStatus.phase,
+              ConnectionPhase.ready);
+        });
+
+        test('scale failure does not affect machine connection', () async {
+          mockScaleController.shouldFailConnect = true;
+
+          final fakeDe1 = _FakeDe1(deviceId: 'de1');
+          final testScale = TestScale(deviceId: 'fail-scale');
+          discoveryService.addDevice(fakeDe1);
+          discoveryService.addDevice(testScale);
+          await Future.delayed(Duration.zero);
+
+          await connectionManager.connect();
+          await Future.delayed(Duration.zero);
+
+          // Machine connected successfully
+          expect(mockDe1Controller.connectCalls, hasLength(1));
+          // Scale attempted but failed
+          expect(mockScaleController.connectCalls, hasLength(1));
+          // Phase stays ready (machine is connected)
+          expect(connectionManager.currentStatus.phase,
+              ConnectionPhase.ready);
+        });
+      });
     });
 
     group('connectMachine', () {
