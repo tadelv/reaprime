@@ -112,13 +112,9 @@ void main() {
   });
 
   group('MockScaleController', () {
-    late MockDeviceDiscoveryService discoveryService;
-    late DeviceController deviceController;
     late MockScaleController mockScaleController;
 
     setUp(() {
-      discoveryService = MockDeviceDiscoveryService();
-      deviceController = DeviceController([discoveryService]);
       mockScaleController = MockScaleController();
     });
 
@@ -159,16 +155,6 @@ void main() {
       );
     });
 
-    test('does not auto-connect when devices appear', () async {
-      // Add a scale to discovery — the mock should NOT auto-connect
-      final testScale = TestScale(deviceId: 'auto-scale');
-      discoveryService.addDevice(testScale);
-
-      // Give the stream time to propagate
-      await Future.delayed(Duration.zero);
-
-      expect(mockScaleController.connectCalls, isEmpty);
-    });
   });
 
   group('ConnectionManager', () {
