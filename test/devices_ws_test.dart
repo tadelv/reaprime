@@ -30,7 +30,7 @@ void main() {
     await deviceController.initialize();
 
     de1Controller = De1Controller(controller: deviceController);
-    scaleController = ScaleController(controller: deviceController);
+    scaleController = ScaleController();
 
     devicesHandler = DevicesHandler(
       controller: deviceController,

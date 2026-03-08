@@ -247,10 +247,7 @@ void main() async {
   deviceController.telemetryService = telemetryService;
   final de1Controller = De1Controller(controller: deviceController)
     ..defaultWorkflow = workflowController.currentWorkflow;
-  final scaleController = ScaleController(
-    controller: deviceController,
-    preferredScaleId: settingsController.preferredScaleId,
-  );
+  final scaleController = ScaleController();
   final sensorController = SensorController(controller: deviceController);
 
   final connectionManager = ConnectionManager(
@@ -322,9 +319,6 @@ void main() async {
   settingsController.addListener(() {
     simulatedDevicesService.simulationEnabled =
         settingsController.simulatedDevices || (const String.fromEnvironment("simulate") == "1");
-  });
-  settingsController.addListener(() {
-    scaleController.preferredScaleId = settingsController.preferredScaleId;
   });
   await settingsController.loadSettings();
 

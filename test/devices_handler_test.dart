@@ -28,7 +28,7 @@ void main() {
     await deviceController.initialize();
 
     de1Controller = De1Controller(controller: deviceController);
-    scaleController = ScaleController(controller: deviceController);
+    scaleController = ScaleController();
 
     devicesHandler = DevicesHandler(
       controller: deviceController,
@@ -230,7 +230,7 @@ void main() {
         final states = <bool>[];
         final sub = deviceController.scanningStream.listen(states.add);
 
-        await deviceController.scanForDevices(autoConnect: false);
+        await deviceController.scanForDevices();
         // Wait for the delayed callback to fire
         await Future.delayed(Duration(milliseconds: 300));
 

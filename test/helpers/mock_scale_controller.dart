@@ -7,10 +7,6 @@ import 'package:rxdart/rxdart.dart';
 ///
 /// Records all [connectToScale] calls and allows controlling the
 /// `connectionState` stream and simulating connection failures.
-///
-/// The constructor overrides the parent's auto-connect device-stream listener
-/// by immediately cancelling it via [dispose], then re-seeding a clean
-/// connectionState subject. This prevents unwanted side effects in tests.
 class MockScaleController extends ScaleController {
   /// Every [Scale] passed to [connectToScale].
   final List<Scale> connectCalls = [];
@@ -23,11 +19,7 @@ class MockScaleController extends ScaleController {
   final BehaviorSubject<ConnectionState> connectionStateSubject =
       BehaviorSubject.seeded(ConnectionState.discovered);
 
-  MockScaleController({required super.controller}) {
-    // Cancel the auto-connect listener that the parent constructor sets up,
-    // so it doesn't fire during tests and cause unexpected connectToScale calls.
-    dispose();
-  }
+  MockScaleController();
 
   @override
   Stream<ConnectionState> get connectionState =>
