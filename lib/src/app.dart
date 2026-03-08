@@ -106,7 +106,7 @@ class _MyAppState extends State<MyApp> {
     // Recreate De1StateManager if any of the required controllers change
     if (oldWidget.settingsController != widget.settingsController ||
         oldWidget.de1Controller != widget.de1Controller ||
-        oldWidget.deviceController != widget.deviceController ||
+        oldWidget.connectionManager != widget.connectionManager ||
         oldWidget.scaleController != widget.scaleController ||
         oldWidget.workflowController != widget.workflowController ||
         oldWidget.persistenceController != widget.persistenceController) {
@@ -119,11 +119,11 @@ class _MyAppState extends State<MyApp> {
   void _initializeDe1StateManager() {
     _de1StateManager = De1StateManager(
       de1Controller: widget.de1Controller,
-      deviceController: widget.deviceController,
       scaleController: widget.scaleController,
       workflowController: widget.workflowController,
       persistenceController: widget.persistenceController,
       settingsController: widget.settingsController,
+      connectionManager: widget.connectionManager,
       navigatorKey: NavigationService.navigatorKey,
     );
   }
