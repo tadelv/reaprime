@@ -2,8 +2,8 @@ import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
-import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/shot_controller.dart';
@@ -11,7 +11,6 @@ import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
-import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
 import 'package:reaprime/src/realtime_steam_feature/realtime_steam_feature.dart';
@@ -31,11 +30,11 @@ class De1StateManager with WidgetsBindingObserver {
   final Logger _logger = Logger('De1StateManager');
 
   final De1Controller _de1Controller;
-  final DeviceController _deviceController;
   final ScaleController _scaleController;
   final WorkflowController _workflowController;
   final PersistenceController _persistenceController;
   final SettingsController _settingsController;
+  final ConnectionManager _connectionManager;
   final GlobalKey<NavigatorState> _navigatorKey;
 
   StreamSubscription<Machine?>? _de1Subscription;
@@ -50,9 +49,6 @@ class De1StateManager with WidgetsBindingObserver {
   // Track previous machine state for scale power management
   MachineState? _previousMachineState;
 
-  // Track if we're currently scanning for scales
-  bool _isScanningSscales = false;
-
   // Platform-specific background states
   final Set<AppLifecycleState> _backgroundStates;
 
@@ -65,18 +61,18 @@ class De1StateManager with WidgetsBindingObserver {
 
   De1StateManager({
     required De1Controller de1Controller,
-    required DeviceController deviceController,
     required ScaleController scaleController,
     required WorkflowController workflowController,
     required PersistenceController persistenceController,
     required SettingsController settingsController,
+    required ConnectionManager connectionManager,
     required GlobalKey<NavigatorState> navigatorKey,
   }) : _de1Controller = de1Controller,
-       _deviceController = deviceController,
        _scaleController = scaleController,
        _workflowController = workflowController,
        _persistenceController = persistenceController,
        _settingsController = settingsController,
+       _connectionManager = connectionManager,
        _navigatorKey = navigatorKey,
        _backgroundStates = _getPlatformBackgroundStates() {
     _initialize();
@@ -302,46 +298,10 @@ class De1StateManager with WidgetsBindingObserver {
     }
   }
 
-  /// Triggers a device scan with 30s timeout to find and connect scales
-  Future<void> _triggerScaleScan() async {
-    // Prevent multiple concurrent scans
-    if (_isScanningSscales) {
-      _logger.fine('Scale scan already in progress, skipping');
-      return;
-    }
-
-    _isScanningSscales = true;
-    _logger.info('Starting device scan to find scales (30s timeout)');
-
-    try {
-      // Start the scan with autoConnect enabled
-      await _deviceController.scanForDevices(autoConnect: true);
-
-      // Wait up to 30 seconds for a scale to be found and connected
-      final timeout = Duration(seconds: 30);
-      final scaleConnected = await _scaleController.connectionState
-          .firstWhere(
-            (state) => state == dev.ConnectionState.connected,
-            orElse: () => dev.ConnectionState.disconnected,
-          )
-          .timeout(
-            timeout,
-            onTimeout: () {
-              _logger.info('Scale scan timed out after 30 seconds');
-              return dev.ConnectionState.disconnected;
-            },
-          );
-
-      if (scaleConnected == dev.ConnectionState.connected) {
-        _logger.info('Scale found and connected successfully');
-      } else {
-        _logger.info('No scale found within timeout period');
-      }
-    } catch (e) {
-      _logger.warning('Error during scale scan: $e');
-    } finally {
-      _isScanningSscales = false;
-    }
+  /// Triggers a device scan to find and connect scales via ConnectionManager.
+  void _triggerScaleScan() {
+    _logger.info('Delegating scale reconnect to ConnectionManager');
+    _connectionManager.connect(); // fire-and-forget, no uiContext needed
   }
 
   /// Handles espresso state based on the current gateway mode.
