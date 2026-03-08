@@ -1,23 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/sample_feature/sample_item_details_view.dart';
+import 'package:reaprime/src/sample_feature/scale_debug_view.dart';
+import 'package:shadcn_ui/shadcn_ui.dart' hide Scale;
 
-import 'sample_item_details_view.dart';
-
-/// Displays a list of SampleItems.
+/// Displays a list of discovered devices with Inspect and Connect actions.
 class SampleItemListView extends StatelessWidget {
   const SampleItemListView({
     super.key,
     required this.controller,
-    this.connectionManager,
+    required this.connectionManager,
   });
 
   static const routeName = '/debug';
 
   final DeviceController controller;
-  final ConnectionManager? connectionManager;
+  final ConnectionManager connectionManager;
 
   @override
   Widget build(BuildContext context) {
@@ -37,9 +39,6 @@ class SampleItemListView extends StatelessWidget {
         stream: controller.deviceStream,
         builder: (buildContext, data) {
           return ListView.builder(
-            // Providing a restorationId allows the ListView to restore the
-            // scroll position when a user leaves and returns to the app after it
-            // has been killed while running in the background.
             restorationId: 'sampleItemListView',
             itemCount: data.data?.length ?? 0,
             itemBuilder: (BuildContext context, int index) {
@@ -65,21 +64,65 @@ class SampleItemListView extends StatelessWidget {
                     }
                   },
                 ),
-                onTap: () {
-                  // Navigate to the details page. If the user leaves and returns to
-                  // the app after it has been killed while running in the
-                  // background, the navigation stack is restored.
-                  Navigator.restorablePushNamed(
-                    context,
-                    De1DebugView.routeName,
-                    arguments: item.deviceId,
-                  );
-                },
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ShadButton.outline(
+                      size: ShadButtonSize.sm,
+                      child: const Text('Inspect'),
+                      onPressed: () {
+                        _navigateToDebugView(context, item, inspect: true);
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    ShadButton(
+                      size: ShadButtonSize.sm,
+                      child: const Text('Connect'),
+                      onPressed: () async {
+                        if (item is De1Interface) {
+                          await connectionManager.connectMachine(item);
+                        } else if (item is Scale) {
+                          await connectionManager.connectScale(item);
+                        }
+                        if (!context.mounted) return;
+                        _navigateToDebugView(context, item, inspect: false);
+                      },
+                    ),
+                  ],
+                ),
               );
             },
           );
         },
       ),
     );
+  }
+
+  void _navigateToDebugView(
+    BuildContext context,
+    dev.Device device, {
+    required bool inspect,
+  }) {
+    if (device is De1Interface) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => De1DebugView(
+            machine: device,
+            inspect: inspect,
+          ),
+        ),
+      );
+    } else if (device is Scale) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ScaleDebugView(
+            scale: device,
+            inspect: inspect,
+          ),
+        ),
+      );
+    }
   }
 }

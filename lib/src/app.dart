@@ -219,28 +219,31 @@ class _MyAppState extends State<MyApp> {
                         updateCheckService: widget.updateCheckService,
                       );
                     case De1DebugView.routeName:
+                      final args = routeSettings.arguments;
+                      final String deviceId;
+                      final bool inspect;
+                      if (args is Map<String, dynamic>) {
+                        deviceId = args['deviceId'] as String;
+                        inspect = args['inspect'] as bool? ?? true;
+                      } else {
+                        // Legacy: plain string deviceId, default to inspect
+                        deviceId = args as String;
+                        inspect = true;
+                      }
                       var device = widget.deviceController.devices.firstWhere(
-                        (e) => e.deviceId == routeSettings.arguments as String,
+                        (e) => e.deviceId == deviceId,
                       );
                       if (device is De1Interface) {
-                        try {
-                          widget.de1Controller.connectedDe1();
-                        } catch (_) {
-                          // De1 controller has no connected de1, connect to this one
-                          widget.de1Controller.connectToDe1(device);
-                        }
                         return De1DebugView(
-                          machine:
-                              widget.deviceController.devices.firstWhere(
-                                    (e) =>
-                                        e.deviceId ==
-                                        (routeSettings.arguments as String),
-                                  )
-                                  as De1Interface,
+                          machine: device,
+                          inspect: inspect,
                         );
                       }
                       if (device is Scale) {
-                        return ScaleDebugView(scale: device);
+                        return ScaleDebugView(
+                          scale: device,
+                          inspect: inspect,
+                        );
                       }
                       return Scaffold(
                         body: ShadButton.link(

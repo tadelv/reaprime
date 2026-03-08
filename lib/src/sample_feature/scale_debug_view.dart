@@ -5,7 +5,15 @@ import 'package:shadcn_ui/shadcn_ui.dart' hide Scale;
 class ScaleDebugView extends StatefulWidget {
   final Scale scale;
 
-  const ScaleDebugView({super.key, required this.scale});
+  /// When true, calls [scale.onConnect()] in initState for raw inspection.
+  /// When false, assumes the device is already connected via ConnectionManager.
+  final bool inspect;
+
+  const ScaleDebugView({
+    super.key,
+    required this.scale,
+    this.inspect = false,
+  });
 
   @override
   State<ScaleDebugView> createState() => _ScaleDebugViewState();
@@ -15,8 +23,15 @@ class _ScaleDebugViewState extends State<ScaleDebugView> {
   var _lastDate = DateTime.now();
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.inspect) {
+      widget.scale.onConnect();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    widget.scale.onConnect();
     return Scaffold(
       appBar: AppBar(title: const Text('Scale debug')),
       body: Center(
