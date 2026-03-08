@@ -15,6 +15,7 @@ import 'package:logging/logging.dart';
 import 'package:logging_appenders/logging_appenders.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/battery_controller.dart';
+import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/display_controller.dart';
@@ -252,6 +253,13 @@ void main() async {
   );
   final sensorController = SensorController(controller: deviceController);
 
+  final connectionManager = ConnectionManager(
+    deviceController: deviceController,
+    de1Controller: de1Controller,
+    scaleController: scaleController,
+    settingsController: settingsController,
+  );
+
   final presenceController = PresenceController(
     de1Controller: de1Controller,
     settingsController: settingsController,
@@ -304,6 +312,7 @@ void main() async {
       displayController,
       beanStorage: beanStorage,
       grinderStorage: grinderStorage,
+      connectionManager: connectionManager,
     );
   } catch (e, st) {
     log.severe('failed to start web server', e, st);
@@ -380,6 +389,7 @@ void main() async {
         presenceController: presenceController,
         beanStorage: beanStorage,
         grinderStorage: grinderStorage,
+        connectionManager: connectionManager,
       ),
     ),
   );
@@ -528,6 +538,7 @@ class AppRoot extends StatefulWidget {
   final PresenceController presenceController;
   final BeanStorageService? beanStorage;
   final GrinderStorageService? grinderStorage;
+  final ConnectionManager connectionManager;
 
   const AppRoot({
     super.key,
@@ -542,6 +553,7 @@ class AppRoot extends StatefulWidget {
     required this.webUIStorage,
     required this.webViewLogService,
     required this.presenceController,
+    required this.connectionManager,
     this.updateCheckService,
     this.beanStorage,
     this.grinderStorage,
@@ -598,6 +610,7 @@ class _AppRootState extends State<AppRoot> {
         presenceController: widget.presenceController,
         beanStorage: widget.beanStorage,
         grinderStorage: widget.grinderStorage,
+        connectionManager: widget.connectionManager,
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -10,11 +11,13 @@ class SampleItemListView extends StatelessWidget {
   const SampleItemListView({
     super.key,
     required this.controller,
+    this.connectionManager,
   });
 
   static const routeName = '/debug';
 
   final DeviceController controller;
+  final ConnectionManager? connectionManager;
 
   @override
   Widget build(BuildContext context) {
