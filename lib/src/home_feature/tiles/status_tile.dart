@@ -326,9 +326,7 @@ class _StatusTileState extends State<StatusTile> {
                     state.data != device.ConnectionState.connected) {
                   return GestureDetector(
                     onTap: () async {
-                      await widget.deviceController.scanForDevices(
-                        autoConnect: true,
-                      );
+                      await widget.deviceController.scanForDevices();
                     },
                     child: Text("Waiting"),
                   );

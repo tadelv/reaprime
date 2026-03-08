@@ -1,8 +1,6 @@
 import 'dart:async';
 
-import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
-import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/weight_flow_calculator.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/device.dart';
@@ -10,68 +8,26 @@ import 'package:reaprime/src/util/moving_average.dart';
 import 'package:rxdart/rxdart.dart';
 
 class ScaleController {
-  final DeviceController _deviceController;
-
-  StreamSubscription<List<Device>>? _deviceStreamSubscription;
-
   Scale? _scale;
-  bool _isConnecting = false;
-
-  String? _preferredScaleId;
 
   StreamSubscription<ConnectionState>? _scaleConnection;
   StreamSubscription<ScaleSnapshot>? _scaleSnapshot;
 
   final Logger log = Logger('ScaleController');
 
-  ScaleController({
-    required DeviceController controller,
-    String? preferredScaleId,
-  }) : _deviceController = controller,
-       _preferredScaleId = preferredScaleId {
-    _deviceStreamSubscription = _deviceController.deviceStream.listen((devices) async {
-      var scales = devices.whereType<Scale>().toList();
-      if (_scale == null &&
-          !_isConnecting &&
-          scales.isNotEmpty &&
-          _deviceController.shouldAutoConnect) {
-        if (_preferredScaleId != null) {
-          // Connect only to the preferred scale
-          final preferred = scales.firstWhereOrNull(
-            (s) => s.deviceId == _preferredScaleId,
-          );
-          if (preferred != null) {
-            await connectToScale(preferred);
-          }
-          // If preferred not found, don't connect to any scale
-        } else {
-          // No preference set — connect to first scale found
-          await connectToScale(scales.first);
-        }
-      }
-    });
-  }
+  ScaleController();
 
-  set preferredScaleId(String? id) => _preferredScaleId = id;
-
-  void dispose() {
-      _deviceStreamSubscription?.cancel();
-    }
+  void dispose() {}
 
   Future<void> connectToScale(Scale scale) async {
     _onDisconnect();
-    _isConnecting = true;
     _scaleConnection = scale.connectionState.skip(1).listen(_processConnection);
     _scaleSnapshot = scale.currentSnapshot.listen(_processSnapshot);
-    try {
-      await scale.onConnect();
-      // Only set _scale if we're still connected (onConnect may have failed
-      // and triggered _onDisconnect which nulls _scaleConnection).
-      if (_scaleConnection != null) {
-        _scale = scale;
-      }
-    } finally {
-      _isConnecting = false;
+    await scale.onConnect();
+    // Only set _scale if we're still connected (onConnect may have failed
+    // and triggered _onDisconnect which nulls _scaleConnection).
+    if (_scaleConnection != null) {
+      _scale = scale;
     }
   }
 
@@ -79,7 +35,6 @@ class ScaleController {
     _scaleSnapshot?.cancel();
     _scaleConnection?.cancel();
     _scale = null;
-    _isConnecting = false;
     _scaleConnection = null;
     _flowCalculator = FlowCalculator(windowDuration: smoothingWindowDuration);
   }

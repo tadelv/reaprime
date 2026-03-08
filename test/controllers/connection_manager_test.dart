@@ -119,7 +119,7 @@ void main() {
     setUp(() {
       discoveryService = MockDeviceDiscoveryService();
       deviceController = DeviceController([discoveryService]);
-      mockScaleController = MockScaleController(controller: deviceController);
+      mockScaleController = MockScaleController();
     });
 
     test('records connectToScale calls', () async {
@@ -184,7 +184,7 @@ void main() {
       discoveryService = MockDeviceDiscoveryService();
       deviceController = DeviceController([discoveryService]);
       mockDe1Controller = MockDe1Controller(controller: deviceController);
-      mockScaleController = MockScaleController(controller: deviceController);
+      mockScaleController = MockScaleController();
       mockSettingsService = MockSettingsService();
       settingsController = SettingsController(mockSettingsService);
       await settingsController.loadSettings();
@@ -545,7 +545,7 @@ void main() {
       test('rejects concurrent scale connection attempts', () async {
         final completer = Completer<void>();
         final slowScaleController =
-            _SlowMockScaleController(controller: deviceController);
+            _SlowMockScaleController();
         slowScaleController.connectCompleter = completer;
 
         final manager = ConnectionManager(
@@ -643,7 +643,7 @@ class _SlowMockDe1Controller extends MockDe1Controller {
 class _SlowMockScaleController extends MockScaleController {
   Completer<void>? connectCompleter;
 
-  _SlowMockScaleController({required super.controller});
+  _SlowMockScaleController();
 
   @override
   Future<void> connectToScale(scale) async {

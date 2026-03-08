@@ -79,7 +79,7 @@ class ConnectionManager {
 
   /// Main entry point: scan for devices and connect based on preference policy.
   ///
-  /// 1. Scans for all devices (autoConnect: false)
+  /// 1. Scans for all devices
   /// 2. Applies machine preference policy (auto-connect, picker, or idle)
   /// 3. On successful machine connection, applies scale preference policy
   Future<void> connect() async {
@@ -91,7 +91,7 @@ class ConnectionManager {
     ));
 
     // Run full unfiltered scan
-    deviceController.scanForDevices(autoConnect: false);
+    deviceController.scanForDevices();
 
     // Wait for scan to complete (scanningStream emits false)
     await deviceController.scanningStream.firstWhere((scanning) => !scanning);

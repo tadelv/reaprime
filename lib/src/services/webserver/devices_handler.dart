@@ -239,10 +239,10 @@ class DevicesHandler {
         await _connectionManager.connect();
       } else {
         if (quickScan) {
-          _controller.scanForDevices(autoConnect: shouldConnect);
+          _controller.scanForDevices();
           return [];
         }
-        await _controller.scanForDevices(autoConnect: shouldConnect);
+        await _controller.scanForDevices();
       }
 
       return await _deviceList();
@@ -376,9 +376,9 @@ class DevicesHandler {
           }
         } else {
           if (quick) {
-            _controller.scanForDevices(autoConnect: connect);
+            _controller.scanForDevices();
           } else {
-            _controller.scanForDevices(autoConnect: connect).catchError((e) {
+            _controller.scanForDevices().catchError((e) {
               socket.sink.add(jsonEncode({'error': 'Scan failed: $e'}));
             });
           }
