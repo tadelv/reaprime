@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
@@ -37,6 +38,7 @@ class HomeScreen extends StatefulWidget {
     required this.webUIStorage,
     this.beanStorage,
     this.grinderStorage,
+    this.connectionManager,
   });
 
   final DeviceController deviceController;
@@ -49,6 +51,7 @@ class HomeScreen extends StatefulWidget {
   final WebUIStorage webUIStorage;
   final BeanStorageService? beanStorage;
   final GrinderStorageService? grinderStorage;
+  final ConnectionManager? connectionManager;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();

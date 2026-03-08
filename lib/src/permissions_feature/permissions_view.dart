@@ -8,6 +8,7 @@ import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:universal_ble/universal_ble.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
@@ -23,6 +24,7 @@ class PermissionsView extends StatefulWidget {
   final WebUIStorage webUIStorage;
   final WebUIService webUIService;
   final SettingsController settingsController;
+  final ConnectionManager? connectionManager;
 
   const PermissionsView({
     super.key,
@@ -33,6 +35,7 @@ class PermissionsView extends StatefulWidget {
     required this.webUIStorage,
     required this.webUIService,
     required this.settingsController,
+    this.connectionManager,
   });
 
   @override

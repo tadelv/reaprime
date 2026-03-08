@@ -58,6 +58,7 @@ import 'package:reaprime/src/plugins/plugin_manager.dart';
 import 'package:reaprime/src/services/feedback_service.dart';
 import 'package:reaprime/src/services/telemetry/log_buffer.dart';
 import 'package:reaprime/src/controllers/battery_controller.dart';
+import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/display_controller.dart';
 import 'package:reaprime/src/controllers/presence_controller.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
@@ -100,6 +101,7 @@ Future<void> startWebServer(
   DisplayController? displayController, {
   BeanStorageService? beanStorage,
   GrinderStorageService? grinderStorage,
+  ConnectionManager? connectionManager,
 }) async {
   log.info("starting webserver");
   final de1Handler = De1Handler(controller: de1Controller);

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:reaprime/main.dart';
 // import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 // import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_state_manager.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/presence_controller.dart';
@@ -63,6 +64,7 @@ class MyApp extends StatefulWidget {
     required this.webUIStorage,
     required this.webViewLogService,
     required this.presenceController,
+    required this.connectionManager,
     this.updateCheckService,
     this.beanStorage,
     this.grinderStorage,
@@ -79,6 +81,7 @@ class MyApp extends StatefulWidget {
   final WebUIStorage webUIStorage;
   final WebViewLogService webViewLogService;
   final PresenceController presenceController;
+  final ConnectionManager connectionManager;
   final UpdateCheckService? updateCheckService;
   final BeanStorageService? beanStorage;
   final GrinderStorageService? grinderStorage;
@@ -252,6 +255,7 @@ class _MyAppState extends State<MyApp> {
                     case SampleItemListView.routeName:
                       return SampleItemListView(
                         controller: widget.deviceController,
+                        connectionManager: widget.connectionManager,
                       );
                     case RealtimeShotFeature.routeName:
                       final args = routeSettings.arguments;
@@ -299,6 +303,7 @@ class _MyAppState extends State<MyApp> {
                         webUIStorage: widget.webUIStorage,
                         beanStorage: widget.beanStorage,
                         grinderStorage: widget.grinderStorage,
+                        connectionManager: widget.connectionManager,
                       );
                     case HistoryFeature.routeName:
                       final possibleShot = routeSettings.arguments as String;
@@ -330,6 +335,7 @@ class _MyAppState extends State<MyApp> {
                         webUIStorage: widget.webUIStorage,
                         webUIService: widget.webUIService,
                         settingsController: widget.settingsController,
+                        connectionManager: widget.connectionManager,
                       );
                   }
                 },
