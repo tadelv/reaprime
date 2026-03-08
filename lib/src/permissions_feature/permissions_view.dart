@@ -179,9 +179,8 @@ class _PermissionsViewState extends State<PermissionsView> {
   Widget _devicePicker(BuildContext context) {
     return Center(
       child: DeviceDiscoveryView(
-        de1controller: widget.de1controller,
+        connectionManager: widget.connectionManager!,
         deviceController: widget.deviceController,
-        scaleController: widget.scaleController,
         settingsController: widget.settingsController,
         webUIService: widget.webUIService,
         webUIStorage: widget.webUIStorage,
