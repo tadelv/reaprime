@@ -215,6 +215,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               controller: widget.de1controller,
               scaleController: widget.scaleController,
               deviceController: widget.deviceController,
+              connectionManager: widget.connectionManager!,
               workflowController: widget.workflowController,
             ),
           );

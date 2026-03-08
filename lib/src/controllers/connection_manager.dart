@@ -170,7 +170,9 @@ class ConnectionManager {
 
   /// Apply scale preference policy after machine connects.
   Future<void> _connectScalePhase(List<Scale> scales) async {
+    _log.fine('Scale phase: ${scales.length} scales found');
     final preferredScaleId = settingsController.preferredScaleId;
+    _log.fine('Scale phase: preferredScaleId=$preferredScaleId');
 
     if (preferredScaleId != null) {
       // Preferred scale is set
@@ -178,20 +180,33 @@ class ConnectionManager {
           scales.where((s) => s.deviceId == preferredScaleId).toList();
       if (preferred.isNotEmpty) {
         await connectScale(preferred.first);
+      } else if (scales.isNotEmpty) {
+        // Preferred not found but others available — picker
+        _log.fine('Scale phase: preferred not found, showing picker');
+        _statusSubject.add(currentStatus.copyWith(
+          pendingAmbiguity: () => AmbiguityReason.scalePicker,
+        ));
       }
-      // If preferred not found, do nothing — phase stays ready
     } else {
       // No preferred scale set
       if (scales.length == 1) {
         await connectScale(scales.first);
+      } else if (scales.length > 1) {
+        // Multiple scales — picker
+        _statusSubject.add(currentStatus.copyWith(
+          pendingAmbiguity: () => AmbiguityReason.scalePicker,
+        ));
       }
-      // 0 or many scales — skip silently
     }
   }
 
   Future<void> connectMachine(De1Interface machine) async {
-    if (_isConnectingMachine) return;
+    if (_isConnectingMachine) {
+      _log.fine('connectMachine: already connecting, skipping');
+      return;
+    }
     _isConnectingMachine = true;
+    _log.fine('connectMachine: connecting to ${machine.name} (${machine.deviceId})');
 
     _statusSubject.add(currentStatus.copyWith(
       phase: ConnectionPhase.connectingMachine,
@@ -215,8 +230,12 @@ class ConnectionManager {
   }
 
   Future<void> connectScale(Scale scale) async {
-    if (_isConnectingScale) return;
+    if (_isConnectingScale) {
+      _log.fine('connectScale: already connecting, skipping');
+      return;
+    }
     _isConnectingScale = true;
+    _log.fine('connectScale: connecting to ${scale.name} (${scale.deviceId})');
 
     _statusSubject.add(currentStatus.copyWith(
       phase: ConnectionPhase.connectingScale,
