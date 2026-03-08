@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
@@ -13,6 +14,7 @@ import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/device/scale.dart' as device_scale;
 import 'package:rxdart/rxdart.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -21,6 +23,7 @@ class StatusTile extends StatefulWidget {
   final De1Controller controller;
   final ScaleController scaleController;
   final DeviceController deviceController;
+  final ConnectionManager connectionManager;
   final WorkflowController workflowController;
   const StatusTile({
     super.key,
@@ -28,6 +31,7 @@ class StatusTile extends StatefulWidget {
     required this.controller,
     required this.scaleController,
     required this.deviceController,
+    required this.connectionManager,
     required this.workflowController,
   });
 
@@ -57,9 +61,15 @@ class _StatusTileState extends State<StatusTile> {
     // Each source updates its cached value; the throttled merge triggers
     // a single synchronized setState at ~10Hz.
     _tickSub = Rx.merge([
-      widget.de1.currentSnapshot.map((s) { _machineSnapshot = s; }),
-      widget.scaleController.weightSnapshot.map((w) { _weightSnapshot = w; }),
-      widget.de1.waterLevels.map((w) { _waterLevels = w; }),
+      widget.de1.currentSnapshot.map((s) {
+        _machineSnapshot = s;
+      }),
+      widget.scaleController.weightSnapshot.map((w) {
+        _weightSnapshot = w;
+      }),
+      widget.de1.waterLevels.map((w) {
+        _waterLevels = w;
+      }),
     ]).throttleTime(const Duration(milliseconds: 100)).listen((_) {
       if (mounted) setState(() {});
     });
@@ -298,7 +308,9 @@ class _StatusTileState extends State<StatusTile> {
             child: WaterLevelsForm(
               apply: (newLevels) {
                 Navigator.of(context).pop();
-                controller.connectedDe1().setRefillLevel(newLevels.refillLevel.toInt());
+                controller.connectedDe1().setRefillLevel(
+                  newLevels.refillLevel.toInt(),
+                );
               },
               levels: waterLevels,
             ),
@@ -306,53 +318,69 @@ class _StatusTileState extends State<StatusTile> {
     );
   }
 
+  bool _isFindingScale = false;
+
   List<Widget> _scaleWidgets(BuildContext context) {
     return [
       SizedBox(
         width: 110,
-        child: Row(
-          spacing: 8,
-          children: [
-            Icon(
-              LucideIcons.scale,
-              size: 32.0,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-            StreamBuilder(
-              stream: widget.scaleController.connectionState,
-              builder: (context, state) {
-                if (state.connectionState != ConnectionState.active ||
-                    !state.hasData ||
-                    state.data != device.ConnectionState.connected) {
-                  return GestureDetector(
-                    onTap: () async {
-                      await widget.deviceController.scanForDevices();
-                    },
-                    child: Text("Waiting"),
-                  );
-                }
-                return _weightSnapshot == null
-                    ? Column(
+        child: GestureDetector(
+          onTap: () async {
+            if (_weightSnapshot == null) {
+              _isFindingScale = true;
+              await widget.connectionManager.connect();
+              _isFindingScale = false;
+              if (!context.mounted) return;
+              final status = widget.connectionManager.currentStatus;
+              if (status.pendingAmbiguity == AmbiguityReason.scalePicker) {
+                _showScalePicker(context, status.foundScales);
+              }
+            } else {
+              widget.scaleController.connectedScale().tare();
+            }
+          },
+          child: Row(
+            spacing: 8,
+            children: [
+              Icon(
+                LucideIcons.scale,
+                size: 32.0,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+              StreamBuilder(
+                stream: widget.scaleController.connectionState,
+                builder: (context, state) {
+                  if (state.connectionState != ConnectionState.active ||
+                      !state.hasData ||
+                      state.data != device.ConnectionState.connected) {
+                    return _isFindingScale
+                        ? CircularProgressIndicator(
+                          constraints: BoxConstraints.tightFor(
+                            width: 22,
+                            height: 22,
+                          ),
+                        )
+                        : Text("Scale");
+                  }
+                  return _weightSnapshot == null
+                      ? Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [Text("W: --g"), Text("B: --%")],
                       )
-                    : Column(
+                      : Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          GestureDetector(
-                            onTap: () {
-                              widget.scaleController.connectedScale().tare();
-                            },
-                            child: Text(
-                              "W: ${_weightSnapshot!.weight.toStringAsFixed(1)}g",
-                            ),
+                          Text(
+                            "W: ${_weightSnapshot!.weight.toStringAsFixed(1)}g",
                           ),
+
                           Text("B: ${_weightSnapshot!.battery ?? 0}%"),
                         ],
                       );
-              },
-            ),
-          ],
+                },
+              ),
+            ],
+          ),
         ),
       ),
     ];
@@ -386,7 +414,9 @@ class _StatusTileState extends State<StatusTile> {
                       LucideIcons.thermometer,
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
-                    Text("${_machineSnapshot!.groupTemperature.toStringAsFixed(1)}℃"),
+                    Text(
+                      "${_machineSnapshot!.groupTemperature.toStringAsFixed(1)}℃",
+                    ),
                   ],
                 ),
               ),
@@ -437,10 +467,33 @@ class _StatusTileState extends State<StatusTile> {
       ],
     );
   }
+
+  void _showScalePicker(BuildContext context, List<device_scale.Scale> scales) {
+    showShadDialog(
+      context: context,
+      builder:
+          (context) => ShadDialog(
+            title: const Text('Select Scale'),
+            child: Material(
+              color: Colors.transparent,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children:
+                    scales
+                        .map(
+                          (scale) => ListTile(
+                            title: Text(scale.name),
+                            subtitle: Text(scale.deviceId),
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              widget.connectionManager.connectScale(scale);
+                            },
+                          ),
+                        )
+                        .toList(),
+              ),
+            ),
+          ),
+    );
+  }
 }
-
-
-
-
-
-
