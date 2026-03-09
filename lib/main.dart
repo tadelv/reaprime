@@ -344,6 +344,7 @@ void main() async {
   // Initialize update check service
   final updateCheckService = UpdateCheckService(
     settingsService: SharedPreferencesSettingsService(),
+    webUIStorage: webUIStorage,
   );
   await updateCheckService.initialize();
 
