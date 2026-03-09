@@ -146,9 +146,9 @@ class SharedPreferencesSettingsService extends SettingsService {
   Future<ScalePowerMode> scalePowerMode() async {
     return ScalePowerModeFromString.fromString(
           await prefs.getString(SettingsKeys.scalePowerMode.name) ??
-              ScalePowerMode.disabled.name,
+              ScalePowerMode.disconnect.name,
         ) ??
-        ScalePowerMode.disabled;
+        ScalePowerMode.disconnect;
   }
 
   @override

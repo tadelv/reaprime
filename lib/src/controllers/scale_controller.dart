@@ -50,6 +50,7 @@ class ScaleController {
       BehaviorSubject.seeded(ConnectionState.discovered);
 
   Stream<ConnectionState> get connectionState => _connectionController.stream;
+  ConnectionState get currentConnectionState => _connectionController.value;
 
   final StreamController<WeightSnapshot> _weightSnapshotController =
       StreamController.broadcast();
