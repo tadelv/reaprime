@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/build_info.dart';
@@ -12,7 +11,7 @@ class UpdateCheckService {
   final Logger _log = Logger('UpdateCheckService');
   final SettingsService _settingsService;
   final AndroidUpdater _updater;
-  final WebUIStorage? _webUIStorage;
+  final WebUIStorage _webUIStorage;
 
   Timer? _periodicTimer;
   UpdateInfo? _availableUpdate;
@@ -22,7 +21,7 @@ class UpdateCheckService {
   UpdateCheckService({
     required SettingsService settingsService,
     AndroidUpdater? updater,
-    WebUIStorage? webUIStorage,
+    required WebUIStorage webUIStorage,
   })  : _settingsService = settingsService,
         _updater = updater ?? AndroidUpdater(owner: 'tadelv', repo: 'reaprime'),
         _webUIStorage = webUIStorage;
@@ -69,7 +68,6 @@ class UpdateCheckService {
 
   /// Update all skins with known sources
   Future<void> _updateSkins() async {
-    if (_webUIStorage == null) return;
     try {
       _log.info('Updating skins...');
       await _webUIStorage.updateAllSkins();
