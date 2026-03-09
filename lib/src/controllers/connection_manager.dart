@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:rxdart/rxdart.dart';
@@ -70,12 +73,38 @@ class ConnectionManager {
   bool _machineConnected = false;
   bool _scaleConnected = false;
 
+  StreamSubscription? _machineDisconnectSub;
+  StreamSubscription? _scaleDisconnectSub;
+
   ConnectionManager({
     required this.deviceController,
     required this.de1Controller,
     required this.scaleController,
     required this.settingsController,
-  });
+  }) {
+    _listenForDisconnects();
+  }
+
+  void _listenForDisconnects() {
+    // Watch de1Controller.de1 stream — null means machine disconnected
+    _machineDisconnectSub = de1Controller.de1.listen((de1) {
+      if (de1 == null && _machineConnected) {
+        _log.fine('Machine disconnected');
+        _machineConnected = false;
+        _statusSubject.add(
+          currentStatus.copyWith(phase: ConnectionPhase.idle),
+        );
+      }
+    });
+
+    // Watch scaleController.connectionState — disconnected resets flag
+    _scaleDisconnectSub = scaleController.connectionState.listen((state) {
+      if (state == device.ConnectionState.disconnected && _scaleConnected) {
+        _log.fine('Scale disconnected');
+        _scaleConnected = false;
+      }
+    });
+  }
 
   /// Main entry point: scan for devices and connect based on preference policy.
   ///
@@ -135,7 +164,7 @@ class ConnectionManager {
                 .where((m) => m.deviceId == preferredScaleId)
                 .firstOrNull;
         if (match != null) {
-          _log.fine('Preferred machine found during scan, connecting early');
+          _log.fine('Preferred scale found during scan, connecting early');
           earlyScaleConnect = connectScale(match);
         }
       }
@@ -220,6 +249,10 @@ class ConnectionManager {
 
   /// Apply scale preference policy after machine connects.
   Future<void> _connectScalePhase(List<Scale> scales) async {
+    if (_scaleConnected) {
+      _log.fine('Scale already connected, skipping scale phase');
+      return;
+    }
     _log.fine('Scale phase: ${scales.length} scales found');
     final preferredScaleId = settingsController.preferredScaleId;
     _log.fine('Scale phase: preferredScaleId=$preferredScaleId');
@@ -328,6 +361,7 @@ class ConnectionManager {
     if (de1 != null) {
       await de1.disconnect();
     }
+    _machineConnected = false;
     _statusSubject.add(currentStatus.copyWith(phase: ConnectionPhase.idle));
   }
 
@@ -338,9 +372,12 @@ class ConnectionManager {
     } catch (_) {
       // No scale connected — nothing to disconnect
     }
+    _scaleConnected = false;
   }
 
   void dispose() {
+    _machineDisconnectSub?.cancel();
+    _scaleDisconnectSub?.cancel();
     _statusSubject.close();
   }
 }
