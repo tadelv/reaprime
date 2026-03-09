@@ -160,10 +160,10 @@ Returns all discovered devices with their connection states.
 
 #### Scan for Devices
 ```http
-GET /api/v1/devices/scan?connect=false&quick=false
+GET /api/v1/devices/scan?connect=true&quick=false
 ```
 
-Triggers a device scan. Use `connect=true` to auto-connect to discovered scales. Use `quick=true` to return immediately without waiting for scan results.
+Triggers a device scan. When `connect=true` (default), uses the ConnectionManager to scan and automatically connect to preferred or single devices (both machines and scales). When `connect=false`, performs a scan-only without automatic connections. Use `quick=true` to return immediately without waiting for scan results.
 
 #### Connect to Device
 ```http

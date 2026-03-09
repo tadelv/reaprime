@@ -7,10 +7,10 @@ This document explains how devices (DE1 machines, scales, sensors) are discovere
 1. [Architecture Overview](#architecture-overview)
 2. [Discovery Services](#discovery-services)
 3. [Device Controller](#device-controller)
-4. [Device-Specific Controllers](#device-specific-controllers)
-5. [Connection Flow](#connection-flow)
-6. [State Management](#state-management)
-7. [Auto-Connection Logic](#auto-connection-logic)
+4. [Connection Manager](#connection-manager)
+5. [Device-Specific Controllers](#device-specific-controllers)
+6. [Connection Flow](#connection-flow)
+7. [State Management](#state-management)
 8. [Adding New Devices](#adding-new-devices)
 
 ---
@@ -23,6 +23,11 @@ REA uses a layered architecture for device management:
 ┌─────────────────────────────────────────────────────────┐
 │                    Application Layer                     │
 │        (UI, API Handlers, De1StateManager)              │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────────────────┐
+│              Connection Manager                          │
+│   Orchestrates scan → connect policy (preferred devices)│
 └─────────────────┬───────────────────────────────────────┘
                   │
 ┌─────────────────▼───────────────────────────────────────┐
@@ -91,27 +96,17 @@ Discovery services are responsible for scanning and creating device instances. E
 - **Purpose:** Testing without physical hardware
 - **Activation:** Set `simulate=1` compile-time variable or enable in settings
 
-### Device Mapping Configuration
+### Device Matching
 
-Discovery services use UUID-to-factory mappings to create appropriate device instances:
+Discovery services use name-based matching via `DeviceMatcher` to create appropriate device instances from BLE advertisement names:
 
-```dart
-// In main.dart
-BluePlusDiscoveryService(
-  mappings: {
-    De1.advertisingUUID.toUpperCase(): (t) => MachineParser.machineFrom(transport: t),
-    FelicitaArc.serviceUUID.toUpperCase(): (t) async => FelicitaArc(transport: t),
-    DecentScale.serviceUUID.toUpperCase(): (t) async => DecentScale(transport: t),
-    BookooScale.serviceUUID.toUpperCase(): (t) async => BookooScale(transport: t),
-  },
-)
-```
+**File:** `lib/src/services/device_matcher.dart`
 
 **Key Points:**
-- UUIDs are normalized to uppercase
-- Factory functions receive a transport instance
-- Async factories support complex initialization
-- MachineParser handles DE1 model detection (DE1, DE1+, DE1PRO, DE1XL)
+- Unfiltered BLE scans — no service UUID filtering
+- `DeviceMatcher.match()` takes a transport and advertised name, returns a `Device?`
+- Name rules map advertisement names to device factories
+- Service verification happens during `onConnect()` using `BleServiceIdentifier`
 
 ### Service Lifecycle
 
@@ -145,20 +140,21 @@ The DeviceController is the central coordinator for all device discovery service
    - Subscribes to each service's device stream
    - Merges devices from all services into unified stream
 
-2. **Auto-Connect Control:**
-   - Maintains `shouldAutoConnect` flag
-   - Temporarily disables during manual scans
-   - Restores after 200ms delay
-
-3. **Device Lifecycle:**
-   - Tracks connected devices
-   - Removes disconnected devices on scan
+2. **Device Lifecycle:**
+   - Tracks discovered devices
+   - Removes disconnected devices on scan (allows re-discovery with fresh transport)
    - Prevents duplicate device entries
+
+3. **Scan Management:**
+   - Exposes `scanningStream` for scan lifecycle tracking
+   - Coordinates parallel scans across all discovery services
+
+**Note:** DeviceController does **not** handle connection policy. All connection decisions (which device to connect, when to connect) are handled by `ConnectionManager`.
 
 ### Key Methods
 
 ```dart
-// Initialize all services and start initial scan
+// Initialize all services
 Future<void> initialize() async {
   for (var service in _services) {
     await service.initialize();
@@ -166,29 +162,14 @@ Future<void> initialize() async {
       service.devices.listen((devices) => _serviceUpdate(service, devices))
     );
   }
-  await scanForDevices(autoConnect: true);
 }
 
 // Trigger scan across all services
-Future<void> scanForDevices({required bool autoConnect}) async {
-  // Remove disconnected devices
-  _devices.forEach((_, devices) async {
-    for (var device in devices.where((d) => d.connectionState == disconnected)) {
-      devices.remove(device);
-    }
-  });
-  
-  // Temporarily set autoConnect flag
-  final tmpAutoConnect = _autoConnect;
-  _autoConnect = autoConnect;
-  
+Future<void> scanForDevices() async {
+  _scanningStream.add(true);
   // Scan all services in parallel
   await Future.wait(_services.map((s) => s.scanForDevices()));
-  
-  // Restore autoConnect after 200ms
-  await Future.delayed(Duration(milliseconds: 200), () {
-    _autoConnect = tmpAutoConnect;
-  });
+  _scanningStream.add(false);
 }
 ```
 
@@ -208,9 +189,71 @@ List<Device> get devices =>
 
 ---
 
+## Connection Manager
+
+**File:** `lib/src/controllers/connection_manager.dart`
+
+The ConnectionManager is the centralized orchestrator for all device connection decisions. It replaces the previously scattered auto-connect logic that was spread across DeviceController, ScaleController, and De1StateManager.
+
+### Connection Status
+
+ConnectionManager exposes a `ConnectionStatus` stream with the following phases:
+
+```
+idle → scanning → connectingMachine → connectingScale → ready
+```
+
+- **`idle`:** No connection activity
+- **`scanning`:** BLE/USB scan in progress
+- **`connectingMachine`:** Connecting to a DE1 machine
+- **`connectingScale`:** Connecting to a scale
+- **`ready`:** All requested devices connected
+
+The status also tracks:
+- `foundMachines` / `foundScales` — devices discovered during the last scan
+- `pendingAmbiguity` — `machinePicker` or `scalePicker` when the UI needs to show a device selection dialog
+- `error` — error message from the last connection attempt
+
+### Connection Policy
+
+When `connect()` is called:
+
+1. **Scan** for all devices via `DeviceController.scanForDevices()`
+2. **Early connect** — if preferred device IDs are set in settings, connect as soon as they appear during scan (don't wait for scan to finish)
+3. **Machine phase** — apply preferred machine policy:
+   - Preferred set + found → auto-connect
+   - Preferred set + not found, but others available → show picker (`machinePicker`)
+   - No preferred, 1 machine → auto-connect
+   - No preferred, multiple → show picker (`machinePicker`)
+4. **Scale phase** — apply preferred scale policy (same logic as machine)
+
+### Key Methods
+
+- `connect()` — Full scan + connect flow (machine + scale)
+- `scanAndConnectScale()` — Scale-only reconnect (skips machine phase)
+- `connectMachine(De1Interface)` — Connect to a specific machine
+- `connectScale(Scale)` — Connect to a specific scale
+- `disconnectMachine()` / `disconnectScale()` — Explicit disconnects
+
+### Disconnect Handling
+
+ConnectionManager listens for disconnects automatically:
+- Watches `de1Controller.de1` stream — `null` means machine disconnected
+- Watches `scaleController.connectionState` — resets `_scaleConnected` flag on disconnect
+- Resets phase to `idle` when machine disconnects
+
+### Preferred Device Settings
+
+Device preferences are stored via `SettingsController`:
+- `preferredMachineId` — auto-set on successful machine connection
+- `preferredScaleId` — auto-set on successful scale connection
+- Configurable in Settings → Device Management
+
+---
+
 ## Device-Specific Controllers
 
-Device-specific controllers manage the lifecycle and state of individual device types.
+Device-specific controllers manage the lifecycle and state of individual device types. They handle the low-level connection mechanics; the ConnectionManager handles the policy of *when* and *which* device to connect.
 
 ### De1Controller
 
@@ -247,26 +290,12 @@ Future<void> connectToDe1(De1Interface de1Interface) async {
 **File:** `lib/src/controllers/scale_controller.dart`
 
 **Responsibilities:**
-- Manages scale connection (auto or manual)
+- Manages scale connection lifecycle (called by ConnectionManager)
 - Processes weight and flow data
 - Calculates smoothed weight flow
-- Exposes weight snapshots
+- Exposes weight snapshots and connection state
 
-**Auto-Connect Logic:**
-```dart
-ScaleController({required DeviceController controller})
-  : _deviceController = controller {
-  _deviceController.deviceStream.listen((devices) async {
-    var scales = devices.whereType<Scale>().toList();
-    if (_scale == null &&
-        scales.firstOrNull != null &&
-        _deviceController.shouldAutoConnect) {
-      final scale = scales.first;
-      await connectToScale(scale);
-    }
-  });
-}
-```
+**Note:** ScaleController does **not** auto-connect. Connection decisions are made by `ConnectionManager`. ScaleController only handles the mechanics of connecting to a specific scale.
 
 **Connection Flow:**
 ```dart
@@ -280,8 +309,9 @@ Future<void> connectToScale(Scale scale) async {
 ```
 
 **Key Streams:**
-- `connectionState`: Scale connection status
+- `connectionState`: Scale connection status (`BehaviorSubject<ConnectionState>`)
 - `weightSnapshot`: Processed weight data with flow calculation
+- `currentConnectionState`: Synchronous getter for current state
 
 ### SensorController
 
@@ -305,53 +335,37 @@ Future<void> connectToScale(Scale scale) async {
    ↓
 2. Create discovery services with device mappings
    ↓
-3. Create DeviceController(services)
+3. Create DeviceController(services), De1Controller, ScaleController
    ↓
-4. Create De1Controller, ScaleController, SensorController
+4. Create ConnectionManager(deviceController, de1Controller, scaleController, settingsController)
    ↓
 5. runApp(MyApp(...))
    ↓
-6. PermissionsView displayed
+6. PermissionsView → DeviceDiscoveryView displayed
    ↓
-7. User grants permissions
+7. User grants permissions → deviceController.initialize()
    ↓
-8. deviceController.initialize()
+8. DeviceDiscoveryView calls connectionManager.connect()
    ↓
-9. Each service.initialize() called
+9. ConnectionManager: scan → early-connect preferred devices → apply policy
    ↓
-10. scanForDevices(autoConnect: true)
+10. Status stream: idle → scanning → connectingMachine → connectingScale → ready
     ↓
-11. Services scan and emit devices
-    ↓
-12. ScaleController receives scales → auto-connects to first
-    ↓
-13. SensorController receives sensors → auto-connects to first
-    ↓
-14. DeviceDiscoveryView shows DE1 list
-    ↓
-15. User selects DE1 from list
-    ↓
-16. De1Controller.connectToDe1(selected)
-    ↓
-17. Navigate to HomeScreen
+11. DeviceDiscoveryView navigates to HomeScreen on `ready`
 ```
 
-### Manual Scan Flow
+If multiple machines or scales are found without a preferred device set, ConnectionManager emits `pendingAmbiguity: machinePicker` or `scalePicker`, and the UI shows a picker dialog.
+
+### Scale Reconnect from HomeScreen
 
 ```
-1. User taps "Scan" button (e.g., in status tile)
+1. User taps "Scale" text in StatusTile (when no scale connected)
    ↓
-2. deviceController.scanForDevices(autoConnect: true)
+2. connectionManager.scanAndConnectScale()
    ↓
-3. DeviceController temporarily sets _autoConnect = true
+3. BLE scan runs, preferred scale policy applied
    ↓
-4. All services scan in parallel
-   ↓
-5. New devices discovered and emitted
-   ↓
-6. ScaleController/SensorController auto-connect if shouldAutoConnect
-   ↓
-7. After 200ms, _autoConnect restored to previous value
+4. If multiple scales found → scalePicker dialog shown
 ```
 
 ### Machine Wake → Scale Reconnect Flow
@@ -361,19 +375,11 @@ Future<void> connectToScale(Scale scale) async {
    ↓
 2. De1StateManager._handleScalePowerManagement() detects transition
    ↓
-3. Check if scale connected → NO
+3. Check if scale connected → NO, scalePowerMode == disconnect → YES
    ↓
-4. Check if scalePowerMode == disconnect → YES
+4. Call connectionManager.scanAndConnectScale()
    ↓
-5. Call _triggerScaleScan()
-   ↓
-6. deviceController.scanForDevices(autoConnect: true)
-   ↓
-7. Wait up to 30s for ScaleController.connectionState == connected
-   ↓
-8. Scale found → ScaleController auto-connects
-   ↓
-9. User can start making espresso immediately
+5. Scan runs, preferred scale connected automatically
 ```
 
 ---
@@ -448,52 +454,27 @@ De1StateManager({
 
 ---
 
-## Auto-Connection Logic
+## Connection Policy
 
-### When Auto-Connect Happens
+All connection decisions are centralized in `ConnectionManager`. Individual controllers (De1Controller, ScaleController) only handle the mechanics of connecting/disconnecting.
 
-1. **Initial Scan (PermissionsView):**
-   - `DeviceController.initialize()` calls `scanForDevices(autoConnect: true)`
-   - ScaleController and SensorController auto-connect to first found device
-   - DE1 connection is manual (user selects from list)
+### Preferred Device Policy
 
-2. **Manual Scan (Status Tile):**
-   - User taps "Scan" → `scanForDevices(autoConnect: true)`
-   - Same auto-connect behavior as initial scan
+ConnectionManager uses `SettingsController` to read preferred device IDs:
 
-3. **Machine Wake (Sleep → Idle):**
-   - If scale disconnected and `scalePowerMode == disconnect`
-   - De1StateManager triggers scan with auto-connect
-   - Only applies to scales (not DE1)
+1. **Preferred device set + found during scan** → auto-connect immediately (early connect during scan)
+2. **Preferred device set + not found, but others available** → show picker dialog
+3. **No preferred device, 1 found** → auto-connect silently
+4. **No preferred device, multiple found** → show picker dialog
+5. **No devices found** → stay idle
 
-### Why DE1 Connection is Manual
+Preferred device IDs are auto-saved on successful connection and can be managed in Settings → Device Management.
 
-**Design Decision:** DE1 connection requires user confirmation for several reasons:
+### Machine vs Scale Connection
 
-1. **Multiple Machines:** Users may have multiple DE1 machines (cafe setup, multiple devices)
-2. **Safety:** Accidental connection could be dangerous (wrong machine configuration)
-3. **UX Clarity:** User should explicitly know which machine they're controlling
-4. **Workflow Upload:** First connection uploads workflow/profile → should be intentional
-
-**Implementation:**
-- DeviceDiscoveryView (in PermissionsView) shows list of found DE1 machines
-- User taps to select → `De1Controller.connectToDe1(selected)`
-- 10-second timeout: if only 1 DE1 found, auto-connects
-- If no DE1 found after timeout, navigate to HomeScreen anyway
-
-### Scale Auto-Connect Behavior
-
-**Why Scales Auto-Connect:**
-
-1. **Single Scale Assumption:** Most users have one scale
-2. **Non-Critical:** Scale connection doesn't affect machine safety
-3. **Convenience:** Users expect scale to "just work"
-4. **State Persistence:** Future enhancement will remember last connected scale
-
-**Current Limitations:**
-- Always connects to first found scale
-- No preference/priority system
-- No last-connected memory (planned for future)
+- **Machine** connects first, then scale phase runs
+- **Scale failures are non-blocking** — if scale connection fails, machine stays connected and phase stays `ready`
+- **Scale-only reconnect** — `scanAndConnectScale()` skips the machine phase entirely (used by De1StateManager for wake-from-sleep and by StatusTile for manual reconnect)
 
 ---
 
@@ -563,24 +544,22 @@ If device requires specialized logic, create controller:
 
 ```dart
 class TemperatureController {
-  final DeviceController _deviceController;
   TemperatureSensor? _sensor;
-  
-  TemperatureController({required DeviceController controller})
-    : _deviceController = controller {
-    _deviceController.deviceStream.listen((devices) async {
-      var sensors = devices.whereType<TemperatureSensor>().toList();
-      if (_sensor == null &&
-          sensors.firstOrNull != null &&
-          _deviceController.shouldAutoConnect) {
-        await connectToSensor(sensors.first);
-      }
-    });
+
+  /// Called by ConnectionManager when a sensor should be connected.
+  Future<void> connectToSensor(TemperatureSensor sensor) async {
+    _sensor = sensor;
+    await sensor.onConnect();
+    // ... subscribe to streams
   }
-  
-  // ... connection management
+
+  void dispose() {
+    // ... cancel subscriptions
+  }
 }
 ```
+
+**Note:** Connection decisions (when to connect, which device) should be handled by `ConnectionManager`, not by the device-specific controller.
 
 #### 5. Add API Handler (Optional)
 
@@ -726,18 +705,18 @@ _deviceStream.listen((devices) {
 });
 ```
 
-### Check Auto-Connect Flag
+### Check ConnectionManager Status
 
-Log `shouldAutoConnect` during scans:
+Monitor connection phases via WebSocket or logs:
 
 ```dart
-Future<void> scanForDevices({required bool autoConnect}) async {
-  _log.info('Starting scan with autoConnect=$autoConnect');
-  _log.info('shouldAutoConnect before: $_autoConnect');
-  // ... scan logic
-  _log.info('shouldAutoConnect after: $_autoConnect');
-}
+// Subscribe to ConnectionManager status
+connectionManager.status.listen((status) {
+  _log.info('Phase: ${status.phase}, ambiguity: ${status.pendingAmbiguity}');
+});
 ```
+
+Or via the `/ws/v1/devices` WebSocket — the `connectionStatus` field shows the current phase, found devices, and any pending ambiguity.
 
 ### Monitor State Transitions
 
@@ -764,27 +743,21 @@ Or toggle in Settings UI → Simulated Devices
 
 ## Common Issues
 
-### Scale Doesn't Auto-Connect
+### Scale Doesn't Connect
 
 **Symptoms:** Scale found during scan but doesn't connect
 
 **Possible Causes:**
-1. `shouldAutoConnect` is false during scan
-2. Another scale already connected
-3. Scale UUID not in mappings
+1. Preferred scale ID is set but doesn't match any found scale
+2. Another scale already connected (`_scaleConnected` flag)
+3. Scale UUID not matched by `DeviceMatcher`
 4. BLE permissions not granted
+5. Stale device objects in `BluePlusDiscoveryService._devices` list (should be purged on each scan)
 
 **Debug Steps:**
-```dart
-// In ScaleController constructor
-_deviceController.deviceStream.listen((devices) async {
-  var scales = devices.whereType<Scale>().toList();
-  _log.info('Found ${scales.length} scales');
-  _log.info('Current scale: $_scale');
-  _log.info('shouldAutoConnect: ${_deviceController.shouldAutoConnect}');
-  // ...
-});
-```
+- Check ConnectionManager logs: `ConnectionManager` logger at `fine` level
+- Check `preferredScaleId` in settings: GET `/api/v1/settings`
+- Check WebSocket `/ws/v1/devices` for `connectionStatus.pendingAmbiguity`
 
 ### Multiple Scans Interfere
 
@@ -815,9 +788,9 @@ Future<void> scan() async {
 
 **Symptoms:** DE1 connects without user selection
 
-**Cause:** Manual modification of De1Controller to auto-connect
+**Cause:** ConnectionManager auto-connects when only 1 machine is found, or when a preferred machine ID is set in settings
 
-**Fix:** Ensure De1Controller only connects on explicit `connectToDe1()` call
+**Fix:** Clear the preferred machine ID in Settings → Device Management, or check `ConnectionManager` logs for the connection policy decision
 
 ### Serial Devices Not Found
 
@@ -841,27 +814,20 @@ _log.info('Found serial ports: $ports');
 
 ### Planned Enhancements
 
-1. **Device Preferences:**
-   - Remember last connected scale/sensor
-   - Prioritize reconnection to preferred devices
-   - Store device nicknames
-
-2. **Smart Reconnection:**
-   - Auto-reconnect to last used devices on app startup
+1. **Smart Reconnection:**
    - Exponential backoff for failed reconnections
    - Connection quality monitoring
 
-3. **Multi-Device Support:**
+2. **Multi-Device Support:**
    - Connect to multiple scales simultaneously
    - Aggregate sensor data from multiple sources
    - Switch between devices without disconnection
 
-4. **Connection Indicators:**
-   - Real-time connection status in UI
-   - Battery level indicators
+3. **Connection Indicators:**
    - Signal strength monitoring
+   - Connection quality metrics
 
-5. **Device Fingerprinting:**
+4. **Device Fingerprinting:**
    - Unique device identification beyond UUID
    - Detect duplicate devices (same scale via BLE + Serial)
    - Prevent double-connection issues
@@ -871,7 +837,8 @@ _log.info('Found serial ports: $ports');
 ## Related Files
 
 ### Core Device Management
-- `lib/src/controllers/device_controller.dart` - Central coordinator
+- `lib/src/controllers/connection_manager.dart` - Centralized connection orchestration
+- `lib/src/controllers/device_controller.dart` - Discovery coordination
 - `lib/src/controllers/de1_controller.dart` - DE1 machine management
 - `lib/src/controllers/scale_controller.dart` - Scale management
 - `lib/src/controllers/sensor_controller.dart` - Sensor management
@@ -909,8 +876,8 @@ _log.info('Found serial ports: $ports');
 - **Discovery Service:** Component that scans for and creates device instances
 - **Device Controller:** Central coordinator for all discovery services
 - **Device-Specific Controller:** Manages lifecycle of a specific device type (DE1, Scale, Sensor)
-- **Auto-Connect:** Automatic connection to first found device of a type
-- **shouldAutoConnect:** Flag controlling whether auto-connect logic is active
+- **ConnectionManager:** Centralized orchestrator for device connection policy
+- **ConnectionStatus:** State object with phase, found devices, and ambiguity info
 - **Device Stream:** RxDart BehaviorSubject broadcasting list of discovered devices
 - **State Manager:** Orchestrator for machine state changes and related behaviors
 - **UUID:** Universally Unique Identifier, used to identify BLE services/devices
