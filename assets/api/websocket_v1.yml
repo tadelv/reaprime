@@ -80,7 +80,8 @@ channels:
     description: >
       Bidirectional channel for device list state and commands.
       Emits full device state snapshots on connect, device list changes,
-      individual device connection state changes, and scanning state changes.
+      individual device connection state changes, scanning state changes,
+      and ConnectionManager status updates (phase, found devices, ambiguity).
       Accepts commands to scan, connect, and disconnect devices.
     address: ws/v1/devices
     messages:
@@ -427,6 +428,40 @@ components:
         scanning:
           type: boolean
           description: Whether a BLE/USB scan is currently in progress.
+        connectionStatus:
+          type: object
+          description: Current state of the ConnectionManager orchestration.
+          properties:
+            phase:
+              type: string
+              enum:
+                - idle
+                - scanning
+                - connectingMachine
+                - connectingScale
+                - ready
+              description: Current connection phase. idle=no activity, scanning=BLE scan in progress, connectingMachine=connecting to DE1, connectingScale=connecting to scale, ready=all devices connected.
+            foundMachines:
+              type: array
+              items:
+                $ref: '#/components/schemas/DeviceInfo'
+              description: Machines discovered during the last scan.
+            foundScales:
+              type: array
+              items:
+                $ref: '#/components/schemas/DeviceInfo'
+              description: Scales discovered during the last scan.
+            pendingAmbiguity:
+              type: string
+              enum:
+                - machinePicker
+                - scalePicker
+              nullable: true
+              description: If set, the UI should present a device picker for the indicated type.
+            error:
+              type: string
+              nullable: true
+              description: Error message from the last connection attempt.
 
     DeviceInfo:
       type: object
@@ -446,10 +481,12 @@ components:
         state:
           type: string
           enum:
+            - discovered
             - connecting
             - connected
             - disconnecting
             - disconnected
+          description: Device connection state. discovered=found but never connected.
           example: connected
         type:
           type: string

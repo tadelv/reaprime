@@ -329,8 +329,13 @@ class _StatusTileState extends State<StatusTile> {
             if (widget.scaleController.currentConnectionState !=
                 device.ConnectionState.connected) {
               setState(() => _isFindingScale = true);
-              await widget.connectionManager.connect();
-              if (mounted) setState(() => _isFindingScale = false);
+              try {
+                await widget.connectionManager.scanAndConnectScale();
+              } catch (_) {
+                // Connection errors are handled by ConnectionManager status
+              } finally {
+                if (mounted) setState(() => _isFindingScale = false);
+              }
               if (!context.mounted) return;
               final status = widget.connectionManager.currentStatus;
               if (status.pendingAmbiguity == AmbiguityReason.scalePicker) {

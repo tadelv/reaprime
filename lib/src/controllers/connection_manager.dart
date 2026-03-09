@@ -86,9 +86,11 @@ class ConnectionManager {
   }
 
   void _listenForDisconnects() {
-    // Watch de1Controller.de1 stream — null means machine disconnected
+    // Watch de1Controller.de1 stream — null means machine disconnected.
+    // Ignore null emissions while actively connecting (connectToDe1 calls
+    // _onDisconnect() at the start, which emits null transiently).
     _machineDisconnectSub = de1Controller.de1.listen((de1) {
-      if (de1 == null && _machineConnected) {
+      if (de1 == null && _machineConnected && !_isConnectingMachine) {
         _log.fine('Machine disconnected');
         _machineConnected = false;
         _statusSubject.add(
@@ -257,8 +259,17 @@ class ConnectionManager {
     _log.fine('scanAndConnectScale: scanning for scales only');
 
     deviceController.scanForDevices();
-    await deviceController.scanningStream.firstWhere((s) => s);
-    await deviceController.scanningStream.firstWhere((s) => !s);
+    try {
+      await deviceController.scanningStream
+          .firstWhere((s) => s)
+          .timeout(const Duration(seconds: 5));
+      await deviceController.scanningStream
+          .firstWhere((s) => !s)
+          .timeout(const Duration(seconds: 30));
+    } on TimeoutException {
+      _log.warning('scanAndConnectScale: scan timed out');
+      return;
+    }
 
     final scales = deviceController.devices.whereType<Scale>().toList();
     _log.fine('scanAndConnectScale: found ${scales.length} scales');

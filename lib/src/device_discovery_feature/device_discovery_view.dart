@@ -69,6 +69,7 @@ class DeviceDiscoveryView extends StatefulWidget {
 class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   late StreamSubscription<ConnectionStatus> _statusSubscription;
   ConnectionStatus _status = const ConnectionStatus();
+  bool _navigated = false;
 
   @override
   void initState() {
@@ -84,8 +85,10 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
     _statusSubscription = widget.connectionManager.status.listen((status) {
       if (!mounted) return;
 
-      // Navigate when ready
-      if (status.phase == ConnectionPhase.ready) {
+      // Navigate when ready (only once — connectMachine and connectScale
+      // both emit ready, so guard against double navigation)
+      if (status.phase == ConnectionPhase.ready && !_navigated) {
+        _navigated = true;
         _navigateAfterConnection();
         return;
       }

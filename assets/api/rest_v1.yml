@@ -45,11 +45,11 @@ paths:
   /api/v1/devices/scan:
     get:
       summary: Scan for Devices
-      description: Triggers a device scan.
+      description: Triggers a device scan. When connect=true (default), uses the ConnectionManager to scan and automatically connect to preferred or single devices. When connect=false, performs a scan-only without automatic connections.
       tags: [Devices]
       parameters:
         - name: connect
-          description: whether REA should automatically connect to discovered devices while scanning (applies for scales). Default is 'false'
+          description: Whether to use the ConnectionManager to automatically connect to preferred/discovered devices during scanning. Default is 'true'.
           in: query
           schema:
             type: boolean
@@ -3248,6 +3248,11 @@ components:
           type: string
           nullable: true
           example: "F4:12:FA:5C:3D:8E"
+        preferredScaleId:
+          description: Device ID of the preferred scale for auto-connect on startup. When set, REA will automatically connect to this scale when it's discovered during device scan. Set to null to clear the preference.
+          type: string
+          nullable: true
+          example: "AA:BB:CC:DD:EE:FF"
         chargingMode:
           type: string
           enum: [disabled, longevity, balanced, highAvailability]
@@ -3300,6 +3305,11 @@ components:
           type: string
           nullable: true
           example: "F4:12:FA:5C:3D:8E"
+        preferredScaleId:
+          description: Device ID of the preferred scale for auto-connect on startup. Returns null if no preferred device is set.
+          type: string
+          nullable: true
+          example: "AA:BB:CC:DD:EE:FF"
         chargingMode:
           type: string
           enum: [disabled, longevity, balanced, highAvailability]

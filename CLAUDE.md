@@ -93,7 +93,9 @@ Plans go in `doc/plans/`. Don't commit unless asked. When finishing a branch, as
 ### Key Controllers
 
 - **`DeviceController`:** Coordinates multiple `DeviceDiscoveryService` implementations → unified device stream
+- **`ConnectionManager`:** Centralized connection orchestrator. Scans for devices, applies preferred-device policy, handles machine→scale connection sequencing. Exposes `ConnectionStatus` stream with phases: `idle`, `scanning`, `connectingMachine`, `connectingScale`, `ready`.
 - **`De1Controller`:** Machine operations (state, settings, profiles)
+- **`ScaleController`:** Scale connection lifecycle, weight/flow data processing
 - **`ShotController`:** Orchestrates shot execution, stops at target weight. Timer lifecycle: reset on first tare (preparingForShot), start on second tare (preinfusion/pouring), stop when shot ends.
 - **`ProfileController`:** Profile library with content-based hash IDs for deduplication
 - **`WorkflowController`:** Multi-step espresso workflows
@@ -137,7 +139,7 @@ The MCP server in `packages/mcp-server/` bridges Claude to the Flutter app's RES
 1. **Discovery:** `DeviceController` → multiple `DeviceDiscoveryService` instances → unified device stream
 2. **Machine State:** Transport messages → DE1 parses → `De1Controller` broadcasts → WebSocket + Plugins
 3. **API Requests:** HTTP → Shelf router → Handler → Controller → Device
-4. **UI Scan:** Scan button → `DeviceController.scanForDevices()` → auto-connect (1 device) or selection dialog (multiple) or error (none)
+4. **Connection Flow:** `ConnectionManager.connect()` → scan → apply preferred-device policy → connect machine → connect scale. Status stream drives `DeviceDiscoveryView` UI (phases: idle → scanning → connectingMachine → connectingScale → ready)
 
 ## Conventions & Gotchas
 
