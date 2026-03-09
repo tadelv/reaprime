@@ -256,6 +256,11 @@ class ConnectionManager {
   /// Use this when the machine is already connected and only a scale
   /// reconnect is needed (e.g., after machine wakes from sleep).
   Future<void> scanAndConnectScale() async {
+    if (_isConnecting) {
+      _log.fine('scanAndConnectScale: connect already in progress, skipping');
+      return;
+    }
+
     _log.fine('scanAndConnectScale: scanning for scales only');
 
     deviceController.scanForDevices();
@@ -265,7 +270,7 @@ class ConnectionManager {
           .timeout(const Duration(seconds: 5));
       await deviceController.scanningStream
           .firstWhere((s) => !s)
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: 35));
     } on TimeoutException {
       _log.warning('scanAndConnectScale: scan timed out');
       return;
@@ -394,12 +399,14 @@ class ConnectionManager {
   }
 
   Future<void> disconnectMachine() async {
+    // Reset flag before disconnect to prevent the disconnect listener from
+    // also emitting idle (which would cause a double emission).
+    _machineConnected = false;
+    _statusSubject.add(currentStatus.copyWith(phase: ConnectionPhase.idle));
     final de1 = await de1Controller.de1.first;
     if (de1 != null) {
       await de1.disconnect();
     }
-    _machineConnected = false;
-    _statusSubject.add(currentStatus.copyWith(phase: ConnectionPhase.idle));
   }
 
   Future<void> disconnectScale() async {

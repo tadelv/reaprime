@@ -78,7 +78,7 @@ class DeviceController {
 
   Future<void> scanForDevices() async {
     _scanningStream.add(true);
-    // throw out all disconnected devices
+    // throw out disconnected/discovered devices (keep connected and connecting)
     for (final entry in _devices.entries) {
       final devices = entry.value;
       final toRemove = <Device>[];
@@ -86,7 +86,8 @@ class DeviceController {
         final state = await device.connectionState.first
             .timeout(const Duration(seconds: 2),
                 onTimeout: () => ConnectionState.disconnected);
-        if (state != ConnectionState.connected) {
+        if (state != ConnectionState.connected &&
+            state != ConnectionState.connecting) {
           toRemove.add(device);
         }
       }
