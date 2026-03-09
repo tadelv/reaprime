@@ -467,6 +467,56 @@ class WebUIStorage {
     }
   }
 
+  /// Update all skins: remote-bundled skins and user-installed skins with source URLs.
+  ///
+  /// This method is intended to be called periodically (e.g., by UpdateCheckService)
+  /// to keep all skins up to date. Each skin update is independent — one failure
+  /// does not prevent others from updating.
+  Future<void> updateAllSkins() async {
+    _log.info('Starting update check for all skins');
+
+    // 1. Update remote-bundled skins
+    try {
+      await downloadRemoteSkins();
+    } catch (e, st) {
+      _log.warning('Failed to update remote-bundled skins', e, st);
+    }
+
+    // 2. Update user-installed skins that have a sourceUrl
+    final userSkins = _skinMetadata.entries
+        .where((entry) =>
+            entry.value.sourceUrl != null &&
+            !_remoteBundledSkinIds.contains(entry.key))
+        .toList();
+
+    for (final entry in userSkins) {
+      final skinId = entry.key;
+      final sourceUrl = entry.value.sourceUrl!;
+
+      try {
+        if (sourceUrl.startsWith('github_release:')) {
+          // Parse format: github_release:owner/repo@tag
+          final withoutPrefix = sourceUrl.substring('github_release:'.length);
+          final atIndex = withoutPrefix.indexOf('@');
+          final repo =
+              atIndex >= 0 ? withoutPrefix.substring(0, atIndex) : withoutPrefix;
+
+          _log.info('Updating user-installed skin "$skinId" from GitHub release: $repo');
+          await _installFromGitHubRelease(repo, null, false);
+        } else if (sourceUrl.startsWith('http')) {
+          _log.info('Updating user-installed skin "$skinId" from URL: $sourceUrl');
+          await _installFromUrlAsRemoteBundled(sourceUrl);
+        } else {
+          _log.fine('Skipping skin "$skinId" with unsupported source type: $sourceUrl');
+        }
+      } catch (e, st) {
+        _log.warning('Failed to update skin "$skinId" from $sourceUrl', e, st);
+      }
+    }
+
+    _log.info('Finished update check for all skins');
+  }
+
   /// Install from GitHub Release using GitHub API
   /// Supports semantic versioning and proper release tracking
   Future<void> _installFromGitHubRelease(
