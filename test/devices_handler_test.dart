@@ -6,18 +6,22 @@ import 'package:reaprime/src/models/device/device.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import 'package:shelf_plus/shelf_plus.dart';
+import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
 
 import 'helpers/mock_device_discovery_service.dart';
+import 'helpers/mock_settings_service.dart';
 import 'helpers/test_scale.dart';
 
 void main() {
   late DeviceController deviceController;
   late De1Controller de1Controller;
   late ScaleController scaleController;
+  late ConnectionManager connectionManager;
   late MockDeviceDiscoveryService mockDiscovery;
   late DevicesHandler devicesHandler;
   late Handler handler;
@@ -30,10 +34,21 @@ void main() {
     de1Controller = De1Controller(controller: deviceController);
     scaleController = ScaleController();
 
+    final settingsController = SettingsController(MockSettingsService());
+    await settingsController.loadSettings();
+
+    connectionManager = ConnectionManager(
+      deviceController: deviceController,
+      de1Controller: de1Controller,
+      scaleController: scaleController,
+      settingsController: settingsController,
+    );
+
     devicesHandler = DevicesHandler(
       controller: deviceController,
       de1Controller: de1Controller,
       scaleController: scaleController,
+      connectionManager: connectionManager,
     );
 
     final app = Router().plus;
@@ -43,6 +58,7 @@ void main() {
 
   tearDown(() {
     devicesHandler.dispose();
+    connectionManager.dispose();
     deviceController.dispose();
   });
 
@@ -270,6 +286,9 @@ void main() {
 
   group('DevicesStateAggregator', () {
     late DeviceController deviceController;
+    late De1Controller de1Controller;
+    late ScaleController scaleController;
+    late ConnectionManager connectionManager;
     late MockDeviceDiscoveryService mockDiscovery;
     late DevicesStateAggregator aggregator;
 
@@ -278,13 +297,28 @@ void main() {
       deviceController = DeviceController([mockDiscovery]);
       await deviceController.initialize();
 
+      de1Controller = De1Controller(controller: deviceController);
+      scaleController = ScaleController();
+
+      final settingsController = SettingsController(MockSettingsService());
+      await settingsController.loadSettings();
+
+      connectionManager = ConnectionManager(
+        deviceController: deviceController,
+        de1Controller: de1Controller,
+        scaleController: scaleController,
+        settingsController: settingsController,
+      );
+
       aggregator = DevicesStateAggregator(
         controller: deviceController,
+        connectionManager: connectionManager,
       );
     });
 
     tearDown(() {
       aggregator.dispose();
+      connectionManager.dispose();
       deviceController.dispose();
     });
 

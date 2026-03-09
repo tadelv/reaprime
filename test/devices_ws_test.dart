@@ -6,19 +6,23 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 import 'package:shelf/shelf_io.dart' as io;
 import 'package:web_socket_channel/io.dart';
+import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
 
 import 'helpers/mock_device_discovery_service.dart';
+import 'helpers/mock_settings_service.dart';
 import 'helpers/test_scale.dart';
 
 void main() {
   late DeviceController deviceController;
   late De1Controller de1Controller;
   late ScaleController scaleController;
+  late ConnectionManager connectionManager;
   late MockDeviceDiscoveryService mockDiscovery;
   late DevicesHandler devicesHandler;
   late HttpServer server;
@@ -32,10 +36,21 @@ void main() {
     de1Controller = De1Controller(controller: deviceController);
     scaleController = ScaleController();
 
+    final settingsController = SettingsController(MockSettingsService());
+    await settingsController.loadSettings();
+
+    connectionManager = ConnectionManager(
+      deviceController: deviceController,
+      de1Controller: de1Controller,
+      scaleController: scaleController,
+      settingsController: settingsController,
+    );
+
     devicesHandler = DevicesHandler(
       controller: deviceController,
       de1Controller: de1Controller,
       scaleController: scaleController,
+      connectionManager: connectionManager,
     );
 
     final app = Router().plus;
@@ -48,6 +63,7 @@ void main() {
   tearDown(() async {
     await server.close(force: true);
     devicesHandler.dispose();
+    connectionManager.dispose();
     deviceController.dispose();
   });
 
