@@ -68,7 +68,8 @@ class DeviceDiscoveryView extends StatefulWidget {
 
 class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
   late StreamSubscription<ConnectionStatus> _statusSubscription;
-  ConnectionStatus _status = const ConnectionStatus();
+  ConnectionStatus _status =
+      const ConnectionStatus(phase: ConnectionPhase.scanning);
   bool _navigated = false;
 
   @override
