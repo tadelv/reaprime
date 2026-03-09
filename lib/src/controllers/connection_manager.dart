@@ -173,8 +173,11 @@ class ConnectionManager {
     // Run full unfiltered scan
     deviceController.scanForDevices();
 
-    // Wait for scan to complete (scanningStream emits false)
-    await deviceController.scanningStream.firstWhere((scanning) => !scanning);
+    // Ensure we observe the scan starting before waiting for it to end.
+    // scanForDevices() synchronously emits true, but guard against future
+    // changes that might add an await before the emission.
+    await deviceController.scanningStream.firstWhere((s) => s);
+    await deviceController.scanningStream.firstWhere((s) => !s);
     sub.cancel();
 
     // Wait for early machine connection to finish if one was started
@@ -247,6 +250,27 @@ class ConnectionManager {
     }
   }
 
+  /// Scan for scales only and apply scale preference policy.
+  /// Use this when the machine is already connected and only a scale
+  /// reconnect is needed (e.g., after machine wakes from sleep).
+  Future<void> scanAndConnectScale() async {
+    _log.fine('scanAndConnectScale: scanning for scales only');
+
+    deviceController.scanForDevices();
+    await deviceController.scanningStream.firstWhere((s) => s);
+    await deviceController.scanningStream.firstWhere((s) => !s);
+
+    final scales = deviceController.devices.whereType<Scale>().toList();
+    _log.fine('scanAndConnectScale: found ${scales.length} scales');
+
+    // Update found scales in status
+    _statusSubject.add(
+      currentStatus.copyWith(foundScales: scales),
+    );
+
+    await _connectScalePhase(scales);
+  }
+
   /// Apply scale preference policy after machine connects.
   Future<void> _connectScalePhase(List<Scale> scales) async {
     if (_scaleConnected) {
@@ -300,6 +324,7 @@ class ConnectionManager {
     _statusSubject.add(
       currentStatus.copyWith(
         phase: ConnectionPhase.connectingMachine,
+        pendingAmbiguity: () => null,
         error: () => null,
       ),
     );
@@ -333,6 +358,7 @@ class ConnectionManager {
     _statusSubject.add(
       currentStatus.copyWith(
         phase: ConnectionPhase.connectingScale,
+        pendingAmbiguity: () => null,
         error: () => null,
       ),
     );

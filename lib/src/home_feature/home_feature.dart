@@ -38,7 +38,7 @@ class HomeScreen extends StatefulWidget {
     required this.webUIStorage,
     this.beanStorage,
     this.grinderStorage,
-    this.connectionManager,
+    required this.connectionManager,
   });
 
   final DeviceController deviceController;
@@ -51,7 +51,7 @@ class HomeScreen extends StatefulWidget {
   final WebUIStorage webUIStorage;
   final BeanStorageService? beanStorage;
   final GrinderStorageService? grinderStorage;
-  final ConnectionManager? connectionManager;
+  final ConnectionManager connectionManager;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -197,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       child: ShadCard(
         child: SettingsTile(
           controller: widget.de1controller,
-          connectionManager: widget.connectionManager!,
+          connectionManager: widget.connectionManager,
         ),
       ),
     );
@@ -215,7 +215,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               controller: widget.de1controller,
               scaleController: widget.scaleController,
               deviceController: widget.deviceController,
-              connectionManager: widget.connectionManager!,
+              connectionManager: widget.connectionManager,
               workflowController: widget.workflowController,
             ),
           );

@@ -101,7 +101,7 @@ Future<void> startWebServer(
   DisplayController? displayController, {
   BeanStorageService? beanStorage,
   GrinderStorageService? grinderStorage,
-  ConnectionManager? connectionManager,
+  required ConnectionManager connectionManager,
 }) async {
   log.info("starting webserver");
   final de1Handler = De1Handler(controller: de1Controller);
