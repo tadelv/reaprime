@@ -123,6 +123,13 @@ class ConnectionManager {
       foundScales: scales,
     ));
 
+    // If machine is already connected, skip straight to scale phase
+    if (_machineConnected) {
+      _log.fine('Machine already connected, skipping to scale phase');
+      await _connectScalePhase(scales);
+      return;
+    }
+
     // Apply machine preference policy
     final preferredMachineId = settingsController.preferredMachineId;
 

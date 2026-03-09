@@ -326,10 +326,11 @@ class _StatusTileState extends State<StatusTile> {
         width: 110,
         child: GestureDetector(
           onTap: () async {
-            if (_weightSnapshot == null) {
-              _isFindingScale = true;
+            if (widget.scaleController.currentConnectionState !=
+                device.ConnectionState.connected) {
+              setState(() => _isFindingScale = true);
               await widget.connectionManager.connect();
-              _isFindingScale = false;
+              if (mounted) setState(() => _isFindingScale = false);
               if (!context.mounted) return;
               final status = widget.connectionManager.currentStatus;
               if (status.pendingAmbiguity == AmbiguityReason.scalePicker) {

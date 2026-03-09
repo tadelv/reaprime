@@ -3469,16 +3469,3 @@ Once your skin is ready for public use:
 - Uses HTTP headers for efficient version detection
 
 For questions or issues, open an issue on the [Streamline-Bridge GitHub repository](https://github.com/tadelv/reaprime).
-
-
-
-
-
-
-
-
-
-
-
-
-

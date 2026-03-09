@@ -149,6 +149,21 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
 
     _isScanning = true;
 
+    // Remove disconnected devices so re-discovered ones get fresh objects
+    final toRemove = <Device>[];
+    for (final device in _devices) {
+      final state = await device.connectionState.first
+          .timeout(const Duration(seconds: 2),
+              onTimeout: () => ConnectionState.disconnected);
+      if (state != ConnectionState.connected) {
+        toRemove.add(device);
+      }
+    }
+    for (final device in toRemove) {
+      _devices.remove(device);
+      _devicesBeingCreated.remove(device.deviceId);
+    }
+
     try {
       var subscription = FlutterBluePlus.onScanResults.listen((results) {
         if (results.isEmpty) return;
