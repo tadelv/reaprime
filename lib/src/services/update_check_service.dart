@@ -5,12 +5,14 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/services/android_updater.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
+import 'package:reaprime/src/webui_support/webui_storage.dart';
 
 /// Service for periodically checking for app updates
 class UpdateCheckService {
   final Logger _log = Logger('UpdateCheckService');
   final SettingsService _settingsService;
   final AndroidUpdater _updater;
+  final WebUIStorage? _webUIStorage;
 
   Timer? _periodicTimer;
   UpdateInfo? _availableUpdate;
@@ -20,8 +22,10 @@ class UpdateCheckService {
   UpdateCheckService({
     required SettingsService settingsService,
     AndroidUpdater? updater,
+    WebUIStorage? webUIStorage,
   })  : _settingsService = settingsService,
-        _updater = updater ?? AndroidUpdater(owner: 'tadelv', repo: 'reaprime');
+        _updater = updater ?? AndroidUpdater(owner: 'tadelv', repo: 'reaprime'),
+        _webUIStorage = webUIStorage;
 
   /// Get the currently available update, if any
   UpdateInfo? get availableUpdate => _availableUpdate;
@@ -45,12 +49,14 @@ class UpdateCheckService {
     final lastCheck = await _settingsService.lastUpdateCheckTime();
     if (lastCheck == null || DateTime.now().difference(lastCheck) > _checkInterval) {
       await checkForUpdate();
+      await _updateSkins();
     }
 
     // Schedule periodic checks
     _periodicTimer?.cancel();
     _periodicTimer = Timer.periodic(_checkInterval, (_) async {
       await checkForUpdate();
+      await _updateSkins();
     });
   }
 
@@ -59,6 +65,18 @@ class UpdateCheckService {
     _log.info('Stopping periodic update checks');
     _periodicTimer?.cancel();
     _periodicTimer = null;
+  }
+
+  /// Update all skins with known sources
+  Future<void> _updateSkins() async {
+    if (_webUIStorage == null) return;
+    try {
+      _log.info('Updating skins...');
+      await _webUIStorage.updateAllSkins();
+      _log.info('Skin update complete');
+    } catch (e, st) {
+      _log.warning('Error updating skins', e, st);
+    }
   }
 
   /// Manually check for updates
