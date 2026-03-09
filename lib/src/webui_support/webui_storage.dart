@@ -505,7 +505,7 @@ class WebUIStorage {
           await _installFromGitHubRelease(repo, null, false);
         } else if (sourceUrl.startsWith('http')) {
           _log.info('Updating user-installed skin "$skinId" from URL: $sourceUrl');
-          await _installFromUrlAsRemoteBundled(sourceUrl);
+          await _installFromUrlAsRemoteBundled(sourceUrl, markAsRemoteBundled: false);
         } else {
           _log.fine('Skipping skin "$skinId" with unsupported source type: $sourceUrl');
         }
@@ -648,7 +648,7 @@ class WebUIStorage {
 
   /// Internal method to install from URL and mark as remote bundled
   /// Includes version checking via HTTP headers (ETag, Last-Modified)
-  Future<void> _installFromUrlAsRemoteBundled(String url) async {
+  Future<void> _installFromUrlAsRemoteBundled(String url, {bool markAsRemoteBundled = true}) async {
     try {
       // First, do a HEAD request to check version without downloading
       final headResponse = await http.head(Uri.parse(url));
@@ -719,10 +719,12 @@ class WebUIStorage {
         }
       }
 
-      // Mark this skin as remote bundled
-      _remoteBundledSkinIds.add(installedSkinId);
-      await _saveRemoteBundledSkinIds();
-      
+      // Mark this skin as remote bundled (skip for user-installed skins being updated)
+      if (markAsRemoteBundled) {
+        _remoteBundledSkinIds.add(installedSkinId);
+        await _saveRemoteBundledSkinIds();
+      }
+
       // Store REA metadata
       _skinMetadata[installedSkinId] = WebUIReaMetadata(
         skinId: installedSkinId,
