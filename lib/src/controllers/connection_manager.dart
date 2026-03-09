@@ -15,10 +15,7 @@ enum ConnectionPhase {
   ready,
 }
 
-enum AmbiguityReason {
-  machinePicker,
-  scalePicker,
-}
+enum AmbiguityReason { machinePicker, scalePicker }
 
 class ConnectionStatus {
   final ConnectionPhase phase;
@@ -71,6 +68,7 @@ class ConnectionManager {
   bool _isConnectingMachine = false;
   bool _isConnectingScale = false;
   bool _machineConnected = false;
+  bool _scaleConnected = false;
 
   ConnectionManager({
     required this.deviceController,
@@ -97,17 +95,73 @@ class ConnectionManager {
 
   Future<void> _connectImpl() async {
     // Emit scanning phase
-    _statusSubject.add(currentStatus.copyWith(
-      phase: ConnectionPhase.scanning,
-      error: () => null,
-      pendingAmbiguity: () => null,
-    ));
+    _statusSubject.add(
+      currentStatus.copyWith(
+        phase: ConnectionPhase.scanning,
+        error: () => null,
+        pendingAmbiguity: () => null,
+      ),
+    );
+
+    final preferredMachineId = settingsController.preferredMachineId;
+    final preferredScaleId = settingsController.preferredScaleId;
+
+    // Watch device stream during scan — connect preferred devices immediately
+    // as they appear, rather than waiting for the full scan to complete.
+    Future<void>? earlyMachineConnect;
+    Future<void>? earlyScaleConnect;
+    final sub = deviceController.deviceStream.listen((devices) {
+      if (preferredMachineId != null &&
+          !(_machineConnected || earlyMachineConnect != null)) {
+        final match =
+            devices
+                .whereType<De1Interface>()
+                .where((m) => m.deviceId == preferredMachineId)
+                .firstOrNull;
+        if (match != null) {
+          _log.fine('Preferred machine found during scan, connecting early');
+          earlyMachineConnect = connectMachine(match);
+        }
+      }
+
+      if (preferredScaleId != null) {
+        if (_scaleConnected || earlyScaleConnect != null) {
+          return;
+        }
+
+        final match =
+            devices
+                .whereType<Scale>()
+                .where((m) => m.deviceId == preferredScaleId)
+                .firstOrNull;
+        if (match != null) {
+          _log.fine('Preferred machine found during scan, connecting early');
+          earlyScaleConnect = connectScale(match);
+        }
+      }
+    });
 
     // Run full unfiltered scan
     deviceController.scanForDevices();
 
     // Wait for scan to complete (scanningStream emits false)
     await deviceController.scanningStream.firstWhere((scanning) => !scanning);
+    sub.cancel();
+
+    // Wait for early machine connection to finish if one was started
+    if (earlyMachineConnect != null) {
+      try {
+        await earlyMachineConnect;
+      } catch (_) {
+        // connectMachine already handled the error and updated status
+      }
+    }
+
+    if (earlyScaleConnect != null) {
+      try {
+        await earlyScaleConnect;
+      } catch (_) {}
+    }
 
     // Collect found devices
     final allDevices = deviceController.devices;
@@ -115,62 +169,51 @@ class ConnectionManager {
     final scales = allDevices.whereType<Scale>().toList();
 
     _log.fine(
-        'Scan complete: ${machines.length} machines, ${scales.length} scales');
+      'Scan complete: ${machines.length} machines, ${scales.length} scales',
+    );
 
     // Store found devices in status for UI pickers
-    _statusSubject.add(currentStatus.copyWith(
-      foundMachines: machines,
-      foundScales: scales,
-    ));
+    _statusSubject.add(
+      currentStatus.copyWith(foundMachines: machines, foundScales: scales),
+    );
 
-    // If machine is already connected, skip straight to scale phase
+    // If machine is already connected (either from before or early connect),
+    // skip straight to scale phase
     if (_machineConnected) {
-      _log.fine('Machine already connected, skipping to scale phase');
+      _log.fine('Machine connected, proceeding to scale phase');
       await _connectScalePhase(scales);
       return;
     }
 
-    // Apply machine preference policy
-    final preferredMachineId = settingsController.preferredMachineId;
-
+    // Apply machine preference policy for remaining cases
     if (preferredMachineId != null) {
-      // Preferred machine is set
-      final preferred = machines
-          .where((m) => m.deviceId == preferredMachineId)
-          .toList();
-
-      if (preferred.isNotEmpty) {
-        // Found preferred machine — connect directly
-        await connectMachine(preferred.first);
-        await _connectScalePhase(scales);
-      } else if (machines.isNotEmpty) {
-        // Preferred not found but others available — picker
-        _statusSubject.add(currentStatus.copyWith(
-          phase: ConnectionPhase.idle,
-          pendingAmbiguity: () => AmbiguityReason.machinePicker,
-        ));
+      // Preferred was set but not found during scan
+      if (machines.isNotEmpty) {
+        _statusSubject.add(
+          currentStatus.copyWith(
+            phase: ConnectionPhase.idle,
+            pendingAmbiguity: () => AmbiguityReason.machinePicker,
+          ),
+        );
       } else {
-        // No machines at all
-        _statusSubject.add(currentStatus.copyWith(
-          phase: ConnectionPhase.idle,
-        ));
+        _statusSubject.add(currentStatus.copyWith(phase: ConnectionPhase.idle));
       }
     } else {
       // No preferred machine set
       if (machines.isEmpty) {
-        _statusSubject.add(currentStatus.copyWith(
-          phase: ConnectionPhase.idle,
-        ));
+        _statusSubject.add(currentStatus.copyWith(phase: ConnectionPhase.idle));
       } else if (machines.length == 1) {
         // Exactly one machine — auto-connect
         await connectMachine(machines.first);
         await _connectScalePhase(scales);
       } else {
         // Multiple machines — picker
-        _statusSubject.add(currentStatus.copyWith(
-          phase: ConnectionPhase.idle,
-          pendingAmbiguity: () => AmbiguityReason.machinePicker,
-        ));
+        _statusSubject.add(
+          currentStatus.copyWith(
+            phase: ConnectionPhase.idle,
+            pendingAmbiguity: () => AmbiguityReason.machinePicker,
+          ),
+        );
       }
     }
   }
@@ -190,9 +233,11 @@ class ConnectionManager {
       } else if (scales.isNotEmpty) {
         // Preferred not found but others available — picker
         _log.fine('Scale phase: preferred not found, showing picker');
-        _statusSubject.add(currentStatus.copyWith(
-          pendingAmbiguity: () => AmbiguityReason.scalePicker,
-        ));
+        _statusSubject.add(
+          currentStatus.copyWith(
+            pendingAmbiguity: () => AmbiguityReason.scalePicker,
+          ),
+        );
       }
     } else {
       // No preferred scale set
@@ -200,9 +245,11 @@ class ConnectionManager {
         await connectScale(scales.first);
       } else if (scales.length > 1) {
         // Multiple scales — picker
-        _statusSubject.add(currentStatus.copyWith(
-          pendingAmbiguity: () => AmbiguityReason.scalePicker,
-        ));
+        _statusSubject.add(
+          currentStatus.copyWith(
+            pendingAmbiguity: () => AmbiguityReason.scalePicker,
+          ),
+        );
       }
     }
   }
@@ -213,12 +260,16 @@ class ConnectionManager {
       return;
     }
     _isConnectingMachine = true;
-    _log.fine('connectMachine: connecting to ${machine.name} (${machine.deviceId})');
+    _log.fine(
+      'connectMachine: connecting to ${machine.name} (${machine.deviceId})',
+    );
 
-    _statusSubject.add(currentStatus.copyWith(
-      phase: ConnectionPhase.connectingMachine,
-      error: () => null,
-    ));
+    _statusSubject.add(
+      currentStatus.copyWith(
+        phase: ConnectionPhase.connectingMachine,
+        error: () => null,
+      ),
+    );
 
     try {
       await de1Controller.connectToDe1(machine);
@@ -226,10 +277,12 @@ class ConnectionManager {
       _machineConnected = true;
       _statusSubject.add(currentStatus.copyWith(phase: ConnectionPhase.ready));
     } catch (e) {
-      _statusSubject.add(currentStatus.copyWith(
-        phase: ConnectionPhase.idle,
-        error: () => e.toString(),
-      ));
+      _statusSubject.add(
+        currentStatus.copyWith(
+          phase: ConnectionPhase.idle,
+          error: () => e.toString(),
+        ),
+      );
       rethrow;
     } finally {
       _isConnectingMachine = false;
@@ -244,21 +297,27 @@ class ConnectionManager {
     _isConnectingScale = true;
     _log.fine('connectScale: connecting to ${scale.name} (${scale.deviceId})');
 
-    _statusSubject.add(currentStatus.copyWith(
-      phase: ConnectionPhase.connectingScale,
-      error: () => null,
-    ));
+    _statusSubject.add(
+      currentStatus.copyWith(
+        phase: ConnectionPhase.connectingScale,
+        error: () => null,
+      ),
+    );
 
     try {
       await scaleController.connectToScale(scale);
       await settingsController.setPreferredScaleId(scale.deviceId);
+      _scaleConnected = true;
       _statusSubject.add(currentStatus.copyWith(phase: ConnectionPhase.ready));
     } catch (e) {
       // Scale failure is non-blocking — stay at ready if machine connected, else idle
-      _statusSubject.add(currentStatus.copyWith(
-        phase: _machineConnected ? ConnectionPhase.ready : ConnectionPhase.idle,
-        error: () => null,
-      ));
+      _statusSubject.add(
+        currentStatus.copyWith(
+          phase:
+              _machineConnected ? ConnectionPhase.ready : ConnectionPhase.idle,
+          error: () => null,
+        ),
+      );
     } finally {
       _isConnectingScale = false;
     }
