@@ -144,9 +144,11 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
             mainAxisAlignment: MainAxisAlignment.start,
             children: <Widget>[
               _steamStats(context),
-              ShotChart(
-                shotSnapshots: _steamSnapshots,
-                shotStartTime: _steamStartTime ?? DateTime.now(),
+              Flexible(
+                child: ShotChart(
+                  shotSnapshots: _steamSnapshots,
+                  shotStartTime: _steamStartTime ?? DateTime.now(),
+                ),
               ),
               Row(
                 spacing: 16.0,
