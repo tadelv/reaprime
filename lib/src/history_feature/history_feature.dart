@@ -747,10 +747,13 @@ class _HistoryFeatureState extends State<HistoryFeature> {
               ),
             ),
             SizedBox(height: 12),
-            ShotChart(
-              key: ValueKey(record.id),
-              shotSnapshots: record.measurements,
-              shotStartTime: record.timestamp,
+            SizedBox(
+              height: 500,
+              child: ShotChart(
+                key: ValueKey(record.id),
+                shotSnapshots: record.measurements,
+                shotStartTime: record.timestamp,
+              ),
             ),
             
             SizedBox(height: 16),

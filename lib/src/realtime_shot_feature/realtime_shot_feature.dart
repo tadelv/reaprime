@@ -80,9 +80,11 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
             mainAxisAlignment: MainAxisAlignment.start,
             children: <Widget>[
               _shotStats(context),
-              ShotChart(
-                shotSnapshots: _shotSnapshots,
-                shotStartTime: _shotController.shotStartTime,
+              Flexible(
+                child: ShotChart(
+                  shotSnapshots: _shotSnapshots,
+                  shotStartTime: _shotController.shotStartTime,
+                ),
               ),
               _buttons(context),
             ],
