@@ -327,6 +327,7 @@ class _MyAppState extends State<MyApp> {
                       return SkinView(
                         settingsController: widget.settingsController,
                         webViewLogService: widget.webViewLogService,
+                        deviceIp: widget.webUIService.deviceIp(),
                       );
                     default:
                       return PermissionsView(
