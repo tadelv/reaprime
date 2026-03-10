@@ -73,19 +73,20 @@ Future<void> _setSystemInfoKeys(TelemetryService telemetryService) async {
 
     // Set platform info
     await telemetryService.setCustomKey('os_name', Platform.operatingSystem);
-    await telemetryService.setCustomKey('os_version', Platform.operatingSystemVersion);
+    await telemetryService.setCustomKey(
+      'os_version',
+      Platform.operatingSystemVersion,
+    );
     await telemetryService.setCustomKey('app_version', BuildInfo.commitShort);
 
     // Set device model (platform-adaptive field names)
-    final deviceModel = deviceData['model'] ??
-                       deviceData['computerName'] ??
-                       'unknown';
+    final deviceModel =
+        deviceData['model'] ?? deviceData['computerName'] ?? 'unknown';
     await telemetryService.setCustomKey('device_model', deviceModel);
 
     // Set device brand (platform-adaptive field names)
-    final deviceBrand = deviceData['brand'] ??
-                       deviceData['hostName'] ??
-                       'unknown';
+    final deviceBrand =
+        deviceData['brand'] ?? deviceData['hostName'] ?? 'unknown';
     await telemetryService.setCustomKey('device_brand', deviceBrand);
   } catch (e, st) {
     final log = Logger('Main');
@@ -131,9 +132,10 @@ void main() async {
   ).attachToLogger(Logger.root);
 
   // Initialize WebView console log service (separate from app logs)
-  final webViewLogDir = Platform.isAndroid
-      ? '/storage/emulated/0/Download/REA1'
-      : (await getApplicationDocumentsDirectory()).path;
+  final webViewLogDir =
+      Platform.isAndroid
+          ? '/storage/emulated/0/Download/REA1'
+          : (await getApplicationDocumentsDirectory()).path;
   final webViewLogService = WebViewLogService(logDirectoryPath: webViewLogDir);
   await webViewLogService.initialize();
 
@@ -144,7 +146,8 @@ void main() async {
   );
 
   // Initialize Firebase on supported platforms (not Linux/Windows, not debug, not simulate)
-  final isDebugOrSimulate = kDebugMode || const String.fromEnvironment("simulate") == "1";
+  final isDebugOrSimulate =
+      kDebugMode || const String.fromEnvironment("simulate") == "1";
   if (!Platform.isLinux && !Platform.isWindows && !isDebugOrSimulate) {
     try {
       await Firebase.initializeApp(
@@ -175,7 +178,7 @@ void main() async {
   Logger.root.onRecord.listen((record) {
     if (record.level >= Level.WARNING) {
       final scrubbed = Anonymization.scrubString(
-        '${record.level.name}: ${record.loggerName}: ${record.message}'
+        '${record.level.name}: ${record.loggerName}: ${record.message}',
       );
       logBuffer.append(scrubbed);
 
@@ -234,7 +237,9 @@ void main() async {
     log.warning("loading default workflow failed", e);
   }
 
-  final settingsController = SettingsController(SharedPreferencesSettingsService());
+  final settingsController = SettingsController(
+    SharedPreferencesSettingsService(),
+  );
   settingsController.telemetryService = telemetryService;
 
   // Initialize profile storage and controller
@@ -318,7 +323,8 @@ void main() async {
   // This prevents a sudden theme change when the app is first displayed.
   settingsController.addListener(() {
     simulatedDevicesService.simulationEnabled =
-        settingsController.simulatedDevices || (const String.fromEnvironment("simulate") == "1");
+        settingsController.simulatedDevices ||
+        (const String.fromEnvironment("simulate") == "1");
   });
   await settingsController.loadSettings();
 
@@ -346,7 +352,9 @@ void main() async {
     settingsService: SharedPreferencesSettingsService(),
     webUIStorage: webUIStorage,
   );
-  await updateCheckService.initialize();
+  Future.delayed(Duration(minutes: 10), () async {
+    await updateCheckService.initialize();
+  });
 
   // Add lifecycle observer for all platforms (for update notifications)
   WidgetsBinding.instance.addObserver(
