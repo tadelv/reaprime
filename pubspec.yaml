@@ -31,7 +31,7 @@ dependencies:
   screen_brightness: ^2.1.7
   collection: ^1.19.0
   shelf_plus: ^1.11.0
-  shadcn_ui: ^0.46.0
+  shadcn_ui: ^0.50.0
   file_picker: ^10.3.8
   fl_chart: ^1.0.0
   flutter_launcher_icons: ^0.14.3
@@ -84,6 +84,7 @@ dependencies:
   drift: ^2.24.0
   drift_flutter: ^0.2.4
   sqlite3_flutter_libs: ^0.5.0
+  pretty_qr_code: ^3.6.0
   # path: ../flutter_libserialport
   # git:
   #   url: https://github.com/tadelv/flutter_libserialport.git

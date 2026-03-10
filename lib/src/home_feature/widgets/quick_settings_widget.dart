@@ -10,8 +10,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:reaprime/src/skin_feature/skin_view.dart';
-import 'package:reaprime/src/settings/gateway_mode_info_dialog.dart';
-import 'package:reaprime/src/settings/gateway_mode.dart';
+import 'package:pretty_qr_code/pretty_qr_code.dart';
 
 class QuickSettingsWidget extends StatefulWidget {
   final WebUIService webUIService;
@@ -29,6 +28,46 @@ class QuickSettingsWidget extends StatefulWidget {
   @override
   State<StatefulWidget> createState() {
     return _QuickSettingsState();
+  }
+
+  static void showQRCodeDialog(BuildContext context, String deviceIp) {
+    showShadDialog(
+      context: context,
+      builder:
+          (context) => ShadDialog(
+            title: Text("Scan QR code to visit with your device"),
+            actions: [
+              ShadButton(
+                child: Text("Close"),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+            description: const Text(
+              "This will open WebUI in the browser on your device",
+            ),
+
+            child: Center(
+              child: SizedBox(
+                height: 220,
+                // width: 220,
+                child: PrettyQrView.data(
+                  data: 'http://$deviceIp:3000',
+                  decoration: const PrettyQrDecoration(
+                    quietZone: PrettyQrQuietZone.standard,
+                    shape: PrettyQrSquaresSymbol(unifiedFinderPattern: true),
+                    // shape: PrettyQrShape.custom(
+                    //   PrettyQrSquaresSymbol(),
+                    //   finderPattern: PrettyQrSmoothSymbol(),
+                    //   alignmentPatterns: PrettyQrDotsSymbol(),
+                    // ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+    );
   }
 }
 
@@ -48,47 +87,13 @@ class _QuickSettingsState extends State<QuickSettingsWidget> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 8.0,
+          spacing: 16.0,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Flexible(child: Text("IP Address:")),
                 Flexible(child: Text(widget.webUIService.deviceIp() + ":3000")),
-              ],
-            ),
-            Row(
-              children: [
-                Expanded(child: Text("Gateway mode")),
-                IconButton(
-                  icon: const Icon(Icons.info_outline),
-                  iconSize: 20,
-                  onPressed: () => showGatewayModeInfoDialog(context),
-                  tooltip: 'Learn more about Gateway mode',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ],
-            ),
-            DropdownButton<GatewayMode>(
-              isDense: true,
-              isExpanded: true,
-              value: widget.settingsController.gatewayMode,
-              onChanged: (v) {
-                if (v != null) {
-                  widget.settingsController.updateGatewayMode(v);
-                }
-              },
-              items: const [
-                DropdownMenuItem(value: GatewayMode.full, child: Text('Full')),
-                DropdownMenuItem(
-                  value: GatewayMode.tracking,
-                  child: Text('Tracking'),
-                ),
-                DropdownMenuItem(
-                  value: GatewayMode.disabled,
-                  child: Text('Disabled'),
-                ),
               ],
             ),
             _buildWebUIControl(context),
@@ -159,29 +164,48 @@ class _QuickSettingsState extends State<QuickSettingsWidget> {
         // Show status when serving, or start button when not serving
         if (widget.webUIService.isServing) {
           final skinName = widget.webUIService.serverPath().split('/').last;
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          return Column(
+            spacing: 8.0,
             children: [
-              Flexible(child: Text("WebUI loaded:")),
-              Flexible(
-                child: ShadButton(
-                  child: Text(
-                    "Go to $skinName",
-                    overflow: TextOverflow.ellipsis,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(child: Text("WebUI:")),
+                  Flexible(child: Text(skinName)),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(
+                    child: ShadButton(
+                      child: Text("Open", overflow: TextOverflow.ellipsis),
+                      onPressed: () async {
+                        // On supported platforms (iOS, Android, macOS), use in-app WebView
+                        if (Platform.isIOS ||
+                            Platform.isAndroid ||
+                            Platform.isMacOS) {
+                          Navigator.of(context).pushNamed(SkinView.routeName);
+                        } else {
+                          // On other platforms, open in external browser
+                          final url = Uri.parse('http://localhost:3000');
+                          await launchUrl(url);
+                        }
+                      },
+                    ),
                   ),
-                  onPressed: () async {
-                    // On supported platforms (iOS, Android, macOS), use in-app WebView
-                    if (Platform.isIOS ||
-                        Platform.isAndroid ||
-                        Platform.isMacOS) {
-                      Navigator.of(context).pushNamed(SkinView.routeName);
-                    } else {
-                      // On other platforms, open in external browser
-                      final url = Uri.parse('http://localhost:3000');
-                      await launchUrl(url);
-                    }
-                  },
-                ),
+                  Flexible(
+                    child: ShadIconButton(
+                      icon: const Icon(Icons.qr_code),
+                      onPressed: () async {
+                        QuickSettingsWidget.showQRCodeDialog(
+                          context,
+                          widget.webUIService.deviceIp(),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
             ],
           );

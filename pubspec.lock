@@ -1152,6 +1152,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.5.0"
+  pretty_qr_code:
+    dependency: "direct main"
+    description:
+      name: pretty_qr_code
+      sha256: "474f8a4512113fba06f14a6ec9bbf42353b4e651d7a520e3096f2a9b6bbe7a8a"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.6.0"
   pub_semver:
     dependency: transitive
     description:
@@ -1168,6 +1176,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.5.0"
+  qr:
+    dependency: transitive
+    description:
+      name: qr
+      sha256: "5a1d2586170e172b8a8c8470bbbffd5eb0cd38a66c0d77155ea138d3af3a4445"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.0.2"
   recase:
     dependency: transitive
     description:
@@ -1284,10 +1300,10 @@ packages:
     dependency: "direct main"
     description:
       name: shadcn_ui
-      sha256: "60f5df5034f5280eadea244773fe456ebf6cb8508708f84e2dd95c4f655ec152"
+      sha256: f852d1eb88735a8e7379bbb3fdde695338d53fb6fa315c757f4004eb30f95076
       url: "https://pub.dev"
     source: hosted
-    version: "0.46.4"
+    version: "0.50.2"
   shared_preferences:
     dependency: "direct main"
     description:
