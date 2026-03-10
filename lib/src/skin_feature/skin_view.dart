@@ -41,7 +41,7 @@ class _SkinViewState extends State<SkinView> {
   CompatibilityResult? _compatibilityResult;
 
   late InAppWebViewSettings _settings;
-  
+
   bool _didShowExit = false;
 
   @override
@@ -140,8 +140,9 @@ class _SkinViewState extends State<SkinView> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = Platform.isMacOS || Platform.isLinux || Platform.isWindows;
-    
+    final isDesktop =
+        Platform.isMacOS || Platform.isLinux || Platform.isWindows;
+
     return Scaffold(
       // No AppBar for fullscreen appearance
       body: SafeArea(
@@ -161,16 +162,28 @@ class _SkinViewState extends State<SkinView> {
 
   Widget _buildPositionedBackButton(BuildContext context) {
     final position = widget.settingsController.skinExitButtonPosition;
-    
+
     return Positioned(
-      top: position == SkinExitButtonPosition.topLeft || 
-            position == SkinExitButtonPosition.topRight ? 16 : null,
-      bottom: position == SkinExitButtonPosition.bottomLeft || 
-              position == SkinExitButtonPosition.bottomRight ? 16 : null,
-      left: position == SkinExitButtonPosition.topLeft || 
-            position == SkinExitButtonPosition.bottomLeft ? 16 : null,
-      right: position == SkinExitButtonPosition.topRight || 
-             position == SkinExitButtonPosition.bottomRight ? 16 : null,
+      top:
+          position == SkinExitButtonPosition.topLeft ||
+                  position == SkinExitButtonPosition.topRight
+              ? 16
+              : null,
+      bottom:
+          position == SkinExitButtonPosition.bottomLeft ||
+                  position == SkinExitButtonPosition.bottomRight
+              ? 16
+              : null,
+      left:
+          position == SkinExitButtonPosition.topLeft ||
+                  position == SkinExitButtonPosition.bottomLeft
+              ? 16
+              : null,
+      right:
+          position == SkinExitButtonPosition.topRight ||
+                  position == SkinExitButtonPosition.bottomRight
+              ? 16
+              : null,
       child: _buildHoverBackButton(context),
     );
   }
@@ -249,12 +262,12 @@ class _SkinViewState extends State<SkinView> {
 
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(8.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           spacing: 8,
           children: [
-            Icon(icon, size: 72, color: iconColor),
+            Icon(icon, size: 48, color: iconColor),
             Text(
               title,
               style: Theme.of(context).textTheme.headlineSmall,
@@ -267,14 +280,12 @@ class _SkinViewState extends State<SkinView> {
             ),
             const SizedBox(height: 8),
             const Divider(),
-            const SizedBox(height: 8),
             Text(
               'You can use an external browser instead:',
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
             ),
-            const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               spacing: 12,
@@ -301,18 +312,32 @@ class _SkinViewState extends State<SkinView> {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-            TextButton(
-              onPressed: () async {
-                _log.info('Retrying compatibility check...');
-                setState(() {
-                  _isCheckingCompatibility = true;
-                  _compatibilityResult = null;
-                });
-                WebViewCompatibilityChecker.clearCache();
-                await _checkCompatibilityAndInit();
-              },
-              child: const Text('Retry Compatibility Check'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              spacing: 12,
+              children: [
+                TextButton(
+                  onPressed: () async {
+                    _log.info('Retrying compatibility check...');
+                    setState(() {
+                      _isCheckingCompatibility = true;
+                      _compatibilityResult = null;
+                    });
+                    WebViewCompatibilityChecker.clearCache();
+                    await _checkCompatibilityAndInit();
+                  },
+                  child: const Text('Retry Compatibility Check'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _compatibilityResult = null;
+                    });
+                    _initializeSettings();
+                  },
+                  child: const Text('Ignore and load anyway'),
+                ),
+              ],
             ),
           ],
         ),
