@@ -93,7 +93,7 @@ class _QuickSettingsState extends State<QuickSettingsWidget> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Flexible(child: Text("IP Address:")),
-                Flexible(child: Text(widget.webUIService.deviceIp() + ":3000")),
+                Flexible(child: Text("${widget.webUIService.deviceIp()}:3000")),
               ],
             ),
             _buildWebUIControl(context),
