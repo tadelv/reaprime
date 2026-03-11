@@ -101,10 +101,8 @@ class ConnectionManager {
 
     // Watch scaleController.connectionState — disconnected resets flag
     _scaleDisconnectSub = scaleController.connectionState.listen((state) {
-      if (state == device.ConnectionState.disconnected && _scaleConnected) {
-        _log.fine('Scale disconnected');
-        _scaleConnected = false;
-      }
+      _scaleConnected = state == device.ConnectionState.connected;
+      _log.fine("scale connection update: $_scaleConnected");
     });
   }
 
@@ -139,9 +137,11 @@ class ConnectionManager {
 
     // Watch device stream during scan — connect preferred devices immediately
     // as they appear, rather than waiting for the full scan to complete.
+    // Skip(1) avoids the BehaviorSubject replay of stale (disconnected) devices;
+    // we only want to react to fresh discoveries from the active scan.
     Future<void>? earlyMachineConnect;
     Future<void>? earlyScaleConnect;
-    final sub = deviceController.deviceStream.listen((devices) {
+    final sub = deviceController.deviceStream.skip(1).listen((devices) {
       if (preferredMachineId != null &&
           !(_machineConnected || earlyMachineConnect != null)) {
         final match =
@@ -267,8 +267,10 @@ class ConnectionManager {
 
     // Watch device stream during scan — connect preferred scale immediately
     // as it appears, rather than waiting for the full scan to complete.
+    // Skip(1) avoids the BehaviorSubject replay of stale (disconnected) devices;
+    // we only want to react to fresh discoveries from the active scan.
     Future<void>? earlyScaleConnect;
-    final sub = deviceController.deviceStream.listen((devices) {
+    final sub = deviceController.deviceStream.skip(1).listen((devices) {
       if (preferredScaleId != null &&
           !(_scaleConnected || earlyScaleConnect != null)) {
         final match =
@@ -416,7 +418,6 @@ class ConnectionManager {
     try {
       await scaleController.connectToScale(scale);
       await settingsController.setPreferredScaleId(scale.deviceId);
-      _scaleConnected = true;
       _statusSubject.add(currentStatus.copyWith(phase: ConnectionPhase.ready));
     } catch (e) {
       // Scale failure is non-blocking — stay at ready if machine connected, else idle
