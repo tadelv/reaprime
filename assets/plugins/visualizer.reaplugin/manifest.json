@@ -3,7 +3,7 @@
   "author": "Decent",
   "name": "Visualizer upload",
   "description": "Uploads the latest shot to Visualizer",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "apiVersion": 1,
   "permissions": [
     "log",
@@ -12,6 +12,11 @@
     "pluginStorage"
   ],
   "settings": {
+    "Enabled": {
+      "type": "boolean",
+      "description": "Enable or disable the Visualizer plugin",
+      "default": true
+    },
     "Username": {
       "type": "string",
       "description": "Visualiser username"
@@ -61,16 +66,12 @@
       }
     },
     {
-      "id": "lastUpload",
+      "id": "import",
       "type": "http",
       "data": {
-        "reaId": {
+        "shareCode": {
           "type": "string",
-          "description": "Last REA shot id"
-        },
-        "visId": {
-          "type": "string",
-          "description": "Last Visualizer uploaded shot id"
+          "description": "4-digit share code from visualizer.coffee"
         }
       }
     }
