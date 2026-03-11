@@ -32,8 +32,9 @@ else
   VERSION="${TAG#v}"
 fi
 
-# --- Build number from commit count (monotonically increasing) ---
-BUILD_NUMBER=$(git rev-list --count HEAD 2>/dev/null || echo "1")
+# --- Build number from commit count on main (monotonically increasing) ---
+# Use origin/main so feature branches don't inflate the version code
+BUILD_NUMBER=$(git rev-list --count origin/main 2>/dev/null || echo "1")
 
 # --- Build name: semver part only (strip pre-release suffix for native platforms) ---
 # e.g. "1.2.3-beta.1" -> build-name "1.2.3", but VERSION dart-define keeps the full string

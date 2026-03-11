@@ -32,7 +32,11 @@ android {
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = 35
-        versionCode = flutter.versionCode
+        // Use git commit count as versionCode so debug and release builds always
+        // share the same monotonically increasing version, preventing downgrade uninstalls.
+        versionCode = providers.exec {
+            commandLine("git", "rev-list", "--count", "origin/main")
+        }.standardOutput.asText.get().trim().toInt()
         versionName = flutter.versionName
     }
 
