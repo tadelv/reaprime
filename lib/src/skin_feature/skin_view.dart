@@ -134,9 +134,16 @@ class _SkinViewState extends State<SkinView> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(instructions),
-        duration: const Duration(seconds: 4),
+        duration: const Duration(seconds: 10),
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(16),
+        showCloseIcon: true,
+        action: SnackBarAction(
+          label: 'Dismiss',
+          onPressed: () {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          },
+        ),
       ),
     );
   }

@@ -405,68 +405,82 @@ class _StatusTileState extends State<StatusTile> {
         if (_machineSnapshot == null)
           Text("Waiting")
         else
-          Row(
-            spacing: 50,
-            children: [
-              SizedBox(
-                width: 100,
-                child: Text("${_machineSnapshot!.state.state.name}"),
-              ),
-              SizedBox(
-                width: boxWidth,
-                child: Row(
-                  children: [
-                    Icon(
-                      LucideIcons.thermometer,
-                      color: Theme.of(context).colorScheme.onSurface,
+          Semantics(
+            label:
+                'Machine status: ${_machineSnapshot!.state.state.name}, '
+                'group temperature ${_machineSnapshot!.groupTemperature.toStringAsFixed(1)} degrees, '
+                'steam temperature ${_machineSnapshot!.steamTemperature} degrees',
+            child: ExcludeSemantics(
+              child: Row(
+                spacing: 50,
+                children: [
+                  SizedBox(
+                    width: 100,
+                    child: Text("${_machineSnapshot!.state.state.name}"),
+                  ),
+                  SizedBox(
+                    width: boxWidth,
+                    child: Row(
+                      children: [
+                        Icon(
+                          LucideIcons.thermometer,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                        Text(
+                          "${_machineSnapshot!.groupTemperature.toStringAsFixed(1)}℃",
+                        ),
+                      ],
                     ),
-                    Text(
-                      "${_machineSnapshot!.groupTemperature.toStringAsFixed(1)}℃",
+                  ),
+                  SizedBox(
+                    width: boxWidth,
+                    child: Row(
+                      children: [
+                        Icon(
+                          LucideIcons.wind,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                        Text("${_machineSnapshot!.steamTemperature}℃"),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              SizedBox(
-                width: boxWidth,
-                child: Row(
-                  children: [
-                    Icon(
-                      LucideIcons.wind,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                    Text("${_machineSnapshot!.steamTemperature}℃"),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
         if (_waterLevels == null)
           Text("Waiting")
         else
-          SizedBox(
-            width: boxWidth,
-            child: GestureDetector(
-              onTap: () {
-                _showWaterLevelsDialog(context, widget.controller);
-              },
-              child: Row(
-                children: [
-                  Icon(
-                    LucideIcons.waves,
-                    color: Theme.of(context).colorScheme.onSurface,
+          Semantics(
+            label:
+                'Water level ${_waterLevels!.currentLevel.toStringAsFixed(1)} millimeters',
+            child: ExcludeSemantics(
+              child: SizedBox(
+                width: boxWidth,
+                child: GestureDetector(
+                  onTap: () {
+                    _showWaterLevelsDialog(context, widget.controller);
+                  },
+                  child: Row(
+                    children: [
+                      Icon(
+                        LucideIcons.waves,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                      Text(
+                        "${_waterLevels!.currentLevel.toStringAsFixed(1)}mm",
+                        style: TextStyle(
+                          color:
+                              _waterLevels!.currentLevel > 10
+                                  ? Theme.of(context).colorScheme.primary
+                                  : _waterLevels!.currentLevel > 5
+                                  ? Theme.of(context).colorScheme.onSurface
+                                  : Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    "${_waterLevels!.currentLevel.toStringAsFixed(1)}mm",
-                    style: TextStyle(
-                      color:
-                          _waterLevels!.currentLevel > 10
-                              ? Theme.of(context).colorScheme.primary
-                              : _waterLevels!.currentLevel > 5
-                              ? Theme.of(context).colorScheme.onSurface
-                              : Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
