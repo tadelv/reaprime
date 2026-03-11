@@ -263,6 +263,28 @@ class ConnectionManager {
 
     _log.fine('scanAndConnectScale: scanning for scales only');
 
+    final preferredScaleId = settingsController.preferredScaleId;
+
+    // Watch device stream during scan — connect preferred scale immediately
+    // as it appears, rather than waiting for the full scan to complete.
+    Future<void>? earlyScaleConnect;
+    final sub = deviceController.deviceStream.listen((devices) {
+      if (preferredScaleId != null &&
+          !(_scaleConnected || earlyScaleConnect != null)) {
+        final match =
+            devices
+                .whereType<Scale>()
+                .where((s) => s.deviceId == preferredScaleId)
+                .firstOrNull;
+        if (match != null) {
+          _log.fine(
+            'scanAndConnectScale: preferred scale found during scan, connecting early',
+          );
+          earlyScaleConnect = connectScale(match);
+        }
+      }
+    });
+
     deviceController.scanForDevices();
     try {
       await deviceController.scanningStream
@@ -273,7 +295,18 @@ class ConnectionManager {
           .timeout(const Duration(seconds: 35));
     } on TimeoutException {
       _log.warning('scanAndConnectScale: scan timed out');
+      sub.cancel();
       return;
+    }
+    sub.cancel();
+
+    // Wait for early scale connection to finish if one was started
+    if (earlyScaleConnect != null) {
+      try {
+        await earlyScaleConnect;
+      } catch (_) {
+        // connectScale already handled the error and updated status
+      }
     }
 
     final scales = deviceController.devices.whereType<Scale>().toList();
@@ -284,6 +317,7 @@ class ConnectionManager {
       currentStatus.copyWith(foundScales: scales),
     );
 
+    // If already connected via early connect, _connectScalePhase will skip
     await _connectScalePhase(scales);
   }
 
