@@ -138,12 +138,12 @@ class _SkinViewState extends State<SkinView> {
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(16),
         showCloseIcon: true,
-        action: SnackBarAction(
-          label: 'Dismiss',
-          onPressed: () {
-            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          },
-        ),
+        // action: SnackBarAction(
+        //   label: 'Dismiss',
+        //   onPressed: () {
+        //     ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        //   },
+        // ),
       ),
     );
   }
