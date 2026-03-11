@@ -13,7 +13,9 @@ class BluePlusTransport implements BLETransport {
   final BluetoothDevice _device;
 
   final BehaviorSubject<device.ConnectionState> _connectionStateSubject =
-      BehaviorSubject<device.ConnectionState>.seeded(device.ConnectionState.discovered);
+      BehaviorSubject<device.ConnectionState>.seeded(
+        device.ConnectionState.discovered,
+      );
   StreamSubscription? _nativeConnectionSub;
 
   BluePlusTransport({required String remoteId})
@@ -24,13 +26,19 @@ class BluePlusTransport implements BLETransport {
   Future<void> connect() async {
     // Forward native connection state to our subject
     _nativeConnectionSub?.cancel();
-    _nativeConnectionSub = _device.connectionState.listen((state) {
-      _connectionStateSubject.add(
-        state == BluetoothConnectionState.connected
-            ? device.ConnectionState.connected
-            : device.ConnectionState.disconnected,
-      );
-    });
+    _nativeConnectionSub = _device.connectionState.listen(
+      (state) {
+        _connectionStateSubject.add(
+          state == BluetoothConnectionState.connected
+              ? device.ConnectionState.connected
+              : device.ConnectionState.disconnected,
+        );
+      },
+      onError: (e) {
+        _log.warning("native connection error", e);
+        _connectionStateSubject.add(device.ConnectionState.disconnected);
+      },
+    );
 
     try {
       await _device.connect(license: License.free, mtu: 517);
@@ -44,7 +52,8 @@ class BluePlusTransport implements BLETransport {
   }
 
   @override
-  Stream<device.ConnectionState> get connectionState => _connectionStateSubject.stream;
+  Stream<device.ConnectionState> get connectionState =>
+      _connectionStateSubject.stream;
 
   @override
   Future<void> disconnect() async {
@@ -120,7 +129,11 @@ class BluePlusTransport implements BLETransport {
       (c) => c.characteristicUuid == Guid(characteristicUUID),
     );
     try {
-      await characteristic.write(data.toList(), withoutResponse: !withResponse, timeout: timeout?.inSeconds ?? 15);
+      await characteristic.write(
+        data.toList(),
+        withoutResponse: !withResponse,
+        timeout: timeout?.inSeconds ?? 15,
+      );
     } on FlutterBluePlusException catch (e) {
       if (e.description != null && e.description!.contains('Timed out')) {
         throw BleTimeoutException('writeCharacteristic', e);

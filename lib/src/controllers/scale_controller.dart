@@ -21,14 +21,23 @@ class ScaleController {
 
   Future<void> connectToScale(Scale scale) async {
     _onDisconnect();
-    _scaleConnection = scale.connectionState.listen(_processConnection);
     _scaleSnapshot = scale.currentSnapshot.listen(_processSnapshot);
     await scale.onConnect();
-    // Only set _scale if we're still connected (onConnect may have failed
-    // and triggered _onDisconnect which nulls _scaleConnection).
-    if (_scaleConnection != null) {
-      _scale = scale;
+    // Verify the scale actually connected (onConnect swallows errors internally).
+    final state = await scale.connectionState.first;
+    if (state != ConnectionState.connected) {
+      log.warning('Scale failed to connect (state: ${state.name})');
+      _scaleSnapshot?.cancel();
+      _scaleSnapshot = null;
+      _connectionController.add(ConnectionState.disconnected);
+      return;
     }
+    // Subscribe to connection state AFTER onConnect succeeds, so we don't
+    // get poisoned by a BehaviorSubject replaying a stale 'disconnected'
+    // state from before reconnection.
+    _scaleConnection = scale.connectionState.listen(_processConnection);
+    _scale = scale;
+    _connectionController.add(ConnectionState.connected);
   }
 
   void _onDisconnect() {

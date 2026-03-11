@@ -67,9 +67,9 @@ class DecentScale implements Scale {
       subscription = _device.connectionState
           .where((state) => state == ConnectionState.disconnected)
           .listen((_) {
-        _log.info("Transport disconnected");
-        disconnect();
-      });
+            _log.info("Transport disconnected");
+            disconnect();
+          });
 
       final services = await _device.discoverServices();
       if (!serviceIdentifier.matchesAny(services)) {
@@ -104,22 +104,41 @@ class DecentScale implements Scale {
     }
   }
 
+  bool _isDisconnecting = false;
+
   @override
   disconnect() async {
+    if (_isDisconnecting) {
+      return;
+    }
+    _isDisconnecting = true;
     subscription?.cancel();
-    _connectionStateController.add(ConnectionState.disconnected);
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
-    final connected = await _device.connectionState.first;
-    if (connected != ConnectionState.connected) return;
-    _sendPowerOff();
-    await _device.disconnect();
+    // final connected = await _device.connectionState.first;
+    // if (connected != ConnectionState.connected) return;
+    try {
+      _sendPowerOff();
+      await _device.disconnect();
+    } catch (e) {
+      _log.warning(
+        "Power off sending failed, probably device was already turned off",
+        e,
+      );
+    } finally {
+      _connectionStateController.add(ConnectionState.disconnected);
+      _isDisconnecting = false;
+    }
   }
 
   @override
   Future<void> tare() async {
     List<int> payload = [0x03, 0x0F, 0x01, 0x00, 0x00, 0x01, 0x0C];
-    await _device.write(serviceIdentifier.long, writeCharacteristic.long, Uint8List.fromList(payload));
+    await _device.write(
+      serviceIdentifier.long,
+      writeCharacteristic.long,
+      Uint8List.fromList(payload),
+    );
   }
 
   Future<void> _sendHeartBeat() async {
@@ -132,7 +151,11 @@ class DecentScale implements Scale {
       payload = [0x03, 0x0A, 0x03, 0xFF, 0xFF, 0x00, 0x0A];
     }
     try {
-      await _device.write(serviceIdentifier.long, writeCharacteristic.long, Uint8List.fromList(payload));
+      await _device.write(
+        serviceIdentifier.long,
+        writeCharacteristic.long,
+        Uint8List.fromList(payload),
+      );
     } catch (e) {
       // just disconnect
       await disconnect();
@@ -140,7 +163,11 @@ class DecentScale implements Scale {
   }
 
   void _registerNotifications() async {
-    await _device.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
+    await _device.subscribe(
+      serviceIdentifier.long,
+      dataCharacteristic.long,
+      _parseNotification,
+    );
   }
 
   void _parseNotification(List<int> data) {
@@ -181,17 +208,33 @@ class DecentScale implements Scale {
   Future<void> _sendOledOn() async {
     List<int> payload = [];
     payload = [0x03, 0x0A, 0x01, 0x00, 0x00, 0x01, 0x08];
-    await _device.write(serviceIdentifier.long, writeCharacteristic.long, Uint8List.fromList(payload));
+    await _device.write(
+      serviceIdentifier.long,
+      writeCharacteristic.long,
+      Uint8List.fromList(payload),
+    );
     payload = [0x03, 0x0A, 0x04, 0x00, 0x00, 0x01, 0x08];
-    await _device.write(serviceIdentifier.long, writeCharacteristic.long, Uint8List.fromList(payload));
+    await _device.write(
+      serviceIdentifier.long,
+      writeCharacteristic.long,
+      Uint8List.fromList(payload),
+    );
   }
 
   Future<void> _sendOledOff() async {
     List<int> payload = [];
     payload = [0x03, 0x0A, 0x04, 0x01, 0x00, 0x01, 0x09];
-    await _device.write(serviceIdentifier.long, writeCharacteristic.long, Uint8List.fromList(payload));
+    await _device.write(
+      serviceIdentifier.long,
+      writeCharacteristic.long,
+      Uint8List.fromList(payload),
+    );
     payload = [0x03, 0x0A, 0x00, 0x01, 0x00, 0x01, 0x09];
-    await _device.write(serviceIdentifier.long, writeCharacteristic.long, Uint8List.fromList(payload));
+    await _device.write(
+      serviceIdentifier.long,
+      writeCharacteristic.long,
+      Uint8List.fromList(payload),
+    );
   }
 
   bool _isSleeping = false;
@@ -224,18 +267,30 @@ class DecentScale implements Scale {
   @override
   Future<void> startTimer() async {
     List<int> payload = [0x03, 0x0B, 0x03, 0x00, 0x00, 0x00, 0x0B];
-    await _device.write(serviceIdentifier.long, writeCharacteristic.long, Uint8List.fromList(payload));
+    await _device.write(
+      serviceIdentifier.long,
+      writeCharacteristic.long,
+      Uint8List.fromList(payload),
+    );
   }
 
   @override
   Future<void> stopTimer() async {
     List<int> payload = [0x03, 0x0B, 0x00, 0x00, 0x00, 0x00, 0x08];
-    await _device.write(serviceIdentifier.long, writeCharacteristic.long, Uint8List.fromList(payload));
+    await _device.write(
+      serviceIdentifier.long,
+      writeCharacteristic.long,
+      Uint8List.fromList(payload),
+    );
   }
 
   @override
   Future<void> resetTimer() async {
     List<int> payload = [0x03, 0x0B, 0x02, 0x00, 0x00, 0x00, 0x0A];
-    await _device.write(serviceIdentifier.long, writeCharacteristic.long, Uint8List.fromList(payload));
+    await _device.write(
+      serviceIdentifier.long,
+      writeCharacteristic.long,
+      Uint8List.fromList(payload),
+    );
   }
 }
