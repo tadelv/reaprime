@@ -395,12 +395,25 @@ function createPlugin(host) {
       },
       body: JSON.stringify({
         profile: profileData,
-        metadata: { 'comment': `imported from visualizer: ${profileData.id}` }
+        metadata: { 'comment': `imported from visualizer: ${shotId}` }
       })
     });
 
     if (!workflowResponse.ok) {
-      throw new Error(`Failed to import profile to REA: HTTP ${workflowResponse.status} ${workflowResponse.statusText}`);
+      const statusCode = workflowResponse.status;
+      let errorMessage = "Failed to import profile to REA";
+      
+      if (statusCode === 500) {
+        errorMessage = "Server error while importing profile. Please try again.";
+      } else {
+        try {
+          const errorBody = await workflowResponse.text();
+          errorMessage = `Failed to import profile: ${errorBody}`;
+        } catch (e) {
+          errorMessage = `Failed to import profile: HTTP ${statusCode}`;
+        }
+      }
+      throw new Error(errorMessage);
     }
 
     const workflowResult = await workflowResponse.json();
