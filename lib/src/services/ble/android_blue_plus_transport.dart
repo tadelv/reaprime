@@ -68,21 +68,28 @@ class AndroidBluePlusTransport implements BLETransport {
 
     // Connect without MTU — requesting MTU at connect time causes
     // GATT error 133 on older Android devices.
-    try {
-      await _device.connect(
-        license: License.free,
-        timeout: const Duration(seconds: 15),
-      );
-    } on FlutterBluePlusException catch (e) {
-      if (e.code == 133) {
-        _log.warning("Connection failed with GATT error 133, retrying");
-        await Future.delayed(const Duration(milliseconds: 500));
+    // Retry up to 3 times with increasing delay for GATT 133 errors,
+    // which are common on older Android BLE stacks (e.g. Teclast tablets).
+    const maxGatt133Retries = 3;
+    for (int attempt = 1; attempt <= maxGatt133Retries; attempt++) {
+      try {
         await _device.connect(
           license: License.free,
           timeout: const Duration(seconds: 15),
         );
-      } else {
-        rethrow;
+        break; // Connected successfully
+      } on FlutterBluePlusException catch (e) {
+        if (e.code == 133 && attempt < maxGatt133Retries) {
+          final delay = Duration(seconds: attempt);
+          _log.warning(
+            "Connection failed with GATT error 133 "
+            "(attempt $attempt/$maxGatt133Retries), retrying in ${delay.inSeconds}s",
+          );
+          await _device.disconnect(queue: false, timeout: 5).catchError((_) {});
+          await Future.delayed(delay);
+        } else {
+          rethrow;
+        }
       }
     }
 
