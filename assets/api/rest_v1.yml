@@ -231,8 +231,8 @@ paths:
             schema:
               $ref: "#/components/schemas/De1SettingsRequest"
       responses:
-        "200":
-          description: Settings update successful
+        "202":
+          description: Settings update accepted
 
   /api/v1/machine/settings/advanced:
     get:
@@ -257,8 +257,8 @@ paths:
             schema:
               $ref: "#/components/schemas/De1AdvancedSettingsRequest"
       responses:
-        "200":
-          description: Advanced settings updated successfully
+        "202":
+          description: Advanced settings update accepted
 
   /api/v1/machine/calibration:
     get:
@@ -285,28 +285,6 @@ paths:
       responses:
         "202":
           description: Calibration settings updated successfully
-
-  /api/v1/machine/usb/{state}:
-    put:
-      summary: Toggle USB Charger Mode
-      description: Enables or disables the USB charger mode on the machine.
-      tags: [Machine]
-      parameters:
-        - name: state
-          in: path
-          required: true
-          schema:
-            type: string
-            enum: [enable, disable]
-      responses:
-        "200":
-          description: USB mode updated successfully
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
 
   /api/v1/machine/waterLevels:
     post:
@@ -3079,8 +3057,10 @@ components:
       type: object
       properties:
         usb:
-          type: boolean
+          type: string
+          enum: [enable, disable]
           nullable: true
+          description: USB charger mode. Use 'enable' or 'disable'.
         fan:
           type: integer
           nullable: true
@@ -3102,11 +3082,16 @@ components:
         tankTemp:
           type: integer
           nullable: true
+        steamPurgeMode:
+          type: integer
+          nullable: true
+          description: Steam purge mode setting
     De1SettingsResponse:
       type: object
       properties:
         usb:
           type: boolean
+          description: Whether USB charger mode is enabled
         fan:
           type: integer
         flushTemp:
@@ -3121,6 +3106,9 @@ components:
           type: number
         tankTemp:
           type: integer
+        steamPurgeMode:
+          type: integer
+          description: Steam purge mode setting
     De1AdvancedSettingsRequest:
       type: object
       properties:
@@ -3253,6 +3241,14 @@ components:
           type: string
           nullable: true
           example: "AA:BB:CC:DD:EE:FF"
+        defaultSkinId:
+          description: ID of the default WebUI skin to serve
+          type: string
+          nullable: true
+        automaticUpdateCheck:
+          description: Whether to automatically check for updates
+          type: boolean
+          nullable: true
         chargingMode:
           type: string
           enum: [disabled, longevity, balanced, highAvailability]
@@ -3310,6 +3306,13 @@ components:
           type: string
           nullable: true
           example: "AA:BB:CC:DD:EE:FF"
+        defaultSkinId:
+          description: ID of the default WebUI skin being served
+          type: string
+          nullable: true
+        automaticUpdateCheck:
+          description: Whether automatic update checking is enabled
+          type: boolean
         chargingMode:
           type: string
           enum: [disabled, longevity, balanced, highAvailability]
