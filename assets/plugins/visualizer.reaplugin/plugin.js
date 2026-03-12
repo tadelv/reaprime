@@ -418,7 +418,7 @@ function createPlugin(host) {
   // Return the plugin object
   return {
     id: "visualizer.reaplugin",
-    version: "1.1.0",
+    version: "1.2.0",
 
     onLoad(settings) {
       state.username = settings.Username;
