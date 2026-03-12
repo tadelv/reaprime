@@ -34,9 +34,10 @@ digraph tdd_workflow {
     verify_red [label="All tests fail\nfor right reason?", shape=diamond];
     implement [label="Phase 3\nImplement\n(inside-out)", shape=box, style=filled, fillcolor="#ccffcc"];
     unit_green [label="Unit tests\ngreen?", shape=diamond];
+    self_review [label="Phase 4\nSelf-Review\n(max 3 passes)", shape=box, style=filled, fillcolor="#ccccff"];
+    review_green [label="Unit tests\nstill green?", shape=diamond];
     integration_green [label="Integration tests\ngreen?", shape=diamond];
     mcp_green [label="MCP verification\npasses?", shape=diamond];
-    self_review [label="Phase 4\nSelf-Review\n(max 3 passes)", shape=box, style=filled, fillcolor="#ccccff"];
     done [label="Phase 5\nDone\n(full suite + evidence)", shape=doublecircle];
 
     plan -> write_tests;
@@ -44,13 +45,15 @@ digraph tdd_workflow {
     verify_red -> implement [label="yes"];
     verify_red -> write_tests [label="fix tests"];
     implement -> unit_green;
-    unit_green -> integration_green [label="yes"];
+    unit_green -> self_review [label="yes"];
     unit_green -> implement [label="fix impl"];
+    self_review -> review_green;
+    review_green -> integration_green [label="yes"];
+    review_green -> self_review [label="fix"];
     integration_green -> mcp_green [label="yes"];
     integration_green -> implement [label="fix impl\n(keep unit green)"];
-    mcp_green -> self_review [label="yes"];
+    mcp_green -> done [label="yes"];
     mcp_green -> implement [label="fix impl\n(keep all green)"];
-    self_review -> done;
 }
 ```
 
@@ -72,26 +75,29 @@ Write tests in this order — API surface down to unit level:
 
 Then verify all tests fail for the right reason. Apply `superpowers:test-driven-development` RED discipline — if a test passes immediately, it's testing existing behavior, fix it.
 
-### Phase 3 — Implement (inside-out)
-
-Build from core outward:
+### Phase 3 — Implement (inside-out, unit level)
 
 1. Write minimal code to make **unit tests** pass. Run `flutter analyze`.
-2. Run **integration tests**. If failing: fix implementation (not tests), re-confirm unit tests green.
-3. Run **MCP verification**. If failing: fix implementation, re-confirm unit + integration green.
 
 **Key invariant:** Tests written in Phase 2 do not change during implementation. If a test is wrong, that's a planning error — go back to Phase 1.
 
 ### Phase 4 — Self-Review (1-3 passes)
 
-After all tiers are green:
+After unit tests are green, before moving to integration/MCP:
 
 1. Review own code for readability, DRY, SRP.
 2. Make improvements.
-3. **Re-run all tests** after every change. If anything breaks, fix before continuing.
+3. **Re-run unit tests** after every change. If anything breaks, fix before continuing.
 4. Stop after 1 pass if clean. Max 3 passes total.
 
-### Phase 5 — Done
+Clean code foundation before building upward — integration and MCP layers should build on refined code.
+
+### Phase 5 — Integration & MCP Verification
+
+1. Run **integration tests**. If failing: fix implementation (not tests), re-confirm unit tests green.
+2. Run **MCP verification**. If failing: fix implementation, re-confirm unit + integration green.
+
+### Phase 6 — Done
 
 1. Run full `flutter test` + `flutter analyze`.
 2. Run all MCP scenarios in `test/mcp_scenarios/` (regression check).
