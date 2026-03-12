@@ -53,20 +53,20 @@ gh pr create --base main
 
 **Skip planning only for:** simple typo fixes, single-line changes, or tasks with very specific instructions.
 
-### Verification Loop
+### Development Workflow
 
-**Before starting work, ask the user** which verification approach to use:
-- **Tests + analyze only** — automated checks only. Best for refactors, internal logic, well-tested code paths.
-- **Tests + run app** — run with `simulate=1` so user can visually verify. Best for GUI features, UX changes.
-- **Tests + MCP smoke test** — use the local MCP tools (`streamline-bridge` server) to start the app in simulate mode and exercise changed endpoints/state directly. Preferred for API, workflow, and data changes since MCP tools provide richer verification than raw `curl`.
-- **Tests + custom check** — user specifies what to verify (e.g., real hardware test, WebSocket stream check).
+**For features, bugfixes, and refactors:** Follow the TDD workflow skill (`.claude/skills/tdd-workflow/`). It covers test tier selection (unit, integration, MCP), outside-in test writing, inside-out implementation, self-review loops, and MCP verification protocol.
 
-**Ask the user** whether new/updated tests are needed for the change. If yes, write tests before or alongside the implementation — not as an afterthought.
+**For non-code changes** (docs, config, CI) where no test tiers apply, ask the user which verification approach to use:
+- **Analyze only** — `flutter analyze`. Minimum for any change.
+- **Run app** — run with `simulate=1` so user can visually verify. For GUI/UX changes.
+- **MCP smoke test** — use MCP tools to exercise affected endpoints. For API spec or manifest changes.
+- **Custom check** — user specifies (e.g., real hardware test, WebSocket stream check).
 
 After every meaningful code change:
 1. Run relevant tests + `flutter analyze`. Fix immediately if anything fails.
 2. Run full `flutter test` before committing and before claiming done.
-3. Perform the user's chosen verification approach before reporting completion. Evidence before assertions.
+3. Evidence before assertions — show test output, not just "tests pass."
 
 Plans go in `doc/plans/`. Don't commit unless asked. When finishing a branch, ask user to archive to `doc/plans/archive/`. After implementation, ask whether to update related docs.
 
@@ -174,6 +174,16 @@ The MCP server in `packages/mcp-server/` bridges Claude to the Flutter app's RES
 ## Testing
 
 Run with `flutter test`. Simulated devices available via `--dart-define=simulate=1` or settings UI toggle.
+
+### Test Tiers
+
+| Tier | What | Mock boundary |
+|------|------|---------------|
+| **Unit** | Single controller, model, DAO, handler | Direct collaborators mocked |
+| **Integration** | Multi-component flows (e.g., scan → connect → measure) | Only hardware/transport edge mocked |
+| **MCP verification** | API surface, end-to-end through running app | App in simulate mode (MockDe1, MockScale) |
+
+All Dart tests (unit + integration) live in `test/` and run via `flutter test`. MCP verification scenarios live in `test/mcp_scenarios/*.yaml` and are executed by Claude using MCP tools. See `.claude/skills/tdd-workflow/` for the full process.
 
 ### Test Helpers (`test/helpers/`)
 
