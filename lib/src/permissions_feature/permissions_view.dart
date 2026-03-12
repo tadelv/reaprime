@@ -101,13 +101,14 @@ class _PermissionsViewState extends State<PermissionsView> {
 
   Future<bool> _checkPermissions() async {
     if (Platform.isAndroid || Platform.isIOS) {
-      await Permission.bluetoothScan.request();
-      await Permission.bluetoothConnect.request();
-
       if (Platform.isAndroid) {
         final sdkVersion = await _getAndroidSdkVersion();
-        // Location is only needed for BLE scanning on Android 9-11
-        if (sdkVersion < 31) {
+        if (sdkVersion >= 31) {
+          // Android 12+: use new BLUETOOTH_SCAN/CONNECT permissions
+          await Permission.bluetoothScan.request();
+          await Permission.bluetoothConnect.request();
+        } else {
+          // Android 9-11: use legacy BLUETOOTH + location
           await Permission.bluetooth.request();
           await Permission.locationWhenInUse.request();
         }
