@@ -324,7 +324,7 @@ class _ProfileState extends State<ProfileTile> {
 
   ShadPopover _temperaturePopover(BuildContext context) {
     final profile = widget.workflowController.currentWorkflow.profile;
-    final startTemp = profile.steps.first.temperature;
+    final startTemp = profile.steps.firstOrNull?.temperature ?? 0.0;
     var endTemp = startTemp;
     var textController = TextEditingController(
       text: endTemp.toStringAsFixed(1),
