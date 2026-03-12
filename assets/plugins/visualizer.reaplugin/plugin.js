@@ -15,11 +15,8 @@ function createPlugin(host) {
   const VISUALIZER_SHARED_API = "https://visualizer.coffee/api/shots/shared?code=";
   const VISUALIZER_PROFILE_API = "https://visualizer.coffee/api/shots/%1/profile?format=json";
 
-  let timeoutId = null;
   let shotFetchTimeoutId = null;
-  let isChecking = false;
   let isUploading = false;
-  let isRunning = false;
 
   const state = {
     lastUploadedShot: null,
@@ -27,10 +24,8 @@ function createPlugin(host) {
     lastCheckedShotId: null,
     username: null,
     password: null,
-    ticks: 0,
     autoUpload: true,
     lengthThreshold: 5,
-    enabled: true,
     lastMachineState: null,
   };
 
@@ -211,19 +206,17 @@ function createPlugin(host) {
   }
 
   async function checkForNewShots() {
-    if (!state.enabled) {
-      log("Plugin is disabled, not checking for new shots");
-      return;
-    }
-    if (isChecking || !isRunning) return;
-    isChecking = true;
+    if (isUploading) return;
+    isUploading = true;
 
     try {
       log("Checking for new shots...");
       if (!state.autoUpload) {
-        log("Auto upload disabled, not checking ...");
-        return
+        log("Auto upload disabled, skipping");
+        return;
       }
+
+      // Fetch latest shot metadata (without measurements)
       const shot = await fetchLatestShot();
       if (!shot || !shot.id) {
         log("No shot data available");
@@ -277,27 +270,8 @@ function createPlugin(host) {
         timestamp: Date.now()
       });
     } finally {
-      isChecking = false;
+      isUploading = false;
     }
-  }
-
-  function start() {
-    if (isRunning) return;
-    isRunning = true;
-    log("Started - listening for state changes");
-  }
-
-  function stop() {
-    isRunning = false;
-    if (timeoutId !== null) {
-      clearTimeout(timeoutId);
-      timeoutId = null;
-    }
-    if (shotFetchTimeoutId !== null) {
-      clearTimeout(shotFetchTimeoutId);
-      shotFetchTimeoutId = null;
-    }
-    log("Stopped");
   }
 
   function handleStorageRead(payload) {
@@ -335,10 +309,6 @@ function createPlugin(host) {
   }
 
   async function importFromShareCode(shareCode) {
-    if (!state.enabled) {
-      throw new Error("Visualizer plugin is disabled");
-    }
-    
     const code = shareCode.trim();
 
     if (!code) {
@@ -439,53 +409,18 @@ function createPlugin(host) {
     };
   }
 
-  // Handle settings update event from REA host
-  function handleSettingsUpdate(newSettings) {
-    log(`Received settings update: ${JSON.stringify(newSettings)}`);
-    
-    if (newSettings.Username !== undefined) {
-      state.username = newSettings.Username;
-      log(`Username updated: ${state.username ? 'configured' : 'cleared'}`);
-    }
-    
-    if (newSettings.Password !== undefined) {
-      state.password = newSettings.Password;
-      log(`Password updated`);
-    }
-    
-    if (newSettings.Enabled !== undefined) {
-      state.enabled = newSettings.Enabled;
-      log(`Plugin enabled: ${state.enabled}`);
-      if (!state.enabled) {
-        stop();
-      } else if (isRunning === false) {
-        start();
-      }
-    }
-    
-    if (newSettings.AutoUpload !== undefined) {
-      state.autoUpload = newSettings.AutoUpload;
-      log(`AutoUpload updated: ${state.autoUpload}`);
-    }
-    
-    if (newSettings.LengthThreshold !== undefined) {
-      state.lengthThreshold = newSettings.LengthThreshold;
-      log(`Length threshold updated: ${state.lengthThreshold}`);
-    }
-  }
   // Return the plugin object
   return {
     id: "visualizer.reaplugin",
-    version: "1.0.0",
+    version: "1.1.0",
 
     onLoad(settings) {
-      state.enabled = settings.Enabled != undefined ? settings.Enabled : true;
       state.username = settings.Username;
       state.password = settings.Password;
       state.autoUpload = settings.AutoUpload != undefined ? settings.AutoUpload : true;
       state.lengthThreshold = settings.Length != undefined ? settings.Length : 5;
 
-      log(`Loaded with enabled: ${state.enabled}, username: ${state.username ? 'configured' : 'not configured'}`);
+      log(`Loaded with username: ${state.username ? 'configured' : 'not configured'}`);
 
       // Load saved state from storage
       host.storage({
@@ -499,13 +434,14 @@ function createPlugin(host) {
         key: "lastVisualizerId",
         namespace: "visualizer.reaplugin"
       });
-
-      start();
     },
 
     onUnload() {
       log("Unloaded");
-      stop();
+      if (shotFetchTimeoutId !== null) {
+        clearTimeout(shotFetchTimeoutId);
+        shotFetchTimeoutId = null;
+      }
 
       // Save current state to storage
       if (state.lastUploadedShot) {
@@ -671,7 +607,6 @@ function createPlugin(host) {
 
       switch (event.name) {
         case "stateUpdate":
-          state.ticks++;
           const currentState = event.payload?.state?.state;
           if (state.lastMachineState === "espresso" && currentState !== "espresso") {
             log(`Shot ended (${state.lastMachineState} → ${currentState}), scheduling upload in ${SHOT_FETCH_DELAY_MS / 1000}s`);
@@ -685,16 +620,8 @@ function createPlugin(host) {
           }
           state.lastMachineState = currentState;
           break;
-        // case "httpRequest":
-        //   const handled = this.__httpRequestHandler(event.password);
-        //   host.emit("httpResponse", {
-        //     requestId: event.requestId,
-        //     ...handled,
-        //   });
-        //   break;
 
         case "shutdown":
-          stop();
           if (shotFetchTimeoutId !== null) {
             clearTimeout(shotFetchTimeoutId);
             shotFetchTimeoutId = null;
@@ -707,10 +634,6 @@ function createPlugin(host) {
 
         case "storageWrite":
           handleStorageWrite(event.payload);
-          break;
-
-        case "settingsUpdated":
-          handleSettingsUpdate(event.payload);
           break;
       }
     },
