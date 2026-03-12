@@ -641,6 +641,22 @@ function createPlugin(host) {
         case "storageWrite":
           handleStorageWrite(event.payload);
           break;
+
+        case "settingsUpdated":
+          if (event.payload?.AutoUpload !== undefined) {
+            state.autoUpload = event.payload.AutoUpload;
+            log(`AutoUpload updated: ${state.autoUpload}`);
+          }
+          if (event.payload?.Username !== undefined) {
+            state.username = event.payload.Username;
+          }
+          if (event.payload?.Password !== undefined) {
+            state.password = event.payload.Password;
+          }
+          if (event.payload?.LengthThreshold !== undefined) {
+            state.lengthThreshold = event.payload.LengthThreshold;
+          }
+          break;
       }
     },
   };
