@@ -30,7 +30,7 @@ android {
         applicationId = "net.tadel.reaprime"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 28
         targetSdk = 35
         // Use git commit count as versionCode so debug and release builds always
         // share the same monotonically increasing version, preventing downgrade uninstalls.

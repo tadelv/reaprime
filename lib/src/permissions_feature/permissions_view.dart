@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/device_discovery_feature/device_discovery_view.dart';
@@ -100,16 +101,19 @@ class _PermissionsViewState extends State<PermissionsView> {
 
   Future<bool> _checkPermissions() async {
     if (Platform.isAndroid || Platform.isIOS) {
-      // await Permission.ignoreBatteryOptimizations.request();
       await Permission.bluetoothScan.request();
       await Permission.bluetoothConnect.request();
-      await Permission.bluetooth.request();
-      await Permission.locationWhenInUse.request();
-      await Permission.locationAlways.request();
 
-      // Request notification permission for Android 13+ (API 33+)
-      // This allows foreground service notification to appear in notification drawer
       if (Platform.isAndroid) {
+        final sdkVersion = await _getAndroidSdkVersion();
+        // Location is only needed for BLE scanning on Android 9-11
+        if (sdkVersion < 31) {
+          await Permission.bluetooth.request();
+          await Permission.locationWhenInUse.request();
+        }
+
+        // Request notification permission for Android 13+ (API 33+)
+        // This allows foreground service notification to appear in notification drawer
         await Permission.notification.request();
 
         // CRITICAL: Request battery optimization exemption
@@ -119,6 +123,9 @@ class _PermissionsViewState extends State<PermissionsView> {
         if (!batteryOptStatus.isGranted) {
           await Permission.ignoreBatteryOptimizations.request();
         }
+      } else if (Platform.isIOS) {
+        await Permission.bluetooth.request();
+        await Permission.locationWhenInUse.request();
       }
     } else {
       try {
@@ -173,6 +180,11 @@ class _PermissionsViewState extends State<PermissionsView> {
     await widget.deviceController.initialize();
 
     return true;
+  }
+
+  Future<int> _getAndroidSdkVersion() async {
+    final androidInfo = await DeviceInfoPlugin().androidInfo;
+    return androidInfo.version.sdkInt;
   }
 
   Widget _devicePicker(BuildContext context) {
