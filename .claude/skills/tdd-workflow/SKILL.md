@@ -88,7 +88,7 @@ After unit tests are green, before moving to integration/MCP:
 1. Review own code for readability, DRY, SRP.
 2. Make improvements.
 3. **Re-run unit tests** after every change. If anything breaks, fix before continuing.
-4. Stop after 1 pass if clean. Max 3 passes total.
+4. Stop when a review pass finds nothing to improve.
 
 Clean code foundation before building upward — integration and MCP layers should build on refined code.
 
@@ -169,5 +169,5 @@ When verifying a new feature, also run existing scenarios in `test/mcp_scenarios
 | Modifying tests to match implementation | Tests reflect requirements, not implementation. Go back to planning. |
 | Skipping MCP verification "because unit tests pass" | Unit tests don't cover the API surface. If MCP tier was selected, run it. |
 | Running only new MCP scenario, skipping existing ones | Always run full `test/mcp_scenarios/` for regression. |
-| Self-review exceeds 3 passes | Diminishing returns. Stop and ship. |
+| Self-review keeps cycling without finding improvements | Stop when a pass finds nothing to change. |
 | Skipping `flutter analyze` | Run it. Every time. Non-negotiable. |
