@@ -185,13 +185,6 @@ class FeedbackService {
   /// Read the log file contents
   Future<String?> _readLogFile() async {
     try {
-      if (Platform.isAndroid) {
-        final androidLogFile =
-            File('/storage/emulated/0/Download/REA1/log.txt');
-        if (await androidLogFile.exists()) {
-          return await androidLogFile.readAsString();
-        }
-      }
       final docs = await getApplicationDocumentsDirectory();
       final logFile = File('${docs.path}/log.txt');
       if (await logFile.exists()) {
@@ -208,13 +201,6 @@ class FeedbackService {
   /// Read the webview console log file contents
   Future<String?> _readWebViewLogFile() async {
     try {
-      if (Platform.isAndroid) {
-        final androidFile =
-            File('/storage/emulated/0/Download/REA1/webview_console.log');
-        if (await androidFile.exists()) {
-          return await androidFile.readAsString();
-        }
-      }
       final docs = await getApplicationDocumentsDirectory();
       final logFile = File('${docs.path}/webview_console.log');
       if (await logFile.exists()) {

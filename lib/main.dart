@@ -114,28 +114,14 @@ void main() async {
     await WindowManager.instance.setSize(const Size(1280, 800));
   }
 
-  if (Platform.isAndroid) {
-    try {
-      var dir = Directory('/storage/emulated/0/Download/REA1');
-      dir.createSync();
-      RotatingFileAppender(
-        formatter: const DefaultLogRecordFormatter(),
-        baseFilePath: '${dir.path}/log.txt',
-      ).attachToLogger(Logger.root);
-    } catch (e) {
-      log.severe('failed to create log file', e);
-    }
-  }
+  final appDocsPath = (await getApplicationDocumentsDirectory()).path;
 
   RotatingFileAppender(
-    baseFilePath: '${(await getApplicationDocumentsDirectory()).path}/log.txt',
+    baseFilePath: '$appDocsPath/log.txt',
   ).attachToLogger(Logger.root);
 
   // Initialize WebView console log service (separate from app logs)
-  final webViewLogDir =
-      Platform.isAndroid
-          ? '/storage/emulated/0/Download/REA1'
-          : (await getApplicationDocumentsDirectory()).path;
+  final webViewLogDir = appDocsPath;
   final webViewLogService = WebViewLogService(logDirectoryPath: webViewLogDir);
   await webViewLogService.initialize();
 
