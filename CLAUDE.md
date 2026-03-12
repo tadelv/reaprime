@@ -99,6 +99,12 @@ Plans go in `doc/plans/`. Don't commit unless asked. When finishing a branch, as
 - **`ShotController`:** Orchestrates shot execution, stops at target weight. Timer lifecycle: reset on first tare (preparingForShot), start on second tare (preinfusion/pouring), stop when shot ends.
 - **`ProfileController`:** Profile library with content-based hash IDs for deduplication
 - **`WorkflowController`:** Multi-step espresso workflows
+- **`PersistenceController`:** Shot and data persistence to storage
+- **`SensorController`:** Sensor data management and broadcasting
+- **`BatteryController`:** Battery level monitoring and charging state
+- **`PresenceController`:** Client presence/keep-alive tracking
+- **`DisplayController`:** Display/screen management
+- **`FeedbackController`:** Feedback submission orchestration
 
 ### Storage
 
@@ -108,21 +114,30 @@ Persistence uses Drift (SQLite) via `AppDatabase` in `lib/src/services/database/
 
 ### Web Server
 
-Handler-based routing in `lib/src/services/webserver/`. Each handler has `addRoutes()`, registered in `webserver_service.dart` `_init()`. Newer handlers are standalone imports; legacy ones use `part of`. API docs on port 4001, specs in `assets/api/`.
+Handler-based routing in `lib/src/services/webserver/`. Each handler has `addRoutes()`, registered in `webserver_service.dart` `_init()`. Most handlers use `part of webserver_service.dart`; a few newer ones (`shots_handler`, `beans_handler`, `grinders_handler`, `workflow_handler`, `data_export_handler`) are standalone imports. API docs on port 4001, specs in `assets/api/`.
 
 ### REST API Overview
 
 | Resource | Base Path | Handler |
 |----------|-----------|---------|
-| Machine | `/api/v1/machine/` | `webserver_service.dart` (part of) |
+| Machine | `/api/v1/machine/` | `de1handler.dart` (part of) |
+| Scale | `/api/v1/scale/` | `scale_handler.dart` (part of) |
+| Devices | `/api/v1/devices` | `devices_handler.dart` (part of) |
 | Shots | `/api/v1/shots` | `shots_handler.dart` — paginated list with filtering (see `assets/api/rest_v1.yml`) |
-| Profiles | `/api/v1/profiles` | `profiles_handler.dart` |
+| Profiles | `/api/v1/profiles` | `profile_handler.dart` (part of) |
 | Workflow | `/api/v1/workflow` | `workflow_handler.dart` — GET/PUT with deep merge |
 | Beans | `/api/v1/beans` | `beans_handler.dart` — CRUD + `/api/v1/beans/<id>/batches` for batches, `/api/v1/bean-batches/<id>` for individual batch ops |
 | Grinders | `/api/v1/grinders` | `grinders_handler.dart` — CRUD |
-| Devices | `/api/v1/devices` | `webserver_service.dart` (part of) |
+| Settings | `/api/v1/settings` | `settings_handler.dart` (part of) |
+| Sensors | `/api/v1/sensors` | `sensors_handler.dart` (part of) |
+| Plugins | `/api/v1/plugins` | `plugins_handler.dart` (part of) |
+| Display | `/api/v1/display` | `display_handler.dart` (part of) |
+| Presence | `/api/v1/presence` | `presence_handler.dart` (part of) |
+| KV Store | `/api/v1/kv` | `kv_store_handler.dart` (part of) |
 | Data Export | `/api/v1/data/export`, `/import` | `data_export_handler.dart` — ZIP-based full data export/import |
-| Feedback | `/api/v1/feedback` | `feedback_handler.dart` — POST creates GitHub issue with optional logs/screenshots as Gist. Requires `GITHUB_FEEDBACK_TOKEN` at build time. |
+| Feedback | `/api/v1/feedback` | `feedback_handler.dart` (part of) — POST creates GitHub issue with optional logs/screenshots as Gist. Requires `GITHUB_FEEDBACK_TOKEN` at build time. |
+| Logs | `/api/v1/logs` | `logs_handler.dart` (part of) |
+| WebUI | — | `webui_handler.dart` (part of) — skin asset serving |
 
 ### MCP Server
 
