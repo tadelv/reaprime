@@ -33,16 +33,19 @@ function createPlugin(host) {
     host.log(`[visualizer] ${msg}`);
   }
 
-  async function fetchLatestShot() {
+  async function fetchShot(shotId) {
     try {
-      const res = await fetch("http://localhost:8080/api/v1/shots/latest");
+      const url = shotId
+        ? `http://localhost:8080/api/v1/shots/${shotId}`
+        : "http://localhost:8080/api/v1/shots/latest";
+      const res = await fetch(url);
       if (!res.ok) {
-        log(`Failed to fetch latest shot: ${res.status} ${res.statusText}`);
+        log(`Failed to fetch shot: ${res.status} ${res.statusText}`);
         return null;
       }
       return await res.json();
     } catch (e) {
-      log(`Error fetching latest shot: ${e.message}`);
+      log(`Error fetching shot: ${e.message}`);
       return null;
     }
   }
@@ -205,47 +208,51 @@ function createPlugin(host) {
     return visualizerShot;
   }
 
-  async function checkForNewShots() {
+  async function handleShotComplete() {
     if (isUploading) return;
     isUploading = true;
 
     try {
-      log("Checking for new shots...");
       if (!state.autoUpload) {
         log("Auto upload disabled, skipping");
         return;
       }
 
       // Fetch latest shot metadata (without measurements)
-      const shot = await fetchLatestShot();
-      if (!shot || !shot.id) {
+      const latestMeta = await fetchShot();
+      if (!latestMeta || !latestMeta.id) {
         log("No shot data available");
         return;
       }
 
-      if (shot.id === state.lastCheckedShotId) {
-        log(`Shot ${shot.id} already checked`);
+      if (latestMeta.id === state.lastCheckedShotId) {
+        log(`Shot ${latestMeta.id} already checked`);
         return;
       }
 
-      state.lastCheckedShotId = shot.id;
+      state.lastCheckedShotId = latestMeta.id;
 
-      // Check if credentials are configured
       if (!state.username || !state.password) {
         log("Username/password not configured. Skipping upload.");
         return;
       }
 
-      const result = await uploadShot(convertReaToVisualizerFormat(shot), null);
-      state.lastUploadedShot = shot.id;
+      // Fetch full shot with measurements for upload
+      const fullShot = await fetchShot(latestMeta.id);
+      if (!fullShot) {
+        log(`Failed to fetch full shot ${latestMeta.id}`);
+        return;
+      }
+
+      const result = await uploadShot(convertReaToVisualizerFormat(fullShot), null);
+      state.lastUploadedShot = fullShot.id;
       state.lastVisualizerId = result.id;
 
-      // Save to storage using new API
       host.storage({
         type: "write",
         key: "lastUploadedShot",
         namespace: "visualizer.reaplugin",
-        data: shot.id
+        data: fullShot.id
       });
 
       host.storage({
@@ -255,11 +262,10 @@ function createPlugin(host) {
         data: result.id
       });
 
-      log(`Uploaded ${shot.id} → ${result.id}`);
+      log(`Uploaded ${fullShot.id} → ${result.id}`);
 
-      // Emit success event
       host.emit("shotUploaded", {
-        shotId: shot.id,
+        shotId: fullShot.id,
         visualizerId: result.id,
         timestamp: Date.now()
       });
@@ -418,7 +424,7 @@ function createPlugin(host) {
       state.username = settings.Username;
       state.password = settings.Password;
       state.autoUpload = settings.AutoUpload != undefined ? settings.AutoUpload : true;
-      state.lengthThreshold = settings.Length != undefined ? settings.Length : 5;
+      state.lengthThreshold = settings.LengthThreshold != undefined ? settings.LengthThreshold : 5;
 
       log(`Loaded with username: ${state.username ? 'configured' : 'not configured'}`);
 
@@ -495,11 +501,11 @@ function createPlugin(host) {
 
           }
         }
-        return fetch(`http://localhost:8080/api/v1/shots?ids=${shotId}`)
+        return fetch(`http://localhost:8080/api/v1/shots/${shotId}`)
           .then((res) => {
             return res.json();
           }).then((json) => {
-            return uploadShot(convertReaToVisualizerFormat(json[0]), null);
+            return uploadShot(convertReaToVisualizerFormat(json), null);
           }).then((shotResponse) => {
             return {
               status: 200,
@@ -615,7 +621,7 @@ function createPlugin(host) {
             }
             shotFetchTimeoutId = setTimeout(() => {
               shotFetchTimeoutId = null;
-              checkForNewShots();
+              handleShotComplete();
             }, SHOT_FETCH_DELAY_MS);
           }
           state.lastMachineState = currentState;
