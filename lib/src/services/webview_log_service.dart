@@ -34,9 +34,7 @@ class WebViewLogService {
 
   /// Create a WebViewLogService that writes to the given directory.
   ///
-  /// The log directory path is platform-dependent:
-  /// - Android: `/storage/emulated/0/Download/REA1`
-  /// - Other platforms: app documents directory
+  /// Uses the app documents directory on all platforms.
   WebViewLogService({required String logDirectoryPath})
       : _logDirectoryPath = logDirectoryPath;
 

@@ -692,8 +692,7 @@ Logger.root.level = Level.FINEST;
 ```
 
 Logs are written to:
-- **Android:** `/storage/emulated/0/Download/REA1/log.txt`
-- **Other platforms:** `<app_documents>/log.txt`
+- **All platforms:** `<app_documents>/log.txt`
 
 ### Inspect Device Stream
 
