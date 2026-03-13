@@ -135,9 +135,9 @@ void main() {
             "changes_since_last_espresso": "",
             "version": "2"
           },
-          "doseData": {
-            "doseIn": 18.0,
-            "doseOut": 36.0
+          "context": {
+            "targetDoseWeight": 18.0,
+            "targetYield": 36.0
           },
           "steamSettings": {
             "targetTemperature": 150,
@@ -199,6 +199,8 @@ void main() {
   });
 
   group('ShotImporter - Multiple Shots Import', () {
+    // Shot 1 uses legacy doseData (no context) to verify migration-on-read.
+    // Shot 2 uses the modern context field.
     test('should import multiple valid shots from JSON array', () async {
       const validShotsJson = '''
       [
@@ -273,7 +275,7 @@ void main() {
               "changes_since_last_espresso": "",
               "version": "2"
             },
-            "doseData": {"doseIn": 20.0, "doseOut": 40.0},
+            "context": {"targetDoseWeight": 20.0, "targetYield": 40.0},
             "steamSettings": {
               "targetTemperature": 150,
               "duration": 50,

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/data/workflow_context.dart';
 
 void main() {
@@ -53,53 +54,6 @@ void main() {
       expect(restored.coffeeName, isNull);
     });
 
-    test('fromLegacyJson maps DoseData/GrinderData/CoffeeData', () {
-      final legacyWorkflowJson = {
-        'doseData': {'doseIn': 18.0, 'doseOut': 36.0},
-        'grinderData': {
-          'setting': '15',
-          'manufacturer': 'Niche',
-          'model': 'Zero',
-        },
-        'coffeeData': {
-          'name': 'Gesha Village',
-          'roaster': 'Sey',
-        },
-      };
-
-      final ctx = WorkflowContext.fromLegacyJson(legacyWorkflowJson);
-
-      expect(ctx.targetDoseWeight, 18.0);
-      expect(ctx.targetYield, 36.0);
-      expect(ctx.grinderSetting, '15');
-      expect(ctx.grinderModel, 'Zero');
-      expect(ctx.coffeeName, 'Gesha Village');
-      expect(ctx.coffeeRoaster, 'Sey');
-    });
-
-    test('fromLegacyJson handles missing optional groups', () {
-      final legacyJson = {
-        'doseData': {'doseIn': 16, 'doseOut': 32},
-      };
-
-      final ctx = WorkflowContext.fromLegacyJson(legacyJson);
-
-      expect(ctx.targetDoseWeight, 16.0);
-      expect(ctx.targetYield, 32.0);
-      expect(ctx.grinderSetting, isNull);
-      expect(ctx.coffeeName, isNull);
-    });
-
-    test('fromLegacyJson handles int dose values', () {
-      final legacyJson = {
-        'doseData': {'doseIn': 18, 'doseOut': 36},
-      };
-
-      final ctx = WorkflowContext.fromLegacyJson(legacyJson);
-      expect(ctx.targetDoseWeight, 18.0);
-      expect(ctx.targetYield, 36.0);
-    });
-
     test('ratio computed correctly', () {
       final ctx = WorkflowContext(targetDoseWeight: 18.0, targetYield: 36.0);
       expect(ctx.ratio, 2.0);
@@ -125,6 +79,124 @@ void main() {
       expect(updated.targetDoseWeight, 18.0);
       expect(updated.targetYield, 40.0);
       expect(updated.coffeeName, 'Ethiopian');
+    });
+  });
+
+  group('Workflow.fromJson - migration-on-read', () {
+    test('legacy-only JSON (no context) synthesizes WorkflowContext', () {
+      final json = {
+        'id': 'wf-1',
+        'name': 'Legacy Workflow',
+        'description': '',
+        'profile': {
+          'title': 'Test',
+          'author': 'Test',
+          'notes': '',
+          'beverage_type': 'espresso',
+          'steps': [],
+          'tank_temperature': 0.0,
+          'target_weight': 36.0,
+          'target_volume': 0,
+          'target_volume_count_start': 0,
+          'legacy_profile_type': '',
+          'type': 'advanced',
+          'lang': 'en',
+          'hidden': false,
+          'reference_file': '',
+          'changes_since_last_espresso': '',
+          'version': '2',
+        },
+        'doseData': {'doseIn': 18.0, 'doseOut': 36.0},
+        'grinderData': {'setting': '15', 'manufacturer': 'Niche', 'model': 'Zero'},
+        'coffeeData': {'name': 'Gesha Village', 'roaster': 'Sey'},
+        'steamSettings': {'targetTemperature': 150, 'duration': 50, 'flow': 0.8},
+        'hotWaterData': {'targetTemperature': 75, 'duration': 30, 'volume': 50, 'flow': 10.0},
+        'rinseData': {'targetTemperature': 90, 'duration': 10, 'flow': 6.0},
+      };
+
+      final workflow = Workflow.fromJson(json);
+
+      expect(workflow.context, isNotNull);
+      expect(workflow.context!.targetDoseWeight, 18.0);
+      expect(workflow.context!.targetYield, 36.0);
+      expect(workflow.context!.grinderSetting, '15');
+      expect(workflow.context!.grinderModel, 'Zero');
+      expect(workflow.context!.coffeeName, 'Gesha Village');
+      expect(workflow.context!.coffeeRoaster, 'Sey');
+    });
+
+    test('context + legacy fields: legacy only backfills null context slots', () {
+      final json = {
+        'id': 'wf-3',
+        'name': 'Blended',
+        'description': '',
+        'profile': {
+          'title': 'Test',
+          'author': 'Test',
+          'notes': '',
+          'beverage_type': 'espresso',
+          'steps': [],
+          'tank_temperature': 0.0,
+          'target_weight': 36.0,
+          'target_volume': 0,
+          'target_volume_count_start': 0,
+          'legacy_profile_type': '',
+          'type': 'advanced',
+          'lang': 'en',
+          'hidden': false,
+          'reference_file': '',
+          'changes_since_last_espresso': '',
+          'version': '2',
+        },
+        // context has targetYield but NOT targetDoseWeight — legacy should backfill it
+        'context': {'targetYield': 38.0},
+        'doseData': {'doseIn': 19.0, 'doseOut': 99.0}, // doseOut must NOT override context's targetYield
+        'steamSettings': {'targetTemperature': 150, 'duration': 50, 'flow': 0.8},
+        'hotWaterData': {'targetTemperature': 75, 'duration': 30, 'volume': 50, 'flow': 10.0},
+        'rinseData': {'targetTemperature': 90, 'duration': 10, 'flow': 6.0},
+      };
+
+      final workflow = Workflow.fromJson(json);
+
+      expect(workflow.context!.targetYield, 38.0);     // context wins, not legacy doseOut (99.0)
+      expect(workflow.context!.targetDoseWeight, 19.0); // legacy backfills null slot
+    });
+
+    test('legacy doseData-only JSON (no grinder/coffee) synthesizes partial context', () {
+      final json = {
+        'id': 'wf-2',
+        'name': 'Dose Only',
+        'description': '',
+        'profile': {
+          'title': 'Test',
+          'author': 'Test',
+          'notes': '',
+          'beverage_type': 'espresso',
+          'steps': [],
+          'tank_temperature': 0.0,
+          'target_volume': 0,
+          'target_volume_count_start': 0,
+          'legacy_profile_type': '',
+          'type': 'advanced',
+          'lang': 'en',
+          'hidden': false,
+          'reference_file': '',
+          'changes_since_last_espresso': '',
+          'version': '2',
+        },
+        'doseData': {'doseIn': 16, 'doseOut': 32},
+        'steamSettings': {'targetTemperature': 150, 'duration': 50, 'flow': 0.8},
+        'hotWaterData': {'targetTemperature': 75, 'duration': 30, 'volume': 50, 'flow': 10.0},
+        'rinseData': {'targetTemperature': 90, 'duration': 10, 'flow': 6.0},
+      };
+
+      final workflow = Workflow.fromJson(json);
+
+      expect(workflow.context, isNotNull);
+      expect(workflow.context!.targetDoseWeight, 16.0);
+      expect(workflow.context!.targetYield, 32.0);
+      expect(workflow.context!.grinderSetting, isNull);
+      expect(workflow.context!.coffeeName, isNull);
     });
   });
 }

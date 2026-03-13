@@ -35,19 +35,6 @@ class WorkflowController extends ChangeNotifier {
 
   void setWorkflow(Workflow newWorkflow) {
     _currentWorkflow = newWorkflow;
-    if (newWorkflow.context != null) {
-      notifyListeners();
-      return;
-    }
-    final ctx = WorkflowContext(
-      targetDoseWeight: newWorkflow.doseData.doseIn,
-      targetYield: newWorkflow.doseData.doseOut,
-      grinderSetting: newWorkflow.grinderData?.setting,
-      grinderModel: newWorkflow.grinderData?.model,
-      coffeeName: newWorkflow.coffeeData?.name,
-      coffeeRoaster: newWorkflow.coffeeData?.roaster,
-    );
-    _currentWorkflow = _currentWorkflow.copyWith(context: ctx);
     notifyListeners();
   }
 
@@ -56,9 +43,6 @@ class WorkflowController extends ChangeNotifier {
     String? description,
     Profile? profile,
     WorkflowContext? context,
-    @Deprecated('Use context instead') DoseData? doseData,
-    @Deprecated('Use context instead') GrinderData? grinderData,
-    @Deprecated('Use context instead') CoffeeData? coffeeData,
     SteamSettings? steamSettings,
     HotWaterData? hotWaterData,
     RinseData? rinseData,
@@ -68,9 +52,6 @@ class WorkflowController extends ChangeNotifier {
       description: description,
       profile: profile,
       context: context,
-      doseData: doseData,
-      grinderData: grinderData,
-      coffeeData: coffeeData,
       steamSettings: steamSettings,
       hotWaterData: hotWaterData,
       rinseData: rinseData,

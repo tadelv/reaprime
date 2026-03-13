@@ -73,22 +73,24 @@ class PersistenceController {
 
   Stream<List<ShotRecord>> get shots => _shotsController.stream;
 
-  List<GrinderData> grinderOptions() {
-    return _shots.fold(<GrinderData>[], (res, el) {
-      if (el.workflow.grinderData != null) {
-        res.add(el.workflow.grinderData!);
-      }
-      return res;
-    }).toList();
+  List<({String setting, String? model})> grinderOptions() {
+    return _shots
+        .where((el) => el.workflow.context?.grinderSetting != null)
+        .map((el) => (
+              setting: el.workflow.context!.grinderSetting!,
+              model: el.workflow.context!.grinderModel,
+            ))
+        .toList();
   }
 
-  List<CoffeeData> coffeeOptions() {
-    return _shots.fold(<CoffeeData>[], (res, el) {
-      if (el.workflow.coffeeData != null) {
-        res.add(el.workflow.coffeeData!);
-      }
-      return res;
-    }).toList();
+  List<({String name, String? roaster})> coffeeOptions() {
+    return _shots
+        .where((el) => el.workflow.context?.coffeeName != null)
+        .map((el) => (
+              name: el.workflow.context!.coffeeName!,
+              roaster: el.workflow.context!.coffeeRoaster,
+            ))
+        .toList();
   }
 
   Future<void> saveWorkflow(Workflow workflow) async {
