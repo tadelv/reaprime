@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:reaprime/src/plugins/plugin_manager.dart';
 import 'package:reaprime/src/plugins/plugin_manifest.dart';
 import 'package:reaprime/src/plugins/plugin_runtime.dart';
+import 'package:reaprime/build_info.dart';
 
 class PluginSettingsValidationException implements Exception {
   final String message;
@@ -20,14 +21,16 @@ class PluginSettingsValidationException implements Exception {
 
 class PluginLoaderService {
   final PluginManager pluginManager;
+  final bool _appStoreMode;
   final _log = Logger('PluginLoaderService');
 
   late Directory _pluginsDir;
   late SharedPreferences _prefs;
   final Map<String, PluginManifest> _availablePluginsCache = {};
 
-  PluginLoaderService({required KeyValueStoreService kvStore})
-    : pluginManager = PluginManager(kvStore: kvStore);
+  PluginLoaderService({required KeyValueStoreService kvStore, bool? appStoreMode})
+    : pluginManager = PluginManager(kvStore: kvStore),
+      _appStoreMode = appStoreMode ?? BuildInfo.appStore;
 
   bool _initialized = false;
 
@@ -67,6 +70,12 @@ class PluginLoaderService {
   /// user will provide filesystem path and permissions, REA should copy the contents over to
   /// the plugins folder
   Future<void> addPlugin(String sourcePath) async {
+    if (_appStoreMode) {
+      throw UnsupportedError(
+        'Plugin installation is not available on this platform',
+      );
+    }
+
     final source = File(sourcePath);
     final sourceDir = Directory(sourcePath);
 
