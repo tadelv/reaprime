@@ -339,6 +339,7 @@ void main() {
       );
     });
 
+    // Uses legacy doseData format to exercise migration-on-read path.
     test('should throw FormatException when array contains mixed valid and invalid items', () async {
       const invalidJson = '''
       [
@@ -408,6 +409,7 @@ void main() {
       );
     });
 
+    // Uses legacy doseData format to exercise migration-on-read path.
     test('should handle null values in optional fields', () async {
       const jsonWithNulls = '''
       {
@@ -492,6 +494,7 @@ void main() {
             "changes_since_last_espresso": "",
             "version": "2"
           },
+          // Uses legacy doseData format to exercise migration-on-read path.
           "doseData": {"doseIn": 18.0, "doseOut": 36.0},
           "steamSettings": {
             "targetTemperature": 150,

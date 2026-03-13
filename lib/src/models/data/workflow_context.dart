@@ -50,8 +50,9 @@ class WorkflowContext {
           ? targetYield! / targetDoseWeight!
           : null;
 
-  /// Deserializes from JSON. Handles both new format and legacy format
-  /// (DoseData/GrinderData/CoffeeData embedded in a parent Workflow JSON).
+  /// Deserializes from the `context` JSON object within a Workflow.
+  /// Legacy field migration (doseData/grinderData/coffeeData) is handled
+  /// upstream in Workflow.fromJson, not here.
   factory WorkflowContext.fromJson(Map<String, dynamic> json) {
     return WorkflowContext(
       targetDoseWeight: parseOptionalDouble(json['targetDoseWeight']),
