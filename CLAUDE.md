@@ -68,7 +68,13 @@ After every meaningful code change:
 2. Run full `flutter test` before committing and before claiming done.
 3. Evidence before assertions — show test output, not just "tests pass."
 
-Plans go in `doc/plans/`. Don't commit unless asked. When finishing a branch, ask user to archive to `doc/plans/archive/`. After implementation, ask whether to update related docs.
+Plans go in `doc/plans/`. Don't commit unless asked. After implementation, ask whether to update related docs.
+
+**Before opening a PR, merging locally, or considering work done:**
+1. Move all plans and implementation documents from `doc/plans/` to `doc/plans/archive/<meaningful-subfolder-name>/`. The subfolder name should reflect the feature or fix (e.g., `app-store-readiness`, `scale-auto-connect`).
+2. Check if any documentation needs updating based on the changes made — e.g., `doc/Skins.md` if endpoints changed/added, `doc/Plugins.md` if events changed/added, `doc/Profiles.md` if profile handling changed, `doc/DeviceManagement.md` if device flows changed, etc.
+
+Both steps are required, not optional.
 
 ## Architecture
 
