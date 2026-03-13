@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
@@ -43,16 +44,17 @@ class _SettingsTileState extends State<SettingsTile> {
           ),
         ),
         Expanded(child: _auxFunctions()),
-        ShadButton.secondary(
-          onPressed: () async {
-            // TODO: clean exit
-            await (await widget.controller.de1.first)?.disconnect();
-            // stop foreground service
-            await ForegroundTaskService.stop();
-            exit(0);
-          },
-          child: Text("Exit Streamline-Bridge"),
-        ),
+        if (!BuildInfo.appStore)
+          ShadButton.secondary(
+            onPressed: () async {
+              // TODO: clean exit
+              await (await widget.controller.de1.first)?.disconnect();
+              // stop foreground service
+              await ForegroundTaskService.stop();
+              exit(0);
+            },
+            child: Text("Exit Streamline-Bridge"),
+          ),
       ],
     );
   }
