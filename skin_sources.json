@@ -1,0 +1,13 @@
+[
+  {
+    "type": "github_release",
+    "repo": "tadelv/baseline.js",
+    "asset": "baseline-skin.zip",
+    "prerelease": true
+  },
+  {
+    "type": "github_branch",
+    "repo": "allofmeng/streamline_project",
+    "branch": "main"
+  }
+]
