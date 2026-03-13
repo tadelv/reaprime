@@ -51,6 +51,12 @@ void main() {
       final storage = WebUIStorage(settingsController);
       expect(storage, isNotNull);
     });
+
+    test('updateAllSkins returns early when appStoreMode is true', () async {
+      final storage = WebUIStorage(settingsController, appStoreMode: true);
+      // Should complete without error and without making any HTTP requests
+      await storage.updateAllSkins();
+    });
   });
 
   group('bundled_skins manifest', () {
