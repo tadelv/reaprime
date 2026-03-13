@@ -1,0 +1,19 @@
+name: flutter_inappwebview_linux
+description: "No-op stub for flutter_inappwebview_linux — disables the Linux WPE WebKit plugin (libwpewebkit-2.0-dev is not packaged for Ubuntu/Debian)."
+version: 0.1.0-beta.1
+
+environment:
+  sdk: ^3.8.0
+  flutter: ">=3.32.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_inappwebview_platform_interface: ^1.4.0-beta.3
+
+flutter:
+  plugin:
+    implements: flutter_inappwebview
+    platforms:
+      linux:
+        dartPluginClass: LinuxInAppWebViewPlatform
