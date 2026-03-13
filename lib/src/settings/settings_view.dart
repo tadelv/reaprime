@@ -478,11 +478,13 @@ class _SettingsViewState extends State<SettingsView> {
               ),
             ],
           ),
-        const Divider(height: 24),
-        ShadButton.outline(
-          onPressed: () => _checkForSkinUpdates(context),
-          child: const Text("Check for Skin Updates"),
-        ),
+        if (!BuildInfo.appStore) ...[
+          const Divider(height: 24),
+          ShadButton.outline(
+            onPressed: () => _checkForSkinUpdates(context),
+            child: const Text("Check for Skin Updates"),
+          ),
+        ],
       ],
     );
   }
@@ -649,16 +651,17 @@ class _SettingsViewState extends State<SettingsView> {
             ),
           );
         }),
-        const DropdownMenuItem(
-          value: _customSkinId,
-          child: Row(
-            children: [
-              Icon(Icons.folder_open, size: 16),
-              SizedBox(width: 8),
-              Text('Load custom folder...'),
-            ],
+        if (!BuildInfo.appStore)
+          const DropdownMenuItem(
+            value: _customSkinId,
+            child: Row(
+              children: [
+                Icon(Icons.folder_open, size: 16),
+                SizedBox(width: 8),
+                Text('Load custom folder...'),
+              ],
+            ),
           ),
-        ),
       ],
     );
   }
