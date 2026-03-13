@@ -122,6 +122,8 @@ flutter:
     - assets/plugins/settings.reaplugin/
     - assets/plugins/dye2.reaplugin/
     - assets/defaultProfiles/
+    - assets/bundled_skins/
+    - skin_sources.json
 
 
 

@@ -56,3 +56,7 @@ app.*.map.json
 
 # DYE2 plugin build output
 assets/plugins/dye2.reaplugin/
+
+# Skin bundling
+.skin_cache/
+assets/bundled_skins/
