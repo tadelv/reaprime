@@ -3,8 +3,11 @@ part of '../webserver_service.dart';
 /// REST API handler for WebUI skin management
 class WebUIHandler {
   final WebUIStorage _storage;
+  final bool _appStoreMode;
 
-  WebUIHandler({required WebUIStorage storage}) : _storage = storage;
+  WebUIHandler({required WebUIStorage storage, bool? appStoreMode})
+      : _storage = storage,
+        _appStoreMode = appStoreMode ?? BuildInfo.appStore;
 
   void addRoutes(RouterPlus app) {
     // List all installed skins
@@ -149,6 +152,12 @@ class WebUIHandler {
   ///   "prerelease": false         // optional
   /// }
   Future<Response> _handleInstallFromGitHubRelease(Request request) async {
+    if (_appStoreMode) {
+      return Response.forbidden(
+        jsonEncode({'error': 'Skin installation is not available on this platform'}),
+        headers: {'content-type': 'application/json'},
+      );
+    }
     try {
       final body = jsonDecode(await request.readAsString()) as Map<String, dynamic>;
       final repo = body['repo'] as String?;
@@ -194,6 +203,12 @@ class WebUIHandler {
   ///   "branch": "main"            // optional, defaults to "main"
   /// }
   Future<Response> _handleInstallFromGitHubBranch(Request request) async {
+    if (_appStoreMode) {
+      return Response.forbidden(
+        jsonEncode({'error': 'Skin installation is not available on this platform'}),
+        headers: {'content-type': 'application/json'},
+      );
+    }
     try {
       final body = jsonDecode(await request.readAsString()) as Map<String, dynamic>;
       final repo = body['repo'] as String?;
@@ -234,6 +249,12 @@ class WebUIHandler {
   ///   "url": "https://example.com/skin.zip"
   /// }
   Future<Response> _handleInstallFromUrl(Request request) async {
+    if (_appStoreMode) {
+      return Response.forbidden(
+        jsonEncode({'error': 'Skin installation is not available on this platform'}),
+        headers: {'content-type': 'application/json'},
+      );
+    }
     try {
       final body = jsonDecode(await request.readAsString()) as Map<String, dynamic>;
       final url = body['url'] as String?;

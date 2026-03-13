@@ -64,6 +64,7 @@ import 'package:reaprime/src/controllers/presence_controller.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/models/wake_schedule.dart';
 import 'package:reaprime/src/services/webview_log_service.dart';
+import 'package:reaprime/build_info.dart';
 
 part 'webserver/de1handler.dart';
 part 'webserver/scale_handler.dart';
