@@ -3464,56 +3464,6 @@ components:
         rinseData:
           $ref: "#/components/schemas/RinseData"
 
-    DoseData:
-      type: object
-      required:
-        - doseIn
-        - doseOut
-      properties:
-        doseIn:
-          type: number
-          description: Input dose (dry coffee weight in grams)
-          example: 18.0
-        doseOut:
-          type: number
-          description: Target output dose (beverage weight in grams)
-          example: 36.0
-
-    GrinderData:
-      type: object
-      required:
-        - setting
-      properties:
-        setting:
-          type: string
-          description: Grinder setting (e.g., "2.5", "15")
-          example: "2.5"
-        manufacturer:
-          type: string
-          nullable: true
-          description: Grinder manufacturer name
-          example: "Niche"
-        model:
-          type: string
-          nullable: true
-          description: Grinder model name
-          example: "Zero"
-
-    CoffeeData:
-      type: object
-      required:
-        - name
-      properties:
-        name:
-          type: string
-          description: Coffee name or variety
-          example: "Ethiopia Yirgacheffe"
-        roaster:
-          type: string
-          nullable: true
-          description: Roaster name
-          example: "Local Roaster"
-
     SteamSettings:
       type: object
       required:
