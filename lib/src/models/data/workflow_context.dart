@@ -69,25 +69,6 @@ class WorkflowContext {
     );
   }
 
-  /// Creates a WorkflowContext from legacy Workflow JSON that has
-  /// doseData/grinderData/coffeeData fields.
-  factory WorkflowContext.fromLegacyJson(Map<String, dynamic> workflowJson) {
-    final dose = workflowJson['doseData'] as Map<String, dynamic>?;
-    final grinder = workflowJson['grinderData'] as Map<String, dynamic>?;
-    final coffee = workflowJson['coffeeData'] as Map<String, dynamic>?;
-
-    return WorkflowContext(
-      targetDoseWeight:
-          dose != null ? parseOptionalDouble(dose['doseIn']) : null,
-      targetYield:
-          dose != null ? parseOptionalDouble(dose['doseOut']) : null,
-      grinderSetting: grinder?['setting'] as String?,
-      grinderModel: grinder?['model'] as String?,
-      coffeeName: coffee?['name'] as String?,
-      coffeeRoaster: coffee?['roaster'] as String?,
-    );
-  }
-
   Map<String, dynamic> toJson() {
     return {
       if (targetDoseWeight != null) 'targetDoseWeight': targetDoseWeight,

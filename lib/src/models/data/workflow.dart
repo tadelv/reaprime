@@ -13,67 +13,33 @@ class Workflow {
   final HotWaterData hotWaterData;
   final RinseData rinseData;
 
-  // Legacy fields kept for backward compatibility during migration.
-  // These are stored privately and exposed via deprecated getters.
-  final DoseData _doseData;
-  final GrinderData? _grinderData;
-  final CoffeeData? _coffeeData;
-
   Workflow({
     required this.id,
     required this.name,
     this.description = '',
     required this.profile,
     this.context,
-    DoseData? doseData,
-    GrinderData? grinderData,
-    CoffeeData? coffeeData,
     required this.steamSettings,
     required this.hotWaterData,
     required this.rinseData,
-  })  : _doseData = doseData ?? DoseData(
-          doseIn: context?.targetDoseWeight ?? 16.0,
-          doseOut: context?.targetYield ?? 36.0,
-        ),
-        _grinderData = grinderData ?? (context != null
-            ? GrinderData(
-                setting: context.grinderSetting ?? '',
-                model: context.grinderModel,
-              )
-            : null),
-        _coffeeData = coffeeData ?? (context != null
-            ? CoffeeData(
-                name: context.coffeeName ?? '',
-                roaster: context.coffeeRoaster,
-              )
-            : null);
-
-  /// Synthesized from context when available, otherwise from legacy field.
-  @Deprecated('Use context?.targetDoseWeight and context?.targetYield instead')
-  DoseData get doseData => _doseData;
-
-  @Deprecated('Use context?.grinderModel and context?.grinderSetting instead')
-  GrinderData? get grinderData => _grinderData;
-
-  @Deprecated('Use context?.coffeeName and context?.coffeeRoaster instead')
-  CoffeeData? get coffeeData => _coffeeData;
+  });
 
   factory Workflow.fromJson(Map<String, dynamic> json) {
-    // Read context from new format, or synthesize from legacy fields
     WorkflowContext? ctx;
     if (json['context'] != null) {
-      ctx = WorkflowContext.fromJson(json['context']);
+      ctx = WorkflowContext.fromJson(json['context'] as Map<String, dynamic>);
     }
 
-    // Backfill context from legacy fields when present (e.g. API deep-merge
-    // updates grinderData/coffeeData but context only has dose fields).
+    // Migration-on-read: synthesize WorkflowContext from legacy fields present
+    // in workflow JSON serialized before v0.5.2. These fields are no longer written by toJson.
     final dose = json['doseData'] as Map<String, dynamic>?;
     final grinder = json['grinderData'] as Map<String, dynamic>?;
     final coffee = json['coffeeData'] as Map<String, dynamic>?;
 
     if (ctx != null && (grinder != null || coffee != null || dose != null)) {
       ctx = ctx.copyWith(
-        targetDoseWeight: ctx.targetDoseWeight ?? parseOptionalDouble(dose?['doseIn']),
+        targetDoseWeight:
+            ctx.targetDoseWeight ?? parseOptionalDouble(dose?['doseIn']),
         targetYield: ctx.targetYield ?? parseOptionalDouble(dose?['doseOut']),
         grinderSetting: ctx.grinderSetting ?? grinder?['setting'] as String?,
         grinderModel: ctx.grinderModel ?? grinder?['model'] as String?,
@@ -81,7 +47,15 @@ class Workflow {
         coffeeRoaster: ctx.coffeeRoaster ?? coffee?['roaster'] as String?,
       );
     } else if (ctx == null && (dose != null || grinder != null || coffee != null)) {
-      ctx = WorkflowContext.fromLegacyJson(json);
+      ctx = WorkflowContext(
+        targetDoseWeight:
+            dose != null ? parseOptionalDouble(dose['doseIn']) : null,
+        targetYield: dose != null ? parseOptionalDouble(dose['doseOut']) : null,
+        grinderSetting: grinder?['setting'] as String?,
+        grinderModel: grinder?['model'] as String?,
+        coffeeName: coffee?['name'] as String?,
+        coffeeRoaster: coffee?['roaster'] as String?,
+      );
     }
 
     return Workflow(
@@ -90,16 +64,6 @@ class Workflow {
       description: json['description'],
       profile: Profile.fromJson(json['profile']),
       context: ctx,
-      // Still parse legacy fields for backward compat with old callers
-      doseData: json['doseData'] != null
-          ? DoseData.fromJson(json['doseData'])
-          : null,
-      coffeeData: json['coffeeData'] != null
-          ? CoffeeData.fromJson(json['coffeeData'])
-          : null,
-      grinderData: json['grinderData'] != null
-          ? GrinderData.fromJson(json['grinderData'])
-          : null,
       steamSettings: json['steamSettings'] != null
           ? SteamSettings.fromJson(json['steamSettings'])
           : SteamSettings.defaults(),
@@ -119,10 +83,6 @@ class Workflow {
       'description': description,
       'profile': profile.toJson(),
       if (context != null) 'context': context!.toJson(),
-      // Write legacy fields too for backward compat with older app versions
-      'doseData': _doseData.toJson(),
-      'coffeeData': _coffeeData?.toJson(),
-      'grinderData': _grinderData?.toJson(),
       'steamSettings': steamSettings.toJson(),
       'hotWaterData': hotWaterData.toJson(),
       'rinseData': rinseData.toJson(),
@@ -134,108 +94,19 @@ class Workflow {
     String? description,
     Profile? profile,
     WorkflowContext? context,
-    DoseData? doseData,
-    GrinderData? grinderData,
-    CoffeeData? coffeeData,
     SteamSettings? steamSettings,
     HotWaterData? hotWaterData,
     RinseData? rinseData,
   }) {
-    // When context is explicitly provided, don't carry forward stale legacy
-    // fields — let the constructor re-synthesize them from the new context.
-    final contextChanged = context != null;
     return Workflow(
       id: Uuid().v4(),
       name: name ?? this.name,
       description: description ?? this.description,
       profile: profile ?? this.profile,
       context: context ?? this.context,
-      doseData: doseData ?? (contextChanged ? null : _doseData),
-      grinderData: grinderData ?? (contextChanged ? null : _grinderData),
-      coffeeData: coffeeData ?? (contextChanged ? null : _coffeeData),
       steamSettings: steamSettings ?? this.steamSettings,
       hotWaterData: hotWaterData ?? this.hotWaterData,
       rinseData: rinseData ?? this.rinseData,
-    );
-  }
-}
-
-class DoseData {
-  double doseIn;
-  double doseOut;
-
-  DoseData({this.doseIn = 16.0, this.doseOut = 36.0});
-
-  double get ratio => doseOut / doseIn;
-  void setRatio(double ratio) {
-    doseOut = doseIn * ratio;
-  }
-
-  factory DoseData.fromJson(Map<String, dynamic> json) {
-    return DoseData(
-      doseIn: double.parse(json['doseIn'].toString()),
-      doseOut: double.parse(json['doseOut'].toString()),
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {'doseIn': doseIn, 'doseOut': doseOut};
-  }
-
-  DoseData copyWith({double? doseIn, double? doseOut}) {
-    return DoseData(
-      doseIn: doseIn ?? this.doseIn,
-      doseOut: doseOut ?? this.doseOut,
-    );
-  }
-}
-
-class GrinderData {
-  final String setting;
-  final String? manufacturer;
-  final String? model;
-
-  const GrinderData({this.setting = "", this.manufacturer, this.model});
-
-  factory GrinderData.fromJson(Map<String, dynamic> json) {
-    return GrinderData(
-      setting: json['setting'],
-      manufacturer: json['manufacturer'],
-      model: json['model'],
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {'setting': setting, 'manufacturer': manufacturer, 'model': model};
-  }
-
-  GrinderData copyWith({String? setting, String? manufacturer, String? model}) {
-    return GrinderData(
-      model: model ?? this.model,
-      manufacturer: manufacturer ?? this.manufacturer,
-      setting: setting ?? this.setting,
-    );
-  }
-}
-
-class CoffeeData {
-  final String? roaster;
-  final String name;
-
-  const CoffeeData({this.name = '', this.roaster});
-
-  factory CoffeeData.fromJson(Map<String, dynamic> json) {
-    return CoffeeData(name: json['name'], roaster: json['roaster']);
-  }
-
-  Map<String, dynamic> toJson() {
-    return {'name': name, 'roaster': roaster};
-  }
-
-  CoffeeData copyWith({String? name, String? roaster}) {
-    return CoffeeData(
-      name: name ?? this.name,
-      roaster: roaster ?? this.roaster,
     );
   }
 }

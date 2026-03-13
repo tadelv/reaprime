@@ -61,7 +61,7 @@ void main() {
       expect(map['id'], equals('wf-1'));
       expect(map['profile'], isA<Map<String, dynamic>>());
       expect(map['context'], isA<Map<String, dynamic>>());
-      expect(map['doseData'], isA<Map<String, dynamic>>());
+      expect(map.containsKey('doseData'), isFalse);
     });
 
     test('exports default workflow when none set', () async {

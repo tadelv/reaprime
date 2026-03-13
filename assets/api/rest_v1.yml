@@ -494,9 +494,9 @@ paths:
         - **hotWaterData**: Adjust hot water temperature, volume, duration, and flow
         - **rinseData**: Update rinse temperature, duration, and flow
 
-        Use `context` for dose, grinder, and coffee parameters. Legacy fields
-        (`doseData`, `grinderData`, `coffeeData`) are still accepted for backward
-        compatibility but `context` takes precedence when both are provided.
+        Use `context` for dose, grinder, and coffee parameters. As of v0.5.2,
+        legacy fields (`doseData`, `grinderData`, `coffeeData`) are no longer
+        accepted — only `context` is supported.
 
         This approach is preferred over updating individual settings via separate endpoints
         as it ensures all related settings are applied together and uploaded to the machine
@@ -3454,21 +3454,9 @@ components:
         context:
           $ref: "#/components/schemas/WorkflowContext"
           description: |
-            Unified shot metadata (dose, grinder, coffee, people). This is the recommended
-            way to set workflow parameters. Legacy fields (doseData, grinderData, coffeeData)
-            are still accepted for backward compatibility but context takes precedence.
-        doseData:
-          $ref: "#/components/schemas/DoseData"
-          deprecated: true
-          description: "Deprecated: use context.targetDoseWeight and context.targetYield instead"
-        grinderData:
-          $ref: "#/components/schemas/GrinderData"
-          deprecated: true
-          description: "Deprecated: use context.grinderModel, context.grinderSetting, and context.grinderId instead"
-        coffeeData:
-          $ref: "#/components/schemas/CoffeeData"
-          deprecated: true
-          description: "Deprecated: use context.coffeeName, context.coffeeRoaster, and context.beanBatchId instead"
+            Unified shot metadata (dose, grinder, coffee, people). This is the only
+            supported way to set workflow parameters as of v0.5.2. Legacy fields
+            (doseData, grinderData, coffeeData) are no longer accepted.
         steamSettings:
           $ref: "#/components/schemas/SteamSettings"
         hotWaterData:
