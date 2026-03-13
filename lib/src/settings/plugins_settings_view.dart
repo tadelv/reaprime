@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:logging/logging.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/plugins/plugin_manifest.dart';
 
@@ -15,11 +16,16 @@ import 'package:reaprime/src/plugins/plugin_manifest.dart';
 // lists permissions for each plugin, as well as other details such as author, plugin name, version
 // also has buttons for adding/installing a plugin as well as removing a specific plugin
 class PluginsSettingsView extends StatefulWidget {
-  const PluginsSettingsView({super.key, required this.pluginLoaderService});
+  const PluginsSettingsView({
+    super.key,
+    required this.pluginLoaderService,
+    this.allowInstall = !BuildInfo.appStore,
+  });
 
   static const routeName = '/plugins';
 
   final PluginLoaderService pluginLoaderService;
+  final bool allowInstall;
 
   @override
   State<PluginsSettingsView> createState() => _PluginsSettingsViewState();
@@ -64,11 +70,12 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
             onPressed: _refreshPlugins,
             tooltip: 'Refresh Plugins',
           ),
-          IconButton(
-            icon: const Icon(LucideIcons.plus),
-            onPressed: () => _installPlugin(context),
-            tooltip: 'Install Plugin',
-          ),
+          if (widget.allowInstall)
+            IconButton(
+              icon: const Icon(LucideIcons.plus),
+              onPressed: () => _installPlugin(context),
+              tooltip: 'Install Plugin',
+            ),
         ],
       ),
       body: _buildPluginList(),
