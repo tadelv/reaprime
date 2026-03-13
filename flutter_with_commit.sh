@@ -51,6 +51,13 @@ shift
 
 EXTRA_ARGS=("$@")
 
+# --- Bundle skins (downloads to assets/bundled_skins/) ---
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/bundle_skins.sh" ]; then
+  echo "Bundling skins..."
+  bash "$SCRIPT_DIR/bundle_skins.sh"
+fi
+
 # --- Handle 'flutter build <target> ...' correctly ---
 if [ "$COMMAND" = "build" ]; then
     if [ ${#EXTRA_ARGS[@]} -lt 1 ]; then
