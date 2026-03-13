@@ -190,7 +190,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install GTK+ 3.0
+      - name: Install Linux dependencies
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev
 
       - name: Set up Flutter
@@ -232,7 +232,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install GTK+ 3.0
+      - name: Install Linux dependencies
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev
 
       - name: Set up Flutter
@@ -240,7 +240,7 @@ jobs:
         with:
           channel: master
           flutter-version: 3.38.5
-      
+
       - name: Run git safe dir
         run: git config --global --add safe.directory /opt/hostedtoolcache/flutter/${{ steps.flutter-action.outputs.CHANNEL }}-${{ steps.flutter-action.outputs.VERSION }}-${{ steps.flutter-action.outputs.ARCHITECTURE }}
 

@@ -1,7 +1,7 @@
 services:
   flutter-build:
     platform: linux/${TARGETARCH:-arm64}
-    image: flutter-linux:latest
+    image: flutter-linux:${TARGETARCH:-arm64}
     build:
       context: .
       dockerfile: Dockerfile

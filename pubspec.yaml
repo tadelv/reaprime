@@ -90,6 +90,12 @@ dependencies:
   #   url: https://github.com/tadelv/flutter_libserialport.git
   #   ref: main
 
+dependency_overrides:
+  # No-op stub: WPE WebKit 2.0 (libwpewebkit-2.0-dev) is not packaged for
+  # Ubuntu/Debian, so the real flutter_inappwebview_linux plugin cannot build.
+  flutter_inappwebview_linux:
+    path: packages/flutter_inappwebview_linux_noop
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
