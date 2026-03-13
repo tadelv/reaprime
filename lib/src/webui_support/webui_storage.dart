@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
+import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 
 /// REA metadata for tracking WebUI skin source and version
@@ -129,13 +130,15 @@ class WebUISkin {
 class WebUIStorage {
   final _log = Logger('WebUIStorage');
   final SettingsController _settingsController;
-  
+  final bool _appStoreMode;
+
   late Directory _webUIDir;
   final Map<String, WebUISkin> _installedSkins = {};
   final Map<String, WebUIReaMetadata> _skinMetadata = {};
   bool _initialized = false;
 
-  WebUIStorage(this._settingsController);
+  WebUIStorage(this._settingsController, {bool? appStoreMode})
+      : _appStoreMode = appStoreMode ?? BuildInfo.appStore;
 
   /// Hardcoded list of bundled asset paths
   /// These are Flutter assets that ship with the app
@@ -143,35 +146,22 @@ class WebUIStorage {
     // 'assets/web/',
   ];
 
-  /// Remote WebUI source configuration
-  /// Supports both GitHub releases and branch archives
-  static const List<Map<String, dynamic>> _remoteWebUISources = [
-    // Baseline
-    {
-      'type': 'github_release',
-      'repo': 'tadelv/baseline.js',
-      'asset': 'baseline-skin.zip',  // Optional: specific asset name
-      'prerelease': true,      // Optional: include pre-releases
-    },
-    // Streamline Project (branch archive - no releases yet)
-    {
-      'type': 'github_branch',
-      'repo': 'allofmeng/streamline_project',
-      'branch': 'main',
-    },
-    // Example: GitHub Release (recommended for production)
-    // {
-    //   'type': 'github_release',
-    //   'repo': 'username/my-skin-repo',
-    //   'asset': 'my-skin.zip',  // Optional: specific asset name
-    //   'prerelease': false,      // Optional: include pre-releases
-    // },
-    // Example: Direct URL (legacy support)
-    // {
-    //   'type': 'url',
-    //   'url': 'https://example.com/skin.zip',
-    // },
-  ];
+  /// Remote skin sources — loaded from skin_sources.json asset at runtime.
+  /// At build time, bundle_skins.sh reads the same file to pre-download skins.
+  static List<Map<String, dynamic>>? _remoteWebUISourcesCache;
+
+  Future<List<Map<String, dynamic>>> _getRemoteWebUISources() async {
+    if (_remoteWebUISourcesCache != null) return _remoteWebUISourcesCache!;
+    try {
+      final configString = await rootBundle.loadString('skin_sources.json');
+      _remoteWebUISourcesCache =
+          (jsonDecode(configString) as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      _log.warning('Failed to load skin_sources.json', e);
+      _remoteWebUISourcesCache = [];
+    }
+    return _remoteWebUISourcesCache!;
+  }
 
   /// Set of skin IDs that were installed from remote sources (treated as bundled)
   final Set<String> _remoteBundledSkinIds = {};
@@ -207,7 +197,10 @@ class WebUIStorage {
     await _copyBundledSkins();
 
     // Download and install remote bundled skins (includes version checking)
-    await downloadRemoteSkins();
+    // Skip on App Store builds — bundled skins from assets are the only source
+    if (!_appStoreMode) {
+      await downloadRemoteSkins();
+    }
 
     // Scan for installed skins
     await _scanInstalledSkins();
@@ -427,7 +420,8 @@ class WebUIStorage {
   /// Download and install all skins from the hardcoded remote sources
   /// These skins are treated as "bundled" and cannot be removed by users
   Future<void> downloadRemoteSkins() async {
-    for (final sourceConfig in _remoteWebUISources) {
+    final sources = await _getRemoteWebUISources();
+    for (final sourceConfig in sources) {
       try {
         final type = sourceConfig['type'] as String;
         
@@ -906,6 +900,36 @@ class WebUIStorage {
       } catch (e) {
         _log.warning('Failed to copy bundled skin from $assetPath', e);
       }
+    }
+
+    // Install bundled skin zips from assets/bundled_skins/
+    try {
+      final manifestString =
+          await rootBundle.loadString('assets/bundled_skins/manifest.json');
+      final skinIds = (jsonDecode(manifestString) as List).cast<String>();
+
+      for (final skinId in skinIds) {
+        final destDir = Directory('${_webUIDir.path}/$skinId');
+        if (destDir.existsSync() && destDir.listSync().isNotEmpty) {
+          _log.fine('Bundled skin already exists: $skinId');
+          continue;
+        }
+
+        // Load zip from assets and extract
+        final zipData =
+            await rootBundle.load('assets/bundled_skins/$skinId.zip');
+        final tempFile = File('${_webUIDir.path}/$skinId.zip');
+        await tempFile.writeAsBytes(zipData.buffer.asUint8List());
+
+        try {
+          await _installFromZip(tempFile.path);
+          _log.info('Installed bundled skin from asset: $skinId');
+        } finally {
+          if (tempFile.existsSync()) await tempFile.delete();
+        }
+      }
+    } catch (e) {
+      _log.fine('No bundled skin zips found in assets: $e');
     }
   }
 
