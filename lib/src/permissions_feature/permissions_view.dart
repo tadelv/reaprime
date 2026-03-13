@@ -126,7 +126,6 @@ class _PermissionsViewState extends State<PermissionsView> {
         }
       } else if (Platform.isIOS) {
         await Permission.bluetooth.request();
-        await Permission.locationWhenInUse.request();
       }
     } else {
       try {
