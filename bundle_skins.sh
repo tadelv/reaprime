@@ -16,6 +16,9 @@ if ! command -v jq &> /dev/null; then
   exit 0
 fi
 
+# Cache TTL for branch downloads (1 hour = 3600 seconds)
+CACHE_TTL=3600
+
 mkdir -p "$CACHE_DIR" "$OUTPUT_DIR"
 
 COUNT=$(jq length "$CONFIG")
@@ -76,6 +79,17 @@ for ((i=0; i<COUNT; i++)); do
       URL="https://github.com/$REPO/archive/refs/heads/$BRANCH.zip"
       SKIN_ID="${REPO_NAME}-${BRANCH}"
       CACHE_FILE="$CACHE_DIR/${SKIN_ID}.zip"
+
+      # Skip re-download if cache is fresh (within TTL)
+      if [ -f "$CACHE_FILE" ]; then
+        FILE_AGE=$(( $(date +%s) - $(stat -f %m "$CACHE_FILE" 2>/dev/null || stat -c %Y "$CACHE_FILE" 2>/dev/null || echo 0) ))
+        if [ "$FILE_AGE" -lt "$CACHE_TTL" ]; then
+          echo "Using cached (${FILE_AGE}s old): $CACHE_FILE"
+          cp "$CACHE_FILE" "$OUTPUT_DIR/$SKIN_ID.zip"
+          echo "Bundled skin: $SKIN_ID"
+          continue
+        fi
+      fi
 
       echo "Downloading: $URL"
       curl -sfL -o "$CACHE_FILE" "$URL" || { echo "Warning: Download failed for $REPO/$BRANCH"; continue; }

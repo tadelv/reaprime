@@ -59,4 +59,5 @@ assets/plugins/dye2.reaplugin/
 
 # Skin bundling
 .skin_cache/
-assets/bundled_skins/
+assets/bundled_skins/*
+!assets/bundled_skins/.gitkeep
