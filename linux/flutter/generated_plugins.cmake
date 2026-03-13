@@ -3,6 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  flutter_inappwebview_linux
   flutter_js
   flutter_libserialport
   screen_retriever_linux
