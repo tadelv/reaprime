@@ -22,7 +22,9 @@ import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/plugins/plugin_manifest.dart';
 import 'package:reaprime/src/services/storage/hive_store_service.dart';
 import 'package:reaprime/src/services/webserver/json_response.dart';
+import 'package:http/http.dart' as http;
 import 'package:reaprime/src/services/webserver/data_export_handler.dart';
+import 'package:reaprime/src/services/webserver/data_sync_handler.dart';
 import 'package:reaprime/src/services/webserver/data_export/profile_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/shot_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/workflow_export_section.dart';
@@ -191,6 +193,11 @@ Future<void> startWebServer(
     ],
   );
 
+  final dataSyncHandler = DataSyncHandler(
+    exportHandler: dataExportHandler,
+    httpClient: http.Client(),
+  );
+
   // Start server
   final server = await io.serve(
     _init(
@@ -211,6 +218,7 @@ Future<void> startWebServer(
       presenceHandler,
       displayHandler,
       dataExportHandler,
+      dataSyncHandler,
       beansHandler,
       grindersHandler,
     ),
@@ -242,6 +250,7 @@ Handler _init(
   PresenceHandler? presenceHandler,
   DisplayHandler? displayHandler,
   DataExportHandler dataExportHandler,
+  DataSyncHandler dataSyncHandler,
   BeansHandler? beansHandler,
   GrindersHandler? grindersHandler,
 ) {
@@ -301,6 +310,7 @@ Handler _init(
     displayHandler.addRoutes(app);
   }
   dataExportHandler.addRoutes(app);
+  dataSyncHandler.addRoutes(app);
   if (beansHandler != null) {
     beansHandler.addRoutes(app);
   }
