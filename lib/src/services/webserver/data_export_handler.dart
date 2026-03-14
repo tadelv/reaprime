@@ -80,9 +80,82 @@ class DataExportHandler {
     }
   }
 
+  /// Imports data from ZIP bytes.
+  ///
+  /// If [sections] is provided, only sections whose filename (without .json)
+  /// matches an entry in the list are processed.
+  ///
+  /// Throws [FormatException] if the archive format version is unsupported.
+  /// Throws [ArchiveException] if the ZIP is invalid.
+  Future<Map<String, dynamic>> importFromBytes(
+    List<int> zipBytes,
+    ConflictStrategy strategy, {
+    List<String>? sections,
+  }) async {
+    final archive = ZipDecoder().decodeBytes(zipBytes);
+
+    // Parse metadata
+    String? sourcePlatform;
+    final metadataFile = archive.findFile('metadata.json');
+    if (metadataFile != null) {
+      final metadataJson = jsonDecode(utf8.decode(metadataFile.content));
+      final formatVersion = metadataJson['formatVersion'] as int?;
+      if (formatVersion != null && formatVersion > _currentFormatVersion) {
+        throw FormatException(
+          'This archive was created with format version $formatVersion, '
+          'but this app only supports up to version $_currentFormatVersion. '
+          'Please update the app.',
+        );
+      }
+      sourcePlatform = metadataJson['platform'] as String?;
+    } else {
+      _log.warning('Import archive missing metadata.json');
+    }
+
+    final results = <String, dynamic>{};
+
+    for (final section in _sections) {
+      final key = _sectionKey(section);
+      if (sections != null && !sections.contains(key)) continue;
+
+      final file = archive.findFile(section.filename);
+      if (file == null) continue;
+
+      try {
+        final data = jsonDecode(utf8.decode(file.content));
+        final result = await section.import(data, strategy);
+
+        if (section.filename == 'settings.json' &&
+            sourcePlatform != null &&
+            sourcePlatform != Platform.operatingSystem) {
+          final warnings = List<String>.from(result.warnings);
+          warnings.add(
+            'Device preferences imported from \'$sourcePlatform\' may not '
+            'work on \'${Platform.operatingSystem}\' — device IDs are '
+            'platform-specific. Devices will need to be re-paired.',
+          );
+          results[key] = SectionImportResult(
+            imported: result.imported,
+            skipped: result.skipped,
+            errors: result.errors,
+            warnings: warnings,
+          ).toJson();
+        } else {
+          results[key] = result.toJson();
+        }
+      } catch (e, st) {
+        _log.severe('Error importing ${section.filename}', e, st);
+        results[key] = {
+          'errors': ['Failed to process ${section.filename}: $e'],
+        };
+      }
+    }
+
+    return results;
+  }
+
   Future<Response> _handleImport(Request request) async {
     try {
-      // Parse conflict strategy
       final onConflict = request.url.queryParameters['onConflict'] ?? 'skip';
       final ConflictStrategy strategy;
       switch (onConflict) {
@@ -97,74 +170,18 @@ class DataExportHandler {
           });
       }
 
-      // Read and decode ZIP
       final bytes = await request.read().expand((b) => b).toList();
-      final archive = ZipDecoder().decodeBytes(bytes);
-
-      // Parse metadata.json (optional)
-      String? sourcePlatform;
-      final metadataFile = archive.findFile('metadata.json');
-      if (metadataFile != null) {
-        final metadataJson = jsonDecode(utf8.decode(metadataFile.content));
-        final formatVersion = metadataJson['formatVersion'] as int?;
-        if (formatVersion != null &&
-            formatVersion > _currentFormatVersion) {
-          return jsonBadRequest({
-            'error': 'Unsupported export format',
-            'message':
-                'This archive was created with format version $formatVersion, '
-                'but this app only supports up to version $_currentFormatVersion. '
-                'Please update the app.',
-          });
-        }
-        sourcePlatform = metadataJson['platform'] as String?;
-      } else {
-        _log.warning('Import archive missing metadata.json');
-      }
-
-      // Import each section
-      final results = <String, dynamic>{};
-
-      for (final section in _sections) {
-        final file = archive.findFile(section.filename);
-        if (file == null) continue;
-
-        try {
-          final data = jsonDecode(utf8.decode(file.content));
-          final result = await section.import(data, strategy);
-
-          // Add platform mismatch warning for settings
-          if (section.filename == 'settings.json' &&
-              sourcePlatform != null &&
-              sourcePlatform != Platform.operatingSystem) {
-            final warnings = List<String>.from(result.warnings);
-            warnings.add(
-              'Device preferences imported from \'$sourcePlatform\' may not '
-              'work on \'${Platform.operatingSystem}\' — device IDs are '
-              'platform-specific. Devices will need to be re-paired.',
-            );
-            results[_sectionKey(section)] = SectionImportResult(
-              imported: result.imported,
-              skipped: result.skipped,
-              errors: result.errors,
-              warnings: warnings,
-            ).toJson();
-          } else {
-            results[_sectionKey(section)] = result.toJson();
-          }
-        } catch (e, st) {
-          _log.severe('Error importing ${section.filename}', e, st);
-          results[_sectionKey(section)] = {
-            'errors': ['Failed to process ${section.filename}: $e'],
-          };
-        }
-      }
-
+      final results = await importFromBytes(bytes, strategy);
       return jsonOk(results);
     } on ArchiveException catch (e) {
       return jsonBadRequest({
         'error': 'Invalid archive',
         'message': 'Could not read ZIP file: $e',
+      });
+    } on FormatException catch (e) {
+      return jsonBadRequest({
+        'error': 'Unsupported export format',
+        'message': e.message,
       });
     } catch (e, st) {
       _log.severe('Error in _handleImport', e, st);
