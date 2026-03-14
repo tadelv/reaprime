@@ -392,5 +392,71 @@ void main() {
         expect(archive.findFile('shots.json'), isNull);
       });
     });
+
+    group('importFromBytes()', () {
+      test('imports all sections from ZIP bytes', () async {
+        final zipBytes = buildZip({
+          'metadata.json': {'formatVersion': 1, 'platform': 'macos'},
+          'profiles.json': {
+            'profiles': [
+              {'id': 'p1'}
+            ]
+          },
+          'shots.json': {
+            'shots': [
+              {'id': 's1'}
+            ]
+          },
+        });
+
+        final results = await handler.importFromBytes(
+          zipBytes,
+          ConflictStrategy.skip,
+        );
+
+        expect(results, contains('profiles'));
+        expect(results, contains('shots'));
+        expect(profileSection.importCalled, isTrue);
+        expect(shotsSection.importCalled, isTrue);
+      });
+
+      test('filters sections when specified', () async {
+        final zipBytes = buildZip({
+          'metadata.json': {'formatVersion': 1, 'platform': 'macos'},
+          'profiles.json': {
+            'profiles': [
+              {'id': 'p1'}
+            ]
+          },
+          'shots.json': {
+            'shots': [
+              {'id': 's1'}
+            ]
+          },
+        });
+
+        final results = await handler.importFromBytes(
+          zipBytes,
+          ConflictStrategy.skip,
+          sections: ['profiles'],
+        );
+
+        expect(results, contains('profiles'));
+        expect(results, isNot(contains('shots')));
+        expect(profileSection.importCalled, isTrue);
+        expect(shotsSection.importCalled, isFalse);
+      });
+
+      test('throws FormatException for unsupported format version', () async {
+        final zipBytes = buildZip({
+          'metadata.json': {'formatVersion': 99},
+        });
+
+        expect(
+          () => handler.importFromBytes(zipBytes, ConflictStrategy.skip),
+          throwsA(isA<FormatException>()),
+        );
+      });
+    });
   });
 }
