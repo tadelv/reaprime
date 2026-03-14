@@ -2854,6 +2854,87 @@ paths:
                     type: string
         "500":
           description: Internal server error
+  /api/v1/data/sync:
+    post:
+      summary: Sync data between Bridge instances
+      description: |
+        Synchronizes data between this Bridge instance and a target Bridge
+        instance over the network. Supports three modes:
+        - **pull**: imports data from the target into this instance
+        - **push**: exports data from this instance to the target
+        - **two_way**: performs pull then push (returns 207 if one phase fails)
+
+        Only the specified sections are synced. If no sections are provided,
+        all available sections are synced.
+      tags: [Data Management]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target, mode]
+              properties:
+                target:
+                  type: string
+                  description: Base URL of the target Bridge instance (e.g. "http://192.168.1.50:8080")
+                mode:
+                  type: string
+                  enum: [pull, push, two_way]
+                  description: |
+                    Sync direction.
+                    'pull' imports from target into this instance.
+                    'push' exports from this instance to the target.
+                    'two_way' performs pull then push.
+                onConflict:
+                  type: string
+                  enum: [skip, overwrite]
+                  default: skip
+                  description: |
+                    How to handle records that already exist.
+                    'skip' keeps existing records (default).
+                    'overwrite' replaces existing records with imported ones.
+                sections:
+                  type: array
+                  items:
+                    type: string
+                    enum: [profiles, shots, workflow, settings, store, beans, grinders]
+                  description: Data sections to sync. Defaults to all sections if omitted.
+      responses:
+        "200":
+          description: Sync completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncResult"
+        "207":
+          description: Partial success (two_way mode, one phase failed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncResult"
+        "400":
+          description: Validation error (missing required fields, invalid mode, etc.)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  message:
+                    type: string
+        "502":
+          description: Target Bridge unreachable or returned an error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  message:
+                    type: string
 
 components:
   schemas:
@@ -3880,6 +3961,24 @@ components:
           items:
             type: string
           description: Warning messages (e.g., platform mismatch for device preferences)
+
+    SyncResult:
+      type: object
+      description: Result of a data sync operation. Contains per-phase results keyed by direction.
+      properties:
+        pull:
+          type: object
+          description: Per-section results for the pull phase (present for pull and two_way modes)
+          additionalProperties:
+            $ref: "#/components/schemas/SectionImportResult"
+        push:
+          type: object
+          description: Per-section results for the push phase (present for push and two_way modes)
+          additionalProperties:
+            $ref: "#/components/schemas/SectionImportResult"
+        error:
+          type: string
+          description: Error message if a phase failed (present in 207 responses)
 
     WorkflowContext:
       type: object

@@ -141,6 +141,7 @@ Handler-based routing in `lib/src/services/webserver/`. Each handler has `addRou
 | Presence | `/api/v1/presence` | `presence_handler.dart` (part of) |
 | KV Store | `/api/v1/kv` | `kv_store_handler.dart` (part of) |
 | Data Export | `/api/v1/data/export`, `/import` | `data_export_handler.dart` — ZIP-based full data export/import |
+| Data Sync | `/api/v1/data/sync` | `data_sync_handler.dart` — POST sync between Bridge instances |
 | Feedback | `/api/v1/feedback` | `feedback_handler.dart` (part of) — POST creates GitHub issue with optional logs/screenshots as Gist. Requires `GITHUB_FEEDBACK_TOKEN` at build time. |
 | Logs | `/api/v1/logs` | `logs_handler.dart` (part of) |
 | WebUI | — | `webui_handler.dart` (part of) — skin asset serving |
