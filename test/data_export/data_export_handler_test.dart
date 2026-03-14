@@ -372,5 +372,25 @@ void main() {
         expect((body['failing']['errors'] as List).first, contains('Failed'));
       });
     });
+
+    group('exportToBytes()', () {
+      test('returns ZIP bytes containing all sections', () async {
+        final bytes = await handler.exportToBytes();
+
+        final archive = ZipDecoder().decodeBytes(bytes);
+        expect(archive.findFile('metadata.json'), isNotNull);
+        expect(archive.findFile('profiles.json'), isNotNull);
+        expect(archive.findFile('shots.json'), isNotNull);
+      });
+
+      test('filters sections when specified', () async {
+        final bytes = await handler.exportToBytes(sections: ['profiles']);
+
+        final archive = ZipDecoder().decodeBytes(bytes);
+        expect(archive.findFile('metadata.json'), isNotNull);
+        expect(archive.findFile('profiles.json'), isNotNull);
+        expect(archive.findFile('shots.json'), isNull);
+      });
+    });
   });
 }

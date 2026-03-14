@@ -22,33 +22,42 @@ class DataExportHandler {
     app.post('/api/v1/data/import', _handleImport);
   }
 
+  /// Exports data as ZIP bytes.
+  ///
+  /// If [sections] is provided, only sections whose filename (without .json)
+  /// matches an entry in the list are included.
+  Future<List<int>> exportToBytes({List<String>? sections}) async {
+    final archive = Archive();
+
+    final metadata = {
+      'formatVersion': _currentFormatVersion,
+      'appVersion': BuildInfo.version,
+      'buildNumber': BuildInfo.buildNumber,
+      'commitSha': BuildInfo.commitShort,
+      'branch': BuildInfo.branch,
+      'exportTimestamp': DateTime.now().toUtc().toIso8601String(),
+      'platform': Platform.operatingSystem,
+    };
+    _addJsonToArchive(archive, 'metadata.json', metadata);
+
+    for (final section in _sections) {
+      if (sections != null && !sections.contains(_sectionKey(section))) {
+        continue;
+      }
+      try {
+        final data = await section.export();
+        _addJsonToArchive(archive, section.filename, data);
+      } catch (e, st) {
+        _log.severe('Error exporting ${section.filename}', e, st);
+      }
+    }
+
+    return ZipEncoder().encode(archive);
+  }
+
   Future<Response> _handleExport(Request request) async {
     try {
-      final archive = Archive();
-
-      // Add metadata.json
-      final metadata = {
-        'formatVersion': _currentFormatVersion,
-        'appVersion': BuildInfo.version,
-        'buildNumber': BuildInfo.buildNumber,
-        'commitSha': BuildInfo.commitShort,
-        'branch': BuildInfo.branch,
-        'exportTimestamp': DateTime.now().toUtc().toIso8601String(),
-        'platform': Platform.operatingSystem,
-      };
-      _addJsonToArchive(archive, 'metadata.json', metadata);
-
-      // Export each registered section
-      for (final section in _sections) {
-        try {
-          final data = await section.export();
-          _addJsonToArchive(archive, section.filename, data);
-        } catch (e, st) {
-          _log.severe('Error exporting ${section.filename}', e, st);
-        }
-      }
-
-      final zipBytes = ZipEncoder().encode(archive);
+      final zipBytes = await exportToBytes();
 
       final timestamp = DateTime.now()
           .toUtc()
