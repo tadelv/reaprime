@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -31,6 +32,8 @@ class SyncTargetException implements Exception {
 ///
 /// Uses the existing export/import ZIP format via [DataExportHandler].
 class DataSyncHandler {
+  static const _requestTimeout = Duration(seconds: 30);
+
   final DataExportHandler _exportHandler;
   final http.Client _httpClient;
   final Logger _log = Logger('DataSyncHandler');
@@ -67,6 +70,17 @@ class DataSyncHandler {
       return jsonBadRequest({
         'error': 'Missing required field',
         'message': '"target" is required',
+      });
+    }
+
+    final targetUri = Uri.tryParse(target);
+    if (targetUri == null ||
+        !targetUri.hasScheme ||
+        (targetUri.scheme != 'http' && targetUri.scheme != 'https')) {
+      return jsonBadRequest({
+        'error': 'Invalid target URL',
+        'message':
+            '"target" must be a valid HTTP/HTTPS URL (e.g., http://192.168.1.50:8080)',
       });
     }
 
@@ -169,7 +183,7 @@ class DataSyncHandler {
     _log.info('Pulling data from $target');
 
     final uri = Uri.parse('$target/api/v1/data/export');
-    final response = await _httpClient.get(uri);
+    final response = await _httpClient.get(uri).timeout(_requestTimeout);
 
     if (response.statusCode != 200) {
       throw SyncTargetException(
@@ -199,11 +213,13 @@ class DataSyncHandler {
     final uri = Uri.parse(
       '$target/api/v1/data/import?onConflict=${strategy.name}',
     );
-    final response = await _httpClient.post(
-      uri,
-      body: zipBytes,
-      headers: {'Content-Type': 'application/octet-stream'},
-    );
+    final response = await _httpClient
+        .post(
+          uri,
+          body: zipBytes,
+          headers: {'Content-Type': 'application/octet-stream'},
+        )
+        .timeout(_requestTimeout);
 
     if (response.statusCode != 200) {
       throw SyncTargetException(
@@ -228,6 +244,12 @@ class DataSyncHandler {
       return {
         'error': 'Target unreachable',
         'message': error.message,
+      };
+    }
+    if (error is TimeoutException) {
+      return {
+        'error': 'Target unreachable',
+        'message': 'Request timed out after ${_requestTimeout.inSeconds} seconds',
       };
     }
     return {

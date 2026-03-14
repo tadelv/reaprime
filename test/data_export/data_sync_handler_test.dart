@@ -114,6 +114,21 @@ void main() {
         expect(body['message'], contains('mode'));
       });
 
+      test('returns 400 for invalid target URL', () async {
+        final client = http_testing.MockClient(
+            (_) async => http.Response('', 200));
+        final handler = buildSyncHandler(client);
+
+        final response = await sendSync(handler, {
+          'target': 'not-a-url',
+          'mode': 'pull',
+        });
+
+        expect(response.statusCode, 400);
+        final body = jsonDecode(await response.readAsString());
+        expect(body['error'], 'Invalid target URL');
+      });
+
       test('returns 400 for invalid mode', () async {
         final client = http_testing.MockClient(
             (_) async => http.Response('', 200));
