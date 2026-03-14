@@ -19,6 +19,7 @@ import { AppManager } from "./lifecycle/app-manager.js";
 import { registerLifecycleTools } from "./tools/lifecycle.js";
 import { WsClient } from "./bridge/ws-client.js";
 import { registerStreamingTools } from "./tools/streaming.js";
+import { registerDataSyncTools } from "./tools/data-sync.js";
 import { registerStaticResources } from "./resources/static-docs.js";
 import { registerLiveResources } from "./resources/live-state.js";
 
@@ -59,6 +60,7 @@ export function createServer(config: ServerConfig) {
   registerSensorTools(server, restClient);
   registerBeanTools(server, restClient);
   registerGrinderTools(server, restClient);
+  registerDataSyncTools(server, restClient);
 
   const appManager = new AppManager({
     flutterCmd: config.flutterCmd,
