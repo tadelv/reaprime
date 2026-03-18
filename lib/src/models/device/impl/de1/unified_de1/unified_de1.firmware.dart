@@ -11,7 +11,7 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
     await requestState(MachineState.sleeping);
 
     // TODO: move to Machine impl that needs this
-    await requestState(MachineState.fwUpgrade);
+    // await requestState(MachineState.fwUpgrade);
 
     // unsub = _subscribe(Endpoint.fwMapRequest, (ByteData data) async {
     final unsub = _transport.fwMapRequest.listen( (ByteData data) async {
@@ -122,6 +122,7 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
       data.setRange(4, 4 + chunkLength, list, i);
 
       await _transport.writeWithResponse(Endpoint.writeToMMR, data);
+      await Future.delayed(Duration(milliseconds: 5));
       onProgress(min(i / total, 1.0));
     }
   }
