@@ -20,9 +20,9 @@ extension MessageParsing on UnifiedDe1 {
     final frameNumber = shotSample.getUint8(17);
     final steamTemp = shotSample.getUint8(18);
 
-    var state = De1StateEnum.fromHexValue(stateSample.getInt8(0));
+    var state = De1StateEnum.fromHexValue(stateSample.getUint8(0));
     var subState =
-        De1SubState.fromHexValue(stateSample.getInt8(1)) ?? De1SubState.noState;
+        De1SubState.fromHexValue(stateSample.getUint8(1)) ?? De1SubState.noState;
 
     return MachineSnapshot(
       timestamp: DateTime.now(),
