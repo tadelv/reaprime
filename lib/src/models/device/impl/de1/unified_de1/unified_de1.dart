@@ -14,7 +14,7 @@ import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1_tran
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
-import 'package:rxdart/transformers.dart';
+import 'package:rxdart/rxdart.dart';
 
 part 'unified_de1.mmr.dart';
 part 'unified_de1.parsing.dart';
@@ -54,8 +54,7 @@ class UnifiedDe1 implements De1Interface {
   @override
   Stream<ConnectionState> get connectionState => _transport.connectionState;
 
-  @override
-  Stream<MachineSnapshot> get currentSnapshot =>
+  late final Stream<MachineSnapshot> _currentSnapshot =
       _transport.shotSample
           .map((d) {
             notifyFrom(Endpoint.shotSample, d.buffer.asUint8List());
@@ -72,7 +71,10 @@ class UnifiedDe1 implements De1Interface {
               return snapshot;
             },
           )
-          .asBroadcastStream();
+          .shareReplay(maxSize: 1);
+
+  @override
+  Stream<MachineSnapshot> get currentSnapshot => _currentSnapshot;
 
   @override
   String get deviceId => _transport.id;
