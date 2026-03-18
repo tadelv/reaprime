@@ -190,25 +190,60 @@ class UnifiedDe1Transport {
     await _transport.disconnect();
   }
 
+  // Matches a complete message: [X] prefix + hex payload, terminated by
+  // another '[' (next message) or newline/end-of-input.
+  // Group 1 = the message content (e.g., "[M]0A0B0C").
+  static final _messagePattern =
+      RegExp(r'(\[[A-Z]\][0-9A-Fa-f\s]*?)(?=\[|\n|$)');
+
   void _processSerialInput(String input) {
     _currentBuffer += input;
 
-    // Split by newlines — preserves partials if any
-    final lines = _currentBuffer.split('\n');
+    // Discard any leading junk before the first '['
+    final firstBracket = _currentBuffer.indexOf('[');
+    if (firstBracket < 0) {
+      // No message start in buffer at all
+      _currentBuffer = '';
+      return;
+    }
+    if (firstBracket > 0) {
+      _log.finest(
+          "Discarding non-message data: '${_currentBuffer.substring(0, firstBracket)}'");
+      _currentBuffer = _currentBuffer.substring(firstBracket);
+    }
 
-    // All complete lines except the last (which may be incomplete)
-    for (int i = 0; i < lines.length - 1; i++) {
-      final line = lines[i].trim();
-      if (line.isNotEmpty && line.startsWith('[')) {
-        _log.finest("received complete response: $line");
-        _processDe1Response(line);
-      } else {
-        _log.finest("Ignored invalid or incomplete line: '$line'");
+    // Extract all complete messages. A message is "complete" when followed by
+    // another '[' (next message start) or a newline. If the buffer ends with
+    // only one partial message and no terminator, the regex won't match it
+    // via the lookahead — except for $ (end of string). We handle that below.
+    final matches = _messagePattern.allMatches(_currentBuffer).toList();
+
+    if (matches.isEmpty) return;
+
+    // Process all matches except possibly the last one (which may be incomplete
+    // if it matched only because of $ and no newline/next-message follows).
+    final lastMatch = matches.last;
+    final lastIsComplete =
+        lastMatch.end < _currentBuffer.length &&
+        (_currentBuffer[lastMatch.end] == '[' ||
+            _currentBuffer[lastMatch.end] == '\n');
+
+    final completeCount = lastIsComplete ? matches.length : matches.length - 1;
+
+    for (int i = 0; i < completeCount; i++) {
+      final message = matches[i].group(1)!.trim();
+      if (message.isNotEmpty) {
+        _log.finest("received complete response: $message");
+        _processDe1Response(message);
       }
     }
 
-    // Save the last (possibly incomplete) line back into the buffer
-    _currentBuffer = lines.last;
+    // Keep unprocessed portion in the buffer
+    if (completeCount > 0) {
+      _currentBuffer = _currentBuffer.substring(matches[completeCount - 1].end);
+      // Strip consumed newlines
+      _currentBuffer = _currentBuffer.replaceAll(RegExp(r'^\n+'), '');
+    }
   }
 
   void _processDe1Response(String input) {
