@@ -43,8 +43,8 @@ class ForegroundTaskService {
       }
 
       final started = await FlutterForegroundTask.startService(
-        notificationTitle: "Reaprime talking to DE1",
-        notificationText: "Tap to return to Reaprime",
+        notificationTitle: "Streamline Active",
+        notificationText: "Maintaining connections",
         callback: startCallback,
       );
       
@@ -58,11 +58,10 @@ class ForegroundTaskService {
     }
   }
 
-  static Future<void> stop() async {
-    _machineSubscription?.cancel();
-    _machineSubscription = null;
-    _graceTimer?.dispose();
-    _graceTimer = null;
+  /// Stops only the native foreground service without tearing down
+  /// the machine subscription or grace timer. Used by the grace timer's
+  /// auto-stop so that reconnection can still be detected.
+  static Future<void> _stopServiceOnly() async {
     try {
       final stopped = await FlutterForegroundTask.stopService();
       if (stopped == ServiceRequestSuccess()) {
@@ -75,17 +74,35 @@ class ForegroundTaskService {
     }
   }
 
+  /// Full stop: tears down subscription, grace timer, and native service.
+  /// Use for explicit exit (e.g., user presses Exit button).
+  static Future<void> stop() async {
+    _machineSubscription?.cancel();
+    _machineSubscription = null;
+    _graceTimer?.dispose();
+    _graceTimer = null;
+    await _stopServiceOnly();
+  }
+
   /// Call once after start() to wire auto-stop to machine connection state.
   /// Safe to call multiple times (e.g., on hot restart) — cancels previous subscription.
   static void watchMachineConnection(Stream<dynamic> machineStream) {
     _machineSubscription?.cancel();
     _graceTimer?.dispose();
     _graceTimer = ForegroundServiceGraceTimer(
-      onStop: () => stop(),
+      onStop: () => _stopServiceOnly(),
       onStart: () => start(),
     );
 
+    // Skip initial null emission from BehaviorSubject to avoid
+    // immediately starting the grace period at startup.
+    bool isFirstEmission = true;
     _machineSubscription = machineStream.listen((machine) {
+      if (isFirstEmission && machine == null) {
+        isFirstEmission = false;
+        return;
+      }
+      isFirstEmission = false;
       if (machine != null) {
         _graceTimer?.onMachineConnected();
       } else {
@@ -180,16 +197,19 @@ class ForegroundServiceGraceTimer {
     _graceTimer?.cancel();
     _graceTimer = null;
 
-    _updateNotification(
-      'Streamline Active',
-      'Connected to DE1',
-    );
-
     if (_serviceStopped) {
       _log.info('Machine reconnected - restarting foreground service');
       _serviceStopped = false;
-      onStart().catchError((e) =>
+      onStart().then((_) => _updateNotification(
+        'Streamline Active',
+        'Connected to DE1',
+      )).catchError((e) =>
         _log.warning('Failed to restart foreground service: $e'));
+    } else {
+      _updateNotification(
+        'Streamline Active',
+        'Connected to DE1',
+      );
     }
   }
 
