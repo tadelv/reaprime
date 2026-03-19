@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/services/foreground_service.dart';
 import 'package:reaprime/build_info.dart';
@@ -833,7 +832,7 @@ class _SettingsViewState extends State<SettingsView> {
 
   Future<void> _exitApp() async {
     await ForegroundTaskService.stop();
-    SystemNavigator.pop();
+    exit(0);
   }
 
   Future<void> _checkForUpdates(BuildContext context) async {
