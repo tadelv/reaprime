@@ -120,5 +120,45 @@ class FirstTaskHandler extends TaskHandler {
   }
 }
 
+class ForegroundServiceGraceTimer {
+  final Duration gracePeriod;
+  final Future<void> Function() onStop;
+  final Future<void> Function() onStart;
+  final _log = Logger("ForegroundServiceGraceTimer");
 
+  Timer? _graceTimer;
+  bool _serviceStopped = false;
+
+  ForegroundServiceGraceTimer({
+    this.gracePeriod = const Duration(minutes: 5),
+    required this.onStop,
+    required this.onStart,
+  });
+
+  void onMachineConnected() {
+    _graceTimer?.cancel();
+    _graceTimer = null;
+
+    if (_serviceStopped) {
+      _log.info('Machine reconnected - restarting foreground service');
+      _serviceStopped = false;
+      onStart().catchError((e) =>
+        _log.warning('Failed to restart foreground service: $e'));
+    }
+  }
+
+  void onMachineDisconnected() {
+    _graceTimer?.cancel();
+    _log.info('Machine disconnected - starting ${gracePeriod.inMinutes}m grace period');
+    _graceTimer = Timer(gracePeriod, () async {
+      _log.info('Grace period expired - stopping foreground service');
+      _serviceStopped = true;
+      await onStop();
+    });
+  }
+
+  void dispose() {
+    _graceTimer?.cancel();
+  }
+}
 
