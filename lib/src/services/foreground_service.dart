@@ -5,6 +5,9 @@ import 'package:logging/logging.dart';
 
 class ForegroundTaskService {
   static final _log = Logger("ForegroundTaskService");
+
+  static ForegroundServiceGraceTimer? _graceTimer;
+  static StreamSubscription? _machineSubscription;
   
   static void init() {
     FlutterForegroundTask.init(
@@ -56,6 +59,10 @@ class ForegroundTaskService {
   }
 
   static Future<void> stop() async {
+    _machineSubscription?.cancel();
+    _machineSubscription = null;
+    _graceTimer?.dispose();
+    _graceTimer = null;
     try {
       final stopped = await FlutterForegroundTask.stopService();
       if (stopped == ServiceRequestSuccess()) {
@@ -66,6 +73,25 @@ class ForegroundTaskService {
     } catch (e, st) {
       _log.severe("Error stopping foreground service", e, st);
     }
+  }
+
+  /// Call once after start() to wire auto-stop to machine connection state.
+  /// Safe to call multiple times (e.g., on hot restart) — cancels previous subscription.
+  static void watchMachineConnection(Stream<dynamic> machineStream) {
+    _machineSubscription?.cancel();
+    _graceTimer?.dispose();
+    _graceTimer = ForegroundServiceGraceTimer(
+      onStop: () => stop(),
+      onStart: () => start(),
+    );
+
+    _machineSubscription = machineStream.listen((machine) {
+      if (machine != null) {
+        _graceTimer?.onMachineConnected();
+      } else {
+        _graceTimer?.onMachineDisconnected();
+      }
+    });
   }
 }
 
