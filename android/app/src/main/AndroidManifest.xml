@@ -55,7 +55,6 @@
             android:documentLaunchMode="never"
             android:resizeableActivity="false"
             android:supportsPictureInPicture="false"
-            android:taskAffinity=""
             android:allowTaskReparenting="false"
             android:clearTaskOnLaunch="false"
             android:finishOnTaskLaunch="false"
