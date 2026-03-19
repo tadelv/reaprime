@@ -121,6 +121,11 @@ class _PermissionsViewState extends State<PermissionsView> {
         // Start foreground service now that BLE + notification permissions are granted
         await ForegroundTaskService.start();
 
+        // Wire foreground service auto-stop to machine connection state
+        ForegroundTaskService.watchMachineConnection(
+          widget.de1controller.de1,
+        );
+
         // CRITICAL: Request battery optimization exemption
         // This prevents Android from killing the app in the background
         final batteryOptStatus =
