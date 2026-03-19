@@ -162,9 +162,28 @@ class ForegroundServiceGraceTimer {
     required this.onStart,
   });
 
+  Future<void> _updateNotification(String title, String text) async {
+    try {
+      final isRunning = await FlutterForegroundTask.isRunningService;
+      if (isRunning) {
+        await FlutterForegroundTask.updateService(
+          notificationTitle: title,
+          notificationText: text,
+        );
+      }
+    } catch (e) {
+      _log.warning('Failed to update notification: $e');
+    }
+  }
+
   void onMachineConnected() {
     _graceTimer?.cancel();
     _graceTimer = null;
+
+    _updateNotification(
+      'Streamline Active',
+      'Connected to DE1',
+    );
 
     if (_serviceStopped) {
       _log.info('Machine reconnected - restarting foreground service');
@@ -182,6 +201,10 @@ class ForegroundServiceGraceTimer {
       _serviceStopped = true;
       await onStop();
     });
+    _updateNotification(
+      'Streamline: Disconnected',
+      'Will stop in ${gracePeriod.inMinutes} minutes if no reconnection',
+    );
   }
 
   void dispose() {
