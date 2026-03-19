@@ -2,7 +2,9 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/services/foreground_service.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
@@ -567,6 +569,13 @@ class _SettingsViewState extends State<SettingsView> {
             ),
           ],
         ),
+        if (!BuildInfo.appStore) ...[
+          const Divider(height: 24),
+          ShadButton.destructive(
+            onPressed: () => _exitApp(),
+            child: const Text("Exit Streamline-Bridge"),
+          ),
+        ],
       ],
     );
   }
@@ -820,6 +829,11 @@ class _SettingsViewState extends State<SettingsView> {
         SnackBar(content: Text('Failed to check for skin updates: $e')),
       );
     }
+  }
+
+  Future<void> _exitApp() async {
+    await ForegroundTaskService.stop();
+    SystemNavigator.pop();
   }
 
   Future<void> _checkForUpdates(BuildContext context) async {
