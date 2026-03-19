@@ -9,7 +9,6 @@ import android.provider.Settings
 import android.util.Log
 import android.webkit.WebView
 import android.widget.Toast
-import androidx.activity.OnBackPressedCallback
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -51,14 +50,6 @@ class MainActivity: FlutterFragmentActivity() {
         
         Log.d(TAG, "onCreate - valid instance starting")
         super.onCreate(savedInstanceState)
-
-        // Keep the activity alive in the background instead of destroying it.
-        // This prevents Samsung OneUI from creating a new task on relaunch.
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                moveTaskToBack(true)
-            }
-        })
     }
 
     override fun onNewIntent(intent: Intent) {
