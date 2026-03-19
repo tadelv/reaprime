@@ -15,6 +15,7 @@ import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
+import 'package:reaprime/src/services/foreground_service.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 
 class PermissionsView extends StatefulWidget {
@@ -116,6 +117,9 @@ class _PermissionsViewState extends State<PermissionsView> {
         // Request notification permission for Android 13+ (API 33+)
         // This allows foreground service notification to appear in notification drawer
         await Permission.notification.request();
+
+        // Start foreground service now that BLE + notification permissions are granted
+        await ForegroundTaskService.start();
 
         // CRITICAL: Request battery optimization exemption
         // This prevents Android from killing the app in the background
