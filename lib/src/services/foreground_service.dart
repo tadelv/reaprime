@@ -122,17 +122,18 @@ class FirstTaskHandler extends TaskHandler {
   @override
   void onRepeatEvent(DateTime timestamp) {
     _eventCount++;
-    
-    // Update notification to show the service is alive
-    FlutterForegroundTask.updateService(
-      notificationTitle: 'Streamline Active',
-      notificationText: 'Maintaining connections (${_formatUptime()})',
-    );
-    
+
     // Log periodically to confirm service is running
     if (_eventCount % 5 == 0) {
       _log.fine('Foreground service heartbeat: $_eventCount events, uptime: ${_formatUptime()}');
     }
+  }
+
+  @override
+  void onNotificationPressed() {
+    _log.info('Notification tapped - bringing app to foreground');
+    // flutter_foreground_task handles launching the activity automatically
+    // singleTask launch mode ensures existing activity is surfaced
   }
 
   String _formatUptime() {
