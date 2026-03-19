@@ -351,9 +351,8 @@ void main() async {
   );
 
   if (Platform.isAndroid) {
-    // Initialize and start foreground service as early as possible
+    // Initialize foreground service config (but don't start yet — needs permissions first)
     ForegroundTaskService.init();
-    await ForegroundTaskService.start();
     // SchedulerBinding.instance.addTimingsCallback((timings) {
     //   // If this keeps firing while app is "backgrounded",
     //   // something is forcing frames.
