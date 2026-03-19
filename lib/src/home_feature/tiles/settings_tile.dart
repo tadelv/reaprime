@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
-import 'package:reaprime/src/services/foreground_service.dart';
 import 'package:reaprime/src/settings/settings_view.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -43,18 +40,6 @@ class _SettingsTileState extends State<SettingsTile> {
           ),
         ),
         Expanded(child: _auxFunctions()),
-        if (!BuildInfo.appStore)
-          ShadButton.secondary(
-            onPressed: () async {
-              // Disconnect machine
-              await (await widget.controller.de1.first)?.disconnect();
-              // Cancel grace timer, subscription, and stop foreground service
-              await ForegroundTaskService.stop();
-              // Finish the activity — Android reclaims the process shortly after
-              SystemNavigator.pop();
-            },
-            child: Text("Exit Streamline-Bridge"),
-          ),
       ],
     );
   }
