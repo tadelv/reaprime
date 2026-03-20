@@ -10,8 +10,7 @@ class DisplayHandler {
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/display', _getState);
-    app.post('/api/v1/display/dim', _dim);
-    app.post('/api/v1/display/restore', _restore);
+    app.put('/api/v1/display/brightness', _setBrightness);
     app.post('/api/v1/display/wakelock', _requestWakeLock);
     app.delete('/api/v1/display/wakelock', _releaseWakeLock);
     app.get('/ws/v1/display', _handleWebSocket);
@@ -27,24 +26,22 @@ class DisplayHandler {
     }
   }
 
-  /// POST /api/v1/display/dim
-  Future<Response> _dim(Request request) async {
+  /// PUT /api/v1/display/brightness
+  Future<Response> _setBrightness(Request request) async {
     try {
-      await _displayController.dim();
+      final body = await request.readAsString();
+      final json = jsonDecode(body) as Map<String, dynamic>;
+      final brightness = json['brightness'];
+      if (brightness == null || brightness is! int || brightness < 0 || brightness > 100) {
+        return Response.badRequest(
+          body: jsonEncode({'error': 'brightness must be an integer 0-100'}),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
+      await _displayController.setBrightness(brightness);
       return jsonOk(_displayController.currentState.toJson());
     } catch (e, st) {
-      log.severe('Error in dim handler', e, st);
-      return jsonError({'error': e.toString()});
-    }
-  }
-
-  /// POST /api/v1/display/restore
-  Future<Response> _restore(Request request) async {
-    try {
-      await _displayController.restore();
-      return jsonOk(_displayController.currentState.toJson());
-    } catch (e, st) {
-      log.severe('Error in restore handler', e, st);
+      log.severe('Error in setBrightness handler', e, st);
       return jsonError({'error': e.toString()});
     }
   }
@@ -99,11 +96,13 @@ class DisplayHandler {
             final data = jsonDecode(msg as String) as Map<String, dynamic>;
             final command = data['command'] as String?;
             switch (command) {
-              case 'dim':
-                _displayController.dim();
-                break;
-              case 'restore':
-                _displayController.restore();
+              case 'setBrightness':
+                final brightness = data['brightness'];
+                if (brightness is int && brightness >= 0 && brightness <= 100) {
+                  _displayController.setBrightness(brightness);
+                } else {
+                  log.warning('Invalid setBrightness value: $brightness');
+                }
                 break;
               case 'requestWakeLock':
                 overrideRequested = true;
