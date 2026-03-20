@@ -493,6 +493,17 @@ function createPlugin(host) {
                             <button class="btn btn-primary" onclick="(function(){ const t = document.getElementById('nightModeMorningTime').value.split(':'); updateReaSetting('nightModeMorningTime', parseInt(t[0]) * 60 + parseInt(t[1])); })()" aria-label="Save morning time">Save</button>
                         </div>
                     </div>
+                    <div class="setting-item">
+                        <label class="setting-label" for="lowBatteryBrightnessLimit">Low Battery Brightness Limit</label>
+                        <div class="setting-control">
+                            <select id="lowBatteryBrightnessLimit">
+                                <option value="true" ${reaSettings.lowBatteryBrightnessLimit ? 'selected' : ''}>Enabled</option>
+                                <option value="false" ${!reaSettings.lowBatteryBrightnessLimit ? 'selected' : ''}>Disabled</option>
+                            </select>
+                            <span id="lowBatteryBrightnessLimit-desc" class="visually-hidden">When enabled, limits screen brightness to 20% when battery is below 30%</span>
+                            <button class="btn btn-primary" onclick="updateReaSetting('lowBatteryBrightnessLimit', document.getElementById('lowBatteryBrightnessLimit').value === 'true')" aria-label="Save low battery brightness limit setting">Save</button>
+                        </div>
+                    </div>
                     ${reaSettings.chargingState ? `
                     <div class="setting-item">
                         <span class="setting-label">Battery Level</span>
