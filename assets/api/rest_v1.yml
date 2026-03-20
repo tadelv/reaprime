@@ -2712,31 +2712,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/DisplayState"
 
-  /api/v1/display/dim:
-    post:
-      summary: Dim the screen
-      description: Dims the tablet screen brightness.
+  /api/v1/display/brightness:
+    put:
+      summary: Set screen brightness
+      description: |
+        Sets the screen brightness to a value between 0 and 100.
+        Setting brightness to 100 returns to OS-managed brightness (respects auto-brightness settings).
+        Values 0-99 set an explicit brightness level.
+        If the low battery brightness limit is active (battery < 30% and setting enabled), the actual applied brightness may be capped at 20.
+        The response includes both `brightness` (actual applied) and `requestedBrightness` (what was requested).
       tags: [Display]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [brightness]
+              properties:
+                brightness:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                  description: Brightness level (0-100). 100 returns to OS-managed brightness.
       responses:
         "200":
-          description: Screen dimmed
+          description: Updated display state
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/DisplayState"
-
-  /api/v1/display/restore:
-    post:
-      summary: Restore screen brightness
-      description: Restores the tablet screen to normal brightness.
-      tags: [Display]
-      responses:
-        "200":
-          description: Screen brightness restored
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DisplayState"
+        "400":
+          description: Invalid brightness value
 
   /api/v1/display/wakelock:
     post:
@@ -3928,9 +3935,18 @@ components:
           type: boolean
           description: Whether a skin has requested a wake-lock override
         brightness:
-          type: string
-          enum: [normal, dimmed]
-          description: Current brightness state
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Actual applied brightness level (0-100). May differ from requestedBrightness if battery cap is active.
+        requestedBrightness:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: The brightness level that was requested. If no battery cap is active, this equals brightness.
+        lowBatteryBrightnessActive:
+          type: boolean
+          description: Whether the low battery brightness cap is currently limiting brightness
         platformSupported:
           type: object
           properties:
