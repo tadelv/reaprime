@@ -1340,7 +1340,7 @@ Content-Type: application/json
 
 ### Display Control
 
-Control the tablet's screen brightness and wake-lock (keep-screen-on) behavior. Useful for skins that want to dim the screen during idle periods or prevent the screen from turning off during active use.
+Control the tablet's screen brightness and wake-lock (keep-screen-on) behavior. Useful for skins that want to adjust brightness during idle periods or prevent the screen from turning off during active use.
 
 #### Get Display State
 ```http
@@ -1352,7 +1352,9 @@ GET /api/v1/display
 {
   "wakeLockEnabled": true,
   "wakeLockOverride": false,
-  "brightness": "normal",
+  "brightness": 75,
+  "requestedBrightness": 75,
+  "lowBatteryBrightnessActive": false,
   "platformSupported": {
     "brightness": true,
     "wakeLock": true
@@ -1363,27 +1365,27 @@ GET /api/v1/display
 **Fields:**
 - `wakeLockEnabled` (boolean): Whether the screen is currently prevented from turning off
 - `wakeLockOverride` (boolean): Whether a skin has manually requested wake-lock (overrides auto-management)
-- `brightness` (`"normal"` | `"dimmed"`): Current screen brightness state
-- `platformSupported.brightness` (boolean): Whether brightness control is available on this platform (Android/iOS only)
+- `brightness` (integer, 0-100): Actual applied screen brightness. May differ from `requestedBrightness` if the low battery brightness cap is active.
+- `requestedBrightness` (integer, 0-100): The brightness level that was requested by the skin. If no battery cap is active, this equals `brightness`.
+- `lowBatteryBrightnessActive` (boolean): Whether the low battery brightness cap is currently limiting brightness (battery < 30% and setting enabled).
+- `platformSupported.brightness` (boolean): Whether brightness control is available on this platform
 - `platformSupported.wakeLock` (boolean): Whether wake-lock control is available on this platform
 
-#### Dim Screen
+#### Set Brightness
 ```http
-POST /api/v1/display/dim
+PUT /api/v1/display/brightness
+Content-Type: application/json
+
+{"brightness": 75}
 ```
 
-Dims the screen to low brightness (5%). Only supported on Android and iOS — on other platforms the call succeeds but has no effect.
+Sets the screen brightness to a value between 0 and 100. Setting brightness to 100 returns to OS-managed brightness (respects auto-brightness settings on the device). Values 0-99 set an explicit brightness level.
+
+Returns 400 if `brightness` is missing or outside the 0-100 range.
 
 **Response:** Updated `DisplayState` JSON (same format as GET).
 
-#### Restore Screen Brightness
-```http
-POST /api/v1/display/restore
-```
-
-Restores the screen to system default brightness.
-
-**Response:** Updated `DisplayState` JSON.
+**Note:** If the low battery brightness limit setting is enabled and battery is below 30%, the actual applied brightness will be capped at 20 regardless of the requested value. The response will show the capped value in `brightness` and the original request in `requestedBrightness`.
 
 #### Request Wake-Lock Override
 ```http
@@ -1405,7 +1407,13 @@ Returns to auto-managed wake-lock behavior based on machine state.
 
 **Wake-Lock Auto-Management:**
 - When no override is active, wake-lock is automatically enabled when the machine is connected and not sleeping, and disabled when the machine sleeps or disconnects.
-- Brightness automatically restores to normal when the machine transitions from sleeping to idle.
+- Brightness is automatically restored to its pre-sleep value when the machine transitions from sleeping to idle.
+
+**Low Battery Brightness Cap:**
+- When the `lowBatteryBrightnessLimit` setting is enabled (via `POST /api/v1/settings`) and battery drops below 30%, screen brightness is capped at 20.
+- When battery recovers above 30%, brightness is restored to the requested value.
+- Battery level is polled every 60 seconds, so there may be up to a 60-second delay between charging state changes and brightness cap activation/deactivation.
+- This feature is only available on platforms with battery monitoring (Android/iOS).
 
 ---
 
@@ -1734,7 +1742,9 @@ Sent whenever display state changes (brightness, wake-lock):
 {
   "wakeLockEnabled": true,
   "wakeLockOverride": false,
-  "brightness": "normal",
+  "brightness": 75,
+  "requestedBrightness": 75,
+  "lowBatteryBrightnessActive": false,
   "platformSupported": {
     "brightness": true,
     "wakeLock": true
@@ -1747,8 +1757,7 @@ Sent whenever display state changes (brightness, wake-lock):
 Send JSON commands to control the display:
 
 ```json
-{"command": "dim"}
-{"command": "restore"}
+{"command": "setBrightness", "brightness": 75}
 {"command": "requestWakeLock"}
 {"command": "releaseWakeLock"}
 ```
@@ -1762,12 +1771,15 @@ const displayWs = new WebSocket('ws://192.168.1.100:8080/ws/v1/display');
 displayWs.onopen = () => {
   // Keep screen on while skin is active
   displayWs.send(JSON.stringify({ command: 'requestWakeLock' }));
+  // Set brightness to 80%
+  displayWs.send(JSON.stringify({ command: 'setBrightness', brightness: 80 }));
 };
 
 displayWs.onmessage = (event) => {
   const state = JSON.parse(event.data);
   console.log('Brightness:', state.brightness);
-  console.log('Wake-lock:', state.wakeLockEnabled);
+  console.log('Requested:', state.requestedBrightness);
+  console.log('Battery-capped:', state.lowBatteryBrightnessActive);
 
   // Adapt UI based on platform support
   if (!state.platformSupported.brightness) {
@@ -2296,7 +2308,7 @@ class IdleManager {
     this.resetIdleTimer();
 
     // Restore brightness if dimmed
-    this.displayWs?.send(JSON.stringify({ command: 'restore' }));
+    this.displayWs?.send(JSON.stringify({ command: 'setBrightness', brightness: 100 }));
 
     // Signal presence to prevent machine auto-sleep
     fetch(`${this.gatewayUrl}/api/v1/machine/heartbeat`, { method: 'POST' });
@@ -2306,7 +2318,7 @@ class IdleManager {
     clearTimeout(this.idleTimer);
     this.idleTimer = setTimeout(() => {
       // Dim screen when user is idle
-      this.displayWs?.send(JSON.stringify({ command: 'dim' }));
+      this.displayWs?.send(JSON.stringify({ command: 'setBrightness', brightness: 5 }));
     }, this.dimAfterMs);
   }
 
