@@ -254,7 +254,12 @@ void main() async {
   );
   presenceController.initialize();
 
-  final displayController = DisplayController(de1Controller: de1Controller);
+  // Note: batteryStateStream will be wired up in Task 6 when
+  // DisplayController is moved after BatteryController initialization.
+  final displayController = DisplayController(
+    de1Controller: de1Controller,
+    settingsController: settingsController,
+  );
   displayController.initialize();
 
   workflowController.addListener(() {

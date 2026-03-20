@@ -2,14 +2,14 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/controllers/charging_logic.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:rxdart/subjects.dart';
 import 'package:screen_brightness/screen_brightness.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
-
-enum DisplayBrightness { normal, dimmed }
 
 class DisplayPlatformSupport {
   final bool brightness;
@@ -29,33 +29,44 @@ class DisplayPlatformSupport {
 class DisplayState {
   final bool wakeLockEnabled;
   final bool wakeLockOverride;
-  final DisplayBrightness brightness;
+  final int brightness;
+  final int requestedBrightness;
+  final bool lowBatteryBrightnessActive;
   final DisplayPlatformSupport platformSupported;
 
   const DisplayState({
     required this.wakeLockEnabled,
     required this.wakeLockOverride,
     required this.brightness,
+    required this.requestedBrightness,
+    required this.lowBatteryBrightnessActive,
     required this.platformSupported,
   });
 
   DisplayState copyWith({
     bool? wakeLockEnabled,
     bool? wakeLockOverride,
-    DisplayBrightness? brightness,
+    int? brightness,
+    int? requestedBrightness,
+    bool? lowBatteryBrightnessActive,
     DisplayPlatformSupport? platformSupported,
   }) =>
       DisplayState(
         wakeLockEnabled: wakeLockEnabled ?? this.wakeLockEnabled,
         wakeLockOverride: wakeLockOverride ?? this.wakeLockOverride,
         brightness: brightness ?? this.brightness,
+        requestedBrightness: requestedBrightness ?? this.requestedBrightness,
+        lowBatteryBrightnessActive:
+            lowBatteryBrightnessActive ?? this.lowBatteryBrightnessActive,
         platformSupported: platformSupported ?? this.platformSupported,
       );
 
   Map<String, dynamic> toJson() => {
         'wakeLockEnabled': wakeLockEnabled,
         'wakeLockOverride': wakeLockOverride,
-        'brightness': brightness.name,
+        'brightness': brightness,
+        'requestedBrightness': requestedBrightness,
+        'lowBatteryBrightnessActive': lowBatteryBrightnessActive,
         'platformSupported': platformSupported.toJson(),
       };
 }
@@ -66,13 +77,16 @@ class DisplayState {
 /// 1. **Wake-lock** — auto-managed based on machine state (enabled when
 ///    connected and not sleeping, released on sleep/disconnect). Skins can
 ///    override via [requestWakeLock] / [releaseWakeLock].
-/// 2. **Brightness** — skin-initiated dim/restore. Safety-net auto-restore
-///    when machine transitions from sleeping to idle/schedIdle.
+/// 2. **Brightness** — 0-100 integer range via [setBrightness]. Value 100
+///    resets to OS-managed brightness. Battery-aware cap reduces brightness
+///    when battery is low and the setting is enabled.
 class DisplayController {
   final De1Controller _de1Controller;
+  final SettingsController _settingsController;
   final Logger _log = Logger('DisplayController');
 
-  static const double _dimBrightness = 0.05;
+  static const int _lowBatteryThreshold = 30;
+  static const int _lowBatteryBrightnessCap = 20;
   static final ScreenBrightness _defaultScreenBrightness = ScreenBrightness();
 
   // --- Injectable platform operations (for testability) ---
@@ -96,13 +110,26 @@ class DisplayController {
   StreamSubscription<MachineSnapshot>? _snapshotSubscription;
   bool _wakeLockOverride = false;
 
+  // --- Brightness state ---
+  int _requestedBrightness = 100;
+  int _preSleepBrightness = 100;
+
+  // --- Battery brightness cap state ---
+  final Stream<ChargingState>? _batteryStateStream;
+  StreamSubscription<ChargingState>? _batterySubscription;
+  int? _lastBatteryPercent;
+
   DisplayController({
     required De1Controller de1Controller,
+    required SettingsController settingsController,
+    Stream<ChargingState>? batteryStateStream,
     Future<void> Function(double)? setBrightness,
     Future<void> Function()? resetBrightness,
     Future<void> Function()? enableWakeLock,
     Future<void> Function()? disableWakeLock,
   })  : _de1Controller = de1Controller,
+        _settingsController = settingsController,
+        _batteryStateStream = batteryStateStream,
         _setBrightness = setBrightness ??
             _defaultScreenBrightness.setApplicationScreenBrightness,
         _resetBrightness = resetBrightness ??
@@ -110,20 +137,25 @@ class DisplayController {
         _enableWakeLock = enableWakeLock ?? WakelockPlus.enable,
         _disableWakeLock = disableWakeLock ?? WakelockPlus.disable {
     _platformSupport = DisplayPlatformSupport(
-      brightness: Platform.isAndroid || Platform.isIOS || Platform.isMacOS || Platform.isWindows,
+      brightness:
+          Platform.isAndroid || Platform.isIOS || Platform.isMacOS || Platform.isWindows,
       wakeLock: true, // wakelock_plus supports all platforms
     );
 
     _stateSubject = BehaviorSubject.seeded(DisplayState(
       wakeLockEnabled: false,
       wakeLockOverride: false,
-      brightness: DisplayBrightness.normal,
+      brightness: 100,
+      requestedBrightness: 100,
+      lowBatteryBrightnessActive: false,
       platformSupported: _platformSupport,
     ));
   }
 
   void initialize() {
     _de1Subscription = _de1Controller.de1.listen(_onDe1Changed);
+    _batterySubscription = _batteryStateStream?.listen(_onBatteryChanged);
+    _settingsController.addListener(_onSettingsChanged);
   }
 
   void dispose() {
@@ -131,6 +163,9 @@ class DisplayController {
     _de1Subscription = null;
     _snapshotSubscription?.cancel();
     _snapshotSubscription = null;
+    _batterySubscription?.cancel();
+    _batterySubscription = null;
+    _settingsController.removeListener(_onSettingsChanged);
     _stateSubject.close();
   }
 
@@ -138,28 +173,30 @@ class DisplayController {
   // Public API
   // ---------------------------------------------------------------------------
 
-  /// Dim the screen to a low brightness level.
+  /// Set screen brightness to a value between 0 and 100.
+  ///
+  /// Value 100 resets to OS-managed brightness (respects auto-brightness).
+  /// Values 0-99 set a specific brightness level.
+  Future<void> setBrightness(int value) async {
+    final clamped = value.clamp(0, 100);
+    _requestedBrightness = clamped;
+    await _applyBrightness();
+  }
+
+  /// Dim the screen to minimum brightness.
+  ///
+  /// Deprecated: Use [setBrightness] with a value of 5 instead.
+  @Deprecated('Use setBrightness(5) instead')
   Future<void> dim() async {
-    if (!_platformSupport.brightness) return;
-    try {
-      await _setBrightness(_dimBrightness);
-      _updateState(brightness: DisplayBrightness.dimmed);
-      _log.fine('Screen dimmed');
-    } catch (e) {
-      _log.warning('Failed to dim screen: $e');
-    }
+    await setBrightness(5);
   }
 
   /// Restore screen brightness to system default.
+  ///
+  /// Deprecated: Use [setBrightness] with a value of 100 instead.
+  @Deprecated('Use setBrightness(100) instead')
   Future<void> restore() async {
-    if (!_platformSupport.brightness) return;
-    try {
-      await _resetBrightness();
-      _updateState(brightness: DisplayBrightness.normal);
-      _log.fine('Screen brightness restored');
-    } catch (e) {
-      _log.warning('Failed to restore brightness: $e');
-    }
+    await setBrightness(100);
   }
 
   /// Request wake-lock override (skin wants screen always on).
@@ -177,6 +214,61 @@ class DisplayController {
     // Re-evaluate: if machine is sleeping/disconnected, release wake-lock
     await _evaluateWakeLock();
     _log.fine('Wake-lock override released');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Brightness logic
+  // ---------------------------------------------------------------------------
+
+  Future<void> _applyBrightness() async {
+    if (!_platformSupport.brightness) return;
+
+    final effective = _computeEffectiveBrightness();
+    final capping = effective < _requestedBrightness;
+
+    try {
+      if (effective == 100) {
+        await _resetBrightness();
+      } else {
+        await _setBrightness(effective / 100.0);
+      }
+      _updateState(
+        brightness: effective,
+        requestedBrightness: _requestedBrightness,
+        lowBatteryBrightnessActive: capping,
+      );
+      _log.fine(
+          'Brightness set to $effective (requested: $_requestedBrightness, capping: $capping)');
+    } catch (e) {
+      _log.warning('Failed to set brightness: $e');
+    }
+  }
+
+  int _computeEffectiveBrightness() {
+    // No battery stream means desktop — no cap
+    if (_batteryStateStream == null) return _requestedBrightness;
+
+    // Setting must be enabled
+    if (!_settingsController.lowBatteryBrightnessLimit) {
+      return _requestedBrightness;
+    }
+
+    // Battery must be below threshold
+    if (_lastBatteryPercent != null &&
+        _lastBatteryPercent! < _lowBatteryThreshold) {
+      return _requestedBrightness.clamp(0, _lowBatteryBrightnessCap);
+    }
+
+    return _requestedBrightness;
+  }
+
+  void _onBatteryChanged(ChargingState state) {
+    _lastBatteryPercent = state.batteryPercent;
+    unawaited(_applyBrightness());
+  }
+
+  void _onSettingsChanged() {
+    unawaited(_applyBrightness());
   }
 
   // ---------------------------------------------------------------------------
@@ -207,14 +299,14 @@ class DisplayController {
 
     if (previousState == _currentMachineState) return;
 
-    // Auto-restore brightness when machine wakes from sleep
-    if (previousState == MachineState.sleeping &&
+    // Save brightness before sleep; restore when machine wakes
+    if (_currentMachineState == MachineState.sleeping) {
+      _preSleepBrightness = _requestedBrightness;
+    } else if (previousState == MachineState.sleeping &&
         (_currentMachineState == MachineState.idle ||
             _currentMachineState == MachineState.schedIdle)) {
-      if (currentState.brightness == DisplayBrightness.dimmed) {
-        _log.info('Machine woke from sleep, auto-restoring brightness');
-        unawaited(restore());
-      }
+      _log.info('Machine woke from sleep, restoring brightness');
+      unawaited(setBrightness(_preSleepBrightness));
     }
 
     unawaited(_evaluateWakeLock());
@@ -257,12 +349,16 @@ class DisplayController {
   void _updateState({
     bool? wakeLockEnabled,
     bool? wakeLockOverride,
-    DisplayBrightness? brightness,
+    int? brightness,
+    int? requestedBrightness,
+    bool? lowBatteryBrightnessActive,
   }) {
     _stateSubject.add(currentState.copyWith(
       wakeLockEnabled: wakeLockEnabled,
       wakeLockOverride: wakeLockOverride,
       brightness: brightness,
+      requestedBrightness: requestedBrightness,
+      lowBatteryBrightnessActive: lowBatteryBrightnessActive,
     ));
   }
 }
