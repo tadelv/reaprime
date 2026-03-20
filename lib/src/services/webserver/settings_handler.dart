@@ -44,6 +44,7 @@ class SettingsHandler {
         'nightModeEnabled': _controller.nightModeEnabled,
         'nightModeSleepTime': _controller.nightModeSleepTime,
         'nightModeMorningTime': _controller.nightModeMorningTime,
+        'lowBatteryBrightnessLimit': _controller.lowBatteryBrightnessLimit,
       };
       if (_batteryController?.currentChargingState != null) {
         result['chargingState'] = _batteryController!.currentChargingState!.toJson();
@@ -189,6 +190,16 @@ class SettingsHandler {
         } else {
           return Response.badRequest(
             body: {'message': 'nightModeMorningTime must be an integer 0-1439'},
+          );
+        }
+      }
+      if (json.containsKey('lowBatteryBrightnessLimit')) {
+        final value = json['lowBatteryBrightnessLimit'];
+        if (value is bool) {
+          await _controller.setLowBatteryBrightnessLimit(value);
+        } else {
+          return Response.badRequest(
+            body: {'message': 'lowBatteryBrightnessLimit must be a boolean'},
           );
         }
       }
