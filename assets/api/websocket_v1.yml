@@ -94,8 +94,7 @@ channels:
     description: |
       Streams display state changes (wake-lock and brightness) in real-time.
       Also accepts commands via WebSocket messages:
-      - `{"command": "dim"}` — dim the screen
-      - `{"command": "restore"}` — restore brightness
+      - `{"command": "setBrightness", "brightness": 75}` — set brightness (0-100, where 100 returns to OS-managed)
       - `{"command": "requestWakeLock"}` — request wake-lock override
       - `{"command": "releaseWakeLock"}` — release wake-lock override
       Wake-lock overrides requested via this WebSocket are automatically released when the connection closes.
@@ -530,9 +529,18 @@ components:
           type: boolean
           description: Whether a skin has requested a wake-lock override
         brightness:
-          type: string
-          enum: [normal, dimmed]
-          description: Current brightness state
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Actual applied brightness level (0-100). May differ from requestedBrightness if battery cap is active.
+        requestedBrightness:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: The brightness level that was requested. If no battery cap is active, this equals brightness.
+        lowBatteryBrightnessActive:
+          type: boolean
+          description: Whether the low battery brightness cap is currently limiting brightness
         platformSupported:
           type: object
           properties:
@@ -551,9 +559,13 @@ components:
         command:
           type: string
           enum:
-            - dim
-            - restore
+            - setBrightness
             - requestWakeLock
             - releaseWakeLock
           description: The display command to execute.
+        brightness:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Brightness value (required when command is setBrightness).
 
