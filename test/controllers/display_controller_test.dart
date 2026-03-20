@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reaprime/src/controllers/charging_logic.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/display_controller.dart';
@@ -11,7 +12,11 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/settings/charging_mode.dart';
+import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:rxdart/subjects.dart';
+
+import '../helpers/mock_settings_service.dart';
 
 // ---------------------------------------------------------------------------
 // Test-local mocks
@@ -194,11 +199,41 @@ class _TestDe1Controller extends De1Controller {
   }
 }
 
+/// Controllable battery state emitter for testing.
+class _TestBatteryController {
+  final BehaviorSubject<ChargingState> _stateSubject =
+      BehaviorSubject<ChargingState>();
+
+  Stream<ChargingState> get chargingState => _stateSubject.stream;
+  ChargingState? get currentChargingState => _stateSubject.valueOrNull;
+
+  void emitBattery(int percent) {
+    _stateSubject.add(ChargingState(
+      mode: ChargingMode.balanced,
+      nightModeEnabled: false,
+      currentPhase: NightPhase.inactive,
+      batteryPercent: percent,
+      usbChargerOn: false,
+      isEmergency: percent <= 15,
+    ));
+  }
+
+  void dispose() {
+    _stateSubject.close();
+  }
+}
+
 /// Creates a DisplayController with no-op platform operations for testing.
 /// This allows tests to verify actual state transitions without platform deps.
-DisplayController _createController(_TestDe1Controller de1Controller) {
+DisplayController _createController(
+  _TestDe1Controller de1Controller, {
+  required SettingsController settingsController,
+  _TestBatteryController? batteryController,
+}) {
   return DisplayController(
     de1Controller: de1Controller,
+    settingsController: settingsController,
+    batteryStateStream: batteryController?.chargingState,
     setBrightness: (_) async {},
     resetBrightness: () async {},
     enableWakeLock: () async {},
@@ -209,24 +244,32 @@ DisplayController _createController(_TestDe1Controller de1Controller) {
 void main() {
   late _TestDe1Controller de1Controller;
   late _TestDe1 testDe1;
+  late SettingsController settingsCtrl;
 
-  setUp(() {
+  setUp(() async {
     final discoveryService = _FakeDiscoveryService();
     final deviceController = DeviceController([discoveryService]);
     de1Controller = _TestDe1Controller(controller: deviceController);
     testDe1 = _TestDe1();
+
+    final mockSettings = MockSettingsService();
+    settingsCtrl = SettingsController(mockSettings);
+    await settingsCtrl.loadSettings();
   });
 
   group('initial state', () {
-    test('starts with wake-lock disabled, normal brightness, no override', () {
+    test('starts with wake-lock disabled, brightness 100, no override', () {
       fakeAsync((async) {
-        final controller = _createController(de1Controller);
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
         controller.initialize();
         async.flushMicrotasks();
 
         final state = controller.currentState;
         expect(state.wakeLockEnabled, isFalse);
-        expect(state.brightness, DisplayBrightness.normal);
+        expect(state.brightness, 100);
+        expect(state.requestedBrightness, 100);
+        expect(state.lowBatteryBrightnessActive, isFalse);
         expect(state.wakeLockOverride, isFalse);
 
         controller.dispose();
@@ -235,7 +278,8 @@ void main() {
 
     test('platformSupported reports correct values', () {
       fakeAsync((async) {
-        final controller = _createController(de1Controller);
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
         controller.initialize();
         async.flushMicrotasks();
 
@@ -253,7 +297,8 @@ void main() {
   group('auto wake-lock', () {
     test('enables wake-lock when DE1 connects', () {
       fakeAsync((async) {
-        final controller = _createController(de1Controller);
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
         controller.initialize();
         async.flushMicrotasks();
 
@@ -268,7 +313,8 @@ void main() {
 
     test('disables wake-lock when DE1 disconnects', () {
       fakeAsync((async) {
-        final controller = _createController(de1Controller);
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
         controller.initialize();
         async.flushMicrotasks();
 
@@ -286,7 +332,8 @@ void main() {
 
     test('disables wake-lock when machine enters sleep', () {
       fakeAsync((async) {
-        final controller = _createController(de1Controller);
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
         controller.initialize();
         async.flushMicrotasks();
 
@@ -304,7 +351,8 @@ void main() {
 
     test('re-enables wake-lock when machine wakes from sleep', () {
       fakeAsync((async) {
-        final controller = _createController(de1Controller);
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
         controller.initialize();
         async.flushMicrotasks();
 
@@ -327,7 +375,8 @@ void main() {
   group('wake-lock override', () {
     test('requestWakeLock enables wake-lock and sets override flag', () {
       fakeAsync((async) {
-        final controller = _createController(de1Controller);
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
         controller.initialize();
         async.flushMicrotasks();
 
@@ -344,7 +393,8 @@ void main() {
     test('releaseWakeLock clears override and disables wake-lock when disconnected',
         () {
       fakeAsync((async) {
-        final controller = _createController(de1Controller);
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
         controller.initialize();
         async.flushMicrotasks();
 
@@ -364,7 +414,8 @@ void main() {
 
     test('override keeps wake-lock enabled even when machine sleeps', () {
       fakeAsync((async) {
-        final controller = _createController(de1Controller);
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
         controller.initialize();
         async.flushMicrotasks();
 
@@ -386,7 +437,8 @@ void main() {
 
     test('releasing override while machine sleeping disables wake-lock', () {
       fakeAsync((async) {
-        final controller = _createController(de1Controller);
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
         controller.initialize();
         async.flushMicrotasks();
 
@@ -411,60 +463,372 @@ void main() {
   });
 
   group('brightness', () {
-    test('dim sets brightness to dimmed', () {
+    test('initial brightness is 100', () {
       fakeAsync((async) {
-        final controller = _createController(de1Controller);
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
         controller.initialize();
         async.flushMicrotasks();
 
-        controller.dim();
-        async.flushMicrotasks();
-
-        expect(controller.currentState.brightness, DisplayBrightness.dimmed);
+        expect(controller.currentState.brightness, 100);
+        expect(controller.currentState.requestedBrightness, 100);
 
         controller.dispose();
       });
     });
 
-    test('restore sets brightness to normal', () {
+    test('setBrightness(50) sets brightness to 50', () {
       fakeAsync((async) {
-        final controller = _createController(de1Controller);
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
         controller.initialize();
         async.flushMicrotasks();
 
-        controller.dim();
+        controller.setBrightness(50);
         async.flushMicrotasks();
-        expect(controller.currentState.brightness, DisplayBrightness.dimmed);
 
-        controller.restore();
-        async.flushMicrotasks();
-        expect(controller.currentState.brightness, DisplayBrightness.normal);
+        expect(controller.currentState.brightness, 50);
+        expect(controller.currentState.requestedBrightness, 50);
 
         controller.dispose();
       });
     });
 
-    test('auto-restores brightness when machine wakes from sleep', () {
+    test('clamps values above 100 to 100', () {
       fakeAsync((async) {
-        final controller = _createController(de1Controller);
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
+        controller.initialize();
+        async.flushMicrotasks();
+
+        controller.setBrightness(150);
+        async.flushMicrotasks();
+
+        expect(controller.currentState.brightness, 100);
+        expect(controller.currentState.requestedBrightness, 100);
+
+        controller.dispose();
+      });
+    });
+
+    test('clamps values below 0 to 0', () {
+      fakeAsync((async) {
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
+        controller.initialize();
+        async.flushMicrotasks();
+
+        controller.setBrightness(-10);
+        async.flushMicrotasks();
+
+        expect(controller.currentState.brightness, 0);
+        expect(controller.currentState.requestedBrightness, 0);
+
+        controller.dispose();
+      });
+    });
+
+    test('setBrightness(100) calls resetBrightness', () {
+      fakeAsync((async) {
+        var resetCalled = false;
+        var setBrightnessCalled = false;
+
+        final controller = DisplayController(
+          de1Controller: de1Controller,
+          settingsController: settingsCtrl,
+          setBrightness: (_) async {
+            setBrightnessCalled = true;
+          },
+          resetBrightness: () async {
+            resetCalled = true;
+          },
+          enableWakeLock: () async {},
+          disableWakeLock: () async {},
+        );
+        controller.initialize();
+        async.flushMicrotasks();
+
+        // First set to something else
+        controller.setBrightness(50);
+        async.flushMicrotasks();
+        resetCalled = false;
+        setBrightnessCalled = false;
+
+        // Now set to 100
+        controller.setBrightness(100);
+        async.flushMicrotasks();
+
+        expect(resetCalled, isTrue);
+        expect(setBrightnessCalled, isFalse);
+
+        controller.dispose();
+      });
+    });
+
+    test('saves brightness before sleep and restores on wake', () {
+      fakeAsync((async) {
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
         controller.initialize();
         async.flushMicrotasks();
 
         de1Controller.setDe1(testDe1);
         async.flushMicrotasks();
 
-        controller.dim();
+        // Set a custom brightness
+        controller.setBrightness(60);
         async.flushMicrotasks();
-        expect(controller.currentState.brightness, DisplayBrightness.dimmed);
+        expect(controller.currentState.brightness, 60);
 
+        // Machine goes to sleep — brightness is saved
         testDe1.emitState(MachineState.sleeping);
         async.flushMicrotasks();
 
+        // Machine wakes — brightness restored to pre-sleep value
         testDe1.emitState(MachineState.idle);
         async.flushMicrotasks();
-        expect(controller.currentState.brightness, DisplayBrightness.normal);
+        expect(controller.currentState.brightness, 60);
 
         controller.dispose();
+      });
+    });
+  });
+
+  group('battery brightness cap', () {
+    test('caps brightness when battery low and setting enabled', () {
+      fakeAsync((async) {
+        final batteryCtrl = _TestBatteryController();
+        settingsCtrl.setLowBatteryBrightnessLimit(true);
+        async.flushMicrotasks();
+
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl,
+            batteryController: batteryCtrl);
+        controller.initialize();
+        async.flushMicrotasks();
+
+        // Set brightness to 80
+        controller.setBrightness(80);
+        async.flushMicrotasks();
+        expect(controller.currentState.brightness, 80);
+
+        // Battery drops below 30%
+        batteryCtrl.emitBattery(20);
+        async.flushMicrotasks();
+
+        expect(controller.currentState.brightness, 20);
+        expect(controller.currentState.requestedBrightness, 80);
+        expect(controller.currentState.lowBatteryBrightnessActive, isTrue);
+
+        controller.dispose();
+        batteryCtrl.dispose();
+      });
+    });
+
+    test('does not cap when setting is off', () {
+      fakeAsync((async) {
+        final batteryCtrl = _TestBatteryController();
+        // lowBatteryBrightnessLimit defaults to false
+
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl,
+            batteryController: batteryCtrl);
+        controller.initialize();
+        async.flushMicrotasks();
+
+        controller.setBrightness(80);
+        async.flushMicrotasks();
+
+        batteryCtrl.emitBattery(20);
+        async.flushMicrotasks();
+
+        expect(controller.currentState.brightness, 80);
+        expect(controller.currentState.lowBatteryBrightnessActive, isFalse);
+
+        controller.dispose();
+        batteryCtrl.dispose();
+      });
+    });
+
+    test('allows values already below cap', () {
+      fakeAsync((async) {
+        final batteryCtrl = _TestBatteryController();
+        settingsCtrl.setLowBatteryBrightnessLimit(true);
+        async.flushMicrotasks();
+
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl,
+            batteryController: batteryCtrl);
+        controller.initialize();
+        async.flushMicrotasks();
+
+        // Set brightness to 10, below the cap of 20
+        controller.setBrightness(10);
+        async.flushMicrotasks();
+
+        batteryCtrl.emitBattery(20);
+        async.flushMicrotasks();
+
+        // 10 < 20, so no capping needed — effective == requested
+        expect(controller.currentState.brightness, 10);
+        expect(controller.currentState.requestedBrightness, 10);
+        expect(controller.currentState.lowBatteryBrightnessActive, isFalse);
+
+        controller.dispose();
+        batteryCtrl.dispose();
+      });
+    });
+
+    test('restores brightness on battery recovery', () {
+      fakeAsync((async) {
+        final batteryCtrl = _TestBatteryController();
+        settingsCtrl.setLowBatteryBrightnessLimit(true);
+        async.flushMicrotasks();
+
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl,
+            batteryController: batteryCtrl);
+        controller.initialize();
+        async.flushMicrotasks();
+
+        controller.setBrightness(80);
+        async.flushMicrotasks();
+
+        // Battery low — capped
+        batteryCtrl.emitBattery(20);
+        async.flushMicrotasks();
+        expect(controller.currentState.brightness, 20);
+
+        // Battery recovers above threshold
+        batteryCtrl.emitBattery(50);
+        async.flushMicrotasks();
+        expect(controller.currentState.brightness, 80);
+        expect(controller.currentState.lowBatteryBrightnessActive, isFalse);
+
+        controller.dispose();
+        batteryCtrl.dispose();
+      });
+    });
+
+    test('toggling setting off restores brightness immediately', () {
+      fakeAsync((async) {
+        final batteryCtrl = _TestBatteryController();
+        settingsCtrl.setLowBatteryBrightnessLimit(true);
+        async.flushMicrotasks();
+
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl,
+            batteryController: batteryCtrl);
+        controller.initialize();
+        async.flushMicrotasks();
+
+        controller.setBrightness(80);
+        async.flushMicrotasks();
+
+        batteryCtrl.emitBattery(20);
+        async.flushMicrotasks();
+        expect(controller.currentState.brightness, 20);
+
+        // Turn off the setting
+        settingsCtrl.setLowBatteryBrightnessLimit(false);
+        async.flushMicrotasks();
+
+        expect(controller.currentState.brightness, 80);
+        expect(controller.currentState.lowBatteryBrightnessActive, isFalse);
+
+        controller.dispose();
+        batteryCtrl.dispose();
+      });
+    });
+
+    test('toggling setting on applies cap immediately when battery low', () {
+      fakeAsync((async) {
+        final batteryCtrl = _TestBatteryController();
+        // Setting starts off (default)
+
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl,
+            batteryController: batteryCtrl);
+        controller.initialize();
+        async.flushMicrotasks();
+
+        controller.setBrightness(80);
+        async.flushMicrotasks();
+
+        batteryCtrl.emitBattery(20);
+        async.flushMicrotasks();
+        // No cap yet — setting is off
+        expect(controller.currentState.brightness, 80);
+
+        // Turn on the setting
+        settingsCtrl.setLowBatteryBrightnessLimit(true);
+        async.flushMicrotasks();
+
+        expect(controller.currentState.brightness, 20);
+        expect(controller.currentState.lowBatteryBrightnessActive, isTrue);
+
+        controller.dispose();
+        batteryCtrl.dispose();
+      });
+    });
+
+    test('no cap without battery controller (desktop)', () {
+      fakeAsync((async) {
+        settingsCtrl.setLowBatteryBrightnessLimit(true);
+        async.flushMicrotasks();
+
+        // No batteryController — simulates desktop
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
+        controller.initialize();
+        async.flushMicrotasks();
+
+        controller.setBrightness(80);
+        async.flushMicrotasks();
+
+        expect(controller.currentState.brightness, 80);
+        expect(controller.currentState.lowBatteryBrightnessActive, isFalse);
+
+        controller.dispose();
+      });
+    });
+
+    test('sleep/wake with battery cap preserves pre-sleep brightness', () {
+      fakeAsync((async) {
+        final batteryCtrl = _TestBatteryController();
+        settingsCtrl.setLowBatteryBrightnessLimit(true);
+        async.flushMicrotasks();
+
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl,
+            batteryController: batteryCtrl);
+        controller.initialize();
+        async.flushMicrotasks();
+
+        de1Controller.setDe1(testDe1);
+        async.flushMicrotasks();
+
+        // Set brightness to 80, battery capped to 20
+        controller.setBrightness(80);
+        async.flushMicrotasks();
+        batteryCtrl.emitBattery(20);
+        async.flushMicrotasks();
+        expect(controller.currentState.brightness, 20);
+        expect(controller.currentState.requestedBrightness, 80);
+
+        // Machine sleeps — saves requested brightness (80)
+        testDe1.emitState(MachineState.sleeping);
+        async.flushMicrotasks();
+
+        // Machine wakes — restores to 80, but still capped to 20
+        testDe1.emitState(MachineState.idle);
+        async.flushMicrotasks();
+        expect(controller.currentState.requestedBrightness, 80);
+        expect(controller.currentState.brightness, 20);
+        expect(controller.currentState.lowBatteryBrightnessActive, isTrue);
+
+        controller.dispose();
+        batteryCtrl.dispose();
       });
     });
   });
@@ -472,7 +836,8 @@ void main() {
   group('state broadcasting', () {
     test('stream emits initial state', () {
       fakeAsync((async) {
-        final controller = _createController(de1Controller);
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
         controller.initialize();
         async.flushMicrotasks();
 
@@ -483,7 +848,7 @@ void main() {
         // BehaviorSubject immediately emits current value
         expect(emissions, isNotEmpty);
         expect(emissions.first.wakeLockEnabled, isFalse);
-        expect(emissions.first.brightness, DisplayBrightness.normal);
+        expect(emissions.first.brightness, 100);
         expect(emissions.first.wakeLockOverride, isFalse);
 
         sub.cancel();
@@ -493,7 +858,8 @@ void main() {
 
     test('stream emits on wake-lock override changes', () {
       fakeAsync((async) {
-        final controller = _createController(de1Controller);
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
         controller.initialize();
         async.flushMicrotasks();
 
@@ -522,7 +888,8 @@ void main() {
 
     test('stream emits on DE1 connect/disconnect', () {
       fakeAsync((async) {
-        final controller = _createController(de1Controller);
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
         controller.initialize();
         async.flushMicrotasks();
 
@@ -549,7 +916,8 @@ void main() {
     });
 
     test('dispose closes state stream', () async {
-      final controller = _createController(de1Controller);
+      final controller = _createController(de1Controller,
+          settingsController: settingsCtrl);
       controller.initialize();
 
       final completer = Completer<void>();
@@ -573,7 +941,8 @@ void main() {
     test('repeated same-state snapshots do not trigger redundant evaluations',
         () {
       fakeAsync((async) {
-        final controller = _createController(de1Controller);
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
         controller.initialize();
         async.flushMicrotasks();
 
@@ -608,7 +977,9 @@ void main() {
       const state = DisplayState(
         wakeLockEnabled: true,
         wakeLockOverride: false,
-        brightness: DisplayBrightness.dimmed,
+        brightness: 50,
+        requestedBrightness: 80,
+        lowBatteryBrightnessActive: true,
         platformSupported: DisplayPlatformSupport(
           brightness: true,
           wakeLock: true,
@@ -618,7 +989,9 @@ void main() {
       final json = state.toJson();
       expect(json['wakeLockEnabled'], isTrue);
       expect(json['wakeLockOverride'], isFalse);
-      expect(json['brightness'], 'dimmed');
+      expect(json['brightness'], 50);
+      expect(json['requestedBrightness'], 80);
+      expect(json['lowBatteryBrightnessActive'], isTrue);
       expect(json['platformSupported'], isA<Map>());
       expect(json['platformSupported']['brightness'], isTrue);
       expect(json['platformSupported']['wakeLock'], isTrue);
@@ -628,7 +1001,9 @@ void main() {
       const original = DisplayState(
         wakeLockEnabled: true,
         wakeLockOverride: true,
-        brightness: DisplayBrightness.dimmed,
+        brightness: 50,
+        requestedBrightness: 80,
+        lowBatteryBrightnessActive: true,
         platformSupported: DisplayPlatformSupport(
           brightness: true,
           wakeLock: true,
@@ -638,14 +1013,18 @@ void main() {
       final copied = original.copyWith(wakeLockEnabled: false);
       expect(copied.wakeLockEnabled, isFalse);
       expect(copied.wakeLockOverride, isTrue); // preserved
-      expect(copied.brightness, DisplayBrightness.dimmed); // preserved
+      expect(copied.brightness, 50); // preserved
+      expect(copied.requestedBrightness, 80); // preserved
+      expect(copied.lowBatteryBrightnessActive, isTrue); // preserved
     });
 
     test('copyWith can change all fields', () {
       const original = DisplayState(
         wakeLockEnabled: false,
         wakeLockOverride: false,
-        brightness: DisplayBrightness.normal,
+        brightness: 100,
+        requestedBrightness: 100,
+        lowBatteryBrightnessActive: false,
         platformSupported: DisplayPlatformSupport(
           brightness: false,
           wakeLock: false,
@@ -655,7 +1034,9 @@ void main() {
       final copied = original.copyWith(
         wakeLockEnabled: true,
         wakeLockOverride: true,
-        brightness: DisplayBrightness.dimmed,
+        brightness: 50,
+        requestedBrightness: 80,
+        lowBatteryBrightnessActive: true,
         platformSupported: const DisplayPlatformSupport(
           brightness: true,
           wakeLock: true,
@@ -664,7 +1045,9 @@ void main() {
 
       expect(copied.wakeLockEnabled, isTrue);
       expect(copied.wakeLockOverride, isTrue);
-      expect(copied.brightness, DisplayBrightness.dimmed);
+      expect(copied.brightness, 50);
+      expect(copied.requestedBrightness, 80);
+      expect(copied.lowBatteryBrightnessActive, isTrue);
       expect(copied.platformSupported.brightness, isTrue);
       expect(copied.platformSupported.wakeLock, isTrue);
     });
