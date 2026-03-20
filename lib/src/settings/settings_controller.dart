@@ -59,6 +59,7 @@ class SettingsController with ChangeNotifier {
   late bool _userPresenceEnabled;
   late int _sleepTimeoutMinutes;
   late String _wakeSchedules;
+  late bool _lowBatteryBrightnessLimit;
 
   TelemetryService? _telemetryService;
 
@@ -85,6 +86,7 @@ class SettingsController with ChangeNotifier {
   bool get userPresenceEnabled => _userPresenceEnabled;
   int get sleepTimeoutMinutes => _sleepTimeoutMinutes;
   String get wakeSchedules => _wakeSchedules;
+  bool get lowBatteryBrightnessLimit => _lowBatteryBrightnessLimit;
 
   set telemetryService(TelemetryService service) => _telemetryService = service;
 
@@ -114,6 +116,7 @@ class SettingsController with ChangeNotifier {
     _userPresenceEnabled = await _settingsService.userPresenceEnabled();
     _sleepTimeoutMinutes = await _settingsService.sleepTimeoutMinutes();
     _wakeSchedules = await _settingsService.wakeSchedules();
+    _lowBatteryBrightnessLimit = await _settingsService.lowBatteryBrightnessLimit();
 
     // Sync telemetry consent to TelemetryService if it exists
     if (_telemetryService != null) {
@@ -333,6 +336,13 @@ class SettingsController with ChangeNotifier {
     if (json == _wakeSchedules) return;
     _wakeSchedules = json;
     await _settingsService.setWakeSchedules(json);
+    notifyListeners();
+  }
+
+  Future<void> setLowBatteryBrightnessLimit(bool value) async {
+    if (value == _lowBatteryBrightnessLimit) return;
+    _lowBatteryBrightnessLimit = value;
+    await _settingsService.setLowBatteryBrightnessLimit(value);
     notifyListeners();
   }
 }

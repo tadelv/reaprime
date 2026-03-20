@@ -32,6 +32,7 @@ class MockSettingsService extends SettingsService {
   bool _userPresenceEnabled = true;
   int _sleepTimeoutMinutes = 30;
   String _wakeSchedules = '[]';
+  bool _lowBatteryBrightnessLimit = false;
 
   @override
   Future<ThemeMode> themeMode() async => _themeMode;
@@ -135,4 +136,8 @@ class MockSettingsService extends SettingsService {
   Future<String> wakeSchedules() async => _wakeSchedules;
   @override
   Future<void> setWakeSchedules(String json) async => _wakeSchedules = json;
+  @override
+  Future<bool> lowBatteryBrightnessLimit() async => _lowBatteryBrightnessLimit;
+  @override
+  Future<void> setLowBatteryBrightnessLimit(bool value) async => _lowBatteryBrightnessLimit = value;
 }
