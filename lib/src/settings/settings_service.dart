@@ -59,6 +59,8 @@ abstract class SettingsService {
   Future<void> setSleepTimeoutMinutes(int value);
   Future<String> wakeSchedules();
   Future<void> setWakeSchedules(String json);
+  Future<bool> lowBatteryBrightnessLimit();
+  Future<void> setLowBatteryBrightnessLimit(bool value);
 }
 
 /// SharedPreferences-backed implementation of [SettingsService].
@@ -346,6 +348,16 @@ class SharedPreferencesSettingsService extends SettingsService {
   Future<void> setWakeSchedules(String json) async {
     await prefs.setString(SettingsKeys.wakeSchedules.name, json);
   }
+
+  @override
+  Future<bool> lowBatteryBrightnessLimit() async {
+    return await prefs.getBool(SettingsKeys.lowBatteryBrightnessLimit.name) ?? false;
+  }
+
+  @override
+  Future<void> setLowBatteryBrightnessLimit(bool value) async {
+    await prefs.setBool(SettingsKeys.lowBatteryBrightnessLimit.name, value);
+  }
 }
 
 enum SettingsKeys {
@@ -374,6 +386,7 @@ enum SettingsKeys {
   userPresenceEnabled,
   sleepTimeoutMinutes,
   wakeSchedules,
+  lowBatteryBrightnessLimit,
 }
 
 /// Position options for the skin view exit button
