@@ -144,6 +144,7 @@ Handler-based routing in `lib/src/services/webserver/`. Each handler has `addRou
 | Data Sync | `/api/v1/data/sync` | `data_sync_handler.dart` — POST sync between Bridge instances |
 | Feedback | `/api/v1/feedback` | `feedback_handler.dart` (part of) — POST creates GitHub issue with optional logs/screenshots as Gist. Requires `GITHUB_FEEDBACK_TOKEN` at build time. |
 | Logs | `/api/v1/logs` | `logs_handler.dart` (part of) |
+| Info | `/api/v1/info` | `info_handler.dart` — build metadata (version, commit, branch) |
 | WebUI | — | `webui_handler.dart` (part of) — skin asset serving |
 
 ### MCP Server

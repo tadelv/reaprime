@@ -26,6 +26,10 @@ void main() {
     test('GET /api/v1/info returns build info', () async {
       final response = await sendGet('/api/v1/info');
       expect(response.statusCode, 200);
+      expect(
+        response.headers['content-type'],
+        contains('application/json'),
+      );
 
       final body = jsonDecode(await response.readAsString());
       expect(body['commit'], BuildInfo.commit);
@@ -36,6 +40,19 @@ void main() {
       expect(body['buildNumber'], BuildInfo.buildNumber);
       expect(body['appStore'], BuildInfo.appStore);
       expect(body['fullVersion'], BuildInfo.fullVersion);
+
+      // Verify no unexpected keys
+      final expectedKeys = {
+        'commit',
+        'commitShort',
+        'branch',
+        'buildTime',
+        'version',
+        'buildNumber',
+        'appStore',
+        'fullVersion',
+      };
+      expect((body as Map).keys.toSet(), expectedKeys);
     });
   });
 }
