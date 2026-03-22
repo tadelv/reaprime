@@ -1,0 +1,26 @@
+name: build-info
+description: Verify build info endpoint returns compile-time build information
+
+preconditions:
+  app_start:
+    connectDevice: MockDe1
+    connectScale: MockScale
+
+steps:
+  - description: GET /api/v1/info returns build info fields
+    tool: rest_get
+    path: /api/v1/info
+    expect:
+      status: 200
+      body_contains:
+        - '"commit":"'
+        - '"commitShort":"'
+        - '"branch":"'
+        - '"buildTime":"'
+        - '"version":"'
+        - '"buildNumber":"'
+        - '"appStore":'
+        - '"fullVersion":"'
+
+postconditions:
+  - app_stop
