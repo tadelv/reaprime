@@ -1553,6 +1553,42 @@ DELETE /api/v1/presence/schedules/{id}
 
 Returns 404 if the schedule ID doesn't exist.
 
+### Build Info
+
+Retrieve build-time metadata about the running Streamline-Bridge instance. Useful for skins that want to display version information or check compatibility.
+
+#### Get Build Info
+```http
+GET /api/v1/info
+```
+
+**Response:**
+```json
+{
+  "commit": "a1b2c3d4e5f6...",
+  "commitShort": "a1b2c3d",
+  "branch": "main",
+  "buildTime": "2026-03-22T10:30:00Z",
+  "version": "1.2.3",
+  "buildNumber": "456",
+  "appStore": false,
+  "fullVersion": "1.2.3+456"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `commit` | string | Full git commit SHA |
+| `commitShort` | string | Short (7-char) git commit SHA |
+| `branch` | string | Git branch name at build time |
+| `buildTime` | string | ISO 8601 build timestamp |
+| `version` | string | Semantic version (e.g. `1.2.3`) |
+| `buildNumber` | string | Incremental build number |
+| `appStore` | boolean | Whether this is an App Store (iOS) build |
+| `fullVersion` | string | Version with build number (e.g. `1.2.3+456`) |
+
+> **Note:** In debug/development builds, git-based fields (`commit`, `commitShort`, `branch`, `buildTime`) will return `"unknown"`.
+
 ---
 
 ## WebSocket Endpoints

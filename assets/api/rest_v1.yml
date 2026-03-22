@@ -2972,6 +2972,15 @@ paths:
                     type: boolean
                   fullVersion:
                     type: string
+                required:
+                  - commit
+                  - commitShort
+                  - branch
+                  - buildTime
+                  - version
+                  - buildNumber
+                  - appStore
+                  - fullVersion
 components:
   schemas:
     Error:
