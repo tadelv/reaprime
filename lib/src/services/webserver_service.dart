@@ -67,6 +67,7 @@ import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/models/wake_schedule.dart';
 import 'package:reaprime/src/services/webview_log_service.dart';
 import 'package:reaprime/build_info.dart';
+import 'package:reaprime/src/services/webserver/info_handler.dart';
 
 part 'webserver/de1handler.dart';
 part 'webserver/scale_handler.dart';
@@ -198,6 +199,7 @@ Future<void> startWebServer(
     httpClient: http.Client(),
   );
 
+  final infoHandler = InfoHandler();
   // Start server
   final server = await io.serve(
     _init(
@@ -221,6 +223,7 @@ Future<void> startWebServer(
       dataSyncHandler,
       beansHandler,
       grindersHandler,
+      infoHandler,
     ),
     '0.0.0.0',
     8080,
@@ -253,6 +256,7 @@ Handler _init(
   DataSyncHandler dataSyncHandler,
   BeansHandler? beansHandler,
   GrindersHandler? grindersHandler,
+  InfoHandler infoHandler,
 ) {
   log.info("called _init");
   var app = Router().plus;
@@ -317,6 +321,7 @@ Handler _init(
   if (grindersHandler != null) {
     grindersHandler.addRoutes(app);
   }
+  infoHandler.addRoutes(app);
 
   final handler = const Pipeline()
       .addMiddleware(

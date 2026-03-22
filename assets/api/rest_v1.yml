@@ -2943,6 +2943,35 @@ paths:
                   message:
                     type: string
 
+  /api/v1/info:
+    get:
+      summary: Get build information
+      description: Returns compile-time build information (version, commit, branch, build time, etc.)
+      tags: [System]
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  commit:
+                    type: string
+                  commitShort:
+                    type: string
+                  branch:
+                    type: string
+                  buildTime:
+                    type: string
+                  version:
+                    type: string
+                  buildNumber:
+                    type: string
+                  appStore:
+                    type: boolean
+                  fullVersion:
+                    type: string
 components:
   schemas:
     Error:
