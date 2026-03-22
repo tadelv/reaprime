@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+> **Note:** If you're using a different AI coding agent (Cursor, Copilot, Windsurf, Codex, etc.), see `AGENTS.md` for tool-agnostic guidance. `AGUDE.md` is Claude Code-specific and includes commands like `EnterPlanMode` and references to `.claude/skills/`.
+
 ## Project Overview
 
 Streamline-Bridge (formerly REA/ReaPrime/R1) is a Flutter gateway app for Decent Espresso machines. Connects to DE1 machines and scales via BLE/USB, exposing REST (port 8080) and WebSocket APIs. Includes a JavaScript plugin system. Primary platform: Android (DE1 tablet), also macOS, Linux, Windows, iOS. Note: the rename is in progress — code, repo, and file references may still use the old names.
