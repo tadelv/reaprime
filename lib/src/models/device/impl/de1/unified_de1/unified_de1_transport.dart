@@ -306,18 +306,29 @@ class UnifiedDe1Transport {
     _mmrSubject.add(d);
   }
 
-  Future<ByteData> read(Endpoint e) async {
+  Future<ByteData> read(Endpoint endpoint) async {
     if (await _transport.connectionState.first != device.ConnectionState.connected) {
       throw ("de1 not connected");
     }
 
-    switch (_transportType) {
-      case TransportType.ble:
-        return _bleRead(e);
-      case TransportType.serial:
-        return _serialRead(e);
-      default:
-        throw ("Unknown transport type: $_transportType");
+    try {
+      switch (_transportType) {
+        case TransportType.ble:
+          return await _bleRead(endpoint);
+        case TransportType.serial:
+          return await _serialRead(endpoint);
+        default:
+          throw ("Unknown transport type: $_transportType");
+      }
+    } catch (e, st) {
+      if (_isBleTimeout(e)) {
+        if (await _handleBleTimeout(e, st)) {
+          _log.info('Retrying read of ${endpoint.name} after reconnect');
+          return read(endpoint);
+        }
+      }
+      _log.severe("failed to read", e, st);
+      rethrow;
     }
   }
 
@@ -376,22 +387,22 @@ class UnifiedDe1Transport {
     }
   }
 
-  Future<void> write(Endpoint e, Uint8List data) async {
+  Future<void> write(Endpoint endpoint, Uint8List data) async {
     if (await _transport.connectionState.first != device.ConnectionState.connected) {
       throw ("de1 not connected");
     }
     try {
-      _log.fine('about to write to ${e.name}');
+      _log.fine('about to write to ${endpoint.name}');
       _log.fine(
         'payload: ${data.map((el) => el.toRadixString(16).padLeft(2, '0')).join(' ')}',
       );
 
       switch (_transportType) {
         case TransportType.ble:
-          await _bleWrite(e, data, false);
+          await _bleWrite(endpoint, data, false);
           break;
         case TransportType.serial:
-          await _serialWrite(e, data);
+          await _serialWrite(endpoint, data);
           break;
         default:
           throw ("Unknown transport type: $_transportType");
@@ -399,7 +410,8 @@ class UnifiedDe1Transport {
     } catch (e, st) {
       if (_isBleTimeout(e)) {
         if (await _handleBleTimeout(e, st)) {
-          return; // Reconnected successfully, don't propagate the error
+          _log.info('Retrying write to ${endpoint.name} after reconnect');
+          return write(endpoint, data);
         }
       }
       _log.severe("failed to write", e, st);
@@ -407,21 +419,21 @@ class UnifiedDe1Transport {
     }
   }
 
-  Future<void> writeWithResponse(Endpoint e, Uint8List data) async {
+  Future<void> writeWithResponse(Endpoint endpoint, Uint8List data) async {
     if (await _transport.connectionState.first != device.ConnectionState.connected) {
       throw ("de1 not connected");
     }
     try {
-      _log.fine('about to write to ${e.name}');
+      _log.fine('about to write to ${endpoint.name}');
       _log.fine(
         'payload: ${data.map((el) => el.toRadixString(16).padLeft(2, '0')).join(' ')}',
       );
       switch (_transportType) {
         case TransportType.ble:
-          await _bleWrite(e, data, true);
+          await _bleWrite(endpoint, data, true);
           break;
         case TransportType.serial:
-          await _serialWrite(e, data);
+          await _serialWrite(endpoint, data);
           break;
         default:
           throw ("Unknown transport type: $_transportType");
@@ -429,7 +441,8 @@ class UnifiedDe1Transport {
     } catch (e, st) {
       if (_isBleTimeout(e)) {
         if (await _handleBleTimeout(e, st)) {
-          return; // Reconnected successfully, don't propagate the error
+          _log.info('Retrying write to ${endpoint.name} after reconnect');
+          return writeWithResponse(endpoint, data);
         }
       }
       _log.severe("failed to write", e, st);
