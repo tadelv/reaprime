@@ -398,7 +398,9 @@ class UnifiedDe1Transport {
       }
     } catch (e, st) {
       if (_isBleTimeout(e)) {
-        await _handleBleTimeout(e, st);
+        if (await _handleBleTimeout(e, st)) {
+          return; // Reconnected successfully, don't propagate the error
+        }
       }
       _log.severe("failed to write", e, st);
       rethrow;
@@ -426,7 +428,9 @@ class UnifiedDe1Transport {
       }
     } catch (e, st) {
       if (_isBleTimeout(e)) {
-        await _handleBleTimeout(e, st);
+        if (await _handleBleTimeout(e, st)) {
+          return; // Reconnected successfully, don't propagate the error
+        }
       }
       _log.severe("failed to write", e, st);
       rethrow;
@@ -438,13 +442,16 @@ class UnifiedDe1Transport {
         error is BleTimeoutException;
   }
 
-  Future<void> _handleBleTimeout(Object error, StackTrace st) async {
+  /// Attempts to recover from a BLE timeout by reconnecting.
+  /// Returns true if reconnect succeeded, false if it failed.
+  Future<bool> _handleBleTimeout(Object error, StackTrace st) async {
     _log.warning('BLE write timed out, attempting reconnect');
     try {
       await _transport.disconnect();
       await _transport.connect();
       await _bleConnect();
       _log.info('BLE reconnect successful after timeout');
+      return true;
     } catch (reconnectError) {
       _log.severe(
         'BLE reconnect failed, disconnecting',
@@ -454,6 +461,7 @@ class UnifiedDe1Transport {
         // Don't await — BLE stack may be unresponsive
         _transport.disconnect();
       } catch (_) {}
+      return false;
     }
   }
 
