@@ -117,30 +117,61 @@ class _De1DebugViewState extends State<De1DebugView> {
                       if (!context.mounted) return;
 
                       final progressNotifier = ValueNotifier<double>(0.0);
+                      final stopwatch = Stopwatch()..start();
+                      var cancelled = false;
 
                       showDialog(
                         context: context,
-                        barrierDismissible: false,
-                        builder: (context) {
-                          return ValueListenableBuilder<double>(
-                            valueListenable: progressNotifier,
-                            builder: (context, value, _) {
-                              return ShadDialog(
-                                title: const Text("Updating firmware..."),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      LinearProgressIndicator(value: value),
-                                      const SizedBox(height: 12),
-                                      Text(
-                                          "${(value * 100).toStringAsFixed(0)}%"),
-                                    ],
-                                  ),
-                                ),
-                              );
+                        barrierDismissible: true,
+                        builder: (dialogContext) {
+                          return PopScope(
+                            canPop: true,
+                            onPopInvokedWithResult: (didPop, _) {
+                              if (didPop) {
+                                cancelled = true;
+                                widget.machine.cancelFirmwareUpload();
+                              }
                             },
+                            child: ValueListenableBuilder<double>(
+                              valueListenable: progressNotifier,
+                              builder: (context, value, _) {
+                                String timeRemaining = '';
+                                if (value > 0.01) {
+                                  final elapsed =
+                                      stopwatch.elapsedMilliseconds;
+                                  final estimated =
+                                      elapsed / value * (1.0 - value);
+                                  final remaining = Duration(
+                                      milliseconds: estimated.round());
+                                  if (remaining.inSeconds < 60) {
+                                    timeRemaining =
+                                        '${remaining.inSeconds}s remaining';
+                                  } else {
+                                    timeRemaining =
+                                        '${remaining.inMinutes}m ${remaining.inSeconds % 60}s remaining';
+                                  }
+                                }
+
+                                return ShadDialog(
+                                  title: const Text("Updating firmware..."),
+                                  description: timeRemaining.isNotEmpty
+                                      ? Text(timeRemaining)
+                                      : const Text("Estimating..."),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        LinearProgressIndicator(value: value),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                            "${(value * 100).toStringAsFixed(0)}%"),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
                           );
                         },
                       );
@@ -153,6 +184,8 @@ class _De1DebugViewState extends State<De1DebugView> {
                           },
                         );
                       } catch (e) {
+                        stopwatch.stop();
+                        if (cancelled) return;
                         if (context.mounted) {
                           Navigator.of(context).pop(); // Close progress dialog
                           showShadDialog(
@@ -172,6 +205,7 @@ class _De1DebugViewState extends State<De1DebugView> {
                         return;
                       }
 
+                      stopwatch.stop();
                       if (context.mounted) {
                         Navigator.of(context).pop(); // Close progress dialog
                       }
@@ -310,3 +344,4 @@ class _De1DebugViewState extends State<De1DebugView> {
     );
   }
 }
+
