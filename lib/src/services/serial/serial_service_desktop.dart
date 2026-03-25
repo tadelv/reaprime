@@ -298,7 +298,7 @@ class _DesktopSerialPort implements SerialTransport {
       return;
     }
     await Future.microtask(() async {
-      if (_port.open(mode: 3) == false) {
+      if (await _port.open(mode: 3) == false) {
         _log.warning("could not open port");
         throw "failed to open port: ${SerialPort.lastError}";
       }
@@ -361,15 +361,24 @@ class _DesktopSerialPort implements SerialTransport {
   }
 
   Future<void> _write(Uint8List command) async {
-    await Future.microtask(() async {
-      _port.write(command);
-      _log.fine("wrote: ${command.map((e) => e.toRadixString(16))}");
-      if (Platform.isLinux) {
-        await Future.delayed(Duration(milliseconds: 20), () {
-          _log.finest("delaying next write");
-        });
+    // Write all bytes, handling short writes by looping.
+    // timeout: 0 = blocking write (waits until bytes are accepted by OS).
+    int offset = 0;
+    while (offset < command.length) {
+      final chunk = offset == 0 ? command : Uint8List.sublistView(command, offset);
+      final written = await _port.write(chunk, timeout: 0);
+      if (written < 0) {
+        throw StateError('Serial write failed: ${SerialPort.lastError}');
       }
-    });
+      offset += written;
+    }
+    _port.drain();
+    _log.fine("wrote: ${command.map((e) => e.toRadixString(16))}");
+    if (Platform.isLinux || Platform.isMacOS) {
+      await Future.delayed(Duration(milliseconds: 20), () {
+        _log.finest("delaying next write");
+      });
+    }
   }
 }
 
