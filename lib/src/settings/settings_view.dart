@@ -372,18 +372,37 @@ class _SettingsViewState extends State<SettingsView> {
             child: const Text('Configure'),
           ),
           const Divider(height: 32),
-          // Simulated Devices toggle stays here
-          ShadSwitch(
-            value: widget.controller.simulatedDevices,
-            onChanged: (v) async {
-              _log.info("toggle sim to $v");
-              await widget.controller.setSimulatedDevices(v);
-            },
-            label: const Text("Show simulated devices"),
-            sublabel: const Text(
-              "Whether simulated devices should be shown in scan results",
-            ),
+          Text(
+            'Simulated Devices',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
           ),
+          const SizedBox(height: 4),
+          Text(
+            'Select which simulated devices appear in scan results',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+          ),
+          const SizedBox(height: 8),
+          for (final type in SimulatedDevicesTypes.values)
+            ShadSwitch(
+              value: widget.controller.simulatedDevices.contains(type),
+              onChanged: (v) async {
+                final current = Set<SimulatedDevicesTypes>.from(
+                  widget.controller.simulatedDevices,
+                );
+                if (v) {
+                  current.add(type);
+                } else {
+                  current.remove(type);
+                }
+                _log.info("simulated devices: $current");
+                await widget.controller.setSimulatedDevices(current);
+              },
+              label: Text(type.name[0].toUpperCase() + type.name.substring(1)),
+            ),
         ],
       ),
     );

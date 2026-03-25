@@ -27,7 +27,7 @@ class SettingsController with ChangeNotifier {
 
   late String _logLevel;
 
-  late bool _simulatedDevices;
+  late Set<SimulatedDevicesTypes> _simulatedDevices;
 
   late double _weightFlowMultiplier;
 
@@ -67,7 +67,7 @@ class SettingsController with ChangeNotifier {
   ThemeMode get themeMode => _themeMode;
   GatewayMode get gatewayMode => _gatewayMode;
   String get logLevel => _logLevel;
-  bool get simulatedDevices => _simulatedDevices;
+  Set<SimulatedDevicesTypes> get simulatedDevices => _simulatedDevices;
   double get weightFlowMultiplier => _weightFlowMultiplier;
   double get volumeFlowMultiplier => _volumeFlowMultiplier;
   ScalePowerMode get scalePowerMode => _scalePowerMode;
@@ -179,8 +179,8 @@ class SettingsController with ChangeNotifier {
     await _settingsService.updateLogLevel(newLogLevel);
   }
 
-  Future<void> setSimulatedDevices(bool value) async {
-    if (value == _simulatedDevices) {
+  Future<void> setSimulatedDevices(Set<SimulatedDevicesTypes> value) async {
+    if (const SetEquality<SimulatedDevicesTypes>().equals(value, _simulatedDevices)) {
       return;
     }
     _simulatedDevices = value;
@@ -346,3 +346,6 @@ class SettingsController with ChangeNotifier {
     notifyListeners();
   }
 }
+
+
+
