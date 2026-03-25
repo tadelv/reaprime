@@ -14,6 +14,7 @@ Streamline-Bridge (formerly REA/ReaPrime/R1) is a Flutter gateway app for Decent
 # Run
 ./flutter_with_commit.sh run              # Standard (injects git commit version)
 flutter run --dart-define=simulate=1      # Simulated devices (no hardware needed)
+flutter run --dart-define=simulate=machine  # Simulate machine only (comma-separated: machine,scale)
 
 # Test & Lint
 flutter test                              # All tests

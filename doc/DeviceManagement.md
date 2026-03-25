@@ -148,6 +148,7 @@ The DeviceController is the central coordinator for all device discovery service
 3. **Scan Management:**
    - Exposes `scanningStream` for scan lifecycle tracking
    - Coordinates parallel scans across all discovery services
+   - Suppresses disconnect/reconnect detection during active scans — intermediate device list changes are transient noise. Genuine disconnects outside of scans are still detected.
 
 **Note:** DeviceController does **not** handle connection policy. All connection decisions (which device to connect, when to connect) are handled by `ConnectionManager`.
 
