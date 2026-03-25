@@ -32,7 +32,7 @@ nameLower contains: "acaia" | "lunar" | "pearl" | "proch" | "pyxis" → AcaiaSca
 
 Order matters: check these BEFORE the generic contains matches. The `"pyxis"` check no longer routes to a separate class.
 
-Remove `AcaiaPyxisScale` import.
+Remove `AcaiaPyxisScale` import. The class is deleted — its Pyxis-specific logic (separate status/cmd characteristics, write-with-response, watchdog timer) is merged into `AcaiaScale`, gated on the auto-detected `AcaiaProtocol` enum. Nothing is lost.
 
 ### 2. Protocol Auto-Detection (`acaia_scale.dart`)
 
