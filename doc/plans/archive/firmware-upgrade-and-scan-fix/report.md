@@ -13,7 +13,8 @@ Firmware uploads over serial (USB) were unreliable — the machine's UART receiv
 - Replaced the per-chunk 5ms delay with batched writes: 8 chunks per batch, 400ms pause between batches.
 - Over BLE, `writeWithResponse` provides natural backpressure via ACKs — no pacing needed.
 - Over serial on macOS, there is no TX buffer size control (no `TIOCGSERIAL` equivalent — macOS only offers `IOSSDATALAT` for receive-side latency). Application-level pacing is the only option.
-- Pacing is gated on `Platform.isMacOS && transportType == TransportType.serial` to avoid unnecessary delays on BLE or other platforms.
+- **Pacing is only required on macOS over serial.** Linux serial firmware uploads work without any pacing — tested with the `fw_upload.py` tool using default settings. Linux likely benefits from better kernel-level serial flow control (`TIOCGSERIAL`, configurable FIFO sizes).
+- Pacing is gated on `Platform.isMacOS && transportType == TransportType.serial` to avoid unnecessary delays on BLE, Linux, or other platforms.
 
 #### Serial write robustness (`serial_service_desktop.dart`)
 - `_port.open()` now properly awaited.
