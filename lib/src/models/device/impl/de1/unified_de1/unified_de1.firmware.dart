@@ -1,11 +1,11 @@
-
 part of 'unified_de1.dart';
 
 extension UnifiedDe1Firmware on UnifiedDe1 {
   Future<void> _updateFirmware(
-      Uint8List fwImage,
-      void Function(double) onProgress,
-      List<bool> cancelToken) async {
+    Uint8List fwImage,
+    void Function(double) onProgress,
+    List<bool> cancelToken,
+  ) async {
     _log.info("Starting firmware upgrade ...");
 
     await requestState(MachineState.sleeping);
@@ -14,11 +14,12 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
     // await requestState(MachineState.fwUpgrade);
 
     // unsub = _subscribe(Endpoint.fwMapRequest, (ByteData data) async {
-    final unsub = _transport.fwMapRequest.listen( (ByteData data) async {
+    final unsub = _transport.fwMapRequest.listen((ByteData data) async {
       final request = FWMapRequestData.from(data);
       _log.info(
-          "FW map recv: ${request.windowIncrement}, ${request.firmwareToErase}, ${request.firmwareToMap}, "
-          "err: 0x${request.error.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}");
+        "FW map recv: ${request.windowIncrement}, ${request.firmwareToErase}, ${request.firmwareToMap}, "
+        "err: 0x${request.error.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}",
+      );
 
       // switch (currentState) {
       //   case FWUpgradeState.erase:
@@ -101,10 +102,18 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
   }
 
   Future<void> uploadFW(
-      Uint8List list,
-      void Function(double) onProgress,
-      List<bool> cancelToken) async {
+    Uint8List list,
+    void Function(double) onProgress,
+    List<bool> cancelToken,
+  ) async {
     final total = list.length;
+    int chunkNum = 0;
+    // Batch size and pause tuned to avoid overrunning the machine's UART
+    // receive buffer during SPI flash writes. Over BLE, writeWithResponse
+    // provides natural backpressure via ACKs; over serial there's no such
+    // mechanism, so we pause every batch to let the machine catch up.
+    const batchSize = 8;
+    const batchPause = Duration(milliseconds: 400);
     for (int i = 0; i < list.length; i += 16) {
       if (cancelToken[0]) {
         _log.info('uploadFW: cancelled at byte $i');
@@ -122,13 +131,16 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
       data.setRange(4, 4 + chunkLength, list, i);
 
       await _transport.writeWithResponse(Endpoint.writeToMMR, data);
-      await Future.delayed(Duration(milliseconds: 5));
+      chunkNum++;
+      if (Platform.isMacOS &&
+          _transport.transportType == TransportType.serial) {
+        if (chunkNum % batchSize == 0) {
+          await Future.delayed(batchPause);
+        }
+      }
       onProgress(min(i / total, 1.0));
     }
   }
 }
 
 enum FWUpgradeState { erase, upload, error, done }
-
-
-
