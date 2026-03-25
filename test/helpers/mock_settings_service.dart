@@ -11,7 +11,7 @@ class MockSettingsService extends SettingsService {
   GatewayMode _gatewayMode = GatewayMode.disabled;
   String _logLevel = 'INFO';
   bool _recordShotPreheat = false;
-  bool _simulateDevices = false;
+  Set<SimulatedDevicesTypes> _simulateDevices = {};
   double _weightFlowMultiplier = 1.0;
   double _volumeFlowMultiplier = 0.3;
   ScalePowerMode _scalePowerMode = ScalePowerMode.disabled;
@@ -51,9 +51,9 @@ class MockSettingsService extends SettingsService {
   @override
   Future<void> setRecordShotPreheat(bool value) async => _recordShotPreheat = value;
   @override
-  Future<bool> simulateDevices() async => _simulateDevices;
+  Future<Set<SimulatedDevicesTypes>> simulateDevices() async => _simulateDevices;
   @override
-  Future<void> setSimulatedDevices(bool value) async => _simulateDevices = value;
+  Future<void> setSimulatedDevices(Set<SimulatedDevicesTypes> value) async => _simulateDevices = value;
   @override
   Future<double> weightFlowMultiplier() async => _weightFlowMultiplier;
   @override

@@ -51,7 +51,6 @@ import 'src/app.dart';
 import 'src/services/foreground_service.dart';
 import 'src/settings/settings_controller.dart';
 import 'src/settings/settings_service.dart';
-
 import 'src/services/serial/serial_service.dart';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -95,6 +94,22 @@ Future<void> _setSystemInfoKeys(TelemetryService telemetryService) async {
   }
 }
 
+/// Parses the `--dart-define=simulate=` flag value.
+/// Accepts "1" for all device types, or a comma-delimited list
+/// like "machine,scale" for selective simulation.
+Set<SimulatedDevicesTypes> _parseSimulateFlag(String value) {
+  if (value == '1') {
+    return SimulatedDevicesTypes.values.toSet();
+  }
+  return value
+      .split(',')
+      .map((e) => e.trim())
+      .where((e) => e.isNotEmpty)
+      .map((e) => SimulatedDevicesTypesFromString.fromString(e))
+      .whereType<SimulatedDevicesTypes>()
+      .toSet();
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(
@@ -133,7 +148,7 @@ void main() async {
 
   // Initialize Firebase on supported platforms (not Linux/Windows, not debug, not simulate)
   final isDebugOrSimulate =
-      kDebugMode || const String.fromEnvironment("simulate") == "1";
+      kDebugMode || const String.fromEnvironment("simulate").isNotEmpty;
   if (!Platform.isLinux && !Platform.isWindows && !isDebugOrSimulate) {
     try {
       await Firebase.initializeApp(
@@ -197,9 +212,11 @@ void main() async {
 
   final simulatedDevicesService = SimulatedDeviceService();
   services.add(simulatedDevicesService);
-  if (const String.fromEnvironment("simulate") == "1") {
-    simulatedDevicesService.simulationEnabled = true;
-    log.info("enabling Simulated Service");
+  const simulateEnv = String.fromEnvironment("simulate");
+  if (simulateEnv.isNotEmpty) {
+    final dartDefineDevices = _parseSimulateFlag(simulateEnv);
+    simulatedDevicesService.enabledDevices = dartDefineDevices;
+    log.info("enabling simulated devices from dart-define: $dartDefineDevices");
   }
   // Initialize Drift database
   final appDatabase = AppDatabase.defaults();
@@ -312,9 +329,11 @@ void main() async {
   // Load the user's preferred theme while the splash screen is displayed.
   // This prevents a sudden theme change when the app is first displayed.
   settingsController.addListener(() {
-    simulatedDevicesService.simulationEnabled =
-        settingsController.simulatedDevices ||
-        (const String.fromEnvironment("simulate") == "1");
+    // Merge dart-define devices with user-selected devices from settings
+    const simEnv = String.fromEnvironment("simulate");
+    final dartDefineDevices = simEnv.isNotEmpty ? _parseSimulateFlag(simEnv) : <SimulatedDevicesTypes>{};
+    simulatedDevicesService.enabledDevices =
+        {...dartDefineDevices, ...settingsController.simulatedDevices};
   });
   await settingsController.loadSettings();
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_js/quickjs/ffi.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
@@ -17,8 +18,8 @@ abstract class SettingsService {
   Future<void> updateLogLevel(String newLogLevel);
   Future<bool> recordShotPreheat();
   Future<void> setRecordShotPreheat(bool value);
-  Future<bool> simulateDevices();
-  Future<void> setSimulatedDevices(bool value);
+  Future<Set<SimulatedDevicesTypes>> simulateDevices();
+  Future<void> setSimulatedDevices(Set<SimulatedDevicesTypes> value);
   Future<double> weightFlowMultiplier();
   Future<void> setWeightFlowMultiplier(double value);
   Future<double> volumeFlowMultiplier();
@@ -115,13 +116,26 @@ class SharedPreferencesSettingsService extends SettingsService {
   }
 
   @override
-  Future<bool> simulateDevices() async {
-    return await prefs.getBool(SettingsKeys.simulateDevices.name) ?? false;
+  Future<Set<SimulatedDevicesTypes>> simulateDevices() async {
+    try {
+      final list = await prefs.getStringList(SettingsKeys.simulateDevices.name);
+      if (list == null) {
+        return Set.identity();
+      }
+      return Set.from(
+        list.map((e) => SimulatedDevicesTypesFromString.fromString(e)),
+      );
+    } catch (_) {
+      return Set.identity();
+    }
   }
 
   @override
-  Future<void> setSimulatedDevices(bool value) async {
-    await prefs.setBool(SettingsKeys.simulateDevices.name, value);
+  Future<void> setSimulatedDevices(Set<SimulatedDevicesTypes> value) async {
+    await prefs.setStringList(
+      SettingsKeys.simulateDevices.name,
+      value.map((e) => e.name).toList(),
+    );
   }
 
   @override
@@ -196,13 +210,19 @@ class SharedPreferencesSettingsService extends SettingsService {
   }
 
   @override
-  Future<void> setSkinExitButtonPosition(SkinExitButtonPosition position) async {
-    await prefs.setString(SettingsKeys.skinExitButtonPosition.name, position.name);
+  Future<void> setSkinExitButtonPosition(
+    SkinExitButtonPosition position,
+  ) async {
+    await prefs.setString(
+      SettingsKeys.skinExitButtonPosition.name,
+      position.name,
+    );
   }
 
   @override
   Future<String> defaultSkinId() async {
-    return await prefs.getString(SettingsKeys.defaultSkinId.name) ?? 'streamline_project-main';
+    return await prefs.getString(SettingsKeys.defaultSkinId.name) ??
+        'streamline_project-main';
   }
 
   @override
@@ -223,12 +243,17 @@ class SharedPreferencesSettingsService extends SettingsService {
   @override
   Future<DateTime?> lastUpdateCheckTime() async {
     final timestamp = await prefs.getInt(SettingsKeys.lastUpdateCheckTime.name);
-    return timestamp != null ? DateTime.fromMillisecondsSinceEpoch(timestamp) : null;
+    return timestamp != null
+        ? DateTime.fromMillisecondsSinceEpoch(timestamp)
+        : null;
   }
 
   @override
   Future<void> setLastUpdateCheckTime(DateTime time) async {
-    await prefs.setInt(SettingsKeys.lastUpdateCheckTime.name, time.millisecondsSinceEpoch);
+    await prefs.setInt(
+      SettingsKeys.lastUpdateCheckTime.name,
+      time.millisecondsSinceEpoch,
+    );
   }
 
   @override
@@ -253,7 +278,8 @@ class SharedPreferencesSettingsService extends SettingsService {
 
   @override
   Future<bool> telemetryConsentDialogShown() async {
-    return await prefs.getBool(SettingsKeys.telemetryConsentDialogShown.name) ?? false;
+    return await prefs.getBool(SettingsKeys.telemetryConsentDialogShown.name) ??
+        false;
   }
 
   @override
@@ -351,7 +377,8 @@ class SharedPreferencesSettingsService extends SettingsService {
 
   @override
   Future<bool> lowBatteryBrightnessLimit() async {
-    return await prefs.getBool(SettingsKeys.lowBatteryBrightnessLimit.name) ?? false;
+    return await prefs.getBool(SettingsKeys.lowBatteryBrightnessLimit.name) ??
+        false;
   }
 
   @override
@@ -390,18 +417,23 @@ enum SettingsKeys {
 }
 
 /// Position options for the skin view exit button
-enum SkinExitButtonPosition {
-  topLeft,
-  topRight,
-  bottomLeft,
-  bottomRight,
-}
+enum SkinExitButtonPosition { topLeft, topRight, bottomLeft, bottomRight }
 
 extension SkinExitButtonPositionFromString on SkinExitButtonPosition {
   static SkinExitButtonPosition? fromString(String value) {
     return SkinExitButtonPosition.values.firstWhere(
       (e) => e.name == value,
       orElse: () => SkinExitButtonPosition.topLeft,
+    );
+  }
+}
+
+enum SimulatedDevicesTypes { machine, scale, sensor }
+
+extension SimulatedDevicesTypesFromString on SimulatedDevicesTypes {
+  static SimulatedDevicesTypes? fromString(String value) {
+    return SimulatedDevicesTypes.values.firstWhereOrNull(
+      (e) => e.name == value,
     );
   }
 }
