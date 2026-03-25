@@ -11,16 +11,30 @@ import 'package:reaprime/src/models/device/device.dart';
 
 import '../../scale.dart';
 
-/// Acaia Classic / older model scale implementation (IPS protocol).
+/// Detected Acaia BLE protocol variant.
+enum AcaiaProtocol { ips, pyxis }
+
+/// Unified Acaia scale implementation supporting both IPS (older ACAIA/PROCH
+/// models) and Pyxis (newer LUNAR/PEARL/PYXIS models) protocols.
 ///
-/// Matches the de1app `acaiascale` implementation for ACAIA/PROCH-named scales.
-/// Uses a proprietary protocol with header bytes 0xEF 0xDD, message type,
-/// payload, and two checksum bytes over a single BLE characteristic.
+/// Protocol is auto-detected at connection time based on discovered BLE
+/// services, matching the Decenza approach.
+///
+/// Reference: de1app bluetooth.tcl (acaia_parse_response, acaia_encode)
 class AcaiaScale implements Scale {
-  static final BleServiceIdentifier serviceIdentifier =
-      BleServiceIdentifier.short('1820');
-  static final BleServiceIdentifier characteristic =
-      BleServiceIdentifier.short('2a80');
+  // IPS protocol identifiers
+  static final _ipsService = BleServiceIdentifier.short('1820');
+  static final _ipsCharacteristic = BleServiceIdentifier.short('2a80');
+
+  // Pyxis protocol identifiers
+  static final _pyxisService =
+      BleServiceIdentifier.long('49535343-fe7d-4ae5-8fa9-9fafd205e455');
+  static final _pyxisStatusChar =
+      BleServiceIdentifier.long('49535343-1e4d-4bd9-ba61-23c647249616');
+  static final _pyxisCmdChar =
+      BleServiceIdentifier.long('49535343-8841-43f4-a8d4-ecbe34729bb3');
+
+  static const int _maxInitRetries = 10;
 
   final Logger _log = Logger('AcaiaScale');
   final String _deviceId;
@@ -30,10 +44,13 @@ class AcaiaScale implements Scale {
 
   final BLETransport _transport;
 
+  AcaiaProtocol? _protocol;
   Timer? _heartbeatTimer;
   Timer? _configTimer;
+  Timer? _watchdogTimer;
   int _batteryLevel = 0;
   List<int> _commandBuffer = [];
+  DateTime _lastResponse = DateTime.now();
   bool _receivingNotifications = false;
 
   AcaiaScale({required BLETransport transport})
@@ -57,6 +74,21 @@ class AcaiaScale implements Scale {
   Stream<ConnectionState> get connectionState =>
       _connectionStateController.stream;
 
+  // --- Protocol-dependent helpers ---
+
+  String get _serviceUuid =>
+      _protocol == AcaiaProtocol.pyxis ? _pyxisService.long : _ipsService.long;
+
+  String get _notifyCharUuid => _protocol == AcaiaProtocol.pyxis
+      ? _pyxisStatusChar.long
+      : _ipsCharacteristic.long;
+
+  String get _writeCharUuid => _protocol == AcaiaProtocol.pyxis
+      ? _pyxisCmdChar.long
+      : _ipsCharacteristic.long;
+
+  bool get _useWriteResponse => _protocol == AcaiaProtocol.pyxis;
+
   @override
   Future<void> onConnect() async {
     if (await _transport.connectionState.first == ConnectionState.connected) {
@@ -69,38 +101,38 @@ class AcaiaScale implements Scale {
     try {
       await _transport.connect();
 
-      // Subscribe to disconnect AFTER connect succeeds.
-      // The transport's BehaviorSubject now holds `true`, so the
-      // .where(!state) filter won't fire until a real disconnect.
       disconnectSub = _transport.connectionState
           .where((state) => state == ConnectionState.disconnected)
           .listen((_) {
         _log.info('Transport disconnected');
         _connectionStateController.add(ConnectionState.disconnected);
         disconnectSub?.cancel();
-        _heartbeatTimer?.cancel();
-        _heartbeatTimer = null;
-        _configTimer?.cancel();
-        _configTimer = null;
+        _cancelTimers();
       });
 
       final services = await _transport.discoverServices();
-      if (!serviceIdentifier.matchesAny(services)) {
+
+      // Auto-detect protocol from discovered services
+      if (_pyxisService.matchesAny(services)) {
+        _protocol = AcaiaProtocol.pyxis;
+        _log.info('Detected Pyxis protocol');
+      } else if (_ipsService.matchesAny(services)) {
+        _protocol = AcaiaProtocol.ips;
+        _log.info('Detected IPS protocol');
+      } else {
         throw Exception(
-          'Expected service ${serviceIdentifier.long} not found. '
-          'Discovered services: $services',
+          'No Acaia service found. Expected ${_pyxisService.long} or '
+          '${_ipsService.long}. Discovered: $services',
         );
       }
+
       await _initScale();
       _connectionStateController.add(ConnectionState.connected);
-      _log.info('Scale initialized successfully');
+      _log.info('Scale initialized successfully (protocol: $_protocol)');
     } catch (e) {
       _log.warning('Failed to initialize scale: $e');
       disconnectSub?.cancel();
-      _heartbeatTimer?.cancel();
-      _heartbeatTimer = null;
-      _configTimer?.cancel();
-      _configTimer = null;
+      _cancelTimers();
       _connectionStateController.add(ConnectionState.disconnected);
       try {
         await _transport.disconnect();
@@ -110,11 +142,17 @@ class AcaiaScale implements Scale {
 
   @override
   disconnect() async {
+    _cancelTimers();
+    await _transport.disconnect();
+  }
+
+  void _cancelTimers() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
     _configTimer?.cancel();
     _configTimer = null;
-    await _transport.disconnect();
+    _watchdogTimer?.cancel();
+    _watchdogTimer = null;
   }
 
   @override
@@ -130,16 +168,12 @@ class AcaiaScale implements Scale {
     0x38, 0x39, 0x30, 0x31, 0x32, 0x33, 0x34,
   ];
 
-  // Config payload matching de1app hex "0900010102020103041106":
-  // data [0x09,0x00,0x01,0x01,0x02,0x02,0x01,0x03,0x04] + checksums [0x11,0x06]
   static const List<int> _configPayload = [
     0x09, 0x00, 0x01, 0x01, 0x02, 0x02, 0x01, 0x03, 0x04,
   ];
 
   static const List<int> _heartbeatPayload = [0x02, 0x00];
 
-  /// Encode a message with the Acaia protocol:
-  /// [header1, header2, msgType, ...payload, cksum1, cksum2]
   static Uint8List _encode(int msgType, List<int> payload) {
     int cksum1 = 0;
     int cksum2 = 0;
@@ -160,89 +194,116 @@ class AcaiaScale implements Scale {
     ]);
   }
 
-  // --- Initialization sequence (matches de1app timing) ---
+  // --- Initialization with retry loop (matches de1app/Decenza) ---
 
   Future<void> _initScale() async {
     _receivingNotifications = false;
 
-    // de1app IPS: t+100ms enable notifications, t+500ms send ident
+    // Notification enable delay: IPS=100ms, Pyxis=500ms
+    final notifyDelay = _protocol == AcaiaProtocol.pyxis ? 500 : 100;
+
     await _transport.subscribe(
-      serviceIdentifier.long,
-      characteristic.long,
-      _parseNotification,
-    );
+        _serviceUuid, _notifyCharUuid, _parseNotification);
+    await Future.delayed(Duration(milliseconds: notifyDelay));
 
-    await Future.delayed(const Duration(milliseconds: 400));
+    // Retry ident+config up to _maxInitRetries times until scale responds
+    for (int attempt = 1; attempt <= _maxInitRetries; attempt++) {
+      if (_receivingNotifications) break;
 
-    // Send ident (IPS: write without response)
-    await _transport.write(
-      serviceIdentifier.long,
-      characteristic.long,
-      _encode(0x0B, _identPayload),
-      withResponse: false,
-    );
-    _log.fine('Sent ident');
+      _log.fine('Init attempt $attempt/$_maxInitRetries');
 
-    // de1app retries ident every 400ms if no notifications received
-    await Future.delayed(const Duration(milliseconds: 400));
-
-    if (!_receivingNotifications) {
-      _log.info('No response after ident, retrying...');
+      // Send ident
       await _transport.write(
-        serviceIdentifier.long,
-        characteristic.long,
+        _serviceUuid,
+        _writeCharUuid,
         _encode(0x0B, _identPayload),
-        withResponse: false,
+        withResponse: _useWriteResponse,
       );
+
+      await Future.delayed(const Duration(milliseconds: 200));
+
+      // Send config
+      await _transport.write(
+        _serviceUuid,
+        _writeCharUuid,
+        _encode(0x0C, _configPayload),
+        withResponse: _useWriteResponse,
+      );
+
       await Future.delayed(const Duration(milliseconds: 500));
     }
 
-    // Send config
-    await _transport.write(
-      serviceIdentifier.long,
-      characteristic.long,
-      _encode(0x0C, _configPayload),
-      withResponse: false,
-    );
-    _log.fine('Sent config');
+    if (!_receivingNotifications) {
+      _log.warning(
+          'Scale did not respond after $_maxInitRetries init attempts');
+    }
 
-    // Start heartbeat cycle: heartbeat every 2s, config 1s after heartbeat
-    // (matches de1app forced heartbeat pattern)
+    // Start heartbeat (3s interval, matching Decenza)
+    _lastResponse = DateTime.now();
     _heartbeatTimer?.cancel();
-    _configTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       _sendHeartbeat();
     });
+
+    // Watchdog for Pyxis only (5s timeout)
+    if (_protocol == AcaiaProtocol.pyxis) {
+      _watchdogTimer?.cancel();
+      _watchdogTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        _checkWatchdog();
+      });
+    }
   }
 
   void _sendHeartbeat() {
     _transport.write(
-      serviceIdentifier.long,
-      characteristic.long,
+      _serviceUuid,
+      _writeCharUuid,
       _encode(0x00, _heartbeatPayload),
-      withResponse: false,
+      withResponse: _useWriteResponse,
     );
-    // Send config 1s after heartbeat (de1app forced heartbeat pattern)
     _configTimer?.cancel();
     _configTimer = Timer(const Duration(seconds: 1), () {
       _transport.write(
-        serviceIdentifier.long,
-        characteristic.long,
+        _serviceUuid,
+        _writeCharUuid,
         _encode(0x0C, _configPayload),
-        withResponse: false,
+        withResponse: _useWriteResponse,
       );
     });
   }
 
-  // --- Tare (matches de1app: 17 zero bytes on wire) ---
+  void _checkWatchdog() {
+    final elapsed = DateTime.now().difference(_lastResponse).inMilliseconds;
+    if (elapsed > 5000) {
+      _log.warning('Watchdog timeout: no response for ${elapsed}ms');
+      disconnect();
+    }
+  }
+
+  // --- Tare: 3x with 100ms spacing (de1app/Decenza workaround) ---
 
   @override
   Future<void> tare() async {
+    final cmd = _encode(0x04, List.filled(15, 0x00));
     await _transport.write(
-      serviceIdentifier.long,
-      characteristic.long,
-      _encode(0x04, List.filled(15, 0x00)),
-      withResponse: false,
+      _serviceUuid,
+      _writeCharUuid,
+      cmd,
+      withResponse: _useWriteResponse,
+    );
+    await Future.delayed(const Duration(milliseconds: 100));
+    await _transport.write(
+      _serviceUuid,
+      _writeCharUuid,
+      cmd,
+      withResponse: _useWriteResponse,
+    );
+    await Future.delayed(const Duration(milliseconds: 100));
+    await _transport.write(
+      _serviceUuid,
+      _writeCharUuid,
+      cmd,
+      withResponse: _useWriteResponse,
     );
   }
 
@@ -261,11 +322,10 @@ class AcaiaScale implements Scale {
   static const int _metadataLen = 5;
 
   void _parseNotification(List<int> data) {
-    _log.fine('Notification received: ${data.length} bytes');
+    _lastResponse = DateTime.now();
     _commandBuffer.addAll(data);
 
     while (_commandBuffer.length >= _metadataLen + 1) {
-      // Find header
       if (_commandBuffer[0] != _header1 || _commandBuffer[1] != _header2) {
         _commandBuffer.removeAt(0);
         continue;
@@ -275,23 +335,18 @@ class AcaiaScale implements Scale {
       int length = _commandBuffer[3];
       int eventType = _commandBuffer[4];
 
-      // Total message size: metadata + remaining payload
       int msgLen = _metadataLen + length;
 
-      // Wait for complete message
       if (_commandBuffer.length < msgLen) break;
 
-      // Track that scale is responding (de1app sets flag when msg_type != 7)
       if (msgType != 7) {
         _receivingNotifications = true;
       }
 
-      // Battery message
       if (msgType == 8 && _commandBuffer.length > 4) {
         _batteryLevel = _commandBuffer[4];
       }
 
-      // Weight messages: msg_type 12, event_type 5 or 11, length <= 64
       if (msgType == 12 &&
           (eventType == 5 || eventType == 11) &&
           length <= 64) {
@@ -300,7 +355,6 @@ class AcaiaScale implements Scale {
         _decodeWeight(_commandBuffer, payloadOffset);
       }
 
-      // Advance past processed message
       if (msgLen <= _commandBuffer.length) {
         _commandBuffer = _commandBuffer.sublist(msgLen);
       } else {
@@ -309,8 +363,6 @@ class AcaiaScale implements Scale {
     }
   }
 
-  /// Decode weight from buffer at offset.
-  /// 3-byte (24-bit) little-endian weight matching de1app.
   void _decodeWeight(List<int> buffer, int offset) {
     if (offset + 6 > buffer.length) return;
 
@@ -321,7 +373,6 @@ class AcaiaScale implements Scale {
     int unit = buffer[offset + 4] & 0xFF;
     double weight = value / pow(10, unit);
 
-    // Sign: negative if byte > 1 (de1app convention)
     if ((buffer[offset + 5] & 0xFF) > 1) {
       weight *= -1;
     }
