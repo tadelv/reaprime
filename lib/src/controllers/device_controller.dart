@@ -95,6 +95,10 @@ class DeviceController {
         devices.remove(device);
       }
     }
+    // Sync the disconnect-detection baseline with the cleaned list so that
+    // service emissions arriving during the scan don't see false diffs.
+    _previousDeviceNames.clear();
+    _previousDeviceNames.addAll(devices.map((d) => d.name));
     _deviceStream.add(devices);
     // Scan all services in parallel
     final completer = Completer();
@@ -132,36 +136,43 @@ class DeviceController {
     // Get current device names
     final currentDeviceNames = this.devices.map((d) => d.name).toSet();
 
-    // Detect disconnections: devices that were in previous update but not in current
-    final disconnectedDevices = _previousDeviceNames.difference(currentDeviceNames);
-    for (var deviceName in disconnectedDevices) {
-      _disconnectedAt[deviceName] = DateTime.now();
-      _log.info("Device $deviceName disconnected");
-    }
-
-    // Detect reconnections: devices in current update that have disconnection timestamps
-    for (var deviceName in currentDeviceNames) {
-      if (_disconnectedAt.containsKey(deviceName)) {
-        final disconnectedTime = _disconnectedAt[deviceName]!;
-        final duration = DateTime.now().difference(disconnectedTime);
-        _log.info("Device $deviceName reconnected after ${duration.inSeconds}s");
-
-        // Set telemetry custom key with reconnection duration
-        _telemetryService?.setCustomKey(
-          'reconnection_duration_$deviceName',
-          duration.inSeconds,
-        );
-
-        // Remove from disconnected tracking
-        _disconnectedAt.remove(deviceName);
+    // Skip disconnect/reconnect detection during active scans — the device
+    // list is in flux and intermediate states are transient noise. The scan
+    // will produce the authoritative list when it completes.
+    if (!isScanning) {
+      // Detect disconnections: devices that were in previous update but not in current
+      final disconnectedDevices =
+          _previousDeviceNames.difference(currentDeviceNames);
+      for (var deviceName in disconnectedDevices) {
+        _disconnectedAt[deviceName] = DateTime.now();
+        _log.info("Device $deviceName disconnected");
       }
-    }
 
-    // Clean up stale disconnection entries (older than 24 hours)
-    final now = DateTime.now();
-    _disconnectedAt.removeWhere((deviceName, timestamp) {
-      return now.difference(timestamp).inHours > 24;
-    });
+      // Detect reconnections: devices in current update that have disconnection timestamps
+      for (var deviceName in currentDeviceNames) {
+        if (_disconnectedAt.containsKey(deviceName)) {
+          final disconnectedTime = _disconnectedAt[deviceName]!;
+          final duration = DateTime.now().difference(disconnectedTime);
+          _log.info(
+              "Device $deviceName reconnected after ${duration.inSeconds}s");
+
+          // Set telemetry custom key with reconnection duration
+          _telemetryService?.setCustomKey(
+            'reconnection_duration_$deviceName',
+            duration.inSeconds,
+          );
+
+          // Remove from disconnected tracking
+          _disconnectedAt.remove(deviceName);
+        }
+      }
+
+      // Clean up stale disconnection entries (older than 24 hours)
+      final now = DateTime.now();
+      _disconnectedAt.removeWhere((deviceName, timestamp) {
+        return now.difference(timestamp).inHours > 24;
+      });
+    }
 
     // Update previous device names for next comparison
     _previousDeviceNames.clear();
