@@ -16,7 +16,7 @@ enum TransportType { ble, serial, unknown }
 
 class UnifiedDe1Transport {
   final DataTransport _transport;
-  final TransportType _transportType;
+  final TransportType transportType;
   final Logger _log;
 
   late StreamSubscription<String> _transportSubscription;
@@ -57,7 +57,7 @@ class UnifiedDe1Transport {
 
   UnifiedDe1Transport({required DataTransport transport})
     : _transport = transport,
-      _transportType =
+      transportType =
           transport is BLETransport
               ? TransportType.ble
               : transport is SerialTransport
@@ -67,7 +67,7 @@ class UnifiedDe1Transport {
   Future<void> connect() async {
     await _transport.connect();
 
-    switch (_transportType) {
+    switch (transportType) {
       case TransportType.ble:
         await _bleConnect();
         break;
@@ -75,7 +75,7 @@ class UnifiedDe1Transport {
         await _serialConnect();
         break;
       default:
-        throw StateError('Unknown transport type: $_transportType');
+        throw StateError('Unknown transport type: $transportType');
     }
   }
 
@@ -154,7 +154,7 @@ class UnifiedDe1Transport {
   }
 
   Future<void> disconnect() async {
-    switch (_transportType) {
+    switch (transportType) {
       case TransportType.serial:
         if (_transport is! SerialTransport) {
           throw "Wrong transport type";
@@ -184,7 +184,7 @@ class UnifiedDe1Transport {
         // BLE doesn't need special disconnect handling
         break;
       case TransportType.unknown:
-        throw StateError('Unknown transport type: $_transportType');
+        throw StateError('Unknown transport type: $transportType');
     }
 
     await _transport.disconnect();
@@ -312,13 +312,13 @@ class UnifiedDe1Transport {
     }
 
     try {
-      switch (_transportType) {
+      switch (transportType) {
         case TransportType.ble:
           return await _bleRead(endpoint);
         case TransportType.serial:
           return await _serialRead(endpoint);
         default:
-          throw ("Unknown transport type: $_transportType");
+          throw ("Unknown transport type: $transportType");
       }
     } catch (e, st) {
       if (_isBleTimeout(e)) {
@@ -342,7 +342,7 @@ class UnifiedDe1Transport {
   }
 
   Future<ByteData> _serialRead(Endpoint e) async {
-    if (_transportType != TransportType.serial) {
+    if (transportType != TransportType.serial) {
       throw "Invalid transport type, expected Serial";
     }
 
@@ -397,7 +397,7 @@ class UnifiedDe1Transport {
         'payload: ${data.map((el) => el.toRadixString(16).padLeft(2, '0')).join(' ')}',
       );
 
-      switch (_transportType) {
+      switch (transportType) {
         case TransportType.ble:
           await _bleWrite(endpoint, data, false);
           break;
@@ -405,7 +405,7 @@ class UnifiedDe1Transport {
           await _serialWrite(endpoint, data);
           break;
         default:
-          throw ("Unknown transport type: $_transportType");
+          throw ("Unknown transport type: $transportType");
       }
     } catch (e, st) {
       if (_isBleTimeout(e)) {
@@ -428,7 +428,7 @@ class UnifiedDe1Transport {
       _log.fine(
         'payload: ${data.map((el) => el.toRadixString(16).padLeft(2, '0')).join(' ')}',
       );
-      switch (_transportType) {
+      switch (transportType) {
         case TransportType.ble:
           await _bleWrite(endpoint, data, true);
           break;
@@ -436,7 +436,7 @@ class UnifiedDe1Transport {
           await _serialWrite(endpoint, data);
           break;
         default:
-          throw ("Unknown transport type: $_transportType");
+          throw ("Unknown transport type: $transportType");
       }
     } catch (e, st) {
       if (_isBleTimeout(e)) {
@@ -451,7 +451,7 @@ class UnifiedDe1Transport {
   }
 
   bool _isBleTimeout(Object error) {
-    return _transportType == TransportType.ble &&
+    return transportType == TransportType.ble &&
         error is BleTimeoutException;
   }
 
