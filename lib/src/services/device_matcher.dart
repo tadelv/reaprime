@@ -1,5 +1,4 @@
 import 'package:reaprime/src/models/device/device.dart';
-import 'package:reaprime/src/models/device/impl/acaia/acaia_pyxis_scale.dart';
 import 'package:reaprime/src/models/device/impl/acaia/acaia_scale.dart';
 import 'package:reaprime/src/models/device/impl/atomheart/atomheart_scale.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
@@ -43,10 +42,11 @@ class DeviceMatcher {
     }
 
     // Contains matches — check specific before generic
-    if (nameLower.contains('acaia')) {
-      if (nameLower.contains('pyxis')) {
-        return AcaiaPyxisScale(transport: transport);
-      }
+    if (nameLower.contains('acaia') ||
+        nameLower.contains('lunar') ||
+        nameLower.contains('pearl') ||
+        nameLower.contains('proch') ||
+        nameLower.contains('pyxis')) {
       return AcaiaScale(transport: transport);
     }
 

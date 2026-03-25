@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reaprime/src/models/device/impl/acaia/acaia_pyxis_scale.dart';
 import 'package:reaprime/src/models/device/impl/acaia/acaia_scale.dart';
 import 'package:reaprime/src/models/device/impl/atomheart/atomheart_scale.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
@@ -113,7 +112,61 @@ void main() {
       );
 
       expect(device, isNotNull);
-      expect(device, isA<AcaiaPyxisScale>());
+      expect(device, isA<AcaiaScale>());
+    });
+
+    test('LUNAR matches to AcaiaScale', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'LUNAR',
+      );
+      expect(device, isNotNull);
+      expect(device, isA<AcaiaScale>());
+    });
+
+    test('PEARL-S matches to AcaiaScale', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'PEARL-S',
+      );
+      expect(device, isNotNull);
+      expect(device, isA<AcaiaScale>());
+    });
+
+    test('PEARLS matches to AcaiaScale', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'PEARLS',
+      );
+      expect(device, isNotNull);
+      expect(device, isA<AcaiaScale>());
+    });
+
+    test('PROCH matches to AcaiaScale', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'PROCH',
+      );
+      expect(device, isNotNull);
+      expect(device, isA<AcaiaScale>());
+    });
+
+    test('PYXIS matches to AcaiaScale', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'PYXIS',
+      );
+      expect(device, isNotNull);
+      expect(device, isA<AcaiaScale>());
+    });
+
+    test('Lunar (mixed case) matches to AcaiaScale', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'Lunar',
+      );
+      expect(device, isNotNull);
+      expect(device, isA<AcaiaScale>());
     });
 
     test('matching is case-insensitive', () async {
