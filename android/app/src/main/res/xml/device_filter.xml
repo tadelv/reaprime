@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 0x1366 / 0x0105: CH340 JLink -->
-    <usb-device vendor-id="1A86" product-id="7523" />
-
+    <!-- DE1 espresso machine: WCH CH9102 (VID 0x1A86 = 6790, PID 0x55D3 = 21971) -->
+    <usb-device vendor-id="6790" product-id="21971" />
+    <!-- Half Decent Scale: WCH CH340 (VID 0x1A86 = 6790, PID 0x7522 = 29986, 0x7523 = 29987) -->
+    <usb-device vendor-id="6790" product-id="29986" />
+    <usb-device vendor-id="6790" product-id="29987" />
+    <!-- Bengle: TinyUSB CDC on SAMD21 (VID 0x2E8A = 11914, PID 0x000A = 10) -->
+    <usb-device vendor-id="11914" product-id="10" />
 </resources>
