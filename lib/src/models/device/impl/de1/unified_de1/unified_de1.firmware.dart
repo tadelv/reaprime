@@ -108,12 +108,20 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
   ) async {
     final total = list.length;
     int chunkNum = 0;
-    // Batch size and pause tuned to avoid overrunning the machine's UART
-    // receive buffer during SPI flash writes. Over BLE, writeWithResponse
-    // provides natural backpressure via ACKs; over serial there's no such
-    // mechanism, so we pause every batch to let the machine catch up.
-    const batchSize = 8;
-    const batchPause = Duration(milliseconds: 400);
+    // Over BLE, writeWithResponse provides natural backpressure via ACKs.
+    // Over serial there's no such mechanism, so we pause every batch to let
+    // the machine's UART receive buffer drain during SPI flash writes.
+    // macOS serial drivers need a longer pause than Linux/Android.
+    final batchSize = switch (_transport.transportType) {
+      TransportType.serial => Platform.isAndroid ? 32 : 8,
+      _ => 8,
+    };
+    final batchPause = switch (_transport.transportType) {
+      TransportType.serial => Duration(
+        milliseconds: Platform.isMacOS ? 400 : 400,
+      ),
+      _ => Duration.zero,
+    };
     for (int i = 0; i < list.length; i += 16) {
       if (cancelToken[0]) {
         _log.info('uploadFW: cancelled at byte $i');
@@ -132,8 +140,7 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
 
       await _transport.writeWithResponse(Endpoint.writeToMMR, data);
       chunkNum++;
-      if (Platform.isMacOS &&
-          _transport.transportType == TransportType.serial) {
+      if (batchPause.inMilliseconds > 0) {
         if (chunkNum % batchSize == 0) {
           await Future.delayed(batchPause);
         }
