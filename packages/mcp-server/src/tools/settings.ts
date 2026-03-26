@@ -14,7 +14,7 @@ export function registerSettingsTools(server: McpServer, rest: RestClient) {
 
   server.registerTool("settings_update", {
     title: "Update Settings",
-    description: "Update app settings (gateway mode, log level, multipliers, etc.).",
+    description: "Update app settings (gateway mode, log level, multipliers, scale power mode, charging mode, night mode, lowBatteryBrightnessLimit, etc.).",
     inputSchema: z.object({
       settings: z.record(z.unknown()),
     }),

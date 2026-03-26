@@ -734,8 +734,12 @@ void _handleSnapshot(MachineSnapshot snapshot) {
 Use simulated devices for testing without hardware:
 
 ```bash
-flutter run --dart-define=simulate=1
+flutter run --dart-define=simulate=1              # Simulate all devices
+flutter run --dart-define=simulate=machine         # Simulate machine only
+flutter run --dart-define=simulate=machine,scale   # Simulate machine and scale
 ```
+
+Supported types: `machine`, `scale`, `sensor` (comma-separated).
 
 Or toggle in Settings UI → Simulated Devices
 
@@ -853,10 +857,9 @@ _log.info('Found serial ports: $ports');
 - `lib/src/services/simulated_device_service.dart` - Testing mocks
 
 ### Device Implementations
-- `lib/src/models/device/impl/de1/` - DE1 BLE machines
-- `lib/src/models/device/impl/serial_de1/` - DE1 Serial machines
-- `lib/src/models/device/impl/unified_de1/` - Unified DE1 interface
+- `lib/src/models/device/impl/de1/` - DE1 machines (BLE + Serial, unified interface in `unified_de1/`)
 - `lib/src/models/device/impl/decent_scale/` - Decent Scale (BLE + Serial)
+- `lib/src/models/device/impl/acaia/` - Acaia scales (unified: IPS protocol for older ACAIA/PROCH, Pyxis protocol for Lunar/Pearl/Pyxis, auto-detected at connect time)
 - `lib/src/models/device/impl/felicita/` - Felicita Arc scale
 - `lib/src/models/device/impl/bookoo/` - Bookoo Miniscale
 - `lib/src/models/device/impl/mock_de1/` - Mock DE1 for testing

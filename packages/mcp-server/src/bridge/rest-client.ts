@@ -50,7 +50,7 @@ export class RestClient {
 
   async isReachable(): Promise<boolean> {
     try {
-      await this.get("/api/v1/machine/state");
+      await this.get("/api/v1/info");
       return true;
     } catch {
       return false;

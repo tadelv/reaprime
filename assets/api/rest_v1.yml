@@ -3392,6 +3392,10 @@ components:
           minimum: 0
           maximum: 1439
           description: Morning time in minutes since midnight
+        lowBatteryBrightnessLimit:
+          type: boolean
+          nullable: true
+          description: When enabled and battery drops below 30%, screen brightness is capped at 20. Only effective on platforms with battery monitoring.
 
     ReaSettings:
       type: object
@@ -3456,6 +3460,9 @@ components:
           minimum: 0
           maximum: 1439
           description: Morning time in minutes since midnight (e.g., 420 = 07:00)
+        lowBatteryBrightnessLimit:
+          type: boolean
+          description: When enabled and battery drops below 30%, screen brightness is capped at 20. Only effective on platforms with battery monitoring.
         chargingState:
           $ref: '#/components/schemas/ChargingState'
 

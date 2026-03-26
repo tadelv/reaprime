@@ -172,7 +172,7 @@ The MCP server in `packages/mcp-server/` bridges Claude to the Flutter app's RES
 - **RxDart:** Controllers use `BehaviorSubject` for state broadcasting
 - **Async init:** Services/controllers have `initialize()` methods called from `main.dart`
 - **Logging:** `package:logging`, configured in `main.dart`. Logs to `~/Download/REA1/log.txt` (Android) or app documents dir (other platforms)
-- **Foreground service:** Android uses `ForegroundTaskService` to maintain BLE in background
+- **Foreground service:** Android uses `ForegroundTaskService` to maintain BLE in background. Auto-stops after a 5-minute grace period when the machine disconnects; auto-restarts on reconnect. Shows connection state in the notification.
 - **StreamBuilder patterns:**
   - Check both `hasData` AND `data != null` for nullable streams (e.g., `De1Interface?`)
   - Use explicit type parameters: `StreamBuilder<De1Interface?>`
