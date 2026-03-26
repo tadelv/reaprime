@@ -21,6 +21,7 @@ import { WsClient } from "./bridge/ws-client.js";
 import { registerStreamingTools } from "./tools/streaming.js";
 import { registerDataSyncTools } from "./tools/data-sync.js";
 import { registerInfoTools } from "./tools/info.js";
+import { registerDisplayTools } from "./tools/display.js";
 import { registerStaticResources } from "./resources/static-docs.js";
 import { registerLiveResources } from "./resources/live-state.js";
 
@@ -63,6 +64,7 @@ export function createServer(config: ServerConfig) {
   registerGrinderTools(server, restClient);
   registerDataSyncTools(server, restClient);
   registerInfoTools(server, restClient);
+  registerDisplayTools(server, restClient);
 
   const appManager = new AppManager({
     flutterCmd: config.flutterCmd,

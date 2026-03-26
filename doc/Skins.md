@@ -1210,6 +1210,7 @@ GET /api/v1/settings
 - `volumeFlowMultiplier`: Multiplier for projected volume calculation (default: 0.3)
 - `scalePowerMode`: Automatic scale power management (`disabled`, `displayOff`, `disconnect`)
 - `preferredMachineId`: Device ID for auto-connect on startup
+- `lowBatteryBrightnessLimit` (boolean): When enabled, caps brightness at 20 when battery drops below 30%
 
 **Gateway Modes:**
 - `disabled`: No gateway features
