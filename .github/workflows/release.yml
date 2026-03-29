@@ -465,7 +465,7 @@ jobs:
           EOF
 
       - name: Build IPA
-        run: ./flutter_with_commit.sh build ipa --release --export-options-plist=ExportOptions.plist
+        run: ./flutter_with_commit.sh build ipa --release --dart-define=APP_STORE=true --export-options-plist=ExportOptions.plist
         env:
           FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
