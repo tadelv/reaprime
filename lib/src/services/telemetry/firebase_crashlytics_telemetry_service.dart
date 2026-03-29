@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_performance/firebase_performance.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 import 'package:reaprime/src/services/telemetry/log_buffer.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_report_queue.dart';
@@ -25,8 +27,10 @@ class FirebaseCrashlyticsTelemetryService implements TelemetryService {
 
   @override
   Future<void> initialize() async {
-    // PRIV-04: Disable collection by default until user consents
+    // PRIV-04: Disable all Firebase collection by default until user consents
     await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(false);
+    await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(false);
+    await FirebasePerformance.instance.setPerformanceCollectionEnabled(false);
 
     // TELE-04: Set up global error handlers to route through TelemetryService
     FlutterError.onError = (details) {
@@ -88,6 +92,8 @@ class FirebaseCrashlyticsTelemetryService implements TelemetryService {
   @override
   Future<void> setConsentEnabled(bool enabled) async {
     await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(enabled);
+    await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(enabled);
+    await FirebasePerformance.instance.setPerformanceCollectionEnabled(enabled);
   }
 
   @override
