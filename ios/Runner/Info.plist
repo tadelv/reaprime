@@ -36,6 +36,8 @@
 	<string>Copyright © 2025-2026 Decent Espresso. Licensed under GPL v3.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Needed to discover local devices</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Needed to import photos for shot notes and feedback</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Needed to discover local devices</string>
 	<key>NSLocationAlwaysUsageDescription</key>
