@@ -269,6 +269,151 @@ jobs:
           name: raspberrypi-linux-arm64-app
           path: build/linux/arm64/release/bundle
 
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Cache Flutter & CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            ios/Pods
+          key: ${{ runner.os }}-ios-flutter-${{ hashFiles('**/pubspec.yaml', '**/Podfile.lock') }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build DYE2 plugin
+        run: |
+          cd packages/dye2-plugin
+          npm ci
+          npm run build
+
+      - name: Import distribution certificate
+        env:
+          CERTIFICATE_P12: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+
+          # Create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Decode and import certificate
+          echo "$CERTIFICATE_P12" | base64 --decode > certificate.p12
+          security import certificate.p12 \
+            -k "$KEYCHAIN_PATH" \
+            -P "$CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign
+
+          # Allow codesign to access keychain
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Make this keychain the default
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+          # Clean up
+          rm certificate.p12
+
+      - name: Install provisioning profile
+        env:
+          PROVISIONING_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE_B64 }}
+        run: |
+          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          echo "$PROVISIONING_PROFILE" | base64 --decode > "$PP_PATH"
+
+          # Extract UUID and install with correct filename
+          PP_UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< "$(security cms -D -i "$PP_PATH")")
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/${PP_UUID}.mobileprovision
+
+      - name: Create ExportOptions.plist
+        env:
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+          PROVISIONING_PROFILE_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
+        run: |
+          cat > ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>teamID</key>
+            <string>${TEAM_ID}</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>signingCertificate</key>
+            <string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>net.tadel.reaprime</key>
+              <string>${PROVISIONING_PROFILE_NAME}</string>
+            </dict>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Build IPA
+        run: ./flutter_with_commit.sh build ipa --release --export-options-plist=ExportOptions.plist
+        env:
+          FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
+
+      - name: Upload to TestFlight
+        env:
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+        run: |
+          # Write the API key to the expected location
+          mkdir -p ~/.private_keys
+          echo "$API_KEY_P8" | base64 --decode > ~/.private_keys/AuthKey_${API_KEY_ID}.p8
+
+          # Find the built IPA
+          IPA_PATH=$(find build/ios/ipa -name "*.ipa" | head -1)
+
+          if [ -z "$IPA_PATH" ]; then
+            echo "Error: No IPA found in build/ios/ipa/"
+            exit 1
+          fi
+
+          echo "Validating $IPA_PATH..."
+          xcrun altool --validate-app \
+            --type ios \
+            --file "$IPA_PATH" \
+            --apiKey "$API_KEY_ID" \
+            --apiIssuer "$API_ISSUER_ID"
+
+          echo "Uploading $IPA_PATH to TestFlight..."
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$IPA_PATH" \
+            --apiKey "$API_KEY_ID" \
+            --apiIssuer "$API_ISSUER_ID"
+
+          # Clean up API key
+          rm -f ~/.private_keys/AuthKey_${API_KEY_ID}.p8
+
   build-windows:
     runs-on: windows-latest
     steps:
