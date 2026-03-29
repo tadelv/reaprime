@@ -375,6 +375,14 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Cache Flutter & CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            ios/Pods
+          key: ${{ runner.os }}-ios-flutter-${{ hashFiles('**/pubspec.yaml', '**/Podfile.lock') }}
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -420,11 +428,12 @@ jobs:
           PROVISIONING_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE_B64 }}
         run: |
           PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
-
           echo "$PROVISIONING_PROFILE" | base64 --decode > "$PP_PATH"
 
+          # Extract UUID and install with correct filename
+          PP_UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< "$(security cms -D -i "$PP_PATH")")
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/
+          cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/${PP_UUID}.mobileprovision
 
       - name: Create ExportOptions.plist
         env:
@@ -478,13 +487,22 @@ jobs:
             exit 1
           fi
 
-          echo "Uploading $IPA_PATH to TestFlight..."
+          echo "Validating $IPA_PATH..."
+          xcrun altool --validate-app \
+            --type ios \
+            --file "$IPA_PATH" \
+            --apiKey "$API_KEY_ID" \
+            --apiIssuer "$API_ISSUER_ID"
 
+          echo "Uploading $IPA_PATH to TestFlight..."
           xcrun altool --upload-app \
             --type ios \
             --file "$IPA_PATH" \
             --apiKey "$API_KEY_ID" \
             --apiIssuer "$API_ISSUER_ID"
+
+          # Clean up API key
+          rm -f ~/.private_keys/AuthKey_${API_KEY_ID}.p8
 
   create-release:
     name: Create GitHub Release
@@ -548,7 +566,7 @@ jobs:
             
             > **Windows users**: Streamline-Bridge requires the [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-supported-redistributable-version) to be installed. If the app doesn't start, please download and install the latest Visual C++ Redistributable from Microsoft.
 
-            **iOS**: Available via TestFlight. [Join the beta](https://testflight.apple.com/join/<your-link>)
+            **iOS**: Available via TestFlight. Check the project's TestFlight page for access.
             
             ### What's Changed
             <!-- GitHub will auto-generate release notes here -->
