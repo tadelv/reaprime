@@ -106,6 +106,33 @@ After the release is created, you can edit it to:
 - Check `flutter_with_commit.sh` extracts version correctly
 - Rebuild with correct tag
 
+## iOS / TestFlight
+
+iOS builds are uploaded to TestFlight automatically on tag push, running as an independent CI job (`build-ios`) alongside the other platform builds.
+
+### Local TestFlight Upload
+
+To build and upload an IPA locally:
+
+```bash
+./flutter_with_commit.sh build ipa --release
+```
+
+Then upload via Xcode Organizer (Window → Organizer → Distribute App → TestFlight & App Store).
+
+### CI/CD
+
+The `build-ios` job in `.github/workflows/release.yml`:
+1. Builds the IPA with manual signing (Apple Distribution certificate + App Store provisioning profile)
+2. Uploads to TestFlight via App Store Connect API
+
+Required secrets: `APPLE_DISTRIBUTION_CERTIFICATE_P12`, `APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD`, `IOS_PROVISIONING_PROFILE_B64`, `IOS_PROVISIONING_PROFILE_NAME`, `APP_STORE_CONNECT_API_KEY_ID`, `APP_STORE_CONNECT_API_ISSUER_ID`, `APP_STORE_CONNECT_API_KEY_P8`, `TEAM_ID`.
+
+### TestFlight Distribution
+
+- **Internal testing**: Available immediately after processing (~10-30 min). Up to 100 testers (App Store Connect users).
+- **External testing**: Requires App Review for first build per version. Up to 10,000 testers. Can use a public link.
+
 ## Future Enhancements
 
 - [ ] Add multi-platform releases (macOS, Linux, Windows)
