@@ -8,7 +8,6 @@ import 'package:reaprime/src/home_feature/widgets/quick_settings_widget.dart';
 import 'package:reaprime/src/services/webview_compatibility_checker.dart';
 import 'package:reaprime/src/services/webview_log_service.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
-import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Displays the WebUI skin in a full-screen webview
@@ -126,6 +125,8 @@ class _SkinViewState extends State<SkinView> {
           'Swipe right from the left side of the screen to return to Dashboard';
     } else if (Platform.isAndroid) {
       instructions = 'Use system back button to return to Dashboard';
+    } else if (Platform.isMacOS) {
+      instructions = 'Press ⌘D or use View → Back to Dashboard to return';
     } else {
       // Fallback for other platforms
       instructions = 'Use back navigation to return to Dashboard';
@@ -150,78 +151,13 @@ class _SkinViewState extends State<SkinView> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop =
-        Platform.isMacOS || Platform.isLinux || Platform.isWindows;
-
     return Scaffold(
       // No AppBar for fullscreen appearance
       body: SafeArea(
         // Allow content to extend into system UI areas for true fullscreen
         top: false,
         bottom: false,
-        child: Stack(
-          children: [
-            _buildBody(),
-            // Hovering back button for desktop only
-            if (isDesktop) _buildPositionedBackButton(context),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPositionedBackButton(BuildContext context) {
-    final position = widget.settingsController.skinExitButtonPosition;
-
-    return Positioned(
-      top:
-          position == SkinExitButtonPosition.topLeft ||
-                  position == SkinExitButtonPosition.topRight
-              ? 16
-              : null,
-      bottom:
-          position == SkinExitButtonPosition.bottomLeft ||
-                  position == SkinExitButtonPosition.bottomRight
-              ? 16
-              : null,
-      left:
-          position == SkinExitButtonPosition.topLeft ||
-                  position == SkinExitButtonPosition.bottomLeft
-              ? 16
-              : null,
-      right:
-          position == SkinExitButtonPosition.topRight ||
-                  position == SkinExitButtonPosition.bottomRight
-              ? 16
-              : null,
-      child: _buildHoverBackButton(context),
-    );
-  }
-
-  Widget _buildHoverBackButton(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: () {
-          _log.info('Back button pressed - exiting SkinView');
-          Navigator.of(context).pushReplacementNamed(HomeScreen.routeName);
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.2),
-              width: 1,
-            ),
-          ),
-          padding: const EdgeInsets.all(8),
-          child: Icon(
-            Icons.arrow_back,
-            color: Colors.white.withValues(alpha: 0.8),
-            size: 20,
-          ),
-        ),
+        child: _buildBody(),
       ),
     );
   }

@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:reaprime/main.dart';
 // import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 // import 'package:flutter_localizations/flutter_localizations.dart';
@@ -148,11 +150,13 @@ class _MyAppState extends State<MyApp> {
 
     final themeColor = 'green';
 
-    return ScaffoldMessenger(
-      child: ListenableBuilder(
-        listenable: widget.settingsController,
-        builder: (BuildContext context, Widget? child) {
-          return ShadApp(
+    return PlatformMenuBar(
+      menus: _buildPlatformMenus(),
+      child: ScaffoldMessenger(
+        child: ListenableBuilder(
+          listenable: widget.settingsController,
+          builder: (BuildContext context, Widget? child) {
+            return ShadApp(
             // Providing a restorationScopeId allows the Navigator built by the
             // MaterialApp to restore the navigation stack when a user leaves and
             // returns to the app after it has been killed while running in the
@@ -348,7 +352,60 @@ class _MyAppState extends State<MyApp> {
           );
         },
       ),
+      ),
     );
+  }
+
+  List<PlatformMenuItem> _buildPlatformMenus() {
+    if (!Platform.isMacOS) return [];
+
+    return [
+      PlatformMenu(
+        label: 'Streamline',
+        menus: [
+          PlatformMenuItemGroup(
+            members: [
+              PlatformMenuItem(
+                label: 'About Streamline',
+                onSelected: null,
+              ),
+            ],
+          ),
+          PlatformMenuItemGroup(
+            members: [
+              PlatformMenuItem(
+                label: 'Quit Streamline',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.keyQ,
+                  meta: true,
+                ),
+                onSelected: () {
+                  SystemNavigator.pop();
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+      PlatformMenu(
+        label: 'View',
+        menus: [
+          PlatformMenuItem(
+            label: 'Back to Dashboard',
+            shortcut: const SingleActivator(
+              LogicalKeyboardKey.keyD,
+              meta: true,
+            ),
+            onSelected: () {
+              final navigator = NavigationService.navigatorKey.currentState;
+              if (navigator != null) {
+                navigator.pushReplacementNamed(HomeScreen.routeName);
+              }
+            },
+          ),
+        ],
+      ),
+    ];
   }
 }
 
