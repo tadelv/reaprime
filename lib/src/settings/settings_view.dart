@@ -7,6 +7,7 @@ import 'package:reaprime/src/services/foreground_service.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
+import 'package:reaprime/src/controllers/presence_controller.dart';
 import 'package:reaprime/src/settings/battery_charging_settings_page.dart';
 import 'package:reaprime/src/settings/data_management_page.dart';
 import 'package:reaprime/src/settings/device_management_page.dart';
@@ -33,6 +34,7 @@ class SettingsView extends StatefulWidget {
     required this.controller,
     required this.persistenceController,
     required this.deviceController,
+    required this.presenceController,
     required this.webUIService,
     required this.webUIStorage,
     this.updateCheckService,
@@ -43,6 +45,7 @@ class SettingsView extends StatefulWidget {
   final SettingsController controller;
   final PersistenceController persistenceController;
   final DeviceController deviceController;
+  final PresenceController presenceController;
   final WebUIService webUIService;
   final WebUIStorage webUIStorage;
   final UpdateCheckService? updateCheckService;
@@ -299,6 +302,7 @@ class _SettingsViewState extends State<SettingsView> {
                 MaterialPageRoute(
                   builder: (_) => PresenceSettingsPage(
                     controller: widget.controller,
+                    keepAwakeUntil: widget.presenceController.keepAwakeUntil,
                   ),
                 ),
               );
