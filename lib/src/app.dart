@@ -399,7 +399,10 @@ class _MyAppState extends State<MyApp> {
             onSelected: () {
               final navigator = NavigationService.navigatorKey.currentState;
               if (navigator != null) {
-                navigator.pushReplacementNamed(HomeScreen.routeName);
+                navigator.pushNamedAndRemoveUntil(
+                  HomeScreen.routeName,
+                  (_) => false,
+                );
               }
             },
           ),

@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:logging/logging.dart';
-import 'package:reaprime/src/home_feature/home_feature.dart';
 import 'package:reaprime/src/home_feature/widgets/quick_settings_widget.dart';
 import 'package:reaprime/src/services/webview_compatibility_checker.dart';
 import 'package:reaprime/src/services/webview_log_service.dart';
@@ -251,7 +250,7 @@ class _SkinViewState extends State<SkinView> {
                   onPressed: () {
                     Navigator.of(
                       context,
-                    ).pushReplacementNamed(HomeScreen.routeName);
+                    ).pop();
                   },
                   icon: const Icon(Icons.dashboard),
                   label: const Text('Dashboard'),
@@ -309,7 +308,7 @@ class _SkinViewState extends State<SkinView> {
 
         // Return to dashboard after opening browser
         if (mounted) {
-          Navigator.of(context).pushReplacementNamed(HomeScreen.routeName);
+          Navigator.of(context).pop();
         }
       } else {
         _log.warning('Cannot launch URL: $url');
@@ -384,7 +383,7 @@ class _SkinViewState extends State<SkinView> {
                 onPressed: () {
                   Navigator.of(
                     context,
-                  ).pushReplacementNamed(HomeScreen.routeName);
+                  ).pop();
                 },
                 child: const Text('Go to Dashboard'),
               ),
