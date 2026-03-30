@@ -49,6 +49,7 @@ class PresenceHandler {
       return jsonOk({
         'userPresenceEnabled': _settingsController.userPresenceEnabled,
         'sleepTimeoutMinutes': _settingsController.sleepTimeoutMinutes,
+        'keepAwakeUntil': _presenceController.keepAwakeUntil?.toIso8601String(),
         'schedules': schedules,
       });
     } catch (e, st) {
@@ -107,6 +108,13 @@ class PresenceHandler {
       final body = await request.readAsString();
       final json = jsonDecode(body) as Map<String, dynamic>;
 
+      final keepAwakeFor = json['keepAwakeFor'] as int?;
+      if (keepAwakeFor != null && (keepAwakeFor < 0 || keepAwakeFor > 720)) {
+        return Response(400,
+            body: jsonEncode({'error': 'keepAwakeFor must be 0-720 minutes'}),
+            headers: {'content-type': 'application/json'});
+      }
+
       final schedule = WakeSchedule.create(
         hour: json['hour'] as int? ??
             int.parse((json['time'] as String).split(':')[0]),
@@ -116,6 +124,7 @@ class PresenceHandler {
             ? (json['daysOfWeek'] as List).cast<int>().toSet()
             : {},
         enabled: json['enabled'] as bool? ?? true,
+        keepAwakeFor: keepAwakeFor,
       );
 
       final schedulesJson = _settingsController.wakeSchedules;
@@ -164,6 +173,23 @@ class PresenceHandler {
       if (json.containsKey('hour')) hour = json['hour'] as int;
       if (json.containsKey('minute')) minute = json['minute'] as int;
 
+      int? keepAwakeFor = existing.keepAwakeFor;
+      bool clearKeepAwakeFor = false;
+      if (json.containsKey('keepAwakeFor')) {
+        final val = json['keepAwakeFor'] as int?;
+        if (val != null && (val < 0 || val > 720)) {
+          return Response(400,
+              body: jsonEncode({'error': 'keepAwakeFor must be 0-720 minutes'}),
+              headers: {'content-type': 'application/json'});
+        }
+        if (val == null || val == 0) {
+          clearKeepAwakeFor = true;
+          keepAwakeFor = null;
+        } else {
+          keepAwakeFor = val;
+        }
+      }
+
       final updated = existing.copyWith(
         hour: hour,
         minute: minute,
@@ -171,6 +197,8 @@ class PresenceHandler {
             ? (json['daysOfWeek'] as List).cast<int>().toSet()
             : null,
         enabled: json.containsKey('enabled') ? json['enabled'] as bool : null,
+        keepAwakeFor: keepAwakeFor,
+        clearKeepAwakeFor: clearKeepAwakeFor,
       );
 
       schedules[index] = updated;
