@@ -566,4 +566,241 @@ void main() {
       });
     });
   });
+
+  group('keep-awake window', () {
+    test('schedule with keepAwakeFor suppresses sleep timeout', () {
+      fakeAsync((async) {
+        settingsController.setSleepTimeoutMinutes(5);
+        async.flushMicrotasks();
+
+        final schedule = WakeSchedule(
+          id: 'keep-awake-1',
+          hour: 7,
+          minute: 0,
+          daysOfWeek: {},
+          enabled: true,
+          keepAwakeFor: 60,
+        );
+        settingsController
+            .setWakeSchedules(WakeSchedule.serializeList([schedule]));
+        async.flushMicrotasks();
+
+        final controller = PresenceController(
+          de1Controller: de1Controller,
+          settingsController: settingsController,
+          clock: () => DateTime(2026, 1, 15, 6, 59),
+        );
+        controller.initialize();
+        de1Controller.setDe1(testDe1);
+        async.flushMicrotasks();
+
+        testDe1.emitState(MachineState.sleeping);
+        async.flushMicrotasks();
+
+        controller.clockOverride = () => DateTime(2026, 1, 15, 7, 0);
+        async.elapse(const Duration(seconds: 31));
+
+        expect(testDe1.requestedStates, contains(MachineState.schedIdle));
+
+        controller.heartbeat();
+        async.flushMicrotasks();
+
+        controller.clockOverride = () => DateTime(2026, 1, 15, 7, 6);
+        async.elapse(const Duration(minutes: 5, seconds: 1));
+
+        expect(
+          testDe1.requestedStates.where((s) => s == MachineState.sleeping),
+          isEmpty,
+          reason: 'Keep-awake window should suppress sleep timeout',
+        );
+
+        controller.dispose();
+      });
+    });
+
+    test('sleep timeout fires after keep-awake window expires', () {
+      fakeAsync((async) {
+        settingsController.setSleepTimeoutMinutes(5);
+        async.flushMicrotasks();
+
+        final schedule = WakeSchedule(
+          id: 'keep-awake-2',
+          hour: 7,
+          minute: 0,
+          daysOfWeek: {},
+          enabled: true,
+          keepAwakeFor: 10,
+        );
+        settingsController
+            .setWakeSchedules(WakeSchedule.serializeList([schedule]));
+        async.flushMicrotasks();
+
+        final controller = PresenceController(
+          de1Controller: de1Controller,
+          settingsController: settingsController,
+          clock: () => DateTime(2026, 1, 15, 6, 59),
+        );
+        controller.initialize();
+        de1Controller.setDe1(testDe1);
+        async.flushMicrotasks();
+
+        testDe1.emitState(MachineState.sleeping);
+        async.flushMicrotasks();
+
+        controller.clockOverride = () => DateTime(2026, 1, 15, 7, 0);
+        async.elapse(const Duration(seconds: 31));
+        expect(testDe1.requestedStates, contains(MachineState.schedIdle));
+
+        controller.heartbeat();
+        async.flushMicrotasks();
+
+        controller.clockOverride = () => DateTime(2026, 1, 15, 7, 16);
+        async.elapse(const Duration(minutes: 15, seconds: 1));
+
+        expect(testDe1.requestedStates, contains(MachineState.sleeping));
+
+        controller.dispose();
+      });
+    });
+
+    test('manual sleep during keep-awake clears the window', () {
+      fakeAsync((async) {
+        settingsController.setSleepTimeoutMinutes(5);
+        async.flushMicrotasks();
+
+        final schedule = WakeSchedule(
+          id: 'keep-awake-3',
+          hour: 7,
+          minute: 0,
+          daysOfWeek: {},
+          enabled: true,
+          keepAwakeFor: 60,
+        );
+        settingsController
+            .setWakeSchedules(WakeSchedule.serializeList([schedule]));
+        async.flushMicrotasks();
+
+        final controller = PresenceController(
+          de1Controller: de1Controller,
+          settingsController: settingsController,
+          clock: () => DateTime(2026, 1, 15, 6, 59),
+        );
+        controller.initialize();
+        de1Controller.setDe1(testDe1);
+        async.flushMicrotasks();
+
+        testDe1.emitState(MachineState.sleeping);
+        async.flushMicrotasks();
+
+        controller.clockOverride = () => DateTime(2026, 1, 15, 7, 0);
+        async.elapse(const Duration(seconds: 31));
+
+        expect(controller.keepAwakeUntil, isNotNull);
+
+        // User manually puts machine to sleep
+        testDe1.emitState(MachineState.sleeping);
+        async.flushMicrotasks();
+
+        expect(controller.keepAwakeUntil, isNull);
+
+        controller.dispose();
+      });
+    });
+
+    test('schedule without keepAwakeFor does not set keep-awake', () {
+      fakeAsync((async) {
+        settingsController.setSleepTimeoutMinutes(5);
+        async.flushMicrotasks();
+
+        final schedule = WakeSchedule(
+          id: 'no-keep-awake',
+          hour: 7,
+          minute: 0,
+          daysOfWeek: {},
+          enabled: true,
+        );
+        settingsController
+            .setWakeSchedules(WakeSchedule.serializeList([schedule]));
+        async.flushMicrotasks();
+
+        final controller = PresenceController(
+          de1Controller: de1Controller,
+          settingsController: settingsController,
+          clock: () => DateTime(2026, 1, 15, 6, 59),
+        );
+        controller.initialize();
+        de1Controller.setDe1(testDe1);
+        async.flushMicrotasks();
+
+        testDe1.emitState(MachineState.sleeping);
+        async.flushMicrotasks();
+
+        controller.clockOverride = () => DateTime(2026, 1, 15, 7, 0);
+        async.elapse(const Duration(seconds: 31));
+
+        expect(controller.keepAwakeUntil, isNull);
+
+        controller.dispose();
+      });
+    });
+
+    test('later schedule extends keep-awake if expiry is further', () {
+      fakeAsync((async) {
+        settingsController.setSleepTimeoutMinutes(5);
+        async.flushMicrotasks();
+
+        final schedules = [
+          WakeSchedule(
+            id: 'short',
+            hour: 7,
+            minute: 0,
+            daysOfWeek: {},
+            enabled: true,
+            keepAwakeFor: 30,
+          ),
+          WakeSchedule(
+            id: 'long',
+            hour: 7,
+            minute: 1,
+            daysOfWeek: {},
+            enabled: true,
+            keepAwakeFor: 120,
+          ),
+        ];
+        settingsController
+            .setWakeSchedules(WakeSchedule.serializeList(schedules));
+        async.flushMicrotasks();
+
+        final controller = PresenceController(
+          de1Controller: de1Controller,
+          settingsController: settingsController,
+          clock: () => DateTime(2026, 1, 15, 6, 59),
+        );
+        controller.initialize();
+        de1Controller.setDe1(testDe1);
+        async.flushMicrotasks();
+
+        testDe1.emitState(MachineState.sleeping);
+        async.flushMicrotasks();
+
+        controller.clockOverride = () => DateTime(2026, 1, 15, 7, 0);
+        async.elapse(const Duration(seconds: 31));
+
+        final firstExpiry = controller.keepAwakeUntil;
+        expect(firstExpiry, isNotNull);
+
+        testDe1.emitState(MachineState.sleeping);
+        async.flushMicrotasks();
+
+        controller.clockOverride = () => DateTime(2026, 1, 15, 7, 1);
+        async.elapse(const Duration(seconds: 31));
+
+        final secondExpiry = controller.keepAwakeUntil;
+        expect(secondExpiry, isNotNull);
+        expect(secondExpiry!.isAfter(firstExpiry!), isTrue);
+
+        controller.dispose();
+      });
+    });
+  });
 }
