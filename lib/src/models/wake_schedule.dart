@@ -13,6 +13,12 @@ class WakeSchedule {
   final Set<int> daysOfWeek;
   final bool enabled;
 
+  /// How long (in minutes) to keep the machine awake after waking.
+  ///
+  /// Null means wake-only (current behavior — machine wakes but no keep-awake
+  /// window is enforced). Valid values are 1–720.
+  final int? keepAwakeFor;
+
   /// Creates a new WakeSchedule.
   ///
   /// [hour] must be 0-23, [minute] must be 0-59.
@@ -24,6 +30,7 @@ class WakeSchedule {
     required this.minute,
     required this.daysOfWeek,
     required this.enabled,
+    this.keepAwakeFor,
   });
 
   /// Creates a new WakeSchedule with a generated UUID.
@@ -32,13 +39,17 @@ class WakeSchedule {
     required int minute,
     Set<int> daysOfWeek = const {},
     bool enabled = true,
+    int? keepAwakeFor,
   }) {
+    final keepAwake =
+        keepAwakeFor != null && keepAwakeFor > 0 ? keepAwakeFor : null;
     return WakeSchedule(
       id: const Uuid().v4(),
       hour: hour,
       minute: minute,
       daysOfWeek: daysOfWeek,
       enabled: enabled,
+      keepAwakeFor: keepAwake,
     );
   }
 
@@ -51,6 +62,7 @@ class WakeSchedule {
   factory WakeSchedule.fromJson(Map<String, dynamic> json) {
     final timeParts = (json['time'] as String).split(':');
     final days = (json['daysOfWeek'] as List).cast<int>();
+    final keepAwake = json['keepAwakeFor'] as int?;
 
     return WakeSchedule(
       id: json['id'] as String,
@@ -58,6 +70,7 @@ class WakeSchedule {
       minute: int.parse(timeParts[1]),
       daysOfWeek: days.toSet(),
       enabled: json['enabled'] as bool,
+      keepAwakeFor: keepAwake != null && keepAwake > 0 ? keepAwake : null,
     );
   }
 
@@ -65,13 +78,17 @@ class WakeSchedule {
   ///
   /// Time is formatted as a zero-padded "HH:MM" string.
   Map<String, dynamic> toJson() {
-    return {
+    final json = <String, dynamic>{
       'id': id,
       'time':
           '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}',
       'daysOfWeek': daysOfWeek.toList()..sort(),
       'enabled': enabled,
     };
+    if (keepAwakeFor != null) {
+      json['keepAwakeFor'] = keepAwakeFor;
+    }
+    return json;
   }
 
   /// Returns true if this schedule matches the given [dateTime].
@@ -90,12 +107,16 @@ class WakeSchedule {
   }
 
   /// Returns a copy of this schedule with the given fields replaced.
+  ///
+  /// To clear [keepAwakeFor] to null, pass `clearKeepAwakeFor: true`.
   WakeSchedule copyWith({
     String? id,
     int? hour,
     int? minute,
     Set<int>? daysOfWeek,
     bool? enabled,
+    int? keepAwakeFor,
+    bool clearKeepAwakeFor = false,
   }) {
     return WakeSchedule(
       id: id ?? this.id,
@@ -103,6 +124,8 @@ class WakeSchedule {
       minute: minute ?? this.minute,
       daysOfWeek: daysOfWeek ?? this.daysOfWeek,
       enabled: enabled ?? this.enabled,
+      keepAwakeFor:
+          clearKeepAwakeFor ? null : (keepAwakeFor ?? this.keepAwakeFor),
     );
   }
 
