@@ -27,16 +27,11 @@ abstract class DeviceDiscoveryService {
     throw "Not implemented yet";
   }
 
-  /// Scan for specific devices by ID.
+  /// Stop an in-progress scan early.
   ///
-  /// Implementations should filter [deviceIds] to those belonging to their
-  /// transport (BLE MAC format for BLE services, port path for serial, etc.)
-  /// and no-op if none match. This avoids BLE services scanning for USB IDs
-  /// and vice versa.
-  ///
-  /// For BLE services, all matching IDs are passed to a single scan so that
-  /// one BLE scan can discover multiple devices (machine + scale).
-  Future<void> scanForSpecificDevices(List<String> deviceIds) async {
-    // Default: no-op. Override in services that support targeted scanning.
+  /// Default is a no-op. Implementations should cancel any pending scan
+  /// timers and stop the underlying scan (e.g., BLE stopScan).
+  void stopScan() {
+    // Default: no-op.
   }
 }

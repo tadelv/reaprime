@@ -301,7 +301,7 @@ class De1StateManager with WidgetsBindingObserver {
   /// Triggers a scale-only scan via ConnectionManager.
   void _triggerScaleScan() {
     _logger.info('Delegating scale reconnect to ConnectionManager');
-    _connectionManager.scanAndConnectScale(); // fire-and-forget
+    _connectionManager.connect(scaleOnly: true); // fire-and-forget
   }
 
   /// Handles espresso state based on the current gateway mode.

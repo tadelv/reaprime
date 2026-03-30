@@ -2,10 +2,11 @@ import 'dart:async';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/device_scanner.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 import 'package:rxdart/rxdart.dart';
 
-class DeviceController {
+class DeviceController implements DeviceScanner {
   final List<DeviceDiscoveryService> _services;
 
   late Map<DeviceDiscoveryService, List<Device>> _devices;
@@ -126,6 +127,13 @@ class DeviceController {
           _log.info("current devices: $devices");
         });
       });
+    }
+  }
+
+  /// Stop all in-progress scans across all discovery services.
+  void stopScan() {
+    for (final service in _services) {
+      service.stopScan();
     }
   }
 

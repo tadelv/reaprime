@@ -83,61 +83,8 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
   }
 
   @override
-  Future<void> scanForSpecificDevices(List<String> deviceIds) async {
-    final bleIds = deviceIds.where(_isBleDeviceId).toList();
-    if (bleIds.isEmpty) {
-      _log.fine('scanForSpecificDevices: no BLE IDs in $deviceIds, skipping');
-      return;
-    }
-
-    _log.info('Starting targeted BLE scan for devices $bleIds');
-
-    var subscription = FlutterBluePlus.onScanResults.listen((results) {
-      if (results.isEmpty) return;
-      final r = results.last;
-      final foundId = r.device.remoteId.str;
-      final name = r.advertisementData.advName;
-
-      if (deviceIds.contains(foundId) == false) {
-        return;
-      }
-
-      if (_devices.firstWhereOrNull((d) => d.deviceId == foundId) != null) {
-        return;
-      }
-      if (_devicesBeingCreated.contains(foundId)) return;
-
-      _devicesBeingCreated.add(foundId);
-      _createDeviceFromName(foundId, name);
-    }, onError: (e) => _log.warning('Targeted scan error: $e'));
-
-    FlutterBluePlus.cancelWhenScanComplete(subscription);
-
-    try {
-      await FlutterBluePlus.adapterState
-          .where((val) => val == BluetoothAdapterState.on)
-          .first
-          .timeout(const Duration(seconds: 5));
-    } on TimeoutException {
-      _log.warning("Adapter state timeout in targeted scan — Bluetooth may be off");
-      return;
-    }
-
-    await FlutterBluePlus.startScan(
-      // withRemoteIds: bleIds,
-      oneByOne: true,
-    );
-
-    // Stop after timeout (device found earlier stops via cancelWhenScanComplete)
-    final timeout =
-        Platform.isLinux
-            ? const Duration(seconds: 20)
-            : const Duration(seconds: 8);
-    await Future.delayed(timeout, () async {
-      await FlutterBluePlus.stopScan();
-    });
-
-    _deviceStreamController.add(_devices.toList());
+  void stopScan() {
+    FlutterBluePlus.stopScan();
   }
 
   @override

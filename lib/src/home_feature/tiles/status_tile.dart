@@ -330,7 +330,7 @@ class _StatusTileState extends State<StatusTile> {
                 device.ConnectionState.connected) {
               setState(() => _isFindingScale = true);
               try {
-                await widget.connectionManager.scanAndConnectScale();
+                await widget.connectionManager.connect(scaleOnly: true);
               } catch (_) {
                 // Connection errors are handled by ConnectionManager status
               } finally {

@@ -31,7 +31,7 @@ class _FakeDiscoveryService implements DeviceDiscoveryService {
   @override
   Future<void> scanForDevices() async {}
   @override
-  Future<void> scanForSpecificDevices(List<String> deviceIds) async {}
+  void stopScan() {}
 }
 
 /// A De1Interface test double with a controllable snapshot stream.

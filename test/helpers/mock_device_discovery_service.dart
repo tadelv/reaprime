@@ -37,7 +37,7 @@ class MockDeviceDiscoveryService implements DeviceDiscoveryService {
   Future<void> scanForDevices() async {}
 
   @override
-  Future<void> scanForSpecificDevices(List<String> deviceIds) async {}
+  void stopScan() {}
 
   void dispose() {
     _controller.close();
