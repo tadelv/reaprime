@@ -2438,6 +2438,13 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/WakeSchedule"
+                  keepAwakeUntil:
+                    type: string
+                    format: date-time
+                    nullable: true
+                    description: >
+                      ISO 8601 timestamp when the current keep-awake window expires.
+                      Null if no keep-awake window is active.
         "500":
           description: Internal Server Error
           content:
@@ -2552,6 +2559,14 @@ paths:
                   type: boolean
                   description: Whether the schedule is active. Defaults to true if omitted.
                   default: true
+                keepAwakeFor:
+                  type: integer
+                  nullable: true
+                  minimum: 1
+                  maximum: 720
+                  description: >
+                    Optional duration in minutes (1-720) to keep the machine awake after
+                    this schedule fires. Null or absent means wake-only (no keep-awake window).
             examples:
               weekdayMorning:
                 summary: Weekday morning schedule
@@ -2559,6 +2574,7 @@ paths:
                   time: "06:00"
                   daysOfWeek: [1, 2, 3, 4, 5]
                   enabled: true
+                  keepAwakeFor: 60
               everyDay:
                 summary: Every day schedule using hour/minute
                 value:
@@ -2618,6 +2634,14 @@ paths:
                 enabled:
                   type: boolean
                   description: Whether the schedule is active
+                keepAwakeFor:
+                  type: integer
+                  nullable: true
+                  minimum: 1
+                  maximum: 720
+                  description: >
+                    Optional duration in minutes (1-720) to keep the machine awake after
+                    this schedule fires. Null or absent means wake-only (no keep-awake window).
             examples:
               changeTime:
                 summary: Change wake time
@@ -2631,6 +2655,10 @@ paths:
                 summary: Change to weekends only
                 value:
                   daysOfWeek: [6, 7]
+              setKeepAwake:
+                summary: Set a 90-minute keep-awake window
+                value:
+                  keepAwakeFor: 90
       responses:
         "200":
           description: Schedule updated
@@ -3969,6 +3997,15 @@ components:
         enabled:
           type: boolean
           description: Whether this schedule is currently active
+        keepAwakeFor:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 720
+          description: >
+            Optional duration in minutes (1-720) to keep the machine awake after
+            this schedule fires. During this window, the auto-sleep timeout is
+            suppressed. Null or absent means wake-only (no keep-awake window).
 
     DisplayState:
       type: object
