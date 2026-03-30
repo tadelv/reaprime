@@ -338,6 +338,17 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
               ],
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 4),
+            child: Text(
+              'How long to keep the machine on after waking up, '
+              'even if nobody uses it. After this time, the '
+              'regular timeout decides when it goes to sleep.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ),
           // Show day chips toggle when "Every day" is shown
           if (schedule.daysOfWeek.isEmpty)
             Padding(
