@@ -39,8 +39,6 @@ class SettingsController with ChangeNotifier {
 
   String? _preferredScaleId;
 
-  late SkinExitButtonPosition _skinExitButtonPosition;
-
   late String _defaultSkinId;
 
   late bool _automaticUpdateCheck;
@@ -73,7 +71,6 @@ class SettingsController with ChangeNotifier {
   ScalePowerMode get scalePowerMode => _scalePowerMode;
   String? get preferredMachineId => _preferredMachineId;
   String? get preferredScaleId => _preferredScaleId;
-  SkinExitButtonPosition get skinExitButtonPosition => _skinExitButtonPosition;
   String get defaultSkinId => _defaultSkinId;
   bool get automaticUpdateCheck => _automaticUpdateCheck;
   bool get telemetryConsent => _telemetryConsent;
@@ -103,7 +100,6 @@ class SettingsController with ChangeNotifier {
     _scalePowerMode = await _settingsService.scalePowerMode();
     _preferredMachineId = await _settingsService.preferredMachineId();
     _preferredScaleId = await _settingsService.preferredScaleId();
-    _skinExitButtonPosition = await _settingsService.skinExitButtonPosition();
     _defaultSkinId = await _settingsService.defaultSkinId();
     _automaticUpdateCheck = await _settingsService.automaticUpdateCheck();
     _telemetryConsent = await _settingsService.telemetryConsent();
@@ -230,15 +226,6 @@ class SettingsController with ChangeNotifier {
     }
     _preferredScaleId = scaleId;
     await _settingsService.setPreferredScaleId(scaleId);
-    notifyListeners();
-  }
-
-  Future<void> setSkinExitButtonPosition(SkinExitButtonPosition position) async {
-    if (position == _skinExitButtonPosition) {
-      return;
-    }
-    _skinExitButtonPosition = position;
-    await _settingsService.setSkinExitButtonPosition(position);
     notifyListeners();
   }
 
