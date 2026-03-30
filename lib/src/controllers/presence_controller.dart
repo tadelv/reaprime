@@ -48,6 +48,12 @@ class PresenceController {
   final Set<String> _firedScheduleIds = {};
   int? _lastCheckedMinute;
 
+  /// Timestamp when the current keep-awake window expires. Null = no active window.
+  DateTime? _keepAwakeUntil;
+
+  /// Exposes the keep-awake expiry for API/UI. Null if no window is active.
+  DateTime? get keepAwakeUntil => _keepAwakeUntil;
+
   PresenceController({
     required De1Controller de1Controller,
     required SettingsController settingsController,
@@ -74,6 +80,7 @@ class PresenceController {
     _sleepTimer = null;
     _scheduleTimer?.cancel();
     _scheduleTimer = null;
+    _keepAwakeUntil = null;
     _settingsController.removeListener(_onSettingsChanged);
   }
 
@@ -110,6 +117,7 @@ class PresenceController {
     _currentMachineState = null;
     _lastPresenceSent = null;
 
+    _keepAwakeUntil = null;
     _de1 = de1;
 
     if (de1 != null) {
@@ -121,7 +129,14 @@ class PresenceController {
   }
 
   void _onSnapshot(MachineSnapshot snapshot) {
-    _currentMachineState = snapshot.state.state;
+    final newState = snapshot.state.state;
+    if (newState == MachineState.sleeping &&
+        _currentMachineState != MachineState.sleeping &&
+        _keepAwakeUntil != null) {
+      _log.info('Machine went to sleep during keep-awake window, clearing');
+      _keepAwakeUntil = null;
+    }
+    _currentMachineState = newState;
   }
 
   // ---------------------------------------------------------------------------
@@ -179,6 +194,17 @@ class PresenceController {
 
   void _onSleepTimeout() {
     if (_de1 == null) return;
+
+    if (_keepAwakeUntil != null && _clock().isBefore(_keepAwakeUntil!)) {
+      _log.info('Sleep timeout suppressed by keep-awake (until $_keepAwakeUntil)');
+      _resetSleepTimer();
+      return;
+    }
+
+    if (_keepAwakeUntil != null) {
+      _log.info('Keep-awake window expired');
+      _keepAwakeUntil = null;
+    }
 
     // If machine is in an active state, restart the timer instead of sleeping
     if (_isActiveState(_currentMachineState)) {
@@ -268,6 +294,13 @@ class PresenceController {
           _de1!.requestState(MachineState.schedIdle).catchError((e) {
             _log.warning('Failed to request schedIdle: $e');
           });
+          if (schedule.keepAwakeFor != null) {
+            final newExpiry = now.add(Duration(minutes: schedule.keepAwakeFor!));
+            if (_keepAwakeUntil == null || newExpiry.isAfter(_keepAwakeUntil!)) {
+              _keepAwakeUntil = newExpiry;
+              _log.info('Keep-awake window set until $_keepAwakeUntil');
+            }
+          }
           break; // One wake per check cycle
         }
       }
