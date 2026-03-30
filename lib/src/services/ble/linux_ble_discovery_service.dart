@@ -247,57 +247,8 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
   }
 
   @override
-  Future<void> scanForSpecificDevices(List<String> deviceIds) async {
-    final bleIds = deviceIds.where(_isBleDeviceId).toList();
-    if (bleIds.isEmpty) {
-      _log.fine('scanForSpecificDevices: no BLE IDs in $deviceIds, skipping');
-      return;
-    }
-    if (!_adapterReady) {
-      _log.warning('BLE adapter not ready, cannot do targeted scan');
-      return;
-    }
-
-    _log.info('Linux targeted BLE scan for $bleIds');
-
-    var sub = FlutterBluePlus.onScanResults.listen((results) {
-      if (results.isEmpty) return;
-      final r = results.last;
-      final foundId = r.device.remoteId.str;
-      final name = r.device.platformName.isNotEmpty
-          ? r.device.platformName
-          : r.advertisementData.advName;
-      if (_devicesBeingCreated.contains(foundId)) return;
-      if (_devices.firstWhereOrNull((d) => d.deviceId == foundId) != null) {
-        return;
-      }
-
-      _devicesBeingCreated.add(foundId);
-      _pendingDevices.add(_PendingDevice(foundId, name));
-    }, onError: (e) => _log.warning('Targeted scan error: $e'));
-
-    FlutterBluePlus.cancelWhenScanComplete(sub);
-
-    await FlutterBluePlus.startScan(
-      withRemoteIds: bleIds,
-      oneByOne: true,
-    );
-
-    // Linux: scan for up to 15s then stop and process
-    await Future.delayed(const Duration(seconds: 15), () async {
-      await FlutterBluePlus.stopScan();
-    });
-
-    await Future.delayed(_postScanSettleDelay);
-
-    if (_pendingDevices.isNotEmpty) {
-      for (final pending in List.of(_pendingDevices)) {
-        await _createDeviceFromName(pending.deviceId, pending.name);
-      }
-      _pendingDevices.clear();
-    }
-
-    _deviceStreamController.add(_devices.toList());
+  void stopScan() {
+    FlutterBluePlus.stopScan();
   }
 
   @override

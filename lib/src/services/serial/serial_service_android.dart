@@ -56,42 +56,7 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
   }
 
   @override
-  Future<void> scanForSpecificDevices(List<String> deviceIds) async {
-    final usbIds = deviceIds.where((id) => int.tryParse(id) != null).toList();
-    if (usbIds.isEmpty) {
-      _log.fine('scanForSpecificDevices: no Android USB device IDs in $deviceIds, skipping');
-      return;
-    }
-
-    _log.info('Direct USB detection for device IDs $usbIds');
-    final usbDevices = await UsbSerial.listDevices();
-
-    for (final deviceId in usbIds) {
-      final intId = int.parse(deviceId);
-      final target = usbDevices.firstWhereOrNull((d) => d.deviceId == intId);
-      if (target == null) {
-        _log.fine('USB device $deviceId not found in connected devices');
-        continue;
-      }
-
-      // Skip if already tracked
-      if (_devices.firstWhereOrNull((d) => d.deviceId == deviceId) != null) {
-        _log.fine('Device $deviceId already in device list');
-        continue;
-      }
-
-      try {
-        final device = await _detectDevice(target);
-        if (device != null) {
-          _devices.add(device);
-          _log.info('Direct USB connect found device $deviceId');
-        }
-      } catch (e) {
-        _log.warning('Direct USB detection failed for $deviceId: $e');
-      }
-    }
-    _machineSubject.add(_devices);
-  }
+  void stopScan() {} // Serial enumeration is instant, nothing to stop.
 
   @override
   Future<void> scanForDevices() async {

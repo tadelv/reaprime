@@ -41,44 +41,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
   }
 
   @override
-  Future<void> scanForSpecificDevices(List<String> deviceIds) async {
-    final available = await SerialPort.availablePorts;
-    final serialIds = deviceIds.where((id) => available.contains(id)).toList();
-    if (serialIds.isEmpty) {
-      _log.fine('scanForSpecificDevices: none of $deviceIds in available serial ports, skipping');
-      return;
-    }
-
-    for (final deviceId in serialIds) {
-      _log.info('Direct serial detection for port $deviceId');
-      // Skip if already connected
-      bool alreadyConnected = false;
-      for (final d in _devices) {
-        if (d.deviceId == deviceId) {
-          final state = await d.connectionState.first;
-          if (state == ConnectionState.connected) {
-            alreadyConnected = true;
-            break;
-          }
-        }
-      }
-      if (alreadyConnected) {
-        _log.fine('Device $deviceId already connected');
-        continue;
-      }
-
-      try {
-        final device = await _detectDevice(deviceId);
-        if (device != null) {
-          _devices.add(device);
-          _log.info('Direct connect found device on $deviceId');
-        }
-      } catch (e) {
-        _log.warning('Direct serial detection failed for $deviceId: $e');
-      }
-    }
-    _machineSubject.add(_devices);
-  }
+  void stopScan() {} // Serial enumeration is instant, nothing to stop.
 
   @override
   Future<void> scanForDevices() async {

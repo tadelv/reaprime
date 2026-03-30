@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
-import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
+import 'package:reaprime/src/models/device/device_scanner.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:rxdart/rxdart.dart';
@@ -54,7 +54,7 @@ class ConnectionStatus {
 }
 
 class ConnectionManager {
-  final DeviceController deviceController;
+  final DeviceScanner deviceScanner;
   final De1Controller de1Controller;
   final ScaleController scaleController;
   final SettingsController settingsController;
@@ -77,7 +77,7 @@ class ConnectionManager {
   StreamSubscription? _scaleDisconnectSub;
 
   ConnectionManager({
-    required this.deviceController,
+    required this.deviceScanner,
     required this.de1Controller,
     required this.scaleController,
     required this.settingsController,
@@ -106,23 +106,32 @@ class ConnectionManager {
     });
   }
 
-  /// Main entry point: scan for devices and connect based on preference policy.
+  /// Scan for devices and connect based on preference policy.
   ///
+  /// When [scaleOnly] is false (default):
   /// 1. Scans for all devices
   /// 2. Applies machine preference policy (auto-connect, picker, or idle)
   /// 3. On successful machine connection, applies scale preference policy
-  Future<void> connect() async {
+  ///
+  /// When [scaleOnly] is true:
+  /// Skips machine policy entirely — use when the machine is already
+  /// connected and only a scale reconnect is needed (e.g., after wake).
+  ///
+  /// Early-stop: if both preferred machine and preferred scale are set,
+  /// the scan stops early once both are connected. If only one (or neither)
+  /// preference is set, the full scan runs to discover all available devices.
+  Future<void> connect({bool scaleOnly = false}) async {
     if (_isConnecting) return;
     _isConnecting = true;
 
     try {
-      await _connectImpl();
+      await _connectImpl(scaleOnly: scaleOnly);
     } finally {
       _isConnecting = false;
     }
   }
 
-  Future<void> _connectImpl() async {
+  Future<void> _connectImpl({required bool scaleOnly}) async {
     // Emit scanning phase
     _statusSubject.add(
       currentStatus.copyWith(
@@ -132,8 +141,13 @@ class ConnectionManager {
       ),
     );
 
-    final preferredMachineId = settingsController.preferredMachineId;
+    final preferredMachineId =
+        scaleOnly ? null : settingsController.preferredMachineId;
     final preferredScaleId = settingsController.preferredScaleId;
+
+    // Early-stop is only enabled when both preferences are set (and not scaleOnly).
+    final earlyStopEnabled =
+        !scaleOnly && preferredMachineId != null && preferredScaleId != null;
 
     // Watch device stream during scan — connect preferred devices immediately
     // as they appear, rather than waiting for the full scan to complete.
@@ -141,7 +155,7 @@ class ConnectionManager {
     // we only want to react to fresh discoveries from the active scan.
     Future<void>? earlyMachineConnect;
     Future<void>? earlyScaleConnect;
-    final sub = deviceController.deviceStream.skip(1).listen((devices) {
+    final sub = deviceScanner.deviceStream.skip(1).listen((devices) {
       if (preferredMachineId != null &&
           !(_machineConnected || earlyMachineConnect != null)) {
         final match =
@@ -151,7 +165,9 @@ class ConnectionManager {
                 .firstOrNull;
         if (match != null) {
           _log.fine('Preferred machine found during scan, connecting early');
-          earlyMachineConnect = connectMachine(match);
+          earlyMachineConnect = connectMachine(match).then((_) {
+            _checkEarlyStop(earlyStopEnabled);
+          });
         }
       }
 
@@ -167,22 +183,24 @@ class ConnectionManager {
                 .firstOrNull;
         if (match != null) {
           _log.fine('Preferred scale found during scan, connecting early');
-          earlyScaleConnect = connectScale(match);
+          earlyScaleConnect = connectScale(match).then((_) {
+            _checkEarlyStop(earlyStopEnabled);
+          });
         }
       }
     });
 
     // Run full unfiltered scan
-    deviceController.scanForDevices();
+    deviceScanner.scanForDevices();
 
     // Ensure we observe the scan starting before waiting for it to end.
     // scanForDevices() synchronously emits true, but guard against future
     // changes that might add an await before the emission.
-    await deviceController.scanningStream.firstWhere((s) => s);
-    await deviceController.scanningStream.firstWhere((s) => !s);
+    await deviceScanner.scanningStream.firstWhere((s) => s);
+    await deviceScanner.scanningStream.firstWhere((s) => !s);
     sub.cancel();
 
-    // Wait for early machine connection to finish if one was started
+    // Wait for early connections to finish if started
     if (earlyMachineConnect != null) {
       try {
         await earlyMachineConnect;
@@ -198,13 +216,23 @@ class ConnectionManager {
     }
 
     // Collect found devices
-    final allDevices = deviceController.devices;
+    final allDevices = deviceScanner.devices;
     final machines = allDevices.whereType<De1Interface>().toList();
     final scales = allDevices.whereType<Scale>().toList();
 
     _log.fine(
       'Scan complete: ${machines.length} machines, ${scales.length} scales',
     );
+
+    if (scaleOnly) {
+      // Update found scales in status
+      _statusSubject.add(
+        currentStatus.copyWith(foundScales: scales),
+      );
+      // Apply scale preference policy only
+      await _connectScalePhase(scales);
+      return;
+    }
 
     // Store found devices in status for UI pickers
     _statusSubject.add(
@@ -252,75 +280,12 @@ class ConnectionManager {
     }
   }
 
-  /// Scan for scales only and apply scale preference policy.
-  /// Use this when the machine is already connected and only a scale
-  /// reconnect is needed (e.g., after machine wakes from sleep).
-  Future<void> scanAndConnectScale() async {
-    if (_isConnecting) {
-      _log.fine('scanAndConnectScale: connect already in progress, skipping');
-      return;
+  /// Stop scan early when both preferred devices are connected.
+  void _checkEarlyStop(bool earlyStopEnabled) {
+    if (earlyStopEnabled && _machineConnected && _scaleConnected) {
+      _log.fine('Both preferred devices connected, stopping scan early');
+      deviceScanner.stopScan();
     }
-
-    _log.fine('scanAndConnectScale: scanning for scales only');
-
-    final preferredScaleId = settingsController.preferredScaleId;
-
-    // Watch device stream during scan — connect preferred scale immediately
-    // as it appears, rather than waiting for the full scan to complete.
-    // Skip(1) avoids the BehaviorSubject replay of stale (disconnected) devices;
-    // we only want to react to fresh discoveries from the active scan.
-    Future<void>? earlyScaleConnect;
-    final sub = deviceController.deviceStream.skip(1).listen((devices) {
-      if (preferredScaleId != null &&
-          !(_scaleConnected || earlyScaleConnect != null)) {
-        final match =
-            devices
-                .whereType<Scale>()
-                .where((s) => s.deviceId == preferredScaleId)
-                .firstOrNull;
-        if (match != null) {
-          _log.fine(
-            'scanAndConnectScale: preferred scale found during scan, connecting early',
-          );
-          earlyScaleConnect = connectScale(match);
-        }
-      }
-    });
-
-    deviceController.scanForDevices();
-    try {
-      await deviceController.scanningStream
-          .firstWhere((s) => s)
-          .timeout(const Duration(seconds: 5));
-      await deviceController.scanningStream
-          .firstWhere((s) => !s)
-          .timeout(const Duration(seconds: 35));
-    } on TimeoutException {
-      _log.warning('scanAndConnectScale: scan timed out');
-      sub.cancel();
-      return;
-    }
-    sub.cancel();
-
-    // Wait for early scale connection to finish if one was started
-    if (earlyScaleConnect != null) {
-      try {
-        await earlyScaleConnect;
-      } catch (_) {
-        // connectScale already handled the error and updated status
-      }
-    }
-
-    final scales = deviceController.devices.whereType<Scale>().toList();
-    _log.fine('scanAndConnectScale: found ${scales.length} scales');
-
-    // Update found scales in status
-    _statusSubject.add(
-      currentStatus.copyWith(foundScales: scales),
-    );
-
-    // If already connected via early connect, _connectScalePhase will skip
-    await _connectScalePhase(scales);
   }
 
   /// Apply scale preference policy after machine connects.

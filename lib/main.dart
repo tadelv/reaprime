@@ -259,7 +259,7 @@ void main() async {
   final sensorController = SensorController(controller: deviceController);
 
   final connectionManager = ConnectionManager(
-    deviceController: deviceController,
+    deviceScanner: deviceController,
     de1Controller: de1Controller,
     scaleController: scaleController,
     settingsController: settingsController,

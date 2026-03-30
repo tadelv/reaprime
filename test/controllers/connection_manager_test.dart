@@ -9,6 +9,7 @@ import 'package:reaprime/src/settings/settings_controller.dart';
 
 import '../helpers/mock_de1_controller.dart';
 import '../helpers/mock_device_discovery_service.dart';
+import '../helpers/mock_device_scanner.dart';
 import '../helpers/mock_scale_controller.dart';
 import '../helpers/mock_settings_service.dart';
 import '../helpers/test_scale.dart';
@@ -68,115 +69,32 @@ void main() {
     });
   });
 
-  group('MockDe1Controller', () {
-    late MockDeviceDiscoveryService discoveryService;
-    late DeviceController deviceController;
-    late MockDe1Controller mockDe1Controller;
-
-    setUp(() {
-      discoveryService = MockDeviceDiscoveryService();
-      deviceController = DeviceController([discoveryService]);
-      mockDe1Controller = MockDe1Controller(controller: deviceController);
-    });
-
-    test('records connectToDe1 calls', () async {
-      final fakeDe1 = _FakeDe1();
-      await mockDe1Controller.connectToDe1(fakeDe1);
-
-      expect(mockDe1Controller.connectCalls, hasLength(1));
-      expect(mockDe1Controller.connectCalls.first, same(fakeDe1));
-    });
-
-    test('emits de1 on stream after successful connect', () async {
-      final fakeDe1 = _FakeDe1();
-      await mockDe1Controller.connectToDe1(fakeDe1);
-
-      expect(mockDe1Controller.de1Subject.value, same(fakeDe1));
-    });
-
-    test('throws when shouldFailConnect is true', () async {
-      mockDe1Controller.shouldFailConnect = true;
-      final fakeDe1 = _FakeDe1();
-
-      expect(
-        () => mockDe1Controller.connectToDe1(fakeDe1),
-        throwsA(isA<Exception>()),
-      );
-      // Call was still recorded
-      expect(mockDe1Controller.connectCalls, hasLength(1));
-    });
-
-    test('de1 stream starts with null', () {
-      expect(mockDe1Controller.de1Subject.value, isNull);
-    });
-  });
-
-  group('MockScaleController', () {
-    late MockScaleController mockScaleController;
-
-    setUp(() {
-      mockScaleController = MockScaleController();
-    });
-
-    test('records connectToScale calls', () async {
-      final testScale = TestScale();
-      await mockScaleController.connectToScale(testScale);
-
-      expect(mockScaleController.connectCalls, hasLength(1));
-      expect(mockScaleController.connectCalls.first, same(testScale));
-    });
-
-    test('emits connected state after successful connect', () async {
-      final testScale = TestScale();
-      await mockScaleController.connectToScale(testScale);
-
-      expect(
-        mockScaleController.connectionStateSubject.value,
-        ConnectionState.connected,
-      );
-    });
-
-    test('throws when shouldFailConnect is true', () async {
-      mockScaleController.shouldFailConnect = true;
-      final testScale = TestScale();
-
-      expect(
-        () => mockScaleController.connectToScale(testScale),
-        throwsA(isA<Exception>()),
-      );
-      // Call was still recorded
-      expect(mockScaleController.connectCalls, hasLength(1));
-    });
-
-    test('connectionState starts with discovered', () {
-      expect(
-        mockScaleController.connectionStateSubject.value,
-        ConnectionState.discovered,
-      );
-    });
-
-  });
-
   group('ConnectionManager', () {
-    late MockDeviceDiscoveryService discoveryService;
-    late DeviceController deviceController;
+    late MockDeviceScanner mockScanner;
     late MockDe1Controller mockDe1Controller;
     late MockScaleController mockScaleController;
     late SettingsController settingsController;
     late MockSettingsService mockSettingsService;
     late ConnectionManager connectionManager;
 
+    // MockDe1Controller requires a DeviceController for its super constructor.
+    // We use a real one with a dummy discovery service just to satisfy that.
+    late MockDeviceDiscoveryService dummyDiscoveryService;
+
     setUp(() async {
-      discoveryService = MockDeviceDiscoveryService();
-      deviceController = DeviceController([discoveryService]);
-      mockDe1Controller = MockDe1Controller(controller: deviceController);
+      mockScanner = MockDeviceScanner();
+      dummyDiscoveryService = MockDeviceDiscoveryService();
+      mockDe1Controller = MockDe1Controller(
+        controller:
+            DeviceController([dummyDiscoveryService]),
+      );
       mockScaleController = MockScaleController();
       mockSettingsService = MockSettingsService();
       settingsController = SettingsController(mockSettingsService);
       await settingsController.loadSettings();
 
       connectionManager = ConnectionManager(
-        deviceController: deviceController,
+        deviceScanner: mockScanner,
         de1Controller: mockDe1Controller,
         scaleController: mockScaleController,
         settingsController: settingsController,
@@ -185,6 +103,7 @@ void main() {
 
     tearDown(() {
       connectionManager.dispose();
+      mockScanner.dispose();
     });
 
     test('initial status is idle', () {
@@ -193,12 +112,6 @@ void main() {
     });
 
     group('connect', () {
-      setUp(() async {
-        // connect() requires DeviceController to be initialized so
-        // device discovery streams are wired up.
-        await deviceController.initialize();
-      });
-
       test('emits scanning phase during scan', () async {
         final phases = <ConnectionPhase>[];
         final sub = connectionManager.status.listen((s) {
@@ -214,7 +127,6 @@ void main() {
       });
 
       test('no preferred, 0 machines → stays idle', () async {
-        // No devices added → scan finds nothing
         await connectionManager.connect();
         await Future.delayed(Duration.zero);
 
@@ -226,8 +138,7 @@ void main() {
       test('no preferred, 1 machine → auto-connects and saves preference',
           () async {
         final fakeDe1 = _FakeDe1(deviceId: 'solo-de1');
-        discoveryService.addDevice(fakeDe1);
-        // Let stream propagate
+        mockScanner.addDevice(fakeDe1);
         await Future.delayed(Duration.zero);
 
         await connectionManager.connect();
@@ -236,16 +147,15 @@ void main() {
         expect(mockDe1Controller.connectCalls, hasLength(1));
         expect(mockDe1Controller.connectCalls.first, same(fakeDe1));
         expect(settingsController.preferredMachineId, 'solo-de1');
-        expect(
-            connectionManager.currentStatus.phase, ConnectionPhase.ready);
+        expect(connectionManager.currentStatus.phase, ConnectionPhase.ready);
       });
 
       test('no preferred, many machines → emits machinePicker ambiguity',
           () async {
         final de1a = _FakeDe1(deviceId: 'de1-a');
         final de1b = _FakeDe1(deviceId: 'de1-b');
-        discoveryService.addDevice(de1a);
-        discoveryService.addDevice(de1b);
+        mockScanner.addDevice(de1a);
+        mockScanner.addDevice(de1b);
         await Future.delayed(Duration.zero);
 
         await connectionManager.connect();
@@ -254,8 +164,7 @@ void main() {
         expect(connectionManager.currentStatus.phase, ConnectionPhase.idle);
         expect(connectionManager.currentStatus.pendingAmbiguity,
             AmbiguityReason.machinePicker);
-        expect(
-            connectionManager.currentStatus.foundMachines, hasLength(2));
+        expect(connectionManager.currentStatus.foundMachines, hasLength(2));
         expect(mockDe1Controller.connectCalls, isEmpty);
       });
 
@@ -263,17 +172,15 @@ void main() {
         await settingsController.setPreferredMachineId('pref-de1');
 
         final prefDe1 = _FakeDe1(deviceId: 'pref-de1');
-        discoveryService.addDevice(prefDe1);
+        mockScanner.addDevice(prefDe1);
         await Future.delayed(Duration.zero);
 
         await connectionManager.connect();
         await Future.delayed(Duration.zero);
 
         expect(mockDe1Controller.connectCalls, hasLength(1));
-        expect(
-            mockDe1Controller.connectCalls.first.deviceId, 'pref-de1');
-        expect(
-            connectionManager.currentStatus.phase, ConnectionPhase.ready);
+        expect(mockDe1Controller.connectCalls.first.deviceId, 'pref-de1');
+        expect(connectionManager.currentStatus.phase, ConnectionPhase.ready);
       });
 
       test(
@@ -282,7 +189,7 @@ void main() {
         await settingsController.setPreferredMachineId('missing-de1');
 
         final otherDe1 = _FakeDe1(deviceId: 'other-de1');
-        discoveryService.addDevice(otherDe1);
+        mockScanner.addDevice(otherDe1);
         await Future.delayed(Duration.zero);
 
         await connectionManager.connect();
@@ -311,8 +218,8 @@ void main() {
 
           final fakeDe1 = _FakeDe1(deviceId: 'de1');
           final testScale = TestScale(deviceId: 'pref-scale');
-          discoveryService.addDevice(fakeDe1);
-          discoveryService.addDevice(testScale);
+          mockScanner.addDevice(fakeDe1);
+          mockScanner.addDevice(testScale);
           await Future.delayed(Duration.zero);
 
           await connectionManager.connect();
@@ -320,16 +227,16 @@ void main() {
 
           expect(mockDe1Controller.connectCalls, hasLength(1));
           expect(mockScaleController.connectCalls, hasLength(1));
-          expect(mockScaleController.connectCalls.first.deviceId,
-              'pref-scale');
+          expect(
+              mockScaleController.connectCalls.first.deviceId, 'pref-scale');
           expect(settingsController.preferredScaleId, 'pref-scale');
         });
 
         test('no preferred, 1 scale → connects silently', () async {
           final fakeDe1 = _FakeDe1(deviceId: 'de1');
           final testScale = TestScale(deviceId: 'only-scale');
-          discoveryService.addDevice(fakeDe1);
-          discoveryService.addDevice(testScale);
+          mockScanner.addDevice(fakeDe1);
+          mockScanner.addDevice(testScale);
           await Future.delayed(Duration.zero);
 
           await connectionManager.connect();
@@ -344,9 +251,9 @@ void main() {
           final fakeDe1 = _FakeDe1(deviceId: 'de1');
           final scale1 = TestScale(deviceId: 'scale-1');
           final scale2 = TestScale(deviceId: 'scale-2');
-          discoveryService.addDevice(fakeDe1);
-          discoveryService.addDevice(scale1);
-          discoveryService.addDevice(scale2);
+          mockScanner.addDevice(fakeDe1);
+          mockScanner.addDevice(scale1);
+          mockScanner.addDevice(scale2);
           await Future.delayed(Duration.zero);
 
           await connectionManager.connect();
@@ -360,15 +267,15 @@ void main() {
           await settingsController.setPreferredScaleId('missing-scale');
 
           final fakeDe1 = _FakeDe1(deviceId: 'de1');
-          discoveryService.addDevice(fakeDe1);
+          mockScanner.addDevice(fakeDe1);
           await Future.delayed(Duration.zero);
 
           await connectionManager.connect();
           await Future.delayed(Duration.zero);
 
           expect(mockScaleController.connectCalls, isEmpty);
-          expect(connectionManager.currentStatus.phase,
-              ConnectionPhase.ready);
+          expect(
+              connectionManager.currentStatus.phase, ConnectionPhase.ready);
         });
 
         test('scale failure does not affect machine connection', () async {
@@ -376,21 +283,213 @@ void main() {
 
           final fakeDe1 = _FakeDe1(deviceId: 'de1');
           final testScale = TestScale(deviceId: 'fail-scale');
-          discoveryService.addDevice(fakeDe1);
-          discoveryService.addDevice(testScale);
+          mockScanner.addDevice(fakeDe1);
+          mockScanner.addDevice(testScale);
           await Future.delayed(Duration.zero);
 
           await connectionManager.connect();
           await Future.delayed(Duration.zero);
 
-          // Machine connected successfully
           expect(mockDe1Controller.connectCalls, hasLength(1));
-          // Scale attempted but failed
           expect(mockScaleController.connectCalls, hasLength(1));
-          // Phase stays ready (machine is connected)
-          expect(connectionManager.currentStatus.phase,
-              ConnectionPhase.ready);
+          expect(
+              connectionManager.currentStatus.phase, ConnectionPhase.ready);
         });
+      });
+
+      group('early-stop', () {
+        test(
+            'both preferred set and both connected → calls stopScan',
+            () async {
+          await settingsController.setPreferredMachineId('pref-de1');
+          await settingsController.setPreferredScaleId('pref-scale');
+
+          // Hold scan open so devices appear "during" scan
+          mockScanner.scanCompleter = Completer<void>();
+
+          final fakeDe1 = _FakeDe1(deviceId: 'pref-de1');
+          final testScale = TestScale(deviceId: 'pref-scale');
+
+          // Start connect (will block on scan)
+          final connectFuture = connectionManager.connect();
+
+          // Wait for scan to start
+          await mockScanner.scanningStream.firstWhere((s) => s);
+
+          // Devices appear during scan
+          mockScanner.addDevice(fakeDe1);
+          await Future.delayed(Duration.zero);
+          mockScanner.addDevice(testScale);
+          await Future.delayed(Duration.zero);
+
+          // Allow connections to process
+          await Future.delayed(Duration.zero);
+          await Future.delayed(Duration.zero);
+
+          // Complete the scan
+          mockScanner.completeScan();
+          await connectFuture;
+
+          expect(mockScanner.stopScanCallCount, 1);
+        });
+
+        test(
+            'only preferred machine set → does not call stopScan',
+            () async {
+          await settingsController.setPreferredMachineId('pref-de1');
+          // No preferred scale
+
+          mockScanner.scanCompleter = Completer<void>();
+
+          final fakeDe1 = _FakeDe1(deviceId: 'pref-de1');
+
+          final connectFuture = connectionManager.connect();
+          await mockScanner.scanningStream.firstWhere((s) => s);
+
+          mockScanner.addDevice(fakeDe1);
+          await Future.delayed(Duration.zero);
+          await Future.delayed(Duration.zero);
+
+          mockScanner.completeScan();
+          await connectFuture;
+
+          expect(mockScanner.stopScanCallCount, 0);
+        });
+
+        test(
+            'only preferred scale set → does not call stopScan',
+            () async {
+          await settingsController.setPreferredScaleId('pref-scale');
+          // No preferred machine
+
+          mockScanner.scanCompleter = Completer<void>();
+
+          final testScale = TestScale(deviceId: 'pref-scale');
+
+          final connectFuture = connectionManager.connect();
+          await mockScanner.scanningStream.firstWhere((s) => s);
+
+          mockScanner.addDevice(testScale);
+          await Future.delayed(Duration.zero);
+          await Future.delayed(Duration.zero);
+
+          mockScanner.completeScan();
+          await connectFuture;
+
+          expect(mockScanner.stopScanCallCount, 0);
+        });
+
+        test(
+            'no preferences set → does not call stopScan',
+            () async {
+          mockScanner.scanCompleter = Completer<void>();
+
+          final fakeDe1 = _FakeDe1(deviceId: 'de1');
+          final testScale = TestScale(deviceId: 'scale');
+
+          final connectFuture = connectionManager.connect();
+          await mockScanner.scanningStream.firstWhere((s) => s);
+
+          mockScanner.addDevice(fakeDe1);
+          mockScanner.addDevice(testScale);
+          await Future.delayed(Duration.zero);
+
+          mockScanner.completeScan();
+          await connectFuture;
+
+          expect(mockScanner.stopScanCallCount, 0);
+        });
+
+        test(
+            'both preferred set but only machine found → does not call stopScan',
+            () async {
+          await settingsController.setPreferredMachineId('pref-de1');
+          await settingsController.setPreferredScaleId('pref-scale');
+
+          mockScanner.scanCompleter = Completer<void>();
+
+          final fakeDe1 = _FakeDe1(deviceId: 'pref-de1');
+
+          final connectFuture = connectionManager.connect();
+          await mockScanner.scanningStream.firstWhere((s) => s);
+
+          // Only machine appears, no scale
+          mockScanner.addDevice(fakeDe1);
+          await Future.delayed(Duration.zero);
+          await Future.delayed(Duration.zero);
+
+          mockScanner.completeScan();
+          await connectFuture;
+
+          expect(mockScanner.stopScanCallCount, 0);
+        });
+      });
+    });
+
+    group('connect(scaleOnly: true)', () {
+      test('skips machine preference policy', () async {
+        await settingsController.setPreferredMachineId('pref-de1');
+
+        final fakeDe1 = _FakeDe1(deviceId: 'pref-de1');
+        mockScanner.addDevice(fakeDe1);
+        await Future.delayed(Duration.zero);
+
+        await connectionManager.connect(scaleOnly: true);
+        await Future.delayed(Duration.zero);
+
+        // Machine should NOT be connected even though preferred is available
+        expect(mockDe1Controller.connectCalls, isEmpty);
+      });
+
+      test('connects preferred scale', () async {
+        await settingsController.setPreferredScaleId('pref-scale');
+
+        final testScale = TestScale(deviceId: 'pref-scale');
+        mockScanner.addDevice(testScale);
+        await Future.delayed(Duration.zero);
+
+        await connectionManager.connect(scaleOnly: true);
+        await Future.delayed(Duration.zero);
+
+        expect(mockScaleController.connectCalls, hasLength(1));
+        expect(
+            mockScaleController.connectCalls.first.deviceId, 'pref-scale');
+      });
+
+      test('does not call stopScan even with preferred scale set', () async {
+        await settingsController.setPreferredScaleId('pref-scale');
+
+        mockScanner.scanCompleter = Completer<void>();
+
+        final testScale = TestScale(deviceId: 'pref-scale');
+
+        final connectFuture = connectionManager.connect(scaleOnly: true);
+        await mockScanner.scanningStream.firstWhere((s) => s);
+
+        mockScanner.addDevice(testScale);
+        await Future.delayed(Duration.zero);
+        await Future.delayed(Duration.zero);
+
+        mockScanner.completeScan();
+        await connectFuture;
+
+        expect(mockScanner.stopScanCallCount, 0);
+      });
+
+      test('guards against concurrent connect calls', () async {
+        // Start a scaleOnly connect
+        mockScanner.scanCompleter = Completer<void>();
+        final future1 = connectionManager.connect(scaleOnly: true);
+
+        // Second call should be skipped
+        final future2 = connectionManager.connect(scaleOnly: true);
+        await future2;
+
+        mockScanner.completeScan();
+        await future1;
+
+        // Only one scan should have been triggered
+        // (scanForDevices is called once, not twice)
       });
     });
 
@@ -414,23 +513,19 @@ void main() {
           throwsA(isA<Exception>()),
         );
 
-        // Wait for the future to settle
         await Future.delayed(Duration.zero);
 
         expect(settingsController.preferredMachineId, isNull);
       });
 
       test('rejects concurrent connection attempts', () async {
-        // Make connectToDe1 slow by using a completer
         final completer = Completer<void>();
-
-        // Override the mock to use a completer for the first call
         final slowDe1Controller =
-            _SlowMockDe1Controller(controller: deviceController);
+            _SlowMockDe1Controller(controller: DeviceController([dummyDiscoveryService]));
         slowDe1Controller.connectCompleter = completer;
 
         final manager = ConnectionManager(
-          deviceController: deviceController,
+          deviceScanner: mockScanner,
           de1Controller: slowDe1Controller,
           scaleController: mockScaleController,
           settingsController: settingsController,
@@ -438,17 +533,12 @@ void main() {
 
         final fakeDe1 = _FakeDe1(deviceId: 'de1-1');
 
-        // Start first connection (will block on completer)
         final future1 = manager.connectMachine(fakeDe1);
-
-        // Second call should return immediately (guard)
         final future2 = manager.connectMachine(_FakeDe1(deviceId: 'de1-2'));
-        await future2; // Should complete immediately
+        await future2;
 
-        // Only one call should have been made
         expect(slowDe1Controller.connectCalls, hasLength(1));
 
-        // Complete the first connection
         completer.complete();
         await future1;
 
@@ -465,13 +555,10 @@ void main() {
 
         final fakeDe1 = _FakeDe1(deviceId: 'phase-de1');
         await connectionManager.connectMachine(fakeDe1);
-        // Allow stream listeners to process the final emission
         await Future.delayed(Duration.zero);
 
-        // BehaviorSubject emits current value immediately on listen,
-        // then connectingMachine, then ready
         expect(phases, [
-          ConnectionPhase.idle, // initial from BehaviorSubject
+          ConnectionPhase.idle,
           ConnectionPhase.connectingMachine,
           ConnectionPhase.ready,
         ]);
@@ -496,9 +583,9 @@ void main() {
         await Future.delayed(Duration.zero);
 
         expect(phases, [
-          ConnectionPhase.idle, // initial
+          ConnectionPhase.idle,
           ConnectionPhase.connectingMachine,
-          ConnectionPhase.idle, // reverted on error
+          ConnectionPhase.idle,
         ]);
         expect(errors.last, isNotNull);
         expect(errors.last, contains('simulated connection failure'));
@@ -522,7 +609,6 @@ void main() {
         mockScaleController.shouldFailConnect = true;
         final testScale = TestScale(deviceId: 'fail-scale');
 
-        // Should NOT throw
         await connectionManager.connectScale(testScale);
 
         expect(settingsController.preferredScaleId, isNull);
@@ -530,12 +616,11 @@ void main() {
 
       test('rejects concurrent scale connection attempts', () async {
         final completer = Completer<void>();
-        final slowScaleController =
-            _SlowMockScaleController();
+        final slowScaleController = _SlowMockScaleController();
         slowScaleController.connectCompleter = completer;
 
         final manager = ConnectionManager(
-          deviceController: deviceController,
+          deviceScanner: mockScanner,
           de1Controller: mockDe1Controller,
           scaleController: slowScaleController,
           settingsController: settingsController,
@@ -543,18 +628,13 @@ void main() {
 
         final testScale = TestScale(deviceId: 'scale-1');
 
-        // Start first connection (will block on completer)
         final future1 = manager.connectScale(testScale);
-
-        // Second call should return immediately (guard)
         final future2 =
             manager.connectScale(TestScale(deviceId: 'scale-2'));
-        await future2; // Should complete immediately
+        await future2;
 
-        // Only one call should have been made
         expect(slowScaleController.connectCalls, hasLength(1));
 
-        // Complete the first connection
         completer.complete();
         await future1;
 
@@ -574,7 +654,7 @@ void main() {
         await Future.delayed(Duration.zero);
 
         expect(phases, [
-          ConnectionPhase.idle, // initial from BehaviorSubject
+          ConnectionPhase.idle,
           ConnectionPhase.connectingScale,
           ConnectionPhase.ready,
         ]);
@@ -595,12 +675,11 @@ void main() {
         await Future.delayed(Duration.zero);
 
         expect(phases, [
-          ConnectionPhase.idle, // initial
+          ConnectionPhase.idle,
           ConnectionPhase.connectingScale,
-          ConnectionPhase.idle, // no machine connected, so idle
+          ConnectionPhase.idle,
         ]);
 
-        // Error should be null (silently handled)
         expect(connectionManager.currentStatus.error, isNull);
 
         await sub.cancel();

@@ -37,7 +37,7 @@ void main() {
     await settingsController.loadSettings();
 
     connectionManager = ConnectionManager(
-      deviceController: deviceController,
+      deviceScanner: deviceController,
       de1Controller: de1Controller,
       scaleController: scaleController,
       settingsController: settingsController,
