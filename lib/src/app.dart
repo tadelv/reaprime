@@ -213,6 +213,7 @@ class _MyAppState extends State<MyApp> {
                         controller: widget.settingsController,
                         persistenceController: widget.persistenceController,
                         deviceController: widget.deviceController,
+                        presenceController: widget.presenceController,
                         webUIService: widget.webUIService,
                         webUIStorage: widget.webUIStorage,
                         updateCheckService: widget.updateCheckService,
