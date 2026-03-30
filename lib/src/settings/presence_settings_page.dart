@@ -7,9 +7,11 @@ class PresenceSettingsPage extends StatefulWidget {
   const PresenceSettingsPage({
     super.key,
     required this.controller,
+    this.keepAwakeUntil,
   });
 
   final SettingsController controller;
+  final DateTime? keepAwakeUntil;
 
   @override
   State<PresenceSettingsPage> createState() => _PresenceSettingsPageState();
@@ -173,6 +175,33 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
                       .withValues(alpha: 0.7),
                 ),
           ),
+          if (widget.keepAwakeUntil != null &&
+              widget.keepAwakeUntil!.isAfter(DateTime.now())) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.coffee,
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Keeping awake until ${TimeOfDay.fromDateTime(widget.keepAwakeUntil!).format(context)}',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color:
+                              Theme.of(context).colorScheme.onPrimaryContainer,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (schedules.isNotEmpty) ...[
             const SizedBox(height: 16),
             ...schedules.map((schedule) => _buildScheduleRow(schedule, schedules)),
@@ -258,6 +287,56 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
                     },
                   ),
             ],
+          ),
+          // Keep-awake duration input
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Row(
+              children: [
+                Text(
+                  'Keep awake for',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 80,
+                  child: TextFormField(
+                    initialValue: schedule.keepAwakeFor?.toString() ?? '',
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      hintText: '0',
+                      suffixText: 'min',
+                      isDense: true,
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      border: OutlineInputBorder(),
+                    ),
+                    onFieldSubmitted: (value) {
+                      final minutes = int.tryParse(value);
+                      if (minutes != null && minutes > 720) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content:
+                                Text('Maximum is 720 minutes (12 hours)'),
+                          ),
+                        );
+                        return;
+                      }
+                      final updated = schedules.map((s) {
+                        if (s.id == schedule.id) {
+                          if (minutes == null || minutes <= 0) {
+                            return s.copyWith(clearKeepAwakeFor: true);
+                          }
+                          return s.copyWith(keepAwakeFor: minutes);
+                        }
+                        return s;
+                      }).toList();
+                      _saveSchedules(updated);
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
           // Show day chips toggle when "Every day" is shown
           if (schedule.daysOfWeek.isEmpty)
