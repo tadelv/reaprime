@@ -30,8 +30,6 @@ abstract class SettingsService {
   Future<void> setPreferredMachineId(String? machineId);
   Future<String?> preferredScaleId();
   Future<void> setPreferredScaleId(String? scaleId);
-  Future<SkinExitButtonPosition> skinExitButtonPosition();
-  Future<void> setSkinExitButtonPosition(SkinExitButtonPosition position);
   Future<String> defaultSkinId();
   Future<void> setDefaultSkinId(String skinId);
   Future<bool> automaticUpdateCheck();
@@ -198,25 +196,6 @@ class SharedPreferencesSettingsService extends SettingsService {
     } else {
       await prefs.setString(SettingsKeys.preferredScaleId.name, scaleId);
     }
-  }
-
-  @override
-  Future<SkinExitButtonPosition> skinExitButtonPosition() async {
-    return SkinExitButtonPositionFromString.fromString(
-          await prefs.getString(SettingsKeys.skinExitButtonPosition.name) ??
-              SkinExitButtonPosition.topLeft.name,
-        ) ??
-        SkinExitButtonPosition.topLeft;
-  }
-
-  @override
-  Future<void> setSkinExitButtonPosition(
-    SkinExitButtonPosition position,
-  ) async {
-    await prefs.setString(
-      SettingsKeys.skinExitButtonPosition.name,
-      position.name,
-    );
   }
 
   @override
@@ -398,7 +377,6 @@ enum SettingsKeys {
   scalePowerMode,
   preferredMachineId,
   preferredScaleId,
-  skinExitButtonPosition,
   defaultSkinId,
   automaticUpdateCheck,
   lastUpdateCheckTime,
@@ -414,18 +392,6 @@ enum SettingsKeys {
   sleepTimeoutMinutes,
   wakeSchedules,
   lowBatteryBrightnessLimit,
-}
-
-/// Position options for the skin view exit button
-enum SkinExitButtonPosition { topLeft, topRight, bottomLeft, bottomRight }
-
-extension SkinExitButtonPositionFromString on SkinExitButtonPosition {
-  static SkinExitButtonPosition? fromString(String value) {
-    return SkinExitButtonPosition.values.firstWhere(
-      (e) => e.name == value,
-      orElse: () => SkinExitButtonPosition.topLeft,
-    );
-  }
 }
 
 enum SimulatedDevicesTypes { machine, scale, sensor }

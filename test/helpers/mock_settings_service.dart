@@ -17,7 +17,6 @@ class MockSettingsService extends SettingsService {
   ScalePowerMode _scalePowerMode = ScalePowerMode.disabled;
   String? _preferredMachineId;
   String? _preferredScaleId;
-  SkinExitButtonPosition _skinExitButtonPosition = SkinExitButtonPosition.topLeft;
   String _defaultSkinId = 'streamline_project-main';
   bool _automaticUpdateCheck = true;
   DateTime? _lastUpdateCheckTime;
@@ -74,11 +73,6 @@ class MockSettingsService extends SettingsService {
   Future<String?> preferredScaleId() async => _preferredScaleId;
   @override
   Future<void> setPreferredScaleId(String? scaleId) async => _preferredScaleId = scaleId;
-  @override
-  Future<SkinExitButtonPosition> skinExitButtonPosition() async => _skinExitButtonPosition;
-  @override
-  Future<void> setSkinExitButtonPosition(SkinExitButtonPosition position) async =>
-      _skinExitButtonPosition = position;
   @override
   Future<String> defaultSkinId() async => _defaultSkinId;
   @override

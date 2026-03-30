@@ -2,7 +2,6 @@ import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
-import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
 
 class SettingsExportSection implements DataExportSection {
@@ -24,7 +23,6 @@ class SettingsExportSection implements DataExportSection {
         'weightFlowMultiplier': _controller.weightFlowMultiplier,
         'volumeFlowMultiplier': _controller.volumeFlowMultiplier,
         'scalePowerMode': _controller.scalePowerMode.name,
-        'skinExitButtonPosition': _controller.skinExitButtonPosition.name,
         'defaultSkinId': _controller.defaultSkinId,
         'automaticUpdateCheck': _controller.automaticUpdateCheck,
         'chargingMode': _controller.chargingMode.name,
@@ -102,18 +100,6 @@ class SettingsExportSection implements DataExportSection {
           } else {
             errors.add(
                 'Invalid scalePowerMode: ${settings['scalePowerMode']}');
-          }
-        }
-
-        if (settings.containsKey('skinExitButtonPosition')) {
-          final pos = SkinExitButtonPositionFromString.fromString(
-              settings['skinExitButtonPosition']);
-          if (pos != null) {
-            await _controller.setSkinExitButtonPosition(pos);
-            imported++;
-          } else {
-            errors.add(
-                'Invalid skinExitButtonPosition: ${settings['skinExitButtonPosition']}');
           }
         }
 
