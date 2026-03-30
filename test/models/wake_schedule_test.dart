@@ -61,6 +61,31 @@ void main() {
         final json = schedule.toJson();
         expect(json['daysOfWeek'], isEmpty);
       });
+
+      test('includes keepAwakeFor when set', () {
+        final schedule = WakeSchedule(
+          id: 'test-id',
+          hour: 10,
+          minute: 0,
+          daysOfWeek: {1, 3},
+          enabled: true,
+          keepAwakeFor: 60,
+        );
+        final json = schedule.toJson();
+        expect(json['keepAwakeFor'], 60);
+      });
+
+      test('omits keepAwakeFor when null', () {
+        final schedule = WakeSchedule(
+          id: 'test-id',
+          hour: 10,
+          minute: 0,
+          daysOfWeek: {},
+          enabled: true,
+        );
+        final json = schedule.toJson();
+        expect(json.containsKey('keepAwakeFor'), isFalse);
+      });
     });
 
     group('fromJson', () {
@@ -105,6 +130,41 @@ void main() {
         final schedule = WakeSchedule.fromJson(json);
         expect(schedule.daysOfWeek, isEmpty);
       });
+
+      test('parses keepAwakeFor when present', () {
+        final json = {
+          'id': 'test-id',
+          'time': '10:00',
+          'daysOfWeek': [1, 3],
+          'enabled': true,
+          'keepAwakeFor': 60,
+        };
+        final schedule = WakeSchedule.fromJson(json);
+        expect(schedule.keepAwakeFor, 60);
+      });
+
+      test('keepAwakeFor is null when absent from JSON', () {
+        final json = {
+          'id': 'test-id',
+          'time': '10:00',
+          'daysOfWeek': <int>[],
+          'enabled': true,
+        };
+        final schedule = WakeSchedule.fromJson(json);
+        expect(schedule.keepAwakeFor, isNull);
+      });
+
+      test('keepAwakeFor 0 is treated as null', () {
+        final json = {
+          'id': 'test-id',
+          'time': '10:00',
+          'daysOfWeek': <int>[],
+          'enabled': true,
+          'keepAwakeFor': 0,
+        };
+        final schedule = WakeSchedule.fromJson(json);
+        expect(schedule.keepAwakeFor, isNull);
+      });
     });
 
     group('toJson/fromJson round-trip', () {
@@ -142,6 +202,31 @@ void main() {
         expect(restored.minute, original.minute);
         expect(restored.daysOfWeek, original.daysOfWeek);
         expect(restored.enabled, original.enabled);
+      });
+
+      test('preserves keepAwakeFor through round-trip', () {
+        final original = WakeSchedule(
+          id: 'keep-awake-id',
+          hour: 10,
+          minute: 0,
+          daysOfWeek: {1, 3},
+          enabled: true,
+          keepAwakeFor: 120,
+        );
+        final restored = WakeSchedule.fromJson(original.toJson());
+        expect(restored.keepAwakeFor, 120);
+      });
+
+      test('preserves null keepAwakeFor through round-trip', () {
+        final original = WakeSchedule(
+          id: 'no-keep-awake-id',
+          hour: 10,
+          minute: 0,
+          daysOfWeek: {},
+          enabled: true,
+        );
+        final restored = WakeSchedule.fromJson(original.toJson());
+        expect(restored.keepAwakeFor, isNull);
       });
     });
 
@@ -291,6 +376,43 @@ void main() {
         final modified = original.copyWith(daysOfWeek: {4, 5});
 
         expect(modified.daysOfWeek, {4, 5});
+      });
+
+      test('can set keepAwakeFor', () {
+        final original = WakeSchedule(
+          id: 'test-id',
+          hour: 10,
+          minute: 0,
+          daysOfWeek: {},
+          enabled: true,
+        );
+        final modified = original.copyWith(keepAwakeFor: 60);
+        expect(modified.keepAwakeFor, 60);
+      });
+
+      test('can clear keepAwakeFor to null', () {
+        final original = WakeSchedule(
+          id: 'test-id',
+          hour: 10,
+          minute: 0,
+          daysOfWeek: {},
+          enabled: true,
+          keepAwakeFor: 60,
+        );
+        final modified = original.copyWith(clearKeepAwakeFor: true);
+        expect(modified.keepAwakeFor, isNull);
+      });
+    });
+
+    group('create', () {
+      test('normalizes 0 keepAwakeFor to null', () {
+        final s = WakeSchedule.create(hour: 7, minute: 0, keepAwakeFor: 0);
+        expect(s.keepAwakeFor, isNull);
+      });
+
+      test('normalizes negative keepAwakeFor to null', () {
+        final s = WakeSchedule.create(hour: 7, minute: 0, keepAwakeFor: -5);
+        expect(s.keepAwakeFor, isNull);
       });
     });
 
