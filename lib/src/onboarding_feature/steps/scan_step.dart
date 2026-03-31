@@ -572,9 +572,6 @@ class ScanStepViewState extends State<ScanStepView> {
       );
 
       if (outputFile != null) {
-        final destination = File(outputFile);
-        await destination.writeAsBytes(bytes);
-
         if (mounted) {
           showShadDialog(
             context: context,
