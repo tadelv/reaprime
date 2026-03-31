@@ -7,6 +7,7 @@ import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scan_state_guardian.dart';
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:reaprime/src/models/device/scale.dart' as device_scale;
 import 'package:reaprime/src/onboarding_feature/onboarding_controller.dart';
 import 'package:reaprime/src/onboarding_feature/steps/scan_step.dart';
@@ -19,6 +20,29 @@ import '../helpers/mock_device_discovery_service.dart';
 import '../helpers/mock_device_scanner.dart';
 import '../helpers/mock_scale_controller.dart';
 import '../helpers/mock_settings_service.dart';
+import '../helpers/test_scale.dart';
+
+/// Minimal De1Interface stub for testing.
+class _FakeDe1 implements De1Interface {
+  @override
+  final String deviceId;
+
+  @override
+  final String name;
+
+  @override
+  dev.DeviceType get type => dev.DeviceType.machine;
+
+  @override
+  Stream<dev.ConnectionState> get connectionState =>
+      Stream.value(dev.ConnectionState.connected);
+
+  _FakeDe1({this.deviceId = 'fake-de1', String? name})
+      : name = name ?? 'DE1-$deviceId';
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
 
 /// A [ConnectionManager] subclass that gives tests direct control over the
 /// status stream and records `connect()` calls, without requiring real
@@ -424,6 +448,157 @@ void main() {
 
       expect(step.id, 'scan');
       expect(await step.shouldShow(), isTrue);
+    });
+  });
+
+  group('preferred device not found messaging', () {
+    late MockDeviceDiscoveryService deviceDiscoveryService;
+    late DeviceController deviceControllerWithDevices;
+
+    Widget buildSubjectWithDevices() {
+      return ShadApp(
+        home: Scaffold(
+          body: ScanStepView(
+            onboardingController: onboardingController,
+            connectionManager: mockConnectionManager,
+            deviceController: deviceControllerWithDevices,
+            settingsController: settingsController,
+            scanStateGuardian: scanStateGuardian,
+          ),
+        ),
+      );
+    }
+
+    setUp(() {
+      deviceDiscoveryService = MockDeviceDiscoveryService();
+      deviceControllerWithDevices =
+          DeviceController([deviceDiscoveryService]);
+    });
+
+    tearDown(() {
+      deviceDiscoveryService.dispose();
+    });
+
+    testWidgets(
+        'shows preferred machine not found message when preferred is set but not among found machines',
+        (tester) async {
+      // Configure a preferred machine ID that won't match found devices
+      await settingsController.setPreferredMachineId('preferred-123');
+
+      final differentMachine = _FakeDe1(deviceId: 'other-456');
+
+      // Add the device to the discovery service so DeviceSelectionWidget sees it
+      deviceDiscoveryService.addDevice(differentMachine);
+      await deviceControllerWithDevices.initialize();
+      await tester.pump();
+
+      await tester.pumpWidget(buildSubjectWithDevices());
+      await tester.pump();
+
+      // Emit status with machine picker ambiguity and a different machine
+      mockConnectionManager.emitStatus(
+        ConnectionStatus(
+          phase: ConnectionPhase.idle,
+          foundMachines: [differentMachine],
+          pendingAmbiguity: AmbiguityReason.machinePicker,
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.text(
+            "Your preferred machine wasn't found, but we discovered these:"),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'shows normal header when preferred machine is among found machines',
+        (tester) async {
+      final machine = _FakeDe1(deviceId: 'preferred-123');
+      await settingsController.setPreferredMachineId('preferred-123');
+
+      deviceDiscoveryService.addDevice(machine);
+      await deviceControllerWithDevices.initialize();
+      await tester.pump();
+
+      await tester.pumpWidget(buildSubjectWithDevices());
+      await tester.pump();
+
+      mockConnectionManager.emitStatus(
+        ConnectionStatus(
+          phase: ConnectionPhase.idle,
+          foundMachines: [machine],
+          pendingAmbiguity: AmbiguityReason.machinePicker,
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Machines'), findsOneWidget);
+      expect(
+        find.text(
+            "Your preferred machine wasn't found, but we discovered these:"),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+        'shows normal header when no preferred machine is configured',
+        (tester) async {
+      // No preferred machine set (default)
+      final machine = _FakeDe1(deviceId: 'some-machine');
+
+      deviceDiscoveryService.addDevice(machine);
+      await deviceControllerWithDevices.initialize();
+      await tester.pump();
+
+      await tester.pumpWidget(buildSubjectWithDevices());
+      await tester.pump();
+
+      mockConnectionManager.emitStatus(
+        ConnectionStatus(
+          phase: ConnectionPhase.idle,
+          foundMachines: [machine],
+          pendingAmbiguity: AmbiguityReason.machinePicker,
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Machines'), findsOneWidget);
+    });
+
+    testWidgets(
+        'shows preferred scale not found message when preferred is set but not among found scales',
+        (tester) async {
+      await settingsController.setPreferredScaleId('preferred-scale-123');
+
+      final differentScale =
+          TestScale(deviceId: 'other-scale-456', name: 'Other Scale');
+      final machine = _FakeDe1(deviceId: 'machine-1');
+
+      deviceDiscoveryService.addDevice(machine);
+      deviceDiscoveryService.addDevice(differentScale);
+      await deviceControllerWithDevices.initialize();
+      await tester.pump();
+
+      await tester.pumpWidget(buildSubjectWithDevices());
+      await tester.pump();
+
+      mockConnectionManager.emitStatus(
+        ConnectionStatus(
+          phase: ConnectionPhase.idle,
+          foundMachines: [machine],
+          foundScales: [differentScale],
+          pendingAmbiguity: AmbiguityReason.scalePicker,
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.text(
+            "Your preferred scale wasn't found, but we discovered these:"),
+        findsOneWidget,
+      );
     });
   });
 }
