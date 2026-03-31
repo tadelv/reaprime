@@ -63,7 +63,7 @@ class ScanStepView extends StatefulWidget {
 
   /// How long to wait before showing the "taking too long" button.
   @visibleForTesting
-  static const scanTooLongThreshold = Duration(seconds: 8);
+  static const scanTooLongThreshold = Duration(seconds: 16);
 
   const ScanStepView({
     super.key,
