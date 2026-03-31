@@ -358,17 +358,19 @@ class ScanStepViewState extends State<ScanStepView> {
         ? "Your preferred scale wasn't found, but we discovered these:"
         : 'Scales';
 
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        spacing: 8,
-        children: [
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 260, maxWidth: 460),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
+    return Material(
+      type: MaterialType.transparency,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 8,
+          children: [
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 260, maxWidth: 460),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
                   child: DeviceSelectionWidget(
                     deviceController: widget.deviceController,
                     deviceType: dev.DeviceType.machine,
@@ -451,9 +453,10 @@ class ScanStepViewState extends State<ScanStepView> {
                   onPressed: _skipToDashboard,
                   child: const Text('Dashboard'),
                 ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
