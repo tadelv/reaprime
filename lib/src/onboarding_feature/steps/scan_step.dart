@@ -90,11 +90,16 @@ class ScanStepViewState extends State<ScanStepView> {
 
   late StreamSubscription<ConnectionStatus> _statusSubscription;
   late StreamSubscription<ScanStateEvent> _guardianSubscription;
+  late StreamSubscription<List<dev.Device>> _deviceSubscription;
   ConnectionStatus _status =
       const ConnectionStatus(phase: ConnectionPhase.scanning);
   bool _hasNavigated = false;
   bool _showTakingTooLong = false;
   Timer? _tooLongTimer;
+
+  /// Devices discovered so far during the current scan.
+  List<De1Interface> _discoveredMachines = [];
+  List<device_scale.Scale> _discoveredScales = [];
 
   /// Bluetooth adapter error message, set by ScanStateGuardian events.
   String? _adapterError;
@@ -121,6 +126,8 @@ class ScanStepViewState extends State<ScanStepView> {
       // Start the timer when entering scanning phase
       if (status.phase == ConnectionPhase.scanning &&
           _status.phase != ConnectionPhase.scanning) {
+        _discoveredMachines = [];
+        _discoveredScales = [];
         _startTooLongTimer();
       }
 
@@ -130,6 +137,17 @@ class ScanStepViewState extends State<ScanStepView> {
         if (status.phase == ConnectionPhase.scanning) {
           _adapterError = null;
         }
+      });
+    });
+
+    // Monitor device stream during scanning for live device count
+    _deviceSubscription =
+        widget.deviceController.deviceStream.listen((devices) {
+      if (!mounted || _status.phase != ConnectionPhase.scanning) return;
+      setState(() {
+        _discoveredMachines = devices.whereType<De1Interface>().toList();
+        _discoveredScales =
+            devices.whereType<device_scale.Scale>().toList();
       });
     });
 
@@ -189,6 +207,7 @@ class ScanStepViewState extends State<ScanStepView> {
     _cancelTooLongTimer();
     _statusSubscription.cancel();
     _guardianSubscription.cancel();
+    _deviceSubscription.cancel();
     super.dispose();
   }
 
@@ -237,17 +256,42 @@ class ScanStepViewState extends State<ScanStepView> {
     return _scanningView(context);
   }
 
+  /// Whether devices have been found but the preferred one hasn't.
+  bool get _hasDevicesButNotPreferred {
+    if (_discoveredMachines.isEmpty && _discoveredScales.isEmpty) return false;
+    final preferredMachineId = widget.settingsController.preferredMachineId;
+    if (preferredMachineId == null) return false;
+    return !_discoveredMachines.any((m) => m.deviceId == preferredMachineId);
+  }
+
+  int get _totalDiscovered => _discoveredMachines.length + _discoveredScales.length;
+
   Widget _scanningView(BuildContext context) {
+    final hasDevicesNotPreferred = _hasDevicesButNotPreferred;
+    final deviceCount = _totalDiscovered;
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(width: 200, child: ShadProgress()),
           const SizedBox(height: 16),
-          Text(
-            DeviceDiscoveryView.getRandomCoffeeMessage(),
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          if (hasDevicesNotPreferred && _showTakingTooLong) ...[
+            Text(
+              '$deviceCount device${deviceCount == 1 ? '' : 's'} found, but not your preferred one.',
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Still scanning...',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ] else
+            Text(
+              DeviceDiscoveryView.getRandomCoffeeMessage(),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
           const SizedBox(height: 24),
           AnimatedOpacity(
             opacity: _showTakingTooLong ? 1.0 : 0.0,
@@ -257,7 +301,9 @@ class ScanStepViewState extends State<ScanStepView> {
               child: ShadButton.outline(
                 size: ShadButtonSize.sm,
                 onPressed: _showTakingTooLongSheet,
-                child: const Text('This is taking a while...'),
+                child: Text(hasDevicesNotPreferred
+                    ? 'View found devices'
+                    : 'This is taking a while...'),
               ),
             ),
           ),
@@ -505,13 +551,30 @@ class ScanStepViewState extends State<ScanStepView> {
     );
   }
 
+  /// Stops the scan and forces the device picker to show with currently
+  /// discovered devices.
+  void _stopScanAndShowDevices() {
+    widget.deviceController.stopScan();
+  }
+
   void _showTakingTooLongSheet() {
+    final hasDevices = _totalDiscovered > 0;
     showModalBottomSheet(
       context: context,
       builder: (_) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (hasDevices)
+              ListTile(
+                leading: const Icon(LucideIcons.list),
+                title: Text(
+                    'View $_totalDiscovered found device${_totalDiscovered == 1 ? '' : 's'}'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _stopScanAndShowDevices();
+                },
+              ),
             ListTile(
               leading: const Icon(LucideIcons.refreshCw),
               title: const Text('Re-start scan'),
@@ -526,7 +589,7 @@ class ScanStepViewState extends State<ScanStepView> {
               onTap: () {
                 Navigator.pop(context);
                 showTroubleshootingWizard(
-                  context: this.context,
+                  context: context,
                   adapterState:
                       widget.scanStateGuardian.currentAdapterState,
                 );
