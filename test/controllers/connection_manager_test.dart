@@ -730,7 +730,8 @@ void main() {
         manager.dispose();
       });
 
-      test('emits connectingScale then ready phases', () async {
+      test('emits connectingScale but not ready when no machine connected',
+          () async {
         final phases = <ConnectionPhase>[];
         final sub = connectionManager.status.listen((s) {
           phases.add(s.phase);
@@ -740,10 +741,10 @@ void main() {
         await connectionManager.connectScale(testScale);
         await Future.delayed(Duration.zero);
 
+        // Scale alone should not emit ready — machine must be connected first
         expect(phases, [
           ConnectionPhase.idle,
           ConnectionPhase.connectingScale,
-          ConnectionPhase.ready,
         ]);
 
         await sub.cancel();

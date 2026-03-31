@@ -461,7 +461,11 @@ class ConnectionManager {
     try {
       await scaleController.connectToScale(scale);
       await settingsController.setPreferredScaleId(scale.deviceId);
-      _statusSubject.add(currentStatus.copyWith(phase: ConnectionPhase.ready));
+      _scaleConnected = true;
+      // Only emit ready if machine is also connected — scale alone isn't enough
+      if (_machineConnected) {
+        _statusSubject.add(currentStatus.copyWith(phase: ConnectionPhase.ready));
+      }
     } catch (e) {
       // Scale failure is non-blocking — stay at ready if machine connected, else idle
       _statusSubject.add(
