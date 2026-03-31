@@ -9,6 +9,7 @@ import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:reaprime/src/models/device/scale.dart' as device_scale;
+import 'package:reaprime/src/models/scan_report.dart';
 import 'package:reaprime/src/onboarding_feature/onboarding_controller.dart';
 import 'package:reaprime/src/onboarding_feature/steps/scan_step.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
@@ -53,6 +54,7 @@ class MockConnectionManager extends ConnectionManager {
   );
 
   int connectCallCount = 0;
+  ScanReport? _lastScanReport;
 
   MockConnectionManager({
     required super.deviceScanner,
@@ -66,6 +68,11 @@ class MockConnectionManager extends ConnectionManager {
 
   @override
   ConnectionStatus get currentStatus => _statusOverride.value;
+
+  @override
+  ScanReport? get lastScanReport => _lastScanReport;
+
+  void setLastScanReport(ScanReport? report) => _lastScanReport = report;
 
   void emitStatus(ConnectionStatus status) => _statusOverride.add(status);
 
@@ -203,7 +210,7 @@ void main() {
   });
 
   group('taking too long bottom sheet', () {
-    testWidgets('opens bottom sheet with 3 options', (tester) async {
+    testWidgets('opens bottom sheet with 4 options', (tester) async {
       await tester.pumpWidget(buildSubject());
       await tester.pump();
 
@@ -218,6 +225,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.text('Re-start scan'), findsOneWidget);
+      expect(find.text('Troubleshoot'), findsOneWidget);
       expect(find.text('Export logs'), findsOneWidget);
       expect(find.text('Continue to Dashboard'), findsOneWidget);
     });
@@ -367,12 +375,21 @@ void main() {
       await tester.pumpWidget(buildSubject());
       await tester.pump();
 
+      mockConnectionManager.setLastScanReport(const ScanReport(
+        totalBleDevicesSeen: 0,
+        matchedDevices: [],
+        scanDuration: Duration(seconds: 5),
+        adapterStateAtStart: AdapterState.poweredOn,
+        adapterStateAtEnd: AdapterState.poweredOn,
+        scanTerminationReason: ScanTerminationReason.completed,
+      ));
+
       mockConnectionManager.emitStatus(
         const ConnectionStatus(phase: ConnectionPhase.idle),
       );
       await tester.pump();
 
-      expect(find.text('No Devices Found'), findsOneWidget);
+      expect(find.text('No Bluetooth Devices Found'), findsOneWidget);
       expect(find.text('Scan Again'), findsOneWidget);
       expect(find.text('Continue to Dashboard'), findsOneWidget);
     });
@@ -380,6 +397,15 @@ void main() {
     testWidgets('Continue to Dashboard advances onboarding', (tester) async {
       await tester.pumpWidget(buildSubject());
       await tester.pump();
+
+      mockConnectionManager.setLastScanReport(const ScanReport(
+        totalBleDevicesSeen: 0,
+        matchedDevices: [],
+        scanDuration: Duration(seconds: 5),
+        adapterStateAtStart: AdapterState.poweredOn,
+        adapterStateAtEnd: AdapterState.poweredOn,
+        scanTerminationReason: ScanTerminationReason.completed,
+      ));
 
       mockConnectionManager.emitStatus(
         const ConnectionStatus(phase: ConnectionPhase.idle),
