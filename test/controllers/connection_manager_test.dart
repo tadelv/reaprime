@@ -5,6 +5,7 @@ import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/scan_report.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 
 import '../helpers/mock_de1_controller.dart';
@@ -32,6 +33,28 @@ class _FakeDe1 implements De1Interface {
       Stream.value(ConnectionState.connected);
 
   _FakeDe1({this.deviceId = 'fake-de1'}) : name = 'DE1-$deviceId';
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+/// A De1Interface stub whose onConnect() throws, used to test failed connection
+/// attempts in ScanReport tracking.
+class _FailingFakeDe1 implements De1Interface {
+  @override
+  final String deviceId;
+
+  @override
+  final String name;
+
+  @override
+  DeviceType get type => DeviceType.machine;
+
+  @override
+  Stream<ConnectionState> get connectionState =>
+      Stream.value(ConnectionState.disconnected);
+
+  _FailingFakeDe1({this.deviceId = 'failing-de1'}) : name = 'DE1-$deviceId';
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
@@ -490,6 +513,70 @@ void main() {
 
         // Only one scan should have been triggered
         // (scanForDevices is called once, not twice)
+      });
+    });
+
+    group('ScanReport', () {
+      test('emits ScanReport with scan results after scan completes', () async {
+        mockScanner.scanCompleter = Completer();
+        final connectFuture = connectionManager.connect();
+        await Future.delayed(Duration.zero);
+
+        mockScanner.addDevice(_FakeDe1(deviceId: 'solo-de1'));
+        mockScanner.completeScan();
+        await connectFuture;
+
+        final report = connectionManager.lastScanReport;
+        expect(report, isNotNull);
+        expect(report!.matchedDevices, hasLength(1));
+        expect(report.matchedDevices.first.deviceId, 'solo-de1');
+        expect(report.scanTerminationReason, ScanTerminationReason.completed);
+      });
+
+      test('ScanReport includes preferred device IDs from settings', () async {
+        await settingsController.setPreferredMachineId('preferred-123');
+        final connectFuture = connectionManager.connect();
+        await connectFuture;
+
+        final report = connectionManager.lastScanReport;
+        expect(report!.preferredMachineId, 'preferred-123');
+      });
+
+      test('ScanReport tracks failed connection attempt', () async {
+        // Set up a machine that fails to connect
+        mockDe1Controller.shouldFailConnect = true;
+        mockScanner.scanCompleter = Completer();
+        final connectFuture = connectionManager.connect();
+        await Future.delayed(Duration.zero);
+
+        mockScanner.addDevice(_FakeDe1(deviceId: 'fail-de1'));
+        mockScanner.completeScan();
+        await connectFuture;
+
+        final report = connectionManager.lastScanReport;
+        final matched = report!.matchedDevices.first;
+        expect(matched.connectionAttempted, isTrue);
+        expect(matched.connectionResult!.success, isFalse);
+      });
+
+      test('ScanReport records scan duration', () async {
+        await connectionManager.connect();
+
+        final report = connectionManager.lastScanReport;
+        expect(report, isNotNull);
+        expect(report!.scanDuration, isA<Duration>());
+      });
+
+      test('ScanReport stream emits on each scan', () async {
+        final reports = <ScanReport>[];
+        final sub = connectionManager.scanReportStream.listen(reports.add);
+
+        await connectionManager.connect();
+        await Future.delayed(Duration.zero);
+
+        expect(reports, hasLength(1));
+
+        await sub.cancel();
       });
     });
 

@@ -4,9 +4,11 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/device_scanner.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/scan_report.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -64,8 +66,16 @@ class ConnectionManager {
   final BehaviorSubject<ConnectionStatus> _statusSubject =
       BehaviorSubject.seeded(const ConnectionStatus());
 
+  final BehaviorSubject<ScanReport> _scanReportSubject = BehaviorSubject();
+
   Stream<ConnectionStatus> get status => _statusSubject.stream;
   ConnectionStatus get currentStatus => _statusSubject.value;
+
+  /// The most recent scan report, or null if no scan has completed yet.
+  ScanReport? get lastScanReport => _scanReportSubject.valueOrNull;
+
+  /// Emits a [ScanReport] after each scan + connection cycle completes.
+  Stream<ScanReport> get scanReportStream => _scanReportSubject.stream;
 
   bool _isConnecting = false;
   bool _isConnectingMachine = false;
@@ -132,6 +142,11 @@ class ConnectionManager {
   }
 
   Future<void> _connectImpl({required bool scaleOnly}) async {
+    final scanStartTime = DateTime.now();
+
+    // Track matched devices and their connection results
+    final matchedDeviceResults = <String, _MatchedDeviceTracker>{};
+
     // Emit scanning phase
     _statusSubject.add(
       currentStatus.copyWith(
@@ -156,6 +171,18 @@ class ConnectionManager {
     Future<void>? earlyMachineConnect;
     Future<void>? earlyScaleConnect;
     final sub = deviceScanner.deviceStream.skip(1).listen((devices) {
+      // Track all matched devices as they appear
+      for (final d in devices) {
+        matchedDeviceResults.putIfAbsent(
+          d.deviceId,
+          () => _MatchedDeviceTracker(
+            deviceName: d.name,
+            deviceId: d.deviceId,
+            deviceType: d.type,
+          ),
+        );
+      }
+
       if (preferredMachineId != null &&
           !(_machineConnected || earlyMachineConnect != null)) {
         final match =
@@ -165,7 +192,10 @@ class ConnectionManager {
                 .firstOrNull;
         if (match != null) {
           _log.fine('Preferred machine found during scan, connecting early');
-          earlyMachineConnect = connectMachine(match).then((_) {
+          earlyMachineConnect = _connectMachineTracked(
+            match,
+            matchedDeviceResults,
+          ).then((_) {
             _checkEarlyStop(earlyStopEnabled);
           });
         }
@@ -183,7 +213,10 @@ class ConnectionManager {
                 .firstOrNull;
         if (match != null) {
           _log.fine('Preferred scale found during scan, connecting early');
-          earlyScaleConnect = connectScale(match).then((_) {
+          earlyScaleConnect = _connectScaleTracked(
+            match,
+            matchedDeviceResults,
+          ).then((_) {
             _checkEarlyStop(earlyStopEnabled);
           });
         }
@@ -220,6 +253,18 @@ class ConnectionManager {
     final machines = allDevices.whereType<De1Interface>().toList();
     final scales = allDevices.whereType<Scale>().toList();
 
+    // Ensure all final devices are tracked (in case some weren't seen mid-scan)
+    for (final d in allDevices) {
+      matchedDeviceResults.putIfAbsent(
+        d.deviceId,
+        () => _MatchedDeviceTracker(
+          deviceName: d.name,
+          deviceId: d.deviceId,
+          deviceType: d.type,
+        ),
+      );
+    }
+
     _log.fine(
       'Scan complete: ${machines.length} machines, ${scales.length} scales',
     );
@@ -230,7 +275,14 @@ class ConnectionManager {
         currentStatus.copyWith(foundScales: scales),
       );
       // Apply scale preference policy only
-      await _connectScalePhase(scales);
+      await _connectScalePhase(scales, matchedDeviceResults);
+      _emitScanReport(
+        scanStartTime: scanStartTime,
+        matchedDeviceResults: matchedDeviceResults,
+        preferredMachineId: null,
+        preferredScaleId: preferredScaleId,
+        terminationReason: ScanTerminationReason.completed,
+      );
       return;
     }
 
@@ -243,7 +295,14 @@ class ConnectionManager {
     // skip straight to scale phase
     if (_machineConnected) {
       _log.fine('Machine connected, proceeding to scale phase');
-      await _connectScalePhase(scales);
+      await _connectScalePhase(scales, matchedDeviceResults);
+      _emitScanReport(
+        scanStartTime: scanStartTime,
+        matchedDeviceResults: matchedDeviceResults,
+        preferredMachineId: preferredMachineId,
+        preferredScaleId: preferredScaleId,
+        terminationReason: ScanTerminationReason.completed,
+      );
       return;
     }
 
@@ -266,8 +325,8 @@ class ConnectionManager {
         _statusSubject.add(currentStatus.copyWith(phase: ConnectionPhase.idle));
       } else if (machines.length == 1) {
         // Exactly one machine — auto-connect
-        await connectMachine(machines.first);
-        await _connectScalePhase(scales);
+        await _connectMachineTracked(machines.first, matchedDeviceResults);
+        await _connectScalePhase(scales, matchedDeviceResults);
       } else {
         // Multiple machines — picker
         _statusSubject.add(
@@ -278,6 +337,14 @@ class ConnectionManager {
         );
       }
     }
+
+    _emitScanReport(
+      scanStartTime: scanStartTime,
+      matchedDeviceResults: matchedDeviceResults,
+      preferredMachineId: preferredMachineId,
+      preferredScaleId: preferredScaleId,
+      terminationReason: ScanTerminationReason.completed,
+    );
   }
 
   /// Stop scan early when both preferred devices are connected.
@@ -289,7 +356,10 @@ class ConnectionManager {
   }
 
   /// Apply scale preference policy after machine connects.
-  Future<void> _connectScalePhase(List<Scale> scales) async {
+  Future<void> _connectScalePhase(
+    List<Scale> scales, [
+    Map<String, _MatchedDeviceTracker>? matchedDeviceResults,
+  ]) async {
     if (_scaleConnected) {
       _log.fine('Scale already connected, skipping scale phase');
       return;
@@ -303,7 +373,11 @@ class ConnectionManager {
       final preferred =
           scales.where((s) => s.deviceId == preferredScaleId).toList();
       if (preferred.isNotEmpty) {
-        await connectScale(preferred.first);
+        if (matchedDeviceResults != null) {
+          await _connectScaleTracked(preferred.first, matchedDeviceResults);
+        } else {
+          await connectScale(preferred.first);
+        }
       } else if (scales.isNotEmpty) {
         // Preferred not found but others available — picker
         _log.fine('Scale phase: preferred not found, showing picker');
@@ -316,7 +390,11 @@ class ConnectionManager {
     } else {
       // No preferred scale set
       if (scales.length == 1) {
-        await connectScale(scales.first);
+        if (matchedDeviceResults != null) {
+          await _connectScaleTracked(scales.first, matchedDeviceResults);
+        } else {
+          await connectScale(scales.first);
+        }
       } else if (scales.length > 1) {
         // Multiple scales — picker
         _statusSubject.add(
@@ -398,6 +476,71 @@ class ConnectionManager {
     }
   }
 
+  /// Connect a machine and track the result for the scan report.
+  Future<void> _connectMachineTracked(
+    De1Interface machine,
+    Map<String, _MatchedDeviceTracker> trackers,
+  ) async {
+    final tracker = trackers[machine.deviceId];
+    if (tracker != null) {
+      tracker.connectionAttempted = true;
+    }
+    try {
+      await connectMachine(machine);
+      tracker?.connectionResult = const ConnectionResult.succeeded();
+    } catch (e) {
+      tracker?.connectionResult = ConnectionResult.failed(e.toString());
+    }
+  }
+
+  /// Connect a scale and track the result for the scan report.
+  Future<void> _connectScaleTracked(
+    Scale scale,
+    Map<String, _MatchedDeviceTracker> trackers,
+  ) async {
+    final tracker = trackers[scale.deviceId];
+    if (tracker != null) {
+      tracker.connectionAttempted = true;
+    }
+    try {
+      await connectScale(scale);
+      tracker?.connectionResult = const ConnectionResult.succeeded();
+    } catch (e) {
+      tracker?.connectionResult = ConnectionResult.failed(e.toString());
+    }
+  }
+
+  /// Build and emit a [ScanReport] from the collected scan data.
+  void _emitScanReport({
+    required DateTime scanStartTime,
+    required Map<String, _MatchedDeviceTracker> matchedDeviceResults,
+    required String? preferredMachineId,
+    required String? preferredScaleId,
+    required ScanTerminationReason terminationReason,
+  }) {
+    final scanDuration = DateTime.now().difference(scanStartTime);
+    final matchedDevices =
+        matchedDeviceResults.values.map((t) => t.toMatchedDevice()).toList();
+
+    final report = ScanReport(
+      totalBleDevicesSeen: matchedDevices.length,
+      matchedDevices: matchedDevices,
+      scanDuration: scanDuration,
+      adapterStateAtStart: AdapterState.unknown,
+      adapterStateAtEnd: AdapterState.unknown,
+      scanTerminationReason: terminationReason,
+      preferredMachineId: preferredMachineId,
+      preferredScaleId: preferredScaleId,
+    );
+
+    _scanReportSubject.add(report);
+    _log.fine(
+      'ScanReport: ${matchedDevices.length} matched, '
+      'duration=${scanDuration.inMilliseconds}ms, '
+      'reason=$terminationReason',
+    );
+  }
+
   Future<void> disconnectMachine() async {
     // Reset flag before disconnect to prevent the disconnect listener from
     // also emitting idle (which would cause a double emission).
@@ -423,5 +566,30 @@ class ConnectionManager {
     _machineDisconnectSub?.cancel();
     _scaleDisconnectSub?.cancel();
     _statusSubject.close();
+    _scanReportSubject.close();
   }
+}
+
+/// Mutable tracker used during a scan to accumulate connection attempt results
+/// before building the immutable [MatchedDevice].
+class _MatchedDeviceTracker {
+  final String deviceName;
+  final String deviceId;
+  final device.DeviceType deviceType;
+  bool connectionAttempted = false;
+  ConnectionResult? connectionResult;
+
+  _MatchedDeviceTracker({
+    required this.deviceName,
+    required this.deviceId,
+    required this.deviceType,
+  });
+
+  MatchedDevice toMatchedDevice() => MatchedDevice(
+        deviceName: deviceName,
+        deviceId: deviceId,
+        deviceType: deviceType,
+        connectionAttempted: connectionAttempted,
+        connectionResult: connectionResult,
+      );
 }
