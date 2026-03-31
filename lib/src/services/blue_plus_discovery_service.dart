@@ -4,12 +4,14 @@ import 'dart:io';
 import 'package:collection/collection.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/services/ble/android_blue_plus_transport.dart';
+import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 import 'package:reaprime/src/services/ble/blue_plus_transport.dart';
 import 'package:reaprime/src/services/device_matcher.dart';
 
-class BluePlusDiscoveryService implements DeviceDiscoveryService {
+class BluePlusDiscoveryService extends BleDiscoveryService {
   final Logger _log = Logger("BluePlusDiscoveryService");
   final List<Device> _devices = [];
   final StreamController<List<Device>> _deviceStreamController =
@@ -24,6 +26,23 @@ class BluePlusDiscoveryService implements DeviceDiscoveryService {
   StreamSubscription<String>? _logSubscription;
 
   BluePlusDiscoveryService();
+
+  @override
+  Stream<AdapterState> get adapterStateStream =>
+      FlutterBluePlus.adapterState.map(_mapAdapterState);
+
+  static AdapterState _mapAdapterState(BluetoothAdapterState state) {
+    switch (state) {
+      case BluetoothAdapterState.on:
+        return AdapterState.poweredOn;
+      case BluetoothAdapterState.off:
+        return AdapterState.poweredOff;
+      case BluetoothAdapterState.unavailable:
+        return AdapterState.unavailable;
+      default:
+        return AdapterState.unknown;
+    }
+  }
 
   @override
   Stream<List<Device>> get devices => _deviceStreamController.stream;

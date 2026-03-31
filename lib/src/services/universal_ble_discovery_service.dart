@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'package:reaprime/src/models/adapter_state.dart';
+import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 import 'package:reaprime/src/services/ble/universal_ble_transport.dart';
 import 'package:reaprime/src/services/device_matcher.dart';
+import 'package:rxdart/rxdart.dart';
 import 'package:universal_ble/universal_ble.dart';
 import '../models/device/device.dart';
 import 'package:logging/logging.dart' as logging;
 
-class UniversalBleDiscoveryService extends DeviceDiscoveryService {
+class UniversalBleDiscoveryService extends BleDiscoveryService {
   UniversalBleDiscoveryService();
 
   final Map<String, Device> _devices = {};
@@ -21,20 +24,44 @@ class UniversalBleDiscoveryService extends DeviceDiscoveryService {
 
   bool _isScanning = false;
 
+  final BehaviorSubject<AdapterState> _adapterStateSubject =
+      BehaviorSubject.seeded(AdapterState.unknown);
+
+  @override
+  Stream<AdapterState> get adapterStateStream => _adapterStateSubject.stream;
+
   @override
   Stream<List<Device>> get devices => _deviceStreamController.stream;
 
   @override
   Future<void> initialize() async {
     UniversalBle.queueType = QueueType.global;
-    if (await UniversalBle.getBluetoothAvailabilityState() !=
-        AvailabilityState.poweredOn) {
+
+    final initialState = await UniversalBle.getBluetoothAvailabilityState();
+    _adapterStateSubject.add(_mapAvailabilityState(initialState));
+
+    UniversalBle.availabilityStream.listen((state) {
+      log.info("BLE Adapter state: ${state.name}");
+      _adapterStateSubject.add(_mapAvailabilityState(state));
+    });
+
+    if (initialState != AvailabilityState.poweredOn) {
       log.warning("Bluetooth not supported on this platform");
       return;
     }
-    UniversalBle.availabilityStream.listen((state) {
-      log.info("BLE Adapter state: ${state.name}");
-    });
+  }
+
+  static AdapterState _mapAvailabilityState(AvailabilityState state) {
+    switch (state) {
+      case AvailabilityState.poweredOn:
+        return AdapterState.poweredOn;
+      case AvailabilityState.poweredOff:
+        return AdapterState.poweredOff;
+      case AvailabilityState.unsupported:
+        return AdapterState.unavailable;
+      default:
+        return AdapterState.unknown;
+    }
   }
 
   bool _isBleDeviceId(String deviceId) {
