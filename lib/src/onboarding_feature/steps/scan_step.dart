@@ -17,6 +17,8 @@ import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../onboarding_controller.dart';
+import '../widgets/scan_results_summary.dart';
+import '../widgets/troubleshooting_wizard.dart';
 
 final _log = Logger('ScanStep');
 
@@ -464,49 +466,27 @@ class ScanStepViewState extends State<ScanStepView> {
   }
 
   Widget _noDevicesFoundView(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 400),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          spacing: 16,
-          children: [
-            Icon(
-              LucideIcons.searchX,
-              size: 48,
-              color: theme.colorScheme.primary.withValues(alpha: 0.7),
-            ),
-            Text('No Devices Found', style: theme.textTheme.h4),
-            Text(
-              'The scan completed but no Decent machines were discovered.',
-              style: theme.textTheme.muted,
-              textAlign: TextAlign.center,
-            ),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ShadButton(
-                  onPressed: () => widget.connectionManager.connect(),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: 8,
-                    children: [
-                      const Icon(LucideIcons.refreshCw, size: 16),
-                      const Text('Scan Again'),
-                    ],
-                  ),
-                ),
-                ShadButton.secondary(
-                  onPressed: () => widget.onboardingController.advance(),
-                  child: const Text('Continue to Dashboard'),
-                ),
-              ],
-            ),
-          ],
+    final report = widget.connectionManager.lastScanReport;
+    if (report == null) {
+      // Fallback if no report is available yet
+      return Center(
+        child: ShadButton(
+          onPressed: () => widget.connectionManager.connect(),
+          child: const Text('Scan Again'),
         ),
+      );
+    }
+
+    return Center(
+      child: ScanResultsSummary(
+        report: report,
+        onScanAgain: () => widget.connectionManager.connect(),
+        onTroubleshoot: () => showTroubleshootingWizard(
+          context: context,
+          adapterState: widget.scanStateGuardian.currentAdapterState,
+        ),
+        onExportLogs: _exportLogs,
+        onContinueToDashboard: () => widget.onboardingController.advance(),
       ),
     );
   }
@@ -524,6 +504,18 @@ class ScanStepViewState extends State<ScanStepView> {
               onTap: () {
                 Navigator.pop(context);
                 widget.connectionManager.connect();
+              },
+            ),
+            ListTile(
+              leading: const Icon(LucideIcons.wrench),
+              title: const Text('Troubleshoot'),
+              onTap: () {
+                Navigator.pop(context);
+                showTroubleshootingWizard(
+                  context: this.context,
+                  adapterState:
+                      widget.scanStateGuardian.currentAdapterState,
+                );
               },
             ),
             ListTile(
