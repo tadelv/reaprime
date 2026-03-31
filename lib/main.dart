@@ -47,6 +47,9 @@ import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'package:reaprime/src/controllers/scan_state_guardian.dart';
+import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
+
 import 'src/app.dart';
 import 'src/services/foreground_service.dart';
 import 'src/settings/settings_controller.dart';
@@ -193,18 +196,23 @@ void main() async {
 
   final List<DeviceDiscoveryService> services = [];
 
+  // Every platform always has exactly one BLE service.
+  final BleDiscoveryService bleDiscoveryService;
+
   if (Platform.isLinux) {
     // Use Linux-specific BLE discovery service that handles BlueZ quirks:
     // - Stops scan before connecting (avoids le-connection-abort-by-local)
     // - Adapter state monitoring and recovery
     // - Connection retry logic with backoff
     // - Sequential device processing with settle delays
-    services.add(LinuxBleDiscoveryService());
-  } else if (!Platform.isWindows) {
-    services.add(BluePlusDiscoveryService());
+    bleDiscoveryService = LinuxBleDiscoveryService();
+  } else if (Platform.isWindows) {
+    bleDiscoveryService = UniversalBleDiscoveryService();
   } else {
-    services.add(UniversalBleDiscoveryService());
+    bleDiscoveryService = BluePlusDiscoveryService();
   }
+
+  services.add(bleDiscoveryService);
 
   await Hive.initFlutter('store');
 
@@ -263,6 +271,10 @@ void main() async {
     de1Controller: de1Controller,
     scaleController: scaleController,
     settingsController: settingsController,
+  );
+
+  final scanStateGuardian = ScanStateGuardian(
+    bleService: bleDiscoveryService,
   );
 
   final presenceController = PresenceController(
@@ -401,6 +413,7 @@ void main() async {
         beanStorage: beanStorage,
         grinderStorage: grinderStorage,
         connectionManager: connectionManager,
+        scanStateGuardian: scanStateGuardian,
       ),
     ),
   );
@@ -550,6 +563,7 @@ class AppRoot extends StatefulWidget {
   final BeanStorageService? beanStorage;
   final GrinderStorageService? grinderStorage;
   final ConnectionManager connectionManager;
+  final ScanStateGuardian scanStateGuardian;
 
   const AppRoot({
     super.key,
@@ -565,6 +579,7 @@ class AppRoot extends StatefulWidget {
     required this.webViewLogService,
     required this.presenceController,
     required this.connectionManager,
+    required this.scanStateGuardian,
     this.updateCheckService,
     this.beanStorage,
     this.grinderStorage,
@@ -622,6 +637,7 @@ class _AppRootState extends State<AppRoot> {
         beanStorage: widget.beanStorage,
         grinderStorage: widget.grinderStorage,
         connectionManager: widget.connectionManager,
+        scanStateGuardian: widget.scanStateGuardian,
       ),
     );
   }
