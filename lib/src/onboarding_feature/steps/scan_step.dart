@@ -274,6 +274,27 @@ class ScanStepViewState extends State<ScanStepView> {
             : null)
         : null;
 
+    // Check if preferred device is configured but not among found devices
+    final preferredMachineId =
+        widget.settingsController.preferredMachineId;
+    final preferredMachineNotFound = preferredMachineId != null &&
+        _status.foundMachines.isNotEmpty &&
+        !_status.foundMachines
+            .any((m) => m.deviceId == preferredMachineId);
+
+    final preferredScaleId = widget.settingsController.preferredScaleId;
+    final preferredScaleNotFound = preferredScaleId != null &&
+        _status.foundScales.isNotEmpty &&
+        !_status.foundScales
+            .any((s) => s.deviceId == preferredScaleId);
+
+    final machineHeader = preferredMachineNotFound
+        ? "Your preferred machine wasn't found, but we discovered these:"
+        : 'Machines';
+    final scaleHeader = preferredScaleNotFound
+        ? "Your preferred scale wasn't found, but we discovered these:"
+        : 'Scales';
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -289,7 +310,7 @@ class ScanStepViewState extends State<ScanStepView> {
                     deviceController: widget.deviceController,
                     deviceType: dev.DeviceType.machine,
                     showHeader: true,
-                    headerText: 'Machines',
+                    headerText: machineHeader,
                     connectingDeviceId: connectingDeviceId,
                     errorMessage: _status.error,
                     selectedDeviceId: null,
@@ -310,7 +331,7 @@ class ScanStepViewState extends State<ScanStepView> {
                     deviceController: widget.deviceController,
                     deviceType: dev.DeviceType.scale,
                     showHeader: true,
-                    headerText: 'Scales',
+                    headerText: scaleHeader,
                     selectedDeviceId: null,
                     preferredDeviceId:
                         widget.settingsController.preferredScaleId,
