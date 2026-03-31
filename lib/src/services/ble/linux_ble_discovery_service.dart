@@ -4,9 +4,12 @@ import 'dart:io';
 import 'package:collection/collection.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 import 'package:reaprime/src/services/ble/linux_blue_plus_transport.dart';
 import 'package:reaprime/src/services/device_matcher.dart';
+import 'package:rxdart/rxdart.dart';
 
 /// Linux-specific BLE discovery service that handles BlueZ quirks.
 ///
@@ -34,7 +37,7 @@ import 'package:reaprime/src/services/device_matcher.dart';
 /// 5. **Adapter availability.** The Bluetooth adapter may not be immediately
 ///    available (e.g., rfkill, adapter not present). We check and wait for
 ///    the adapter before proceeding.
-class LinuxBleDiscoveryService implements DeviceDiscoveryService {
+class LinuxBleDiscoveryService extends BleDiscoveryService {
   final Logger _log = Logger("LinuxBleDiscoveryService");
   final List<Device> _devices = [];
   final StreamController<List<Device>> _deviceStreamController =
@@ -50,6 +53,12 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
 
   /// Whether the BLE adapter is currently available and powered on.
   bool _adapterReady = false;
+
+  final BehaviorSubject<AdapterState> _adapterStateSubject =
+      BehaviorSubject.seeded(AdapterState.unknown);
+
+  @override
+  Stream<AdapterState> get adapterStateStream => _adapterStateSubject.stream;
 
   /// How long to scan before stopping and processing results.
   static const Duration _scanDuration = Duration(seconds: 12);
@@ -92,6 +101,7 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
     _adapterSubscription = FlutterBluePlus.adapterState.listen((state) {
       final wasReady = _adapterReady;
       _adapterReady = state == BluetoothAdapterState.on;
+      _adapterStateSubject.add(_mapAdapterState(state));
 
       if (_adapterReady && !wasReady) {
         _log.info("Bluetooth adapter is now ON");
@@ -408,9 +418,23 @@ class LinuxBleDiscoveryService implements DeviceDiscoveryService {
     }
   }
 
+  static AdapterState _mapAdapterState(BluetoothAdapterState state) {
+    switch (state) {
+      case BluetoothAdapterState.on:
+        return AdapterState.poweredOn;
+      case BluetoothAdapterState.off:
+        return AdapterState.poweredOff;
+      case BluetoothAdapterState.unavailable:
+        return AdapterState.unavailable;
+      default:
+        return AdapterState.unknown;
+    }
+  }
+
   void dispose() {
     _logSubscription?.cancel();
     _adapterSubscription?.cancel();
+    _adapterStateSubject.close();
     _deviceStreamController.close();
   }
 }
