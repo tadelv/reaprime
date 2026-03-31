@@ -20,6 +20,7 @@ import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/controllers/scan_state_guardian.dart';
 import 'package:reaprime/src/onboarding_feature/onboarding_controller.dart';
 import 'package:reaprime/src/onboarding_feature/onboarding_view.dart';
+import 'package:reaprime/src/onboarding_feature/steps/initialization_step.dart';
 import 'package:reaprime/src/onboarding_feature/steps/permissions_step.dart';
 import 'package:reaprime/src/onboarding_feature/steps/scan_step.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
@@ -110,8 +111,10 @@ class _MyAppState extends State<MyApp> {
     _initializeDe1StateManager();
     _onboardingController = OnboardingController(steps: [
       createPermissionsStep(
-        deviceController: widget.deviceController,
         de1Controller: widget.de1Controller,
+      ),
+      createInitializationStep(
+        deviceController: widget.deviceController,
         pluginLoaderService: widget.pluginLoaderService,
         webUIStorage: widget.webUIStorage,
         webUIService: widget.webUIService,
