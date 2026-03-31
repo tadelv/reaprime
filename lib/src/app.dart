@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:logging/logging.dart';
 import 'package:reaprime/main.dart';
 // import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 // import 'package:flutter_localizations/flutter_localizations.dart';
@@ -16,6 +17,11 @@ import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/history_feature/history_feature.dart';
 import 'package:reaprime/src/landing_feature/landing_feature.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
+import 'package:reaprime/src/controllers/scan_state_guardian.dart';
+import 'package:reaprime/src/onboarding_feature/onboarding_controller.dart';
+import 'package:reaprime/src/onboarding_feature/onboarding_view.dart';
+import 'package:reaprime/src/onboarding_feature/steps/permissions_step.dart';
+import 'package:reaprime/src/onboarding_feature/steps/scan_step.dart';
 import 'package:reaprime/src/permissions_feature/permissions_view.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
 import 'package:reaprime/src/realtime_steam_feature/realtime_steam_feature.dart';
@@ -66,6 +72,7 @@ class MyApp extends StatefulWidget {
     required this.webViewLogService,
     required this.presenceController,
     required this.connectionManager,
+    required this.scanStateGuardian,
     this.updateCheckService,
     this.beanStorage,
     this.grinderStorage,
@@ -83,6 +90,7 @@ class MyApp extends StatefulWidget {
   final WebViewLogService webViewLogService;
   final PresenceController presenceController;
   final ConnectionManager connectionManager;
+  final ScanStateGuardian scanStateGuardian;
   final UpdateCheckService? updateCheckService;
   final BeanStorageService? beanStorage;
   final GrinderStorageService? grinderStorage;
@@ -92,13 +100,31 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  static final Logger _log = Logger('MyApp');
   De1StateManager? _de1StateManager;
   Timer? _restartTimer;
+  late final OnboardingController _onboardingController;
 
   @override
   void initState() {
     super.initState();
     _initializeDe1StateManager();
+    _onboardingController = OnboardingController(steps: [
+      createPermissionsStep(
+        deviceController: widget.deviceController,
+        de1Controller: widget.de1Controller,
+        pluginLoaderService: widget.pluginLoaderService,
+        webUIStorage: widget.webUIStorage,
+        webUIService: widget.webUIService,
+      ),
+      createScanStep(
+        connectionManager: widget.connectionManager,
+        deviceController: widget.deviceController,
+        settingsController: widget.settingsController,
+        scanStateGuardian: widget.scanStateGuardian,
+      ),
+    ]);
+    _onboardingController.initialize();
   }
 
   @override
@@ -129,9 +155,74 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
+  /// Navigates to the appropriate screen after onboarding completes.
+  ///
+  /// Replicates the logic from DeviceDiscoveryView._navigateAfterConnection:
+  /// 1. Check platform WebView support
+  /// 2. Ensure WebUI service is running
+  /// 3. Push HomeScreen, then SkinView on top (or LandingFeature if no WebView)
+  Future<void> _navigateAfterOnboarding() async {
+    final navigator = NavigationService.navigatorKey.currentState;
+    if (navigator == null) return;
+
+    // Check platform - only use WebView on iOS, Android, macOS
+    final supportedPlatforms =
+        Platform.isIOS || Platform.isAndroid || Platform.isMacOS;
+
+    if (!supportedPlatforms) {
+      _log.info(
+        'Platform not supported for WebView, using Landing page',
+      );
+      navigator.pushNamedAndRemoveUntil(
+        LandingFeature.routeName,
+        (_) => false,
+      );
+      return;
+    }
+
+    // Ensure WebUI is ready
+    if (!widget.webUIService.isServing) {
+      _log.info('WebUI not serving, attempting to start...');
+
+      final defaultSkin = widget.webUIStorage.defaultSkin;
+      if (defaultSkin != null) {
+        try {
+          await widget.webUIService.serveFolderAtPath(defaultSkin.path);
+          _log.info('WebUI service started successfully');
+        } catch (e) {
+          _log.severe('Failed to start WebUI service: $e');
+          navigator.pushNamedAndRemoveUntil(
+            LandingFeature.routeName,
+            (_) => false,
+          );
+          return;
+        }
+      } else {
+        _log.warning('No default skin available, using Landing page');
+        navigator.pushNamedAndRemoveUntil(
+          LandingFeature.routeName,
+          (_) => false,
+        );
+        return;
+      }
+    }
+
+    // Wait a brief moment for WebUI to be fully ready
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    _log.info('Navigating to SkinView');
+    // Push both routes to stack: HomeScreen first, then SkinView on top
+    navigator.pushNamedAndRemoveUntil(
+      HomeScreen.routeName,
+      (_) => false,
+    );
+    navigator.pushNamed(SkinView.routeName);
+  }
+
   @override
   void dispose() {
     _de1StateManager?.dispose();
+    _onboardingController.dispose();
     _restartTimer?.cancel();
     super.dispose();
   }
@@ -335,15 +426,9 @@ class _MyAppState extends State<MyApp> {
                         deviceIp: widget.webUIService.deviceIp(),
                       );
                     default:
-                      return PermissionsView(
-                        deviceController: widget.deviceController,
-                        de1controller: widget.de1Controller,
-                        scaleController: widget.scaleController,
-                        pluginLoaderService: widget.pluginLoaderService,
-                        webUIStorage: widget.webUIStorage,
-                        webUIService: widget.webUIService,
-                        settingsController: widget.settingsController,
-                        connectionManager: widget.connectionManager,
+                      return OnboardingView(
+                        controller: _onboardingController,
+                        onComplete: () => _navigateAfterOnboarding(),
                       );
                   }
                 },
