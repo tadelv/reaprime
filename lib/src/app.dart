@@ -124,6 +124,12 @@ class _MyAppState extends State<MyApp> {
         deviceController: widget.deviceController,
         settingsController: widget.settingsController,
         scanStateGuardian: widget.scanStateGuardian,
+        onSkipToDashboard: () {
+          NavigationService.navigatorKey.currentState?.pushNamedAndRemoveUntil(
+            HomeScreen.routeName,
+            (_) => false,
+          );
+        },
       ),
     ]);
     _onboardingController.initialize();

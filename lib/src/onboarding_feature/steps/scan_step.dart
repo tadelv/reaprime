@@ -32,6 +32,7 @@ OnboardingStep createScanStep({
   required DeviceController deviceController,
   required SettingsController settingsController,
   required ScanStateGuardian scanStateGuardian,
+  VoidCallback? onSkipToDashboard,
 }) {
   return OnboardingStep(
     id: 'scan',
@@ -42,6 +43,7 @@ OnboardingStep createScanStep({
       deviceController: deviceController,
       settingsController: settingsController,
       scanStateGuardian: scanStateGuardian,
+      onSkipToDashboard: onSkipToDashboard,
     ),
   );
 }
@@ -55,6 +57,10 @@ class ScanStepView extends StatefulWidget {
   final SettingsController settingsController;
   final ScanStateGuardian scanStateGuardian;
 
+  /// Called when user explicitly skips scan to go to dashboard.
+  /// If null, falls back to [onboardingController.advance].
+  final VoidCallback? onSkipToDashboard;
+
   /// How long to wait before showing the "taking too long" button.
   @visibleForTesting
   static const scanTooLongThreshold = Duration(seconds: 8);
@@ -66,6 +72,7 @@ class ScanStepView extends StatefulWidget {
     required this.deviceController,
     required this.settingsController,
     required this.scanStateGuardian,
+    this.onSkipToDashboard,
   });
 
   @override
@@ -73,6 +80,14 @@ class ScanStepView extends StatefulWidget {
 }
 
 class ScanStepViewState extends State<ScanStepView> {
+  void _skipToDashboard() {
+    if (widget.onSkipToDashboard != null) {
+      widget.onSkipToDashboard!();
+    } else {
+      widget.onboardingController.advance();
+    }
+  }
+
   late StreamSubscription<ConnectionStatus> _statusSubscription;
   late StreamSubscription<ScanStateEvent> _guardianSubscription;
   ConnectionStatus _status =
@@ -387,8 +402,7 @@ class ScanStepViewState extends State<ScanStepView> {
               if (!isConnecting)
                 ShadButton.secondary(
                   size: ShadButtonSize.sm,
-                  onPressed: () =>
-                      widget.onboardingController.advance(),
+                  onPressed: _skipToDashboard,
                   child: const Text('Dashboard'),
                 ),
             ],
@@ -486,7 +500,7 @@ class ScanStepViewState extends State<ScanStepView> {
           adapterState: widget.scanStateGuardian.currentAdapterState,
         ),
         onExportLogs: _exportLogs,
-        onContinueToDashboard: () => widget.onboardingController.advance(),
+        onContinueToDashboard: _skipToDashboard,
       ),
     );
   }
@@ -531,7 +545,7 @@ class ScanStepViewState extends State<ScanStepView> {
               title: const Text('Continue to Dashboard'),
               onTap: () {
                 Navigator.pop(context);
-                widget.onboardingController.advance();
+                _skipToDashboard();
               },
             ),
           ],
