@@ -33,7 +33,7 @@ OnboardingStep createPermissionsStep({
 }) {
   return OnboardingStep(
     id: 'permissions',
-    shouldShow: () => _checkPermissionsNeeded(),
+    shouldShow: () async => true, // Always show — handles both permissions and service init
     builder: (controller) => _PermissionsStepView(
       onboardingController: controller,
       deviceController: deviceController,
@@ -45,29 +45,6 @@ OnboardingStep createPermissionsStep({
   );
 }
 
-/// Checks whether BLE permissions still need to be requested.
-///
-/// Returns `true` if the step should be shown (permissions not yet granted),
-/// `false` if permissions are already granted or not needed (desktop).
-Future<bool> _checkPermissionsNeeded() async {
-  if (Platform.isAndroid) {
-    final info = await DeviceInfoPlugin().androidInfo;
-    if (info.version.sdkInt >= 31) {
-      final scan = await Permission.bluetoothScan.status;
-      final connect = await Permission.bluetoothConnect.status;
-      return !scan.isGranted || !connect.isGranted;
-    } else {
-      final bt = await Permission.bluetooth.status;
-      final loc = await Permission.locationWhenInUse.status;
-      return !bt.isGranted || !loc.isGranted;
-    }
-  } else if (Platform.isIOS) {
-    final bt = await Permission.bluetooth.status;
-    return !bt.isGranted;
-  }
-  // Desktop platforms: no runtime permissions needed
-  return false;
-}
 
 class _PermissionsStepView extends StatefulWidget {
   final OnboardingController onboardingController;
@@ -100,19 +77,29 @@ class _PermissionsStepViewState extends State<_PermissionsStepView> {
   }
 
   Future<void> _requestPermissionsAndInitialize() async {
-    // Request platform permissions
+    // Request platform permissions (only if not already granted)
     if (Platform.isAndroid || Platform.isIOS) {
       if (Platform.isAndroid) {
         final sdkVersion = await _getAndroidSdkVersion();
         if (sdkVersion >= 31) {
-          await Permission.bluetoothScan.request();
-          await Permission.bluetoothConnect.request();
+          if (!await Permission.bluetoothScan.isGranted) {
+            await Permission.bluetoothScan.request();
+          }
+          if (!await Permission.bluetoothConnect.isGranted) {
+            await Permission.bluetoothConnect.request();
+          }
         } else {
-          await Permission.bluetooth.request();
-          await Permission.locationWhenInUse.request();
+          if (!await Permission.bluetooth.isGranted) {
+            await Permission.bluetooth.request();
+          }
+          if (!await Permission.locationWhenInUse.isGranted) {
+            await Permission.locationWhenInUse.request();
+          }
         }
 
-        await Permission.notification.request();
+        if (!await Permission.notification.isGranted) {
+          await Permission.notification.request();
+        }
         await ForegroundTaskService.start();
 
         ForegroundTaskService.watchMachineConnection(
@@ -125,7 +112,9 @@ class _PermissionsStepViewState extends State<_PermissionsStepView> {
           await Permission.ignoreBatteryOptimizations.request();
         }
       } else if (Platform.isIOS) {
-        await Permission.bluetooth.request();
+        if (!await Permission.bluetooth.isGranted) {
+          await Permission.bluetooth.request();
+        }
       }
     } else {
       try {
