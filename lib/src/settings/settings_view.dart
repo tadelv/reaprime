@@ -770,27 +770,46 @@ class _SettingsViewState extends State<SettingsView> {
       final itExists = await indexFile.exists();
 
       if (itExists) {
-        await widget.webUIService.serveFolderAtPath(selectedDirectory);
-        setState(() {});
+        try {
+          final skinId =
+              await widget.webUIStorage.installFromPath(selectedDirectory);
+          final skin = widget.webUIStorage.getSkin(skinId);
+          if (skin == null) {
+            throw Exception('Installed skin not found: $skinId');
+          }
+          await widget.webUIService.serveFolderAtPath(skin.path);
+          await widget.webUIStorage.setDefaultSkin(skinId);
+          setState(() => _selectedSkinId = skinId);
 
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  Expanded(
-                    child: Text('Custom WebUI from $selectedDirectory loaded'),
-                  ),
-                  ShadButton.outline(
-                    onPressed: () async {
-                      await launchUrl(Uri.parse('http://localhost:3000'));
-                    },
-                    child: const Text("Open"),
-                  ),
-                ],
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Expanded(
+                      child: Text('Custom skin installed and loaded'),
+                    ),
+                    ShadButton.outline(
+                      onPressed: () async {
+                        await launchUrl(Uri.parse('http://localhost:3000'));
+                      },
+                      child: const Text("Open"),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to install skin: $e'),
+              ),
+            );
+          }
+          setState(
+              () => _selectedSkinId = widget.webUIStorage.defaultSkin?.id);
         }
       } else {
         if (context.mounted) {
