@@ -659,6 +659,53 @@ class _SettingsViewState extends State<SettingsView> {
                     ' v${skin.version}',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
+                if (!skin.isBundled && !BuildInfo.appStore)
+                  SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      iconSize: 16,
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () async {
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Remove skin?'),
+                            content: Text(
+                              'Remove "${skin.name}"? This cannot be undone.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.of(context).pop(false),
+                                child: const Text('Cancel'),
+                              ),
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.of(context).pop(true),
+                                child: const Text('Remove'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmed != true) return;
+
+                        await widget.webUIStorage.removeSkin(skin.id);
+
+                        if (_selectedSkinId == skin.id) {
+                          _selectedSkinId =
+                              widget.webUIStorage.defaultSkin?.id;
+                        }
+
+                        if (widget.webUIService.isServing) {
+                          await widget.webUIService.stopServing();
+                        }
+
+                        setState(() {});
+                      },
+                    ),
+                  ),
               ],
             ),
           );
