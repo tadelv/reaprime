@@ -249,9 +249,7 @@ class _MyAppState extends State<MyApp> {
 
     final themeColor = 'green';
 
-    return PlatformMenuBar(
-      menus: _buildPlatformMenus(),
-      child: ScaffoldMessenger(
+    final body = ScaffoldMessenger(
         child: ListenableBuilder(
           listenable: widget.settingsController,
           builder: (BuildContext context, Widget? child) {
@@ -445,8 +443,15 @@ class _MyAppState extends State<MyApp> {
           );
         },
       ),
-      ),
     );
+
+    if (Platform.isMacOS) {
+      return PlatformMenuBar(
+        menus: _buildPlatformMenus(),
+        child: body,
+      );
+    }
+    return body;
   }
 
   List<PlatformMenuItem> _buildPlatformMenus() {
