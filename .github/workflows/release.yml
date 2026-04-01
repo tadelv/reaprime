@@ -176,11 +176,29 @@ jobs:
             --apple-id "$APPLE_ID" \
             --team-id "$TEAM_ID" \
             --password "$APP_SPECIFIC_PASSWORD" \
-            --wait
+            --wait 2>&1 | tee notarization.log
+          # Show full log on failure
+          if grep -q "status: Invalid" notarization.log; then
+            ID=$(grep -o '[0-9a-f\-]\{36\}' notarization.log | head -1)
+            xcrun notarytool log "$ID" \
+              --apple-id "$APPLE_ID" \
+              --team-id "$TEAM_ID" \
+              --password "$APP_SPECIFIC_PASSWORD" || true
+            exit 1
+          fi
 
       - name: Staple notarization ticket
         run: |
-          xcrun stapler staple build/macos/Build/Products/Release/Streamline-Bridge.app
+          # Retry stapling — ticket propagation can lag behind notarytool --wait
+          for i in 1 2 3 4 5; do
+            if xcrun stapler staple build/macos/Build/Products/Release/Streamline-Bridge.app; then
+              exit 0
+            fi
+            echo "Staple attempt $i failed, waiting 15s..."
+            sleep 15
+          done
+          echo "Stapling failed after 5 attempts"
+          exit 1
 
       # ---- Final ZIP ----
       - name: Get version
