@@ -60,13 +60,21 @@ class _SettingsViewState extends State<SettingsView> {
   static const String _customSkinId = '__custom__';
   static const String _liveEditSkinId = '__live_edit__';
   final Logger _log = Logger("Settings");
-  Future<PermissionStatus>? _storagePermissionFuture;
   bool _storagePermissionGranted = false;
 
   @override
   void initState() {
     super.initState();
     _selectedSkinId = widget.webUIStorage.defaultSkin?.id;
+    _checkStoragePermission();
+  }
+
+  Future<void> _checkStoragePermission() async {
+    if (!Platform.isAndroid || BuildInfo.appStore) return;
+    final status = await Permission.manageExternalStorage.status;
+    if (mounted && status.isGranted != _storagePermissionGranted) {
+      setState(() => _storagePermissionGranted = status.isGranted);
+    }
   }
 
   @override
@@ -456,53 +464,42 @@ class _SettingsViewState extends State<SettingsView> {
       return const SizedBox.shrink();
     }
 
-    _storagePermissionFuture ??= Permission.manageExternalStorage.status;
+    if (_storagePermissionGranted) {
+      return _SettingRow(
+        label: 'Storage Access',
+        child: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green, size: 20),
+            const SizedBox(width: 8),
+            const Text('Full storage access granted'),
+          ],
+        ),
+      );
+    }
 
-    return FutureBuilder<PermissionStatus>(
-      future: _storagePermissionFuture,
-      builder: (context, snapshot) {
-        final status = snapshot.data;
-
-        if (status != null && status.isGranted) {
-          _storagePermissionGranted = true;
-          return _SettingRow(
-            label: 'Storage Access',
-            child: Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.green, size: 20),
-                const SizedBox(width: 8),
-                const Text('Full storage access granted'),
-              ],
-            ),
-          );
-        }
-
-        return _SettingRow(
-          label: 'Storage Access',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Grant full storage access to live-edit skins from external folders without copying.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 8),
-              ShadButton.outline(
-                onPressed: () async {
-                  final result =
-                      await Permission.manageExternalStorage.request();
-                  if (result.isPermanentlyDenied) {
-                    await openAppSettings();
-                  }
-                  _storagePermissionFuture = null;
-                  setState(() {});
-                },
-                child: const Text('Grant Storage Access'),
-              ),
-            ],
+    return _SettingRow(
+      label: 'Storage Access',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Grant full storage access to live-edit skins from external folders without copying.',
+            style: Theme.of(context).textTheme.bodySmall,
           ),
-        );
-      },
+          const SizedBox(height: 8),
+          ShadButton.outline(
+            onPressed: () async {
+              final result =
+                  await Permission.manageExternalStorage.request();
+              if (result.isPermanentlyDenied) {
+                await openAppSettings();
+              }
+              await _checkStoragePermission();
+            },
+            child: const Text('Grant Storage Access'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -730,9 +727,12 @@ class _SettingsViewState extends State<SettingsView> {
                       iconSize: 16,
                       icon: const Icon(Icons.delete_outline),
                       onPressed: () async {
+                        // Close the dropdown first
+                        Navigator.of(context).pop();
+
                         final confirmed = await showDialog<bool>(
                           context: context,
-                          builder: (context) => AlertDialog(
+                          builder: (dialogContext) => AlertDialog(
                             title: const Text('Remove skin?'),
                             content: Text(
                               'Remove "${skin.name}"? This cannot be undone.',
@@ -740,12 +740,12 @@ class _SettingsViewState extends State<SettingsView> {
                             actions: [
                               TextButton(
                                 onPressed: () =>
-                                    Navigator.of(context).pop(false),
+                                    Navigator.of(dialogContext).pop(false),
                                 child: const Text('Cancel'),
                               ),
                               TextButton(
                                 onPressed: () =>
-                                    Navigator.of(context).pop(true),
+                                    Navigator.of(dialogContext).pop(true),
                                 child: const Text('Remove'),
                               ),
                             ],
@@ -753,13 +753,23 @@ class _SettingsViewState extends State<SettingsView> {
                         );
                         if (confirmed != true) return;
 
-                        await widget.webUIStorage.removeSkin(skin.id);
+                        try {
+                          await widget.webUIStorage.removeSkin(skin.id);
 
-                        if (_selectedSkinId == skin.id) {
-                          _selectedSkinId =
-                              widget.webUIStorage.defaultSkin?.id;
-                          if (widget.webUIService.isServing) {
-                            await widget.webUIService.stopServing();
+                          if (_selectedSkinId == skin.id) {
+                            _selectedSkinId =
+                                widget.webUIStorage.defaultSkin?.id;
+                            if (widget.webUIService.isServing) {
+                              await widget.webUIService.stopServing();
+                            }
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                  content:
+                                      Text('Failed to remove skin: $e')),
+                            );
                           }
                         }
 
