@@ -59,6 +59,7 @@ class _SettingsViewState extends State<SettingsView> {
   String? _selectedSkinId;
   static const String _customSkinId = '__custom__';
   final Logger _log = Logger("Settings");
+  Future<PermissionStatus>? _storagePermissionFuture;
 
   @override
   void initState() {
@@ -453,8 +454,10 @@ class _SettingsViewState extends State<SettingsView> {
       return const SizedBox.shrink();
     }
 
+    _storagePermissionFuture ??= Permission.manageExternalStorage.status;
+
     return FutureBuilder<PermissionStatus>(
-      future: Permission.manageExternalStorage.status,
+      future: _storagePermissionFuture,
       builder: (context, snapshot) {
         final status = snapshot.data;
 
@@ -488,6 +491,7 @@ class _SettingsViewState extends State<SettingsView> {
                   if (result.isPermanentlyDenied) {
                     await openAppSettings();
                   }
+                  _storagePermissionFuture = null;
                   setState(() {});
                 },
                 child: const Text('Grant Storage Access'),
