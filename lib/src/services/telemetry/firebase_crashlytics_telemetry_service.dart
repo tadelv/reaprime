@@ -30,7 +30,13 @@ class FirebaseCrashlyticsTelemetryService implements TelemetryService {
     // PRIV-04: Disable all Firebase collection by default until user consents
     await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(false);
     await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(false);
-    await FirebasePerformance.instance.setPerformanceCollectionEnabled(false);
+    // Firebase Performance has no macOS/Linux implementation — skip to avoid
+    // broken platform channel state that causes black screen in release mode
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+         defaultTargetPlatform == TargetPlatform.iOS)) {
+      await FirebasePerformance.instance.setPerformanceCollectionEnabled(false);
+    }
 
     // TELE-04: Set up global error handlers to route through TelemetryService
     FlutterError.onError = (details) {
@@ -93,7 +99,11 @@ class FirebaseCrashlyticsTelemetryService implements TelemetryService {
   Future<void> setConsentEnabled(bool enabled) async {
     await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(enabled);
     await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(enabled);
-    await FirebasePerformance.instance.setPerformanceCollectionEnabled(enabled);
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+         defaultTargetPlatform == TargetPlatform.iOS)) {
+      await FirebasePerformance.instance.setPerformanceCollectionEnabled(enabled);
+    }
   }
 
   @override
