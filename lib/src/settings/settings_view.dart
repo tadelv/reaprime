@@ -22,6 +22,7 @@ import 'package:reaprime/src/services/android_updater.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -447,6 +448,57 @@ class _SettingsViewState extends State<SettingsView> {
     );
   }
 
+  Widget _buildStoragePermissionRow() {
+    if (!Platform.isAndroid || BuildInfo.appStore) {
+      return const SizedBox.shrink();
+    }
+
+    return FutureBuilder<PermissionStatus>(
+      future: Permission.manageExternalStorage.status,
+      builder: (context, snapshot) {
+        final status = snapshot.data;
+
+        if (status != null && status.isGranted) {
+          return _SettingRow(
+            label: 'Storage Access',
+            child: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green, size: 20),
+                const SizedBox(width: 8),
+                const Text('Full storage access granted'),
+              ],
+            ),
+          );
+        }
+
+        return _SettingRow(
+          label: 'Storage Access',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Grant full storage access to live-edit skins from external folders without copying.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 8),
+              ShadButton.outline(
+                onPressed: () async {
+                  final result =
+                      await Permission.manageExternalStorage.request();
+                  if (result.isPermanentlyDenied) {
+                    await openAppSettings();
+                  }
+                  setState(() {});
+                },
+                child: const Text('Grant Storage Access'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildWebUISection() {
     return _SettingsSection(
       title: 'Web Interface',
@@ -457,6 +509,7 @@ class _SettingsViewState extends State<SettingsView> {
           label: 'Skin',
           child: _buildSkinSelector(),
         ),
+        _buildStoragePermissionRow(),
         const Divider(height: 24),
         if (!widget.webUIService.isServing)
           ShadButton(
