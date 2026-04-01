@@ -270,34 +270,44 @@ class ScanStepViewState extends State<ScanStepView> {
     final hasDevicesNotPreferred = _hasDevicesButNotPreferred;
     final deviceCount = _totalDiscovered;
 
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(width: 200, child: ShadProgress()),
-          const SizedBox(height: 16),
-          if (hasDevicesNotPreferred && _showTakingTooLong) ...[
-            Text(
-              '$deviceCount device${deviceCount == 1 ? '' : 's'} found, but not your preferred one.',
-              style: Theme.of(context).textTheme.titleMedium,
-              textAlign: TextAlign.center,
+    return Column(
+      children: [
+        // Progress bar + text centered in available space
+        Expanded(
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(width: 200, child: ShadProgress()),
+                const SizedBox(height: 16),
+                if (hasDevicesNotPreferred && _showTakingTooLong) ...[
+                  Text(
+                    '$deviceCount device${deviceCount == 1 ? '' : 's'} found, but not your preferred one.',
+                    style: Theme.of(context).textTheme.titleMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Still scanning...',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ] else
+                  Text(
+                    DeviceDiscoveryView.getRandomCoffeeMessage(),
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+              ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Still scanning...',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ] else
-            Text(
-              DeviceDiscoveryView.getRandomCoffeeMessage(),
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          const SizedBox(height: 24),
-          AnimatedOpacity(
-            opacity: _showTakingTooLong ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 400),
-            child: IgnorePointer(
-              ignoring: !_showTakingTooLong,
+          ),
+        ),
+        // "Taking too long" button pinned to bottom, doesn't affect center position
+        AnimatedOpacity(
+          opacity: _showTakingTooLong ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 400),
+          child: IgnorePointer(
+            ignoring: !_showTakingTooLong,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 32),
               child: ShadButton.outline(
                 size: ShadButtonSize.sm,
                 onPressed: _showTakingTooLongSheet,
@@ -307,8 +317,8 @@ class ScanStepViewState extends State<ScanStepView> {
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
