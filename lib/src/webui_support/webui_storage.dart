@@ -262,22 +262,25 @@ class WebUIStorage {
 
   /// Install a WebUI skin from a local filesystem path
   /// The path can be either a directory or a zip file
-  Future<void> installFromPath(String sourcePath) async {
+  /// Returns the installed skin ID
+  Future<String> installFromPath(String sourcePath) async {
     final source = File(sourcePath);
     final sourceDir = Directory(sourcePath);
 
+    String skinId;
     if (source.existsSync() && sourcePath.endsWith('.zip')) {
       // It's a zip file - extract it
-      await _installFromZip(sourcePath);
+      skinId = await _installFromZip(sourcePath);
     } else if (sourceDir.existsSync()) {
       // It's a directory - copy it
-      await _installFromDirectory(sourceDir);
+      skinId = await _installFromDirectory(sourceDir);
     } else {
       throw Exception('Source does not exist: $sourcePath');
     }
 
     // Rescan installed skins
     await _scanInstalledSkins();
+    return skinId;
   }
 
   /// Install a WebUI skin from a URL
