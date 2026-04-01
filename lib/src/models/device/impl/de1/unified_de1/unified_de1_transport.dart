@@ -191,10 +191,10 @@ class UnifiedDe1Transport {
   }
 
   // Matches a complete message: [X] prefix + hex payload, terminated by
-  // another '[' (next message) or newline/end-of-input.
+  // another '[' (next message) or newline.
   // Group 1 = the message content (e.g., "[M]0A0B0C").
   static final _messagePattern =
-      RegExp(r'(\[[A-Z]\][0-9A-Fa-f\s]*?)(?=\[|\n|$)');
+      RegExp(r'(\[[A-Z]\][0-9A-Fa-f\s]*?)(?=\[|\n)');
 
   void _processSerialInput(String input) {
     _currentBuffer += input;
@@ -213,22 +213,21 @@ class UnifiedDe1Transport {
     }
 
     // Extract all complete messages. A message is "complete" when followed by
-    // another '[' (next message start) or a newline. If the buffer ends with
-    // only one partial message and no terminator, the regex won't match it
-    // via the lookahead — except for $ (end of string). We handle that below.
+    // another '[' (next message start) or a newline. Incomplete messages at
+    // the end of the buffer won't match the lookahead and stay buffered.
     final matches = _messagePattern.allMatches(_currentBuffer).toList();
 
-    if (matches.isEmpty) return;
+    if (matches.isEmpty) {
+      // Guard against unbounded buffer growth from corrupted serial streams
+      if (_currentBuffer.length > 4096) {
+        _log.warning(
+            'Serial buffer overflow (${_currentBuffer.length} bytes), discarding');
+        _currentBuffer = '';
+      }
+      return;
+    }
 
-    // Process all matches except possibly the last one (which may be incomplete
-    // if it matched only because of $ and no newline/next-message follows).
-    final lastMatch = matches.last;
-    final lastIsComplete =
-        lastMatch.end < _currentBuffer.length &&
-        (_currentBuffer[lastMatch.end] == '[' ||
-            _currentBuffer[lastMatch.end] == '\n');
-
-    final completeCount = lastIsComplete ? matches.length : matches.length - 1;
+    final completeCount = matches.length;
 
     for (int i = 0; i < completeCount; i++) {
       final message = matches[i].group(1)!.trim();
@@ -248,24 +247,28 @@ class UnifiedDe1Transport {
 
   void _processDe1Response(String input) {
     _log.finest("processing input: $input");
-    final Uint8List payload = hexToBytes(input.substring(3));
-    final ByteData data = ByteData.sublistView(payload);
-    switch (input.substring(0, 3)) {
-      case "[M]":
-        _shotSampleNotification(data);
-      case "[N]":
-        _stateNotification(data);
-      case "[Q]":
-        _waterLevelsNotification(data);
-      case "[K]":
-        _shotSettingsNotification(data);
-      case "[E]":
-        _mmrNotification(data);
-      case "[I]":
-        _fwMapNotification(data);
-      default:
-        _log.warning("unhandled de1 message: $input");
-        break;
+    try {
+      final Uint8List payload = hexToBytes(input.substring(3));
+      final ByteData data = ByteData.sublistView(payload);
+      switch (input.substring(0, 3)) {
+        case "[M]":
+          _shotSampleNotification(data);
+        case "[N]":
+          _stateNotification(data);
+        case "[Q]":
+          _waterLevelsNotification(data);
+        case "[K]":
+          _shotSettingsNotification(data);
+        case "[E]":
+          _mmrNotification(data);
+        case "[I]":
+          _fwMapNotification(data);
+        default:
+          _log.warning("unhandled de1 message: $input");
+          break;
+      }
+    } on FormatException catch (e) {
+      _log.warning("malformed serial message, skipping: '$input' ($e)");
     }
   }
 
