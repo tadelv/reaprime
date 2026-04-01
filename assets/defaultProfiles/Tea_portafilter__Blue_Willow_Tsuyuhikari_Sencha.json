@@ -1,0 +1,132 @@
+{
+  "version": "2",
+  "title": "Tea portafilter/Sencha",
+  "author": "Decent",
+  "notes": "This profile requires the Decent Espresso tea portafilter and is optimized for the tea named \"Tsuyuhikari Sencha\" from Blue Willow Tea https://www.bluewillowtea.com/ - Taste wise, this profile created a similar taste to the mug made with a French press, with a 3 minute and 65C temperature water, though the end beverage quantity is less on the DE1 version. Three infusion steps were used, because we found the 4th infusion to be unpleasant.  We use a 4 gram dose of leaves for this profile.",
+  "beverage_type": "pourover",
+  "steps": [
+    {
+      "name": "Fill",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "60.0",
+      "sensor": "coffee",
+      "seconds": "20.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "4.0",
+      "pressure": "1.0",
+      "exit": {
+        "type": "pressure",
+        "condition": "over",
+        "value": "3.0"
+      },
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "Infuse",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "60.0",
+      "sensor": "coffee",
+      "seconds": "20.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "pressure": "0.1",
+      "flow": "4.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "Flush",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "60.0",
+      "sensor": "coffee",
+      "seconds": "30.0",
+      "volume": "80.0",
+      "weight": "0.0",
+      "flow": "11.0",
+      "pressure": "6.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "Infuse",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "60.0",
+      "sensor": "coffee",
+      "seconds": "25.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "pressure": "0.1",
+      "flow": "4.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "Flush",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "60.0",
+      "sensor": "coffee",
+      "seconds": "30.0",
+      "volume": "80.0",
+      "weight": "0.0",
+      "flow": "11.0",
+      "pressure": "0.5",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "infuse",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "60.0",
+      "sensor": "coffee",
+      "seconds": "30.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "pressure": "0.1",
+      "flow": "11.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "Flush",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "60.0",
+      "sensor": "coffee",
+      "seconds": "30.0",
+      "volume": "80.0",
+      "weight": "0.0",
+      "flow": "11.0",
+      "pressure": "0.5",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    }
+  ],
+  "tank_temperature": "0.0",
+  "target_weight": "0.0",
+  "target_volume": "0.0",
+  "target_volume_count_start": "1",
+  "type": "advanced",
+  "hidden": "0"
+}

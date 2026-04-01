@@ -1,0 +1,99 @@
+{
+  "version": "2",
+  "title": "Pour over basket/Decent pour over",
+  "author": "Decent",
+  "notes": "You can make a pour over coffee with your espresso machine.  To do this, first remove the drip tray. Then, place a coffee mug with a filter cone on it under the espresso machine's group head.",
+  "beverage_type": "pourover",
+  "steps": [
+    {
+      "name": "Prewet",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "99.0",
+      "sensor": "water",
+      "seconds": "4.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "6.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "Pause",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "97.0",
+      "sensor": "water",
+      "seconds": "40.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "Main water #1",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "97.0",
+      "sensor": "water",
+      "seconds": "14.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "6.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "Pause",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "95.0",
+      "sensor": "water",
+      "seconds": "20.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "Main water #2",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "95.0",
+      "sensor": "water",
+      "seconds": "25.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "5.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "Drain",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "95.0",
+      "sensor": "water",
+      "seconds": "20.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "Reset temperature",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "99.0",
+      "sensor": "water",
+      "seconds": "1.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "6.0"
+    }
+  ],
+  "tank_temperature": "0.0",
+  "target_weight": "0.0",
+  "target_volume": "0.0",
+  "target_volume_count_start": "0",
+  "type": "advanced",
+  "hidden": "0"
+}

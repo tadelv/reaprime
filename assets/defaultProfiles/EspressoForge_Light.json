@@ -1,0 +1,85 @@
+{
+  "version": "2",
+  "title": "Espresso Forge Light",
+  "author": "Decent",
+  "notes": "A light roast pressure profile that emulates the flow and temperature characteristics of the Espresso Forge manual machine. Good for medium to light roasts where you want to mute the fruit flavors and up extraction to balance the shot more in comparison to a standard flat or lever profile.",
+  "beverage_type": "espresso",
+  "steps": [
+    {
+      "name": "preinfusion",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "96.0",
+      "sensor": "coffee",
+      "seconds": "10.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "flow": "6.0",
+      "pressure": "1.0",
+      "exit": {
+        "type": "pressure",
+        "condition": "over",
+        "value": "0.5"
+      }
+    },
+    {
+      "name": "long pre brew",
+      "pump": "pressure",
+      "transition": "smooth",
+      "temperature": "93.0",
+      "sensor": "coffee",
+      "seconds": "25.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "pressure": "1.0",
+      "flow": "0.0"
+    },
+    {
+      "name": "high pressure ramp",
+      "pump": "pressure",
+      "transition": "smooth",
+      "temperature": "93.0",
+      "sensor": "coffee",
+      "seconds": "20.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "pressure": "10.0",
+      "flow": "0.0",
+      "exit": {
+        "type": "pressure",
+        "condition": "over",
+        "value": "10.0"
+      }
+    },
+    {
+      "name": "decline",
+      "pump": "pressure",
+      "transition": "smooth",
+      "temperature": "92.5",
+      "sensor": "coffee",
+      "seconds": "50.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "pressure": "6.0",
+      "flow": "0.0"
+    },
+    {
+      "name": "reset temperature",
+      "pump": "flow",
+      "transition": "smooth",
+      "temperature": "96.0",
+      "sensor": "coffee",
+      "seconds": "1.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "6.0"
+    }
+  ],
+  "tank_temperature": "0.0",
+  "target_weight": "42.0",
+  "target_volume": "0.0",
+  "target_volume_count_start": "0",
+  "type": "advanced",
+  "hidden": "0"
+}

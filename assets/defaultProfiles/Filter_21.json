@@ -1,0 +1,116 @@
+{
+  "version": "2",
+  "title": "Filter 2.1",
+  "author": "Decent",
+  "notes": "{Make excellent filter-style coffee using a normal espresso basket, a paper filter, and your DE1.  No V60 or other equipment required.",
+  "beverage_type": "pourover",
+  "steps": [
+    {
+      "name": "preinfusion",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "98.0",
+      "sensor": "coffee",
+      "seconds": "4.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "4.0",
+      "pressure": "0.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "preinfusion",
+      "pump": "flow",
+      "transition": "smooth",
+      "temperature": "95.0",
+      "sensor": "coffee",
+      "seconds": "8.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "1.0",
+      "pressure": "0.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "preinfusion",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "92.0",
+      "sensor": "coffee",
+      "seconds": "10.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "1.0",
+      "pressure": "0.0",
+      "exit": {
+        "type": "pressure",
+        "condition": "over",
+        "value": "0.3"
+      },
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "0.1 mL/s bloom",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "88.0",
+      "sensor": "coffee",
+      "seconds": "90.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "0.1",
+      "pressure": "0.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "ramp",
+      "pump": "flow",
+      "transition": "smooth",
+      "temperature": "87.0",
+      "sensor": "coffee",
+      "seconds": "10.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "3.0",
+      "pressure": "0.0",
+      "limiter": {
+        "value": "0.8",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "3 mL/s",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "84.0",
+      "sensor": "coffee",
+      "seconds": "60.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "3.0",
+      "pressure": "0.0",
+      "limiter": {
+        "value": "0.8",
+        "range": "0.6"
+      }
+    }
+  ],
+  "tank_temperature": "0.0",
+  "target_weight": "100.0",
+  "target_volume": "0.0",
+  "target_volume_count_start": "0",
+  "type": "advanced",
+  "hidden": "0"
+}

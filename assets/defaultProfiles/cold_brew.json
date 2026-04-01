@@ -1,0 +1,111 @@
+{
+  "version": "2",
+  "title": "Pour over basket/Cold brew 22g in, 375ml out",
+  "author": "Decent",
+  "notes": "Brewing with cold water substantially slows the flow rate of liquid through the coffee bed and often leads to choking. We set the flow rate very low for our cold brew recipe in order to provide steady flow, mitigate choking, and promote an even extraction. We recommend grinding a little coarser for cold brew than for hot-water brewing. Expect cold-brew extraction levels to be a couple of points lower than hot-water extractions.  We recommend giving the brewer a gentle spin after prewetting and after the last pulse of water has sprayed.",
+  "beverage_type": "pourover",
+  "steps": [
+    {
+      "name": "preinfusion",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "20.0",
+      "sensor": "coffee",
+      "seconds": "14.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "6.0",
+      "pressure": "0.0"
+    },
+    {
+      "name": "bloom*",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "20.0",
+      "sensor": "coffee",
+      "seconds": "30.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "pressure": "0.0",
+      "flow": "0.0"
+    },
+    {
+      "name": "pulse",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "20.0",
+      "sensor": "coffee",
+      "seconds": "60.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "2.5",
+      "pressure": "6.0"
+    },
+    {
+      "name": "pause",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "20.0",
+      "sensor": "coffee",
+      "seconds": "30.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "pressure": "0.0",
+      "flow": "0.0"
+    },
+    {
+      "name": "pulse",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "20.0",
+      "sensor": "coffee",
+      "seconds": "60.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "2.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "pause",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "20.0",
+      "sensor": "coffee",
+      "seconds": "30.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "pressure": "0.0",
+      "flow": "0.0"
+    },
+    {
+      "name": "pulse",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "20.0",
+      "sensor": "coffee",
+      "seconds": "52.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "2.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "pulse*",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "20.0",
+      "sensor": "coffee",
+      "seconds": "2.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "0.1",
+      "pressure": "6.0"
+    }
+  ],
+  "tank_temperature": "0.0",
+  "target_weight": "0.0",
+  "target_volume": "0.0",
+  "target_volume_count_start": "0",
+  "type": "advanced",
+  "hidden": "0"
+}

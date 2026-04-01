@@ -1,0 +1,68 @@
+{
+  "version": "2",
+  "title": "Damian's Q",
+  "author": "Decent",
+  "notes": "A very popular profile made with D-Flow, spun out as its own profile.  Optimized for medium-light beans. By Damian Brakel",
+  "beverage_type": "espresso",
+  "steps": [
+    {
+      "name": "Filling",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "84.0",
+      "sensor": "coffee",
+      "seconds": "25.0",
+      "volume": "60.0",
+      "weight": "0.0",
+      "pressure": "6.0",
+      "flow": "8.0",
+      "exit": {
+        "type": "pressure",
+        "condition": "over",
+        "value": "3.0"
+      },
+      "limiter": {
+        "value": "0.0",
+        "range": "0.2"
+      }
+    },
+    {
+      "name": "Infusing",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "94.0",
+      "sensor": "coffee",
+      "seconds": "1.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "pressure": "6.0",
+      "flow": "8.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.2"
+      }
+    },
+    {
+      "name": "Pouring",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "94.0",
+      "sensor": "coffee",
+      "seconds": "127.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "flow": "1.8",
+      "pressure": "4.8",
+      "limiter": {
+        "value": "10.0",
+        "range": "0.2"
+      }
+    }
+  ],
+  "tank_temperature": "0.0",
+  "target_weight": "36.0",
+  "target_volume": "0.0",
+  "target_volume_count_start": "2",
+  "type": "advanced",
+  "hidden": "0"
+}

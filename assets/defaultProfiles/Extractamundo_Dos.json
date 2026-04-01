@@ -1,0 +1,94 @@
+{
+  "version": "2",
+  "title": "Extractamundo Dos!",
+  "author": "Decent",
+  "notes": "Dynamic bloom into pressure extraction. Based on the 'easy blooming' profile structure from Luca and Stephane and modified to primarily target high extraction grinders at high flow rates, typically ending around 2.5-4ml/s. Dial with ratio once grind is giving an ending flowrate in the range. Includes a significant temperature drop that reduces harshness (although the actual temperature drop is much less than programmed). Improves upon TurboBloom by using a flow-based pressure drop instead of a programmed pressure drop. By Joe D.",
+  "beverage_type": "espresso",
+  "steps": [
+    {
+      "name": "preinfusion start",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "83.5",
+      "sensor": "coffee",
+      "seconds": "2.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "pressure": "8.0",
+      "flow": "8.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "1.0"
+      }
+    },
+    {
+      "name": "preinfusion",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "83.5",
+      "sensor": "coffee",
+      "seconds": "20.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "pressure": "8.0",
+      "flow": "8.0",
+      "exit": {
+        "type": "pressure",
+        "condition": "over",
+        "value": "4.5"
+      },
+      "limiter": {
+        "value": "0.0",
+        "range": "1.0"
+      }
+    },
+    {
+      "name": "dynamic bloom",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "67.5",
+      "sensor": "coffee",
+      "seconds": "40.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "6.0",
+      "exit": {
+        "type": "pressure",
+        "condition": "under",
+        "value": "2.2"
+      },
+      "limiter": {
+        "value": "0.0",
+        "range": "1.0"
+      }
+    },
+    {
+      "name": "6 bar",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "74.5",
+      "sensor": "coffee",
+      "seconds": "60.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "pressure": "6.0000000000000036",
+      "flow": "2.2",
+      "exit": {
+        "type": "flow",
+        "condition": "under",
+        "value": "0.0"
+      },
+      "limiter": {
+        "value": "1.0",
+        "range": "3.0"
+      }
+    }
+  ],
+  "tank_temperature": "0.0",
+  "target_weight": "40.0",
+  "target_volume": "0.0",
+  "target_volume_count_start": "2",
+  "type": "advanced",
+  "hidden": "0"
+}

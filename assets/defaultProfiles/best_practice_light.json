@@ -1,0 +1,110 @@
+{
+  "version": "2",
+  "title": "Best practice (light roast)",
+  "author": "Decent",
+  "notes": "This profile aims to unite the best practices in espresso extraction that we have learned so far with the Decent. It unites Brakel's Londonium, Rao's Blooming and Gagn\u00e9's Adaptive profiles. Your grind should be coarser for light roasts, aiming for a flow rate around 2.5 ml/s at peak pressure. 18g in, 50g out, in 60 seconds is a typical recipe.   Grind fine enough to keep dripping during preinfusion to around 8g.",
+  "beverage_type": "espresso",
+  "steps": [
+    {
+      "name": "Preinfusion fill",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "92.0",
+      "sensor": "coffee",
+      "seconds": "12.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "pressure": "3.0",
+      "flow": "6.8",
+      "exit": {
+        "type": "pressure",
+        "condition": "over",
+        "value": "3.0"
+      },
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "Preinfusion fill end",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "92.0",
+      "sensor": "coffee",
+      "seconds": "12.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "pressure": "3.0",
+      "flow": "6.8",
+      "exit": {
+        "type": "flow",
+        "condition": "under",
+        "value": "1.0"
+      },
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "Preinfusion dripping",
+      "pump": "pressure",
+      "transition": "smooth",
+      "temperature": "90.0",
+      "sensor": "coffee",
+      "seconds": "13.0",
+      "volume": "12.0",
+      "weight": "0.0",
+      "pressure": "1.5",
+      "flow": "6.8",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "Pressurize",
+      "pump": "pressure",
+      "transition": "smooth",
+      "temperature": "90.0",
+      "sensor": "coffee",
+      "seconds": "6.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "pressure": "10.5",
+      "flow": "0.0",
+      "exit": {
+        "type": "pressure",
+        "condition": "over",
+        "value": "8.0"
+      },
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "Extraction",
+      "pump": "flow",
+      "transition": "smooth",
+      "temperature": "90.0",
+      "sensor": "coffee",
+      "seconds": "30.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "flow": "3.4",
+      "pressure": "3.0",
+      "limiter": {
+        "value": "9.5",
+        "range": "0.6"
+      }
+    }
+  ],
+  "tank_temperature": "0.0",
+  "target_weight": "36.0",
+  "target_volume": "36.0",
+  "target_volume_count_start": "2",
+  "type": "advanced",
+  "hidden": "0"
+}

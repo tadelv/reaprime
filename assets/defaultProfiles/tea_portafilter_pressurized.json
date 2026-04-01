@@ -1,0 +1,104 @@
+{
+  "version": "2",
+  "title": "Tea portafilter/Pressurized tea",
+  "author": "Decent",
+  "notes": "This profile requires a specially designed tea portafilter that opens its valve at pressures of 3 bar or above.  Put a tea bag or loose leaf tea into the basket.  Makes about 230ml of tea in 3 minutes.  The 2 bar of pressure extract a stronger brew, with different flavors.  You can up the pressure during the infusion steps, if you tighten the screw on your tea portafilter.",
+  "beverage_type": "pourover",
+  "steps": [
+    {
+      "name": "Fill",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "coffee",
+      "seconds": "20.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "10.0",
+      "pressure": "1.0",
+      "exit": {
+        "type": "pressure",
+        "condition": "over",
+        "value": "2.0"
+      }
+    },
+    {
+      "name": "Infuse",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "105.0",
+      "sensor": "coffee",
+      "seconds": "30.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "pressure": "2.0",
+      "flow": "4.0"
+    },
+    {
+      "name": "Flush",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "105.0",
+      "sensor": "coffee",
+      "seconds": "12.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "10.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "Infuse",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "105.0",
+      "sensor": "coffee",
+      "seconds": "40.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "pressure": "2.0",
+      "flow": "4.0"
+    },
+    {
+      "name": "Flush",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "105.0",
+      "sensor": "coffee",
+      "seconds": "12.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "10.0",
+      "pressure": "0.5"
+    },
+    {
+      "name": "Infuse",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "105.0",
+      "sensor": "coffee",
+      "seconds": "40.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "pressure": "2.0",
+      "flow": "6.0"
+    },
+    {
+      "name": "Flush",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "105.0",
+      "sensor": "coffee",
+      "seconds": "22.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "11.0",
+      "pressure": "0.5"
+    }
+  ],
+  "tank_temperature": "0.0",
+  "target_weight": "0.0",
+  "target_volume": "0.0",
+  "target_volume_count_start": "1",
+  "type": "advanced",
+  "hidden": "0"
+}

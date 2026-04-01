@@ -1,0 +1,111 @@
+{
+  "version": "2",
+  "title": "Damian's LM Leva",
+  "author": "Decent",
+  "notes": "Damian wrote this profile to mimic a shot Gabor Laczko recorded on a La Marzocco Leva machine using his Smart Espresso Profiler. He feels that this is a great profile for non milk drinks, it highlights flavours in a smooth balanced way, with a more creamy body than the thicker chocolatey body of the LRv2 profile. By Damian Brakel",
+  "beverage_type": "espresso",
+  "steps": [
+    {
+      "name": "fill start",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "89.0",
+      "sensor": "coffee",
+      "seconds": "2.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "pressure": "1.8",
+      "flow": "11.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "fill",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "89.0",
+      "sensor": "coffee",
+      "seconds": "20.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "pressure": "1.8",
+      "flow": "11.0",
+      "exit": {
+        "type": "pressure",
+        "condition": "over",
+        "value": "1.0"
+      }
+    },
+    {
+      "name": "preinfusion",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "88.5",
+      "sensor": "coffee",
+      "seconds": "10.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "pressure": "2.2",
+      "flow": "1.5",
+      "exit": {
+        "type": "pressure",
+        "condition": "over",
+        "value": "4.0"
+      }
+    },
+    {
+      "name": "rise",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "88.0",
+      "sensor": "coffee",
+      "seconds": "5.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "pressure": "8.0",
+      "flow": "0.0",
+      "exit": {
+        "type": "pressure",
+        "condition": "over",
+        "value": "8.0"
+      }
+    },
+    {
+      "name": "hold",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "88.0",
+      "sensor": "coffee",
+      "seconds": "5.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "pressure": "8.0",
+      "flow": "0.0",
+      "exit": {
+        "type": "flow",
+        "condition": "over",
+        "value": "1.5"
+      }
+    },
+    {
+      "name": "decline",
+      "pump": "pressure",
+      "transition": "smooth",
+      "temperature": "88.0",
+      "sensor": "coffee",
+      "seconds": "58.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "pressure": "2.2",
+      "flow": "0.0"
+    }
+  ],
+  "tank_temperature": "0.0",
+  "target_weight": "42.0",
+  "target_volume": "0.0",
+  "target_volume_count_start": "2",
+  "type": "advanced",
+  "hidden": "0"
+}

@@ -1,0 +1,80 @@
+{
+  "version": "2",
+  "title": "Classic Italian espresso",
+  "author": "Decent",
+  "notes": "This will imitate the espresso style of the majority of cafes around the world. It uses a short preinfusion with a flat 9 bar pressure profile.",
+  "beverage_type": "espresso",
+  "steps": [
+    {
+      "name": "preinfusion",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "98.0",
+      "sensor": "coffee",
+      "seconds": "25.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "flow": "4.0",
+      "pressure": "1.0",
+      "exit": {
+        "type": "pressure",
+        "condition": "over",
+        "value": "4.0"
+      }
+    },
+    {
+      "name": "pause",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "90.0",
+      "sensor": "coffee",
+      "seconds": "30.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "ramp",
+      "pump": "flow",
+      "transition": "smooth",
+      "temperature": "92.0",
+      "sensor": "coffee",
+      "seconds": "5.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "flow": "2.2",
+      "pressure": "4.0"
+    },
+    {
+      "name": "flat flow",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "92.0",
+      "sensor": "coffee",
+      "seconds": "20.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "flow": "2.2",
+      "pressure": "4.0"
+    },
+    {
+      "name": "reset temperature",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "98.0",
+      "sensor": "coffee",
+      "seconds": "1.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "4.0"
+    }
+  ],
+  "tank_temperature": "0.0",
+  "target_weight": "60.0",
+  "target_volume": "0.0",
+  "target_volume_count_start": "0",
+  "type": "advanced",
+  "hidden": "0"
+}

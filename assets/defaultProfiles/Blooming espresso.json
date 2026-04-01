@@ -1,0 +1,100 @@
+{
+  "version": "2",
+  "title": "Blooming Espresso",
+  "author": "Decent",
+  "notes": "This technique causes a furor when Rao first published it.  His extraction of 24% is 2% higher than what is usually attainable with only the very best grinders, yet Rao did it with an inexpensive home grinder.  This technique is especially appropriate for lightly roasted, complex and expensive coffee beans.  If you have a bluetooth scale, you can keep track of how much dripping into the cup there is before the ramp stage.  8 grams of total dripping, within 2 grams, seems to give the best tasting results. Try adusting your grind and dose to get that amount of dripping, and see if you like how it tastes.",
+  "beverage_type": "espresso",
+  "steps": [
+    {
+      "name": "preinfusion start",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "97.5",
+      "sensor": "coffee",
+      "seconds": "2.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "4.0",
+      "pressure": "1.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "preinfusion",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "97.5",
+      "sensor": "coffee",
+      "seconds": "23.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "4.0",
+      "pressure": "1.0",
+      "exit": {
+        "type": "pressure",
+        "condition": "over",
+        "value": "4.0"
+      }
+    },
+    {
+      "name": "pause",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "90.0",
+      "sensor": "coffee",
+      "seconds": "30.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "ramp",
+      "pump": "flow",
+      "transition": "smooth",
+      "temperature": "92.0",
+      "sensor": "coffee",
+      "seconds": "5.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "2.2",
+      "pressure": "4.0"
+    },
+    {
+      "name": "flat flow",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "92.0",
+      "sensor": "coffee",
+      "seconds": "20.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "2.2",
+      "pressure": "4.0",
+      "limiter": {
+        "value": "8.6",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "reset temperature",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "98.0",
+      "sensor": "coffee",
+      "seconds": "1.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "4.0"
+    }
+  ],
+  "tank_temperature": "0.0",
+  "target_weight": "60.0",
+  "target_volume": "0.0",
+  "target_volume_count_start": "2",
+  "type": "advanced",
+  "hidden": "0"
+}

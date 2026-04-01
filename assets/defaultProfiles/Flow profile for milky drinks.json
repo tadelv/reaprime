@@ -1,0 +1,56 @@
+{
+  "version": "2",
+  "title": "Flow profile for milky drinks",
+  "author": "Decent",
+  "notes": "John Buckman, the founder of Decent Espresso, finds that this flow profile produces the best espresso shots for milky drinks in the widest variety of circumstances. It is especially tolerant of not-yet-very-good barista technique.",
+  "beverage_type": "espresso",
+  "steps": [
+    {
+      "name": "preinfusion",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "84.0",
+      "sensor": "coffee",
+      "seconds": "10.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "flow": "6.0",
+      "pressure": "1.0",
+      "exit": {
+        "type": "pressure",
+        "condition": "over",
+        "value": "3.0"
+      }
+    },
+    {
+      "name": "rise and hold",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "81.0",
+      "sensor": "coffee",
+      "seconds": "8.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "pressure": "7.5",
+      "flow": "0.0"
+    },
+    {
+      "name": "decline",
+      "pump": "pressure",
+      "transition": "smooth",
+      "temperature": "78.0",
+      "sensor": "coffee",
+      "seconds": "30.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "pressure": "3.0",
+      "flow": "0.0"
+    }
+  ],
+  "tank_temperature": "0.0",
+  "target_weight": "42.0",
+  "target_volume": "0.0",
+  "target_volume_count_start": "0",
+  "type": "advanced",
+  "hidden": "0"
+}

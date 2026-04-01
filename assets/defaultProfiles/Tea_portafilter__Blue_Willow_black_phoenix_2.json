@@ -1,0 +1,68 @@
+{
+  "version": "2",
+  "title": "Tea portafilter/Oolong 2nd extraction",
+  "author": "Decent",
+  "notes": "This profile requires the Decent Espresso tea portafilter and is optimized for the tea named \"Black Phoenix Oolong\" from Blue Willow Tea https://www.bluewillowtea.com/ - This is an optional second extraction you can do with the same already-extracted leaves that you made a first extraction from. Taste wise, this profile created a 2oz/60ml cup that tastes similar to a single gongfu-style infusion made several minutes after the first. Chocolate notes dominate.  You can start this profile any time (up to five minutes) after running the first extraction.",
+  "beverage_type": "pourover",
+  "steps": [
+    {
+      "name": "Fill",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "93.5",
+      "sensor": "coffee",
+      "seconds": "20.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "4.0",
+      "pressure": "1.0",
+      "exit": {
+        "type": "pressure",
+        "condition": "over",
+        "value": "3.0"
+      },
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "Infuse",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "93.5",
+      "sensor": "coffee",
+      "seconds": "60.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "pressure": "0.1",
+      "flow": "4.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "Flush",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "93.5",
+      "sensor": "coffee",
+      "seconds": "8.0",
+      "volume": "85.0",
+      "weight": "0.0",
+      "flow": "11.0",
+      "pressure": "6.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    }
+  ],
+  "tank_temperature": "0.0",
+  "target_weight": "0.0",
+  "target_volume": "0.0",
+  "target_volume_count_start": "1",
+  "type": "advanced",
+  "hidden": "0"
+}

@@ -1,0 +1,81 @@
+{
+  "version": "2",
+  "title": "7g basket",
+  "author": "Decent",
+  "notes": "This profile is optimized for the 7g Decent Basket.  You should weigh 7g of beans and dose them into the center mini-basket at the bottom.  You'll need a small 36mm tamper.  The flow rate is slowed down to prevent disturbing the puck.  A lower pressure is used to compensate for the lower puck integrity.  Final shot weight should be 18 to 28 grams.",
+  "beverage_type": "espresso",
+  "steps": [
+    {
+      "name": "preinfusion",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "92.0",
+      "sensor": "coffee",
+      "seconds": "0.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "flow": "4.5",
+      "pressure": "1.0",
+      "exit": {
+        "type": "pressure",
+        "condition": "over",
+        "value": "4.0"
+      }
+    },
+    {
+      "name": "preinfusion",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "92.0",
+      "sensor": "coffee",
+      "seconds": "20.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "flow": "4.5",
+      "pressure": "1.0",
+      "exit": {
+        "type": "pressure",
+        "condition": "over",
+        "value": "4.0"
+      }
+    },
+    {
+      "name": "rise and hold",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "92.0",
+      "sensor": "coffee",
+      "seconds": "8.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "pressure": "9.0",
+      "flow": "0.0",
+      "limiter": {
+        "value": "8.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "decline",
+      "pump": "pressure",
+      "transition": "smooth",
+      "temperature": "92.0",
+      "sensor": "coffee",
+      "seconds": "27.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "pressure": "0.0",
+      "flow": "0.0",
+      "limiter": {
+        "value": "8.0",
+        "range": "0.6"
+      }
+    }
+  ],
+  "tank_temperature": "0.0",
+  "target_weight": "36.0",
+  "target_volume": "36.0",
+  "target_volume_count_start": "2",
+  "type": "advanced",
+  "hidden": "0"
+}

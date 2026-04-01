@@ -1,0 +1,271 @@
+{
+  "version": "2",
+  "title": "Tea/in a basket",
+  "author": "Decent",
+  "notes": "This profile makes an acceptable mug of tea using a regular portafilter espresso basket.  Place half a teaspoon of loose leaf tea, or a teabag, into a basket of any size.  Works best of teas that prefer high brewing temperatures, such as English Breakfast.  For better quality brews, use a tea portafilter, but this technique works well enough if you don't own that.",
+  "beverage_type": "pourover",
+  "steps": [
+    {
+      "name": "preinfusion boost",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "water",
+      "seconds": "4.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "4.0",
+      "pressure": "1.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "flow",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "water",
+      "seconds": "5.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "0.5",
+      "pressure": "0.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "hold",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "water",
+      "seconds": "10.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "0.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "flow",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "water",
+      "seconds": "12.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "3.0",
+      "pressure": "0.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "hold",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "water",
+      "seconds": "12.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "0.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "flow",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "water",
+      "seconds": "12.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "3.0",
+      "pressure": "0.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "hold",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "water",
+      "seconds": "12.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "0.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "flow",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "water",
+      "seconds": "12.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "3.0",
+      "pressure": "0.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "hold",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "water",
+      "seconds": "12.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "0.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "flow",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "water",
+      "seconds": "12.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "3.0",
+      "pressure": "0.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "hold",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "water",
+      "seconds": "12.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "0.1",
+      "pressure": "0.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "flow",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "water",
+      "seconds": "12.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "3.0",
+      "pressure": "0.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "hold",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "water",
+      "seconds": "10.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "0.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "flow",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "water",
+      "seconds": "10.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "3.0",
+      "pressure": "0.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "flow",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "water",
+      "seconds": "10.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "0.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "flow",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "water",
+      "seconds": "10.0",
+      "volume": "0.0",
+      "weight": "0.0",
+      "flow": "3.0",
+      "pressure": "0.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    }
+  ],
+  "tank_temperature": "0.0",
+  "target_weight": "0.0",
+  "target_volume": "295.0",
+  "target_volume_count_start": "0",
+  "type": "advanced",
+  "hidden": "0"
+}

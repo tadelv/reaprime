@@ -1,0 +1,87 @@
+{
+  "version": "2",
+  "title": "Preinfuse then 45ml of water",
+  "author": "Decent",
+  "notes": "Australian barista Matt Perger suggested this technique to us. The idea is to fully saturate your puck, and then squeeze the brewed coffee out using a calculated water volume.  This results in consistently brewed espresso without needing to use a scale.",
+  "beverage_type": "espresso",
+  "steps": [
+    {
+      "name": "Prewet",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "99.0",
+      "sensor": "water",
+      "seconds": "4.0",
+      "volume": "70.0",
+      "weight": "0.0",
+      "flow": "6.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "Pause",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "97.0",
+      "sensor": "water",
+      "seconds": "40.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "Main water #1",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "97.0",
+      "sensor": "water",
+      "seconds": "14.0",
+      "volume": "250.0",
+      "weight": "0.0",
+      "flow": "6.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "Pause",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "95.0",
+      "sensor": "water",
+      "seconds": "20.0",
+      "volume": "250.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "Main water #2",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "95.0",
+      "sensor": "water",
+      "seconds": "25.0",
+      "volume": "200.0",
+      "weight": "0.0",
+      "flow": "5.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "Drain",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "95.0",
+      "sensor": "water",
+      "seconds": "20.0",
+      "volume": "175.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "6.0"
+    }
+  ],
+  "tank_temperature": "0.0",
+  "target_weight": "0.0",
+  "target_volume": "0.0",
+  "target_volume_count_start": "0",
+  "type": "advanced",
+  "hidden": "0"
+}

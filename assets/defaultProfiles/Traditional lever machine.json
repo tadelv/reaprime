@@ -1,0 +1,87 @@
+{
+  "version": "2",
+  "title": "Traditional lever machine",
+  "author": "Decent",
+  "notes": "Lever espresso machines are why we refer to pulling an espresso.  You pull a spring-loaded lever by hand to create pressure on the coffee puck.  This 9 bar espresso is the most common type of classic lever espresso you'll have, and many fans consider lever shots to be the best espresso they've ever had.",
+  "beverage_type": "espresso",
+  "steps": [
+    {
+      "name": "Prewet",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "99.0",
+      "sensor": "water",
+      "seconds": "4.0",
+      "volume": "70.0",
+      "weight": "0.0",
+      "flow": "6.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "Pause",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "97.0",
+      "sensor": "water",
+      "seconds": "40.0",
+      "volume": "100.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "Main water #1",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "97.0",
+      "sensor": "water",
+      "seconds": "14.0",
+      "volume": "250.0",
+      "weight": "0.0",
+      "flow": "6.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "Pause",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "95.0",
+      "sensor": "water",
+      "seconds": "20.0",
+      "volume": "250.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "Main water #2",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "95.0",
+      "sensor": "water",
+      "seconds": "25.0",
+      "volume": "200.0",
+      "weight": "0.0",
+      "flow": "5.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "Drain",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "95.0",
+      "sensor": "water",
+      "seconds": "20.0",
+      "volume": "175.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "6.0"
+    }
+  ],
+  "tank_temperature": "0.0",
+  "target_weight": "135.0",
+  "target_volume": "180.0",
+  "target_volume_count_start": "0",
+  "type": "advanced",
+  "hidden": "0"
+}

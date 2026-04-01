@@ -1,0 +1,79 @@
+{
+  "version": "2",
+  "title": "Filter 2.0",
+  "author": "Decent",
+  "notes": "A new technique developed by Scott Rao, for making filter coffee with an espresso machine and 24g basket.  The process: (1) insert two micron 55mm paper filter into the bottom of a clean portafilter basket.  (2) Rinser the filter and basket with hot water.  (3) Fill the basket with 20g to 22g of finely ground coffee, not quite espresso grind, but far finer than any filter grind.  (4) WDT the grounds.  (5) tamping is optional.  (6) Place a metal mesh filter on top.  (7) Lock in the portafilter and make the espresso to a 5:1 ratio. (8) Dilute with 225g-250g of water.",
+  "beverage_type": "pourover",
+  "steps": [
+    {
+      "name": "preinfusion",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "92.0",
+      "sensor": "coffee",
+      "seconds": "6.0",
+      "volume": "465.0",
+      "weight": "0.0",
+      "flow": "5.0",
+      "pressure": "1.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "pause",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "85.0",
+      "sensor": "coffee",
+      "seconds": "120.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "6.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "flat flow",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "85.0",
+      "sensor": "coffee",
+      "seconds": "120.0",
+      "volume": "500.0",
+      "weight": "150.0",
+      "flow": "3.0",
+      "pressure": "4.0",
+      "limiter": {
+        "value": "3.0",
+        "range": "0.6"
+      }
+    },
+    {
+      "name": "reset temperature",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "92.0",
+      "sensor": "coffee",
+      "seconds": "1.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "0.0",
+      "pressure": "4.0",
+      "limiter": {
+        "value": "0.0",
+        "range": "0.6"
+      }
+    }
+  ],
+  "tank_temperature": "0.0",
+  "target_weight": "100.0",
+  "target_volume": "100.0",
+  "target_volume_count_start": "1",
+  "type": "advanced",
+  "hidden": "0"
+}

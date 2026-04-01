@@ -1,0 +1,111 @@
+{
+  "version": "2",
+  "title": "Pour over basket/V60 22g in, 375g out",
+  "author": "Decent",
+  "notes": "We use the highest flow rate for V60 brewing, to take advantage of the extraction evenness provided by high turbulence. If you get any choking in your V60 brews,  try coarsening the grind a little.  If brews still choke, consider using the Kalita recipe for some V60 brews, such as decafs and Ethiopians, as they are more prone to choking than other coffees are. We recommend giving the brewer a gentle spin after prewetting and after the last pulse of water has sprayed.",
+  "beverage_type": "pourover",
+  "steps": [
+    {
+      "name": "preinfusion",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "coffee",
+      "seconds": "11.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "8.0",
+      "pressure": "1.0"
+    },
+    {
+      "name": "bloom*",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "coffee",
+      "seconds": "30.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "pressure": "0.0",
+      "flow": "0.0"
+    },
+    {
+      "name": "pulse",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "coffee",
+      "seconds": "17.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "8.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "pause",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "coffee",
+      "seconds": "30.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "pressure": "0.0",
+      "flow": "0.0"
+    },
+    {
+      "name": "pulse",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "coffee",
+      "seconds": "16.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "8.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "pause",
+      "pump": "pressure",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "coffee",
+      "seconds": "35.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "pressure": "0.0",
+      "flow": "0.0"
+    },
+    {
+      "name": "pulse",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "coffee",
+      "seconds": "16.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "8.0",
+      "pressure": "6.0"
+    },
+    {
+      "name": "[ spin at end]*",
+      "pump": "flow",
+      "transition": "fast",
+      "temperature": "100.0",
+      "sensor": "coffee",
+      "seconds": "1.0",
+      "volume": "500.0",
+      "weight": "0.0",
+      "flow": "0.1",
+      "pressure": "6.0"
+    }
+  ],
+  "tank_temperature": "30.0",
+  "target_weight": "0.0",
+  "target_volume": "0.0",
+  "target_volume_count_start": "0",
+  "type": "advanced",
+  "hidden": "0"
+}
