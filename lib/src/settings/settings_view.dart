@@ -58,8 +58,10 @@ class SettingsView extends StatefulWidget {
 class _SettingsViewState extends State<SettingsView> {
   String? _selectedSkinId;
   static const String _customSkinId = '__custom__';
+  static const String _liveEditSkinId = '__live_edit__';
   final Logger _log = Logger("Settings");
   Future<PermissionStatus>? _storagePermissionFuture;
+  bool _storagePermissionGranted = false;
 
   @override
   void initState() {
@@ -462,6 +464,7 @@ class _SettingsViewState extends State<SettingsView> {
         final status = snapshot.data;
 
         if (status != null && status.isGranted) {
+          _storagePermissionGranted = true;
           return _SettingRow(
             label: 'Storage Access',
             child: Row(
@@ -692,7 +695,9 @@ class _SettingsViewState extends State<SettingsView> {
         setState(() => _selectedSkinId = value);
 
         if (value == _customSkinId) {
-          await _pickCustomSkinFolder(context);
+          await _pickCustomSkinZip(context);
+        } else if (value == _liveEditSkinId) {
+          await _pickLiveEditFolder(context);
         } else if (widget.webUIService.isServing) {
           await _restartServerWithSkin(value);
         }
@@ -771,9 +776,22 @@ class _SettingsViewState extends State<SettingsView> {
             value: _customSkinId,
             child: Row(
               children: [
+                Icon(Icons.archive_outlined, size: 16),
+                SizedBox(width: 8),
+                Text('Install from .zip...'),
+              ],
+            ),
+          ),
+        if (!BuildInfo.appStore &&
+            Platform.isAndroid &&
+            _storagePermissionGranted)
+          const DropdownMenuItem(
+            value: _liveEditSkinId,
+            child: Row(
+              children: [
                 Icon(Icons.folder_open, size: 16),
                 SizedBox(width: 8),
-                Text('Load custom folder...'),
+                Text('Live-edit from folder...'),
               ],
             ),
           ),
@@ -829,7 +847,12 @@ class _SettingsViewState extends State<SettingsView> {
     }
 
     if (_selectedSkinId == _customSkinId) {
-      await _pickCustomSkinFolder(context);
+      await _pickCustomSkinZip(context);
+      return;
+    }
+
+    if (_selectedSkinId == _liveEditSkinId) {
+      await _pickLiveEditFolder(context);
       return;
     }
 
@@ -865,7 +888,63 @@ class _SettingsViewState extends State<SettingsView> {
     }
   }
 
-  Future<void> _pickCustomSkinFolder(BuildContext context) async {
+  Future<void> _pickCustomSkinZip(BuildContext context) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['zip'],
+    );
+
+    if (result == null || result.files.isEmpty) {
+      setState(() => _selectedSkinId = widget.webUIStorage.defaultSkin?.id);
+      return;
+    }
+
+    final filePath = result.files.single.path;
+    if (filePath == null) {
+      setState(() => _selectedSkinId = widget.webUIStorage.defaultSkin?.id);
+      return;
+    }
+
+    try {
+      final skinId = await widget.webUIStorage.installFromPath(filePath);
+      final skin = widget.webUIStorage.getSkin(skinId);
+      if (skin == null) {
+        throw Exception('Installed skin not found: $skinId');
+      }
+      await widget.webUIService.serveFolderAtPath(skin.path);
+      await widget.webUIStorage.setDefaultSkin(skinId);
+      setState(() => _selectedSkinId = skinId);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Expanded(
+                  child: Text('Custom skin installed and loaded'),
+                ),
+                ShadButton.outline(
+                  onPressed: () async {
+                    await launchUrl(Uri.parse('http://localhost:3000'));
+                  },
+                  child: const Text("Open"),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to install skin: $e')),
+        );
+      }
+      setState(() => _selectedSkinId = widget.webUIStorage.defaultSkin?.id);
+    }
+  }
+
+  Future<void> _pickLiveEditFolder(BuildContext context) async {
     final selectedDirectory = await FilePicker.platform.getDirectoryPath();
 
     if (selectedDirectory != null) {
@@ -873,46 +952,28 @@ class _SettingsViewState extends State<SettingsView> {
       final itExists = await indexFile.exists();
 
       if (itExists) {
-        try {
-          final skinId =
-              await widget.webUIStorage.installFromPath(selectedDirectory);
-          final skin = widget.webUIStorage.getSkin(skinId);
-          if (skin == null) {
-            throw Exception('Installed skin not found: $skinId');
-          }
-          await widget.webUIService.serveFolderAtPath(skin.path);
-          await widget.webUIStorage.setDefaultSkin(skinId);
-          setState(() => _selectedSkinId = skinId);
+        await widget.webUIService.serveFolderAtPath(selectedDirectory);
+        setState(() {});
 
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Row(
-                  children: [
-                    const Expanded(
-                      child: Text('Custom skin installed and loaded'),
-                    ),
-                    ShadButton.outline(
-                      onPressed: () async {
-                        await launchUrl(Uri.parse('http://localhost:3000'));
-                      },
-                      child: const Text("Open"),
-                    ),
-                  ],
-                ),
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Expanded(
+                    child:
+                        Text('Live-editing from $selectedDirectory'),
+                  ),
+                  ShadButton.outline(
+                    onPressed: () async {
+                      await launchUrl(Uri.parse('http://localhost:3000'));
+                    },
+                    child: const Text("Open"),
+                  ),
+                ],
               ),
-            );
-          }
-        } catch (e) {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Failed to install skin: $e'),
-              ),
-            );
-          }
-          setState(
-              () => _selectedSkinId = widget.webUIStorage.defaultSkin?.id);
+            ),
+          );
         }
       } else {
         if (context.mounted) {
