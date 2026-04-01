@@ -22,7 +22,11 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
 
   // StreamSubscription<UsbEvent>? _usbSerialSubscription;
   List<Device> _devices = [];
-  
+
+  // Maps port path (e.g. /dev/cu.usbmodem123) to device ID (e.g. 5B1F0919231)
+  // so we can deduplicate across rescans.
+  final Map<String, String> _portPathToDeviceId = {};
+
   // Guard against concurrent scans
   bool _isScanning = false;
   Future<void>? _currentScan;
@@ -76,11 +80,13 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
         connected.add(d);
       }
     }
-    final connectedIds = connected.map((e) => e.deviceId).toSet();
+    // Clean up port-path map: remove entries for devices that disconnected
+    _portPathToDeviceId.removeWhere((portPath, deviceId) =>
+        !connected.any((d) => d.deviceId == deviceId));
 
     // Pre-filter ports: skip already-connected, Bluetooth, and non-USB ports
     final scanPorts = ports.where((p) {
-      if (connectedIds.contains(p)) return false;
+      if (_portPathToDeviceId.containsKey(p)) return false;
       final port = SerialPort(p);
       final transport = port.transport.toTransport();
       final name = port.name ?? '';
@@ -106,7 +112,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     _log.info("Scanning ${scanPorts.length} USB serial ports: $scanPorts");
 
     // Scan ports in parallel instead of sequentially
-    final results = await Future.wait(
+    final rawResults = await Future.wait(
       scanPorts.map((portId) async {
         try {
           return await _detectDevice(portId);
@@ -116,7 +122,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
         }
       }),
     );
-    results.addAll(connected);
+    final results = <Device?>[...rawResults, ...connected];
 
     _devices = results.whereType<Device>().toList();
     _machineSubject.add(_devices);
@@ -134,12 +140,16 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     final transport = _DesktopSerialPort(port: port);
     // De1 shortcut
     if (port.productName == "DE1") {
-      return UnifiedDe1(transport: transport);
+      final device = UnifiedDe1(transport: transport);
+      _portPathToDeviceId[id] = device.deviceId;
+      return device;
     }
 
     // Half Decent Scale shortcut
     if (port.productName == "Half Decent Scale") {
-      return HDSSerial(transport: transport);
+      final device = HDSSerial(transport: transport);
+      _portPathToDeviceId[id] = device.deviceId;
+      return device;
     }
 
     final rawData = <Uint8List>[];
@@ -177,13 +187,19 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
         throw ('no data collected');
       }
       if (strings.any((s) => s.startsWith('R '))) {
-        return DebugPort(transport: transport);
+        final device = DebugPort(transport: transport);
+        _portPathToDeviceId[id] = device.deviceId;
+        return device;
       } else if (isDecentScale(strings, rawData)) {
         _log.info("Detected: Decent Scale");
-        return HDSSerial(transport: transport);
+        final device = HDSSerial(transport: transport);
+        _portPathToDeviceId[id] = device.deviceId;
+        return device;
       } else if (isSensorBasket(strings)) {
         _log.info("Detected: Sensor Basket");
-        return SensorBasket(transport: transport);
+        final device = SensorBasket(transport: transport);
+        _portPathToDeviceId[id] = device.deviceId;
+        return device;
       } else {
         // Detect DE1 by sending state commands and checking for valid responses
         final messages = <String>[];
@@ -204,7 +220,9 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
 
         if (isDE1(messages.join().split('\n'), combined)) {
           _log.info("Detected: DE1 Machine");
-          return UnifiedDe1(transport: transport);
+          final device = UnifiedDe1(transport: transport);
+          _portPathToDeviceId[id] = device.deviceId;
+          return device;
         }
       }
 
