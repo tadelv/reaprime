@@ -105,6 +105,15 @@ for ((i=0; i<COUNT; i++)); do
   esac
 done
 
+# Strip node_modules from skin zips (native binaries break macOS notarization)
+for ZIP in "$OUTPUT_DIR"/*.zip; do
+  [ -f "$ZIP" ] || continue
+  if zipinfo -1 "$ZIP" 2>/dev/null | grep -q node_modules; then
+    echo "Stripping node_modules from $(basename "$ZIP")"
+    zip -qd "$ZIP" "*/node_modules/*"
+  fi
+done
+
 # Generate manifest
 echo "[" > "$OUTPUT_DIR/manifest.json"
 FIRST=true
