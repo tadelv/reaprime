@@ -342,23 +342,30 @@ class _DesktopSerialPort implements SerialTransport {
   }
 
   Future<void> _write(Uint8List command) async {
-    // Write all bytes, handling short writes by looping.
-    // timeout: 0 = blocking write (waits until bytes are accepted by OS).
-    int offset = 0;
-    while (offset < command.length) {
-      final chunk = offset == 0 ? command : Uint8List.sublistView(command, offset);
-      final written = await _port.write(chunk, timeout: 0);
-      if (written < 0) {
-        throw StateError('Serial write failed: ${SerialPort.lastError}');
+    try {
+      // Write all bytes, handling short writes by looping.
+      // timeout: 0 = blocking write (waits until bytes are accepted by OS).
+      int offset = 0;
+      while (offset < command.length) {
+        final chunk =
+            offset == 0 ? command : Uint8List.sublistView(command, offset);
+        final written = await _port.write(chunk, timeout: 0);
+        if (written < 0) {
+          throw StateError('Serial write failed: ${SerialPort.lastError}');
+        }
+        offset += written;
       }
-      offset += written;
-    }
-    _port.drain();
-    _log.fine("wrote: ${command.map((e) => e.toRadixString(16))}");
-    if (Platform.isLinux || Platform.isMacOS) {
-      await Future.delayed(Duration(milliseconds: 20), () {
-        _log.finest("delaying next write");
-      });
+      _port.drain();
+      _log.fine("wrote: ${command.map((e) => e.toRadixString(16))}");
+      if (Platform.isLinux || Platform.isMacOS) {
+        await Future.delayed(Duration(milliseconds: 20), () {
+          _log.finest("delaying next write");
+        });
+      }
+    } catch (e) {
+      _log.warning("Serial write error, disconnecting", e);
+      await disconnect();
+      rethrow;
     }
   }
 }
