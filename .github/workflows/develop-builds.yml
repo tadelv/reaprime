@@ -394,40 +394,7 @@ jobs:
         env:
           FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
-      - name: Upload to TestFlight
-        env:
-          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
-          API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
-        run: |
-          # Write the API key to the expected location
-          mkdir -p ~/.private_keys
-          echo "$API_KEY_P8" | base64 --decode > ~/.private_keys/AuthKey_${API_KEY_ID}.p8
-
-          # Find the built IPA
-          IPA_PATH=$(find build/ios/ipa -name "*.ipa" | head -1)
-
-          if [ -z "$IPA_PATH" ]; then
-            echo "Error: No IPA found in build/ios/ipa/"
-            exit 1
-          fi
-
-          echo "Validating $IPA_PATH..."
-          xcrun altool --validate-app \
-            --type ios \
-            --file "$IPA_PATH" \
-            --apiKey "$API_KEY_ID" \
-            --apiIssuer "$API_ISSUER_ID"
-
-          echo "Uploading $IPA_PATH to TestFlight..."
-          xcrun altool --upload-app \
-            --type ios \
-            --file "$IPA_PATH" \
-            --apiKey "$API_KEY_ID" \
-            --apiIssuer "$API_ISSUER_ID"
-
-          # Clean up API key
-          rm -f ~/.private_keys/AuthKey_${API_KEY_ID}.p8
+      # TestFlight upload is only done in release builds (release.yml)
 
   build-windows:
     runs-on: windows-latest
