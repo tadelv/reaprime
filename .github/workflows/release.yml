@@ -144,6 +144,16 @@ jobs:
           # Clean up
           rm certificate.p12
 
+      # ---- Pre-build cleanup ----
+      - name: Strip node_modules from bundled skin zips
+        run: |
+          for zip in assets/bundled_skins/*.zip; do
+            if zipinfo -1 "$zip" | grep -q node_modules; then
+              echo "Stripping node_modules from $(basename "$zip")"
+              zip -d "$zip" "*/node_modules/*"
+            fi
+          done
+
       # ---- Build ----
       - name: Build macOS app
         run: ./flutter_with_commit.sh build macos --release
