@@ -62,8 +62,19 @@ class ProfileController {
           // Check if this profile already exists (by hash)
           final existing = await _storage.get(record.id);
           if (existing != null) {
+            // Ensure isDefault is set and profile is visible — a user may have
+            // imported this profile before it became a bundled default.
+            if (!existing.isDefault || existing.visibility != Visibility.visible) {
+              final updated = existing.copyWith(
+                isDefault: true,
+                visibility: Visibility.visible,
+              );
+              await _storage.update(updated);
+              _log.fine('Promoted existing profile to default: ${record.id} (${profile.title})');
+            } else {
+              _log.fine('Skipped existing default profile: ${record.id} (${profile.title})');
+            }
             skipped++;
-            _log.fine('Skipped existing default profile: ${record.id} (${profile.title})');
             continue;
           }
 
