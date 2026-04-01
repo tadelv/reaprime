@@ -538,11 +538,49 @@ class ConnectionManager {
     );
 
     _scanReportSubject.add(report);
-    _log.fine(
-      'ScanReport: ${matchedDevices.length} matched, '
-      'duration=${scanDuration.inMilliseconds}ms, '
-      'reason=$terminationReason',
-    );
+    _log.info(_formatScanReport(report));
+  }
+
+  String _formatScanReport(ScanReport report) {
+    final buf = StringBuffer('Scan report: ');
+    buf.write('${report.matchedDevices.length} devices matched, ');
+    buf.write('duration=${report.scanDuration.inMilliseconds}ms, ');
+    buf.write('termination=${report.scanTerminationReason.name}');
+
+    if (report.preferredMachineId != null) {
+      final found = report.matchedDevices
+          .any((d) => d.deviceId == report.preferredMachineId);
+      buf.write(
+        ', preferred machine ${report.preferredMachineId} '
+        '${found ? "found" : "NOT found"}',
+      );
+    }
+    if (report.preferredScaleId != null) {
+      final found = report.matchedDevices
+          .any((d) => d.deviceId == report.preferredScaleId);
+      buf.write(
+        ', preferred scale ${report.preferredScaleId} '
+        '${found ? "found" : "NOT found"}',
+      );
+    }
+
+    for (final d in report.matchedDevices) {
+      buf.write('\n  ${d.deviceName} (${d.deviceId}, ${d.deviceType.name})');
+      if (d.connectionAttempted) {
+        final result = d.connectionResult;
+        if (result == null) {
+          buf.write(' — connection attempted, no result');
+        } else if (result.success) {
+          buf.write(' — connected');
+        } else if (result.error != null) {
+          buf.write(' — connection failed: ${result.error}');
+        } else {
+          buf.write(' — skipped');
+        }
+      }
+    }
+
+    return buf.toString();
   }
 
   Future<void> disconnectMachine() async {
