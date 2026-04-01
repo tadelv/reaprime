@@ -696,10 +696,9 @@ class _SettingsViewState extends State<SettingsView> {
                         if (_selectedSkinId == skin.id) {
                           _selectedSkinId =
                               widget.webUIStorage.defaultSkin?.id;
-                        }
-
-                        if (widget.webUIService.isServing) {
-                          await widget.webUIService.stopServing();
+                          if (widget.webUIService.isServing) {
+                            await widget.webUIService.stopServing();
+                          }
                         }
 
                         setState(() {});
