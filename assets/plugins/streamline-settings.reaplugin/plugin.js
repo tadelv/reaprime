@@ -2227,7 +2227,7 @@ ${buildSourceBootstrapScript(browserBootstrapData)}
       });
     }
     return {
-      id: "Streamline-settings.reaplugin",
+      id: "streamline-settings.reaplugin",
       version: "0.1.0",
       onLoad(settings) {
         log(`Loaded with refresh interval: ${(settings == null ? void 0 : settings.RefreshInterval) ?? DEFAULT_REFRESH_INTERVAL}s`);
