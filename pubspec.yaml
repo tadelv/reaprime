@@ -120,6 +120,7 @@ flutter:
     - assets/plugins/time-to-ready.reaplugin/
     - assets/plugins/visualizer.reaplugin/
     - assets/plugins/settings.reaplugin/
+    - assets/plugins/streamline-settings.reaplugin/
     - assets/plugins/dye2.reaplugin/
     - assets/defaultProfiles/
     - assets/bundled_skins/

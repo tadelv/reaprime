@@ -395,6 +395,7 @@ class PluginLoaderService {
       'assets/plugins/visualizer.reaplugin',
       'assets/plugins/settings.reaplugin',
       'assets/plugins/dye2.reaplugin',
+      'assets/plugins/streamline-settings.reaplugin',
       // Add more bundled plugins here as they are added to the app
     ];
   }
