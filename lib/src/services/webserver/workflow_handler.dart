@@ -17,7 +17,7 @@ class WorkflowHandler {
   Map<String, dynamic> _pendingMerge = {};
   final List<Completer<Response>> _pendingResponses = [];
 
-  static const _debounceDuration = Duration(milliseconds: 300);
+  static const _debounceDuration = Duration(milliseconds: 400);
 
   WorkflowHandler({
     required WorkflowController controller,
