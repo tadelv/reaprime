@@ -55,7 +55,8 @@ class SettingsView extends StatefulWidget {
   State<SettingsView> createState() => _SettingsViewState();
 }
 
-class _SettingsViewState extends State<SettingsView> {
+class _SettingsViewState extends State<SettingsView>
+    with WidgetsBindingObserver {
   String? _selectedSkinId;
   static const String _customSkinId = '__custom__';
   static const String _liveEditSkinId = '__live_edit__';
@@ -65,8 +66,22 @@ class _SettingsViewState extends State<SettingsView> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _selectedSkinId = widget.webUIStorage.defaultSkin?.id;
     _checkStoragePermission();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkStoragePermission();
+    }
   }
 
   Future<void> _checkStoragePermission() async {
