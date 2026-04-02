@@ -808,9 +808,12 @@ class _SettingsViewState extends State<SettingsView>
             ),
           ),
         if (!BuildInfo.appStore &&
-            Platform.isAndroid &&
-            (_storagePermissionGranted ||
-                _selectedSkinId == _liveEditSkinId))
+            (Platform.isMacOS ||
+                Platform.isLinux ||
+                Platform.isWindows ||
+                (Platform.isAndroid &&
+                    (_storagePermissionGranted ||
+                        _selectedSkinId == _liveEditSkinId))))
           const DropdownMenuItem(
             value: _liveEditSkinId,
             child: Row(
