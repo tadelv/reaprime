@@ -54,9 +54,12 @@ class QuickSettingsWidget extends StatefulWidget {
                 // width: 220,
                 child: PrettyQrView.data(
                   data: 'http://$deviceIp:3000',
-                  decoration: const PrettyQrDecoration(
+                  decoration: PrettyQrDecoration(
                     quietZone: PrettyQrQuietZone.standard,
-                    shape: PrettyQrSquaresSymbol(unifiedFinderPattern: true),
+                    shape: PrettyQrSquaresSymbol(
+                      unifiedFinderPattern: true,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                     // shape: PrettyQrShape.custom(
                     //   PrettyQrSquaresSymbol(),
                     //   finderPattern: PrettyQrSmoothSymbol(),
