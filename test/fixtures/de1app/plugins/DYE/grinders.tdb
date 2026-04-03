@@ -1,0 +1,3 @@
+Niche\ Zero {setting_type numeric small_step 1 big_step 5 burrs {63mm conical}}
+Eureka\ Mignon {setting_type numeric small_step 0.5 big_step 2 burrs {55mm flat}}
+EK43 {setting_type numeric small_step 0.5 big_step 3 burrs {98mm flat}}

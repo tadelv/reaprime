@@ -1,0 +1,29 @@
+{
+  "version": 2,
+  "clock": 1710510622,
+  "date": "Fri Mar 15 14:30:22 CET 2024",
+  "elapsed": [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0],
+  "pressure": {"pressure": [0.0, 1.2, 3.5, 6.1, 8.8, 9.0, 9.0, 8.9, 8.7], "goal": [0.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0]},
+  "flow": {"flow": [0.0, 0.5, 1.2, 2.1, 2.8, 3.0, 2.9, 2.8, 2.7], "by_weight": [0.0, 0.4, 1.0, 1.8, 2.5, 2.7, 2.6, 2.5, 2.4], "by_weight_raw": [0.0, 0.4, 1.0, 1.8, 2.5, 2.7, 2.6, 2.5, 2.4], "goal": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]},
+  "temperature": {"basket": [22.0, 45.0, 68.0, 82.0, 89.0, 92.0, 93.0, 93.0, 93.0], "mix": [22.0, 40.0, 60.0, 75.0, 85.0, 90.0, 92.0, 93.0, 93.0], "goal": [93.0, 93.0, 93.0, 93.0, 93.0, 93.0, 93.0, 93.0, 93.0]},
+  "totals": {"weight": [0.0, 0.1, 0.4, 1.0, 2.0, 3.5, 5.2, 7.1, 9.2], "water_dispensed": [0.0, 0.2, 0.5, 1.2, 2.2, 3.8, 5.8, 8.0, 10.5]},
+  "state_change": [0.0, 1.5],
+  "profile": {
+    "version": "2", "title": "Best Practice", "notes": "Recommended pressure profile", "author": "Decent", "beverage_type": "espresso",
+    "steps": [
+      {"name": "preinfusion", "pump": "pressure", "transition": "fast", "volume": 0, "seconds": 10, "temperature": 93.0, "sensor": "coffee", "pressure": 1.0},
+      {"name": "hold", "pump": "pressure", "transition": "smooth", "volume": 0, "seconds": 30, "temperature": 93.0, "sensor": "coffee", "pressure": 9.0, "exit": {"type": "flow", "condition": "over", "value": 3.0}}
+    ],
+    "target_volume": 0, "target_weight": 36.0, "target_volume_count_start": 0, "tank_temperature": 0
+  },
+  "meta": {
+    "bean": {"brand": "Banibeans", "type": "Ethiopia Yirgacheffe", "notes": "Fruity and floral", "roast_level": "Light", "roast_date": "2024-03-01"},
+    "shot": {"enjoyment": 75, "notes": "Good body, slight sourness", "tds": 8.5, "ey": 20.5},
+    "grinder": {"model": "Niche Zero", "setting": "15"},
+    "in": 18.0, "out": 36.0, "time": 28.5
+  },
+  "app": {
+    "app_name": "de1app", "app_version": "1.42.0",
+    "data": {"settings": {"grinder_dose_weight": "18.0", "drink_weight": "36.0", "bean_brand": "Banibeans", "bean_type": "Ethiopia Yirgacheffe", "roast_date": "2024-03-01", "roast_level": "Light", "grinder_model": "Niche Zero", "grinder_setting": "15", "drink_tds": "8.5", "drink_ey": "20.5", "espresso_enjoyment": "75", "espresso_notes": "Good body, slight sourness", "bean_notes": "Fruity and floral", "my_name": "Test User", "drinker_name": "Guest", "profile_title": "Best Practice", "beverage_type": "espresso"}}
+  }
+}
