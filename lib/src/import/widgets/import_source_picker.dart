@@ -2,7 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-/// Two card-style buttons for picking an import source, with an optional skip link.
+/// Two card-style options for picking an import source, with an optional skip link.
 class ImportSourcePicker extends StatelessWidget {
   final void Function(String folderPath) onDe1appFolderSelected;
   final void Function(String filePath) onZipFileSelected;
@@ -43,35 +43,51 @@ class ImportSourcePicker extends StatelessWidget {
     final theme = ShadTheme.of(context);
 
     return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 400),
-        child: Padding(
-          padding: const EdgeInsets.all(32),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(32),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 16,
             children: [
-              Text('Import Your Data', style: theme.textTheme.h3),
-              _SourceButton(
+              Text(
+                'Import Your Data',
+                style: theme.textTheme.h3,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Bring your data from the Decent app or restore a Bridge backup.',
+                style: theme.textTheme.muted,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              _SourceCard(
                 icon: LucideIcons.folder,
                 title: 'Import from Decent app',
                 subtitle: 'Select your de1plus folder',
                 onTap: () => _pickFolder(context),
               ),
-              _SourceButton(
+              const SizedBox(height: 12),
+              _SourceCard(
                 icon: LucideIcons.archiveRestore,
                 title: 'Import Bridge backup',
                 subtitle: 'Select a .zip backup file',
                 onTap: () => _pickZipFile(context),
               ),
-              if (onSkip != null)
+              if (onSkip != null) ...[
+                const SizedBox(height: 24),
                 Center(
-                  child: ShadButton.link(
+                  child: ShadButton.ghost(
                     onPressed: onSkip,
-                    child: const Text('Skip for now'),
+                    child: Text(
+                      'Skip for now',
+                      style: theme.textTheme.muted,
+                    ),
                   ),
                 ),
+              ],
             ],
           ),
         ),
@@ -80,13 +96,13 @@ class ImportSourcePicker extends StatelessWidget {
   }
 }
 
-class _SourceButton extends StatelessWidget {
+class _SourceCard extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
 
-  const _SourceButton({
+  const _SourceCard({
     required this.icon,
     required this.title,
     required this.subtitle,
@@ -97,23 +113,46 @@ class _SourceButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
 
-    return ShadButton.outline(
-      onPressed: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          spacing: 12,
-          children: [
-            Icon(icon, size: 20),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(title, style: theme.textTheme.p),
-                Text(subtitle, style: theme.textTheme.muted),
-              ],
-            ),
-          ],
+    return ShadCard(
+      padding: EdgeInsets.zero,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.muted,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: theme.colorScheme.mutedForeground,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: theme.textTheme.p),
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: theme.textTheme.muted),
+                  ],
+                ),
+              ),
+              Icon(
+                LucideIcons.chevronRight,
+                size: 16,
+                color: theme.colorScheme.mutedForeground,
+              ),
+            ],
+          ),
         ),
       ),
     );
