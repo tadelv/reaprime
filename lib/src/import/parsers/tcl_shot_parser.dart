@@ -39,9 +39,29 @@ class TclShotParser {
     final grinderModel = _str(settings['grinder_model']);
     final grinderSetting = _str(settings['grinder_setting']);
 
+    // --- Minimal profile ---
+    final profileTitle = _str(settings['profile_title']) ?? '';
+    final profileTargetWeight =
+        _parseOptDouble(settings['final_desired_shot_weight']);
+    final profile = Profile(
+      version: '2',
+      title: profileTitle,
+      notes: '',
+      author: '',
+      beverageType: BeverageType.espresso,
+      steps: [],
+      targetWeight: profileTargetWeight,
+      targetVolumeCountStart: 0,
+      tankTemperature: 0,
+    );
+
     // --- Shot annotations ---
     final doseWeight = _parseOptDouble(settings['grinder_dose_weight']);
-    final yieldWeight = _parseOptDouble(settings['drink_weight']);
+    final actualYield = _parseOptDouble(settings['drink_weight']);
+    // Target yield: DYE's target_drink_weight → profile's target_weight → actual
+    final targetYield = _parseOptDouble(settings['target_drink_weight']) ??
+        profileTargetWeight ??
+        actualYield;
     final tds = _parseOptDouble(settings['drink_tds']);
     final ey = _parseOptDouble(settings['drink_ey']);
     final enjoyment = _parseOptDouble(settings['espresso_enjoyment']);
@@ -49,7 +69,7 @@ class TclShotParser {
 
     final annotations = ShotAnnotations(
       actualDoseWeight: doseWeight,
-      actualYield: yieldWeight,
+      actualYield: actualYield,
       drinkTds: tds,
       drinkEy: ey,
       enjoyment: enjoyment,
@@ -59,27 +79,13 @@ class TclShotParser {
     // --- Workflow context ---
     final context = WorkflowContext(
       targetDoseWeight: doseWeight,
-      targetYield: yieldWeight,
+      targetYield: targetYield,
       grinderModel: grinderModel,
       grinderSetting: grinderSetting,
       coffeeName: beanType,
       coffeeRoaster: beanBrand,
       baristaName: _str(settings['my_name']),
       drinkerName: _str(settings['drinker_name']),
-    );
-
-    // --- Minimal profile ---
-    final profileTitle = _str(settings['profile_title']) ?? '';
-    final profile = Profile(
-      version: '2',
-      title: profileTitle,
-      notes: '',
-      author: '',
-      beverageType: BeverageType.espresso,
-      steps: [],
-      targetWeight: yieldWeight,
-      targetVolumeCountStart: 0,
-      tankTemperature: 0,
     );
 
     // --- Workflow ---

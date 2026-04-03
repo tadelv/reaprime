@@ -78,43 +78,7 @@ class ShotV2JsonParser {
     final grinderSetting =
         _str(metaGrinder?['setting']) ?? _str(settings['grinder_setting']);
 
-    // --- Shot annotations ---
-    final doseWeight = parse_utils.parseOptionalDouble(meta?['in']) ??
-        parse_utils.parseOptionalDouble(settings['grinder_dose_weight']);
-    final yieldWeight = parse_utils.parseOptionalDouble(meta?['out']) ??
-        parse_utils.parseOptionalDouble(settings['drink_weight']);
-    final tds = parse_utils.parseOptionalDouble(metaShot?['tds']) ??
-        parse_utils.parseOptionalDouble(settings['drink_tds']);
-    final ey = parse_utils.parseOptionalDouble(metaShot?['ey']) ??
-        parse_utils.parseOptionalDouble(settings['drink_ey']);
-    final enjoyment = parse_utils.parseOptionalDouble(metaShot?['enjoyment']) ??
-        parse_utils.parseOptionalDouble(settings['espresso_enjoyment']);
-    final espressoNotes =
-        _str(metaShot?['notes']) ?? _str(settings['espresso_notes']);
-
-    final annotations = ShotAnnotations(
-      actualDoseWeight: doseWeight,
-      actualYield: yieldWeight,
-      drinkTds: tds,
-      drinkEy: ey,
-      enjoyment: enjoyment,
-      espressoNotes: espressoNotes,
-    );
-
-    // --- Workflow context ---
-    final context = WorkflowContext(
-      targetDoseWeight: doseWeight,
-      targetYield: yieldWeight,
-      grinderModel: grinderModel,
-      grinderSetting: grinderSetting,
-      coffeeName: beanType,
-      coffeeRoaster: beanBrand,
-      baristaName: _str(settings['my_name']),
-      drinkerName: _str(settings['drinker_name']),
-    );
-
-    // --- Profile ---
-    final drinkWeight = parse_utils.parseOptionalDouble(settings['drink_weight']);
+    // --- Profile (parse before annotations so we can read target_weight) ---
     final Profile profile;
     if (json['profile'] != null) {
       profile = Profile.fromJson(json['profile'] as Map<String, dynamic>);
@@ -126,11 +90,52 @@ class ShotV2JsonParser {
         author: '',
         beverageType: BeverageType.espresso,
         steps: [],
-        targetWeight: drinkWeight,
+        targetWeight: parse_utils.parseOptionalDouble(
+            settings['final_desired_shot_weight']),
         targetVolumeCountStart: 0,
         tankTemperature: 0,
       );
     }
+
+    // --- Shot annotations ---
+    final doseWeight = parse_utils.parseOptionalDouble(meta?['in']) ??
+        parse_utils.parseOptionalDouble(settings['grinder_dose_weight']);
+    final actualYield = parse_utils.parseOptionalDouble(meta?['out']) ??
+        parse_utils.parseOptionalDouble(settings['drink_weight']);
+    // Target yield: DYE's target_drink_weight → profile's target_weight → actual
+    final targetYield =
+        parse_utils.parseOptionalDouble(settings['target_drink_weight']) ??
+        profile.targetWeight ??
+        actualYield;
+    final tds = parse_utils.parseOptionalDouble(metaShot?['tds']) ??
+        parse_utils.parseOptionalDouble(settings['drink_tds']);
+    final ey = parse_utils.parseOptionalDouble(metaShot?['ey']) ??
+        parse_utils.parseOptionalDouble(settings['drink_ey']);
+    final enjoyment = parse_utils.parseOptionalDouble(metaShot?['enjoyment']) ??
+        parse_utils.parseOptionalDouble(settings['espresso_enjoyment']);
+    final espressoNotes =
+        _str(metaShot?['notes']) ?? _str(settings['espresso_notes']);
+
+    final annotations = ShotAnnotations(
+      actualDoseWeight: doseWeight,
+      actualYield: actualYield,
+      drinkTds: tds,
+      drinkEy: ey,
+      enjoyment: enjoyment,
+      espressoNotes: espressoNotes,
+    );
+
+    // --- Workflow context ---
+    final context = WorkflowContext(
+      targetDoseWeight: doseWeight,
+      targetYield: targetYield,
+      grinderModel: grinderModel,
+      grinderSetting: grinderSetting,
+      coffeeName: beanType,
+      coffeeRoaster: beanBrand,
+      baristaName: _str(settings['my_name']),
+      drinkerName: _str(settings['drinker_name']),
+    );
 
     // --- Workflow ---
     final workflow = Workflow(
