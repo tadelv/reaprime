@@ -9,6 +9,15 @@ import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/feedback_feature/feedback_view.dart';
+import 'package:reaprime/src/import/de1app_importer.dart';
+import 'package:reaprime/src/import/de1app_scanner.dart';
+import 'package:reaprime/src/import/import_result.dart';
+import 'package:reaprime/src/import/widgets/import_progress_view.dart';
+import 'package:reaprime/src/import/widgets/import_result_view.dart';
+import 'package:reaprime/src/import/widgets/import_summary_view.dart';
+import 'package:reaprime/src/services/storage/bean_storage_service.dart';
+import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
+import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/util/shot_exporter.dart';
 import 'package:reaprime/src/util/shot_importer.dart';
@@ -21,10 +30,16 @@ class DataManagementPage extends StatefulWidget {
     super.key,
     required this.controller,
     required this.persistenceController,
+    this.profileStorageService,
+    this.beanStorageService,
+    this.grinderStorageService,
   });
 
   final SettingsController controller;
   final PersistenceController persistenceController;
+  final ProfileStorageService? profileStorageService;
+  final BeanStorageService? beanStorageService;
+  final GrinderStorageService? grinderStorageService;
 
   @override
   State<DataManagementPage> createState() => _DataManagementPageState();
@@ -154,6 +169,11 @@ class _DataManagementPageState extends State<DataManagementPage> {
                 onPressed: _importLegacyShots,
                 child: const Text('Import Shots (JSON)'),
               ),
+              if (_canImportFromDe1app)
+                ShadButton.outline(
+                  onPressed: _importFromDe1app,
+                  child: const Text('Import from Decent app'),
+                ),
             ],
           ),
           const SizedBox(height: 8),
@@ -225,6 +245,11 @@ class _DataManagementPageState extends State<DataManagementPage> {
       ),
     );
   }
+
+  bool get _canImportFromDe1app =>
+      widget.profileStorageService != null &&
+      widget.beanStorageService != null &&
+      widget.grinderStorageService != null;
 
   // MARK: - Export Actions
 
@@ -532,6 +557,129 @@ class _DataManagementPageState extends State<DataManagementPage> {
         );
       }
     }
+  }
+
+  Future<void> _importFromDe1app() async {
+    final folderPath = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Select Decent app folder',
+    );
+    if (folderPath == null) return;
+    if (!mounted) return;
+
+    _showProgressDialog(context, 'Scanning folder...');
+
+    final ScanResult scanResult;
+    try {
+      scanResult = await De1appScanner.scan(folderPath);
+    } catch (e) {
+      _log.severe('De1app scan failed', e);
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Scan failed: $e')),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pop(); // dismiss progress dialog
+
+    if (scanResult.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No Decent app data found in this folder')),
+        );
+      }
+      return;
+    }
+
+    // Show summary dialog
+    if (!mounted) return;
+    final confirmed = await showShadDialog<bool>(
+      context: context,
+      builder: (ctx) => ShadDialog(
+        title: const Text('Import from Decent app'),
+        child: ImportSummaryView(
+          scanResult: scanResult,
+          onImportAll: () => Navigator.of(ctx).pop(true),
+          onCancel: () => Navigator.of(ctx).pop(false),
+        ),
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (!mounted) return;
+
+    // Run import with progress dialog
+    ImportResult? importResult;
+    ImportProgress progress = const ImportProgress(current: 0, total: 0, phase: '');
+    int shotsImported = 0;
+    int profilesImported = 0;
+
+    // Show a non-dismissible progress indicator
+    showShadDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          return ShadDialog(
+            title: const Text('Importing...'),
+            child: ImportProgressView(
+              progress: progress,
+              shotsImported: shotsImported,
+              profilesImported: profilesImported,
+            ),
+          );
+        },
+      ),
+    );
+
+    try {
+      final importer = De1appImporter(
+        storageService: widget.persistenceController.storageService,
+        profileStorageService: widget.profileStorageService!,
+        beanStorageService: widget.beanStorageService!,
+        grinderStorageService: widget.grinderStorageService!,
+      );
+
+      importResult = await importer.import(
+        scanResult,
+        onProgress: (p) {
+          if (!mounted) return;
+          progress = p;
+          if (p.phase == 'shots') shotsImported = p.current;
+          if (p.phase == 'profiles') profilesImported = p.current;
+        },
+      );
+    } catch (e) {
+      _log.severe('De1app import failed', e);
+      if (mounted) {
+        Navigator.of(context).pop(); // dismiss progress dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Import failed: $e')),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pop(); // dismiss progress dialog
+
+    // Show result
+    await showShadDialog(
+      context: context,
+      builder: (ctx) => ShadDialog(
+        title: const Text('Import Complete'),
+        child: ImportResultView(
+          result: importResult!,
+          onContinue: () => Navigator.of(ctx).pop(),
+        ),
+      ),
+    );
+
+    // Refresh shot data
+    await widget.persistenceController.loadShots();
   }
 
   void _showProgressDialog(BuildContext context, String message) {

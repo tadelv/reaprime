@@ -8,6 +8,9 @@ import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/presence_controller.dart';
+import 'package:reaprime/src/services/storage/bean_storage_service.dart';
+import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
+import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:reaprime/src/settings/battery_charging_settings_page.dart';
 import 'package:reaprime/src/settings/data_management_page.dart';
 import 'package:reaprime/src/settings/device_management_page.dart';
@@ -39,6 +42,9 @@ class SettingsView extends StatefulWidget {
     required this.webUIService,
     required this.webUIStorage,
     this.updateCheckService,
+    this.profileStorageService,
+    this.beanStorageService,
+    this.grinderStorageService,
   });
 
   static const routeName = '/settings';
@@ -50,6 +56,9 @@ class SettingsView extends StatefulWidget {
   final WebUIService webUIService;
   final WebUIStorage webUIStorage;
   final UpdateCheckService? updateCheckService;
+  final ProfileStorageService? profileStorageService;
+  final BeanStorageService? beanStorageService;
+  final GrinderStorageService? grinderStorageService;
 
   @override
   State<SettingsView> createState() => _SettingsViewState();
@@ -463,6 +472,9 @@ class _SettingsViewState extends State<SettingsView>
                   builder: (_) => DataManagementPage(
                     controller: widget.controller,
                     persistenceController: widget.persistenceController,
+                    profileStorageService: widget.profileStorageService,
+                    beanStorageService: widget.beanStorageService,
+                    grinderStorageService: widget.grinderStorageService,
                   ),
                 ),
               );

@@ -37,6 +37,7 @@ import 'package:reaprime/src/services/storage/drift_profile_storage.dart';
 import 'package:reaprime/src/services/storage/bean_storage_service.dart';
 import 'package:reaprime/src/services/storage/drift_storage_service.dart';
 import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
+import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:reaprime/src/services/storage/hive_store_service.dart';
 import 'package:reaprime/src/services/universal_ble_discovery_service.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
@@ -237,6 +238,7 @@ void main() async {
   // Entity storage services
   final beanStorage = DriftBeanStorageService(appDatabase);
   final grinderStorage = DriftGrinderStorageService(appDatabase);
+  final profileStorage = DriftProfileStorageService(appDatabase);
 
   final WorkflowController workflowController = WorkflowController();
   try {
@@ -255,7 +257,7 @@ void main() async {
 
   // Initialize profile storage and controller
   final profileController = ProfileController(
-    storage: DriftProfileStorageService(appDatabase),
+    storage: profileStorage,
   );
   await profileController.initialize();
 
@@ -412,6 +414,7 @@ void main() async {
         presenceController: presenceController,
         beanStorage: beanStorage,
         grinderStorage: grinderStorage,
+        profileStorageService: profileStorage,
         connectionManager: connectionManager,
         scanStateGuardian: scanStateGuardian,
       ),
@@ -562,6 +565,7 @@ class AppRoot extends StatefulWidget {
   final PresenceController presenceController;
   final BeanStorageService? beanStorage;
   final GrinderStorageService? grinderStorage;
+  final ProfileStorageService? profileStorageService;
   final ConnectionManager connectionManager;
   final ScanStateGuardian scanStateGuardian;
 
@@ -583,6 +587,7 @@ class AppRoot extends StatefulWidget {
     this.updateCheckService,
     this.beanStorage,
     this.grinderStorage,
+    this.profileStorageService,
   });
 
   static void restart(BuildContext context) {
@@ -636,6 +641,7 @@ class _AppRootState extends State<AppRoot> {
         presenceController: widget.presenceController,
         beanStorage: widget.beanStorage,
         grinderStorage: widget.grinderStorage,
+        profileStorageService: widget.profileStorageService,
         connectionManager: widget.connectionManager,
         scanStateGuardian: widget.scanStateGuardian,
       ),
