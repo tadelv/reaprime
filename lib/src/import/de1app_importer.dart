@@ -43,7 +43,9 @@ class De1appImporter {
     var profilesImported = 0;
     var profilesSkipped = 0;
     var beansCreated = 0;
+    var beansSkipped = 0;
     var grindersCreated = 0;
+    var grindersSkipped = 0;
 
     // --- Phase 1: Parse shot files ---
     final parsedShots = <ParsedShot>[];
@@ -133,6 +135,7 @@ class De1appImporter {
       final existingId = existingBeanMap[key];
       if (existingId != null) {
         beanIdRemap[bean.id] = existingId;
+        beansSkipped++;
       } else {
         try {
           await beanStorageService.insertBean(bean);
@@ -196,6 +199,7 @@ class De1appImporter {
       final existingId = existingGrinderMap[grinder.model.toLowerCase()];
       if (existingId != null) {
         grinderIdRemap[grinder.id] = existingId;
+        grindersSkipped++;
       } else {
         try {
           await grinderStorageService.insertGrinder(grinder);
@@ -299,7 +303,9 @@ class De1appImporter {
       profilesImported: profilesImported,
       profilesSkipped: profilesSkipped,
       beansCreated: beansCreated,
+      beansSkipped: beansSkipped,
       grindersCreated: grindersCreated,
+      grindersSkipped: grindersSkipped,
       errors: errors,
     );
   }

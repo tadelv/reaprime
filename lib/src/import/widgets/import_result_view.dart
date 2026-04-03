@@ -94,12 +94,24 @@ class _ImportResultViewState extends State<ImportResultView> {
                     if (result.beansCreated > 0)
                       _ResultRow(
                         icon: LucideIcons.bean,
-                        label: '${result.beansCreated} bean${result.beansCreated == 1 ? '' : 's'} created',
+                        label: '${result.beansCreated} coffee${result.beansCreated == 1 ? '' : 's'} added',
+                      ),
+                    if (result.beansSkipped > 0)
+                      _ResultRow(
+                        icon: LucideIcons.skipForward,
+                        label: '${result.beansSkipped} coffee${result.beansSkipped == 1 ? '' : 's'} skipped',
+                        muted: true,
                       ),
                     if (result.grindersCreated > 0)
                       _ResultRow(
                         icon: LucideIcons.settings,
-                        label: '${result.grindersCreated} grinder${result.grindersCreated == 1 ? '' : 's'} created',
+                        label: '${result.grindersCreated} grinder${result.grindersCreated == 1 ? '' : 's'} added',
+                      ),
+                    if (result.grindersSkipped > 0)
+                      _ResultRow(
+                        icon: LucideIcons.skipForward,
+                        label: '${result.grindersSkipped} grinder${result.grindersSkipped == 1 ? '' : 's'} skipped',
+                        muted: true,
                       ),
                     if (hasErrors)
                       _ResultRow(
@@ -234,7 +246,9 @@ class _ImportResultViewState extends State<ImportResultView> {
     buf.writeln('  Profiles imported: ${result.profilesImported}');
     buf.writeln('  Profiles skipped:  ${result.profilesSkipped}');
     buf.writeln('  Beans created:     ${result.beansCreated}');
+    buf.writeln('  Beans skipped:     ${result.beansSkipped}');
     buf.writeln('  Grinders created:  ${result.grindersCreated}');
+    buf.writeln('  Grinders skipped:  ${result.grindersSkipped}');
     buf.writeln('  Errors:            ${result.errors.length}');
     if (result.errors.isNotEmpty) {
       buf.writeln();
