@@ -1,0 +1,9 @@
+{
+  "version": "2", "title": "Londinium", "notes": "Lever-style pressure profile", "author": "Decent", "beverage_type": "espresso",
+  "steps": [
+    {"name": "preinfusion", "pump": "pressure", "transition": "fast", "volume": 0, "seconds": 8, "temperature": 92.0, "sensor": "coffee", "pressure": 1.5},
+    {"name": "rise", "pump": "pressure", "transition": "smooth", "volume": 0, "seconds": 5, "temperature": 92.0, "sensor": "coffee", "pressure": 9.0},
+    {"name": "decline", "pump": "pressure", "transition": "smooth", "exit": {"type": "flow", "condition": "over", "value": 3.5}, "volume": 0, "seconds": 25, "temperature": 92.0, "sensor": "coffee", "pressure": 6.0}
+  ],
+  "target_volume": 0, "target_weight": 40.0, "target_volume_count_start": 0, "tank_temperature": 0
+}
