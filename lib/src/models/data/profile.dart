@@ -49,7 +49,7 @@ class Profile extends Equatable {
       title: json['title'],
       notes: json['notes'],
       author: json['author'],
-      beverageType: BeverageType.values.byName(json['beverage_type']),
+      beverageType: _parseBeverageType(json['beverage_type']),
       steps: (json['steps'] as List)
           .map((step) => ProfileStep.fromJson(step))
           .toList(),
@@ -112,6 +112,15 @@ class Profile extends Equatable {
 }
 
 enum BeverageType { espresso, calibrate, cleaning, manual, pourover }
+
+BeverageType _parseBeverageType(dynamic value) {
+  if (value == null || value.toString().isEmpty) return BeverageType.espresso;
+  final name = value.toString().toLowerCase();
+  for (final type in BeverageType.values) {
+    if (type.name == name) return type;
+  }
+  return BeverageType.espresso;
+}
 
 enum TransitionType { fast, smooth }
 
