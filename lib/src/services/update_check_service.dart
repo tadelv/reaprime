@@ -16,7 +16,7 @@ class UpdateCheckService {
   Timer? _periodicTimer;
   UpdateInfo? _availableUpdate;
   
-  static const Duration _checkInterval = (const String.fromEnvironment("simulate") == "1") ? Duration(minutes: 1) : Duration(hours: 12);
+  static const Duration _checkInterval = (const String.fromEnvironment("simulate") == "1") ? Duration(hours: 1) : Duration(hours: 12);
 
   UpdateCheckService({
     required SettingsService settingsService,
