@@ -58,6 +58,7 @@ class SettingsController with ChangeNotifier {
   late int _sleepTimeoutMinutes;
   late String _wakeSchedules;
   late bool _lowBatteryBrightnessLimit;
+  late bool _onboardingCompleted;
 
   TelemetryService? _telemetryService;
 
@@ -84,6 +85,7 @@ class SettingsController with ChangeNotifier {
   int get sleepTimeoutMinutes => _sleepTimeoutMinutes;
   String get wakeSchedules => _wakeSchedules;
   bool get lowBatteryBrightnessLimit => _lowBatteryBrightnessLimit;
+  bool get onboardingCompleted => _onboardingCompleted;
 
   set telemetryService(TelemetryService service) => _telemetryService = service;
 
@@ -113,6 +115,7 @@ class SettingsController with ChangeNotifier {
     _sleepTimeoutMinutes = await _settingsService.sleepTimeoutMinutes();
     _wakeSchedules = await _settingsService.wakeSchedules();
     _lowBatteryBrightnessLimit = await _settingsService.lowBatteryBrightnessLimit();
+    _onboardingCompleted = await _settingsService.onboardingCompleted();
 
     // Sync telemetry consent to TelemetryService if it exists
     if (_telemetryService != null) {
@@ -330,6 +333,13 @@ class SettingsController with ChangeNotifier {
     if (value == _lowBatteryBrightnessLimit) return;
     _lowBatteryBrightnessLimit = value;
     await _settingsService.setLowBatteryBrightnessLimit(value);
+    notifyListeners();
+  }
+
+  Future<void> setOnboardingCompleted(bool value) async {
+    if (value == _onboardingCompleted) return;
+    _onboardingCompleted = value;
+    await _settingsService.setOnboardingCompleted(value);
     notifyListeners();
   }
 }

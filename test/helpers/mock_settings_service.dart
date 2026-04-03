@@ -32,6 +32,7 @@ class MockSettingsService extends SettingsService {
   int _sleepTimeoutMinutes = 30;
   String _wakeSchedules = '[]';
   bool _lowBatteryBrightnessLimit = false;
+  bool _onboardingCompleted = true; // skip onboarding in tests
 
   @override
   Future<ThemeMode> themeMode() async => _themeMode;
@@ -134,4 +135,8 @@ class MockSettingsService extends SettingsService {
   Future<bool> lowBatteryBrightnessLimit() async => _lowBatteryBrightnessLimit;
   @override
   Future<void> setLowBatteryBrightnessLimit(bool value) async => _lowBatteryBrightnessLimit = value;
+  @override
+  Future<bool> onboardingCompleted() async => _onboardingCompleted;
+  @override
+  Future<void> setOnboardingCompleted(bool value) async => _onboardingCompleted = value;
 }
