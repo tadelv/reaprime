@@ -41,6 +41,7 @@ dependencies:
   equatable: ^2.0.7
   universal_ble: ^1.1.0
   shared_preferences: ^2.5.3
+  share_plus: ^10.1.4
   # maybe one day? https://github.com/AurelienBallier/flutter_libserialport
   flutter_libserialport:
     # ^0.6.0
