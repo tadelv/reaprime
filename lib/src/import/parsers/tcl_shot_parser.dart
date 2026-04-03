@@ -65,6 +65,7 @@ class TclShotParser {
       coffeeName: beanType,
       coffeeRoaster: beanBrand,
       baristaName: _str(settings['my_name']),
+      drinkerName: _str(settings['drinker_name']),
     );
 
     // --- Minimal profile ---
@@ -133,6 +134,7 @@ class TclShotParser {
     final tempMix = _parseDoubleList(map['espresso_temperature_mix']);
     final tempGoal = _parseDoubleList(map['espresso_temperature_goal']);
     final pressureGoal = _parseDoubleList(map['espresso_pressure_goal']);
+    final flowGoal = _parseDoubleList(map['espresso_flow_goal']);
 
     final count = [
       elapsed,
@@ -144,6 +146,7 @@ class TclShotParser {
       tempMix,
       tempGoal,
       pressureGoal,
+      flowGoal,
     ].map((l) => l.length).reduce(min);
 
     final snapshots = <ShotSnapshot>[];
@@ -160,7 +163,7 @@ class TclShotParser {
         ),
         flow: flow[i],
         pressure: pressure[i],
-        targetFlow: 0.0,
+        targetFlow: flowGoal[i],
         targetPressure: pressureGoal[i],
         mixTemperature: tempMix[i],
         groupTemperature: tempBasket[i],
