@@ -1,0 +1,196 @@
+import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/import/parsers/shot_v2_json_parser.dart';
+import 'package:reaprime/src/import/parsers/tcl_parser.dart';
+import 'package:reaprime/src/models/data/profile.dart';
+import 'package:reaprime/src/models/data/shot_annotations.dart';
+import 'package:reaprime/src/models/data/shot_record.dart';
+import 'package:reaprime/src/models/data/shot_snapshot.dart';
+import 'package:reaprime/src/models/data/workflow.dart';
+import 'package:reaprime/src/models/data/workflow_context.dart';
+import 'package:reaprime/src/models/device/machine.dart';
+import 'package:uuid/uuid.dart';
+
+/// Parses de1app `history/*.shot` (TCL format) into [ParsedShot] instances.
+class TclShotParser {
+  TclShotParser._();
+
+  /// Parses a de1app `.shot` file [content] into a [ParsedShot].
+  static ParsedShot parse(String content) {
+    final map = TclParser.parse(content);
+
+    final clock = int.parse(map['clock'] as String);
+    final baseTimestamp = DateTime.fromMillisecondsSinceEpoch(
+      clock * 1000,
+      isUtc: true,
+    );
+
+    final settings = map['settings'] as Map<String, dynamic>? ?? {};
+
+    // --- Bean metadata ---
+    final beanBrand = _str(settings['bean_brand']);
+    final beanType = _str(settings['bean_type']);
+    final beanNotes = _str(settings['bean_notes']);
+    final roastLevel = _str(settings['roast_level']);
+    final roastDate = _str(settings['roast_date']);
+
+    // --- Grinder metadata ---
+    final grinderModel = _str(settings['grinder_model']);
+    final grinderSetting = _str(settings['grinder_setting']);
+
+    // --- Shot annotations ---
+    final doseWeight = _parseOptDouble(settings['grinder_dose_weight']);
+    final yieldWeight = _parseOptDouble(settings['drink_weight']);
+    final tds = _parseOptDouble(settings['drink_tds']);
+    final ey = _parseOptDouble(settings['drink_ey']);
+    final enjoyment = _parseOptDouble(settings['espresso_enjoyment']);
+    final espressoNotes = _str(settings['espresso_notes']);
+
+    final annotations = ShotAnnotations(
+      actualDoseWeight: doseWeight,
+      actualYield: yieldWeight,
+      drinkTds: tds,
+      drinkEy: ey,
+      enjoyment: enjoyment,
+      espressoNotes: espressoNotes,
+    );
+
+    // --- Workflow context ---
+    final context = WorkflowContext(
+      targetDoseWeight: doseWeight,
+      targetYield: yieldWeight,
+      grinderModel: grinderModel,
+      grinderSetting: grinderSetting,
+      coffeeName: beanType,
+      coffeeRoaster: beanBrand,
+      baristaName: _str(settings['my_name']),
+    );
+
+    // --- Minimal profile ---
+    final profileTitle = _str(settings['profile_title']) ?? '';
+    final profile = Profile(
+      version: '2',
+      title: profileTitle,
+      notes: '',
+      author: '',
+      beverageType: BeverageType.espresso,
+      steps: [],
+      targetWeight: yieldWeight,
+      targetVolumeCountStart: 0,
+      tankTemperature: 0,
+    );
+
+    // --- Workflow ---
+    final workflow = Workflow(
+      id: const Uuid().v4(),
+      name: profileTitle,
+      profile: profile,
+      context: context,
+      steamSettings: SteamSettings.defaults(),
+      hotWaterData: HotWaterData.defaults(),
+      rinseData: RinseData.defaults(),
+    );
+
+    // --- Time-series snapshots ---
+    final measurements = _parseSnapshots(map, baseTimestamp);
+
+    // --- ShotRecord ---
+    final shot = ShotRecord(
+      id: 'de1app-$clock',
+      timestamp: baseTimestamp,
+      measurements: measurements,
+      workflow: workflow,
+      annotations: annotations,
+    );
+
+    return ParsedShot(
+      shot: shot,
+      beanBrand: beanBrand,
+      beanType: beanType,
+      beanNotes: beanNotes,
+      roastDate: roastDate,
+      roastLevel: roastLevel,
+      grinderModel: grinderModel,
+      grinderSetting: grinderSetting,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Internal helpers
+  // ---------------------------------------------------------------------------
+
+  static List<ShotSnapshot> _parseSnapshots(
+    Map<String, dynamic> map,
+    DateTime baseTimestamp,
+  ) {
+    final elapsed = _parseDoubleList(map['espresso_elapsed']);
+    final pressure = _parseDoubleList(map['espresso_pressure']);
+    final flow = _parseDoubleList(map['espresso_flow']);
+    final flowWeight = _parseDoubleList(map['espresso_flow_weight']);
+    final weight = _parseDoubleList(map['espresso_weight']);
+    final tempBasket = _parseDoubleList(map['espresso_temperature_basket']);
+    final tempMix = _parseDoubleList(map['espresso_temperature_mix']);
+    final tempGoal = _parseDoubleList(map['espresso_temperature_goal']);
+    final pressureGoal = _parseDoubleList(map['espresso_pressure_goal']);
+
+    final snapshots = <ShotSnapshot>[];
+    for (var i = 0; i < elapsed.length; i++) {
+      final ts = baseTimestamp.add(
+        Duration(milliseconds: (elapsed[i] * 1000).round()),
+      );
+
+      final machineSnap = MachineSnapshot(
+        timestamp: ts,
+        state: const MachineStateSnapshot(
+          state: MachineState.espresso,
+          substate: MachineSubstate.pouring,
+        ),
+        flow: flow[i],
+        pressure: pressure[i],
+        targetFlow: 0.0,
+        targetPressure: pressureGoal[i],
+        mixTemperature: tempMix[i],
+        groupTemperature: tempBasket[i],
+        targetMixTemperature: tempGoal[i],
+        targetGroupTemperature: tempGoal[i],
+        profileFrame: 0,
+        steamTemperature: 0,
+      );
+
+      final weightSnap = WeightSnapshot(
+        timestamp: ts,
+        weight: weight[i],
+        weightFlow: flowWeight[i],
+      );
+
+      snapshots.add(ShotSnapshot(machine: machineSnap, scale: weightSnap));
+    }
+
+    return snapshots;
+  }
+
+  /// Parses a TCL list value ([List] of strings from [TclParser]) into a list of doubles.
+  static List<double> _parseDoubleList(dynamic value) {
+    if (value == null) return [];
+    if (value is List) {
+      return value.map((e) => double.parse(e.toString())).toList();
+    }
+    // Single string value (shouldn't happen for time-series but handle gracefully)
+    final d = double.tryParse(value.toString());
+    return d != null ? [d] : [];
+  }
+
+  /// Returns a non-null, non-empty string or null.
+  static String? _str(dynamic value) {
+    if (value == null) return null;
+    final s = value.toString().trim();
+    return s.isEmpty ? null : s;
+  }
+
+  /// Parses a string-encoded double.
+  static double? _parseOptDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    final s = value.toString().trim();
+    return s.isEmpty ? null : double.tryParse(s);
+  }
+}
