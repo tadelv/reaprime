@@ -1,4 +1,8 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 import 'package:reaprime/src/import/de1app_importer.dart';
 import 'package:reaprime/src/import/de1app_scanner.dart';
 import 'package:reaprime/src/import/import_result.dart';
@@ -13,7 +17,7 @@ import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+
 
 enum _ImportPhase {
   pickSource,
@@ -21,7 +25,6 @@ enum _ImportPhase {
   summary,
   importing,
   result,
-  zipImport,
 }
 
 /// Creates an [OnboardingStep] that manages the import flow:
@@ -76,6 +79,7 @@ class _ImportStepView extends StatefulWidget {
 }
 
 class _ImportStepViewState extends State<_ImportStepView> {
+  final _log = Logger('ImportStep');
   _ImportPhase _phase = _ImportPhase.pickSource;
   ScanResult? _scanResult;
   ImportProgress _progress = const ImportProgress(current: 0, total: 0, phase: '');
@@ -113,10 +117,83 @@ class _ImportStepViewState extends State<_ImportStepView> {
     });
   }
 
-  void _onZipSelected(String filePath) {
+  Future<void> _onZipSelected(String filePath) async {
     setState(() {
-      _phase = _ImportPhase.zipImport;
+      _phase = _ImportPhase.importing;
+      _progress = const ImportProgress(current: 0, total: 1, phase: 'backup');
     });
+
+    try {
+      final bytes = await File(filePath).readAsBytes();
+
+      final client = HttpClient();
+      try {
+        final request = await client.postUrl(
+          Uri.parse('http://localhost:8080/api/v1/data/import?onConflict=skip'),
+        );
+        request.headers.contentType = ContentType('application', 'zip');
+        request.add(bytes);
+        final response = await request.close();
+        final responseBody = await response.transform(utf8.decoder).join();
+
+        if (response.statusCode != 200) {
+          throw Exception('Server returned ${response.statusCode}: $responseBody');
+        }
+
+        final responseJson = jsonDecode(responseBody) as Map<String, dynamic>;
+        final result = _zipResponseToImportResult(responseJson);
+
+        await widget.persistenceController.loadShots();
+
+        if (mounted) {
+          setState(() {
+            _importResult = result;
+            _phase = _ImportPhase.result;
+          });
+        }
+      } finally {
+        client.close();
+      }
+    } catch (e) {
+      _log.warning('Failed to import ZIP backup', e);
+      if (mounted) {
+        setState(() {
+          _importResult = ImportResult(
+            errors: [
+              ImportError(
+                filename: filePath.split('/').last,
+                reason: 'ZIP import failed',
+                details: e.toString(),
+              ),
+            ],
+          );
+          _phase = _ImportPhase.result;
+        });
+      }
+    }
+  }
+
+  ImportResult _zipResponseToImportResult(Map<String, dynamic> json) {
+    var shotsImported = 0;
+    var shotsSkipped = 0;
+    var profilesImported = 0;
+    var profilesSkipped = 0;
+
+    if (json['shots'] is Map) {
+      shotsImported = json['shots']['imported'] as int? ?? 0;
+      shotsSkipped = json['shots']['skipped'] as int? ?? 0;
+    }
+    if (json['profiles'] is Map) {
+      profilesImported = json['profiles']['imported'] as int? ?? 0;
+      profilesSkipped = json['profiles']['skipped'] as int? ?? 0;
+    }
+
+    return ImportResult(
+      shotsImported: shotsImported,
+      shotsSkipped: shotsSkipped,
+      profilesImported: profilesImported,
+      profilesSkipped: profilesSkipped,
+    );
   }
 
   Future<void> _onImportAll() async {
@@ -218,44 +295,7 @@ class _ImportStepViewState extends State<_ImportStepView> {
             result: _importResult!,
             onContinue: _onComplete,
           ),
-        _ImportPhase.zipImport => _ZipImportPlaceholder(onContinue: _onComplete),
       },
-    );
-  }
-}
-
-class _ZipImportPlaceholder extends StatelessWidget {
-  final VoidCallback onContinue;
-
-  const _ZipImportPlaceholder({required this.onContinue});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 400),
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 16,
-            children: [
-              Text('ZIP Import', style: theme.textTheme.h4),
-              Text(
-                'To import a Bridge backup, go to Settings > Data Management after setup completes.',
-                style: theme.textTheme.p,
-              ),
-              ShadButton(
-                onPressed: onContinue,
-                child: const Text('Continue'),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
