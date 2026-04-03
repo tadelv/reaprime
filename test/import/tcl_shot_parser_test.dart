@@ -170,5 +170,33 @@ void main() {
         );
       });
     });
+
+    group('mismatched array lengths', () {
+      test('does not throw when weight array is shorter than elapsed', () {
+        // Inject a truncated weight list into the fixture content
+        final truncated = fixtureContent.replaceFirst(
+          'espresso_weight {0.0 0.1 0.3 0.9 1.8 3.2 4.8 6.6 8.5}',
+          'espresso_weight {0.0 0.1 0.3 0.9 1.8}',
+        );
+        expect(() => TclShotParser.parse(truncated), returnsNormally);
+      });
+
+      test('truncates snapshots to the shortest array length', () {
+        final truncated = fixtureContent.replaceFirst(
+          'espresso_weight {0.0 0.1 0.3 0.9 1.8 3.2 4.8 6.6 8.5}',
+          'espresso_weight {0.0 0.1 0.3 0.9 1.8}',
+        );
+        final parsed = TclShotParser.parse(truncated);
+        expect(parsed.shot.measurements.length, equals(5));
+      });
+
+      test('does not throw when pressure array is shorter than elapsed', () {
+        final truncated = fixtureContent.replaceFirst(
+          'espresso_pressure {0.0 1.1 3.2 5.8 8.5 9.0 9.0 8.8 8.5}',
+          'espresso_pressure {0.0 1.1 3.2}',
+        );
+        expect(() => TclShotParser.parse(truncated), returnsNormally);
+      });
+    });
   });
 }

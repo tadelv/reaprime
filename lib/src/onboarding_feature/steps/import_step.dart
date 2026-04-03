@@ -74,7 +74,7 @@ class _ImportStepViewState extends State<_ImportStepView> {
   _ImportPhase _phase = _ImportPhase.pickSource;
   ScanResult? _scanResult;
   ImportProgress _progress = const ImportProgress(current: 0, total: 0, phase: '');
-  int _shotsImported = 0;
+  int _shotsProcessed = 0;
   int _profilesImported = 0;
   ImportResult? _importResult;
 
@@ -121,7 +121,7 @@ class _ImportStepViewState extends State<_ImportStepView> {
     setState(() {
       _phase = _ImportPhase.importing;
       _progress = const ImportProgress(current: 0, total: 0, phase: '');
-      _shotsImported = 0;
+      _shotsProcessed = 0;
       _profilesImported = 0;
     });
 
@@ -132,27 +132,43 @@ class _ImportStepViewState extends State<_ImportStepView> {
       grinderStorageService: widget.grinderStorageService,
     );
 
-    final result = await importer.import(
-      scanResult,
-      onProgress: (progress) {
-        if (!mounted) return;
+    try {
+      final result = await importer.import(
+        scanResult,
+        onProgress: (progress) {
+          if (!mounted) return;
+          setState(() {
+            _progress = progress;
+            if (progress.phase == 'shots') {
+              _shotsProcessed = progress.current;
+            } else if (progress.phase == 'profiles') {
+              _profilesImported = progress.current;
+            }
+          });
+        },
+      );
+      if (mounted) {
         setState(() {
-          _progress = progress;
-          if (progress.phase == 'shots') {
-            _shotsImported = progress.current;
-          } else if (progress.phase == 'profiles') {
-            _profilesImported = progress.current;
-          }
+          _importResult = result;
+          _phase = _ImportPhase.result;
         });
-      },
-    );
-
-    if (!mounted) return;
-
-    setState(() {
-      _importResult = result;
-      _phase = _ImportPhase.result;
-    });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _importResult = ImportResult(
+            errors: [
+              ImportError(
+                filename: 'import',
+                reason: 'Fatal error',
+                details: e.toString(),
+              ),
+            ],
+          );
+          _phase = _ImportPhase.result;
+        });
+      }
+    }
   }
 
   void _onCancelFromSummary() {
@@ -188,7 +204,7 @@ class _ImportStepViewState extends State<_ImportStepView> {
           ),
         _ImportPhase.importing => ImportProgressView(
             progress: _progress,
-            shotsImported: _shotsImported,
+            shotsImported: _shotsProcessed,
             profilesImported: _profilesImported,
           ),
         _ImportPhase.result => ImportResultView(
@@ -222,8 +238,7 @@ class _ZipImportPlaceholder extends StatelessWidget {
             children: [
               Text('ZIP Import', style: theme.textTheme.h4),
               Text(
-                'ZIP backup import will be processed after setup completes. '
-                'You can also import backups anytime from Settings > Data Management.',
+                'To import a Bridge backup, go to Settings > Data Management after setup completes.',
                 style: theme.textTheme.p,
               ),
               ShadButton(

@@ -617,12 +617,16 @@ class _DataManagementPageState extends State<DataManagementPage> {
     int shotsImported = 0;
     int profilesImported = 0;
 
+    // Captured setter so onProgress can trigger dialog rebuilds.
+    StateSetter? setDialogState;
+
     // Show a non-dismissible progress indicator
     showShadDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) {
+        builder: (ctx, setState) {
+          setDialogState = setState;
           return ShadDialog(
             title: const Text('Importing...'),
             child: ImportProgressView(
@@ -647,9 +651,11 @@ class _DataManagementPageState extends State<DataManagementPage> {
         scanResult,
         onProgress: (p) {
           if (!mounted) return;
-          progress = p;
-          if (p.phase == 'shots') shotsImported = p.current;
-          if (p.phase == 'profiles') profilesImported = p.current;
+          setDialogState?.call(() {
+            progress = p;
+            if (p.phase == 'shots') shotsImported = p.current;
+            if (p.phase == 'profiles') profilesImported = p.current;
+          });
         },
       );
     } catch (e) {
