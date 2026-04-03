@@ -20,55 +20,60 @@ class ImportSummaryView extends StatelessWidget {
     final theme = ShadTheme.of(context);
 
     return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 400),
-        child: Padding(
-          padding: const EdgeInsets.all(32),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(32),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 16,
             children: [
-              Text('Found in your Decent app folder:', style: theme.textTheme.h4),
+              Text(
+                'Ready to Import',
+                style: theme.textTheme.h3,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Found in your Decent app folder:',
+                style: theme.textTheme.muted,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
               ShadCard(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 12,
                   children: [
                     _CountRow(
                       icon: LucideIcons.coffee,
                       label: '${scanResult.shotCount} shot${scanResult.shotCount == 1 ? '' : 's'}',
                     ),
+                    const SizedBox(height: 12),
                     _CountRow(
                       icon: LucideIcons.fileText,
                       label: '${scanResult.profileCount} profile${scanResult.profileCount == 1 ? '' : 's'}',
                     ),
-                    if (scanResult.hasDyeGrinders)
+                    if (scanResult.hasDyeGrinders) ...[
+                      const SizedBox(height: 12),
                       const _CountRow(
                         icon: LucideIcons.settings,
                         label: 'Grinder specs (DYE)',
                       ),
+                    ],
                   ],
                 ),
               ),
-              Row(
-                spacing: 8,
-                children: [
-                  Expanded(
-                    child: ShadButton(
-                      onPressed: onImportAll,
-                      child: const Text('Import All'),
-                    ),
-                  ),
-                  Expanded(
-                    child: ShadButton.outline(
-                      onPressed: onCancel,
-                      child: const Text('Cancel'),
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 24),
+              ShadButton(
+                onPressed: onImportAll,
+                child: const Text('Import All'),
+              ),
+              const SizedBox(height: 8),
+              ShadButton.outline(
+                onPressed: onCancel,
+                child: const Text('Cancel'),
               ),
             ],
           ),
@@ -88,9 +93,9 @@ class _CountRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     return Row(
-      spacing: 8,
       children: [
-        Icon(icon, size: 16),
+        Icon(icon, size: 18, color: theme.colorScheme.primary),
+        const SizedBox(width: 12),
         Text(label, style: theme.textTheme.p),
       ],
     );

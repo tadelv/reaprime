@@ -20,36 +20,43 @@ class ImportProgressView extends StatelessWidget {
     final theme = ShadTheme.of(context);
 
     return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 400),
-        child: Padding(
-          padding: const EdgeInsets.all(32),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(32),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 16,
             children: [
-              Text('Importing Your Data...', style: theme.textTheme.h4),
+              Icon(
+                LucideIcons.download,
+                size: 48,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Importing Your Data...',
+                style: theme.textTheme.h3,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
               ShadProgress(value: progress.fraction),
+              const SizedBox(height: 12),
               Text(
                 '${progress.current} of ${progress.total} ${progress.phase}',
                 style: theme.textTheme.muted,
                 textAlign: TextAlign.center,
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 4,
-                children: [
-                  Text(
-                    '$shotsImported shot${shotsImported == 1 ? '' : 's'} processed',
-                    style: theme.textTheme.muted,
-                  ),
-                  Text(
-                    '$profilesImported profile${profilesImported == 1 ? '' : 's'} imported',
-                    style: theme.textTheme.muted,
-                  ),
-                ],
-              ),
+              const SizedBox(height: 16),
+              if (shotsImported > 0)
+                Text(
+                  '$shotsImported shot${shotsImported == 1 ? '' : 's'} processed',
+                  style: theme.textTheme.muted,
+                ),
+              if (profilesImported > 0)
+                Text(
+                  '$profilesImported profile${profilesImported == 1 ? '' : 's'} imported',
+                  style: theme.textTheme.muted,
+                ),
             ],
           ),
         ),
