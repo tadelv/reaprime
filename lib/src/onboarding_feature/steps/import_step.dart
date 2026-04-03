@@ -174,25 +174,20 @@ class _ImportStepViewState extends State<_ImportStepView> {
   }
 
   ImportResult _zipResponseToImportResult(Map<String, dynamic> json) {
-    var shotsImported = 0;
-    var shotsSkipped = 0;
-    var profilesImported = 0;
-    var profilesSkipped = 0;
-
-    if (json['shots'] is Map) {
-      shotsImported = json['shots']['imported'] as int? ?? 0;
-      shotsSkipped = json['shots']['skipped'] as int? ?? 0;
-    }
-    if (json['profiles'] is Map) {
-      profilesImported = json['profiles']['imported'] as int? ?? 0;
-      profilesSkipped = json['profiles']['skipped'] as int? ?? 0;
-    }
+    int imported(String key) =>
+        (json[key] is Map ? json[key]['imported'] as int? : null) ?? 0;
+    int skipped(String key) =>
+        (json[key] is Map ? json[key]['skipped'] as int? : null) ?? 0;
 
     return ImportResult(
-      shotsImported: shotsImported,
-      shotsSkipped: shotsSkipped,
-      profilesImported: profilesImported,
-      profilesSkipped: profilesSkipped,
+      shotsImported: imported('shots'),
+      shotsSkipped: skipped('shots'),
+      profilesImported: imported('profiles'),
+      profilesSkipped: skipped('profiles'),
+      beansCreated: imported('beans'),
+      beansSkipped: skipped('beans'),
+      grindersCreated: imported('grinders'),
+      grindersSkipped: skipped('grinders'),
     );
   }
 
