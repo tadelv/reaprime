@@ -10,6 +10,7 @@ import 'package:reaprime/src/onboarding_feature/onboarding_controller.dart';
 import 'package:reaprime/src/services/storage/bean_storage_service.dart';
 import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/services/storage/profile_storage_service.dart';
+import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -34,6 +35,7 @@ OnboardingStep createImportStep({
   required BeanStorageService beanStorageService,
   required GrinderStorageService grinderStorageService,
   required SettingsController settingsController,
+  required PersistenceController persistenceController,
 }) {
   return OnboardingStep(
     id: 'import',
@@ -45,6 +47,7 @@ OnboardingStep createImportStep({
       beanStorageService: beanStorageService,
       grinderStorageService: grinderStorageService,
       settingsController: settingsController,
+      persistenceController: persistenceController,
     ),
   );
 }
@@ -56,6 +59,7 @@ class _ImportStepView extends StatefulWidget {
   final BeanStorageService beanStorageService;
   final GrinderStorageService grinderStorageService;
   final SettingsController settingsController;
+  final PersistenceController persistenceController;
 
   const _ImportStepView({
     required this.controller,
@@ -64,6 +68,7 @@ class _ImportStepView extends StatefulWidget {
     required this.beanStorageService,
     required this.grinderStorageService,
     required this.settingsController,
+    required this.persistenceController,
   });
 
   @override
@@ -147,6 +152,8 @@ class _ImportStepViewState extends State<_ImportStepView> {
           });
         },
       );
+      // Refresh in-memory shot cache so history view sees imported shots
+      await widget.persistenceController.loadShots();
       if (mounted) {
         setState(() {
           _importResult = result;

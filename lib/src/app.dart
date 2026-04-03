@@ -143,6 +143,7 @@ class _MyAppState extends State<MyApp> {
             beanStorageService: widget.beanStorage!,
             grinderStorageService: widget.grinderStorage!,
             settingsController: widget.settingsController,
+            persistenceController: widget.persistenceController,
           ).builder,
         ),
       createScanStep(
