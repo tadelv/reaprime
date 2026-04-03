@@ -94,17 +94,17 @@ Branch: `feature/onboarding`
 
 ## Implementation Status
 
-- [ ] Write spec/plan from finalized design
-- [ ] Welcome step widget
-- [ ] Onboarding flag in preferences
-- [ ] Import step UI (picker, progress, summary)
-- [ ] Shot v2 JSON parser (history_v2/)
-- [ ] TCL shot parser (history/)
-- [ ] Profile v2 JSON importer (profiles_v2/)
-- [ ] DYE grinders.tdb parser
-- [ ] Bean/Grinder entity extraction and deduplication
-- [ ] Pre-scan / count phase
-- [ ] Error summary + report view
-- [ ] Settings > Data Management improvements
-- [ ] About dialog with welcome content
-- [ ] Tests
+- [x] Write spec/plan from finalized design
+- [x] Welcome step widget
+- [x] Onboarding flag in preferences
+- [x] Import step UI (picker, progress, summary)
+- [x] Shot v2 JSON parser (history_v2/)
+- [x] TCL shot parser (history/)
+- [x] Profile v2 JSON importer (profiles_v2/)
+- [x] DYE grinders.tdb parser
+- [x] Bean/Grinder entity extraction and deduplication
+- [x] Pre-scan / count phase
+- [x] Error summary + report view
+- [x] Settings > Data Management improvements
+- [ ] About dialog with welcome content (deferred — welcome copy reuse)
+- [x] Tests (795 passing, 0 failures)
