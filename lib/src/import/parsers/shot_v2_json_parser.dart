@@ -40,7 +40,10 @@ class ShotV2JsonParser {
 
   /// Parses a de1app history_v2 JSON map into a [ParsedShot].
   static ParsedShot parse(Map<String, dynamic> json) {
-    final clock = json['clock'] as int;
+    final clock = _parseInt(json['clock']);
+    if (clock == null) {
+      throw FormatException('Missing or invalid clock field');
+    }
     final baseTimestamp = DateTime.fromMillisecondsSinceEpoch(
       clock * 1000,
       isUtc: true,
@@ -176,44 +179,40 @@ class ShotV2JsonParser {
     Map<String, dynamic> json,
     DateTime baseTimestamp,
   ) {
-    final elapsed = (json['elapsed'] as List).cast<num>();
+    final elapsed = _numList(json['elapsed']);
+    if (elapsed.isEmpty) return [];
 
-    final pressureData =
-        (json['pressure']['pressure'] as List).cast<num>();
-    final pressureGoal =
-        (json['pressure']['goal'] as List).cast<num>();
+    final pressure = json['pressure'] as Map<String, dynamic>?;
+    final flow = json['flow'] as Map<String, dynamic>?;
+    final temperature = json['temperature'] as Map<String, dynamic>?;
+    final totals = json['totals'] as Map<String, dynamic>?;
 
-    final flowData = (json['flow']['flow'] as List).cast<num>();
-    final flowGoal = (json['flow']['goal'] as List).cast<num>();
-    final flowByWeight = (json['flow']['by_weight'] as List).cast<num>();
+    final pressureData = _numList(pressure?['pressure']);
+    final pressureGoal = _numList(pressure?['goal']);
+    final flowData = _numList(flow?['flow']);
+    final flowGoal = _numList(flow?['goal']);
+    final flowByWeight = _numList(flow?['by_weight']);
+    final tempBasket = _numList(temperature?['basket']);
+    final tempMix = _numList(temperature?['mix']);
+    final tempGoal = _numList(temperature?['goal']);
+    final totalWeight = _numList(totals?['weight']);
+    final waterDispensed = _numList(totals?['water_dispensed']);
 
-    final tempBasket =
-        (json['temperature']['basket'] as List).cast<num>();
-    final tempMix = (json['temperature']['mix'] as List).cast<num>();
-    final tempGoal = (json['temperature']['goal'] as List).cast<num>();
-
-    final totalWeight = (json['totals']['weight'] as List).cast<num>();
-    final waterDispensed =
-        (json['totals']['water_dispensed'] as List).cast<num>();
-
-    final count = [
-      elapsed,
-      pressureData,
-      pressureGoal,
-      flowData,
-      flowGoal,
-      flowByWeight,
-      tempBasket,
-      tempMix,
-      tempGoal,
-      totalWeight,
-      waterDispensed,
-    ].map((l) => l.length).reduce(min);
+    final allArrays = [
+      elapsed, pressureData, pressureGoal,
+      flowData, flowGoal, flowByWeight,
+      tempBasket, tempMix, tempGoal,
+      totalWeight, waterDispensed,
+    ];
+    final count = allArrays
+        .where((l) => l.isNotEmpty)
+        .map((l) => l.length)
+        .reduce(min);
 
     final snapshots = <ShotSnapshot>[];
     for (var i = 0; i < count; i++) {
       final ts = baseTimestamp.add(
-        Duration(milliseconds: (elapsed[i].toDouble() * 1000).round()),
+        Duration(milliseconds: (elapsed[i] * 1000).round()),
       );
 
       final machineSnap = MachineSnapshot(
@@ -222,28 +221,56 @@ class ShotV2JsonParser {
           state: MachineState.espresso,
           substate: MachineSubstate.pouring,
         ),
-        flow: flowData[i].toDouble(),
-        pressure: pressureData[i].toDouble(),
-        targetFlow: flowGoal[i].toDouble(),
-        targetPressure: pressureGoal[i].toDouble(),
-        mixTemperature: tempMix[i].toDouble(),
-        groupTemperature: tempBasket[i].toDouble(),
-        targetMixTemperature: tempGoal[i].toDouble(),
-        targetGroupTemperature: tempGoal[i].toDouble(),
+        flow: _at(flowData, i),
+        pressure: _at(pressureData, i),
+        targetFlow: _at(flowGoal, i),
+        targetPressure: _at(pressureGoal, i),
+        mixTemperature: _at(tempMix, i),
+        groupTemperature: _at(tempBasket, i),
+        targetMixTemperature: _at(tempGoal, i),
+        targetGroupTemperature: _at(tempGoal, i),
         profileFrame: 0,
         steamTemperature: 0,
       );
 
-      final weightSnap = WeightSnapshot(
-        timestamp: ts,
-        weight: totalWeight[i].toDouble(),
-        weightFlow: flowByWeight[i].toDouble(),
-      );
+      final hasWeight = i < totalWeight.length;
+      final weightSnap = hasWeight
+          ? WeightSnapshot(
+              timestamp: ts,
+              weight: totalWeight[i],
+              weightFlow: _at(flowByWeight, i),
+            )
+          : null;
 
-      snapshots.add(ShotSnapshot(machine: machineSnap, scale: weightSnap));
+      snapshots.add(ShotSnapshot(
+        machine: machineSnap,
+        scale: weightSnap,
+      ));
     }
 
     return snapshots;
+  }
+
+  /// Safe index access — returns 0.0 if out of bounds.
+  static double _at(List<double> list, int i) =>
+      i < list.length ? list[i] : 0.0;
+
+  /// Parses an int that may be stored as a string in de1app JSON.
+  static int? _parseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString());
+  }
+
+  /// Parses a JSON list of numbers that may contain strings, ints, or doubles.
+  /// Returns an empty list if [value] is null or not a list.
+  static List<double> _numList(dynamic value) {
+    if (value == null || value is! List) return [];
+    return value.map((e) {
+      if (e is num) return e.toDouble();
+      return double.tryParse(e.toString()) ?? 0.0;
+    }).toList();
   }
 
   /// Returns a non-null, non-empty string or null.
