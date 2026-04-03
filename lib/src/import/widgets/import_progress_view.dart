@@ -41,7 +41,7 @@ class ImportProgressView extends StatelessWidget {
                 spacing: 4,
                 children: [
                   Text(
-                    '$shotsImported shot${shotsImported == 1 ? '' : 's'} imported',
+                    '$shotsImported shot${shotsImported == 1 ? '' : 's'} processed',
                     style: theme.textTheme.muted,
                   ),
                   Text(

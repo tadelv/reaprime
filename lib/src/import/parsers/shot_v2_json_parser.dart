@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_annotations.dart';
@@ -107,9 +109,23 @@ class ShotV2JsonParser {
     );
 
     // --- Profile ---
-    final profile = Profile.fromJson(
-      json['profile'] as Map<String, dynamic>,
-    );
+    final drinkWeight = _parseOptDouble(settings['drink_weight']);
+    final Profile profile;
+    if (json['profile'] != null) {
+      profile = Profile.fromJson(json['profile'] as Map<String, dynamic>);
+    } else {
+      profile = Profile(
+        version: '2',
+        title: _str(settings['profile_title']) ?? 'Unknown',
+        notes: '',
+        author: '',
+        beverageType: BeverageType.espresso,
+        steps: [],
+        targetWeight: drinkWeight,
+        targetVolumeCountStart: 0,
+        tankTemperature: 0,
+      );
+    }
 
     // --- Workflow ---
     final workflow = Workflow(
@@ -177,9 +193,25 @@ class ShotV2JsonParser {
     final tempGoal = (json['temperature']['goal'] as List).cast<num>();
 
     final totalWeight = (json['totals']['weight'] as List).cast<num>();
+    final waterDispensed =
+        (json['totals']['water_dispensed'] as List).cast<num>();
+
+    final count = [
+      elapsed,
+      pressureData,
+      pressureGoal,
+      flowData,
+      flowGoal,
+      flowByWeight,
+      tempBasket,
+      tempMix,
+      tempGoal,
+      totalWeight,
+      waterDispensed,
+    ].map((l) => l.length).reduce(min);
 
     final snapshots = <ShotSnapshot>[];
-    for (var i = 0; i < elapsed.length; i++) {
+    for (var i = 0; i < count; i++) {
       final ts = baseTimestamp.add(
         Duration(milliseconds: (elapsed[i].toDouble() * 1000).round()),
       );

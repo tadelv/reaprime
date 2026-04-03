@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/import/parsers/shot_v2_json_parser.dart';
 import 'package:reaprime/src/import/parsers/tcl_parser.dart';
@@ -132,8 +134,20 @@ class TclShotParser {
     final tempGoal = _parseDoubleList(map['espresso_temperature_goal']);
     final pressureGoal = _parseDoubleList(map['espresso_pressure_goal']);
 
+    final count = [
+      elapsed,
+      pressure,
+      flow,
+      flowWeight,
+      weight,
+      tempBasket,
+      tempMix,
+      tempGoal,
+      pressureGoal,
+    ].map((l) => l.length).reduce(min);
+
     final snapshots = <ShotSnapshot>[];
-    for (var i = 0; i < elapsed.length; i++) {
+    for (var i = 0; i < count; i++) {
       final ts = baseTimestamp.add(
         Duration(milliseconds: (elapsed[i] * 1000).round()),
       );

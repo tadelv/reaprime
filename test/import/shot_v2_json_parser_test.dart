@@ -219,5 +219,63 @@ void main() {
         expect(parsed.beanBrand, equals('Banibeans'));
       });
     });
+
+    group('missing profile key', () {
+      test('does not throw when profile key is absent', () {
+        final noProfile = Map<String, dynamic>.from(fixtureJson)
+          ..remove('profile');
+        expect(() => ShotV2JsonParser.parse(noProfile), returnsNormally);
+      });
+
+      test('falls back to profile title from settings when profile key is absent', () {
+        final noProfile = Map<String, dynamic>.from(fixtureJson)
+          ..remove('profile');
+        final parsed = ShotV2JsonParser.parse(noProfile);
+        expect(parsed.shot.workflow.profile.title, equals('Best Practice'));
+      });
+
+      test('fallback profile has empty steps list', () {
+        final noProfile = Map<String, dynamic>.from(fixtureJson)
+          ..remove('profile');
+        final parsed = ShotV2JsonParser.parse(noProfile);
+        expect(parsed.shot.workflow.profile.steps, isEmpty);
+      });
+    });
+
+    group('mismatched array lengths', () {
+      test('does not throw when weight array is shorter than elapsed', () {
+        final truncated = Map<String, dynamic>.from(fixtureJson);
+        final totals = Map<String, dynamic>.from(
+          fixtureJson['totals'] as Map<String, dynamic>,
+        );
+        // Shorten weight to 6 entries (elapsed has 9)
+        totals['weight'] = [0.0, 0.1, 0.4, 1.0, 2.0, 3.5];
+        totals['water_dispensed'] = [0.0, 0.2, 0.5, 1.2, 2.2, 3.8];
+        truncated['totals'] = totals;
+        expect(() => ShotV2JsonParser.parse(truncated), returnsNormally);
+      });
+
+      test('truncates snapshots to the shortest array length', () {
+        final truncated = Map<String, dynamic>.from(fixtureJson);
+        final totals = Map<String, dynamic>.from(
+          fixtureJson['totals'] as Map<String, dynamic>,
+        );
+        totals['weight'] = [0.0, 0.1, 0.4, 1.0, 2.0, 3.5];
+        totals['water_dispensed'] = [0.0, 0.2, 0.5, 1.2, 2.2, 3.8];
+        truncated['totals'] = totals;
+        final parsed = ShotV2JsonParser.parse(truncated);
+        expect(parsed.shot.measurements.length, equals(6));
+      });
+
+      test('does not throw when flow array is shorter than elapsed', () {
+        final truncated = Map<String, dynamic>.from(fixtureJson);
+        final flow = Map<String, dynamic>.from(
+          fixtureJson['flow'] as Map<String, dynamic>,
+        );
+        flow['flow'] = [0.0, 0.5, 1.2, 2.1];
+        truncated['flow'] = flow;
+        expect(() => ShotV2JsonParser.parse(truncated), returnsNormally);
+      });
+    });
   });
 }
