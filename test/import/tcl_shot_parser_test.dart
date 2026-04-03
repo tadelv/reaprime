@@ -163,9 +163,13 @@ void main() {
         expect(result.shot.workflow.profile.steps, isEmpty);
       });
 
-      test('profile target weight matches drink_weight', () {
+      test('profile target weight is null when final_desired_shot_weight absent', () {
+        expect(result.shot.workflow.profile.targetWeight, isNull);
+      });
+
+      test('target yield falls back to actual yield when no target available', () {
         expect(
-          result.shot.workflow.profile.targetWeight,
+          result.shot.workflow.context?.targetYield,
           closeTo(38.0, 0.001),
         );
       });
