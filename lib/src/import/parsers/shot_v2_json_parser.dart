@@ -8,6 +8,7 @@ import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/data/workflow_context.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/data/utils.dart' as parse_utils;
 import 'package:uuid/uuid.dart';
 
 /// Holds a parsed [ShotRecord] plus extracted metadata strings for entity
@@ -40,10 +41,11 @@ class ShotV2JsonParser {
 
   /// Parses a de1app history_v2 JSON map into a [ParsedShot].
   static ParsedShot parse(Map<String, dynamic> json) {
-    final clock = _parseInt(json['clock']);
-    if (clock == null) {
-      throw FormatException('Missing or invalid clock field');
+    final clockValue = json['clock'];
+    if (clockValue == null) {
+      throw const FormatException('Missing clock field');
     }
+    final clock = parse_utils.parseInt(clockValue);
     final baseTimestamp = DateTime.fromMillisecondsSinceEpoch(
       clock * 1000,
       isUtc: true,
@@ -77,16 +79,16 @@ class ShotV2JsonParser {
         _str(metaGrinder?['setting']) ?? _str(settings['grinder_setting']);
 
     // --- Shot annotations ---
-    final doseWeight = _optDouble(meta?['in']) ??
-        _parseOptDouble(settings['grinder_dose_weight']);
-    final yieldWeight = _optDouble(meta?['out']) ??
-        _parseOptDouble(settings['drink_weight']);
-    final tds = _optDouble(metaShot?['tds']) ??
-        _parseOptDouble(settings['drink_tds']);
-    final ey = _optDouble(metaShot?['ey']) ??
-        _parseOptDouble(settings['drink_ey']);
-    final enjoyment = _optDouble(metaShot?['enjoyment']) ??
-        _parseOptDouble(settings['espresso_enjoyment']);
+    final doseWeight = parse_utils.parseOptionalDouble(meta?['in']) ??
+        parse_utils.parseOptionalDouble(settings['grinder_dose_weight']);
+    final yieldWeight = parse_utils.parseOptionalDouble(meta?['out']) ??
+        parse_utils.parseOptionalDouble(settings['drink_weight']);
+    final tds = parse_utils.parseOptionalDouble(metaShot?['tds']) ??
+        parse_utils.parseOptionalDouble(settings['drink_tds']);
+    final ey = parse_utils.parseOptionalDouble(metaShot?['ey']) ??
+        parse_utils.parseOptionalDouble(settings['drink_ey']);
+    final enjoyment = parse_utils.parseOptionalDouble(metaShot?['enjoyment']) ??
+        parse_utils.parseOptionalDouble(settings['espresso_enjoyment']);
     final espressoNotes =
         _str(metaShot?['notes']) ?? _str(settings['espresso_notes']);
 
@@ -112,7 +114,7 @@ class ShotV2JsonParser {
     );
 
     // --- Profile ---
-    final drinkWeight = _parseOptDouble(settings['drink_weight']);
+    final drinkWeight = parse_utils.parseOptionalDouble(settings['drink_weight']);
     final Profile profile;
     if (json['profile'] != null) {
       profile = Profile.fromJson(json['profile'] as Map<String, dynamic>);
@@ -255,14 +257,6 @@ class ShotV2JsonParser {
   static double _at(List<double> list, int i) =>
       i < list.length ? list[i] : 0.0;
 
-  /// Parses an int that may be stored as a string in de1app JSON.
-  static int? _parseInt(dynamic value) {
-    if (value == null) return null;
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    return int.tryParse(value.toString());
-  }
-
   /// Parses a JSON list of numbers that may contain strings, ints, or doubles.
   /// Returns an empty list if [value] is null or not a list.
   static List<double> _numList(dynamic value) {
@@ -278,20 +272,5 @@ class ShotV2JsonParser {
     if (value == null) return null;
     final s = value.toString().trim();
     return s.isEmpty ? null : s;
-  }
-
-  /// Coerces a dynamic value to double if it is already numeric.
-  static double? _optDouble(dynamic value) {
-    if (value == null) return null;
-    if (value is num) return value.toDouble();
-    return null;
-  }
-
-  /// Parses a string-encoded double (from settings map).
-  static double? _parseOptDouble(dynamic value) {
-    if (value == null) return null;
-    if (value is num) return value.toDouble();
-    final s = value.toString().trim();
-    return s.isEmpty ? null : double.tryParse(s);
   }
 }
