@@ -23,6 +23,7 @@ import 'package:reaprime/src/onboarding_feature/onboarding_view.dart';
 import 'package:reaprime/src/onboarding_feature/steps/initialization_step.dart';
 import 'package:reaprime/src/onboarding_feature/steps/permissions_step.dart';
 import 'package:reaprime/src/onboarding_feature/steps/scan_step.dart';
+import 'package:reaprime/src/onboarding_feature/steps/welcome_step.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
 import 'package:reaprime/src/realtime_steam_feature/realtime_steam_feature.dart';
 import 'package:reaprime/src/skin_feature/skin_view.dart';
@@ -110,6 +111,12 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     _initializeDe1StateManager();
     _onboardingController = OnboardingController(steps: [
+      OnboardingStep(
+        id: 'welcome',
+        shouldShow: () async =>
+            !widget.settingsController.onboardingCompleted,
+        builder: createWelcomeStep().builder,
+      ),
       createPermissionsStep(
         de1Controller: widget.de1Controller,
       ),
