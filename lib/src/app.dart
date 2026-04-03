@@ -20,6 +20,7 @@ import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/controllers/scan_state_guardian.dart';
 import 'package:reaprime/src/onboarding_feature/onboarding_controller.dart';
 import 'package:reaprime/src/onboarding_feature/onboarding_view.dart';
+import 'package:reaprime/src/onboarding_feature/steps/import_step.dart';
 import 'package:reaprime/src/onboarding_feature/steps/initialization_step.dart';
 import 'package:reaprime/src/onboarding_feature/steps/permissions_step.dart';
 import 'package:reaprime/src/onboarding_feature/steps/scan_step.dart';
@@ -40,6 +41,7 @@ import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/sample_feature/scale_debug_view.dart';
 import 'package:reaprime/src/services/storage/bean_storage_service.dart';
 import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
+import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
 import 'package:reaprime/src/services/webview_log_service.dart';
 import 'package:reaprime/src/settings/plugins_settings_view.dart';
@@ -77,6 +79,7 @@ class MyApp extends StatefulWidget {
     this.updateCheckService,
     this.beanStorage,
     this.grinderStorage,
+    this.profileStorageService,
   });
 
   final SettingsController settingsController;
@@ -95,6 +98,7 @@ class MyApp extends StatefulWidget {
   final UpdateCheckService? updateCheckService;
   final BeanStorageService? beanStorage;
   final GrinderStorageService? grinderStorage;
+  final ProfileStorageService? profileStorageService;
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -126,6 +130,21 @@ class _MyAppState extends State<MyApp> {
         webUIStorage: widget.webUIStorage,
         webUIService: widget.webUIService,
       ),
+      if (widget.profileStorageService != null &&
+          widget.beanStorage != null &&
+          widget.grinderStorage != null)
+        OnboardingStep(
+          id: 'import',
+          shouldShow: () async =>
+              !widget.settingsController.onboardingCompleted,
+          builder: createImportStep(
+            storageService: widget.persistenceController.storageService,
+            profileStorageService: widget.profileStorageService!,
+            beanStorageService: widget.beanStorage!,
+            grinderStorageService: widget.grinderStorage!,
+            settingsController: widget.settingsController,
+          ).builder,
+        ),
       createScanStep(
         connectionManager: widget.connectionManager,
         deviceController: widget.deviceController,
@@ -325,6 +344,9 @@ class _MyAppState extends State<MyApp> {
                         webUIService: widget.webUIService,
                         webUIStorage: widget.webUIStorage,
                         updateCheckService: widget.updateCheckService,
+                        profileStorageService: widget.profileStorageService,
+                        beanStorageService: widget.beanStorage,
+                        grinderStorageService: widget.grinderStorage,
                       );
                     case De1DebugView.routeName:
                       final args = routeSettings.arguments;
