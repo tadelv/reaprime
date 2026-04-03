@@ -277,5 +277,45 @@ void main() {
         expect(() => ShotV2JsonParser.parse(truncated), returnsNormally);
       });
     });
+
+    group('string-typed clock field', () {
+      test('parses clock when stored as string (real de1app behavior)', () {
+        final stringClock = Map<String, dynamic>.from(fixtureJson);
+        stringClock['clock'] = '1710510622'; // string, not int
+        final parsed = ShotV2JsonParser.parse(stringClock);
+        final expected = DateTime.fromMillisecondsSinceEpoch(
+          1710510622 * 1000,
+          isUtc: true,
+        );
+        expect(parsed.shot.timestamp.isAtSameMomentAs(expected), isTrue);
+      });
+
+      test('throws FormatException for non-numeric clock', () {
+        final badClock = Map<String, dynamic>.from(fixtureJson);
+        badClock['clock'] = 'not-a-number';
+        expect(
+          () => ShotV2JsonParser.parse(badClock),
+          throwsA(isA<FormatException>()),
+        );
+      });
+    });
+
+    group('missing time-series data', () {
+      test('returns empty measurements when elapsed is missing', () {
+        final noElapsed = Map<String, dynamic>.from(fixtureJson);
+        noElapsed.remove('elapsed');
+        final parsed = ShotV2JsonParser.parse(noElapsed);
+        expect(parsed.shot.measurements, isEmpty);
+      });
+
+      test('produces null scale when totals is missing', () {
+        final noTotals = Map<String, dynamic>.from(fixtureJson);
+        noTotals.remove('totals');
+        final parsed = ShotV2JsonParser.parse(noTotals);
+        expect(parsed.shot.measurements, isNotEmpty);
+        // Scale should be null since no weight data
+        expect(parsed.shot.measurements.first.scale, isNull);
+      });
+    });
   });
 }
