@@ -1,6 +1,8 @@
 import 'dart:io';
 
+import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/models/data/bean.dart';
 import 'package:reaprime/src/import/entity_extractor.dart';
 import 'package:reaprime/src/import/import_result.dart';
 import 'package:reaprime/src/import/parsers/grinder_tdb_parser.dart';
@@ -98,22 +100,79 @@ class De1appImporter {
     final extractor = EntityExtractor();
     final extraction = extractor.extract(parsedShots);
 
-    // Store beans
+    // Load existing beans and grinders to avoid duplicates on re-import.
+    // Build lookup maps keyed the same way EntityExtractor deduplicates.
+    final existingBeans = await beanStorageService.getAllBeans();
+    final existingBeanMap = <String, String>{}; // normalized key → bean ID
+    for (final bean in existingBeans) {
+      final key = '${bean.roaster.toLowerCase()}\x00${bean.name.toLowerCase()}';
+      existingBeanMap[key] = bean.id;
+    }
+
+    final existingBatches = <String, List<BeanBatch>>{};
+    for (final bean in existingBeans) {
+      final batches = await beanStorageService.getBatchesForBean(bean.id);
+      existingBatches[bean.id] = batches;
+    }
+
+    final existingGrinders = await grinderStorageService.getAllGrinders();
+    final existingGrinderMap = <String, String>{}; // normalized model → grinder ID
+    for (final grinder in existingGrinders) {
+      existingGrinderMap[grinder.model.toLowerCase()] = grinder.id;
+    }
+
+    // Remap extracted entity IDs → existing IDs where matches are found.
+    // This ensures shots link to existing entities rather than new duplicates.
+    final beanIdRemap = <String, String>{}; // extracted ID → actual ID
+    final batchIdRemap = <String, String>{};
+    final grinderIdRemap = <String, String>{};
+
+    // Store or remap beans
     for (final bean in extraction.beans) {
-      try {
-        await beanStorageService.insertBean(bean);
-        beansCreated++;
-      } catch (e, st) {
-        _log.warning('Failed to store bean ${bean.name}', e, st);
+      final key = '${bean.roaster.toLowerCase()}\x00${bean.name.toLowerCase()}';
+      final existingId = existingBeanMap[key];
+      if (existingId != null) {
+        beanIdRemap[bean.id] = existingId;
+      } else {
+        try {
+          await beanStorageService.insertBean(bean);
+          beansCreated++;
+        } catch (e, st) {
+          _log.warning('Failed to store bean ${bean.name}', e, st);
+        }
       }
     }
 
-    // Store batches
+    // Store or remap batches
     for (final batch in extraction.batches) {
-      try {
-        await beanStorageService.insertBatch(batch);
-      } catch (e, st) {
-        _log.warning('Failed to store bean batch ${batch.id}', e, st);
+      final actualBeanId = beanIdRemap[batch.beanId] ?? batch.beanId;
+      final existingBeanBatches = existingBatches[actualBeanId] ?? [];
+
+      // Match by roast date (or both null)
+      final existingBatch = existingBeanBatches.firstWhereOrNull((b) =>
+          b.roastDate == batch.roastDate ||
+          (b.roastDate != null &&
+              batch.roastDate != null &&
+              b.roastDate!.isAtSameMomentAs(batch.roastDate!)));
+
+      if (existingBatch != null) {
+        batchIdRemap[batch.id] = existingBatch.id;
+      } else {
+        final actualBatch = actualBeanId != batch.beanId
+            ? BeanBatch(
+                id: batch.id,
+                beanId: actualBeanId,
+                roastDate: batch.roastDate,
+                roastLevel: batch.roastLevel,
+                createdAt: batch.createdAt,
+                updatedAt: batch.updatedAt,
+              )
+            : batch;
+        try {
+          await beanStorageService.insertBatch(actualBatch);
+        } catch (e, st) {
+          _log.warning('Failed to store bean batch ${batch.id}', e, st);
+        }
       }
     }
 
@@ -132,13 +191,18 @@ class De1appImporter {
       }
     }
 
-    // Store grinders
+    // Store or remap grinders
     for (final grinder in grinders) {
-      try {
-        await grinderStorageService.insertGrinder(grinder);
-        grindersCreated++;
-      } catch (e, st) {
-        _log.warning('Failed to store grinder ${grinder.model}', e, st);
+      final existingId = existingGrinderMap[grinder.model.toLowerCase()];
+      if (existingId != null) {
+        grinderIdRemap[grinder.id] = existingId;
+      } else {
+        try {
+          await grinderStorageService.insertGrinder(grinder);
+          grindersCreated++;
+        } catch (e, st) {
+          _log.warning('Failed to store grinder ${grinder.model}', e, st);
+        }
       }
     }
 
@@ -154,8 +218,14 @@ class De1appImporter {
         continue;
       }
 
-      final batchId = extraction.shotBeanBatchIds[i];
-      final grinderId = extraction.shotGrinderIds[i];
+      final rawBatchId = extraction.shotBeanBatchIds[i];
+      final rawGrinderId = extraction.shotGrinderIds[i];
+      final batchId = rawBatchId != null
+          ? (batchIdRemap[rawBatchId] ?? rawBatchId)
+          : null;
+      final grinderId = rawGrinderId != null
+          ? (grinderIdRemap[rawGrinderId] ?? rawGrinderId)
+          : null;
 
       // Update WorkflowContext with resolved entity IDs
       final updatedShot = (batchId != null || grinderId != null)
