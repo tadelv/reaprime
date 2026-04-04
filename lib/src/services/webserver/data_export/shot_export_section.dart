@@ -13,7 +13,7 @@ class ShotExportSection implements DataExportSection {
 
   @override
   Future<dynamic> export() async {
-    final shots = await _controller.shots.first;
+    final shots = await _controller.storageService.getAllShots();
     return shots.map((s) => s.toJson()).toList();
   }
 
