@@ -533,6 +533,8 @@ class _DataManagementPageState extends State<DataManagementPage> {
       if (!mounted) return;
       Navigator.of(context).pop();
 
+      widget.persistenceController.notifyShotsChanged();
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

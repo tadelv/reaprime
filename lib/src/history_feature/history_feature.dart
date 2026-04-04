@@ -34,6 +34,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
 
   List<ShotRecord> _shots = [];
   late StreamSubscription<void> _shotsSubscription;
+  Timer? _searchDebounce;
 
   ShotRecord? _selectedShot;
 
@@ -64,7 +65,10 @@ class _HistoryFeatureState extends State<HistoryFeature> {
   }
 
   void _onSearchChanged() {
-    _loadShots();
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      _loadShots();
+    });
   }
 
   void setSelectedShot(String id) {
@@ -85,6 +89,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
   @override
   void dispose() {
     _shotsSubscription.cancel();
+    _searchDebounce?.cancel();
     _searchController.removeListener(_onSearchChanged);
     super.dispose();
   }

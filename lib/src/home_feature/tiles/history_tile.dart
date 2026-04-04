@@ -31,21 +31,24 @@ class _HistoryTileState extends State<HistoryTile> {
   ShotRecord? _currentShot;
   int _totalShots = 0;
   int _currentIndex = 0; // 0 = most recent
+  int _loadGeneration = 0;
 
   @override
   void initState() {
     super.initState();
     _subscription = widget.persistenceController.shotsChanged.listen((_) {
+      _currentIndex = 0;
       _loadCurrentShot();
     });
     _loadCurrentShot();
   }
 
   Future<void> _loadCurrentShot() async {
+    final gen = ++_loadGeneration;
     final storage = widget.persistenceController.storageService;
     final total = await storage.countShots();
     if (total == 0) {
-      if (mounted) {
+      if (mounted && gen == _loadGeneration) {
         setState(() {
           _totalShots = 0;
           _currentShot = null;
@@ -65,7 +68,7 @@ class _HistoryTileState extends State<HistoryTile> {
     Logger("History").fine(
       "loaded shot at index $_currentIndex / $total: ${fullShot?.timestamp}",
     );
-    if (mounted) {
+    if (mounted && gen == _loadGeneration) {
       setState(() {
         _totalShots = total;
         _currentShot = fullShot;
