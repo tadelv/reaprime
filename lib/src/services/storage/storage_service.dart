@@ -23,6 +23,7 @@ abstract class StorageService {
     String? coffeeName,
     String? coffeeRoaster,
     String? profileTitle,
+    String? search,
   });
 
   /// Count total shots matching the given filters.
@@ -33,6 +34,7 @@ abstract class StorageService {
     String? coffeeName,
     String? coffeeRoaster,
     String? profileTitle,
+    String? search,
   });
 
   /// Get the most recent shot (full row including measurements).
