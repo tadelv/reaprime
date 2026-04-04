@@ -38,6 +38,7 @@ class ShotsHandler {
     final coffeeName = params['coffeeName'];
     final coffeeRoaster = params['coffeeRoaster'];
     final profileTitle = params['profileTitle'];
+    final search = params['search'];
 
     // Legacy: support filtering by ids
     final ids = req.url.queryParametersAll['ids'];
@@ -46,12 +47,16 @@ class ShotsHandler {
         beanBatchId != null ||
         coffeeName != null ||
         coffeeRoaster != null ||
-        profileTitle != null;
+        profileTitle != null ||
+        search != null;
 
-    // If filtering by IDs (legacy), use the old path
+    // If filtering by IDs (legacy), use direct DB lookups
     if (ids != null && ids.isNotEmpty && !hasFilters) {
-      List<ShotRecord> shots = await _controller.shots.first;
-      shots = shots.where((e) => ids.contains(e.id)).toList();
+      final shots = <ShotRecord>[];
+      for (final id in ids) {
+        final shot = await _controller.storageService.getShot(id);
+        if (shot != null) shots.add(shot);
+      }
 
       final order = params['order'] ?? 'desc';
       if (order != 'asc' && order != 'desc') {
@@ -76,6 +81,7 @@ class ShotsHandler {
         coffeeName: coffeeName,
         coffeeRoaster: coffeeRoaster,
         profileTitle: profileTitle,
+        search: search,
       );
 
       final total = await _controller.storageService.countShots(
@@ -85,6 +91,7 @@ class ShotsHandler {
         coffeeName: coffeeName,
         coffeeRoaster: coffeeRoaster,
         profileTitle: profileTitle,
+        search: search,
       );
 
       // Strip measurements from list response for performance
@@ -103,24 +110,31 @@ class ShotsHandler {
   }
 
   Future<Response> _getIds(Request req) async {
-    List<ShotRecord> shots = await _controller.shots.first;
+    try {
+      final orderBy = req.url.queryParameters['orderBy'];
+      if (orderBy != null && orderBy != 'timestamp') {
+        return jsonBadRequest({"error": "Invalid orderBy value. Supported: timestamp"});
+      }
 
-    final orderBy = req.url.queryParameters['orderBy'];
-    if (orderBy != null && orderBy != 'timestamp') {
-      return jsonBadRequest({"error": "Invalid orderBy value. Supported: timestamp"});
+      final order = req.url.queryParameters['order'] ?? 'desc';
+      if (order != 'asc' && order != 'desc') {
+        return jsonBadRequest({"error": "Invalid order value. Supported: asc, desc"});
+      }
+
+      final total = await _controller.storageService.countShots();
+      final shots = await _controller.storageService.getShotsPaginated(
+        limit: total > 0 ? total : 1,
+      );
+      var ids = shots.map((e) => e.id).toList();
+      if (order == 'asc') {
+        ids = ids.reversed.toList();
+      }
+
+      return jsonOk(ids);
+    } catch (e, st) {
+      _log.severe('Error getting shot IDs', e, st);
+      return jsonError({"error": e.toString()});
     }
-
-    final order = req.url.queryParameters['order'] ?? 'desc';
-    if (order != 'asc' && order != 'desc') {
-      return jsonBadRequest({"error": "Invalid order value. Supported: asc, desc"});
-    }
-
-    shots.sort((a, b) => order == 'asc'
-        ? a.timestamp.compareTo(b.timestamp)
-        : b.timestamp.compareTo(a.timestamp));
-
-    final ids = shots.map((e) => e.id);
-    return jsonOk(ids.toList());
   }
 
   Future<Response> _getLatestShot(Request req) async {

@@ -649,6 +649,15 @@ paths:
           schema:
             type: string
         - in: query
+          name: search
+          description: |
+            Free-text search across shot metadata. Matches against coffee name,
+            coffee roaster, profile title, grinder model, and espresso notes.
+            Case-insensitive substring match.
+          required: false
+          schema:
+            type: string
+        - in: query
           name: ids
           description: "Legacy: filter by shot IDs (comma separated). Prefer limit/offset pagination."
           required: false
