@@ -111,25 +111,10 @@ class ShotsHandler {
 
   Future<Response> _getIds(Request req) async {
     try {
-      final orderBy = req.url.queryParameters['orderBy'];
-      if (orderBy != null && orderBy != 'timestamp') {
-        return jsonBadRequest({"error": "Invalid orderBy value. Supported: timestamp"});
-      }
-
-      final order = req.url.queryParameters['order'] ?? 'desc';
-      if (order != 'asc' && order != 'desc') {
-        return jsonBadRequest({"error": "Invalid order value. Supported: asc, desc"});
-      }
-
-      final total = await _controller.storageService.countShots();
-      final shots = await _controller.storageService.getShotsPaginated(
-        limit: total > 0 ? total : 1,
-      );
-      var ids = shots.map((e) => e.id).toList();
-      if (order == 'asc') {
-        ids = ids.reversed.toList();
-      }
-
+      // Use lightweight selectOnly query instead of loading full shot rows.
+      // Note: getShotIds() returns IDs unordered — callers needing ordered
+      // results should use the paginated /shots endpoint instead.
+      final ids = await _controller.storageService.getShotIds();
       return jsonOk(ids);
     } catch (e, st) {
       _log.severe('Error getting shot IDs', e, st);

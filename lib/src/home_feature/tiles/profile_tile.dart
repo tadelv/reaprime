@@ -618,6 +618,9 @@ class _ProfileState extends State<ProfileTile> {
             Text("Grind setting"),
             Expanded(
               child: Autocomplete<String>(
+                // TODO: Grinder setting autocomplete was previously sourced from shot history.
+                // Now that the in-memory cache is removed, setting suggestions are not available.
+                // Consider adding a distinct grinder_setting query to ShotDao.
                 optionsBuilder: (TextEditingValue val) {
                   if (val.text.isEmpty) return const [];
                   return [val.text];
