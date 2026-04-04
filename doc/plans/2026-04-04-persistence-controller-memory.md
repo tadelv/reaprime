@@ -51,7 +51,9 @@ Future<List<ShotRecord>> getShotsPaginated({
 });
 ```
 
-`getShotsPaginated` already exists with `profileTitle` and `coffeeRoaster` filters. Add a `search` parameter that does a LIKE match across multiple columns (matching the current client-side search in history_feature.dart).
+The existing `profileTitle` and `coffeeRoaster` params are kept for exact/prefix filtering (used by the REST API). The new `search` param is a free-text search across ALL metadata fields at once (what the history feature search box needs). Both coexist.
+
+The `search` param is also exposed on the REST endpoint (`GET /api/v1/shots?search=...`) so skins can build their own search UI. Update `assets/api/rest_v1.yml` accordingly.
 
 ### ShotDao additions
 
@@ -98,6 +100,8 @@ No new tables or columns needed — the denormalized columns already exist in `s
 ### Shots Handler (REST API)
 - **Before:** Legacy `?ids=` endpoint uses `persistenceController.shots.first` to get all shots and filter by ID
 - **After:** Use `storageService.getShot(id)` per ID, or add a batch query. Update/delete already go through PersistenceController (unchanged).
+- Add `search` query parameter to `GET /api/v1/shots` endpoint, pass through to `getShotsPaginated(search: ...)`.
+- Update `assets/api/rest_v1.yml` with the new `search` parameter.
 
 ### main.dart
 - **Before:** `persistenceController.loadShots()` at startup
