@@ -56,6 +56,7 @@ class FakeStorageService implements StorageService {
     String? coffeeRoaster,
     String? profileTitle,
     String? search,
+    bool ascending = false,
   }) => throw UnimplementedError();
   @override
   Future<int> countShots({
@@ -66,6 +67,7 @@ class FakeStorageService implements StorageService {
     String? coffeeRoaster,
     String? profileTitle,
     String? search,
+    bool ascending = false,
   }) => throw UnimplementedError();
   @override
   Future<ShotRecord?> getLatestShot() => throw UnimplementedError();

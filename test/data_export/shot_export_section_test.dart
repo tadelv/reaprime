@@ -68,6 +68,7 @@ class MockStorageService implements StorageService {
     String? coffeeRoaster,
     String? profileTitle,
     String? search,
+    bool ascending = false,
   }) async {
     return _shots.values.skip(offset).take(limit).toList();
   }
@@ -81,6 +82,7 @@ class MockStorageService implements StorageService {
     String? coffeeRoaster,
     String? profileTitle,
     String? search,
+    bool ascending = false,
   }) async {
     return _shots.length;
   }

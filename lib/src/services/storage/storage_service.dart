@@ -24,6 +24,7 @@ abstract class StorageService {
     String? coffeeRoaster,
     String? profileTitle,
     String? search,
+    bool ascending = false,
   });
 
   /// Count total shots matching the given filters.
