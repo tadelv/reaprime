@@ -73,6 +73,9 @@ class ShotsHandler {
 
     // Paginated + filtered path
     try {
+      final order = params['order'];
+      final ascending = order == 'asc';
+
       final shots = await _controller.storageService.getShotsPaginated(
         limit: limit.clamp(1, 100),
         offset: offset.clamp(0, 1 << 30),
@@ -83,6 +86,7 @@ class ShotsHandler {
         coffeeRoaster: coffeeRoaster,
         profileTitle: profileTitle,
         search: search,
+        ascending: ascending,
       );
 
       final total = await _controller.storageService.countShots(

@@ -40,6 +40,7 @@ class ShotDao extends DatabaseAccessor<AppDatabase> with _$ShotDaoMixin {
     String? coffeeRoaster,
     String? profileTitle,
     String? search,
+    bool ascending = false,
   }) {
     final query = select(shotRecords);
 
@@ -72,7 +73,9 @@ class ShotDao extends DatabaseAccessor<AppDatabase> with _$ShotDaoMixin {
     }
 
     query
-      ..orderBy([(s) => OrderingTerm.desc(s.timestamp)])
+      ..orderBy([(s) => ascending
+          ? OrderingTerm.asc(s.timestamp)
+          : OrderingTerm.desc(s.timestamp)])
       ..limit(limit, offset: offset);
 
     return query.get();
