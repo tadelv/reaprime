@@ -620,21 +620,7 @@ class _ProfileState extends State<ProfileTile> {
               child: Autocomplete<String>(
                 optionsBuilder: (TextEditingValue val) {
                   if (val.text.isEmpty) return const [];
-                  final options =
-                      widget.persistenceController
-                          .grinderOptions()
-                          .where(
-                            (el) => el.setting.toLowerCase().contains(
-                              val.text.toLowerCase(),
-                            ),
-                          )
-                          .map((e) => e.setting)
-                          .toSet()
-                          .toList();
-                  if (!options.contains(val.text)) {
-                    return [val.text, ...options];
-                  }
-                  return options;
+                  return [val.text];
                 },
                 key: Key(ctx.grinderSetting ?? ""),
                 initialValue: TextEditingValue(text: ctx.grinderSetting ?? ""),
@@ -658,30 +644,18 @@ class _ProfileState extends State<ProfileTile> {
             Text("Grinder model"),
             Expanded(
               child: Autocomplete<String>(
-                optionsBuilder: (TextEditingValue val) {
-                  if (val.text.isEmpty) return const [];
-                  final options =
-                      widget.persistenceController
-                          .grinderOptions()
-                          .where(
-                            (e) =>
-                                e.model?.toLowerCase().contains(
-                                  val.text.toLowerCase(),
-                                ) ??
-                                false,
-                          )
-                          .fold(<String>[], (r, e) {
-                            if (e.model != null) {
-                              r.add(e.model!);
-                            }
-                            return r;
-                          })
-                          .toSet()
-                          .toList();
-                  if (!options.contains(val.text)) {
-                    return [val.text, ...options];
+                optionsBuilder: (TextEditingValue val) async {
+                  if (val.text.isEmpty || widget.grinderStorage == null) return const <String>[];
+                  final grinders = await widget.grinderStorage!.getAllGrinders();
+                  final matches = grinders
+                      .where((g) => g.model.toLowerCase().contains(val.text.toLowerCase()))
+                      .map((g) => g.model)
+                      .toSet()
+                      .toList();
+                  if (!matches.contains(val.text)) {
+                    return [val.text, ...matches];
                   }
-                  return options;
+                  return matches;
                 },
                 key: Key(ctx.grinderModel ?? ""),
                 initialValue: TextEditingValue(text: ctx.grinderModel ?? ""),
@@ -839,23 +813,18 @@ class _ProfileState extends State<ProfileTile> {
             Text("Coffee name"),
             Expanded(
               child: Autocomplete<String>(
-                optionsBuilder: (TextEditingValue val) {
-                  if (val.text.isEmpty) return const [];
-                  final options =
-                      widget.persistenceController
-                          .coffeeOptions()
-                          .where(
-                            (e) => e.name.toLowerCase().contains(
-                              val.text.toLowerCase(),
-                            ),
-                          )
-                          .map((e) => e.name)
-                          .toSet()
-                          .toList();
-                  if (!options.contains(val.text)) {
-                    return [val.text, ...options];
+                optionsBuilder: (TextEditingValue val) async {
+                  if (val.text.isEmpty || widget.beanStorage == null) return const <String>[];
+                  final beans = await widget.beanStorage!.getAllBeans();
+                  final matches = beans
+                      .where((b) => b.name.toLowerCase().contains(val.text.toLowerCase()))
+                      .map((b) => b.name)
+                      .toSet()
+                      .toList();
+                  if (!matches.contains(val.text)) {
+                    return [val.text, ...matches];
                   }
-                  return options;
+                  return matches;
                 },
                 key: Key(ctx.coffeeName ?? ""),
                 initialValue: TextEditingValue(text: ctx.coffeeName ?? ""),
@@ -883,30 +852,18 @@ class _ProfileState extends State<ProfileTile> {
             Text("Roaster"),
             Expanded(
               child: Autocomplete<String>(
-                optionsBuilder: (TextEditingValue val) {
-                  if (val.text.isEmpty) return const [];
-                  final options =
-                      widget.persistenceController
-                          .coffeeOptions()
-                          .where(
-                            (e) =>
-                                e.roaster?.toLowerCase().contains(
-                                  val.text.toLowerCase(),
-                                ) ??
-                                false,
-                          )
-                          .fold(<String>[], (r, e) {
-                            if (e.roaster != null) {
-                              r.add(e.roaster!);
-                            }
-                            return r;
-                          })
-                          .toSet()
-                          .toList();
-                  if (!options.contains(val.text)) {
-                    return [val.text, ...options];
+                optionsBuilder: (TextEditingValue val) async {
+                  if (val.text.isEmpty || widget.beanStorage == null) return const <String>[];
+                  final beans = await widget.beanStorage!.getAllBeans();
+                  final matches = beans
+                      .where((b) => b.roaster.toLowerCase().contains(val.text.toLowerCase()))
+                      .map((b) => b.roaster)
+                      .toSet()
+                      .toList();
+                  if (!matches.contains(val.text)) {
+                    return [val.text, ...matches];
                   }
-                  return options;
+                  return matches;
                 },
                 key: Key(ctx.coffeeRoaster ?? ""),
                 initialValue: TextEditingValue(text: ctx.coffeeRoaster ?? ""),
