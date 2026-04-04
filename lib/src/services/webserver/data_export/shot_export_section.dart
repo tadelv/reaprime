@@ -40,18 +40,22 @@ class ShotExportSection implements DataExportSection {
 
         if (existing != null) {
           if (strategy == ConflictStrategy.overwrite) {
-            await _controller.updateShot(record);
+            await _controller.storageService.updateShot(record);
             imported++;
           } else {
             skipped++;
           }
         } else {
-          await _controller.persistShot(record);
+          await _controller.storageService.storeShot(record);
           imported++;
         }
       } catch (e) {
         errors.add('Failed to import shot: $e');
       }
+    }
+
+    if (imported > 0) {
+      _controller.notifyShotsChanged();
     }
 
     return SectionImportResult(

@@ -750,6 +750,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                 );
                 await widget.persistenceController.updateShot(updatedShot);
                 Navigator.of(context).pop();
+                if (!mounted) return;
                 setState(() {
                   _selectedShot = updatedShot;
                 });
