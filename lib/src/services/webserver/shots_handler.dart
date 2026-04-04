@@ -40,8 +40,9 @@ class ShotsHandler {
     final profileTitle = params['profileTitle'];
     final search = params['search'];
 
-    // Legacy: support filtering by ids
-    final ids = req.url.queryParametersAll['ids'];
+    // Legacy: support filtering by ids (handles both ?ids=a&ids=b and ?ids=a,b,c)
+    final rawIds = req.url.queryParametersAll['ids'];
+    final ids = rawIds?.expand((id) => id.split(',')).where((id) => id.isNotEmpty).toList();
     final hasFilters = grinderId != null ||
         grinderModel != null ||
         beanBatchId != null ||
