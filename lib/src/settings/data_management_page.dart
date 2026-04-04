@@ -476,8 +476,8 @@ class _DataManagementPageState extends State<DataManagementPage> {
         // Show result summary
         await _showImportResultDialog(responseJson);
 
-        // Refresh shot data
-        await widget.persistenceController.loadShots();
+        // Notify listeners that shots have changed
+        widget.persistenceController.notifyShotsChanged();
       } finally {
         client.close();
       }
@@ -529,8 +529,6 @@ class _DataManagementPageState extends State<DataManagementPage> {
         await importer.importShotJson(content);
         count = 1;
       }
-
-      widget.persistenceController.loadShots();
 
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -684,8 +682,8 @@ class _DataManagementPageState extends State<DataManagementPage> {
       ),
     );
 
-    // Refresh shot data
-    await widget.persistenceController.loadShots();
+    // Notify listeners that shots have changed
+    widget.persistenceController.notifyShotsChanged();
   }
 
   void _showProgressDialog(BuildContext context, String message) {

@@ -143,7 +143,7 @@ class _ImportStepViewState extends State<_ImportStepView> {
         final responseJson = jsonDecode(responseBody) as Map<String, dynamic>;
         final result = _zipResponseToImportResult(responseJson);
 
-        await widget.persistenceController.loadShots();
+        widget.persistenceController.notifyShotsChanged();
 
         if (mounted) {
           setState(() {
@@ -224,8 +224,6 @@ class _ImportStepViewState extends State<_ImportStepView> {
           });
         },
       );
-      // Refresh in-memory shot cache so history view sees imported shots
-      await widget.persistenceController.loadShots();
       if (mounted) {
         setState(() {
           _importResult = result;

@@ -233,7 +233,6 @@ void main() async {
   final persistenceController = PersistenceController(
     storageService: DriftStorageService(appDatabase),
   );
-  persistenceController.loadShots();
 
   // Entity storage services
   final beanStorage = DriftBeanStorageService(appDatabase);
