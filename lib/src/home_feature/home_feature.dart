@@ -229,23 +229,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            StreamBuilder(
-              stream: widget.persistenceController.shots,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(child: CircularProgressIndicator());
-                } else if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                } else if (snapshot.hasData) {
-                  return Center(
-                    child: HistoryTile(
-                      persistenceController: widget.persistenceController,
-                      workflowController: widget.workflowController,
-                    ),
-                  );
-                }
-                return Center(child: Text('No data found.'));
-              },
+            HistoryTile(
+              persistenceController: widget.persistenceController,
+              workflowController: widget.workflowController,
             ),
           ],
         ),

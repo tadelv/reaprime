@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
@@ -34,28 +33,42 @@ class _HistoryFeatureState extends State<HistoryFeature> {
   final TextEditingController _searchController = TextEditingController();
 
   List<ShotRecord> _shots = [];
-  List<ShotRecord> _filteredShots = [];
-  late StreamSubscription<List<ShotRecord>> _shotsSubscription;
+  late StreamSubscription<void> _shotsSubscription;
+  Timer? _searchDebounce;
 
   ShotRecord? _selectedShot;
 
   @override
   void initState() {
-    _shotsSubscription = widget.persistenceController.shots.listen((records) {
-      setState(() {
-        _shots = records.sorted(
-          (a, b) => a.timestamp.isBefore(b.timestamp) ? 1 : -1,
-        );
-        if (_searchController.text.isEmpty) {
-          _filteredShots = _shots;
-        }
-      });
+    super.initState();
+    _shotsSubscription = widget.persistenceController.shotsChanged.listen((_) {
+      _loadShots();
     });
-    _searchController.addListener(searchTextUpdate);
+    _searchController.addListener(_onSearchChanged);
+    _loadShots();
     if (widget.selectedShot != null) {
       setSelectedShot("");
     }
-    super.initState();
+  }
+
+  Future<void> _loadShots() async {
+    final search = _searchController.text.isEmpty ? null : _searchController.text;
+    final shots = await widget.persistenceController.storageService.getShotsPaginated(
+      limit: 200,
+      search: search,
+    );
+    if (mounted) {
+      setState(() {
+        _shots = shots;
+      });
+    }
+  }
+
+  void _onSearchChanged() {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      _loadShots();
+    });
   }
 
   void setSelectedShot(String id) {
@@ -64,10 +77,20 @@ class _HistoryFeatureState extends State<HistoryFeature> {
     _selectedShot = shot;
   }
 
+  Future<void> _selectShot(ShotRecord shotMeta) async {
+    final fullShot = await widget.persistenceController.storageService.getShot(shotMeta.id);
+    if (mounted && fullShot != null) {
+      setState(() {
+        _selectedShot = fullShot;
+      });
+    }
+  }
+
   @override
   void dispose() {
     _shotsSubscription.cancel();
-    _searchController.removeListener(searchTextUpdate);
+    _searchDebounce?.cancel();
+    _searchController.removeListener(_onSearchChanged);
     super.dispose();
   }
 
@@ -77,88 +100,6 @@ class _HistoryFeatureState extends State<HistoryFeature> {
       appBar: AppBar(title: Text("History")),
       body: body(context),
     );
-  }
-
-  searchTextUpdate() {
-    final text = _searchController.text.toLowerCase();
-    if (text.isEmpty) {
-      setState(() {
-        _filteredShots = _shots;
-      });
-      return;
-    }
-    setState(() {
-      _filteredShots = _shots.where((record) {
-        // Search in coffee name
-        if (record.workflow.context?.coffeeName?.toLowerCase().contains(text) ?? false) {
-          return true;
-        }
-
-        // Search in roaster
-        if (record.workflow.context?.coffeeRoaster?.toLowerCase().contains(text) ?? false) {
-          return true;
-        }
-        
-        // Search in profile title
-        if (record.workflow.profile.title.toLowerCase().contains(text)) {
-          return true;
-        }
-        
-        // Search in grinder model
-        if (record.workflow.context?.grinderModel?.toLowerCase().contains(text) ?? false) {
-          return true;
-        }
-
-        // Search in shot notes
-        if (record.annotations?.espressoNotes?.toLowerCase().contains(text) ?? false) {
-          return true;
-        }
-
-        // Search in extras (recursive search through nested structures)
-        if (record.annotations?.extras != null && _searchInMetadata(record.annotations!.extras!, text)) {
-          return true;
-        }
-        
-        return false;
-      }).toList();
-    });
-  }
-
-  bool _searchInMetadata(Map<String, dynamic> metadata, String searchText) {
-    for (var value in metadata.values) {
-      if (value == null) continue;
-      
-      // Handle string values
-      if (value is String && value.toLowerCase().contains(searchText)) {
-        return true;
-      }
-      
-      // Handle list values (e.g., tags)
-      if (value is List) {
-        for (var item in value) {
-          if (item is String && item.toLowerCase().contains(searchText)) {
-            return true;
-          }
-          // Handle numeric values in lists
-          if (item != null && item.toString().toLowerCase().contains(searchText)) {
-            return true;
-          }
-        }
-      }
-      
-      // Handle nested maps
-      if (value is Map<String, dynamic>) {
-        if (_searchInMetadata(value, searchText)) {
-          return true;
-        }
-      }
-      
-      // Handle other types (numbers, booleans) by converting to string
-      if (value.toString().toLowerCase().contains(searchText)) {
-        return true;
-      }
-    }
-    return false;
   }
 
   Widget body(BuildContext context) {
@@ -189,7 +130,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                   Padding(
                     padding: const EdgeInsets.only(top: 4.0, left: 8.0),
                     child: Text(
-                      "Found ${_filteredShots.length} shot${_filteredShots.length == 1 ? '' : 's'}",
+                      "Found ${_shots.length} shot${_shots.length == 1 ? '' : 's'}",
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                       ),
@@ -200,9 +141,9 @@ class _HistoryFeatureState extends State<HistoryFeature> {
           ),
           Expanded(
             child: ListView.builder(
-              itemCount: _filteredShots.length,
+              itemCount: _shots.length,
               itemBuilder: (context, index) {
-                final ShotRecord record = _filteredShots[index];
+                final ShotRecord record = _shots[index];
                 final isSelected = _selectedShot?.id == record.id;
                 final duration = record.measurements.isNotEmpty
                     ? record.measurements.last.machine.timestamp.difference(record.timestamp)
@@ -213,9 +154,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                   padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
                   child: TapRegion(
                     onTapUpInside: (_) {
-                      setState(() {
-                        _selectedShot = record;
-                      });
+                      _selectShot(record);
                     },
                     child: Container(
                       decoration: BoxDecoration(
@@ -811,6 +750,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                 );
                 await widget.persistenceController.updateShot(updatedShot);
                 Navigator.of(context).pop();
+                if (!mounted) return;
                 setState(() {
                   _selectedShot = updatedShot;
                 });

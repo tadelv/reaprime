@@ -39,6 +39,7 @@ class ShotDao extends DatabaseAccessor<AppDatabase> with _$ShotDaoMixin {
     String? coffeeName,
     String? coffeeRoaster,
     String? profileTitle,
+    String? search,
   }) {
     final query = select(shotRecords);
 
@@ -60,6 +61,15 @@ class ShotDao extends DatabaseAccessor<AppDatabase> with _$ShotDaoMixin {
     if (profileTitle != null) {
       query.where((s) => s.profileTitle.equals(profileTitle));
     }
+    if (search != null && search.isNotEmpty) {
+      final pattern = '%$search%';
+      query.where((s) =>
+          s.coffeeName.like(pattern) |
+          s.coffeeRoaster.like(pattern) |
+          s.profileTitle.like(pattern) |
+          s.grinderModel.like(pattern) |
+          s.espressoNotes.like(pattern));
+    }
 
     query
       ..orderBy([(s) => OrderingTerm.desc(s.timestamp)])
@@ -76,6 +86,7 @@ class ShotDao extends DatabaseAccessor<AppDatabase> with _$ShotDaoMixin {
     String? coffeeName,
     String? coffeeRoaster,
     String? profileTitle,
+    String? search,
   }) async {
     final countExpr = shotRecords.id.count();
     final query = selectOnly(shotRecords)..addColumns([countExpr]);
@@ -97,6 +108,16 @@ class ShotDao extends DatabaseAccessor<AppDatabase> with _$ShotDaoMixin {
     }
     if (profileTitle != null) {
       query.where(shotRecords.profileTitle.equals(profileTitle));
+    }
+    if (search != null && search.isNotEmpty) {
+      final pattern = '%$search%';
+      query.where(
+        shotRecords.coffeeName.like(pattern) |
+            shotRecords.coffeeRoaster.like(pattern) |
+            shotRecords.profileTitle.like(pattern) |
+            shotRecords.grinderModel.like(pattern) |
+            shotRecords.espressoNotes.like(pattern),
+      );
     }
 
     final result = await query.getSingle();
