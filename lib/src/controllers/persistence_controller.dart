@@ -1,4 +1,3 @@
-import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
@@ -9,16 +8,24 @@ class PersistenceController {
   final StorageService storageService;
   final _log = Logger("PersistenceController");
 
-  final List<ShotRecord> _shots = [];
-
   PersistenceController({required this.storageService});
+
+  /// Fires whenever shots are added, updated, or deleted.
+  /// Consumers should re-query what they need from [storageService].
+  final _shotsChangedSubject = PublishSubject<void>();
+  Stream<void> get shotsChanged => _shotsChangedSubject.stream;
+
+  /// Manually fire a shots-changed notification.
+  /// Used after external mutations (e.g., ZIP import via REST endpoint).
+  void notifyShotsChanged() {
+    _shotsChangedSubject.add(null);
+  }
 
   Future<void> persistShot(ShotRecord record) async {
     _log.info("Storing shot");
     try {
       await storageService.storeShot(record);
-      _shots.add(record);
-      _shotsController.add(_shots);
+      _shotsChangedSubject.add(null);
     } catch (e, st) {
       _log.severe("Error saving shot:", e, st);
     }
@@ -28,13 +35,7 @@ class PersistenceController {
     _log.info("Updating shot: ${record.id}");
     try {
       await storageService.updateShot(record);
-      final index = _shots.indexWhere((s) => s.id == record.id);
-      if (index != -1) {
-        _shots[index] = record;
-        _shotsController.add(_shots);
-      } else {
-        _log.warning("Shot ${record.id} not found in memory cache");
-      }
+      _shotsChangedSubject.add(null);
     } catch (e, st) {
       _log.severe("Error updating shot:", e, st);
       rethrow;
@@ -45,52 +46,11 @@ class PersistenceController {
     _log.info("Deleting shot: $id");
     try {
       await storageService.deleteShot(id);
-      _shots.removeWhere((s) => s.id == id);
-      _shotsController.add(_shots);
+      _shotsChangedSubject.add(null);
     } catch (e, st) {
       _log.severe("Error deleting shot:", e, st);
       rethrow;
     }
-  }
-
-  Future<List<ShotRecord>> loadShots() async {
-    var loadedShots = await storageService.getAllShots();
-    _log.fine("shots loaded: ${loadedShots.length}");
-    _shots.clear();
-    _log.fine("shots cleared: ${_shots.length}");
-    _shots.addAll(
-      loadedShots.sortedBy((element) {
-        return element.timestamp;
-      }),
-    );
-    _shotsController.add(_shots);
-    _log.fine("shots changed: ${_shots.length}");
-    return _shots;
-  }
-
-  final BehaviorSubject<List<ShotRecord>> _shotsController =
-      BehaviorSubject.seeded([]);
-
-  Stream<List<ShotRecord>> get shots => _shotsController.stream;
-
-  List<({String setting, String? model})> grinderOptions() {
-    return _shots
-        .where((el) => el.workflow.context?.grinderSetting != null)
-        .map((el) => (
-              setting: el.workflow.context!.grinderSetting!,
-              model: el.workflow.context!.grinderModel,
-            ))
-        .toList();
-  }
-
-  List<({String name, String? roaster})> coffeeOptions() {
-    return _shots
-        .where((el) => el.workflow.context?.coffeeName != null)
-        .map((el) => (
-              name: el.workflow.context!.coffeeName!,
-              roaster: el.workflow.context!.coffeeRoaster,
-            ))
-        .toList();
   }
 
   Future<void> saveWorkflow(Workflow workflow) async {
@@ -99,5 +59,9 @@ class PersistenceController {
 
   Future<Workflow?> loadWorkflow() async {
     return storageService.loadCurrentWorkflow();
+  }
+
+  void dispose() {
+    _shotsChangedSubject.close();
   }
 }
