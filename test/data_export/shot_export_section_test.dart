@@ -67,6 +67,7 @@ class MockStorageService implements StorageService {
     String? coffeeName,
     String? coffeeRoaster,
     String? profileTitle,
+    String? search,
   }) async {
     return _shots.values.skip(offset).take(limit).toList();
   }
@@ -79,6 +80,7 @@ class MockStorageService implements StorageService {
     String? coffeeName,
     String? coffeeRoaster,
     String? profileTitle,
+    String? search,
   }) async {
     return _shots.length;
   }
@@ -152,9 +154,6 @@ void main() {
 
   group('export', () {
     test('returns empty list when no shots exist', () async {
-      // Load shots to populate the BehaviorSubject
-      await controller.loadShots();
-
       final result = await section.export();
       expect(result, isA<List>());
       expect((result as List), isEmpty);
@@ -163,7 +162,6 @@ void main() {
     test('returns list of shot JSON maps', () async {
       final record = _makeShotRecord();
       await storage.storeShot(record);
-      await controller.loadShots();
 
       final result = await section.export();
       expect(result, isA<List>());
@@ -177,7 +175,6 @@ void main() {
       await storage.storeShot(_makeShotRecord(id: 'shot-1'));
       await storage.storeShot(
           _makeShotRecord(id: 'shot-2', workflowName: 'Workflow 2'));
-      await controller.loadShots();
 
       final result = await section.export();
       final list = result as List;
@@ -187,7 +184,6 @@ void main() {
 
   group('import with skip strategy', () {
     test('imports new shots', () async {
-      await controller.loadShots();
       final record = _makeShotRecord();
       final json = record.toJson();
 
@@ -205,7 +201,6 @@ void main() {
     test('skips duplicate shots', () async {
       final record = _makeShotRecord();
       await storage.storeShot(record);
-      await controller.loadShots();
 
       final json = record.toJson();
       final result = await section.import([json], ConflictStrategy.skip);
@@ -229,7 +224,6 @@ void main() {
 
   group('import with overwrite strategy', () {
     test('imports new shots', () async {
-      await controller.loadShots();
       final record = _makeShotRecord();
       final json = record.toJson();
 
@@ -246,7 +240,6 @@ void main() {
     test('overwrites existing shots', () async {
       final original = _makeShotRecord(shotNotes: 'original');
       await storage.storeShot(original);
-      await controller.loadShots();
 
       final updated = _makeShotRecord(shotNotes: 'updated');
       final json = updated.toJson();
@@ -273,7 +266,6 @@ void main() {
     });
 
     test('collects errors for individual shot failures', () async {
-      await controller.loadShots();
       final validRecord = _makeShotRecord();
       final validJson = validRecord.toJson();
       final invalidJson = <String, dynamic>{'garbage': true};
