@@ -206,9 +206,11 @@ class De1Controller {
       targetSteamTemp: settings.steamEnabled ? settings.targetTemp : 0,
       targetSteamDuration: settings.targetDuration,
     ));
-    _steamDataController.first.then((d) {
-      _steamDataController.add(d.copyWith(flow: settings.targetFlow));
-    });
+    _steamDataController.add(SteamSettings(
+      targetTemperature: settings.steamEnabled ? settings.targetTemp : 0,
+      duration: settings.targetDuration,
+      flow: settings.targetFlow,
+    ));
   }
 
   Future<HotWaterFormSettings> hotWaterSettings() async {
@@ -233,9 +235,12 @@ class De1Controller {
           targetHotWaterVolume: settings.volume,
           targetHotWaterDuration: settings.duration));
     });
-    _hotWaterDataController.first.then((d) {
-      _hotWaterDataController.add(d.copyWith(flow: settings.flow));
-    });
+    _hotWaterDataController.add(HotWaterData(
+      targetTemperature: settings.targetTemperature,
+      duration: settings.duration,
+      volume: settings.volume,
+      flow: settings.flow,
+    ));
   }
 
   Future<void> updateFlushSettings(RinseData settings) async {
