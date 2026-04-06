@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-> **Note:** If you're using a different AI coding agent (Cursor, Copilot, Windsurf, Codex, etc.), see `AGENTS.md` for tool-agnostic guidance. `AGUDE.md` is Claude Code-specific and includes commands like `EnterPlanMode` and references to `.claude/skills/`.
+> **Note:** If you're using a different AI coding agent (Cursor, Copilot, Windsurf, Codex, etc.), see `AGENTS.md` for tool-agnostic guidance. `CLAUDE.md` is Claude Code-specific and includes commands like `EnterPlanMode` and references to `.claude/skills/`.
 
 ## Project Overview
 
@@ -108,7 +108,7 @@ Both steps are required, not optional.
 - **`ShotController`:** Orchestrates shot execution, stops at target weight. Timer lifecycle: reset on first tare (preparingForShot), start on second tare (preinfusion/pouring), stop when shot ends.
 - **`ProfileController`:** Profile library with content-based hash IDs for deduplication
 - **`WorkflowController`:** Multi-step espresso workflows
-- **`PersistenceController`:** Shot and data persistence to storage
+- **`PersistenceController`:** Thin persistence layer — delegates to `StorageService`, emits `shotsChanged` stream for UI/handler invalidation
 - **`SensorController`:** Sensor data management and broadcasting
 - **`BatteryController`:** Battery level monitoring and charging state
 - **`PresenceController`:** Client presence/keep-alive tracking
@@ -123,7 +123,7 @@ Persistence uses Drift (SQLite) via `AppDatabase` in `lib/src/services/database/
 
 ### Web Server
 
-Handler-based routing in `lib/src/services/webserver/`. Each handler has `addRoutes()`, registered in `webserver_service.dart` `_init()`. Most handlers use `part of webserver_service.dart`; a few newer ones (`shots_handler`, `beans_handler`, `grinders_handler`, `workflow_handler`, `data_export_handler`) are standalone imports. API docs on port 4001, specs in `assets/api/`.
+Handler-based routing in `lib/src/services/webserver/`. Each handler has `addRoutes()`, registered in `webserver_service.dart` `_init()`. Most handlers use `part of webserver_service.dart`; standalone imports: `shots_handler`, `beans_handler`, `grinders_handler`, `workflow_handler`, `data_export_handler`, `data_sync_handler`, `info_handler`. API docs on port 4001, specs in `assets/api/`.
 
 ### REST API Overview
 
@@ -149,6 +149,7 @@ Handler-based routing in `lib/src/services/webserver/`. Each handler has `addRou
 | Logs | `/api/v1/logs` | `logs_handler.dart` (part of) |
 | Info | `/api/v1/info` | `info_handler.dart` — build metadata (version, commit, branch) |
 | WebUI | — | `webui_handler.dart` (part of) — skin asset serving |
+| WebView Logs | `/api/v1/webview-logs` | `webview_logs_handler.dart` (part of) — WebView console log forwarding |
 
 ### MCP Server
 
