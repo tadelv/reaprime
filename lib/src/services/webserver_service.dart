@@ -58,7 +58,6 @@ import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/feedback/feedback_request.dart';
 import 'package:reaprime/src/plugins/plugin_manager.dart';
 import 'package:reaprime/src/services/feedback_service.dart';
-import 'package:reaprime/src/services/telemetry/log_buffer.dart';
 import 'package:reaprime/src/controllers/battery_controller.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/display_controller.dart';
@@ -98,7 +97,7 @@ Future<void> startWebServer(
   WebUIService webUIService,
   WebUIStorage webUIStorage,
   ProfileController profileController,
-  LogBuffer logBuffer,
+  String logFilePath,
   WebViewLogService webViewLogService,
   BatteryController? batteryController,
   PresenceController? presenceController,
@@ -150,7 +149,7 @@ Future<void> startWebServer(
     ),
   );
 
-  final logsHandler = LogsHandler(logBuffer: logBuffer);
+  final logsHandler = LogsHandler(logFilePath: logFilePath);
 
   final webViewLogsHandler = WebViewLogsHandler(
     webViewLogService: webViewLogService,

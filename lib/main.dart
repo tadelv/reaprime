@@ -328,7 +328,7 @@ void main() async {
       webUIService,
       webUIStorage,
       profileController,
-      logBuffer,
+      '$appDocsPath/log.txt',
       webViewLogService,
       batteryController,
       presenceController,
