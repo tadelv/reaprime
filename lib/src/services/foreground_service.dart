@@ -48,10 +48,11 @@ class ForegroundTaskService {
         callback: startCallback,
       );
       
-      if (started == const ServiceRequestSuccess()) {
-        _log.info("Foreground service started successfully");
-      } else {
-        _log.warning("Failed to start foreground service, $started");
+      switch (started) {
+        case ServiceRequestSuccess():
+          _log.info("Foreground service started successfully");
+        case ServiceRequestFailure(:final error):
+          _log.warning("Failed to start foreground service: $error");
       }
     } catch (e, st) {
       _log.severe("Error starting foreground service", e, st);
@@ -63,11 +64,18 @@ class ForegroundTaskService {
   /// auto-stop so that reconnection can still be detected.
   static Future<void> _stopServiceOnly() async {
     try {
+      final isRunning = await FlutterForegroundTask.isRunningService;
+      if (!isRunning) {
+        _log.fine("Foreground service not running, nothing to stop");
+        return;
+      }
+
       final stopped = await FlutterForegroundTask.stopService();
-      if (stopped == ServiceRequestSuccess()) {
-        _log.info("Foreground service stopped successfully");
-      } else {
-        _log.warning("Failed to stop foreground service, $stopped");
+      switch (stopped) {
+        case ServiceRequestSuccess():
+          _log.info("Foreground service stopped successfully");
+        case ServiceRequestFailure(:final error):
+          _log.warning("Failed to stop foreground service: $error");
       }
     } catch (e, st) {
       _log.severe("Error stopping foreground service", e, st);
