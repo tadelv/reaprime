@@ -36,7 +36,6 @@ class SkinView extends StatefulWidget {
 
 class _SkinViewState extends State<SkinView> {
   final _log = Logger('SkinView');
-  InAppWebViewController? _controller;
   bool _isLoading = true;
   bool _isCheckingCompatibility = true;
   String? _errorMessage;
@@ -420,7 +419,6 @@ class _SkinViewState extends State<SkinView> {
           initialSettings: _settings,
           onWebViewCreated: (controller) {
             _log.info('InAppWebView created');
-            _controller = controller;
           },
           onLoadStart: (controller, url) {
             _log.info('Page started loading: $url');
