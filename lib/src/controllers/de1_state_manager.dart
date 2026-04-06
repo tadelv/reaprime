@@ -493,6 +493,9 @@ class De1StateManager with WidgetsBindingObserver {
       persistenceController: _persistenceController,
       targetProfile: _workflowController.currentWorkflow.profile,
       targetYield: _workflowController.currentWorkflow.context?.targetYield ?? 0,
+      bypassSAW: _settingsController.gatewayMode == GatewayMode.full,
+      weightFlowMultiplier: _settingsController.weightFlowMultiplier,
+      volumeFlowMultiplier: _settingsController.volumeFlowMultiplier,
     );
 
     _currentShotSnapshots.clear();

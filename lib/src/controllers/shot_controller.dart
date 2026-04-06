@@ -8,8 +8,6 @@ import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
-import 'package:reaprime/src/settings/gateway_mode.dart';
-import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:rxdart/rxdart.dart';
 
 class ShotController {
@@ -20,9 +18,9 @@ class ShotController {
 
   final Logger _log = Logger("ShotController");
 
-  late bool _bypassSAW;
-  late double _weightFlowMultiplier;
-  late double _volumeFlowMultiplier;
+  final bool _bypassSAW;
+  final double _weightFlowMultiplier;
+  final double _volumeFlowMultiplier;
 
   // Skip step on weight specific
   List<int> skippedSteps = [];
@@ -38,44 +36,32 @@ class ShotController {
     required this.persistenceController,
     required this.targetProfile,
     required this.targetYield,
-  }) {
-    Future.value(_initialize()).then((_) {
-      _log.info("ShotController initialized");
-    });
-  }
-
-  Future<void> _initialize() async {
-    _bypassSAW =
-        await SharedPreferencesSettingsService().gatewayMode() ==
-        GatewayMode.full;
-    _weightFlowMultiplier =
-        await SharedPreferencesSettingsService().weightFlowMultiplier();
-    _volumeFlowMultiplier =
-        await SharedPreferencesSettingsService().volumeFlowMultiplier();
+    required bool bypassSAW,
+    required double weightFlowMultiplier,
+    required double volumeFlowMultiplier,
+  })  : _bypassSAW = bypassSAW,
+        _weightFlowMultiplier = weightFlowMultiplier,
+        _volumeFlowMultiplier = volumeFlowMultiplier {
     _log.info(
       "Initializing ShotController (weightFlowMultiplier: $_weightFlowMultiplier, volumeFlowMultiplier: $_volumeFlowMultiplier)",
     );
-    try {
-      final state = await scaleController.connectionState.first;
-      _log.info("Scale state: $state");
-      if (state != device.ConnectionState.connected) {
-        _log.info("Continuing without scale");
 
-        // Fallback: Only DE1 data if the scale is not connected
-        _snapshotSubscription = de1controller
-            .connectedDe1()
-            .currentSnapshot
-            .map((snapshot) => ShotSnapshot(machine: snapshot))
-            .listen(
-              _processSnapshot,
-              onError:
-                  (error) =>
-                      _log.warning("Error processing DE1 snapshot: $error"),
-            );
-        return;
-      }
+    final scaleConnected =
+        scaleController.currentConnectionState == device.ConnectionState.connected;
 
-      // Combine DE1 and scale data if the scale is connected
+    if (!scaleConnected) {
+      _log.info("Continuing without scale");
+      _snapshotSubscription = de1controller
+          .connectedDe1()
+          .currentSnapshot
+          .map((snapshot) => ShotSnapshot(machine: snapshot))
+          .listen(
+            _processSnapshot,
+            onError: (error) =>
+                _log.warning("Error processing DE1 snapshot: $error"),
+          );
+    } else {
+      _log.info("Scale connected, combining streams");
       final combinedStream = de1controller
           .connectedDe1()
           .currentSnapshot
@@ -86,12 +72,9 @@ class ShotController {
 
       _snapshotSubscription = combinedStream.listen(
         _processSnapshot,
-        onError:
-            (error) =>
-                _log.warning("Error processing combined snapshot: $error"),
+        onError: (error) =>
+            _log.warning("Error processing combined snapshot: $error"),
       );
-    } catch (e, st) {
-      _log.warning("unknown failure:", e, st);
     }
   }
 
