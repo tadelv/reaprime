@@ -396,16 +396,28 @@ class _SkinViewState extends State<SkinView> {
     return Stack(
       children: [
         InAppWebView(
-          initialUrlRequest: URLRequest(url: WebUri('http://localhost:3000')),
+          // No initialUrlRequest — we load after clearing cache + SWs
           initialSettings: _settings,
           onWebViewCreated: (controller) async {
             _log.info('InAppWebView created');
             _controller = controller;
-            // Clear all cached data to prevent stale assets from a
-            // previously-loaded skin (whose service worker may have
-            // cached its own index.html / CSS / JS).
+            // Clear all cached data and unregister service workers
+            // before loading. A stale SW from a previous skin can
+            // intercept the initial load and serve cached HTML that
+            // references assets that no longer exist.
             await InAppWebViewController.clearAllCache();
             _log.fine('WebView cache cleared');
+            await controller.evaluateJavascript(source: '''
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(regs) {
+                  for (var r of regs) { r.unregister(); }
+                });
+              }
+            ''');
+            _log.fine('Service workers unregistered');
+            await controller.loadUrl(
+              urlRequest: URLRequest(url: WebUri('http://localhost:3000')),
+            );
           },
           onLoadStart: (controller, url) {
             _log.info('Page started loading: $url');
@@ -419,22 +431,6 @@ class _SkinViewState extends State<SkinView> {
             setState(() {
               _isLoading = false;
             });
-
-            // Unregister any service workers to prevent cross-skin
-            // cache pollution. Skins may register a SW that caches
-            // assets; when switching skins the old SW would serve
-            // stale HTML/CSS/JS from the previous skin.
-            await controller.evaluateJavascript(source: '''
-              (function() {
-                if ('serviceWorker' in navigator) {
-                  navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                    for (var registration of registrations) {
-                      registration.unregister();
-                    }
-                  });
-                }
-              })();
-            ''');
 
             // Inject CSS to hide scrollbars in web content
             // await controller.evaluateJavascript(source: '''
