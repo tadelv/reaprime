@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/home_feature/widgets/quick_settings_widget.dart';
@@ -48,12 +49,18 @@ class _SkinViewState extends State<SkinView> {
   @override
   void initState() {
     super.initState();
+    if (Platform.isAndroid) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    }
     _checkCompatibilityAndInit();
   }
 
   @override
   void dispose() {
     _log.fine("disposing");
+    if (Platform.isAndroid) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
     super.dispose();
   }
 
