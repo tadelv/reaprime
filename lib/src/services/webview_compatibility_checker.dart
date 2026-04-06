@@ -98,23 +98,19 @@ class WebViewCompatibilityChecker {
         'Android: $androidVersion (SDK $sdkInt)',
       );
 
-      // Check for known problematic manufacturers
+      // Log warnings for historically problematic devices, but don't block —
+      // the runtime test (step 2) will catch actual rendering failures.
       if (_isProblematicManufacturer(manufacturer)) {
-        final reason = 'Known WebView issues with $manufacturer devices';
-        _log.warning(reason);
-        return CompatibilityResult.incompatible(
-          reason,
-          CompatibilityIssue.knownProblematicDevice,
+        _log.warning(
+          'Device manufacturer $manufacturer has had WebView issues in the past. '
+          'Proceeding to runtime test.',
         );
       }
 
-      // Check for known problematic models
       if (_isProblematicModel(model)) {
-        final reason = 'Known WebView issues with device model: $model';
-        _log.warning(reason);
-        return CompatibilityResult.incompatible(
-          reason,
-          CompatibilityIssue.knownProblematicDevice,
+        _log.warning(
+          'Device model $model has had WebView issues in the past. '
+          'Proceeding to runtime test.',
         );
       }
 
