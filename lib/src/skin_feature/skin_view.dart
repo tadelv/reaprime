@@ -60,15 +60,11 @@ class _SkinViewState extends State<SkinView> {
   Future<void> _checkCompatibilityAndInit() async {
     _log.info('Checking WebView compatibility...');
 
-    // Wipe all WebView data — HTTP cache, CacheStorage (used by
-    // service workers), cookies, localStorage. A stale SW from a
-    // previously-loaded skin stores its HTML/CSS/JS in CacheStorage
-    // and serves them even after the server switches to a different
-    // skin directory. clearAllCache alone doesn't touch CacheStorage.
+    // Clear HTTP cache. Note: this does NOT clear service worker
+    // CacheStorage on Android — the SW is bypassed via a cache-
+    // busting query param on the initial URL instead.
     await InAppWebViewController.clearAllCache();
-    final webStorageManager = WebStorageManager.instance();
-    await webStorageManager.deleteAllData();
-    _log.fine('WebView cache and storage cleared');
+    _log.fine('WebView cache cleared');
 
     final result = await WebViewCompatibilityChecker.checkCompatibility();
 
@@ -406,7 +402,14 @@ class _SkinViewState extends State<SkinView> {
     return Stack(
       children: [
         InAppWebView(
-          initialUrlRequest: URLRequest(url: WebUri('http://localhost:3000')),
+          // Cache-busting param bypasses stale service workers: a SW
+          // caches responses by exact URL, so /?_=<ts> won't match
+          // its cached '/' and falls through to the network.
+          initialUrlRequest: URLRequest(
+            url: WebUri(
+              'http://localhost:3000/?_=${DateTime.now().millisecondsSinceEpoch}',
+            ),
+          ),
           initialSettings: _settings,
           onWebViewCreated: (controller) {
             _log.info('InAppWebView created');
