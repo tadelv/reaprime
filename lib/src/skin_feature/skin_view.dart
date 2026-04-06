@@ -49,7 +49,7 @@ class _SkinViewState extends State<SkinView> {
   @override
   void initState() {
     super.initState();
-    if (Platform.isAndroid) {
+    if (Platform.isAndroid || Platform.isIOS) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     }
     _checkCompatibilityAndInit();
