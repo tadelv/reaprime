@@ -52,6 +52,7 @@ import 'package:reaprime/src/controllers/scan_state_guardian.dart';
 import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 
 import 'src/app.dart';
+import 'src/home_feature/home_feature.dart';
 import 'src/services/foreground_service.dart';
 import 'src/settings/settings_controller.dart';
 import 'src/settings/settings_service.dart';
@@ -623,7 +624,7 @@ class _AppRootState extends State<AppRoot> {
 
   @override
   Widget build(BuildContext context) {
-    return KeyedSubtree(
+    final child = KeyedSubtree(
       key: _key,
       child: MyApp(
         settingsController: widget.settingsController,
@@ -645,5 +646,69 @@ class _AppRootState extends State<AppRoot> {
         scanStateGuardian: widget.scanStateGuardian,
       ),
     );
+
+    // PlatformMenuBar must live ABOVE KeyedSubtree so it survives app restarts
+    // (which change the key). Otherwise, the new PlatformMenuBar tries to
+    // acquire the static _lockedContext lock before the old one is disposed.
+    if (Platform.isMacOS) {
+      return PlatformMenuBar(
+        menus: _buildPlatformMenus(),
+        child: child,
+      );
+    }
+    return child;
+  }
+
+  List<PlatformMenuItem> _buildPlatformMenus() {
+    return [
+      PlatformMenu(
+        label: 'Streamline',
+        menus: [
+          PlatformMenuItemGroup(
+            members: [
+              PlatformMenuItem(
+                label: 'About Streamline',
+                onSelected: null,
+              ),
+            ],
+          ),
+          PlatformMenuItemGroup(
+            members: [
+              PlatformMenuItem(
+                label: 'Quit Streamline',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.keyQ,
+                  meta: true,
+                ),
+                onSelected: () {
+                  SystemNavigator.pop();
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+      PlatformMenu(
+        label: 'View',
+        menus: [
+          PlatformMenuItem(
+            label: 'Back to Dashboard',
+            shortcut: const SingleActivator(
+              LogicalKeyboardKey.keyD,
+              meta: true,
+            ),
+            onSelected: () {
+              final navigator = NavigationService.navigatorKey.currentState;
+              if (navigator != null) {
+                navigator.pushNamedAndRemoveUntil(
+                  HomeScreen.routeName,
+                  (_) => false,
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    ];
   }
 }

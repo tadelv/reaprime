@@ -475,68 +475,7 @@ class _MyAppState extends State<MyApp> {
       ),
     );
 
-    if (Platform.isMacOS) {
-      return PlatformMenuBar(
-        menus: _buildPlatformMenus(),
-        child: body,
-      );
-    }
     return body;
-  }
-
-  List<PlatformMenuItem> _buildPlatformMenus() {
-    if (!Platform.isMacOS) return [];
-
-    return [
-      PlatformMenu(
-        label: 'Streamline',
-        menus: [
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: 'About Streamline',
-                onSelected: null,
-              ),
-            ],
-          ),
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: 'Quit Streamline',
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.keyQ,
-                  meta: true,
-                ),
-                onSelected: () {
-                  SystemNavigator.pop();
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
-      PlatformMenu(
-        label: 'View',
-        menus: [
-          PlatformMenuItem(
-            label: 'Back to Dashboard',
-            shortcut: const SingleActivator(
-              LogicalKeyboardKey.keyD,
-              meta: true,
-            ),
-            onSelected: () {
-              final navigator = NavigationService.navigatorKey.currentState;
-              if (navigator != null) {
-                navigator.pushNamedAndRemoveUntil(
-                  HomeScreen.routeName,
-                  (_) => false,
-                );
-              }
-            },
-          ),
-        ],
-      ),
-    ];
   }
 }
 
