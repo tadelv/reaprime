@@ -44,7 +44,6 @@ class _SkinViewState extends State<SkinView> {
   late InAppWebViewSettings _settings;
 
   bool _didShowExit = false;
-  bool _isCleaningUp = false;
 
   @override
   void initState() {
@@ -60,6 +59,17 @@ class _SkinViewState extends State<SkinView> {
 
   Future<void> _checkCompatibilityAndInit() async {
     _log.info('Checking WebView compatibility...');
+
+    // Clear all cached WebView data and force service workers to
+    // bypass their cache. This prevents a stale SW from a previously-
+    // loaded skin serving cached HTML/CSS/JS that references assets
+    // from the wrong skin directory.
+    await InAppWebViewController.clearAllCache();
+    if (Platform.isAndroid &&
+        ServiceWorkerController.isClassSupported()) {
+      await ServiceWorkerController.setCacheMode(CacheMode.LOAD_NO_CACHE);
+      _log.fine('Service worker cache mode set to LOAD_NO_CACHE');
+    }
 
     final result = await WebViewCompatibilityChecker.checkCompatibility();
 
@@ -397,34 +407,11 @@ class _SkinViewState extends State<SkinView> {
     return Stack(
       children: [
         InAppWebView(
-          // No initialUrlRequest — we load after clearing cache + SWs
+          initialUrlRequest: URLRequest(url: WebUri('http://localhost:3000')),
           initialSettings: _settings,
-          onWebViewCreated: (controller) async {
+          onWebViewCreated: (controller) {
             _log.info('InAppWebView created');
             _controller = controller;
-            // Clear HTTP cache, then load a cleanup page on the
-            // localhost:3000 origin to unregister any service workers
-            // left by a previously-loaded skin. SWs are origin-scoped
-            // so we must be on the same origin to see them.
-            await InAppWebViewController.clearAllCache();
-            _log.fine('WebView cache cleared');
-            _isCleaningUp = true;
-            await controller.loadData(
-              data: '''<!DOCTYPE html><html><body><script>
-                if ('serviceWorker' in navigator) {
-                  navigator.serviceWorker.getRegistrations()
-                    .then(function(regs) {
-                      return Promise.all(regs.map(function(r) { return r.unregister(); }));
-                    })
-                    .then(function() { document.title = 'sw-cleaned'; });
-                } else {
-                  document.title = 'sw-cleaned';
-                }
-              </script></body></html>''',
-              baseUrl: WebUri('http://localhost:3000'),
-              mimeType: 'text/html',
-              encoding: 'utf-8',
-            );
           },
           onLoadStart: (controller, url) {
             _log.info('Page started loading: $url');
@@ -435,21 +422,6 @@ class _SkinViewState extends State<SkinView> {
           },
           onLoadStop: (controller, url) async {
             _log.info('Page finished loading: $url');
-
-            // After the SW cleanup page loads, wait for unregister
-            // to complete, then load the actual skin.
-            if (_isCleaningUp) {
-              _isCleaningUp = false;
-              // Small delay to let SW unregister promises settle
-              await Future.delayed(const Duration(milliseconds: 100));
-              _log.fine('Service workers cleaned up, loading skin');
-              await controller.loadUrl(
-                urlRequest:
-                    URLRequest(url: WebUri('http://localhost:3000')),
-              );
-              return;
-            }
-
             setState(() {
               _isLoading = false;
             });
