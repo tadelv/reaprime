@@ -60,16 +60,15 @@ class _SkinViewState extends State<SkinView> {
   Future<void> _checkCompatibilityAndInit() async {
     _log.info('Checking WebView compatibility...');
 
-    // Clear all cached WebView data and force service workers to
-    // bypass their cache. This prevents a stale SW from a previously-
-    // loaded skin serving cached HTML/CSS/JS that references assets
-    // from the wrong skin directory.
+    // Wipe all WebView data — HTTP cache, CacheStorage (used by
+    // service workers), cookies, localStorage. A stale SW from a
+    // previously-loaded skin stores its HTML/CSS/JS in CacheStorage
+    // and serves them even after the server switches to a different
+    // skin directory. clearAllCache alone doesn't touch CacheStorage.
     await InAppWebViewController.clearAllCache();
-    if (Platform.isAndroid &&
-        ServiceWorkerController.isClassSupported()) {
-      await ServiceWorkerController.setCacheMode(CacheMode.LOAD_NO_CACHE);
-      _log.fine('Service worker cache mode set to LOAD_NO_CACHE');
-    }
+    final webStorageManager = WebStorageManager.instance();
+    await webStorageManager.deleteAllData();
+    _log.fine('WebView cache and storage cleared');
 
     final result = await WebViewCompatibilityChecker.checkCompatibility();
 
