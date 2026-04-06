@@ -2741,7 +2741,8 @@ Streamline-Bridge supports multiple skin installation methods:
 
 1. **Bundled Asset Skins**: Skins packaged with the Flutter app (in `assets/web/`)
 2. **Remote Bundled Skins**: Skins auto-downloaded from hardcoded GitHub URLs on app startup
-3. **User-Installed Skins**: Skins manually installed by users from local paths or URLs
+3. **User-Installed Skins**: Installed by users via the Settings UI or REST API
+4. **Live-Edit Skins**: Served directly from a local folder for development (not copied to app storage)
 
 **Skin Directory Structure:**
 ```
@@ -2813,26 +2814,29 @@ This creates an `out/` directory with static HTML/CSS/JS files.
 
 ### 2. Test Locally with Streamline-Bridge
 
-**Option A: Install from Local Path** (Flutter Dart code example):
+**Option A: Live-Edit Mode** (recommended for development on desktop):
 
-```dart
-// In your Flutter app or via API
-await webUIStorage.installFromPath('/path/to/my-espresso-skin/out');
-```
+1. Build your skin (`npm run build`)
+2. In Streamline-Bridge **Settings**, select **"Live-edit from folder..."**
+3. Point it at your build output directory (e.g., `out/` or `dist/`)
+4. Edit, rebuild, and refresh — no reinstallation needed
 
-**Option B: Manual Copy** (for quick testing):
+**Option B: Install from ZIP** (works on all platforms):
+
+1. Package your build output as a `.zip`
+2. In **Settings**, select **"Install from .zip..."** and pick the file
+3. The skin is extracted and served immediately
+
+**Option C: Install via REST API:**
 
 ```bash
-# Find your app documents directory
-# Android: /sdcard/Android/data/com.example.reaprime/files/
-# macOS: ~/Library/Containers/com.example.reaprime/Data/Documents/
-# Linux: ~/.local/share/reaprime/
-
-# Copy your build output
-cp -r ./out ~/path/to/app/documents/web-ui/my-skin-id/
+# Install from a local or remote URL
+curl -X POST http://localhost:8080/api/v1/webui/skins/install/url \
+  -H "Content-Type: application/json" \
+  -d '{"url": "file:///path/to/my-skin.zip"}'
 ```
 
-**Option C: Serve Locally and Point Browser** (during development):
+**Option D: Serve Locally and Point Browser** (during development):
 
 ```bash
 # In your Next.js project
@@ -3057,9 +3061,44 @@ static const List<Map<String, dynamic>> _remoteWebUISources = [
 - Only re-download if remote version has changed
 - Mark these skins as "bundled" (users cannot remove them)
 
+### In-App Skin Management (Settings UI)
+
+The Settings screen provides a skin selector dropdown with built-in management:
+
+**Installing a Skin from ZIP:**
+1. Open **Settings** → tap the skin selector dropdown
+2. Select **"Install from .zip..."**
+3. Pick a `.zip` file containing your skin (must include `index.html` at root)
+4. The skin is extracted to app storage, set as default, and served immediately
+
+**Live-Edit Mode (Development):**
+1. Select **"Live-edit from folder..."** in the skin dropdown
+2. Pick a folder containing your skin's build output
+3. Streamline-Bridge serves files directly from that folder — no copying
+4. Edit your skin files and refresh the browser to see changes instantly
+
+Live-edit validates that the selected folder contains an `index.html`.
+
+**Deleting a Skin:**
+- Non-bundled skins show a delete button (trash icon) in the dropdown
+- Confirmation dialog prevents accidental deletion
+- If the deleted skin is currently active, Streamline-Bridge switches to the default skin
+
+**Platform Support:**
+
+| Feature | Android | iOS | macOS | Linux | Windows | App Store |
+|---------|---------|-----|-------|-------|---------|-----------|
+| Install from ZIP | yes | yes | yes | yes | yes | no |
+| Live-edit folder | yes* | no | yes | yes | yes | no |
+| Delete skins | yes | yes | yes | yes | yes | no |
+
+\* Android requires the **Manage External Storage** permission for live-edit. A permission button appears in Settings when needed.
+
+**App Store Restrictions:** When running as an App Store build, custom skin installation, deletion, and update checks are disabled. Only bundled skins are available.
+
 ### For User-Installable Skins (via REST API)
 
-Users can install skins dynamically via REST API without recompiling the app:
+Users can also install skins dynamically via REST API without using the Settings UI:
 
 **Install from GitHub Release:**
 ```bash
