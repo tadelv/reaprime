@@ -39,12 +39,20 @@ class TestScale implements Scale {
     _connectionState.add(state);
   }
 
+  final BehaviorSubject<ScaleSnapshot> _snapshotSubject = BehaviorSubject();
+
+  /// Emit a [ScaleSnapshot] on the [currentSnapshot] stream.
+  void emitSnapshot(ScaleSnapshot snapshot) {
+    _snapshotSubject.add(snapshot);
+  }
+
   void dispose() {
     _connectionState.close();
+    _snapshotSubject.close();
   }
 
   @override
-  Stream<ScaleSnapshot> get currentSnapshot => const Stream.empty();
+  Stream<ScaleSnapshot> get currentSnapshot => _snapshotSubject.stream;
 
   @override
   Future<void> onConnect() async {}
