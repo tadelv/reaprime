@@ -127,6 +127,7 @@ class _MyAppState extends State<MyApp> {
       ),
       createInitializationStep(
         deviceController: widget.deviceController,
+        de1Controller: widget.de1Controller,
         pluginLoaderService: widget.pluginLoaderService,
         webUIStorage: widget.webUIStorage,
         webUIService: widget.webUIService,
