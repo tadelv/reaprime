@@ -263,7 +263,7 @@ class ShotController {
           }
         }
         if (!_bypassSAW &&
-            scale == null &&
+            (scale == null || _scaleLost) &&
             (targetProfile.targetVolume ?? 0) > 0) {
           // Use volumeFlowMultiplier to project future volume and stop at the right time
           final projectedVolume =
