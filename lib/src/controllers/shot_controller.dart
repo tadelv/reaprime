@@ -75,12 +75,26 @@ class ShotController {
         onError: (error) =>
             _log.warning("Error processing combined snapshot: $error"),
       );
+
+      // Monitor scale connection during shot
+      _scaleConnectionSubscription = scaleController.connectionState.listen((state) {
+        if (state == device.ConnectionState.disconnected && !_scaleLost) {
+          if (_state != ShotState.idle && _state != ShotState.finished) {
+            _scaleLost = true;
+            _log.warning(
+              'Scale disconnected during shot (state: ${_state.name}). '
+              'Stop-at-weight disabled for remainder of this shot.',
+            );
+          }
+        }
+      });
     }
   }
 
   void dispose() {
     _log.fine("dispose");
     _snapshotSubscription?.cancel();
+    _scaleConnectionSubscription?.cancel();
     _rawShotDataStream.close();
     _shotDataStream.close();
   }
@@ -109,6 +123,8 @@ class ShotController {
 
   final double targetYield;
   ShotState _state = ShotState.idle;
+  bool _scaleLost = false;
+  StreamSubscription<device.ConnectionState>? _scaleConnectionSubscription;
 
   _processSnapshot(ShotSnapshot snapshot) {
     _log.finest("Processing snapshot");
@@ -180,7 +196,7 @@ class ShotController {
           _volumeCountingActive = false;
           skippedSteps.clear();
 
-          if (_bypassSAW == false && scale != null) {
+          if (_bypassSAW == false && scale != null && !_scaleLost) {
             _log.info(
               "Machine getting ready. Taring scale and resetting timer...",
             );
@@ -196,7 +212,7 @@ class ShotController {
       case ShotState.preheating:
         if (machine.state.substate == MachineSubstate.preinfusion ||
             machine.state.substate == MachineSubstate.pouring) {
-          if (_bypassSAW == false && scale != null) {
+          if (_bypassSAW == false && scale != null && !_scaleLost) {
             _log.info("Taring scale again and starting timer.");
             scaleController.connectedScale().tare();
             scaleController.connectedScale().startTimer();
@@ -216,7 +232,7 @@ class ShotController {
         break;
 
       case ShotState.pouring:
-        if (_bypassSAW == false && scale != null) {
+        if (_bypassSAW == false && scale != null && !_scaleLost) {
           double currentWeight = scale.weight;
           double weightFlow = scale.weightFlow;
           double projectedWeight =
@@ -274,7 +290,7 @@ class ShotController {
       case ShotState.stopping:
         // Stop volume counting and scale timer
         _volumeCountingActive = false;
-        if (_bypassSAW == false && scale != null) {
+        if (_bypassSAW == false && scale != null && !_scaleLost) {
           scaleController.connectedScale().stopTimer();
         }
 
