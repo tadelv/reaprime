@@ -48,6 +48,7 @@ import 'package:reaprime/src/settings/plugins_settings_view.dart';
 import 'sample_feature/sample_item_details_view.dart';
 
 import 'sample_feature/sample_item_list_view.dart';
+import 'settings/gateway_mode.dart';
 import 'settings/settings_controller.dart';
 import 'settings/settings_view.dart';
 
@@ -409,6 +410,9 @@ class _MyAppState extends State<MyApp> {
                                   .currentWorkflow
                                   .context
                                   ?.targetYield ?? 0,
+                          bypassSAW: widget.settingsController.gatewayMode == GatewayMode.full,
+                          weightFlowMultiplier: widget.settingsController.weightFlowMultiplier,
+                          volumeFlowMultiplier: widget.settingsController.volumeFlowMultiplier,
                         );
                       }
                       return RealtimeShotFeature(
