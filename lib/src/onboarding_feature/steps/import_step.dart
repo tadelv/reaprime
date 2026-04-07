@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/import/de1app_importer.dart';
+import 'package:reaprime/src/import/saf_folder_copier.dart';
 import 'package:reaprime/src/import/de1app_scanner.dart';
 import 'package:reaprime/src/import/import_result.dart';
 import 'package:reaprime/src/import/widgets/import_progress_view.dart';
@@ -88,8 +89,21 @@ class _ImportStepViewState extends State<_ImportStepView> {
   ImportResult? _importResult;
 
   Future<void> _onComplete() async {
+    await _cleanupSafStaging();
     await widget.settingsController.setOnboardingCompleted(true);
     widget.controller.advance();
+  }
+
+  Future<void> _cleanupSafStaging() async {
+    if (Platform.isAndroid) {
+      await SafFolderCopier().cleanup();
+    }
+  }
+
+  @override
+  void dispose() {
+    _cleanupSafStaging();
+    super.dispose();
   }
 
   Future<void> _onFolderSelected(String folderPath) async {

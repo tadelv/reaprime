@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/feedback_feature/feedback_view.dart';
 import 'package:reaprime/src/import/de1app_importer.dart';
+import 'package:reaprime/src/import/saf_folder_copier.dart';
 import 'package:reaprime/src/import/de1app_scanner.dart';
 import 'package:reaprime/src/import/import_result.dart';
 import 'package:reaprime/src/import/widgets/import_progress_view.dart';
@@ -560,132 +561,145 @@ class _DataManagementPageState extends State<DataManagementPage> {
   }
 
   Future<void> _importFromDe1app() async {
-    final folderPath = await FilePicker.platform.getDirectoryPath(
-      dialogTitle: 'Select Decent app folder',
-    );
+    String? folderPath;
+    if (Platform.isAndroid) {
+      final copier = SafFolderCopier();
+      folderPath = await copier.pickAndCopy();
+    } else {
+      folderPath = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: 'Select Decent app folder',
+      );
+    }
     if (folderPath == null) return;
     if (!mounted) return;
 
-    _showProgressDialog(context, 'Scanning folder...');
-
-    final ScanResult scanResult;
     try {
-      scanResult = await De1appScanner.scan(folderPath);
-    } catch (e) {
-      _log.severe('De1app scan failed', e);
-      if (mounted) {
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Scan failed: $e')),
-        );
-      }
-      return;
-    }
+      _showProgressDialog(context, 'Scanning folder...');
 
-    if (!mounted) return;
-    Navigator.of(context).pop(); // dismiss progress dialog
-
-    if (scanResult.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No Decent app data found in this folder')),
-        );
-      }
-      return;
-    }
-
-    // Show summary dialog
-    if (!mounted) return;
-    final confirmed = await showShadDialog<bool>(
-      context: context,
-      builder: (ctx) => ShadDialog(
-        title: const Text('Import from Decent app'),
-        child: ImportSummaryView(
-          scanResult: scanResult,
-          onImportAll: () => Navigator.of(ctx).pop(true),
-          onCancel: () => Navigator.of(ctx).pop(false),
-        ),
-      ),
-    );
-
-    if (confirmed != true) return;
-    if (!mounted) return;
-
-    // Run import with progress dialog
-    ImportResult? importResult;
-    ImportProgress progress = const ImportProgress(current: 0, total: 0, phase: '');
-    int shotsImported = 0;
-    int profilesImported = 0;
-
-    // Captured setter so onProgress can trigger dialog rebuilds.
-    StateSetter? setDialogState;
-
-    // Show a non-dismissible progress indicator
-    showShadDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) {
-          setDialogState = setState;
-          return ShadDialog(
-            title: const Text('Importing...'),
-            child: ImportProgressView(
-              progress: progress,
-              shotsImported: shotsImported,
-              profilesImported: profilesImported,
-            ),
+      final ScanResult scanResult;
+      try {
+        scanResult = await De1appScanner.scan(folderPath);
+      } catch (e) {
+        _log.severe('De1app scan failed', e);
+        if (mounted) {
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Scan failed: $e')),
           );
-        },
-      ),
-    );
-
-    try {
-      final importer = De1appImporter(
-        storageService: widget.persistenceController.storageService,
-        profileStorageService: widget.profileStorageService!,
-        beanStorageService: widget.beanStorageService!,
-        grinderStorageService: widget.grinderStorageService!,
-      );
-
-      importResult = await importer.import(
-        scanResult,
-        onProgress: (p) {
-          if (!mounted) return;
-          setDialogState?.call(() {
-            progress = p;
-            if (p.phase == 'shots') shotsImported = p.current;
-            if (p.phase == 'profiles') profilesImported = p.current;
-          });
-        },
-      );
-    } catch (e) {
-      _log.severe('De1app import failed', e);
-      if (mounted) {
-        Navigator.of(context).pop(); // dismiss progress dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Import failed: $e')),
-        );
+        }
+        return;
       }
-      return;
-    }
 
-    if (!mounted) return;
-    Navigator.of(context).pop(); // dismiss progress dialog
+      if (!mounted) return;
+      Navigator.of(context).pop(); // dismiss progress dialog
 
-    // Show result
-    await showShadDialog(
-      context: context,
-      builder: (ctx) => ShadDialog(
-        title: const Text('Import Complete'),
-        child: ImportResultView(
-          result: importResult!,
-          onContinue: () => Navigator.of(ctx).pop(),
+      if (scanResult.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No Decent app data found in this folder')),
+          );
+        }
+        return;
+      }
+
+      // Show summary dialog
+      if (!mounted) return;
+      final confirmed = await showShadDialog<bool>(
+        context: context,
+        builder: (ctx) => ShadDialog(
+          title: const Text('Import from Decent app'),
+          child: ImportSummaryView(
+            scanResult: scanResult,
+            onImportAll: () => Navigator.of(ctx).pop(true),
+            onCancel: () => Navigator.of(ctx).pop(false),
+          ),
         ),
-      ),
-    );
+      );
 
-    // Notify listeners that shots have changed
-    widget.persistenceController.notifyShotsChanged();
+      if (confirmed != true) return;
+      if (!mounted) return;
+
+      // Run import with progress dialog
+      ImportResult? importResult;
+      ImportProgress progress = const ImportProgress(current: 0, total: 0, phase: '');
+      int shotsImported = 0;
+      int profilesImported = 0;
+
+      // Captured setter so onProgress can trigger dialog rebuilds.
+      StateSetter? setDialogState;
+
+      // Show a non-dismissible progress indicator
+      showShadDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setState) {
+            setDialogState = setState;
+            return ShadDialog(
+              title: const Text('Importing...'),
+              child: ImportProgressView(
+                progress: progress,
+                shotsImported: shotsImported,
+                profilesImported: profilesImported,
+              ),
+            );
+          },
+        ),
+      );
+
+      try {
+        final importer = De1appImporter(
+          storageService: widget.persistenceController.storageService,
+          profileStorageService: widget.profileStorageService!,
+          beanStorageService: widget.beanStorageService!,
+          grinderStorageService: widget.grinderStorageService!,
+        );
+
+        importResult = await importer.import(
+          scanResult,
+          onProgress: (p) {
+            if (!mounted) return;
+            setDialogState?.call(() {
+              progress = p;
+              if (p.phase == 'shots') shotsImported = p.current;
+              if (p.phase == 'profiles') profilesImported = p.current;
+            });
+          },
+        );
+      } catch (e) {
+        _log.severe('De1app import failed', e);
+        if (mounted) {
+          Navigator.of(context).pop(); // dismiss progress dialog
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Import failed: $e')),
+          );
+        }
+        return;
+      }
+
+      if (!mounted) return;
+      Navigator.of(context).pop(); // dismiss progress dialog
+
+      // Show result
+      await showShadDialog(
+        context: context,
+        builder: (ctx) => ShadDialog(
+          title: const Text('Import Complete'),
+          child: ImportResultView(
+            result: importResult!,
+            onContinue: () => Navigator.of(ctx).pop(),
+          ),
+        ),
+      );
+
+      // Notify listeners that shots have changed
+      widget.persistenceController.notifyShotsChanged();
+    } finally {
+      // Clean up SAF staging directory on Android
+      if (Platform.isAndroid) {
+        await SafFolderCopier().cleanup();
+      }
+    }
   }
 
   void _showProgressDialog(BuildContext context, String message) {
