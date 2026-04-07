@@ -209,12 +209,17 @@ class _LandingState extends State<LandingFeature> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.error_outline, size: 64, color: Colors.red),
+        const ExcludeSemantics(
+          child: Icon(Icons.error_outline, size: 64, color: Colors.red),
+        ),
         const SizedBox(height: 16),
-        Text(
-          _errorMessage!,
-          style: Theme.of(context).textTheme.bodyLarge,
-          textAlign: TextAlign.center,
+        Semantics(
+          liveRegion: true,
+          child: Text(
+            _errorMessage!,
+            style: Theme.of(context).textTheme.bodyLarge,
+            textAlign: TextAlign.center,
+          ),
         ),
         const SizedBox(height: 24),
         ShadButton(
@@ -229,7 +234,9 @@ class _LandingState extends State<LandingFeature> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.web_asset_off, size: 64),
+        const ExcludeSemantics(
+          child: Icon(Icons.web_asset_off, size: 64),
+        ),
         const SizedBox(height: 16),
         Text(
           'No Skins available',
@@ -254,11 +261,17 @@ class _LandingState extends State<LandingFeature> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const CircularProgressIndicator(),
+        Semantics(
+          label: 'Starting WebUI server',
+          child: CircularProgressIndicator(),
+        ),
         const SizedBox(height: 16),
-        Text(
-          'Starting WebUI server...',
-          style: Theme.of(context).textTheme.bodyLarge,
+        Semantics(
+          liveRegion: true,
+          child: Text(
+            'Starting WebUI server...',
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
         ),
       ],
     );
@@ -271,7 +284,7 @@ class _LandingState extends State<LandingFeature> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        const Icon(Icons.web, size: 64),
+        const ExcludeSemantics(child: Icon(Icons.web, size: 64)),
         const SizedBox(height: 16),
         Text(
           'Select Skin',
@@ -304,6 +317,7 @@ class _LandingState extends State<LandingFeature> {
                   leading: Icon(
                     skin.isBundled ? Icons.star : Icons.web_asset,
                     color: skin.isBundled ? Colors.amber : null,
+                    semanticLabel: skin.isBundled ? 'Bundled skin' : 'Installed skin',
                   ),
                   title: Text(skin.name),
                   subtitle: Column(
@@ -324,7 +338,7 @@ class _LandingState extends State<LandingFeature> {
                   ),
                   trailing:
                       isSelected
-                          ? const Icon(Icons.check_circle, color: Colors.green)
+                          ? const Icon(Icons.check_circle, color: Colors.green, semanticLabel: 'Selected')
                           : null,
                   selected: isSelected,
                   onTap: () => _serveSkin(skin),
@@ -346,7 +360,9 @@ class _LandingState extends State<LandingFeature> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.check_circle, size: 64, color: Colors.green),
+        const ExcludeSemantics(
+          child: Icon(Icons.check_circle, size: 64, color: Colors.green),
+        ),
         const SizedBox(height: 16),
         Text('Skin Ready!', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 8),
@@ -380,7 +396,11 @@ class _LandingState extends State<LandingFeature> {
         const SizedBox(height: 8),
         SizedBox(
           width: 200,
-          child: LinearProgressIndicator(value: _remainingSeconds / 30),
+          child: Semantics(
+            label: 'Auto-navigating to dashboard countdown',
+            value: '$_remainingSeconds seconds remaining',
+            child: LinearProgressIndicator(value: _remainingSeconds / 30),
+          ),
         ),
       ],
     );
