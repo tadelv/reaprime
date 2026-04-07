@@ -446,38 +446,48 @@ class ScanStepViewState extends State<ScanStepView> {
             spacing: 8,
             children: [
               if (!isConnecting)
-                ShadButton.outline(
-                  size: ShadButtonSize.sm,
-                  onPressed: () => widget.connectionManager.connect(),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: 4,
-                    children: [
-                      const ExcludeSemantics(
-                        child: Icon(LucideIcons.refreshCw, size: 14),
+                Semantics(
+                  button: true,
+                  label: 'ReScan',
+                  onTap: () => widget.connectionManager.connect(),
+                  child: ExcludeSemantics(
+                    child: ShadButton.outline(
+                      size: ShadButtonSize.sm,
+                      onPressed: () => widget.connectionManager.connect(),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        spacing: 4,
+                        children: [
+                          const Icon(LucideIcons.refreshCw, size: 14),
+                          const Text('ReScan'),
+                        ],
                       ),
-                      const Text('ReScan'),
-                    ],
+                    ),
                   ),
                 ),
               ShadButton(
                 size: ShadButtonSize.sm,
                 onPressed: null,
                 child: isConnecting
-                    ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        spacing: 4,
-                        children: [
-                          ExcludeSemantics(
-                            child: const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2),
+                    ? Semantics(
+                        label: 'Connecting',
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          spacing: 4,
+                          children: [
+                            ExcludeSemantics(
+                              child: const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              ),
                             ),
-                          ),
-                          const Text('Connecting...'),
-                        ],
+                            ExcludeSemantics(
+                              child: const Text('Connecting...'),
+                            ),
+                          ],
+                        ),
                       )
                     : const Text('Select a machine'),
               ),
@@ -512,17 +522,22 @@ class ScanStepViewState extends State<ScanStepView> {
             style: theme.textTheme.muted,
             textAlign: TextAlign.center,
           ),
-          ShadButton(
-            onPressed: () => widget.connectionManager.connect(),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              spacing: 8,
-              children: [
-                const ExcludeSemantics(
-                  child: Icon(LucideIcons.refreshCw, size: 16),
+          Semantics(
+            button: true,
+            label: 'Retry',
+            onTap: () => widget.connectionManager.connect(),
+            child: ExcludeSemantics(
+              child: ShadButton(
+                onPressed: () => widget.connectionManager.connect(),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 8,
+                  children: [
+                    const Icon(LucideIcons.refreshCw, size: 16),
+                    const Text('Retry'),
+                  ],
                 ),
-                const Text('Retry'),
-              ],
+              ),
             ),
           ),
         ],
@@ -547,22 +562,32 @@ class ScanStepViewState extends State<ScanStepView> {
             style: theme.textTheme.muted,
             textAlign: TextAlign.center,
           ),
-          ShadButton(
-            onPressed: () {
+          Semantics(
+            button: true,
+            label: 'Try Again',
+            onTap: () {
               setState(() {
                 _adapterError = null;
               });
               widget.connectionManager.connect();
             },
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              spacing: 8,
-              children: [
-                const ExcludeSemantics(
-                  child: Icon(LucideIcons.refreshCw, size: 16),
+            child: ExcludeSemantics(
+              child: ShadButton(
+                onPressed: () {
+                  setState(() {
+                    _adapterError = null;
+                  });
+                  widget.connectionManager.connect();
+                },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 8,
+                  children: [
+                    const Icon(LucideIcons.refreshCw, size: 16),
+                    const Text('Try Again'),
+                  ],
                 ),
-                const Text('Try Again'),
-              ],
+              ),
             ),
           ),
         ],

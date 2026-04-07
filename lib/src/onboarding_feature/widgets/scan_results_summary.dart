@@ -62,49 +62,64 @@ class ScanResultsSummary extends StatelessWidget {
                 spacing: 12,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  ShadButton(
-                    onPressed: onScanAgain,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      spacing: 8,
-                      children: [
-                        ExcludeSemantics(
-                          child: Icon(LucideIcons.refreshCw, size: 16),
+                  Semantics(
+                    button: true,
+                    label: 'Scan Again',
+                    onTap: onScanAgain,
+                    child: ExcludeSemantics(
+                      child: ShadButton(
+                        onPressed: onScanAgain,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          spacing: 8,
+                          children: [
+                            Icon(LucideIcons.refreshCw, size: 16),
+                            Text('Scan Again'),
+                          ],
                         ),
-                        Text('Scan Again'),
-                      ],
+                      ),
                     ),
                   ),
                   Row(
                     spacing: 12,
                     children: [
                       Expanded(
-                        child: ShadButton.outline(
-                          onPressed: onTroubleshoot,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            spacing: 8,
-                            children: [
-                              ExcludeSemantics(
-                                child: Icon(LucideIcons.wrench, size: 16),
+                        child: Semantics(
+                          button: true,
+                          label: 'Troubleshoot',
+                          onTap: onTroubleshoot,
+                          child: ExcludeSemantics(
+                            child: ShadButton.outline(
+                              onPressed: onTroubleshoot,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                spacing: 8,
+                                children: [
+                                  Icon(LucideIcons.wrench, size: 16),
+                                  Text('Troubleshoot'),
+                                ],
                               ),
-                              Text('Troubleshoot'),
-                            ],
+                            ),
                           ),
                         ),
                       ),
                       Expanded(
-                        child: ShadButton.outline(
-                          onPressed: onExportLogs,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            spacing: 8,
-                            children: [
-                              ExcludeSemantics(
-                                child: Icon(LucideIcons.fileText, size: 16),
+                        child: Semantics(
+                          button: true,
+                          label: 'Export Logs',
+                          onTap: onExportLogs,
+                          child: ExcludeSemantics(
+                            child: ShadButton.outline(
+                              onPressed: onExportLogs,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                spacing: 8,
+                                children: [
+                                  Icon(LucideIcons.fileText, size: 16),
+                                  Text('Export Logs'),
+                                ],
                               ),
-                              Text('Export Logs'),
-                            ],
+                            ),
                           ),
                         ),
                       ),
