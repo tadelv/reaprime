@@ -22,6 +22,7 @@ import 'package:reaprime/src/settings/settings_controller.dart';
 
 enum _ImportPhase {
   pickSource,
+  copying, // Android SAF: copying files from external storage to app cache
   scanning,
   summary,
   importing,
@@ -87,6 +88,8 @@ class _ImportStepViewState extends State<_ImportStepView> {
   int _shotsProcessed = 0;
   int _profilesImported = 0;
   ImportResult? _importResult;
+  int _filesCopied = 0;
+  int _filesToCopy = 0;
 
   Future<void> _onComplete() async {
     await _cleanupSafStaging();
@@ -106,12 +109,47 @@ class _ImportStepViewState extends State<_ImportStepView> {
     super.dispose();
   }
 
-  Future<void> _onFolderSelected(String folderPath) async {
+  Future<void> _onFolderSelected(String folderPathOrUri) async {
+    String effectivePath = folderPathOrUri;
+
+    // On Android, folderPathOrUri is a SAF tree URI — copy to local cache first.
+    if (Platform.isAndroid) {
+      setState(() {
+        _phase = _ImportPhase.copying;
+        _filesCopied = 0;
+        _filesToCopy = 0;
+      });
+
+      final copier = SafFolderCopier();
+      final localPath = await copier.copyFromUri(
+        folderPathOrUri,
+        onProgress: (copied, total) {
+          if (!mounted) return;
+          setState(() {
+            _filesCopied = copied;
+            _filesToCopy = total;
+          });
+        },
+      );
+
+      if (localPath == null) {
+        if (mounted) {
+          setState(() => _phase = _ImportPhase.pickSource);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No Decent app data found')),
+          );
+        }
+        return;
+      }
+      effectivePath = localPath;
+    }
+
+    if (!mounted) return;
     setState(() {
       _phase = _ImportPhase.scanning;
     });
 
-    final scanResult = await De1appScanner.scan(folderPath);
+    final scanResult = await De1appScanner.scan(effectivePath);
 
     if (!mounted) return;
 
@@ -277,6 +315,28 @@ class _ImportStepViewState extends State<_ImportStepView> {
             onDe1appFolderSelected: _onFolderSelected,
             onZipFileSelected: _onZipSelected,
             onSkip: _onComplete,
+          ),
+        _ImportPhase.copying => Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 16,
+              children: [
+                if (_filesToCopy > 0)
+                  SizedBox(
+                    width: 200,
+                    child: LinearProgressIndicator(
+                      value: _filesCopied / _filesToCopy,
+                    ),
+                  )
+                else
+                  const CircularProgressIndicator(),
+                Text(
+                  _filesToCopy > 0
+                      ? 'Copying files... $_filesCopied / $_filesToCopy'
+                      : 'Preparing import...',
+                ),
+              ],
+            ),
           ),
         _ImportPhase.scanning => const Center(
             child: Column(
