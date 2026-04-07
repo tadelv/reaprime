@@ -19,10 +19,13 @@ class SafFolderCopier {
   /// Opens the SAF folder picker and copies relevant contents to app cache.
   ///
   /// Returns the local staging directory path, or `null` if the user cancelled.
+  /// Opens the SAF folder picker, copies relevant contents to app cache.
+  /// Combines [pickDirectory] and [copyFromUri] in one call.
+  ///
+  /// Returns the local staging directory path, or `null` if the user cancelled.
   Future<String?> pickAndCopy({
     void Function(int copied, int total)? onProgress,
   }) async {
-    // Pick directory via SAF
     final picked = await SafUtil().pickDirectory(
       writePermission: false,
       persistablePermission: false,
@@ -31,9 +34,18 @@ class SafFolderCopier {
       _log.info('User cancelled directory picker');
       return null;
     }
-
     _log.info('Picked directory: ${picked.name} (${picked.uri})');
+    return copyFromUri(picked.uri, onProgress: onProgress);
+  }
 
+  /// Copies relevant de1app subdirectories from a SAF tree URI to app cache.
+  ///
+  /// Returns the local staging directory path, or `null` if no relevant
+  /// files were found.
+  Future<String?> copyFromUri(
+    String treeUri, {
+    void Function(int copied, int total)? onProgress,
+  }) async {
     final stagingPath = await _stagingPath();
     // Clean any previous staging data
     final stagingDir = Directory(stagingPath);
@@ -43,7 +55,7 @@ class SafFolderCopier {
     await stagingDir.create(recursive: true);
 
     // List top-level contents to find relevant subdirectories
-    final topLevel = await SafUtil().list(picked.uri);
+    final topLevel = await SafUtil().list(treeUri);
 
     // Collect all files to copy first so we can report total count
     final filesToCopy = <_CopyTask>[];
@@ -69,6 +81,11 @@ class SafFolderCopier {
     await _collectGrinderFile(topLevel, stagingPath, filesToCopy);
 
     _log.info('Found ${filesToCopy.length} files to copy');
+
+    if (filesToCopy.isEmpty) {
+      await cleanup();
+      return null;
+    }
 
     // Copy all files
     final safStream = SafStream();
