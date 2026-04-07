@@ -27,10 +27,12 @@ class ImportProgressView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                LucideIcons.download,
-                size: 48,
-                color: theme.colorScheme.primary,
+              ExcludeSemantics(
+                child: Icon(
+                  LucideIcons.download,
+                  size: 48,
+                  color: theme.colorScheme.primary,
+                ),
               ),
               const SizedBox(height: 16),
               Text(
@@ -39,23 +41,35 @@ class ImportProgressView extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
-              ShadProgress(value: progress.fraction),
+              Semantics(
+                label: 'Import progress',
+                child: ShadProgress(value: progress.fraction),
+              ),
               const SizedBox(height: 12),
-              Text(
-                '${progress.current} of ${progress.total} ${progress.phase}',
-                style: theme.textTheme.muted,
-                textAlign: TextAlign.center,
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  '${progress.current} of ${progress.total} ${progress.phase}',
+                  style: theme.textTheme.muted,
+                  textAlign: TextAlign.center,
+                ),
               ),
               const SizedBox(height: 16),
               if (shotsImported > 0)
-                Text(
-                  '$shotsImported shot${shotsImported == 1 ? '' : 's'} processed',
-                  style: theme.textTheme.muted,
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    '$shotsImported shot${shotsImported == 1 ? '' : 's'} processed',
+                    style: theme.textTheme.muted,
+                  ),
                 ),
               if (profilesImported > 0)
-                Text(
-                  '$profilesImported profile${profilesImported == 1 ? '' : 's'} imported',
-                  style: theme.textTheme.muted,
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    '$profilesImported profile${profilesImported == 1 ? '' : 's'} imported',
+                    style: theme.textTheme.muted,
+                  ),
                 ),
             ],
           ),
