@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/widgets/accessible_button.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../onboarding_controller.dart';
@@ -55,9 +56,13 @@ class _WelcomeStepView extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 32),
-                ShadButton(
-                  onPressed: controller.advance,
-                  child: const Text('Get Started'),
+                AccessibleButton(
+                  label: 'Get Started',
+                  onTap: controller.advance,
+                  child: ShadButton(
+                    onPressed: controller.advance,
+                    child: const Text('Get Started'),
+                  ),
                 ),
               ],
             ),

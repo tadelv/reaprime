@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:reaprime/src/models/adapter_state.dart';
+import 'package:reaprime/src/widgets/accessible_button.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// A single step in the troubleshooting wizard.
@@ -54,10 +55,14 @@ List<TroubleshootingStep> troubleshootingSteps({
           runningOnIOS && adapterState != AdapterState.poweredOn,
       extraBuilder: (context) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
-        child: ShadButton.outline(
-          size: ShadButtonSize.sm,
-          onPressed: () => openAppSettings(),
-          child: const Text('Open Settings'),
+        child: AccessibleButton(
+          label: 'Open Settings',
+          onTap: () => openAppSettings(),
+          child: ShadButton.outline(
+            size: ShadButtonSize.sm,
+            onPressed: () => openAppSettings(),
+            child: const Text('Open Settings'),
+          ),
         ),
       ),
     ),
@@ -142,9 +147,13 @@ class _TroubleshootingWizardDialogState
               if (step.extraBuilder != null) step.extraBuilder!(context),
               Align(
                 alignment: Alignment.centerRight,
-                child: ShadButton(
-                  onPressed: _advance,
-                  child: Text(step.buttonText),
+                child: AccessibleButton(
+                  label: step.buttonText,
+                  onTap: _advance,
+                  child: ShadButton(
+                    onPressed: _advance,
+                    child: Text(step.buttonText),
+                  ),
                 ),
               ),
             ],

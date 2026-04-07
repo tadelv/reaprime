@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/src/import/import_result.dart';
+import 'package:reaprime/src/widgets/accessible_button.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -127,34 +128,31 @@ class _ImportResultViewState extends State<ImportResultView> {
 
               // Error details toggle + list
               if (hasErrors) ...[
-                Semantics(
-                  button: true,
+                AccessibleButton(
                   label: _errorsExpanded ? 'Hide details' : 'Show details',
                   onTap: () {
                     setState(() {
                       _errorsExpanded = !_errorsExpanded;
                     });
                   },
-                  child: ExcludeSemantics(
-                    child: ShadButton.outline(
-                      onPressed: () {
-                        setState(() {
-                          _errorsExpanded = !_errorsExpanded;
-                        });
-                      },
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        spacing: 6,
-                        children: [
-                          Icon(
-                            _errorsExpanded
-                                ? LucideIcons.chevronUp
-                                : LucideIcons.chevronDown,
-                            size: 14,
-                          ),
-                          Text(_errorsExpanded ? 'Hide details' : 'Show details'),
-                        ],
-                      ),
+                  child: ShadButton.outline(
+                    onPressed: () {
+                      setState(() {
+                        _errorsExpanded = !_errorsExpanded;
+                      });
+                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 6,
+                      children: [
+                        Icon(
+                          _errorsExpanded
+                              ? LucideIcons.chevronUp
+                              : LucideIcons.chevronDown,
+                          size: 14,
+                        ),
+                        Text(_errorsExpanded ? 'Hide details' : 'Show details'),
+                      ],
                     ),
                   ),
                 ),
@@ -177,21 +175,18 @@ class _ImportResultViewState extends State<ImportResultView> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Semantics(
-                          button: true,
+                        AccessibleButton(
                           label: 'Share Report',
                           onTap: _shareReport,
-                          child: ExcludeSemantics(
-                            child: ShadButton.outline(
-                              onPressed: _shareReport,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                spacing: 6,
-                                children: const [
-                                  Icon(LucideIcons.share2, size: 14),
-                                  Text('Share Report'),
-                                ],
-                              ),
+                          child: ShadButton.outline(
+                            onPressed: _shareReport,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              spacing: 6,
+                              children: const [
+                                Icon(LucideIcons.share2, size: 14),
+                                Text('Share Report'),
+                              ],
                             ),
                           ),
                         ),
@@ -201,9 +196,13 @@ class _ImportResultViewState extends State<ImportResultView> {
               ],
 
               // Continue button
-              ShadButton(
-                onPressed: widget.onContinue,
-                child: const Text('Continue'),
+              AccessibleButton(
+                label: 'Continue',
+                onTap: widget.onContinue,
+                child: ShadButton(
+                  onPressed: widget.onContinue,
+                  child: const Text('Continue'),
+                ),
               ),
             ],
           ),

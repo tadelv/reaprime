@@ -5,6 +5,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/home_feature/home_feature.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
+import 'package:reaprime/src/widgets/accessible_button.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -222,9 +223,13 @@ class _LandingState extends State<LandingFeature> {
           ),
         ),
         const SizedBox(height: 24),
-        ShadButton(
-          onPressed: _navigateToHome,
-          child: const Text('Continue to Dashboard'),
+        AccessibleButton(
+          label: 'Continue to Dashboard',
+          onTap: _navigateToHome,
+          child: ShadButton(
+            onPressed: _navigateToHome,
+            child: const Text('Continue to Dashboard'),
+          ),
         ),
       ],
     );
@@ -249,9 +254,13 @@ class _LandingState extends State<LandingFeature> {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 24),
-        ShadButton(
-          onPressed: _navigateToHome,
-          child: const Text('Continue to Dashboard'),
+        AccessibleButton(
+          label: 'Continue to Dashboard',
+          onTap: _navigateToHome,
+          child: ShadButton(
+            onPressed: _navigateToHome,
+            child: const Text('Continue to Dashboard'),
+          ),
         ),
       ],
     );
@@ -348,9 +357,13 @@ class _LandingState extends State<LandingFeature> {
           ),
         ),
         const SizedBox(height: 24),
-        ShadButton.secondary(
-          onPressed: _navigateToHome,
-          child: const Text('Skip'),
+        AccessibleButton(
+          label: 'Skip',
+          onTap: _navigateToHome,
+          child: ShadButton.secondary(
+            onPressed: _navigateToHome,
+            child: const Text('Skip'),
+          ),
         ),
       ],
     );
@@ -379,14 +392,22 @@ class _LandingState extends State<LandingFeature> {
           ),
         ),
         const SizedBox(height: 24),
-        ShadButton(
-          onPressed: _openInBrowser,
-          child: const Text('Open in Browser'),
+        AccessibleButton(
+          label: 'Open in Browser',
+          onTap: _openInBrowser,
+          child: ShadButton(
+            onPressed: _openInBrowser,
+            child: const Text('Open in Browser'),
+          ),
         ),
         const SizedBox(height: 16),
-        ShadButton.secondary(
-          onPressed: _navigateToHome,
-          child: const Text('Continue to Dashboard'),
+        AccessibleButton(
+          label: 'Continue to Dashboard',
+          onTap: _navigateToHome,
+          child: ShadButton.secondary(
+            onPressed: _navigateToHome,
+            child: const Text('Continue to Dashboard'),
+          ),
         ),
         const SizedBox(height: 24),
         Text(

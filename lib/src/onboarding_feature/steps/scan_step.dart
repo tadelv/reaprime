@@ -14,6 +14,7 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:reaprime/src/models/device/scale.dart' as device_scale;
 import 'package:reaprime/src/settings/settings_controller.dart';
+import 'package:reaprime/src/widgets/accessible_button.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../onboarding_controller.dart';
@@ -321,12 +322,18 @@ class ScanStepViewState extends State<ScanStepView> {
               ignoring: !_showTakingTooLong,
             child: Padding(
               padding: const EdgeInsets.only(bottom: 32),
-              child: ShadButton.outline(
-                size: ShadButtonSize.sm,
-                onPressed: _showTakingTooLongSheet,
-                child: Text(hasDevicesNotPreferred
+              child: AccessibleButton(
+                label: hasDevicesNotPreferred
                     ? 'View found devices'
-                    : 'This is taking a while...'),
+                    : 'This is taking a while...',
+                onTap: _showTakingTooLongSheet,
+                child: ShadButton.outline(
+                  size: ShadButtonSize.sm,
+                  onPressed: _showTakingTooLongSheet,
+                  child: Text(hasDevicesNotPreferred
+                      ? 'View found devices'
+                      : 'This is taking a while...'),
+                ),
               ),
             ),
           ),
@@ -446,56 +453,54 @@ class ScanStepViewState extends State<ScanStepView> {
             spacing: 8,
             children: [
               if (!isConnecting)
-                Semantics(
-                  button: true,
+                AccessibleButton(
                   label: 'ReScan',
                   onTap: () => widget.connectionManager.connect(),
-                  child: ExcludeSemantics(
-                    child: ShadButton.outline(
-                      size: ShadButtonSize.sm,
-                      onPressed: () => widget.connectionManager.connect(),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        spacing: 4,
-                        children: [
-                          const Icon(LucideIcons.refreshCw, size: 14),
-                          const Text('ReScan'),
-                        ],
-                      ),
+                  child: ShadButton.outline(
+                    size: ShadButtonSize.sm,
+                    onPressed: () => widget.connectionManager.connect(),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 4,
+                      children: [
+                        const Icon(LucideIcons.refreshCw, size: 14),
+                        const Text('ReScan'),
+                      ],
                     ),
                   ),
                 ),
-              ShadButton(
-                size: ShadButtonSize.sm,
-                onPressed: null,
-                child: isConnecting
-                    ? Semantics(
-                        label: 'Connecting',
-                        child: Row(
+              AccessibleButton(
+                label: isConnecting ? 'Connecting' : 'Select a machine',
+                onTap: null,
+                child: ShadButton(
+                  size: ShadButtonSize.sm,
+                  onPressed: null,
+                  child: isConnecting
+                      ? Row(
                           mainAxisSize: MainAxisSize.min,
                           spacing: 4,
                           children: [
-                            ExcludeSemantics(
-                              child: const SizedBox(
-                                width: 14,
-                                height: 14,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
-                              ),
+                            const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2),
                             ),
-                            ExcludeSemantics(
-                              child: const Text('Connecting...'),
-                            ),
+                            const Text('Connecting...'),
                           ],
-                        ),
-                      )
-                    : const Text('Select a machine'),
+                        )
+                      : const Text('Select a machine'),
+                ),
               ),
               if (!isConnecting)
-                ShadButton.secondary(
-                  size: ShadButtonSize.sm,
-                  onPressed: _skipToDashboard,
-                  child: const Text('Dashboard'),
+                AccessibleButton(
+                  label: 'Dashboard',
+                  onTap: _skipToDashboard,
+                  child: ShadButton.secondary(
+                    size: ShadButtonSize.sm,
+                    onPressed: _skipToDashboard,
+                    child: const Text('Dashboard'),
+                  ),
                 ),
               ],
             ),
@@ -522,21 +527,18 @@ class ScanStepViewState extends State<ScanStepView> {
             style: theme.textTheme.muted,
             textAlign: TextAlign.center,
           ),
-          Semantics(
-            button: true,
+          AccessibleButton(
             label: 'Retry',
             onTap: () => widget.connectionManager.connect(),
-            child: ExcludeSemantics(
-              child: ShadButton(
-                onPressed: () => widget.connectionManager.connect(),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  spacing: 8,
-                  children: [
-                    const Icon(LucideIcons.refreshCw, size: 16),
-                    const Text('Retry'),
-                  ],
-                ),
+            child: ShadButton(
+              onPressed: () => widget.connectionManager.connect(),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: 8,
+                children: [
+                  const Icon(LucideIcons.refreshCw, size: 16),
+                  const Text('Retry'),
+                ],
               ),
             ),
           ),
@@ -562,8 +564,7 @@ class ScanStepViewState extends State<ScanStepView> {
             style: theme.textTheme.muted,
             textAlign: TextAlign.center,
           ),
-          Semantics(
-            button: true,
+          AccessibleButton(
             label: 'Try Again',
             onTap: () {
               setState(() {
@@ -571,22 +572,20 @@ class ScanStepViewState extends State<ScanStepView> {
               });
               widget.connectionManager.connect();
             },
-            child: ExcludeSemantics(
-              child: ShadButton(
-                onPressed: () {
-                  setState(() {
-                    _adapterError = null;
-                  });
-                  widget.connectionManager.connect();
-                },
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  spacing: 8,
-                  children: [
-                    const Icon(LucideIcons.refreshCw, size: 16),
-                    const Text('Try Again'),
-                  ],
-                ),
+            child: ShadButton(
+              onPressed: () {
+                setState(() {
+                  _adapterError = null;
+                });
+                widget.connectionManager.connect();
+              },
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: 8,
+                children: [
+                  const Icon(LucideIcons.refreshCw, size: 16),
+                  const Text('Try Again'),
+                ],
               ),
             ),
           ),
@@ -600,9 +599,13 @@ class ScanStepViewState extends State<ScanStepView> {
     if (report == null) {
       // Fallback if no report is available yet
       return Center(
-        child: ShadButton(
-          onPressed: () => widget.connectionManager.connect(),
-          child: const Text('Scan Again'),
+        child: AccessibleButton(
+          label: 'Scan Again',
+          onTap: () => widget.connectionManager.connect(),
+          child: ShadButton(
+            onPressed: () => widget.connectionManager.connect(),
+            child: const Text('Scan Again'),
+          ),
         ),
       );
     }
@@ -700,9 +703,13 @@ class ScanStepViewState extends State<ScanStepView> {
               title: const Text('No Logs Found'),
               description: const Text('Log file does not exist yet.'),
               actions: [
-                ShadButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('OK'),
+                AccessibleButton(
+                  label: 'OK',
+                  onTap: () => Navigator.of(context).pop(),
+                  child: ShadButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('OK'),
+                  ),
                 ),
               ],
             ),
@@ -728,9 +735,13 @@ class ScanStepViewState extends State<ScanStepView> {
                 'Logs have been successfully exported to:\n$outputFile',
               ),
               actions: [
-                ShadButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('OK'),
+                AccessibleButton(
+                  label: 'OK',
+                  onTap: () => Navigator.of(context).pop(),
+                  child: ShadButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('OK'),
+                  ),
                 ),
               ],
             ),
@@ -745,9 +756,13 @@ class ScanStepViewState extends State<ScanStepView> {
             title: const Text('Export Failed'),
             description: Text('Failed to export logs: $e'),
             actions: [
-              ShadButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('OK'),
+              AccessibleButton(
+                label: 'OK',
+                onTap: () => Navigator.of(context).pop(),
+                child: ShadButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('OK'),
+                ),
               ),
             ],
           ),
