@@ -127,26 +127,35 @@ class _ImportResultViewState extends State<ImportResultView> {
 
               // Error details toggle + list
               if (hasErrors) ...[
-                ShadButton.outline(
-                  onPressed: () {
+                Semantics(
+                  button: true,
+                  label: _errorsExpanded ? 'Hide details' : 'Show details',
+                  onTap: () {
                     setState(() {
                       _errorsExpanded = !_errorsExpanded;
                     });
                   },
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: 6,
-                    children: [
-                      ExcludeSemantics(
-                        child: Icon(
-                          _errorsExpanded
-                              ? LucideIcons.chevronUp
-                              : LucideIcons.chevronDown,
-                          size: 14,
-                        ),
+                  child: ExcludeSemantics(
+                    child: ShadButton.outline(
+                      onPressed: () {
+                        setState(() {
+                          _errorsExpanded = !_errorsExpanded;
+                        });
+                      },
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        spacing: 6,
+                        children: [
+                          Icon(
+                            _errorsExpanded
+                                ? LucideIcons.chevronUp
+                                : LucideIcons.chevronDown,
+                            size: 14,
+                          ),
+                          Text(_errorsExpanded ? 'Hide details' : 'Show details'),
+                        ],
                       ),
-                      Text(_errorsExpanded ? 'Hide details' : 'Show details'),
-                    ],
+                    ),
                   ),
                 ),
                 if (_errorsExpanded)
@@ -168,17 +177,22 @@ class _ImportResultViewState extends State<ImportResultView> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        ShadButton.outline(
-                          onPressed: _shareReport,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            spacing: 6,
-                            children: const [
-                              ExcludeSemantics(
-                                child: Icon(LucideIcons.share2, size: 14),
+                        Semantics(
+                          button: true,
+                          label: 'Share Report',
+                          onTap: _shareReport,
+                          child: ExcludeSemantics(
+                            child: ShadButton.outline(
+                              onPressed: _shareReport,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                spacing: 6,
+                                children: const [
+                                  Icon(LucideIcons.share2, size: 14),
+                                  Text('Share Report'),
+                                ],
                               ),
-                              Text('Share Report'),
-                            ],
+                            ),
                           ),
                         ),
                       ],
