@@ -141,30 +141,32 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
                       right: 4.0,
                       bottom: 2.0,
                     ),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: Checkbox(
-                            value: isPreferred,
-                            onChanged: (value) {
-                              widget.onPreferredChanged?.call(
-                                value == true ? device.deviceId : null,
-                              );
-                              widget.onDeviceTapped(device);
-                              setState(() {});
-                            },
+                    child: MergeSemantics(
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: Checkbox(
+                              value: isPreferred,
+                              onChanged: (value) {
+                                widget.onPreferredChanged?.call(
+                                  value == true ? device.deviceId : null,
+                                );
+                                widget.onDeviceTapped(device);
+                                setState(() {});
+                              },
+                            ),
                           ),
-                        ),
-                        SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            'Auto-connect',
-                            style: Theme.of(context).textTheme.labelSmall,
+                          SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Auto-connect',
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
               ],
@@ -191,10 +193,12 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
                 backgroundColor: Theme.of(context).colorScheme.errorContainer,
                 child: Row(
                   children: [
-                    Icon(
-                      LucideIcons.info,
-                      size: 14,
-                      color: Theme.of(context).colorScheme.error,
+                    ExcludeSemantics(
+                      child: Icon(
+                        LucideIcons.info,
+                        size: 14,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
                     SizedBox(width: 4),
                     Expanded(
@@ -225,10 +229,12 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
               backgroundColor: Theme.of(context).colorScheme.errorContainer,
               child: Row(
                 children: [
-                  Icon(
-                    LucideIcons.info,
-                    size: 14,
-                    color: Theme.of(context).colorScheme.error,
+                  ExcludeSemantics(
+                    child: Icon(
+                      LucideIcons.info,
+                      size: 14,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                   SizedBox(width: 4),
                   Expanded(
