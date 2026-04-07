@@ -25,7 +25,10 @@ class _WelcomeStepView extends StatelessWidget {
     final theme = ShadTheme.of(context);
 
     return Scaffold(
-      body: Center(
+      body: Semantics(
+        explicitChildNodes: true,
+        label: 'Welcome screen',
+        child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 400),
           child: Padding(
@@ -59,6 +62,7 @@ class _WelcomeStepView extends StatelessWidget {
               ],
             ),
           ),
+        ),
         ),
       ),
     );
