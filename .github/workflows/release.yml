@@ -515,7 +515,7 @@ jobs:
           ls -la "$DSYM_PATH"
 
           flutterfire upload-crashlytics-symbols \
-            --upload-symbols-script-path="ios/Pods/FirebaseCrashlytics/run" \
+            --upload-symbols-script-path="ios/Pods/FirebaseCrashlytics/upload-symbols" \
             --platform=ios \
             --apple-project-path="ios" \
             --env-platform-name="iphoneos" \
