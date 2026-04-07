@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/import/saf_folder_copier.dart';
 import 'package:reaprime/src/widgets/accessible_button.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -17,9 +20,15 @@ class ImportSourcePicker extends StatelessWidget {
   });
 
   Future<void> _pickFolder(BuildContext context) async {
-    final path = await FilePicker.platform.getDirectoryPath(
-      dialogTitle: 'Select your de1plus folder',
-    );
+    String? path;
+    if (Platform.isAndroid) {
+      final copier = SafFolderCopier();
+      path = await copier.pickAndCopy();
+    } else {
+      path = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: 'Select your de1plus folder',
+      );
+    }
     if (path != null && context.mounted) {
       onDe1appFolderSelected(path);
     }
