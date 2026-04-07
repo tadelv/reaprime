@@ -278,34 +278,48 @@ class ScanStepViewState extends State<ScanStepView> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(width: 200, child: ShadProgress()),
+                Semantics(
+                  label: 'Scanning for devices',
+                  child: SizedBox(width: 200, child: ShadProgress()),
+                ),
                 const SizedBox(height: 16),
                 if (hasDevicesNotPreferred && _showTakingTooLong) ...[
-                  Text(
-                    '$deviceCount device${deviceCount == 1 ? '' : 's'} found, but not your preferred one.',
-                    style: Theme.of(context).textTheme.titleMedium,
-                    textAlign: TextAlign.center,
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      '$deviceCount device${deviceCount == 1 ? '' : 's'} found, but not your preferred one.',
+                      style: Theme.of(context).textTheme.titleMedium,
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    'Still scanning...',
-                    style: Theme.of(context).textTheme.bodySmall,
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      'Still scanning...',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                   ),
                 ] else
-                  Text(
-                    DeviceDiscoveryView.getRandomCoffeeMessage(),
-                    style: Theme.of(context).textTheme.titleMedium,
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      DeviceDiscoveryView.getRandomCoffeeMessage(),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                   ),
               ],
             ),
           ),
         ),
         // "Taking too long" button pinned to bottom, doesn't affect center position
-        AnimatedOpacity(
-          opacity: _showTakingTooLong ? 1.0 : 0.0,
-          duration: const Duration(milliseconds: 400),
-          child: IgnorePointer(
-            ignoring: !_showTakingTooLong,
+        ExcludeSemantics(
+          excluding: !_showTakingTooLong,
+          child: AnimatedOpacity(
+            opacity: _showTakingTooLong ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 400),
+            child: IgnorePointer(
+              ignoring: !_showTakingTooLong,
             child: Padding(
               padding: const EdgeInsets.only(bottom: 32),
               child: ShadButton.outline(
@@ -316,6 +330,7 @@ class ScanStepViewState extends State<ScanStepView> {
                     : 'This is taking a while...'),
               ),
             ),
+          ),
           ),
         ),
       ],
@@ -331,8 +346,14 @@ class ScanStepViewState extends State<ScanStepView> {
         mainAxisSize: MainAxisSize.min,
         spacing: 16,
         children: [
-          SizedBox(width: 200, child: ShadProgress()),
-          Text(label, style: Theme.of(context).textTheme.titleMedium),
+          Semantics(
+            label: 'Connecting to device',
+            child: SizedBox(width: 200, child: ShadProgress()),
+          ),
+          Semantics(
+            liveRegion: true,
+            child: Text(label, style: Theme.of(context).textTheme.titleMedium),
+          ),
         ],
       ),
     );
@@ -429,31 +450,38 @@ class ScanStepViewState extends State<ScanStepView> {
                 ShadButton.outline(
                   size: ShadButtonSize.sm,
                   onPressed: () => widget.connectionManager.connect(),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: 4,
-                    children: [
-                      const Icon(LucideIcons.refreshCw, size: 14),
-                      const Text('ReScan'),
-                    ],
+                  child: MergeSemantics(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 4,
+                      children: [
+                        const Icon(LucideIcons.refreshCw, size: 14),
+                        const Text('ReScan'),
+                      ],
+                    ),
                   ),
                 ),
               ShadButton(
                 size: ShadButtonSize.sm,
                 onPressed: null,
                 child: isConnecting
-                    ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        spacing: 4,
-                        children: [
-                          const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child:
-                                CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                          const Text('Connecting...'),
-                        ],
+                    ? MergeSemantics(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          spacing: 4,
+                          children: [
+                            Semantics(
+                              label: 'Connecting',
+                              child: const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            ),
+                            const Text('Connecting...'),
+                          ],
+                        ),
                       )
                     : const Text('Select a machine'),
               ),
@@ -478,8 +506,10 @@ class ScanStepViewState extends State<ScanStepView> {
         mainAxisSize: MainAxisSize.min,
         spacing: 16,
         children: [
-          Icon(LucideIcons.triangleAlert,
-              size: 48, color: theme.colorScheme.destructive),
+          ExcludeSemantics(
+            child: Icon(LucideIcons.triangleAlert,
+                size: 48, color: theme.colorScheme.destructive),
+          ),
           Text('Connection Error', style: theme.textTheme.h4),
           Text(
             _status.error ?? 'An unknown error occurred.',
@@ -488,13 +518,15 @@ class ScanStepViewState extends State<ScanStepView> {
           ),
           ShadButton(
             onPressed: () => widget.connectionManager.connect(),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              spacing: 8,
-              children: [
-                const Icon(LucideIcons.refreshCw, size: 16),
-                const Text('Retry'),
-              ],
+            child: MergeSemantics(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: 8,
+                children: [
+                  const Icon(LucideIcons.refreshCw, size: 16),
+                  const Text('Retry'),
+                ],
+              ),
             ),
           ),
         ],
@@ -509,8 +541,10 @@ class ScanStepViewState extends State<ScanStepView> {
         mainAxisSize: MainAxisSize.min,
         spacing: 16,
         children: [
-          Icon(LucideIcons.bluetoothOff,
-              size: 48, color: theme.colorScheme.destructive),
+          ExcludeSemantics(
+            child: Icon(LucideIcons.bluetoothOff,
+                size: 48, color: theme.colorScheme.destructive),
+          ),
           Text('Bluetooth Unavailable', style: theme.textTheme.h4),
           Text(
             _adapterError!,
@@ -524,13 +558,15 @@ class ScanStepViewState extends State<ScanStepView> {
               });
               widget.connectionManager.connect();
             },
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              spacing: 8,
-              children: [
-                const Icon(LucideIcons.refreshCw, size: 16),
-                const Text('Try Again'),
-              ],
+            child: MergeSemantics(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: 8,
+                children: [
+                  const Icon(LucideIcons.refreshCw, size: 16),
+                  const Text('Try Again'),
+                ],
+              ),
             ),
           ),
         ],
