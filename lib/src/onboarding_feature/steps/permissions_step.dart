@@ -129,15 +129,27 @@ class _PermissionsStepViewState extends State<_PermissionsStepView> {
             future: _permissionsFuture,
             builder: (context, snapshot) {
               if (snapshot.hasError) {
-                return Text('Error: ${snapshot.error}');
+                return Semantics(
+                  liveRegion: true,
+                  child: Text('Error: ${snapshot.error}'),
+                );
               }
               return Column(
                 spacing: 16,
                 children: [
-                  SizedBox(width: 200, child: ShadProgress()),
-                  Text(
-                    'Requesting permissions...',
-                    style: Theme.of(context).textTheme.titleMedium,
+                  SizedBox(
+                    width: 200,
+                    child: Semantics(
+                      label: 'Requesting permissions',
+                      child: ShadProgress(),
+                    ),
+                  ),
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      'Requesting permissions...',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                   ),
                 ],
               );
