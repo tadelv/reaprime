@@ -42,6 +42,8 @@ dependencies:
   universal_ble: ^1.1.0
   shared_preferences: ^2.5.3
   share_plus: ^10.1.4
+  saf_util: ^2.0.0
+  saf_stream: ^2.0.0
   # maybe one day? https://github.com/AurelienBallier/flutter_libserialport
   flutter_libserialport:
     # ^0.6.0
