@@ -46,14 +46,16 @@ class _ImportResultViewState extends State<ImportResultView> {
               Column(
                 spacing: 8,
                 children: [
-                  Icon(
-                    hasErrors
-                        ? LucideIcons.triangleAlert
-                        : LucideIcons.circleCheck,
-                    size: 48,
-                    color: hasErrors
-                        ? theme.colorScheme.destructive
-                        : theme.colorScheme.primary,
+                  ExcludeSemantics(
+                    child: Icon(
+                      hasErrors
+                          ? LucideIcons.triangleAlert
+                          : LucideIcons.circleCheck,
+                      size: 48,
+                      color: hasErrors
+                          ? theme.colorScheme.destructive
+                          : theme.colorScheme.primary,
+                    ),
                   ),
                   Text(
                     hasErrors ? 'Import Complete (with issues)' : 'Import Complete',
@@ -131,18 +133,20 @@ class _ImportResultViewState extends State<ImportResultView> {
                       _errorsExpanded = !_errorsExpanded;
                     });
                   },
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: 6,
-                    children: [
-                      Icon(
-                        _errorsExpanded
-                            ? LucideIcons.chevronUp
-                            : LucideIcons.chevronDown,
-                        size: 14,
-                      ),
-                      Text(_errorsExpanded ? 'Hide details' : 'Show details'),
-                    ],
+                  child: MergeSemantics(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 6,
+                      children: [
+                        Icon(
+                          _errorsExpanded
+                              ? LucideIcons.chevronUp
+                              : LucideIcons.chevronDown,
+                          size: 14,
+                        ),
+                        Text(_errorsExpanded ? 'Hide details' : 'Show details'),
+                      ],
+                    ),
                   ),
                 ),
                 if (_errorsExpanded)
@@ -166,13 +170,15 @@ class _ImportResultViewState extends State<ImportResultView> {
                         const SizedBox(height: 4),
                         ShadButton.outline(
                           onPressed: _shareReport,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            spacing: 6,
-                            children: const [
-                              Icon(LucideIcons.share2, size: 14),
-                              Text('Share Report'),
-                            ],
+                          child: MergeSemantics(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              spacing: 6,
+                              children: const [
+                                Icon(LucideIcons.share2, size: 14),
+                                Text('Share Report'),
+                              ],
+                            ),
                           ),
                         ),
                       ],
@@ -288,12 +294,16 @@ class _ResultRow extends StatelessWidget {
     final style = muted || destructive ? theme.textTheme.muted : theme.textTheme.p;
     final effectiveStyle = color != null ? style.copyWith(color: color) : style;
 
-    return Row(
-      spacing: 8,
-      children: [
-        Icon(icon, size: 16, color: color),
-        Text(label, style: effectiveStyle),
-      ],
+    return MergeSemantics(
+      child: Row(
+        spacing: 8,
+        children: [
+          ExcludeSemantics(
+            child: Icon(icon, size: 16, color: color),
+          ),
+          Text(label, style: effectiveStyle),
+        ],
+      ),
     );
   }
 }

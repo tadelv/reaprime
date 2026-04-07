@@ -92,12 +92,16 @@ class _CountRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: theme.colorScheme.primary),
-        const SizedBox(width: 12),
-        Text(label, style: theme.textTheme.p),
-      ],
+    return MergeSemantics(
+      child: Row(
+        children: [
+          ExcludeSemantics(
+            child: Icon(icon, size: 18, color: theme.colorScheme.primary),
+          ),
+          const SizedBox(width: 12),
+          Text(label, style: theme.textTheme.p),
+        ],
+      ),
     );
   }
 }

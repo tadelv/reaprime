@@ -115,43 +115,50 @@ class _SourceCard extends StatelessWidget {
 
     return ShadCard(
       padding: EdgeInsets.zero,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.muted,
-                  borderRadius: BorderRadius.circular(8),
+      child: Semantics(
+        button: true,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                ExcludeSemantics(
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.muted,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      icon,
+                      size: 20,
+                      color: theme.colorScheme.mutedForeground,
+                    ),
+                  ),
                 ),
-                child: Icon(
-                  icon,
-                  size: 20,
-                  color: theme.colorScheme.mutedForeground,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: theme.textTheme.p),
+                      const SizedBox(height: 2),
+                      Text(subtitle, style: theme.textTheme.muted),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: theme.textTheme.p),
-                    const SizedBox(height: 2),
-                    Text(subtitle, style: theme.textTheme.muted),
-                  ],
+                ExcludeSemantics(
+                  child: Icon(
+                    LucideIcons.chevronRight,
+                    size: 16,
+                    color: theme.colorScheme.mutedForeground,
+                  ),
                 ),
-              ),
-              Icon(
-                LucideIcons.chevronRight,
-                size: 16,
-                color: theme.colorScheme.mutedForeground,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
