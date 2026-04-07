@@ -7,12 +7,16 @@ class ImportProgressView extends StatelessWidget {
   final ImportProgress progress;
   final int shotsImported;
   final int profilesImported;
+  final int beansCreated;
+  final int grindersCreated;
 
   const ImportProgressView({
     super.key,
     required this.progress,
     required this.shotsImported,
     required this.profilesImported,
+    this.beansCreated = 0,
+    this.grindersCreated = 0,
   });
 
   @override
@@ -63,6 +67,16 @@ class ImportProgressView extends StatelessWidget {
               if (profilesImported > 0)
                 Text(
                   '$profilesImported profile${profilesImported == 1 ? '' : 's'} imported',
+                  style: theme.textTheme.muted,
+                ),
+              if (beansCreated > 0)
+                Text(
+                  '$beansCreated coffee${beansCreated == 1 ? '' : 's'} added',
+                  style: theme.textTheme.muted,
+                ),
+              if (grindersCreated > 0)
+                Text(
+                  '$grindersCreated grinder${grindersCreated == 1 ? '' : 's'} added',
                   style: theme.textTheme.muted,
                 ),
             ],

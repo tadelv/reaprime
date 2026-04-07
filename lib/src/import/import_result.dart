@@ -52,7 +52,15 @@ class ImportResult {
 class ImportProgress {
   final int current;
   final int total;
-  final String phase; // 'shots', 'profiles', 'grinders'
-  const ImportProgress({required this.current, required this.total, required this.phase});
+  final String phase; // 'shots', 'entities', 'storing shots', 'profiles'
+  final int beansCreated;
+  final int grindersCreated;
+  const ImportProgress({
+    required this.current,
+    required this.total,
+    required this.phase,
+    this.beansCreated = 0,
+    this.grindersCreated = 0,
+  });
   double get fraction => total > 0 ? current / total : 0;
 }

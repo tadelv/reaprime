@@ -102,6 +102,11 @@ class De1appImporter {
     final extractor = EntityExtractor();
     final extraction = extractor.extract(parsedShots);
 
+    // Total entity count for progress reporting (beans + grinders; batches
+    // are sub-items of beans so we don't count them separately).
+    final entityTotal = extraction.beans.length + extraction.grinders.length;
+    var entityIndex = 0;
+
     // Load existing beans and grinders to avoid duplicates on re-import.
     // Build lookup maps keyed the same way EntityExtractor deduplicates.
     final existingBeans = await beanStorageService.getAllBeans();
@@ -144,6 +149,14 @@ class De1appImporter {
           _log.warning('Failed to store bean ${bean.name}', e, st);
         }
       }
+      entityIndex++;
+      onProgress?.call(ImportProgress(
+        current: entityIndex,
+        total: entityTotal,
+        phase: 'entities',
+        beansCreated: beansCreated,
+        grindersCreated: grindersCreated,
+      ));
     }
 
     // Store or remap batches
@@ -208,6 +221,14 @@ class De1appImporter {
           _log.warning('Failed to store grinder ${grinder.model}', e, st);
         }
       }
+      entityIndex++;
+      onProgress?.call(ImportProgress(
+        current: entityIndex,
+        total: entityTotal,
+        phase: 'entities',
+        beansCreated: beansCreated,
+        grindersCreated: grindersCreated,
+      ));
     }
 
     // --- Phase 3: Store shots with entity linkage ---
@@ -219,6 +240,13 @@ class De1appImporter {
 
       if (existingIds.contains(shot.id)) {
         shotsSkipped++;
+        onProgress?.call(ImportProgress(
+          current: i + 1,
+          total: parsedShots.length,
+          phase: 'storing shots',
+          beansCreated: beansCreated,
+          grindersCreated: grindersCreated,
+        ));
         continue;
       }
 
@@ -249,6 +277,14 @@ class De1appImporter {
           ),
         );
       }
+
+      onProgress?.call(ImportProgress(
+        current: i + 1,
+        total: parsedShots.length,
+        phase: 'storing shots',
+        beansCreated: beansCreated,
+        grindersCreated: grindersCreated,
+      ));
     }
 
     // --- Phase 4: Import standalone profiles ---

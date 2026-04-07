@@ -87,6 +87,8 @@ class _ImportStepViewState extends State<_ImportStepView> {
   ImportProgress _progress = const ImportProgress(current: 0, total: 0, phase: '');
   int _shotsProcessed = 0;
   int _profilesImported = 0;
+  int _beansCreated = 0;
+  int _grindersCreated = 0;
   ImportResult? _importResult;
   int _filesCopied = 0;
   int _filesToCopy = 0;
@@ -252,6 +254,8 @@ class _ImportStepViewState extends State<_ImportStepView> {
       _progress = const ImportProgress(current: 0, total: 0, phase: '');
       _shotsProcessed = 0;
       _profilesImported = 0;
+      _beansCreated = 0;
+      _grindersCreated = 0;
     });
 
     final importer = De1appImporter(
@@ -273,6 +277,8 @@ class _ImportStepViewState extends State<_ImportStepView> {
             } else if (progress.phase == 'profiles') {
               _profilesImported = progress.current;
             }
+            _beansCreated = progress.beansCreated;
+            _grindersCreated = progress.grindersCreated;
           });
         },
       );
@@ -322,29 +328,44 @@ class _ImportStepViewState extends State<_ImportStepView> {
               spacing: 16,
               children: [
                 if (_filesToCopy > 0)
-                  SizedBox(
-                    width: 200,
-                    child: LinearProgressIndicator(
-                      value: _filesCopied / _filesToCopy,
+                  Semantics(
+                    label: 'Copying files from selected folder',
+                    child: SizedBox(
+                      width: 200,
+                      child: LinearProgressIndicator(
+                        value: _filesCopied / _filesToCopy,
+                      ),
                     ),
                   )
                 else
-                  const CircularProgressIndicator(),
-                Text(
-                  _filesToCopy > 0
-                      ? 'Copying files... $_filesCopied / $_filesToCopy'
-                      : 'Preparing import...',
+                  const Semantics(
+                    label: 'Preparing import',
+                    child: CircularProgressIndicator(),
+                  ),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    _filesToCopy > 0
+                        ? 'Copying files... $_filesCopied / $_filesToCopy'
+                        : 'Preparing import...',
+                  ),
                 ),
               ],
             ),
           ),
-        _ImportPhase.scanning => const Center(
+        _ImportPhase.scanning => Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               spacing: 16,
               children: [
-                CircularProgressIndicator(),
-                Text('Scanning folder...'),
+                const Semantics(
+                  label: 'Scanning folder',
+                  child: CircularProgressIndicator(),
+                ),
+                Semantics(
+                  liveRegion: true,
+                  child: const Text('Scanning folder...'),
+                ),
               ],
             ),
           ),
@@ -357,6 +378,8 @@ class _ImportStepViewState extends State<_ImportStepView> {
             progress: _progress,
             shotsImported: _shotsProcessed,
             profilesImported: _profilesImported,
+            beansCreated: _beansCreated,
+            grindersCreated: _grindersCreated,
           ),
         _ImportPhase.result => ImportResultView(
             result: _importResult!,
