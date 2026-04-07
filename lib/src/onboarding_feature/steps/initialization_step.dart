@@ -120,41 +120,43 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          FutureBuilder<void>(
-            future: _initFuture,
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Semantics(
-                  liveRegion: true,
-                  child: Text('Error: ${snapshot.error}'),
-                );
-              }
-              return Column(
-                spacing: 16,
-                children: [
-                  SizedBox(
-                    width: 200,
-                    child: Semantics(
-                      label: 'Starting Streamline',
-                      child: ShadProgress(),
-                    ),
-                  ),
-                  Semantics(
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            FutureBuilder<void>(
+              future: _initFuture,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Semantics(
                     liveRegion: true,
-                    child: Text(
-                      'Streamline is starting...',
-                      style: Theme.of(context).textTheme.titleMedium,
+                    child: Text('Error: ${snapshot.error}'),
+                  );
+                }
+                return Column(
+                  spacing: 16,
+                  children: [
+                    SizedBox(
+                      width: 200,
+                      child: Semantics(
+                        label: 'Starting Streamline',
+                        child: ShadProgress(),
+                      ),
                     ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
+                    Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        'Streamline is starting...',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

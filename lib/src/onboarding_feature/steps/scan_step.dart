@@ -213,47 +213,46 @@ class ScanStepViewState extends State<ScanStepView> {
 
   @override
   Widget build(BuildContext context) {
+    final Widget content;
+
     // Adapter error takes precedence
     if (_adapterError != null) {
-      return _adapterErrorView(context);
+      content = _adapterErrorView(context);
     }
-
     // Error state from connection manager
-    if (_status.error != null && _status.phase == ConnectionPhase.idle) {
-      return _errorView(context);
+    else if (_status.error != null && _status.phase == ConnectionPhase.idle) {
+      content = _errorView(context);
     }
-
     // Scanning
-    if (_status.phase == ConnectionPhase.scanning) {
-      return _scanningView(context);
+    else if (_status.phase == ConnectionPhase.scanning) {
+      content = _scanningView(context);
     }
-
     // Connecting to machine or scale
-    if (_status.phase == ConnectionPhase.connectingMachine ||
+    else if (_status.phase == ConnectionPhase.connectingMachine ||
         _status.phase == ConnectionPhase.connectingScale) {
-      return _connectingView(context);
+      content = _connectingView(context);
     }
-
     // Ambiguity: machine or scale picker
-    if (_status.pendingAmbiguity == AmbiguityReason.machinePicker ||
+    else if (_status.pendingAmbiguity == AmbiguityReason.machinePicker ||
         _status.pendingAmbiguity == AmbiguityReason.scalePicker) {
-      return _devicePickerView(context);
+      content = _devicePickerView(context);
     }
-
     // Idle with no machines found
-    if (_status.phase == ConnectionPhase.idle &&
+    else if (_status.phase == ConnectionPhase.idle &&
         _status.foundMachines.isEmpty) {
-      return _noDevicesFoundView(context);
+      content = _noDevicesFoundView(context);
     }
-
     // Idle with machines but no ambiguity (fallback)
-    if (_status.phase == ConnectionPhase.idle &&
+    else if (_status.phase == ConnectionPhase.idle &&
         _status.foundMachines.isNotEmpty) {
-      return _devicePickerView(context);
+      content = _devicePickerView(context);
+    }
+    // Default: scanning view
+    else {
+      content = _scanningView(context);
     }
 
-    // Default: scanning view
-    return _scanningView(context);
+    return Scaffold(body: content);
   }
 
   /// Whether devices have been found but the preferred one hasn't.
