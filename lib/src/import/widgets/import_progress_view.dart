@@ -56,20 +56,14 @@ class ImportProgressView extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               if (shotsImported > 0)
-                Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    '$shotsImported shot${shotsImported == 1 ? '' : 's'} processed',
-                    style: theme.textTheme.muted,
-                  ),
+                Text(
+                  '$shotsImported shot${shotsImported == 1 ? '' : 's'} processed',
+                  style: theme.textTheme.muted,
                 ),
               if (profilesImported > 0)
-                Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    '$profilesImported profile${profilesImported == 1 ? '' : 's'} imported',
-                    style: theme.textTheme.muted,
-                  ),
+                Text(
+                  '$profilesImported profile${profilesImported == 1 ? '' : 's'} imported',
+                  style: theme.textTheme.muted,
                 ),
             ],
           ),
