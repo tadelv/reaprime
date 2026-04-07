@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:reaprime/src/models/scan_report.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -36,10 +36,12 @@ class ScanResultsSummary extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             spacing: 24,
             children: [
-              Icon(
-                icon,
-                size: 64,
-                color: theme.colorScheme.primary.withValues(alpha: 0.7),
+              ExcludeSemantics(
+                child: Icon(
+                  icon,
+                  size: 64,
+                  color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                ),
               ),
               Column(
                 spacing: 8,
@@ -62,13 +64,15 @@ class ScanResultsSummary extends StatelessWidget {
                 children: [
                   ShadButton(
                     onPressed: onScanAgain,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      spacing: 8,
-                      children: [
-                        Icon(LucideIcons.refreshCw, size: 16),
-                        Text('Scan Again'),
-                      ],
+                    child: MergeSemantics(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        spacing: 8,
+                        children: [
+                          Icon(LucideIcons.refreshCw, size: 16),
+                          Text('Scan Again'),
+                        ],
+                      ),
                     ),
                   ),
                   Row(
@@ -77,26 +81,30 @@ class ScanResultsSummary extends StatelessWidget {
                       Expanded(
                         child: ShadButton.outline(
                           onPressed: onTroubleshoot,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            spacing: 8,
-                            children: [
-                              Icon(LucideIcons.wrench, size: 16),
-                              Text('Troubleshoot'),
-                            ],
+                          child: MergeSemantics(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              spacing: 8,
+                              children: [
+                                Icon(LucideIcons.wrench, size: 16),
+                                Text('Troubleshoot'),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                       Expanded(
                         child: ShadButton.outline(
                           onPressed: onExportLogs,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            spacing: 8,
-                            children: [
-                              Icon(LucideIcons.fileText, size: 16),
-                              Text('Export Logs'),
-                            ],
+                          child: MergeSemantics(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              spacing: 8,
+                              children: [
+                                Icon(LucideIcons.fileText, size: 16),
+                                Text('Export Logs'),
+                              ],
+                            ),
                           ),
                         ),
                       ),
