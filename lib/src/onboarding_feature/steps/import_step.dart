@@ -338,7 +338,7 @@ class _ImportStepViewState extends State<_ImportStepView> {
                     ),
                   )
                 else
-                  const Semantics(
+                  Semantics(
                     label: 'Preparing import',
                     child: CircularProgressIndicator(),
                   ),
@@ -358,7 +358,7 @@ class _ImportStepViewState extends State<_ImportStepView> {
               mainAxisSize: MainAxisSize.min,
               spacing: 16,
               children: [
-                const Semantics(
+                Semantics(
                   label: 'Scanning folder',
                   child: CircularProgressIndicator(),
                 ),
