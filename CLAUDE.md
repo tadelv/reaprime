@@ -40,6 +40,8 @@ make dual-build                           # Both architectures
 
 **Do not assume.** `main` has branch protection requiring PRs. Pushing directly bypasses protections.
 
+**Do not push to remote or create PRs until the user explicitly instructs you to.** Commit locally as needed, but wait for the user to say when to push.
+
 **Worktree gotcha:** `EnterWorktree` branches track `origin/main` — pushing will push directly to `main`. To create a proper PR from a worktree:
 ```bash
 git push -u origin HEAD:feature/my-branch-name
