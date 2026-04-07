@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/widgets/accessible_button.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// Two card-style options for picking an import source, with an optional skip link.
@@ -79,11 +80,15 @@ class ImportSourcePicker extends StatelessWidget {
               if (onSkip != null) ...[
                 const SizedBox(height: 24),
                 Center(
-                  child: ShadButton.ghost(
-                    onPressed: onSkip,
-                    child: Text(
-                      'Skip for now',
-                      style: theme.textTheme.muted,
+                  child: AccessibleButton(
+                    label: 'Skip for now',
+                    onTap: onSkip,
+                    child: ShadButton.ghost(
+                      onPressed: onSkip,
+                      child: Text(
+                        'Skip for now',
+                        style: theme.textTheme.muted,
+                      ),
                     ),
                   ),
                 ),

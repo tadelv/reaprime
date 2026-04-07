@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/import/import_result.dart';
+import 'package:reaprime/src/widgets/accessible_button.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// Shows pre-scan results with item counts and an "Import All" button.
@@ -66,14 +67,22 @@ class ImportSummaryView extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
-              ShadButton(
-                onPressed: onImportAll,
-                child: const Text('Import All'),
+              AccessibleButton(
+                label: 'Import All',
+                onTap: onImportAll,
+                child: ShadButton(
+                  onPressed: onImportAll,
+                  child: const Text('Import All'),
+                ),
               ),
               const SizedBox(height: 8),
-              ShadButton.outline(
-                onPressed: onCancel,
-                child: const Text('Cancel'),
+              AccessibleButton(
+                label: 'Cancel',
+                onTap: onCancel,
+                child: ShadButton.outline(
+                  onPressed: onCancel,
+                  child: const Text('Cancel'),
+                ),
               ),
             ],
           ),

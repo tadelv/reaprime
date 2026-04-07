@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/models/scan_report.dart';
+import 'package:reaprime/src/widgets/accessible_button.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// Displays a human-readable summary of scan results when no devices
@@ -62,21 +63,18 @@ class ScanResultsSummary extends StatelessWidget {
                 spacing: 12,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Semantics(
-                    button: true,
+                  AccessibleButton(
                     label: 'Scan Again',
                     onTap: onScanAgain,
-                    child: ExcludeSemantics(
-                      child: ShadButton(
-                        onPressed: onScanAgain,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          spacing: 8,
-                          children: [
-                            Icon(LucideIcons.refreshCw, size: 16),
-                            Text('Scan Again'),
-                          ],
-                        ),
+                    child: ShadButton(
+                      onPressed: onScanAgain,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        spacing: 8,
+                        children: [
+                          Icon(LucideIcons.refreshCw, size: 16),
+                          Text('Scan Again'),
+                        ],
                       ),
                     ),
                   ),
@@ -84,50 +82,48 @@ class ScanResultsSummary extends StatelessWidget {
                     spacing: 12,
                     children: [
                       Expanded(
-                        child: Semantics(
-                          button: true,
+                        child: AccessibleButton(
                           label: 'Troubleshoot',
                           onTap: onTroubleshoot,
-                          child: ExcludeSemantics(
-                            child: ShadButton.outline(
-                              onPressed: onTroubleshoot,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                spacing: 8,
-                                children: [
-                                  Icon(LucideIcons.wrench, size: 16),
-                                  Text('Troubleshoot'),
-                                ],
-                              ),
+                          child: ShadButton.outline(
+                            onPressed: onTroubleshoot,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              spacing: 8,
+                              children: [
+                                Icon(LucideIcons.wrench, size: 16),
+                                Text('Troubleshoot'),
+                              ],
                             ),
                           ),
                         ),
                       ),
                       Expanded(
-                        child: Semantics(
-                          button: true,
+                        child: AccessibleButton(
                           label: 'Export Logs',
                           onTap: onExportLogs,
-                          child: ExcludeSemantics(
-                            child: ShadButton.outline(
-                              onPressed: onExportLogs,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                spacing: 8,
-                                children: [
-                                  Icon(LucideIcons.fileText, size: 16),
-                                  Text('Export Logs'),
-                                ],
-                              ),
+                          child: ShadButton.outline(
+                            onPressed: onExportLogs,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              spacing: 8,
+                              children: [
+                                Icon(LucideIcons.fileText, size: 16),
+                                Text('Export Logs'),
+                              ],
                             ),
                           ),
                         ),
                       ),
                     ],
                   ),
-                  ShadButton.secondary(
-                    onPressed: onContinueToDashboard,
-                    child: const Text('Continue to Dashboard'),
+                  AccessibleButton(
+                    label: 'Continue to Dashboard',
+                    onTap: onContinueToDashboard,
+                    child: ShadButton.secondary(
+                      onPressed: onContinueToDashboard,
+                      child: const Text('Continue to Dashboard'),
+                    ),
                   ),
                 ],
               ),
