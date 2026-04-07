@@ -502,6 +502,31 @@ jobs:
         env:
           FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
 
+      - name: Upload dSYMs to Firebase Crashlytics
+        run: |
+          DSYM_PATH="build/ios/archive/Runner.xcarchive/dSYMs"
+          if [ ! -d "$DSYM_PATH" ] || [ -z "$(ls -A "$DSYM_PATH" 2>/dev/null)" ]; then
+            echo "::warning::No dSYMs found at $DSYM_PATH"
+            ls -la build/ios/archive/Runner.xcarchive/ || true
+            exit 0
+          fi
+
+          echo "Found dSYMs:"
+          ls -la "$DSYM_PATH"
+
+          flutterfire upload-crashlytics-symbols \
+            --upload-symbols-script-path="ios/Pods/FirebaseCrashlytics/run" \
+            --platform=ios \
+            --apple-project-path="ios" \
+            --env-platform-name="iphoneos" \
+            --env-configuration="Release" \
+            --env-project-dir="ios" \
+            --env-built-products-dir="build/ios/archive/Runner.xcarchive/Products/Applications" \
+            --env-dwarf-dsym-folder-path="$DSYM_PATH" \
+            --env-dwarf-dsym-file-name="Runner.app.dSYM" \
+            --env-infoplist-path="Runner.app/Info.plist" \
+            --default-config=default
+
       - name: Upload to TestFlight
         env:
           API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
