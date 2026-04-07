@@ -133,20 +133,20 @@ class _ImportResultViewState extends State<ImportResultView> {
                       _errorsExpanded = !_errorsExpanded;
                     });
                   },
-                  child: MergeSemantics(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      spacing: 6,
-                      children: [
-                        Icon(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 6,
+                    children: [
+                      ExcludeSemantics(
+                        child: Icon(
                           _errorsExpanded
                               ? LucideIcons.chevronUp
                               : LucideIcons.chevronDown,
                           size: 14,
                         ),
-                        Text(_errorsExpanded ? 'Hide details' : 'Show details'),
-                      ],
-                    ),
+                      ),
+                      Text(_errorsExpanded ? 'Hide details' : 'Show details'),
+                    ],
                   ),
                 ),
                 if (_errorsExpanded)
@@ -170,15 +170,15 @@ class _ImportResultViewState extends State<ImportResultView> {
                         const SizedBox(height: 4),
                         ShadButton.outline(
                           onPressed: _shareReport,
-                          child: MergeSemantics(
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              spacing: 6,
-                              children: const [
-                                Icon(LucideIcons.share2, size: 14),
-                                Text('Share Report'),
-                              ],
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            spacing: 6,
+                            children: const [
+                              ExcludeSemantics(
+                                child: Icon(LucideIcons.share2, size: 14),
+                              ),
+                              Text('Share Report'),
+                            ],
                           ),
                         ),
                       ],

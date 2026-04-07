@@ -449,38 +449,35 @@ class ScanStepViewState extends State<ScanStepView> {
                 ShadButton.outline(
                   size: ShadButtonSize.sm,
                   onPressed: () => widget.connectionManager.connect(),
-                  child: MergeSemantics(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      spacing: 4,
-                      children: [
-                        const Icon(LucideIcons.refreshCw, size: 14),
-                        const Text('ReScan'),
-                      ],
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 4,
+                    children: [
+                      const ExcludeSemantics(
+                        child: Icon(LucideIcons.refreshCw, size: 14),
+                      ),
+                      const Text('ReScan'),
+                    ],
                   ),
                 ),
               ShadButton(
                 size: ShadButtonSize.sm,
                 onPressed: null,
                 child: isConnecting
-                    ? MergeSemantics(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          spacing: 4,
-                          children: [
-                            Semantics(
-                              label: 'Connecting',
-                              child: const SizedBox(
-                                width: 14,
-                                height: 14,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
-                              ),
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        spacing: 4,
+                        children: [
+                          ExcludeSemantics(
+                            child: const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2),
                             ),
-                            const Text('Connecting...'),
-                          ],
-                        ),
+                          ),
+                          const Text('Connecting...'),
+                        ],
                       )
                     : const Text('Select a machine'),
               ),
@@ -517,15 +514,15 @@ class ScanStepViewState extends State<ScanStepView> {
           ),
           ShadButton(
             onPressed: () => widget.connectionManager.connect(),
-            child: MergeSemantics(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                spacing: 8,
-                children: [
-                  const Icon(LucideIcons.refreshCw, size: 16),
-                  const Text('Retry'),
-                ],
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 8,
+              children: [
+                const ExcludeSemantics(
+                  child: Icon(LucideIcons.refreshCw, size: 16),
+                ),
+                const Text('Retry'),
+              ],
             ),
           ),
         ],
@@ -557,15 +554,15 @@ class ScanStepViewState extends State<ScanStepView> {
               });
               widget.connectionManager.connect();
             },
-            child: MergeSemantics(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                spacing: 8,
-                children: [
-                  const Icon(LucideIcons.refreshCw, size: 16),
-                  const Text('Try Again'),
-                ],
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 8,
+              children: [
+                const ExcludeSemantics(
+                  child: Icon(LucideIcons.refreshCw, size: 16),
+                ),
+                const Text('Try Again'),
+              ],
             ),
           ),
         ],
