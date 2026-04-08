@@ -237,6 +237,7 @@ void main() {
           shotCount: 1,
           profileCount: 1,
           hasDyeGrinders: true,
+          hasSettings: false,
           sourcePath: _fixturesPath,
           shotSource: 'history_v2',
         );
@@ -266,6 +267,7 @@ void main() {
           shotCount: 0,
           profileCount: 1,
           hasDyeGrinders: false,
+          hasSettings: false,
           sourcePath: _fixturesPath,
           shotSource: null,
         );
@@ -298,6 +300,7 @@ void main() {
           shotCount: 1,
           profileCount: 0,
           hasDyeGrinders: false,
+          hasSettings: false,
           sourcePath: _fixturesPath,
           shotSource: 'history_v2',
         );
@@ -333,6 +336,7 @@ void main() {
           shotCount: 1,
           profileCount: 0,
           hasDyeGrinders: false,
+          hasSettings: false,
           sourcePath: _fixturesPath,
           shotSource: 'history_v2',
         );
@@ -374,6 +378,7 @@ void main() {
           shotCount: 2,
           profileCount: 0,
           hasDyeGrinders: false,
+          hasSettings: false,
           sourcePath: tempDir.path,
           shotSource: 'history_v2',
         );
@@ -402,6 +407,7 @@ void main() {
           shotCount: 1,
           profileCount: 0,
           hasDyeGrinders: false,
+          hasSettings: false,
           sourcePath: _fixturesPath,
           shotSource: 'history_v2',
         );
@@ -423,6 +429,7 @@ void main() {
           shotCount: 0,
           profileCount: 1,
           hasDyeGrinders: false,
+          hasSettings: false,
           sourcePath: _fixturesPath,
           shotSource: null,
         );
@@ -450,6 +457,7 @@ void main() {
           shotCount: 1,
           profileCount: 0,
           hasDyeGrinders: true,
+          hasSettings: false,
           sourcePath: _fixturesPath,
           shotSource: 'history_v2',
         );
@@ -472,6 +480,7 @@ void main() {
           shotCount: 1,
           profileCount: 0,
           hasDyeGrinders: false,
+          hasSettings: false,
           sourcePath: _fixturesPath,
           shotSource: 'history_v2',
         );
