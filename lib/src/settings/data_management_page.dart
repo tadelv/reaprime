@@ -322,23 +322,43 @@ class _DataManagementPageState extends State<DataManagementPage> {
     try {
       final docs = await getApplicationDocumentsDirectory();
       final logFile = File('${docs.path}/log.txt');
-      if (!await logFile.exists()) {
+      final webviewLogFile = File('${docs.path}/webview_console.log');
+
+      final hasAppLog = await logFile.exists();
+      final hasWebviewLog = await webviewLogFile.exists() &&
+          (await webviewLogFile.length()) > 0;
+
+      if (!hasAppLog && !hasWebviewLog) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No log file found')),
+            const SnackBar(content: Text('No log files found')),
           );
         }
         return;
       }
-      final bytes = await logFile.readAsBytes();
+
+      final archive = Archive();
+      if (hasAppLog) {
+        final bytes = await logFile.readAsBytes();
+        archive.addFile(ArchiveFile('log.txt', bytes.length, bytes));
+      }
+      if (hasWebviewLog) {
+        final bytes = await webviewLogFile.readAsBytes();
+        archive.addFile(
+            ArchiveFile('webview_console.log', bytes.length, bytes));
+      }
+
+      final zipBytes =
+          Uint8List.fromList(ZipEncoder().encode(archive));
+
       final outputFile = await FilePicker.platform.saveFile(
-        fileName: "R1-logs.txt",
+        fileName: "R1-logs.zip",
         dialogTitle: "Choose where to save logs",
-        bytes: bytes,
+        bytes: zipBytes,
       );
       if (outputFile != null) {
         if (!Platform.isAndroid && !Platform.isIOS) {
-          await File(outputFile).writeAsBytes(bytes);
+          await File(outputFile).writeAsBytes(zipBytes);
         }
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
