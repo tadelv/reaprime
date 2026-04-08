@@ -363,7 +363,10 @@ class De1appImporter {
             );
           }
 
-          // Scale power mode
+          // Scale power mode: de1app's keep_scale_on=1 means "don't auto-manage
+          // scale power" which maps to Bridge's ScalePowerMode.disabled (no
+          // automatic power management). keep_scale_on=0 means the scale should
+          // disconnect when the machine sleeps.
           if (settings.keepScaleOn != null) {
             await settingsController!.setScalePowerMode(
               settings.keepScaleOn!
@@ -410,6 +413,10 @@ class De1appImporter {
               rinseData: updatedRinse,
             );
             await storageService.storeCurrentWorkflow(updatedWorkflow);
+          } else {
+            _log.info(
+              'No current workflow found — skipping workflow settings import',
+            );
           }
 
           settingsApplied = true;
