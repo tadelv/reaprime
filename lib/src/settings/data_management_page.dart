@@ -582,6 +582,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
         builder: (ctx) => StatefulBuilder(
           builder: (ctx, setState) {
             setCopyState = setState;
+            final isMilestone = filesToCopy == 0 ||
+                filesCopied == filesToCopy ||
+                (filesToCopy > 0 &&
+                    filesCopied % (filesToCopy ~/ 4).clamp(1, filesToCopy) == 0);
             return ShadDialog(
               title: const Text('Copying files...'),
               child: Column(
@@ -589,16 +593,25 @@ class _DataManagementPageState extends State<DataManagementPage> {
                 children: [
                   const SizedBox(height: 16),
                   if (filesToCopy > 0)
-                    LinearProgressIndicator(
-                      value: filesCopied / filesToCopy,
+                    Semantics(
+                      label: 'Copying files from selected folder',
+                      child: LinearProgressIndicator(
+                        value: filesCopied / filesToCopy,
+                      ),
                     )
                   else
-                    const CircularProgressIndicator(),
+                    Semantics(
+                      label: 'Preparing import',
+                      child: const CircularProgressIndicator(),
+                    ),
                   const SizedBox(height: 8),
-                  Text(
-                    filesToCopy > 0
-                        ? 'Copying files... $filesCopied / $filesToCopy'
-                        : 'Preparing import...',
+                  Semantics(
+                    liveRegion: isMilestone,
+                    child: Text(
+                      filesToCopy > 0
+                          ? 'Copying files... $filesCopied / $filesToCopy'
+                          : 'Preparing import...',
+                    ),
                   ),
                 ],
               ),

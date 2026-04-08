@@ -350,7 +350,10 @@ class _ImportStepViewState extends State<_ImportStepView> {
                     child: CircularProgressIndicator(),
                   ),
                 Semantics(
-                  liveRegion: true,
+                  liveRegion: _filesToCopy == 0 ||
+                      _filesCopied == _filesToCopy ||
+                      (_filesToCopy > 0 &&
+                          _filesCopied % (_filesToCopy ~/ 4).clamp(1, _filesToCopy) == 0),
                   child: Text(
                     _filesToCopy > 0
                         ? 'Copying files... $_filesCopied / $_filesToCopy'
