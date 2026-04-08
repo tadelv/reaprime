@@ -58,12 +58,12 @@ scheduler_wake 25500
       test('parses keep_scale_on and screen_saver_delay', () {
         final content = '''
 keep_scale_on 1
-screen_saver_delay 300
+screen_saver_delay 1800
 ''';
         final result = SettingsTdbParser.parse(content);
         expect(result.keepScaleOn, true);
-        // 300 / 60 = 5
-        expect(result.sleepTimeoutMinutes, 5);
+        // 1800 / 60 = 30 → snaps to 30
+        expect(result.sleepTimeoutMinutes, 30);
       });
 
       test('keep_scale_on 0 means false', () {
@@ -72,23 +72,34 @@ screen_saver_delay 300
         expect(result.keepScaleOn, false);
       });
 
-      test('screen_saver_delay rounds up and clamps to minimum 1', () {
-        // 90 seconds -> ceil(1.5) = 2
-        final content = 'screen_saver_delay 90\n';
-        final result = SettingsTdbParser.parse(content);
-        expect(result.sleepTimeoutMinutes, 2);
+      test('screen_saver_delay snaps to nearest valid option', () {
+        // 90 seconds -> ceil = 2 min -> snaps to 0 (nearest)
+        expect(SettingsTdbParser.parse('screen_saver_delay 90\n')
+            .sleepTimeoutMinutes, 0);
+        // 120 seconds -> 2 min -> snaps to 0
+        expect(SettingsTdbParser.parse('screen_saver_delay 120\n')
+            .sleepTimeoutMinutes, 0);
+        // 600 seconds -> 10 min -> snaps to 15
+        expect(SettingsTdbParser.parse('screen_saver_delay 600\n')
+            .sleepTimeoutMinutes, 15);
+        // 2700 seconds -> 45 min -> snaps to 45
+        expect(SettingsTdbParser.parse('screen_saver_delay 2700\n')
+            .sleepTimeoutMinutes, 45);
+        // 7080 seconds -> 118 min -> snaps to 120
+        expect(SettingsTdbParser.parse('screen_saver_delay 7080\n')
+            .sleepTimeoutMinutes, 120);
+        // 10800 seconds -> 180 min -> snaps to 180
+        expect(SettingsTdbParser.parse('screen_saver_delay 10800\n')
+            .sleepTimeoutMinutes, 180);
+        // 15000 seconds -> 250 min -> snaps to 180 (max)
+        expect(SettingsTdbParser.parse('screen_saver_delay 15000\n')
+            .sleepTimeoutMinutes, 180);
       });
 
-      test('screen_saver_delay of 30 seconds clamps to 1 minute', () {
-        final content = 'screen_saver_delay 30\n';
-        final result = SettingsTdbParser.parse(content);
-        expect(result.sleepTimeoutMinutes, 1);
-      });
-
-      test('screen_saver_delay of 0 returns null (never sleep)', () {
+      test('screen_saver_delay of 0 snaps to 0 (disabled)', () {
         final content = 'screen_saver_delay 0\n';
         final result = SettingsTdbParser.parse(content);
-        expect(result.sleepTimeoutMinutes, isNull);
+        expect(result.sleepTimeoutMinutes, 0);
       });
     });
 

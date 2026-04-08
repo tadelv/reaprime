@@ -141,7 +141,19 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
               ),
               DropdownMenuItem(
                 value: 60,
-                child: Text('60 minutes'),
+                child: Text('1 hour'),
+              ),
+              DropdownMenuItem(
+                value: 90,
+                child: Text('1.5 hours'),
+              ),
+              DropdownMenuItem(
+                value: 120,
+                child: Text('2 hours'),
+              ),
+              DropdownMenuItem(
+                value: 180,
+                child: Text('3 hours'),
               ),
             ],
           ),
