@@ -116,6 +116,11 @@ class _ImportResultViewState extends State<ImportResultView> {
                         label: '${result.grindersSkipped} grinder${result.grindersSkipped == 1 ? '' : 's'} skipped',
                         muted: true,
                       ),
+                    if (result.settingsApplied)
+                      const _ResultRow(
+                        icon: LucideIcons.settings2,
+                        label: 'Settings applied',
+                      ),
                     if (hasErrors)
                       _ResultRow(
                         icon: LucideIcons.circleX,
@@ -268,6 +273,7 @@ class _ImportResultViewState extends State<ImportResultView> {
     buf.writeln('  Beans skipped:     ${result.beansSkipped}');
     buf.writeln('  Grinders created:  ${result.grindersCreated}');
     buf.writeln('  Grinders skipped:  ${result.grindersSkipped}');
+    buf.writeln('  Settings applied:  ${result.settingsApplied ? 'yes' : 'no'}');
     buf.writeln('  Errors:            ${result.errors.length}');
     if (result.errors.isNotEmpty) {
       buf.writeln();

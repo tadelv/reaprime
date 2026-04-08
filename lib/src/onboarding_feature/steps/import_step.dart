@@ -263,6 +263,7 @@ class _ImportStepViewState extends State<_ImportStepView> {
       profileStorageService: widget.profileStorageService,
       beanStorageService: widget.beanStorageService,
       grinderStorageService: widget.grinderStorageService,
+      settingsController: widget.settingsController,
     );
 
     try {
