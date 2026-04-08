@@ -33,6 +33,7 @@ class De1appImporter {
   final BeanStorageService beanStorageService;
   final GrinderStorageService grinderStorageService;
   final SettingsController? settingsController;
+  final WorkflowController? workflowController;
 
   De1appImporter({
     required this.storageService,
@@ -40,6 +41,7 @@ class De1appImporter {
     required this.beanStorageService,
     required this.grinderStorageService,
     this.settingsController,
+    this.workflowController,
   });
 
   Future<ImportResult> import(
@@ -415,6 +417,7 @@ class De1appImporter {
             rinseData: updatedRinse,
           );
           await storageService.storeCurrentWorkflow(updatedWorkflow);
+          workflowController?.setWorkflow(updatedWorkflow);
 
           settingsApplied = true;
         }

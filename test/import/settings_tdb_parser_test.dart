@@ -58,11 +58,11 @@ scheduler_wake 25500
       test('parses keep_scale_on and screen_saver_delay', () {
         final content = '''
 keep_scale_on 1
-screen_saver_delay 1800
+screen_saver_delay 30
 ''';
         final result = SettingsTdbParser.parse(content);
         expect(result.keepScaleOn, true);
-        // 1800 / 60 = 30 → snaps to 30
+        // 30 minutes → snaps to 30
         expect(result.sleepTimeoutMinutes, 30);
       });
 
@@ -72,27 +72,24 @@ screen_saver_delay 1800
         expect(result.keepScaleOn, false);
       });
 
-      test('screen_saver_delay snaps to nearest valid option', () {
-        // 90 seconds -> ceil = 2 min -> snaps to 0 (nearest)
-        expect(SettingsTdbParser.parse('screen_saver_delay 90\n')
+      test('screen_saver_delay snaps to nearest valid option (minutes)', () {
+        // 2 min → snaps to 0
+        expect(SettingsTdbParser.parse('screen_saver_delay 2\n')
             .sleepTimeoutMinutes, 0);
-        // 120 seconds -> 2 min -> snaps to 0
-        expect(SettingsTdbParser.parse('screen_saver_delay 120\n')
-            .sleepTimeoutMinutes, 0);
-        // 600 seconds -> 10 min -> snaps to 15
-        expect(SettingsTdbParser.parse('screen_saver_delay 600\n')
+        // 10 min → snaps to 15
+        expect(SettingsTdbParser.parse('screen_saver_delay 10\n')
             .sleepTimeoutMinutes, 15);
-        // 2700 seconds -> 45 min -> snaps to 45
-        expect(SettingsTdbParser.parse('screen_saver_delay 2700\n')
+        // 50 min → snaps to 45
+        expect(SettingsTdbParser.parse('screen_saver_delay 50\n')
             .sleepTimeoutMinutes, 45);
-        // 7080 seconds -> 118 min -> snaps to 120
-        expect(SettingsTdbParser.parse('screen_saver_delay 7080\n')
+        // 118 min → snaps to 120
+        expect(SettingsTdbParser.parse('screen_saver_delay 118\n')
             .sleepTimeoutMinutes, 120);
-        // 10800 seconds -> 180 min -> snaps to 180
-        expect(SettingsTdbParser.parse('screen_saver_delay 10800\n')
+        // 180 min → snaps to 180
+        expect(SettingsTdbParser.parse('screen_saver_delay 180\n')
             .sleepTimeoutMinutes, 180);
-        // 15000 seconds -> 250 min -> snaps to 180 (max)
-        expect(SettingsTdbParser.parse('screen_saver_delay 15000\n')
+        // 250 min → snaps to 180 (max)
+        expect(SettingsTdbParser.parse('screen_saver_delay 250\n')
             .sleepTimeoutMinutes, 180);
       });
 
