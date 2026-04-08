@@ -18,6 +18,7 @@ import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
+import 'package:reaprime/src/controllers/workflow_controller.dart';
 
 
 enum _ImportPhase {
@@ -41,6 +42,7 @@ OnboardingStep createImportStep({
   required GrinderStorageService grinderStorageService,
   required SettingsController settingsController,
   required PersistenceController persistenceController,
+  WorkflowController? workflowController,
 }) {
   return OnboardingStep(
     id: 'import',
@@ -53,6 +55,7 @@ OnboardingStep createImportStep({
       grinderStorageService: grinderStorageService,
       settingsController: settingsController,
       persistenceController: persistenceController,
+      workflowController: workflowController,
     ),
   );
 }
@@ -65,6 +68,7 @@ class _ImportStepView extends StatefulWidget {
   final GrinderStorageService grinderStorageService;
   final SettingsController settingsController;
   final PersistenceController persistenceController;
+  final WorkflowController? workflowController;
 
   const _ImportStepView({
     required this.controller,
@@ -74,6 +78,7 @@ class _ImportStepView extends StatefulWidget {
     required this.grinderStorageService,
     required this.settingsController,
     required this.persistenceController,
+    this.workflowController,
   });
 
   @override
@@ -264,6 +269,7 @@ class _ImportStepViewState extends State<_ImportStepView> {
       beanStorageService: widget.beanStorageService,
       grinderStorageService: widget.grinderStorageService,
       settingsController: widget.settingsController,
+      workflowController: widget.workflowController,
     );
 
     try {

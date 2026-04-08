@@ -146,6 +146,7 @@ class _MyAppState extends State<MyApp> {
             grinderStorageService: widget.grinderStorage!,
             settingsController: widget.settingsController,
             persistenceController: widget.persistenceController,
+            workflowController: widget.workflowController,
           ).builder,
         ),
       createScanStep(

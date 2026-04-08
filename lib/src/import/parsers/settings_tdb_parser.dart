@@ -101,14 +101,12 @@ class SettingsTdbParser {
       keepAwakeFor = diff ~/ 60;
     }
 
-    // Screen saver delay: seconds -> minutes, snapped to the nearest
-    // valid Bridge option (0=disabled, 15, 30, 45, 60).
-    // 0 means "never" in de1app → maps to 0 (disabled) in Bridge.
+    // Screen saver delay: value is already in minutes in de1app,
+    // snapped to the nearest valid Bridge option (0=disabled, 15, 30, 45, 60, 90, 120, 180).
     int? sleepTimeoutMinutes;
-    final screenSaverSeconds = _parseInt(data['screen_saver_delay']);
-    if (screenSaverSeconds != null) {
-      final minutes = (screenSaverSeconds / 60).ceil();
-      sleepTimeoutMinutes = _snapToSleepOption(minutes);
+    final screenSaverMinutes = _parseInt(data['screen_saver_delay']);
+    if (screenSaverMinutes != null) {
+      sleepTimeoutMinutes = _snapToSleepOption(screenSaverMinutes);
     }
 
     // Dose weight: null if 0 or missing

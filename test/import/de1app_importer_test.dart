@@ -498,7 +498,7 @@ void main() {
           'scheduler_wake 25200\n' // 7:00 AM (7*3600)
           'scheduler_sleep 28800\n' // 8:00 AM (8*3600) -> keepAwake = 60 min
           'keep_scale_on 1\n'
-          'screen_saver_delay 1800\n' // 30 minutes (snaps to 30)
+          'screen_saver_delay 30\n' // 30 minutes (snaps to 30)
           'grinder_dose_weight 18.5\n'
           'final_desired_shot_weight_advanced 36.0\n'
           'grinder_model {Niche Zero}\n'
