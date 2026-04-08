@@ -80,6 +80,17 @@ class SafFolderCopier {
     // Handle plugins/DYE/grinders.tdb — need to traverse two levels
     await _collectGrinderFile(topLevel, stagingPath, filesToCopy);
 
+    // Handle settings.tdb — root-level file
+    final settingsFile = topLevel
+        .where((e) => !e.isDir && e.name == 'settings.tdb')
+        .firstOrNull;
+    if (settingsFile != null) {
+      filesToCopy.add(_CopyTask(
+        sourceUri: settingsFile.uri,
+        destPath: '$stagingPath/settings.tdb',
+      ));
+    }
+
     _log.info('Found ${filesToCopy.length} files to copy');
 
     if (filesToCopy.isEmpty) {
