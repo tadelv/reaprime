@@ -384,6 +384,18 @@ class De1appImporter {
                 .setSleepTimeoutMinutes(settings.sleepTimeoutMinutes!);
           }
 
+          // Preferred device IDs (Android only — BLE IDs are MAC addresses)
+          if (Platform.isAndroid) {
+            if (settings.machineBluetoothAddress != null) {
+              await settingsController!
+                  .setPreferredMachineId(settings.machineBluetoothAddress);
+            }
+            if (settings.scaleBluetoothAddress != null) {
+              await settingsController!
+                  .setPreferredScaleId(settings.scaleBluetoothAddress);
+            }
+          }
+
           // Workflow context + steam/water/rinse
           // Use existing workflow or create a default one (common during
           // onboarding when no workflow has been persisted yet).

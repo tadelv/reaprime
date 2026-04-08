@@ -20,6 +20,7 @@ import 'package:reaprime/src/services/storage/bean_storage_service.dart';
 import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
+import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/util/shot_exporter.dart';
 import 'package:reaprime/src/util/shot_importer.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -34,6 +35,7 @@ class DataManagementPage extends StatefulWidget {
     this.profileStorageService,
     this.beanStorageService,
     this.grinderStorageService,
+    this.workflowController,
   });
 
   final SettingsController controller;
@@ -41,6 +43,7 @@ class DataManagementPage extends StatefulWidget {
   final ProfileStorageService? profileStorageService;
   final BeanStorageService? beanStorageService;
   final GrinderStorageService? grinderStorageService;
+  final WorkflowController? workflowController;
 
   @override
   State<DataManagementPage> createState() => _DataManagementPageState();
@@ -714,6 +717,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
           beanStorageService: widget.beanStorageService!,
           grinderStorageService: widget.grinderStorageService!,
           settingsController: widget.controller,
+          workflowController: widget.workflowController,
         );
 
         importResult = await importer.import(

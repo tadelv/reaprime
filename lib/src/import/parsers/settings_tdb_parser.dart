@@ -33,6 +33,10 @@ class SettingsTdbResult {
   final double? rinseFlow;
   final int? rinseDuration;
 
+  // Device BLE addresses (Android only — MAC format)
+  final String? machineBluetoothAddress;
+  final String? scaleBluetoothAddress;
+
   const SettingsTdbResult({
     this.wakeScheduleEnabled,
     this.wakeHour,
@@ -50,6 +54,8 @@ class SettingsTdbResult {
     this.hotWaterVolume,
     this.rinseFlow,
     this.rinseDuration,
+    this.machineBluetoothAddress,
+    this.scaleBluetoothAddress,
   });
 
   /// True when no meaningful settings were extracted.
@@ -145,6 +151,10 @@ class SettingsTdbParser {
       hotWaterVolume: _parseInt(data['water_volume']),
       rinseFlow: _parseDouble(data['flush_flow']),
       rinseDuration: _parseInt(data['flush_seconds']),
+      machineBluetoothAddress:
+          _nonEmpty(data['bluetooth_address']?.toString()),
+      scaleBluetoothAddress:
+          _nonEmpty(data['scale_bluetooth_address']?.toString()),
     );
   }
 

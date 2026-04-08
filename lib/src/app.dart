@@ -351,6 +351,7 @@ class _MyAppState extends State<MyApp> {
                         profileStorageService: widget.profileStorageService,
                         beanStorageService: widget.beanStorage,
                         grinderStorageService: widget.grinderStorage,
+                        workflowController: widget.workflowController,
                       );
                     case De1DebugView.routeName:
                       final args = routeSettings.arguments;
