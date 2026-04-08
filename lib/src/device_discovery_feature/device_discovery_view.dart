@@ -13,9 +13,7 @@ import 'package:reaprime/src/skin_feature/skin_view.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
-import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
-import 'package:reaprime/src/models/device/scale.dart' as device_scale;
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 
@@ -271,9 +269,8 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                   onPreferredChanged: (id) =>
                       widget.settingsController.setPreferredMachineId(id),
                   onDeviceTapped: (device) {
-                    if (device is De1Interface) {
-                      widget.connectionManager.connectMachine(device);
-                    }
+                    setState(() {});
+                    widget.settingsController.setPreferredMachineId(device.deviceId);
                   },
                 ),
               ),
@@ -290,7 +287,8 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                   onPreferredChanged: (id) =>
                       widget.settingsController.setPreferredScaleId(id),
                   onDeviceTapped: (device) {
-                    widget.connectionManager.connectScale(device as device_scale.Scale);
+                    setState(() {});
+                    widget.settingsController.setPreferredScaleId(device.deviceId);
                   },
                 ),
               ),
@@ -317,7 +315,11 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
               ),
             ShadButton(
               size: ShadButtonSize.sm,
-              onPressed: null, // Selection is handled by tapping a device directly
+              onPressed: isConnecting
+                  ? null
+                  : widget.settingsController.preferredMachineId != null
+                      ? () => widget.connectionManager.connect()
+                      : null,
               child: isConnecting
                   ? Row(
                       mainAxisSize: MainAxisSize.min,
@@ -327,7 +329,9 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                         Text('Connecting...'),
                       ],
                     )
-                  : Text('Select a machine'),
+                  : Text(widget.settingsController.preferredMachineId != null
+                      ? 'Connect'
+                      : 'Select a machine'),
             ),
             if (!isConnecting)
               ShadButton.secondary(

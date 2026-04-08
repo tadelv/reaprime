@@ -421,9 +421,8 @@ class ScanStepViewState extends State<ScanStepView> {
                     onPreferredChanged: (id) =>
                         widget.settingsController.setPreferredMachineId(id),
                     onDeviceTapped: (device) {
-                      if (device is De1Interface) {
-                        widget.connectionManager.connectMachine(device);
-                      }
+                      setState(() {});
+                      widget.settingsController.setPreferredMachineId(device.deviceId);
                     },
                   ),
                 ),
@@ -440,8 +439,8 @@ class ScanStepViewState extends State<ScanStepView> {
                     onPreferredChanged: (id) =>
                         widget.settingsController.setPreferredScaleId(id),
                     onDeviceTapped: (device) {
-                      widget.connectionManager
-                          .connectScale(device as device_scale.Scale);
+                      setState(() {});
+                      widget.settingsController.setPreferredScaleId(device.deviceId);
                     },
                   ),
                 ),
@@ -470,11 +469,23 @@ class ScanStepViewState extends State<ScanStepView> {
                   ),
                 ),
               AccessibleButton(
-                label: isConnecting ? 'Connecting' : 'Select a machine',
-                onTap: null,
+                label: isConnecting
+                    ? 'Connecting'
+                    : widget.settingsController.preferredMachineId != null
+                        ? 'Connect'
+                        : 'Select a machine',
+                onTap: isConnecting
+                    ? null
+                    : widget.settingsController.preferredMachineId != null
+                        ? () => widget.connectionManager.connect()
+                        : null,
                 child: ShadButton(
                   size: ShadButtonSize.sm,
-                  onPressed: null,
+                  onPressed: isConnecting
+                      ? null
+                      : widget.settingsController.preferredMachineId != null
+                          ? () => widget.connectionManager.connect()
+                          : null,
                   child: isConnecting
                       ? Row(
                           mainAxisSize: MainAxisSize.min,
@@ -489,7 +500,9 @@ class ScanStepViewState extends State<ScanStepView> {
                             const Text('Connecting...'),
                           ],
                         )
-                      : const Text('Select a machine'),
+                      : Text(widget.settingsController.preferredMachineId != null
+                          ? 'Connect'
+                          : 'Select a machine'),
                 ),
               ),
               if (!isConnecting)

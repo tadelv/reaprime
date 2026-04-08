@@ -126,6 +126,9 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
                     "ID: ${device.deviceId.length > 8 ? device.deviceId.substring(device.deviceId.length - 8) : device.deviceId}",
                     style: Theme.of(context).textTheme.labelSmall,
                   ),
+                  leading: isPreferred
+                      ? Icon(LucideIcons.check, size: 16, color: Theme.of(context).colorScheme.primary)
+                      : SizedBox(width: 16),
                   trailing: DeviceConnectingIndicator(
                     isConnecting: isConnecting,
                   ),
@@ -134,41 +137,6 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
                       ? null
                       : () => widget.onDeviceTapped(device),
                 ),
-                if (widget.onPreferredChanged != null)
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      left: 4.0,
-                      right: 4.0,
-                      bottom: 2.0,
-                    ),
-                    child: MergeSemantics(
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: Checkbox(
-                              value: isPreferred,
-                              onChanged: (value) {
-                                widget.onPreferredChanged?.call(
-                                  value == true ? device.deviceId : null,
-                                );
-                                widget.onDeviceTapped(device);
-                                setState(() {});
-                              },
-                            ),
-                          ),
-                          SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              'Auto-connect',
-                              style: Theme.of(context).textTheme.labelSmall,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
               ],
             ),
           ),
