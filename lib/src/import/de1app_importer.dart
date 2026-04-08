@@ -14,6 +14,12 @@ import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
+import 'package:reaprime/src/import/parsers/settings_tdb_parser.dart';
+import 'package:reaprime/src/models/wake_schedule.dart';
+import 'package:reaprime/src/models/data/workflow.dart';
+import 'package:reaprime/src/models/data/workflow_context.dart';
+import 'package:reaprime/src/settings/settings_controller.dart';
+import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'dart:convert';
 
 final _log = Logger('De1appImporter');
@@ -25,12 +31,14 @@ class De1appImporter {
   final ProfileStorageService profileStorageService;
   final BeanStorageService beanStorageService;
   final GrinderStorageService grinderStorageService;
+  final SettingsController? settingsController;
 
   De1appImporter({
     required this.storageService,
     required this.profileStorageService,
     required this.beanStorageService,
     required this.grinderStorageService,
+    this.settingsController,
   });
 
   Future<ImportResult> import(
@@ -46,6 +54,7 @@ class De1appImporter {
     var beansSkipped = 0;
     var grindersCreated = 0;
     var grindersSkipped = 0;
+    var settingsApplied = false;
 
     // --- Phase 1: Parse shot files ---
     final parsedShots = <ParsedShot>[];
@@ -333,6 +342,88 @@ class De1appImporter {
       }
     }
 
+    // --- Phase 5: Import settings ---
+    if (scanResult.hasSettings && settingsController != null) {
+      try {
+        final settingsFile = File('${scanResult.sourcePath}/settings.tdb');
+        final content = await settingsFile.readAsString();
+        final settings = SettingsTdbParser.parse(content);
+
+        if (!settings.isEmpty) {
+          // Wake schedule
+          if (settings.wakeHour != null && settings.wakeMinute != null) {
+            final schedule = WakeSchedule.create(
+              hour: settings.wakeHour!,
+              minute: settings.wakeMinute!,
+              enabled: settings.wakeScheduleEnabled ?? false,
+              keepAwakeFor: settings.keepAwakeForMinutes,
+            );
+            await settingsController!.setWakeSchedules(
+              WakeSchedule.serializeList([schedule]),
+            );
+          }
+
+          // Scale power mode
+          if (settings.keepScaleOn != null) {
+            await settingsController!.setScalePowerMode(
+              settings.keepScaleOn!
+                  ? ScalePowerMode.disabled
+                  : ScalePowerMode.disconnect,
+            );
+          }
+
+          // Sleep timeout
+          if (settings.sleepTimeoutMinutes != null) {
+            await settingsController!
+                .setSleepTimeoutMinutes(settings.sleepTimeoutMinutes!);
+          }
+
+          // Workflow context + steam/water/rinse
+          final currentWorkflow = await storageService.loadCurrentWorkflow();
+          if (currentWorkflow != null) {
+            final updatedContext =
+                (currentWorkflow.context ?? const WorkflowContext()).copyWith(
+              targetDoseWeight: settings.doseWeight,
+              targetYield: settings.targetYield,
+              grinderModel: settings.grinderModel,
+              grinderSetting: settings.grinderSetting,
+            );
+            final updatedSteam = currentWorkflow.steamSettings.copyWith(
+              targetTemperature: settings.steamTemperature,
+              duration: settings.steamDuration,
+            );
+            final updatedWater = currentWorkflow.hotWaterData.copyWith(
+              targetTemperature: settings.hotWaterTemperature,
+              volume: settings.hotWaterVolume,
+            );
+            final updatedRinse = RinseData(
+              targetTemperature:
+                  currentWorkflow.rinseData.targetTemperature,
+              duration:
+                  settings.rinseDuration ?? currentWorkflow.rinseData.duration,
+              flow: settings.rinseFlow ?? currentWorkflow.rinseData.flow,
+            );
+            final updatedWorkflow = currentWorkflow.copyWith(
+              context: updatedContext,
+              steamSettings: updatedSteam,
+              hotWaterData: updatedWater,
+              rinseData: updatedRinse,
+            );
+            await storageService.storeCurrentWorkflow(updatedWorkflow);
+          }
+
+          settingsApplied = true;
+        }
+      } catch (e, st) {
+        _log.warning('Failed to import settings.tdb', e, st);
+        errors.add(ImportError(
+          filename: 'settings.tdb',
+          reason: 'Settings import error',
+          details: e.toString(),
+        ));
+      }
+    }
+
     return ImportResult(
       shotsImported: shotsImported,
       shotsSkipped: shotsSkipped,
@@ -342,6 +433,7 @@ class De1appImporter {
       beansSkipped: beansSkipped,
       grindersCreated: grindersCreated,
       grindersSkipped: grindersSkipped,
+      settingsApplied: settingsApplied,
       errors: errors,
     );
   }

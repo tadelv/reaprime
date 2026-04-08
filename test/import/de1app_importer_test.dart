@@ -5,13 +5,19 @@ import 'package:reaprime/src/import/de1app_importer.dart';
 import 'package:reaprime/src/import/import_result.dart';
 import 'package:reaprime/src/models/data/bean.dart';
 import 'package:reaprime/src/models/data/grinder.dart';
+import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/profile_record.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
+import 'package:reaprime/src/models/wake_schedule.dart';
 import 'package:reaprime/src/services/storage/bean_storage_service.dart';
 import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
+import 'package:reaprime/src/settings/settings_controller.dart';
+import 'package:reaprime/src/settings/scale_power_mode.dart';
+
+import '../helpers/mock_settings_service.dart';
 
 // ---------------------------------------------------------------------------
 // In-memory fake implementations
@@ -20,9 +26,11 @@ import 'package:reaprime/src/services/storage/storage_service.dart';
 class FakeStorageService implements StorageService {
   final shots = <String, ShotRecord>{};
   final List<String> _existingIds;
+  Workflow? _currentWorkflow;
 
-  FakeStorageService({List<String>? existingIds})
-      : _existingIds = existingIds ?? [];
+  FakeStorageService({List<String>? existingIds, Workflow? currentWorkflow})
+      : _existingIds = existingIds ?? [],
+        _currentWorkflow = currentWorkflow;
 
   @override
   Future<void> storeShot(ShotRecord record) async =>
@@ -31,7 +39,7 @@ class FakeStorageService implements StorageService {
   @override
   Future<List<String>> getShotIds() async => List.unmodifiable(_existingIds);
 
-  // Stubbed — not needed for import tests
+  // Stubbed — not needed for import tests (except workflow)
   @override
   Future<void> updateShot(ShotRecord record) => throw UnimplementedError();
   @override
@@ -41,10 +49,10 @@ class FakeStorageService implements StorageService {
   @override
   Future<ShotRecord?> getShot(String id) => throw UnimplementedError();
   @override
-  Future<void> storeCurrentWorkflow(Workflow workflow) =>
-      throw UnimplementedError();
+  Future<void> storeCurrentWorkflow(Workflow workflow) async =>
+      _currentWorkflow = workflow;
   @override
-  Future<Workflow?> loadCurrentWorkflow() => throw UnimplementedError();
+  Future<Workflow?> loadCurrentWorkflow() async => _currentWorkflow;
   @override
   Future<List<ShotRecord>> getShotsPaginated({
     int limit = 20,
@@ -210,12 +218,14 @@ De1appImporter makeImporter({
   FakeProfileStorageService? profileStorage,
   FakeBeanStorageService? beanStorage,
   FakeGrinderStorageService? grinderStorage,
+  SettingsController? settingsController,
 }) {
   return De1appImporter(
     storageService: storage ?? FakeStorageService(),
     profileStorageService: profileStorage ?? FakeProfileStorageService(),
     beanStorageService: beanStorage ?? FakeBeanStorageService(),
     grinderStorageService: grinderStorage ?? FakeGrinderStorageService(),
+    settingsController: settingsController,
   );
 }
 
@@ -468,6 +478,165 @@ void main() {
       test('stores grinders after DYE merge', () {
         expect(grinderStorage.grinders, isNotEmpty);
         expect(result.grindersCreated, greaterThan(0));
+      });
+    });
+
+    group('imports settings from settings.tdb', () {
+      late Directory tempDir;
+      late FakeStorageService storage;
+      late MockSettingsService mockSettingsService;
+      late SettingsController settingsController;
+      late ImportResult result;
+
+      setUpAll(() async {
+        tempDir =
+            await Directory.systemTemp.createTemp('de1app_importer_settings_');
+
+        // Write a settings.tdb with known values
+        await File('${tempDir.path}/settings.tdb').writeAsString(
+          'scheduler_enable 1\n'
+          'scheduler_wake 25200\n' // 7:00 AM (7*3600)
+          'scheduler_sleep 28800\n' // 8:00 AM (8*3600) -> keepAwake = 60 min
+          'keep_scale_on 1\n'
+          'screen_saver_delay 600\n' // 10 minutes
+          'grinder_dose_weight 18.5\n'
+          'final_desired_shot_weight_advanced 36.0\n'
+          'grinder_model {Niche Zero}\n'
+          'grinder_setting 22\n'
+          'steam_temperature 155\n'
+          'steam_max_time 60\n'
+          'water_temperature 80\n'
+          'water_volume 200\n'
+          'flush_flow 4.5\n'
+          'flush_seconds 8\n',
+        );
+
+        // Create a workflow with defaults so it can be updated
+        final initialWorkflow = Workflow(
+          id: 'test-workflow',
+          name: 'Default',
+          profile: const Profile(
+            version: '2',
+            title: 'Test Profile',
+            notes: '',
+            author: 'test',
+            beverageType: BeverageType.espresso,
+            steps: [],
+            targetVolumeCountStart: 0,
+            tankTemperature: 0,
+          ),
+          steamSettings: SteamSettings.defaults(),
+          hotWaterData: HotWaterData.defaults(),
+          rinseData: RinseData.defaults(),
+        );
+
+        storage = FakeStorageService(currentWorkflow: initialWorkflow);
+        mockSettingsService = MockSettingsService();
+        settingsController = SettingsController(mockSettingsService);
+        await settingsController.loadSettings();
+
+        final scanResult = ScanResult(
+          shotCount: 0,
+          profileCount: 0,
+          hasDyeGrinders: false,
+          hasSettings: true,
+          sourcePath: tempDir.path,
+          shotSource: null,
+        );
+
+        result = await makeImporter(
+          storage: storage,
+          settingsController: settingsController,
+        ).import(scanResult);
+      });
+
+      tearDownAll(() async {
+        await tempDir.delete(recursive: true);
+      });
+
+      test('returns settingsApplied = true', () {
+        expect(result.settingsApplied, isTrue);
+      });
+
+      test('sets wake schedule', () {
+        final schedules =
+            WakeSchedule.deserializeList(settingsController.wakeSchedules);
+        expect(schedules, hasLength(1));
+        expect(schedules.first.hour, equals(7));
+        expect(schedules.first.minute, equals(0));
+        expect(schedules.first.enabled, isTrue);
+        expect(schedules.first.keepAwakeFor, equals(60));
+      });
+
+      test('sets scale power mode to disabled (keep on)', () {
+        expect(settingsController.scalePowerMode, equals(ScalePowerMode.disabled));
+      });
+
+      test('sets sleep timeout minutes', () {
+        expect(settingsController.sleepTimeoutMinutes, equals(10));
+      });
+
+      test('updates workflow context with dose and grinder', () {
+        final workflow = storage._currentWorkflow!;
+        final ctx = workflow.context!;
+        expect(ctx.targetDoseWeight, equals(18.5));
+        expect(ctx.targetYield, equals(36.0));
+        expect(ctx.grinderModel, equals('Niche Zero'));
+        expect(ctx.grinderSetting, equals('22'));
+      });
+
+      test('updates workflow steam settings', () {
+        final steam = storage._currentWorkflow!.steamSettings;
+        expect(steam.targetTemperature, equals(155));
+        expect(steam.duration, equals(60));
+      });
+
+      test('updates workflow hot water settings', () {
+        final water = storage._currentWorkflow!.hotWaterData;
+        expect(water.targetTemperature, equals(80));
+        expect(water.volume, equals(200));
+      });
+
+      test('updates workflow rinse settings', () {
+        final rinse = storage._currentWorkflow!.rinseData;
+        expect(rinse.flow, equals(4.5));
+        expect(rinse.duration, equals(8));
+      });
+
+      test('has no errors', () {
+        expect(result.hasErrors, isFalse);
+      });
+    });
+
+    group('skips settings when settingsController is null', () {
+      late Directory tempDir;
+      late ImportResult result;
+
+      setUpAll(() async {
+        tempDir =
+            await Directory.systemTemp.createTemp('de1app_importer_nosettings_');
+        await File('${tempDir.path}/settings.tdb').writeAsString(
+          'keep_scale_on 1\n',
+        );
+
+        final scanResult = ScanResult(
+          shotCount: 0,
+          profileCount: 0,
+          hasDyeGrinders: false,
+          hasSettings: true,
+          sourcePath: tempDir.path,
+          shotSource: null,
+        );
+
+        result = await makeImporter().import(scanResult);
+      });
+
+      tearDownAll(() async {
+        await tempDir.delete(recursive: true);
+      });
+
+      test('settingsApplied is false', () {
+        expect(result.settingsApplied, isFalse);
       });
     });
 

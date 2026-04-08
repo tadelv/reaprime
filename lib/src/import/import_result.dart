@@ -31,8 +31,9 @@ class ImportResult {
   final int beansSkipped;
   final int grindersCreated;
   final int grindersSkipped;
+  final bool settingsApplied;
   final List<ImportError> errors;
-  const ImportResult({this.shotsImported = 0, this.shotsSkipped = 0, this.profilesImported = 0, this.profilesSkipped = 0, this.beansCreated = 0, this.beansSkipped = 0, this.grindersCreated = 0, this.grindersSkipped = 0, this.errors = const []});
+  const ImportResult({this.shotsImported = 0, this.shotsSkipped = 0, this.profilesImported = 0, this.profilesSkipped = 0, this.beansCreated = 0, this.beansSkipped = 0, this.grindersCreated = 0, this.grindersSkipped = 0, this.settingsApplied = false, this.errors = const []});
   bool get hasErrors => errors.isNotEmpty;
   ImportResult operator +(ImportResult other) {
     return ImportResult(
@@ -44,6 +45,7 @@ class ImportResult {
       beansSkipped: beansSkipped + other.beansSkipped,
       grindersCreated: grindersCreated + other.grindersCreated,
       grindersSkipped: grindersSkipped + other.grindersSkipped,
+      settingsApplied: settingsApplied || other.settingsApplied,
       errors: [...errors, ...other.errors],
     );
   }
