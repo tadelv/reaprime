@@ -91,6 +91,47 @@ void main() {
       });
     });
 
+    group('settings.tdb detection', () {
+      test('hasSettings is true when settings.tdb exists', () async {
+        final tempDir =
+            await Directory.systemTemp.createTemp('de1app_scanner_settings_');
+        try {
+          await File('${tempDir.path}/settings.tdb').writeAsString('');
+          final result = await De1appScanner.scan(tempDir.path);
+          expect(result.hasSettings, isTrue);
+        } finally {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      test('hasSettings is false when settings.tdb does not exist', () async {
+        final tempDir =
+            await Directory.systemTemp.createTemp('de1app_scanner_no_settings_');
+        try {
+          final result = await De1appScanner.scan(tempDir.path);
+          expect(result.hasSettings, isFalse);
+        } finally {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      test('isEmpty is false when only hasSettings is true', () async {
+        final tempDir =
+            await Directory.systemTemp.createTemp('de1app_scanner_only_settings_');
+        try {
+          await File('${tempDir.path}/settings.tdb').writeAsString('');
+          final result = await De1appScanner.scan(tempDir.path);
+          expect(result.shotCount, equals(0));
+          expect(result.profileCount, equals(0));
+          expect(result.hasDyeGrinders, isFalse);
+          expect(result.hasSettings, isTrue);
+          expect(result.isEmpty, isFalse);
+        } finally {
+          await tempDir.delete(recursive: true);
+        }
+      });
+    });
+
     group('empty result for non-de1app folder', () {
       late Directory tempDir;
       late ScanResult result;

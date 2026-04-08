@@ -33,10 +33,14 @@ class De1appScanner {
     // DYE grinders
     hasDyeGrinders = await File('$path/plugins/DYE/grinders.tdb').exists();
 
+    // Settings
+    final hasSettings = await File('$path/settings.tdb').exists();
+
     return ScanResult(
       shotCount: shotCount,
       profileCount: profileCount,
       hasDyeGrinders: hasDyeGrinders,
+      hasSettings: hasSettings,
       sourcePath: path,
       shotSource: shotSource,
     );

@@ -13,11 +13,12 @@ class ScanResult {
   final int shotCount;
   final int profileCount;
   final bool hasDyeGrinders;
+  final bool hasSettings;
   final String sourcePath;
   final String? shotSource; // 'history_v2', 'history', or null
-  const ScanResult({required this.shotCount, required this.profileCount, required this.hasDyeGrinders, required this.sourcePath, this.shotSource});
+  const ScanResult({required this.shotCount, required this.profileCount, required this.hasDyeGrinders, required this.hasSettings, required this.sourcePath, this.shotSource});
   int get totalItems => shotCount + profileCount;
-  bool get isEmpty => totalItems == 0;
+  bool get isEmpty => totalItems == 0 && !hasDyeGrinders && !hasSettings;
 }
 
 /// Results of a completed import operation.
