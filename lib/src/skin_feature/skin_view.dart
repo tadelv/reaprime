@@ -34,20 +34,27 @@ class SkinView extends StatefulWidget {
   State<SkinView> createState() => _SkinViewState();
 }
 
-class _SkinViewState extends State<SkinView> {
+class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
   final _log = Logger('SkinView');
   bool _isLoading = true;
   bool _isCheckingCompatibility = true;
   String? _errorMessage;
   CompatibilityResult? _compatibilityResult;
+  bool _rendererCrashed = false;
 
   late InAppWebViewSettings _settings;
+  InAppWebViewController? _webViewController;
 
   bool _didShowExit = false;
+
+  /// The skin URL with cache-busting param
+  String get _skinUrl =>
+      'http://localhost:3000/?_=${DateTime.now().millisecondsSinceEpoch}';
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     if (Platform.isAndroid || Platform.isIOS) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     }
@@ -57,10 +64,32 @@ class _SkinViewState extends State<SkinView> {
   @override
   void dispose() {
     _log.fine("disposing");
+    WidgetsBinding.instance.removeObserver(this);
     if (Platform.isAndroid) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     }
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_webViewController == null) return;
+
+    if (state == AppLifecycleState.paused) {
+      _log.info('App backgrounded — pausing WebView and loading blank page');
+      _webViewController?.pause();
+      _webViewController?.pauseTimers();
+      _webViewController?.loadUrl(
+        urlRequest: URLRequest(url: WebUri('about:blank')),
+      );
+    } else if (state == AppLifecycleState.resumed) {
+      _log.info('App foregrounded — resuming WebView and reloading skin');
+      _webViewController?.resumeTimers();
+      _webViewController?.resume();
+      _webViewController?.loadUrl(
+        urlRequest: URLRequest(url: WebUri(_skinUrl)),
+      );
+    }
   }
 
   Future<void> _checkCompatibilityAndInit() async {
@@ -123,6 +152,15 @@ class _SkinViewState extends State<SkinView> {
 
       // displayZoomControls: false,
       userAgent: "Streamline-Bridge",
+
+      // Memory management: let Android kill the renderer process (not the app)
+      // when the WebView is not visible and memory is tight.
+      rendererPriorityPolicy: RendererPriorityPolicy(
+        rendererRequestedPriority:
+            RendererPriority.RENDERER_PRIORITY_BOUND,
+        waivedWhenNotVisible: true,
+      ),
+      useOnRenderProcessGone: true,
     );
 
     _log.info('InAppWebView settings initialized');
@@ -405,6 +443,22 @@ class _SkinViewState extends State<SkinView> {
       );
     }
 
+    if (_rendererCrashed) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          spacing: 16,
+          children: [
+            const CircularProgressIndicator(),
+            Text(
+              'Reloading skin...',
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+          ],
+        ),
+      );
+    }
+
     return Stack(
       children: [
         InAppWebView(
@@ -412,13 +466,12 @@ class _SkinViewState extends State<SkinView> {
           // caches responses by exact URL, so /?_=<ts> won't match
           // its cached '/' and falls through to the network.
           initialUrlRequest: URLRequest(
-            url: WebUri(
-              'http://localhost:3000/?_=${DateTime.now().millisecondsSinceEpoch}',
-            ),
+            url: WebUri(_skinUrl),
           ),
           initialSettings: _settings,
           onWebViewCreated: (controller) {
             _log.info('InAppWebView created');
+            _webViewController = controller;
           },
           onLoadStart: (controller, url) {
             _log.info('Page started loading: $url');
@@ -498,6 +551,25 @@ class _SkinViewState extends State<SkinView> {
             _log.finest(
               'WebView Console [$skinId] [${consoleMessage.messageLevel}]: ${consoleMessage.message}',
             );
+          },
+          onRenderProcessGone: (controller, detail) {
+            _log.warning(
+              'WebView renderer process gone — '
+              'didCrash: ${detail.didCrash}, '
+              'rendererPriorityAtExit: ${detail.rendererPriorityAtExit}',
+            );
+            _webViewController = null;
+            // Show reload UI, then rebuild the WebView after a brief delay
+            setState(() {
+              _rendererCrashed = true;
+            });
+            Future.delayed(const Duration(milliseconds: 500), () {
+              if (mounted) {
+                setState(() {
+                  _rendererCrashed = false;
+                });
+              }
+            });
           },
         ),
         if (_isLoading) const Center(child: CircularProgressIndicator()),
