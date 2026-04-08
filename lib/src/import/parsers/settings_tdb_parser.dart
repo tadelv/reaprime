@@ -101,10 +101,11 @@ class SettingsTdbParser {
       keepAwakeFor = diff ~/ 60;
     }
 
-    // Screen saver delay: seconds -> minutes, ceil, clamp >= 1
+    // Screen saver delay: seconds -> minutes. 0 means "never" in de1app,
+    // which we skip (null) since Bridge requires a positive timeout.
     int? sleepTimeoutMinutes;
     final screenSaverSeconds = _parseInt(data['screen_saver_delay']);
-    if (screenSaverSeconds != null) {
+    if (screenSaverSeconds != null && screenSaverSeconds > 0) {
       final minutes = (screenSaverSeconds / 60).ceil();
       sleepTimeoutMinutes = minutes < 1 ? 1 : minutes;
     }

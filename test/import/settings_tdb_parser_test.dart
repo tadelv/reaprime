@@ -84,6 +84,12 @@ screen_saver_delay 300
         final result = SettingsTdbParser.parse(content);
         expect(result.sleepTimeoutMinutes, 1);
       });
+
+      test('screen_saver_delay of 0 returns null (never sleep)', () {
+        final content = 'screen_saver_delay 0\n';
+        final result = SettingsTdbParser.parse(content);
+        expect(result.sleepTimeoutMinutes, isNull);
+      });
     });
 
     group('workflow settings', () {
