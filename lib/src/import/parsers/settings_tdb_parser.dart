@@ -101,13 +101,14 @@ class SettingsTdbParser {
       keepAwakeFor = diff ~/ 60;
     }
 
-    // Screen saver delay: seconds -> minutes. 0 means "never" in de1app,
-    // which we skip (null) since Bridge requires a positive timeout.
+    // Screen saver delay: seconds -> minutes, snapped to the nearest
+    // valid Bridge option (0=disabled, 15, 30, 45, 60).
+    // 0 means "never" in de1app → maps to 0 (disabled) in Bridge.
     int? sleepTimeoutMinutes;
     final screenSaverSeconds = _parseInt(data['screen_saver_delay']);
-    if (screenSaverSeconds != null && screenSaverSeconds > 0) {
+    if (screenSaverSeconds != null) {
       final minutes = (screenSaverSeconds / 60).ceil();
-      sleepTimeoutMinutes = minutes < 1 ? 1 : minutes;
+      sleepTimeoutMinutes = _snapToSleepOption(minutes);
     }
 
     // Dose weight: null if 0 or missing
@@ -168,5 +169,22 @@ class SettingsTdbParser {
   static String? _nonEmpty(String? value) {
     if (value == null || value.isEmpty) return null;
     return value;
+  }
+
+  /// Valid sleep timeout options in Bridge's UI.
+  static const _sleepOptions = [0, 15, 30, 45, 60, 90, 120, 180];
+
+  /// Snap [minutes] to the nearest valid Bridge sleep timeout option.
+  static int _snapToSleepOption(int minutes) {
+    int closest = _sleepOptions.first;
+    int bestDiff = (minutes - closest).abs();
+    for (final option in _sleepOptions) {
+      final diff = (minutes - option).abs();
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        closest = option;
+      }
+    }
+    return closest;
   }
 }

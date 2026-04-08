@@ -18,6 +18,7 @@ import 'package:reaprime/src/import/parsers/settings_tdb_parser.dart';
 import 'package:reaprime/src/models/wake_schedule.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/data/workflow_context.dart';
+import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'dart:convert';
@@ -382,42 +383,38 @@ class De1appImporter {
           }
 
           // Workflow context + steam/water/rinse
-          final currentWorkflow = await storageService.loadCurrentWorkflow();
-          if (currentWorkflow != null) {
-            final updatedContext =
-                (currentWorkflow.context ?? const WorkflowContext()).copyWith(
-              targetDoseWeight: settings.doseWeight,
-              targetYield: settings.targetYield,
-              grinderModel: settings.grinderModel,
-              grinderSetting: settings.grinderSetting,
-            );
-            final updatedSteam = currentWorkflow.steamSettings.copyWith(
-              targetTemperature: settings.steamTemperature,
-              duration: settings.steamDuration,
-            );
-            final updatedWater = currentWorkflow.hotWaterData.copyWith(
-              targetTemperature: settings.hotWaterTemperature,
-              volume: settings.hotWaterVolume,
-            );
-            final updatedRinse = RinseData(
-              targetTemperature:
-                  currentWorkflow.rinseData.targetTemperature,
-              duration:
-                  settings.rinseDuration ?? currentWorkflow.rinseData.duration,
-              flow: settings.rinseFlow ?? currentWorkflow.rinseData.flow,
-            );
-            final updatedWorkflow = currentWorkflow.copyWith(
-              context: updatedContext,
-              steamSettings: updatedSteam,
-              hotWaterData: updatedWater,
-              rinseData: updatedRinse,
-            );
-            await storageService.storeCurrentWorkflow(updatedWorkflow);
-          } else {
-            _log.info(
-              'No current workflow found — skipping workflow settings import',
-            );
-          }
+          // Use existing workflow or create a default one (common during
+          // onboarding when no workflow has been persisted yet).
+          final baseWorkflow = await storageService.loadCurrentWorkflow() ??
+              WorkflowController().newWorkflow();
+          final updatedContext =
+              (baseWorkflow.context ?? const WorkflowContext()).copyWith(
+            targetDoseWeight: settings.doseWeight,
+            targetYield: settings.targetYield,
+            grinderModel: settings.grinderModel,
+            grinderSetting: settings.grinderSetting,
+          );
+          final updatedSteam = baseWorkflow.steamSettings.copyWith(
+            targetTemperature: settings.steamTemperature,
+            duration: settings.steamDuration,
+          );
+          final updatedWater = baseWorkflow.hotWaterData.copyWith(
+            targetTemperature: settings.hotWaterTemperature,
+            volume: settings.hotWaterVolume,
+          );
+          final updatedRinse = RinseData(
+            targetTemperature: baseWorkflow.rinseData.targetTemperature,
+            duration:
+                settings.rinseDuration ?? baseWorkflow.rinseData.duration,
+            flow: settings.rinseFlow ?? baseWorkflow.rinseData.flow,
+          );
+          final updatedWorkflow = baseWorkflow.copyWith(
+            context: updatedContext,
+            steamSettings: updatedSteam,
+            hotWaterData: updatedWater,
+            rinseData: updatedRinse,
+          );
+          await storageService.storeCurrentWorkflow(updatedWorkflow);
 
           settingsApplied = true;
         }
