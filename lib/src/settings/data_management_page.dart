@@ -564,7 +564,67 @@ class _DataManagementPageState extends State<DataManagementPage> {
     String? folderPath;
     if (Platform.isAndroid) {
       final copier = SafFolderCopier();
-      folderPath = await copier.pickAndCopy();
+      final picked = await copier.pickDirectory();
+      if (picked == null) return;
+      if (!mounted) return;
+
+      // Show copying progress dialog
+      int filesCopied = 0;
+      int filesToCopy = 0;
+      StateSetter? setCopyState;
+
+      showShadDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setState) {
+            setCopyState = setState;
+            return ShadDialog(
+              title: const Text('Copying files...'),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 16),
+                  if (filesToCopy > 0)
+                    LinearProgressIndicator(
+                      value: filesCopied / filesToCopy,
+                    )
+                  else
+                    const CircularProgressIndicator(),
+                  const SizedBox(height: 8),
+                  Text(
+                    filesToCopy > 0
+                        ? 'Copying files... $filesCopied / $filesToCopy'
+                        : 'Preparing import...',
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+
+      folderPath = await copier.copyFromUri(
+        picked,
+        onProgress: (copied, total) {
+          setCopyState?.call(() {
+            filesCopied = copied;
+            filesToCopy = total;
+          });
+        },
+      );
+
+      if (!mounted) return;
+      Navigator.of(context).pop(); // dismiss copy dialog
+
+      if (folderPath == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No Decent app data found')),
+          );
+        }
+        return;
+      }
     } else {
       folderPath = await FilePicker.platform.getDirectoryPath(
         dialogTitle: 'Select Decent app folder',

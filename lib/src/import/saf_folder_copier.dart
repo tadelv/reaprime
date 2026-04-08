@@ -26,6 +26,14 @@ class SafFolderCopier {
   Future<String?> pickAndCopy({
     void Function(int copied, int total)? onProgress,
   }) async {
+    final uri = await pickDirectory();
+    if (uri == null) return null;
+    return copyFromUri(uri, onProgress: onProgress);
+  }
+
+  /// Opens the SAF folder picker and returns the tree URI, or `null` if
+  /// the user cancelled. Use with [copyFromUri] for two-step pick+copy.
+  Future<String?> pickDirectory() async {
     final picked = await SafUtil().pickDirectory(
       writePermission: false,
       persistablePermission: false,
@@ -35,7 +43,7 @@ class SafFolderCopier {
       return null;
     }
     _log.info('Picked directory: ${picked.name} (${picked.uri})');
-    return copyFromUri(picked.uri, onProgress: onProgress);
+    return picked.uri;
   }
 
   /// Copies relevant de1app subdirectories from a SAF tree URI to app cache.
