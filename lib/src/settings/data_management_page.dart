@@ -653,6 +653,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
           profileStorageService: widget.profileStorageService!,
           beanStorageService: widget.beanStorageService!,
           grinderStorageService: widget.grinderStorageService!,
+          settingsController: widget.controller,
         );
 
         importResult = await importer.import(

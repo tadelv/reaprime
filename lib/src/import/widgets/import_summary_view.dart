@@ -63,6 +63,13 @@ class ImportSummaryView extends StatelessWidget {
                         label: 'Grinder specs (DYE)',
                       ),
                     ],
+                    if (scanResult.hasSettings) ...[
+                      const SizedBox(height: 12),
+                      const _CountRow(
+                        icon: LucideIcons.settings2,
+                        label: 'App settings',
+                      ),
+                    ],
                   ],
                 ),
               ),
