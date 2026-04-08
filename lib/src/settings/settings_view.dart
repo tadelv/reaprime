@@ -7,6 +7,7 @@ import 'package:reaprime/src/services/foreground_service.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
+import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/controllers/presence_controller.dart';
 import 'package:reaprime/src/services/storage/bean_storage_service.dart';
 import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
@@ -45,6 +46,7 @@ class SettingsView extends StatefulWidget {
     this.profileStorageService,
     this.beanStorageService,
     this.grinderStorageService,
+    this.workflowController,
   });
 
   static const routeName = '/settings';
@@ -59,6 +61,7 @@ class SettingsView extends StatefulWidget {
   final ProfileStorageService? profileStorageService;
   final BeanStorageService? beanStorageService;
   final GrinderStorageService? grinderStorageService;
+  final WorkflowController? workflowController;
 
   @override
   State<SettingsView> createState() => _SettingsViewState();
@@ -475,6 +478,7 @@ class _SettingsViewState extends State<SettingsView>
                     profileStorageService: widget.profileStorageService,
                     beanStorageService: widget.beanStorageService,
                     grinderStorageService: widget.grinderStorageService,
+                    workflowController: widget.workflowController,
                   ),
                 ),
               );
