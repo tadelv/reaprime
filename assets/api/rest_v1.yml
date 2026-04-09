@@ -1701,11 +1701,12 @@ paths:
 
   /api/v1/plugins:
     get:
-      summary: List all currently loaded plugins
+      summary: List all plugins
+      description: Returns all installed plugins with their manifests, load state, and auto-load preference
       tags: [Plugins]
       responses:
         "200":
-          description: A list of all the currently loaded plugin manifests
+          description: A list of all installed plugin manifests
           content:
             application/json:
               schema:
@@ -1747,6 +1748,118 @@ paths:
             application/json:
               schema:
                 type: object
+
+  /api/v1/plugins/{id}/enable:
+    post:
+      summary: Enable a plugin
+      description: Enables and loads the specified plugin
+      tags: [Plugins]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Plugin ID
+      responses:
+        "200":
+          description: Plugin enabled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  id:
+                    type: string
+
+  /api/v1/plugins/{id}/disable:
+    post:
+      summary: Disable a plugin
+      description: Disables and unloads the specified plugin
+      tags: [Plugins]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Plugin ID
+      responses:
+        "200":
+          description: Plugin disabled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  id:
+                    type: string
+
+  /api/v1/plugins/{id}:
+    delete:
+      summary: Delete a plugin
+      description: Removes a plugin from the system
+      tags: [Plugins]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Plugin ID
+      responses:
+        "200":
+          description: Plugin deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  id:
+                    type: string
+
+  /api/v1/plugins/install:
+    post:
+      summary: Install a plugin from URL
+      description: Installs a plugin from a remote URL (not yet implemented)
+      tags: [Plugins]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - url
+              properties:
+                url:
+                  type: string
+                  description: URL to install the plugin from
+      responses:
+        "501":
+          description: Not yet implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "400":
+          description: Missing url field
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
 
   # Profiles API
   # 
@@ -2375,6 +2488,74 @@ paths:
           description: Bad request (missing url field)
         "500":
           description: Internal Server Error
+
+  /api/v1/webui/server/status:
+    get:
+      summary: Get WebUI server status
+      description: Returns the current status of the WebUI skin server
+      tags: [WebUI]
+      responses:
+        "200":
+          description: Current server status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  serving:
+                    type: boolean
+                  path:
+                    type: string
+                    nullable: true
+                  port:
+                    type: integer
+                    nullable: true
+                  ip:
+                    type: string
+                    nullable: true
+
+  /api/v1/webui/server/start:
+    post:
+      summary: Start the WebUI server
+      description: Starts serving the default WebUI skin
+      tags: [WebUI]
+      responses:
+        "200":
+          description: Server started successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  path:
+                    type: string
+        "400":
+          description: No default skin is set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
+  /api/v1/webui/server/stop:
+    post:
+      summary: Stop the WebUI server
+      description: Stops the WebUI skin server
+      tags: [WebUI]
+      responses:
+        "200":
+          description: Server stopped successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
 
   # Presence API
   #
@@ -3419,6 +3600,18 @@ components:
           type: boolean
           nullable: true
           description: When enabled and battery drops below 30%, screen brightness is capped at 20. Only effective on platforms with battery monitoring.
+        simulatedDevices:
+          description: List of simulated device types to enable in scan results
+          type: array
+          items:
+            type: string
+            enum: [machine, scale, sensor]
+          nullable: true
+        themeMode:
+          description: App theme mode
+          type: string
+          enum: [system, light, dark]
+          nullable: true
 
     ReaSettings:
       type: object
@@ -3486,6 +3679,16 @@ components:
         lowBatteryBrightnessLimit:
           type: boolean
           description: When enabled and battery drops below 30%, screen brightness is capped at 20. Only effective on platforms with battery monitoring.
+        simulatedDevices:
+          description: List of simulated device types currently enabled in scan results
+          type: array
+          items:
+            type: string
+            enum: [machine, scale, sensor]
+        themeMode:
+          description: App theme mode
+          type: string
+          enum: [system, light, dark]
         chargingState:
           $ref: '#/components/schemas/ChargingState'
 
@@ -3834,6 +4037,12 @@ components:
                 enum: ['websocket']
               data:
                 type: object
+        loaded:
+          type: boolean
+          description: Whether the plugin is currently loaded
+        autoLoad:
+          type: boolean
+          description: Whether the plugin is set to auto-load on startup
 
     ProfileRecord:
       type: object
