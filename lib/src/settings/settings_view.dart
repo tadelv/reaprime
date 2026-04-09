@@ -1299,7 +1299,7 @@ class _SettingsSection extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(icon, size: 20),
+                ExcludeSemantics(child: Icon(icon, size: 20)),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(

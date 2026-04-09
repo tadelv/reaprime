@@ -85,7 +85,10 @@ class _HistoryTileState extends State<HistoryTile> {
   @override
   Widget build(BuildContext context) {
     if (_currentShot == null) {
-      return Text("No shots yet.");
+      return Semantics(
+        label: 'No shots recorded yet',
+        child: ExcludeSemantics(child: Text("No shots yet.")),
+      );
     }
     return _body(context);
   }
@@ -96,26 +99,25 @@ class _HistoryTileState extends State<HistoryTile> {
     var canGoForward = _currentIndex > 0; // toward newer
     return Semantics(
       explicitChildNodes: true,
-      label: 'Shot history',
       child: Column(
       children: [
         Text(shot.shotTime()),
         Semantics(
           button: true,
-          label:
-              'View shot details for ${shot.workflow.profile.title} at ${shot.shotTime()}',
-          child: TapRegion(
-            child: ExcludeSemantics(child: _shotDetails(context, shot)),
-            onTapInside: (cb) {
-              Navigator.pushNamed(
-                context,
-                HistoryFeature.routeName,
-                arguments: jsonEncode(shot.toJson()),
-              );
-            },
+          label: _shotLabel(shot),
+          child: ExcludeSemantics(
+            child: InkWell(
+              onTap: () {
+                Navigator.pushNamed(
+                  context,
+                  HistoryFeature.routeName,
+                  arguments: jsonEncode(shot.toJson()),
+                );
+              },
+              child: _shotDetails(context, shot),
+            ),
           ),
         ),
-        _shotSummary(shot),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -166,7 +168,7 @@ class _HistoryTileState extends State<HistoryTile> {
     );
   }
 
-  Widget _shotSummary(ShotRecord shot) {
+  String _shotLabel(ShotRecord shot) {
     final doseIn =
         shot.annotations?.actualDoseWeight ??
         shot.workflow.context?.targetDoseWeight;
@@ -176,6 +178,8 @@ class _HistoryTileState extends State<HistoryTile> {
         shot.measurements.last.scale?.weight ??
         0.0;
     final parts = <String>[
+      'View shot details',
+      shot.shotTime(),
       shot.workflow.profile.title,
       if (doseIn != null)
         '${doseIn.toStringAsFixed(1)} to ${yield_.toStringAsFixed(1)} grams',
@@ -184,10 +188,7 @@ class _HistoryTileState extends State<HistoryTile> {
       if (shot.workflow.context?.grinderModel != null)
         shot.workflow.context!.grinderModel!,
     ];
-    return Semantics(
-      label: parts.join(', '),
-      child: const SizedBox.shrink(),
-    );
+    return parts.join(', ');
   }
 
   Widget _shotDetails(BuildContext context, ShotRecord shot) {
