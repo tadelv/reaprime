@@ -3,10 +3,15 @@ part of '../webserver_service.dart';
 /// REST API handler for WebUI skin management
 class WebUIHandler {
   final WebUIStorage _storage;
+  final WebUIService _service;
   final bool _appStoreMode;
 
-  WebUIHandler({required WebUIStorage storage, bool? appStoreMode})
+  WebUIHandler(
+      {required WebUIStorage storage,
+      required WebUIService service,
+      bool? appStoreMode})
       : _storage = storage,
+        _service = service,
         _appStoreMode = appStoreMode ?? BuildInfo.appStore;
 
   void addRoutes(RouterPlus app) {
@@ -33,6 +38,11 @@ class WebUIHandler {
 
     // Remove/uninstall skin
     app.delete('/api/v1/webui/skins/<id>', _handleRemoveSkin);
+
+    // WebUI server lifecycle
+    app.get('/api/v1/webui/server/status', _handleServerStatus);
+    app.post('/api/v1/webui/server/start', _handleServerStart);
+    app.post('/api/v1/webui/server/stop', _handleServerStop);
   }
 
   /// GET /api/v1/webui/skins
@@ -312,6 +322,79 @@ class WebUIHandler {
 
       return Response.internalServerError(
         body: jsonEncode({'error': e.toString()}),
+      );
+    }
+  }
+
+  /// GET /api/v1/webui/server/status
+  /// Returns current WebUI server serving status
+  Response _handleServerStatus(Request request) {
+    return Response.ok(
+      jsonEncode({
+        'serving': _service.isServing,
+        'path': _service.isServing ? _service.serverPath() : null,
+        'port': _service.isServing ? _service.port : null,
+        'ip': _service.isServing ? _service.serverIP() : null,
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  /// POST /api/v1/webui/server/start
+  /// Starts serving the default skin
+  Future<Response> _handleServerStart(Request request) async {
+    if (_service.isServing) {
+      return Response.ok(
+        jsonEncode({'message': 'Already serving'}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+    final defaultSkin = _storage.defaultSkin;
+    if (defaultSkin == null) {
+      return Response(400,
+        body: jsonEncode({
+          'error':
+              'No default skin set. Set defaultSkinId in settings first.',
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+    try {
+      await _service.serveFolderAtPath(defaultSkin.path);
+      return Response.ok(
+        jsonEncode({
+          'message': 'WebUI server started',
+          'path': defaultSkin.path,
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+    } catch (e) {
+      return Response.internalServerError(
+        body: jsonEncode({'error': 'Failed to start: $e'}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+  }
+
+  /// POST /api/v1/webui/server/stop
+  /// Stops the WebUI server
+  Future<Response> _handleServerStop(Request request) async {
+    if (!_service.isServing) {
+      return Response.ok(
+        jsonEncode({'message': 'Not serving'}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+    try {
+      await _service.stopServing();
+      return Response.ok(
+        jsonEncode({'message': 'WebUI server stopped'}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    } catch (e) {
+      return Response.internalServerError(
+        body: jsonEncode({'error': 'Failed to stop: $e'}),
+        headers: {'Content-Type': 'application/json'},
       );
     }
   }
