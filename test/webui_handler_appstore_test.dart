@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
+import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
@@ -42,6 +43,7 @@ void main() {
   Handler buildHandler({required bool appStoreMode}) {
     final webUIHandler = WebUIHandler(
       storage: fakeStorage,
+      service: WebUIService(),
       appStoreMode: appStoreMode,
     );
     final app = Router().plus;

@@ -18,14 +18,14 @@ class WebUIHandler {
     // List all installed skins
     app.get('/api/v1/webui/skins', _handleListSkins);
 
-    // Get specific skin details
-    app.get('/api/v1/webui/skins/<id>', _handleGetSkin);
-
-    // Get default skin
+    // Get default skin (must be before <id> to avoid route shadowing)
     app.get('/api/v1/webui/skins/default', _handleGetDefaultSkin);
 
-    // Set default skin
+    // Set default skin (must be before <id> to avoid route shadowing)
     app.put('/api/v1/webui/skins/default', _handleSetDefaultSkin);
+
+    // Get specific skin details
+    app.get('/api/v1/webui/skins/<id>', _handleGetSkin);
 
     // Install skin from GitHub release
     app.post('/api/v1/webui/skins/install/github-release', _handleInstallFromGitHubRelease);

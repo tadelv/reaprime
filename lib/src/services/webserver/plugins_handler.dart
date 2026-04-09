@@ -3,12 +3,17 @@ part of '../webserver_service.dart';
 final class PluginsHandler {
   final PluginManager pluginManager;
   final PluginLoaderService pluginService;
+  final bool _appStoreMode;
 
   final Logger _log = Logger("PluginsHandler");
 
   final Random _random = Random();
 
-  PluginsHandler({required this.pluginManager, required this.pluginService});
+  PluginsHandler(
+      {required this.pluginManager,
+      required this.pluginService,
+      bool? appStoreMode})
+      : _appStoreMode = appStoreMode ?? BuildInfo.appStore;
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/plugins', (Request req) async {
@@ -24,6 +29,12 @@ final class PluginsHandler {
     });
 
     app.post('/api/v1/plugins/install', (Request request) async {
+      if (_appStoreMode) {
+        return Response.forbidden(
+            jsonEncode(
+                {'error': 'Plugin installation is not available on this platform'}),
+            headers: {'Content-Type': 'application/json'});
+      }
       try {
         final payload = await request.readAsString();
         final json = jsonDecode(payload) as Map<String, dynamic>;
@@ -51,6 +62,11 @@ final class PluginsHandler {
     app.post('/api/v1/plugins/<id>/enable',
         (Request request, String id) async {
       try {
+        if (pluginService.getPluginManifest(id) == null) {
+          return Response.notFound(
+              jsonEncode({'error': 'Plugin not found: $id'}),
+              headers: {'Content-Type': 'application/json'});
+        }
         if (!pluginService.isPluginLoaded(id)) {
           await pluginService.loadPlugin(id);
         }
@@ -68,6 +84,11 @@ final class PluginsHandler {
     app.post('/api/v1/plugins/<id>/disable',
         (Request request, String id) async {
       try {
+        if (pluginService.getPluginManifest(id) == null) {
+          return Response.notFound(
+              jsonEncode({'error': 'Plugin not found: $id'}),
+              headers: {'Content-Type': 'application/json'});
+        }
         if (pluginService.isPluginLoaded(id)) {
           await pluginService.unloadPlugin(id);
         }
@@ -83,7 +104,18 @@ final class PluginsHandler {
     });
 
     app.delete('/api/v1/plugins/<id>', (Request request, String id) async {
+      if (_appStoreMode) {
+        return Response.forbidden(
+            jsonEncode(
+                {'error': 'Plugin removal is not available on this platform'}),
+            headers: {'Content-Type': 'application/json'});
+      }
       try {
+        if (pluginService.getPluginManifest(id) == null) {
+          return Response.notFound(
+              jsonEncode({'error': 'Plugin not found: $id'}),
+              headers: {'Content-Type': 'application/json'});
+        }
         await pluginService.removePlugin(id);
         return Response.ok(
             jsonEncode({'message': 'Plugin removed', 'id': id}),
