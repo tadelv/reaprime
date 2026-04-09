@@ -161,96 +161,107 @@ class _SettingsViewState extends State<SettingsView>
       description: 'Configure how external clients can control the machine',
       onInfoPressed: () => showGatewayModeInfoDialog(context),
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Gateway Mode',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
+        MergeSemantics(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Gateway Mode',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              DropdownButton<GatewayMode>(
+                isExpanded: true,
+                value: widget.controller.gatewayMode,
+                onChanged: (v) {
+                  if (v != null) widget.controller.updateGatewayMode(v);
+                },
+                items: const [
+                  DropdownMenuItem(
+                    value: GatewayMode.full,
+                    child: Text('Full (Rea has no control)'),
                   ),
-            ),
-            const SizedBox(height: 8),
-            DropdownButton<GatewayMode>(
-              isExpanded: true,
-              value: widget.controller.gatewayMode,
-              onChanged: (v) {
-                if (v != null) widget.controller.updateGatewayMode(v);
-              },
-              items: const [
-                DropdownMenuItem(
-                  value: GatewayMode.full,
-                  child: Text('Full (Rea has no control)'),
-                ),
-                DropdownMenuItem(
-                  value: GatewayMode.tracking,
-                  child: Text('Tracking (Rea will stop shot if target weight is reached)'),
-                ),
-                DropdownMenuItem(
-                  value: GatewayMode.disabled,
-                  child: Text('Disabled (Rea has full control)'),
-                ),
-              ],
-            ),
-          ],
+                  DropdownMenuItem(
+                    value: GatewayMode.tracking,
+                    child: Text('Tracking (Rea will stop shot if target weight is reached)'),
+                  ),
+                  DropdownMenuItem(
+                    value: GatewayMode.disabled,
+                    child: Text('Disabled (Rea has full control)'),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
 
   Widget _buildBatterySection() {
-    return ShadCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.battery_charging_full_outlined, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Battery & Charging',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Smart charging and night mode settings',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Mode: ${_chargingModeLabel(widget.controller.chargingMode)}',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          if (widget.controller.nightModeEnabled) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Night mode enabled',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-          const SizedBox(height: 12),
-          ShadButton.outline(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => BatteryChargingSettingsPage(
-                    controller: widget.controller,
+    return Semantics(
+      explicitChildNodes: true,
+      child: ShadCard(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.battery_charging_full_outlined, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Battery & Charging',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                 ),
-              );
-            },
-            child: const Text('Configure'),
-          ),
-        ],
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Smart charging and night mode settings',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Mode: ${_chargingModeLabel(widget.controller.chargingMode)}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            if (widget.controller.nightModeEnabled) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Night mode enabled',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+            const SizedBox(height: 12),
+            Semantics(
+              button: true,
+              label: 'Configure battery and charging settings',
+              child: ExcludeSemantics(
+                child: ShadButton.outline(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => BatteryChargingSettingsPage(
+                          controller: widget.controller,
+                        ),
+                      ),
+                    );
+                  },
+                  child: const Text('Configure'),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -281,55 +292,64 @@ class _SettingsViewState extends State<SettingsView>
       subtitle = 'Enabled, no sleep timeout';
     }
 
-    return ShadCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.schedule_outlined, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Presence & Sleep',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Automatic sleep and scheduled wake settings',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7),
-                ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            subtitle,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 12),
-          ShadButton.outline(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => PresenceSettingsPage(
-                    controller: widget.controller,
-                    keepAwakeUntil: widget.presenceController.keepAwakeUntil,
+    return Semantics(
+      explicitChildNodes: true,
+      child: ShadCard(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.schedule_outlined, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Presence & Sleep',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                 ),
-              );
-            },
-            child: const Text('Configure'),
-          ),
-        ],
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Automatic sleep and scheduled wake settings',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.7),
+                  ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              subtitle,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            Semantics(
+              button: true,
+              label: 'Configure presence and sleep settings',
+              child: ExcludeSemantics(
+                child: ShadButton.outline(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => PresenceSettingsPage(
+                          controller: widget.controller,
+                          keepAwakeUntil: widget.presenceController.keepAwakeUntil,
+                        ),
+                      ),
+                    );
+                  },
+                  child: const Text('Configure'),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -342,150 +362,170 @@ class _SettingsViewState extends State<SettingsView>
     final machineName = _resolveDeviceName(machineId);
     final scaleName = _resolveDeviceName(scaleId);
 
-    return ShadCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.devices_outlined, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Device Management',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Configure preferred auto-connect devices',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7),
-                ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Machine: ${machineName ?? "Not set"}',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Scale: ${scaleName ?? "Not set"}',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 12),
-          ShadButton.outline(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => DeviceManagementPage(
-                    settingsController: widget.controller,
-                    deviceController: widget.deviceController,
+    return Semantics(
+      explicitChildNodes: true,
+      child: ShadCard(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.devices_outlined, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Device Management',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                 ),
-              );
-            },
-            child: const Text('Configure'),
-          ),
-          const Divider(height: 32),
-          Text(
-            'Simulated Devices',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Select which simulated devices appear in scan results',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                ),
-          ),
-          const SizedBox(height: 8),
-          for (final type in SimulatedDevicesTypes.values)
-            ShadSwitch(
-              value: widget.controller.simulatedDevices.contains(type),
-              onChanged: (v) async {
-                final current = Set<SimulatedDevicesTypes>.from(
-                  widget.controller.simulatedDevices,
-                );
-                if (v) {
-                  current.add(type);
-                } else {
-                  current.remove(type);
-                }
-                _log.info("simulated devices: $current");
-                await widget.controller.setSimulatedDevices(current);
-              },
-              label: Text(type.name[0].toUpperCase() + type.name.substring(1)),
+              ],
             ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              'Configure preferred auto-connect devices',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.7),
+                  ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Machine: ${machineName ?? "Not set"}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Scale: ${scaleName ?? "Not set"}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            Semantics(
+              button: true,
+              label: 'Configure preferred devices',
+              child: ExcludeSemantics(
+                child: ShadButton.outline(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => DeviceManagementPage(
+                          settingsController: widget.controller,
+                          deviceController: widget.deviceController,
+                        ),
+                      ),
+                    );
+                  },
+                  child: const Text('Configure'),
+                ),
+              ),
+            ),
+            const Divider(height: 32),
+            Text(
+              'Simulated Devices',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Select which simulated devices appear in scan results',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+            ),
+            const SizedBox(height: 8),
+            for (final type in SimulatedDevicesTypes.values)
+              MergeSemantics(
+                child: ShadSwitch(
+                  value: widget.controller.simulatedDevices.contains(type),
+                  onChanged: (v) async {
+                    final current = Set<SimulatedDevicesTypes>.from(
+                      widget.controller.simulatedDevices,
+                    );
+                    if (v) {
+                      current.add(type);
+                    } else {
+                      current.remove(type);
+                    }
+                    _log.info("simulated devices: $current");
+                    await widget.controller.setSimulatedDevices(current);
+                  },
+                  label: Text(type.name[0].toUpperCase() + type.name.substring(1)),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildDataManagementSection() {
-    return ShadCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.storage_outlined, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Data Management',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Export, import, and backup your data',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7),
-                ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Backup, restore, and privacy settings',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 12),
-          ShadButton.outline(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => DataManagementPage(
-                    controller: widget.controller,
-                    persistenceController: widget.persistenceController,
-                    profileStorageService: widget.profileStorageService,
-                    beanStorageService: widget.beanStorageService,
-                    grinderStorageService: widget.grinderStorageService,
-                    workflowController: widget.workflowController,
+    return Semantics(
+      explicitChildNodes: true,
+      child: ShadCard(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.storage_outlined, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Data Management',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                 ),
-              );
-            },
-            child: const Text('Configure'),
-          ),
-        ],
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Export, import, and backup your data',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.7),
+                  ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Backup, restore, and privacy settings',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            Semantics(
+              button: true,
+              label: 'Configure data management',
+              child: ExcludeSemantics(
+                child: ShadButton.outline(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => DataManagementPage(
+                          controller: widget.controller,
+                          persistenceController: widget.persistenceController,
+                          profileStorageService: widget.profileStorageService,
+                          beanStorageService: widget.beanStorageService,
+                          grinderStorageService: widget.grinderStorageService,
+                          workflowController: widget.workflowController,
+                        ),
+                      ),
+                    );
+                  },
+                  child: const Text('Configure'),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -518,16 +558,22 @@ class _SettingsViewState extends State<SettingsView>
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 8),
-          ShadButton.outline(
-            onPressed: () async {
-              final result =
-                  await Permission.manageExternalStorage.request();
-              if (result.isPermanentlyDenied) {
-                await openAppSettings();
-              }
-              await _checkStoragePermission();
-            },
-            child: const Text('Grant Storage Access'),
+          Semantics(
+            button: true,
+            label: 'Grant full storage access',
+            child: ExcludeSemantics(
+              child: ShadButton.outline(
+                onPressed: () async {
+                  final result =
+                      await Permission.manageExternalStorage.request();
+                  if (result.isPermanentlyDenied) {
+                    await openAppSettings();
+                  }
+                  await _checkStoragePermission();
+                },
+                child: const Text('Grant Storage Access'),
+              ),
+            ),
           ),
         ],
       ),
@@ -547,35 +593,59 @@ class _SettingsViewState extends State<SettingsView>
         _buildStoragePermissionRow(),
         const Divider(height: 24),
         if (!widget.webUIService.isServing)
-          ShadButton(
-            onPressed: _startSelectedSkin,
-            child: const Text("Start WebUI Server"),
+          Semantics(
+            button: true,
+            label: 'Start web interface server',
+            child: ExcludeSemantics(
+              child: ShadButton(
+                onPressed: _startSelectedSkin,
+                child: const Text("Start WebUI Server"),
+              ),
+            ),
           )
         else
           Wrap(
             spacing: 12,
             runSpacing: 12,
             children: [
-              ShadButton(
-                onPressed: () async {
-                  await launchUrl(Uri.parse('http://localhost:3000'));
-                },
-                child: const Text("Open UI in browser"),
+              Semantics(
+                button: true,
+                label: 'Open web interface in browser',
+                child: ExcludeSemantics(
+                  child: ShadButton(
+                    onPressed: () async {
+                      await launchUrl(Uri.parse('http://localhost:3000'));
+                    },
+                    child: const Text("Open UI in browser"),
+                  ),
+                ),
               ),
-              ShadButton.destructive(
-                onPressed: () async {
-                  await widget.webUIService.stopServing();
-                  setState(() {});
-                },
-                child: const Text("Stop WebUI Server"),
+              Semantics(
+                button: true,
+                label: 'Stop web interface server',
+                child: ExcludeSemantics(
+                  child: ShadButton.destructive(
+                    onPressed: () async {
+                      await widget.webUIService.stopServing();
+                      setState(() {});
+                    },
+                    child: const Text("Stop WebUI Server"),
+                  ),
+                ),
               ),
             ],
           ),
         if (!BuildInfo.appStore) ...[
           const Divider(height: 24),
-          ShadButton.outline(
-            onPressed: () => _checkForSkinUpdates(context),
-            child: const Text("Check for Skin Updates"),
+          Semantics(
+            button: true,
+            label: 'Check for skin updates',
+            child: ExcludeSemantics(
+              child: ShadButton.outline(
+                onPressed: () => _checkForSkinUpdates(context),
+                child: const Text("Check for Skin Updates"),
+              ),
+            ),
           ),
         ],
       ],
@@ -603,19 +673,21 @@ class _SettingsViewState extends State<SettingsView>
           ),
         ),
         const Divider(height: 24),
-        ShadSwitch(
-          value: widget.controller.automaticUpdateCheck,
-          onChanged: (v) async {
-            await widget.controller.setAutomaticUpdateCheck(v);
-            if (v) {
-              await widget.updateCheckService?.enableAutomaticChecks();
-            } else {
-              await widget.updateCheckService?.disableAutomaticChecks();
-            }
-          },
-          label: const Text("Automatic update checks"),
-          sublabel: const Text(
-            "Check for updates every 12 hours",
+        MergeSemantics(
+          child: ShadSwitch(
+            value: widget.controller.automaticUpdateCheck,
+            onChanged: (v) async {
+              await widget.controller.setAutomaticUpdateCheck(v);
+              if (v) {
+                await widget.updateCheckService?.enableAutomaticChecks();
+              } else {
+                await widget.updateCheckService?.disableAutomaticChecks();
+              }
+            },
+            label: const Text("Automatic update checks"),
+            sublabel: const Text(
+              "Check for updates every 12 hours",
+            ),
           ),
         ),
         const SizedBox(height: 16),
@@ -650,21 +722,39 @@ class _SettingsViewState extends State<SettingsView>
           spacing: 12,
           runSpacing: 12,
           children: [
-            ShadButton.outline(
-              onPressed: () => Navigator.of(context).pushNamed(PluginsSettingsView.routeName),
-              child: const Text("Plugins"),
+            Semantics(
+              button: true,
+              label: 'Open plugins settings',
+              child: ExcludeSemantics(
+                child: ShadButton.outline(
+                  onPressed: () => Navigator.of(context).pushNamed(PluginsSettingsView.routeName),
+                  child: const Text("Plugins"),
+                ),
+              ),
             ),
-            ShadButton.outline(
-              onPressed: () => _checkForUpdates(context),
-              child: const Text("Check for updates"),
+            Semantics(
+              button: true,
+              label: 'Check for app updates',
+              child: ExcludeSemantics(
+                child: ShadButton.outline(
+                  onPressed: () => _checkForUpdates(context),
+                  child: const Text("Check for updates"),
+                ),
+              ),
             ),
           ],
         ),
         if (!BuildInfo.appStore) ...[
           const Divider(height: 24),
-          ShadButton.destructive(
-            onPressed: () => _exitApp(),
-            child: const Text("Exit Streamline-Bridge"),
+          Semantics(
+            button: true,
+            label: 'Exit Streamline-Bridge',
+            child: ExcludeSemantics(
+              child: ShadButton.destructive(
+                onPressed: () => _exitApp(),
+                child: const Text("Exit Streamline-Bridge"),
+              ),
+            ),
           ),
         ],
       ],
@@ -699,11 +789,17 @@ class _SettingsViewState extends State<SettingsView>
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 12),
-        ShadButton.outline(
-          onPressed: () async {
-            await launchUrl(Uri.parse('https://www.gnu.org/licenses/gpl-3.0.html'));
-          },
-          child: const Text('View GPL v3 License'),
+        Semantics(
+          button: true,
+          label: 'View GPL version 3 license',
+          child: ExcludeSemantics(
+            child: ShadButton.outline(
+              onPressed: () async {
+                await launchUrl(Uri.parse('https://www.gnu.org/licenses/gpl-3.0.html'));
+              },
+              child: const Text('View GPL v3 License'),
+            ),
+          ),
         ),
       ],
     );
@@ -756,6 +852,7 @@ class _SettingsViewState extends State<SettingsView>
                     child: IconButton(
                       padding: EdgeInsets.zero,
                       iconSize: 16,
+                      tooltip: 'Remove ${skin.name}',
                       icon: const Icon(Icons.delete_outline),
                       onPressed: () async {
                         // Close the dropdown first
@@ -1193,43 +1290,52 @@ class _SettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ShadCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-              ),
-              if (onInfoPressed != null)
-                IconButton(
-                  icon: const Icon(Icons.info_outline, size: 18),
-                  onPressed: onInfoPressed,
-                  tooltip: 'Learn more',
-                ),
-            ],
-          ),
-          if (description != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              description!,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+    return Semantics(
+      explicitChildNodes: true,
+      child: ShadCard(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
+                ),
+                if (onInfoPressed != null)
+                  Semantics(
+                    button: true,
+                    label: 'Learn more about $title',
+                    child: ExcludeSemantics(
+                      child: IconButton(
+                        icon: const Icon(Icons.info_outline, size: 18),
+                        onPressed: onInfoPressed,
+                        tooltip: 'Learn more',
+                      ),
+                    ),
+                  ),
+              ],
             ),
+            if (description != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                description!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            ...children,
           ],
-          const SizedBox(height: 16),
-          ...children,
-        ],
+        ),
       ),
     );
   }
@@ -1246,21 +1352,23 @@ class _SettingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 140,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
+    return MergeSemantics(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12.0),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 140,
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+              ),
             ),
-          ),
-          Expanded(child: child),
-        ],
+            Expanded(child: child),
+          ],
+        ),
       ),
     );
   }
@@ -1274,27 +1382,29 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              '$label:',
-              style: Theme.of(context).textTheme.bodySmall,
+    return MergeSemantics(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 80,
+              child: Text(
+                '$label:',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
             ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontFamily: 'monospace',
-                  ),
+            Expanded(
+              child: Text(
+                value,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontFamily: 'monospace',
+                    ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
