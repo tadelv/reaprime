@@ -86,7 +86,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       //appBar: AppBar(
       //  title: Text('ReaPrime'),
       //),
-      body: SafeArea(child: _home(context)),
+      body: SafeArea(
+        child: Semantics(
+          explicitChildNodes: true,
+          label: 'Espresso machine dashboard',
+          child: _home(context),
+        ),
+      ),
     );
   }
 

@@ -94,47 +94,99 @@ class _HistoryTileState extends State<HistoryTile> {
     var shot = _currentShot!;
     var canGoBack = _currentIndex < _totalShots - 1; // toward older
     var canGoForward = _currentIndex > 0; // toward newer
-    return Column(
+    return Semantics(
+      explicitChildNodes: true,
+      label: 'Shot history',
+      child: Column(
       children: [
         Text(shot.shotTime()),
-        TapRegion(
-          child: _shotDetails(context, shot),
-          onTapInside: (cb) {
-            Navigator.pushNamed(
-              context,
-              HistoryFeature.routeName,
-              arguments: jsonEncode(shot.toJson()),
-            );
-          },
+        Semantics(
+          button: true,
+          label:
+              'View shot details for ${shot.workflow.profile.title} at ${shot.shotTime()}',
+          child: TapRegion(
+            child: ExcludeSemantics(child: _shotDetails(context, shot)),
+            onTapInside: (cb) {
+              Navigator.pushNamed(
+                context,
+                HistoryFeature.routeName,
+                arguments: jsonEncode(shot.toJson()),
+              );
+            },
+          ),
         ),
+        _shotSummary(shot),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            ShadButton(
-              onPressed: () {
-                _currentIndex++;
-                _loadCurrentShot();
-              },
-              enabled: canGoBack,
-              child: Icon(LucideIcons.moveLeft),
+            Semantics(
+              button: true,
+              label: 'Previous shot',
+              child: ExcludeSemantics(
+                child: ShadButton(
+                  onPressed: () {
+                    _currentIndex++;
+                    _loadCurrentShot();
+                  },
+                  enabled: canGoBack,
+                  child: Icon(LucideIcons.moveLeft),
+                ),
+              ),
             ),
-            ShadButton(
-              onPressed: () {
-                widget.workflowController.setWorkflow(shot.workflow);
-              },
-              child: Text("Repeat"),
+            Semantics(
+              button: true,
+              label: 'Repeat workflow from this shot',
+              child: ExcludeSemantics(
+                child: ShadButton(
+                  onPressed: () {
+                    widget.workflowController.setWorkflow(shot.workflow);
+                  },
+                  child: Text("Repeat"),
+                ),
+              ),
             ),
-            ShadButton(
-              onPressed: () {
-                _currentIndex--;
-                _loadCurrentShot();
-              },
-              enabled: canGoForward,
-              child: Icon(LucideIcons.moveRight),
+            Semantics(
+              button: true,
+              label: 'Next shot',
+              child: ExcludeSemantics(
+                child: ShadButton(
+                  onPressed: () {
+                    _currentIndex--;
+                    _loadCurrentShot();
+                  },
+                  enabled: canGoForward,
+                  child: Icon(LucideIcons.moveRight),
+                ),
+              ),
             ),
           ],
         ),
       ],
+    ),
+    );
+  }
+
+  Widget _shotSummary(ShotRecord shot) {
+    final doseIn =
+        shot.annotations?.actualDoseWeight ??
+        shot.workflow.context?.targetDoseWeight;
+    final yield_ =
+        shot.annotations?.actualYield ??
+        shot.workflow.context?.targetYield ??
+        shot.measurements.last.scale?.weight ??
+        0.0;
+    final parts = <String>[
+      shot.workflow.profile.title,
+      if (doseIn != null)
+        '${doseIn.toStringAsFixed(1)} to ${yield_.toStringAsFixed(1)} grams',
+      if (shot.workflow.context?.coffeeName != null)
+        shot.workflow.context!.coffeeName!,
+      if (shot.workflow.context?.grinderModel != null)
+        shot.workflow.context!.grinderModel!,
+    ];
+    return Semantics(
+      label: parts.join(', '),
+      child: const SizedBox.shrink(),
     );
   }
 

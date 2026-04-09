@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:logging/logging.dart';
@@ -117,6 +118,9 @@ Set<SimulatedDevicesTypes> _parseSimulateFlag(String value) {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Force the semantics tree to always be active so assistive technologies
+  // (TalkBack, VoiceOver, Accessibility Inspector) can read Flutter elements.
+  SemanticsBinding.instance.ensureSemantics();
   SystemChrome.setEnabledSystemUIMode(
     SystemUiMode.manual,
     overlays: [SystemUiOverlay.top], // Only keep the top bar

@@ -85,23 +85,30 @@ class _QuickSettingsState extends State<QuickSettingsWidget> {
     final theme = ShadTheme.of(context);
     return ShadCard(
       title: Text('Quick Glance', style: theme.textTheme.h4),
-      child: Padding(
+      child: Semantics(
+        explicitChildNodes: true,
+        label: 'Quick settings',
+        child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: 16.0,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Flexible(child: Text("IP Address:")),
-                Flexible(child: Text("${widget.webUIService.deviceIp()}:3000")),
-              ],
+            MergeSemantics(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(child: Text("IP Address:")),
+                  Flexible(
+                      child: Text("${widget.webUIService.deviceIp()}:3000")),
+                ],
+              ),
             ),
             _buildWebUIControl(context),
           ],
         ),
+      ),
       ),
     );
   }
@@ -143,24 +150,29 @@ class _QuickSettingsState extends State<QuickSettingsWidget> {
 
         // Show loading state while serving
         if (_isServingUI) {
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Flexible(child: Text("WebUI:")),
-              Flexible(
-                child: Row(
-                  spacing: 8,
-                  children: [
-                    SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    Text("Starting..."),
-                  ],
+          return MergeSemantics(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Flexible(child: Text("WebUI:")),
+                Flexible(
+                  child: Row(
+                    spacing: 8,
+                    children: [
+                      Semantics(
+                        label: 'Starting WebUI',
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                      Text("Starting..."),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           );
         }
 
@@ -170,12 +182,14 @@ class _QuickSettingsState extends State<QuickSettingsWidget> {
           return Column(
             spacing: 8.0,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Flexible(child: Text("WebUI:")),
-                  Flexible(child: Text(skinName)),
-                ],
+              MergeSemantics(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(child: Text("WebUI:")),
+                    Flexible(child: Text(skinName)),
+                  ],
+                ),
               ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -198,14 +212,20 @@ class _QuickSettingsState extends State<QuickSettingsWidget> {
                     ),
                   ),
                   Flexible(
-                    child: ShadIconButton(
-                      icon: const Icon(Icons.qr_code),
-                      onPressed: () async {
-                        QuickSettingsWidget.showQRCodeDialog(
-                          context,
-                          widget.webUIService.deviceIp(),
-                        );
-                      },
+                    child: Semantics(
+                      button: true,
+                      label: 'Show QR code for WebUI',
+                      child: ExcludeSemantics(
+                        child: ShadIconButton(
+                          icon: const Icon(Icons.qr_code),
+                          onPressed: () async {
+                            QuickSettingsWidget.showQRCodeDialog(
+                              context,
+                              widget.webUIService.deviceIp(),
+                            );
+                          },
+                        ),
+                      ),
                     ),
                   ),
                 ],

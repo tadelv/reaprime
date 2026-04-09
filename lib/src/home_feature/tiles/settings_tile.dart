@@ -26,21 +26,31 @@ class _SettingsTileState extends State<SettingsTile> {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Semantics(
+      explicitChildNodes: true,
+      label: 'Machine controls',
+      child: Row(
       spacing: 8,
       children: [
         _powerButton(),
-        ShadButton.secondary(
-          onPressed: () {
-            Navigator.restorablePushNamed(context, SettingsView.routeName);
-          },
-          child: Icon(
-            LucideIcons.settings,
-            color: Theme.of(context).colorScheme.primary,
+        Semantics(
+          button: true,
+          label: 'Open settings',
+          child: ExcludeSemantics(
+            child: ShadButton.secondary(
+              onPressed: () {
+                Navigator.restorablePushNamed(context, SettingsView.routeName);
+              },
+              child: Icon(
+                LucideIcons.settings,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
           ),
         ),
         Expanded(child: _auxFunctions()),
       ],
+    ),
     );
   }
 
@@ -51,26 +61,36 @@ class _SettingsTileState extends State<SettingsTile> {
         // Check for active connection and non-null data
         if (!de1State.hasData || de1State.data == null) {
           if (_isScanning) {
-            return ShadButton.secondary(
-              onPressed: null,
-              child: Row(
-                spacing: 4,
-                children: [
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+            return Semantics(
+              label: 'Scanning for machine',
+              child: ExcludeSemantics(
+                child: ShadButton.secondary(
+                  onPressed: null,
+                  child: Row(
+                    spacing: 4,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      Text("Scanning..."),
+                    ],
                   ),
-                  Text("Scanning..."),
-                ],
+                ),
               ),
             );
           }
-          return ShadButton.secondary(
-            onPressed: () => _handleScan(context),
-            child: Row(
-              spacing: 4,
-              children: [Icon(LucideIcons.radar, size: 16), Text("Scan")],
+          return MergeSemantics(
+            child: ShadButton.secondary(
+              onPressed: () => _handleScan(context),
+              child: Row(
+                spacing: 4,
+                children: [
+                  ExcludeSemantics(child: Icon(LucideIcons.radar, size: 16)),
+                  Text("Scan"),
+                ],
+              ),
             ),
           );
         }
@@ -83,21 +103,33 @@ class _SettingsTileState extends State<SettingsTile> {
             }
             var snapshot = snapshotData.data!;
             if (snapshot.state.state == MachineState.sleeping) {
-              return ShadButton.secondary(
-                onPressed: () async {
-                  await de1.requestState(MachineState.idle);
-                },
-                child: Icon(
-                  LucideIcons.power,
-                  color: Theme.of(context).colorScheme.primary,
+              return Semantics(
+                button: true,
+                label: 'Turn on machine',
+                child: ExcludeSemantics(
+                  child: ShadButton.secondary(
+                    onPressed: () async {
+                      await de1.requestState(MachineState.idle);
+                    },
+                    child: Icon(
+                      LucideIcons.power,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
                 ),
               );
             }
-            return ShadButton(
-              onPressed: () async {
-                await de1.requestState(MachineState.sleeping);
-              },
-              child: Icon(LucideIcons.power),
+            return Semantics(
+              button: true,
+              label: 'Put machine to sleep',
+              child: ExcludeSemantics(
+                child: ShadButton(
+                  onPressed: () async {
+                    await de1.requestState(MachineState.sleeping);
+                  },
+                  child: Icon(LucideIcons.power),
+                ),
+              ),
             );
           },
         );

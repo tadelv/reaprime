@@ -31,58 +31,87 @@ class _HotWaterFormState extends State<HotWaterForm> {
         mainAxisSize: MainAxisSize.min,
         spacing: 16,
         children: [
-          Text("Temperature: ${hotWaterSettings.targetTemperature}℃"),
-          ShadSlider(
-            initialValue: hotWaterSettings.targetTemperature.toDouble(),
-            min: 50,
-            max: 95,
-            divisions: 45,
-            thumbRadius: 15,
-            trackHeight: 15,
-            onChanged: (val) {
-              setState(() {
-                hotWaterSettings.targetTemperature = val.toInt();
-              });
-            },
+          MergeSemantics(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Temperature: ${hotWaterSettings.targetTemperature}℃"),
+                ShadSlider(
+                  initialValue: hotWaterSettings.targetTemperature.toDouble(),
+                  min: 50,
+                  max: 95,
+                  divisions: 45,
+                  thumbRadius: 15,
+                  trackHeight: 15,
+                  onChanged: (val) {
+                    setState(() {
+                      hotWaterSettings.targetTemperature = val.toInt();
+                    });
+                  },
+                ),
+              ],
+            ),
           ),
-          Text("Volume: ${hotWaterSettings.volume} ml"),
-          ShadSlider(
-            initialValue: hotWaterSettings.volume.toDouble(),
-            min: 0,
-            max: 250,
-            thumbRadius: 15,
-            trackHeight: 15,
-            onChanged: (val) {
-              setState(() {
-                hotWaterSettings.volume = val.toInt();
-              });
-            },
+          MergeSemantics(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Volume: ${hotWaterSettings.volume} ml"),
+                ShadSlider(
+                  initialValue: hotWaterSettings.volume.toDouble(),
+                  min: 0,
+                  max: 250,
+                  thumbRadius: 15,
+                  trackHeight: 15,
+                  onChanged: (val) {
+                    setState(() {
+                      hotWaterSettings.volume = val.toInt();
+                    });
+                  },
+                ),
+              ],
+            ),
           ),
-          Text("Duration: ${hotWaterSettings.duration} seconds"),
-          ShadSlider(
-            initialValue: hotWaterSettings.duration.toDouble(),
-            min: 0,
-            max: 60,
-            thumbRadius: 15,
-            trackHeight: 15,
-            onChanged: (val) {
-              setState(() {
-                hotWaterSettings.duration = val.toInt();
-              });
-            },
+          MergeSemantics(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Duration: ${hotWaterSettings.duration} seconds"),
+                ShadSlider(
+                  initialValue: hotWaterSettings.duration.toDouble(),
+                  min: 0,
+                  max: 60,
+                  thumbRadius: 15,
+                  trackHeight: 15,
+                  onChanged: (val) {
+                    setState(() {
+                      hotWaterSettings.duration = val.toInt();
+                    });
+                  },
+                ),
+              ],
+            ),
           ),
-          Text("Flow rate: ${hotWaterSettings.flow.toStringAsFixed(1)} ml/s"),
-          ShadSlider(
-            initialValue: hotWaterSettings.flow.toDouble(),
-            min: 1.0,
-            max: 8.0,
-            thumbRadius: 15,
-            trackHeight: 15,
-            onChanged: (val) {
-              setState(() {
-                hotWaterSettings.flow = val;
-              });
-            },
+          MergeSemantics(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                    "Flow rate: ${hotWaterSettings.flow.toStringAsFixed(1)} ml/s"),
+                ShadSlider(
+                  initialValue: hotWaterSettings.flow.toDouble(),
+                  min: 1.0,
+                  max: 8.0,
+                  thumbRadius: 15,
+                  trackHeight: 15,
+                  onChanged: (val) {
+                    setState(() {
+                      hotWaterSettings.flow = val;
+                    });
+                  },
+                ),
+              ],
+            ),
           ),
           ShadButton(
             child: const Text('Apply'),
