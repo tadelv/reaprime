@@ -11,18 +11,89 @@ final class PluginsHandler {
   PluginsHandler({required this.pluginManager, required this.pluginService});
 
   void addRoutes(RouterPlus app) {
-    app.get('/api/v1/plugins', (Request req) {
-      final list =
-          pluginManager.loadedPlugins.map((e) => e.manifest.toJson()).toList();
-      return Response.ok(jsonEncode(list));
+    app.get('/api/v1/plugins', (Request req) async {
+      final list = <Map<String, dynamic>>[];
+      for (final manifest in pluginService.availablePlugins) {
+        final json = manifest.toJson();
+        json['loaded'] = pluginService.isPluginLoaded(manifest.id);
+        json['autoLoad'] = await pluginService.shouldAutoLoad(manifest.id);
+        list.add(json);
+      }
+      return Response.ok(jsonEncode(list),
+          headers: {'Content-Type': 'application/json'});
     });
 
-    app.get('/api/v1/plugins/admin', (Request req) {
-      return Response.ok("todo: plugin administration");
+    app.post('/api/v1/plugins/install', (Request request) async {
+      try {
+        final payload = await request.readAsString();
+        final json = jsonDecode(payload) as Map<String, dynamic>;
+        final url = json['url'] as String?;
+        if (url == null || url.isEmpty) {
+          return Response.badRequest(
+              body: jsonEncode({'error': 'url is required'}),
+              headers: {'Content-Type': 'application/json'});
+        }
+        // Plugin install from URL not yet implemented
+        return Response(501,
+            body: jsonEncode(
+                {'error': 'Plugin install from URL not yet implemented'}),
+            headers: {'Content-Type': 'application/json'});
+      } catch (e) {
+        return Response.internalServerError(
+            body: jsonEncode({'error': 'Failed to install plugin: $e'}),
+            headers: {'Content-Type': 'application/json'});
+      }
     });
 
     app.get('/api/v1/plugins/<id>/settings', _handlePluginSettingsGet);
     app.post('/api/v1/plugins/<id>/settings', _handlePluginSettingsPost);
+
+    app.post('/api/v1/plugins/<id>/enable',
+        (Request request, String id) async {
+      try {
+        if (!pluginService.isPluginLoaded(id)) {
+          await pluginService.loadPlugin(id);
+        }
+        await pluginService.setPluginAutoLoad(id, true);
+        return Response.ok(
+            jsonEncode({'message': 'Plugin enabled', 'id': id}),
+            headers: {'Content-Type': 'application/json'});
+      } catch (e) {
+        return Response.internalServerError(
+            body: jsonEncode({'error': 'Failed to enable plugin: $e'}),
+            headers: {'Content-Type': 'application/json'});
+      }
+    });
+
+    app.post('/api/v1/plugins/<id>/disable',
+        (Request request, String id) async {
+      try {
+        if (pluginService.isPluginLoaded(id)) {
+          await pluginService.unloadPlugin(id);
+        }
+        await pluginService.setPluginAutoLoad(id, false);
+        return Response.ok(
+            jsonEncode({'message': 'Plugin disabled', 'id': id}),
+            headers: {'Content-Type': 'application/json'});
+      } catch (e) {
+        return Response.internalServerError(
+            body: jsonEncode({'error': 'Failed to disable plugin: $e'}),
+            headers: {'Content-Type': 'application/json'});
+      }
+    });
+
+    app.delete('/api/v1/plugins/<id>', (Request request, String id) async {
+      try {
+        await pluginService.removePlugin(id);
+        return Response.ok(
+            jsonEncode({'message': 'Plugin removed', 'id': id}),
+            headers: {'Content-Type': 'application/json'});
+      } catch (e) {
+        return Response.internalServerError(
+            body: jsonEncode({'error': 'Failed to remove plugin: $e'}),
+            headers: {'Content-Type': 'application/json'});
+      }
+    });
 
     app.get('/ws/v1/plugins/<id>/<endpoint>', _handlePluginSocketEndpoint);
     app.all('/api/v1/plugins/<id>/<endpoint>', _handlePluginApiEndpoint);
