@@ -121,9 +121,55 @@ function createPlugin(host) {
   }
 
   /**
+   * Fetch app info (version, build, commit, branch)
+   */
+  async function fetchAppInfo() {
+    try {
+      const res = await fetch("http://localhost:8080/api/v1/info");
+      if (!res.ok) { log(`Failed to fetch app info: ${res.status}`); return null; }
+      return await res.json();
+    } catch (e) { log(`Error fetching app info: ${e.message}`); return null; }
+  }
+
+  /**
+   * Fetch WebUI server status
+   */
+  async function fetchWebUIServerStatus() {
+    try {
+      const res = await fetch("http://localhost:8080/api/v1/webui/server/status");
+      if (!res.ok) { log(`Failed to fetch WebUI status: ${res.status}`); return null; }
+      return await res.json();
+    } catch (e) { log(`Error fetching WebUI status: ${e.message}`); return null; }
+  }
+
+  /**
+   * Fetch installed plugins
+   */
+  async function fetchPlugins() {
+    try {
+      const res = await fetch("http://localhost:8080/api/v1/plugins");
+      if (!res.ok) { log(`Failed to fetch plugins: ${res.status}`); return null; }
+      return await res.json();
+    } catch (e) { log(`Error fetching plugins: ${e.message}`); return null; }
+  }
+
+  /**
+   * Escape a string for safe inclusion in HTML content.
+   */
+  function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  /**
    * Generate HTML page with all settings (with editable controls)
    */
-  function generateSettingsHTML(reaSettings, de1Settings, de1AdvancedSettings, webUISkins, calibrationSettings, presenceSettings) {
+  function generateSettingsHTML(reaSettings, de1Settings, de1AdvancedSettings, webUISkins, calibrationSettings, presenceSettings, appInfo, webUIStatus, plugins) {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -323,10 +369,14 @@ function createPlugin(host) {
     </style>
 </head>
 <body>
+    <nav style="position: sticky; top: 0; z-index: 100; background: #f5f5f5; padding: 12px 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
+      <h1 style="margin: 0; font-size: 1.2em; color: #333;">Streamline-Bridge Settings</h1>
+      <a href="http://localhost:3000" style="color: #2980b9; text-decoration: none; padding: 8px 16px; border: 1px solid #2980b9; border-radius: 6px;">&#8592; Back to WebUI</a>
+    </nav>
     <a href="#main-content" class="skip-link">Skip to main content</a>
     <div class="container">
         <header class="header">
-            <h1 id="page-title">REA Settings Dashboard</h1>
+            <h1 id="page-title">Streamline-Bridge Settings</h1>
             <button class="btn btn-refresh" onclick="location.reload()" aria-label="Refresh all settings from server">
                 Refresh
             </button>
@@ -388,7 +438,7 @@ function createPlugin(host) {
                     </div>
                     <div class="setting-item">
                         <span class="setting-label">Web UI Path</span>
-                        <span class="readonly" aria-label="Web UI path is read-only">${reaSettings.webUiPath || 'N/A'}</span>
+                        <span class="readonly" aria-label="Web UI path is read-only">${escapeHtml(reaSettings.webUiPath) || 'N/A'}</span>
                     </div>
                     <div class="setting-item">
                         <label class="setting-label" for="weightFlowMultiplier">Weight Flow Multiplier</label>
@@ -421,7 +471,7 @@ function createPlugin(host) {
                     <div class="setting-item">
                         <label class="setting-label" for="preferredMachineId">Auto-Connect Device ID</label>
                         <div class="setting-control">
-                            <input type="text" id="preferredMachineId" value="${reaSettings.preferredMachineId || ''}" placeholder="None set" aria-describedby="preferredMachineId-desc" style="width: 200px;">
+                            <input type="text" id="preferredMachineId" value="${escapeHtml(reaSettings.preferredMachineId)}" placeholder="None set" aria-describedby="preferredMachineId-desc" style="width: 200px;">
                             <span id="preferredMachineId-desc" class="visually-hidden">Device ID for automatic connection on startup. Leave empty to disable auto-connect.</span>
                             <button class="btn btn-primary" onclick="updateReaSetting('preferredMachineId', document.getElementById('preferredMachineId').value || null)" aria-label="Save preferred machine ID setting">Save</button>
                         </div>
@@ -429,7 +479,7 @@ function createPlugin(host) {
                     <div class="setting-item">
                         <label class="setting-label" for="preferredScaleId">Auto-Connect Scale ID</label>
                         <div class="setting-control">
-                            <input type="text" id="preferredScaleId" value="${reaSettings.preferredScaleId || ''}" placeholder="None set" aria-describedby="preferredScaleId-desc" style="width: 200px;">
+                            <input type="text" id="preferredScaleId" value="${escapeHtml(reaSettings.preferredScaleId)}" placeholder="None set" aria-describedby="preferredScaleId-desc" style="width: 200px;">
                             <span id="preferredScaleId-desc" class="visually-hidden">Scale ID for automatic connection on startup. Leave empty to disable auto-connect for scales.</span>
                             <button class="btn btn-primary" onclick="updateReaSetting('preferredScaleId', document.getElementById('preferredScaleId').value || null)" aria-label="Save preferred scale ID setting">Save</button>
                         </div>
@@ -438,8 +488,8 @@ function createPlugin(host) {
                         <label class="setting-label" for="defaultSkinId">Default WebUI Skin</label>
                         <div class="setting-control">
                             <select id="defaultSkinId" aria-describedby="defaultSkinId-desc" style="width: 200px;">
-                                ${webUISkins ? webUISkins.map(skin => 
-                                    `<option value="${skin.id}" ${reaSettings.defaultSkinId === skin.id ? 'selected' : ''}>${skin.name || skin.id}</option>`
+                                ${webUISkins ? webUISkins.map(skin =>
+                                    `<option value="${escapeHtml(skin.id)}" ${reaSettings.defaultSkinId === skin.id ? 'selected' : ''}>${escapeHtml(skin.name || skin.id)}</option>`
                                 ).join('') : '<option>Loading...</option>'}
                             </select>
                             <span id="defaultSkinId-desc" class="visually-hidden">WebUI skin to load by default on application startup</span>
@@ -511,7 +561,7 @@ function createPlugin(host) {
                     </div>
                     <div class="setting-item">
                         <span class="setting-label">Current Phase</span>
-                        <span class="readonly">${reaSettings.chargingState.currentPhase}</span>
+                        <span class="readonly">${escapeHtml(reaSettings.chargingState.currentPhase)}</span>
                     </div>
                     <div class="setting-item">
                         <span class="setting-label">USB Charger</span>
@@ -686,8 +736,8 @@ function createPlugin(host) {
                                 ? 'Every day'
                                 : schedule.daysOfWeek.map(d => dayNames[d - 1] || '?').join(', ');
                             return `<tr style="border-bottom: 1px solid #ddd;">
-                            <td style="padding: 10px;">${schedule.time}</td>
-                            <td style="padding: 10px;">${days}</td>
+                            <td style="padding: 10px;">${escapeHtml(schedule.time)}</td>
+                            <td style="padding: 10px;">${escapeHtml(days)}</td>
                             <td style="padding: 10px;">${schedule.enabled ? 'Yes' : 'No'}</td>
                         </tr>`;
                         }).join('')}
@@ -695,6 +745,247 @@ function createPlugin(host) {
                 </table>
                 ` : '<p style="margin-top: 10px; color: #666;">No wake schedules configured.</p>'}
             ` : '<div class="error" role="alert">Failed to load presence settings</div>'}
+            </section>
+
+            <!-- Simulated Devices -->
+            <section class="section" aria-labelledby="simulated-devices-heading">
+                <h2 id="simulated-devices-heading">Simulated Devices</h2>
+                ${reaSettings ? `
+                <p style="color: #666; margin-bottom: 15px;">Enable simulated devices for testing without real hardware. Changes take effect after restarting the app.</p>
+                <div class="settings-grid" role="group" aria-label="Simulated device toggles">
+                    <div class="setting-item">
+                        <label class="setting-label" for="sim-machine">Simulated Machine</label>
+                        <div class="setting-control">
+                            <input type="checkbox" id="sim-machine" ${(reaSettings.simulatedDevices || []).includes('machine') ? 'checked' : ''} onchange="toggleSimulatedDevice('machine', this.checked)" style="width: 20px; height: 20px; cursor: pointer;">
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label" for="sim-scale">Simulated Scale</label>
+                        <div class="setting-control">
+                            <input type="checkbox" id="sim-scale" ${(reaSettings.simulatedDevices || []).includes('scale') ? 'checked' : ''} onchange="toggleSimulatedDevice('scale', this.checked)" style="width: 20px; height: 20px; cursor: pointer;">
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label" for="sim-sensor">Simulated Sensor</label>
+                        <div class="setting-control">
+                            <input type="checkbox" id="sim-sensor" ${(reaSettings.simulatedDevices || []).includes('sensor') ? 'checked' : ''} onchange="toggleSimulatedDevice('sensor', this.checked)" style="width: 20px; height: 20px; cursor: pointer;">
+                        </div>
+                    </div>
+                </div>
+                ` : '<div class="error" role="alert">Failed to load settings</div>'}
+            </section>
+
+            <!-- Skins Management -->
+            <section class="section" aria-labelledby="skins-management-heading">
+                <h2 id="skins-management-heading">Skins Management</h2>
+                ${webUISkins ? `
+                <table style="width: 100%; border-collapse: collapse; background: #f8f9fa; border-radius: 6px; overflow: hidden; margin-bottom: 20px;">
+                    <thead>
+                        <tr style="background: #3498db; color: white;">
+                            <th style="padding: 10px; text-align: left;">Name</th>
+                            <th style="padding: 10px; text-align: left;">Version</th>
+                            <th style="padding: 10px; text-align: left;">Type</th>
+                            <th style="padding: 10px; text-align: left;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${webUISkins.map(skin => `<tr style="border-bottom: 1px solid #ddd;">
+                            <td style="padding: 10px;">${escapeHtml(skin.name || skin.id)}</td>
+                            <td style="padding: 10px;">${escapeHtml(skin.version) || 'N/A'}</td>
+                            <td style="padding: 10px;">${skin.isBundled ? 'Bundled' : 'Installed'}</td>
+                            <td style="padding: 10px;">
+                                <button class="btn btn-primary" onclick="setDefaultSkin(${escapeHtml(JSON.stringify(skin.id))})" style="margin-right: 4px;">Set Default</button>
+                                ${!skin.isBundled ? `<button class="btn" style="background: #e74c3c; color: white;" onclick="removeSkin(${escapeHtml(JSON.stringify(skin.id))}, ${escapeHtml(JSON.stringify(skin.name || skin.id))})">Remove</button>` : ''}
+                            </td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>
+                <h3 style="margin-bottom: 10px; color: #2c3e50;">Install Skin</h3>
+                <div class="setting-item" style="flex-wrap: wrap; gap: 10px;">
+                    <label class="setting-label" for="skinSource" style="flex-basis: 100%;">GitHub repo (owner/repo) or ZIP URL</label>
+                    <div class="setting-control" style="flex: 1;">
+                        <input type="text" id="skinSource" placeholder="owner/repo or https://..." style="width: 100%; min-width: 250px;">
+                        <button class="btn btn-primary" onclick="installSkin()">Install</button>
+                    </div>
+                </div>
+                ` : '<div class="error" role="alert">Failed to load skins</div>'}
+            </section>
+
+            <!-- WebUI Server -->
+            <section class="section" aria-labelledby="webui-server-heading">
+                <h2 id="webui-server-heading">WebUI Server</h2>
+                ${webUIStatus ? `
+                <div class="settings-grid" role="group" aria-label="WebUI server status">
+                    <div class="setting-item">
+                        <span class="setting-label">Status</span>
+                        <span class="readonly">
+                            <span class="status-indicator ${webUIStatus.serving ? 'status-ok' : 'status-error'}"></span>
+                            ${webUIStatus.serving ? 'Serving' : 'Stopped'}
+                        </span>
+                    </div>
+                    ${webUIStatus.serving ? `
+                    <div class="setting-item">
+                        <span class="setting-label">Address</span>
+                        <span class="readonly">${escapeHtml(webUIStatus.ip) || 'N/A'}:${escapeHtml(webUIStatus.port) || 'N/A'}</span>
+                    </div>
+                    <div class="setting-item">
+                        <span class="setting-label">Path</span>
+                        <span class="readonly" style="word-break: break-all; font-size: 12px;">${escapeHtml(webUIStatus.path) || 'N/A'}</span>
+                    </div>
+                    ` : ''}
+                    <div class="setting-item">
+                        <span class="setting-label">Controls</span>
+                        <div class="setting-control">
+                            ${webUIStatus.serving
+                              ? '<button class="btn" style="background: #e74c3c; color: white;" onclick="stopWebUI()">Stop Server</button>'
+                              : '<button class="btn btn-primary" onclick="startWebUI()">Start Server</button>'}
+                        </div>
+                    </div>
+                </div>
+                <p style="color: #666; margin-top: 10px; font-size: 0.9em;">The server uses the default skin. Change the default skin in Skins Management above.</p>
+                ` : '<div class="error" role="alert">Failed to load WebUI server status</div>'}
+            </section>
+
+            <!-- Data Management -->
+            <section class="section" aria-labelledby="data-management-heading">
+                <h2 id="data-management-heading">Data Management</h2>
+
+                <h3 style="margin-bottom: 10px; color: #2c3e50;">Export</h3>
+                <div class="setting-item" style="margin-bottom: 20px;">
+                    <span class="setting-label">Download a full data export (ZIP)</span>
+                    <div class="setting-control">
+                        <a href="/api/v1/data/export" target="_blank" class="btn btn-primary" style="text-decoration: none;">Export Data</a>
+                    </div>
+                </div>
+
+                <h3 style="margin-bottom: 10px; color: #2c3e50;">Import</h3>
+                <div class="setting-item" style="margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                    <label class="setting-label" for="importFile" style="flex-basis: 100%;">Upload a previously exported ZIP file</label>
+                    <div class="setting-control">
+                        <input type="file" id="importFile" accept=".zip" style="width: auto;">
+                        <button class="btn btn-primary" onclick="importData()">Import</button>
+                    </div>
+                </div>
+
+                <h3 style="margin-bottom: 10px; color: #2c3e50;">Sync</h3>
+                <div style="background: #f8f9fa; border-radius: 6px; padding: 15px; border-left: 3px solid #3498db;">
+                    <div class="settings-grid" style="margin-bottom: 10px;">
+                        <div class="setting-item">
+                            <label class="setting-label" for="syncTarget">Target URL</label>
+                            <div class="setting-control">
+                                <input type="text" id="syncTarget" placeholder="http://192.168.1.50:8080" style="width: 200px;">
+                            </div>
+                        </div>
+                        <div class="setting-item">
+                            <label class="setting-label" for="syncMode">Direction</label>
+                            <div class="setting-control">
+                                <select id="syncMode">
+                                    <option value="push">Push (local to remote)</option>
+                                    <option value="pull">Pull (remote to local)</option>
+                                    <option value="two_way">Two-way</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="setting-item">
+                            <label class="setting-label" for="syncConflict">On Conflict</label>
+                            <div class="setting-control">
+                                <select id="syncConflict">
+                                    <option value="skip">Skip</option>
+                                    <option value="overwrite">Overwrite</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <span class="setting-label" style="display: block; margin-bottom: 8px;">Sections to sync:</span>
+                        <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+                            <label style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="sync-section" value="profiles" checked> Profiles</label>
+                            <label style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="sync-section" value="shots" checked> Shots</label>
+                            <label style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="sync-section" value="workflow" checked> Workflow</label>
+                            <label style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="sync-section" value="settings" checked> Settings</label>
+                            <label style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="sync-section" value="store" checked> KV Store</label>
+                            <label style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="sync-section" value="beans" checked> Beans</label>
+                            <label style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="sync-section" value="grinders" checked> Grinders</label>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="syncData()">Sync</button>
+                </div>
+            </section>
+
+            <!-- Plugin Management -->
+            <section class="section" aria-labelledby="plugin-management-heading">
+                <h2 id="plugin-management-heading">Plugin Management</h2>
+                ${plugins ? `
+                <table style="width: 100%; border-collapse: collapse; background: #f8f9fa; border-radius: 6px; overflow: hidden; margin-bottom: 20px;">
+                    <thead>
+                        <tr style="background: #3498db; color: white;">
+                            <th style="padding: 10px; text-align: left;">Name</th>
+                            <th style="padding: 10px; text-align: left;">Version</th>
+                            <th style="padding: 10px; text-align: left;">Status</th>
+                            <th style="padding: 10px; text-align: left;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${plugins.map(p => `<tr style="border-bottom: 1px solid #ddd;">
+                            <td style="padding: 10px;">${escapeHtml(p.name || p.id)}${p.id === 'settings.reaplugin' ? ' <em style="color: #666;">(this plugin)</em>' : ''}</td>
+                            <td style="padding: 10px;">${escapeHtml(p.version) || 'N/A'}</td>
+                            <td style="padding: 10px;">
+                                <span class="status-indicator ${p.loaded ? 'status-ok' : 'status-error'}"></span>
+                                ${p.loaded ? 'Loaded' : 'Disabled'}
+                            </td>
+                            <td style="padding: 10px;">
+                                ${p.id === 'settings.reaplugin'
+                                  ? '<span style="color: #999; font-style: italic;">Cannot modify self</span>'
+                                  : `<button class="btn ${p.loaded ? '' : 'btn-primary'}" style="${p.loaded ? 'background: #f39c12; color: white;' : ''} margin-right: 4px;" onclick="${p.loaded ? `disablePlugin(${escapeHtml(JSON.stringify(p.id))})` : `enablePlugin(${escapeHtml(JSON.stringify(p.id))})`}">${p.loaded ? 'Disable' : 'Enable'}</button><button class="btn" style="background: #e74c3c; color: white;" onclick="removePlugin(${escapeHtml(JSON.stringify(p.id))}, ${escapeHtml(JSON.stringify(p.name || p.id))})">Remove</button>`}
+                            </td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>
+                <h3 style="margin-bottom: 10px; color: #2c3e50;">Install Plugin</h3>
+                <div class="setting-item" style="flex-wrap: wrap; gap: 10px;">
+                    <label class="setting-label" for="pluginUrl" style="flex-basis: 100%;">Plugin URL</label>
+                    <div class="setting-control" style="flex: 1;">
+                        <input type="text" id="pluginUrl" placeholder="https://example.com/plugin.zip" style="width: 100%; min-width: 250px;">
+                        <button class="btn btn-primary" onclick="installPlugin()">Install</button>
+                    </div>
+                </div>
+                ` : '<div class="error" role="alert">Failed to load plugins</div>'}
+            </section>
+
+            <!-- Feedback -->
+            <section class="section" aria-labelledby="feedback-heading">
+                <h2 id="feedback-heading">Feedback</h2>
+                <p style="color: #666; margin-bottom: 15px;">Submit feedback or report an issue. This will create a GitHub issue if the feedback service is configured.</p>
+                <div style="margin-bottom: 10px;">
+                    <label for="feedbackText" class="setting-label" style="display: block; margin-bottom: 8px;">Your feedback</label>
+                    <textarea id="feedbackText" rows="4" style="width: 100%; padding: 10px; border: 2px solid #999; border-radius: 4px; font-family: inherit; font-size: 14px; resize: vertical;" placeholder="Describe the issue or suggestion..."></textarea>
+                </div>
+                <button class="btn btn-primary" onclick="submitFeedback()">Submit Feedback</button>
+            </section>
+
+            <!-- About -->
+            <section class="section" aria-labelledby="about-heading">
+                <h2 id="about-heading">About</h2>
+                ${appInfo ? `
+                <div class="settings-grid" role="group" aria-label="Application information">
+                    ${appInfo.version ? `<div class="setting-item">
+                        <span class="setting-label">Version</span>
+                        <span class="readonly">${escapeHtml(appInfo.version)}</span>
+                    </div>` : ''}
+                    ${appInfo.build ? `<div class="setting-item">
+                        <span class="setting-label">Build</span>
+                        <span class="readonly">${escapeHtml(appInfo.build)}</span>
+                    </div>` : ''}
+                    ${appInfo.commit ? `<div class="setting-item">
+                        <span class="setting-label">Commit</span>
+                        <span class="readonly" style="font-size: 12px;">${escapeHtml(appInfo.commit)}</span>
+                    </div>` : ''}
+                    ${appInfo.branch ? `<div class="setting-item">
+                        <span class="setting-label">Branch</span>
+                        <span class="readonly">${escapeHtml(appInfo.branch)}</span>
+                    </div>` : ''}
+                </div>
+                ` : '<div class="error" role="alert">Failed to load app info</div>'}
             </section>
         </main>
     </div>
@@ -831,6 +1122,288 @@ function createPlugin(host) {
             }
         }
 
+        // --- Simulated Devices ---
+        async function toggleSimulatedDevice(type, checked) {
+            try {
+                // Fetch current settings to get existing list
+                const res = await fetch(baseUrl + '/api/v1/settings');
+                const settings = res.ok ? await res.json() : {};
+                let devices = Array.isArray(settings.simulatedDevices) ? [...settings.simulatedDevices] : [];
+                if (checked && !devices.includes(type)) {
+                    devices.push(type);
+                } else if (!checked) {
+                    devices = devices.filter(d => d !== type);
+                }
+                const response = await fetch(baseUrl + '/api/v1/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ simulatedDevices: devices })
+                });
+                if (response.ok) {
+                    showToast('Simulated device ' + type + (checked ? ' enabled' : ' disabled') + '. Restart the app for changes to take effect.');
+                } else {
+                    const error = await response.text();
+                    showToast('Failed to update simulated devices: ' + error, true);
+                }
+            } catch (e) {
+                showToast('Error updating simulated devices: ' + e.message, true);
+            }
+        }
+
+        // --- Skins Management ---
+        async function setDefaultSkin(id) {
+            try {
+                const response = await fetch(baseUrl + '/api/v1/webui/skins/default', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ skinId: id })
+                });
+                if (response.ok) {
+                    showToast('Default skin updated');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    const error = await response.text();
+                    showToast('Failed to set default skin: ' + error, true);
+                }
+            } catch (e) {
+                showToast('Error setting default skin: ' + e.message, true);
+            }
+        }
+
+        async function removeSkin(id, name) {
+            if (!confirm('Remove skin "' + name + '"? This cannot be undone.')) return;
+            try {
+                const response = await fetch(baseUrl + '/api/v1/webui/skins/' + encodeURIComponent(id), {
+                    method: 'DELETE'
+                });
+                if (response.ok) {
+                    showToast('Skin removed');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    const error = await response.text();
+                    showToast('Failed to remove skin: ' + error, true);
+                }
+            } catch (e) {
+                showToast('Error removing skin: ' + e.message, true);
+            }
+        }
+
+        async function installSkin() {
+            const source = document.getElementById('skinSource').value.trim();
+            if (!source) { showToast('Please enter a GitHub repo or URL', true); return; }
+
+            try {
+                let url, body;
+                // Detect owner/repo format (e.g. "user/repo")
+                if (/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(source)) {
+                    url = baseUrl + '/api/v1/webui/skins/install/github-release';
+                    body = JSON.stringify({ repo: source });
+                } else {
+                    url = baseUrl + '/api/v1/webui/skins/install/url';
+                    body = JSON.stringify({ url: source });
+                }
+                showToast('Installing skin...');
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: body
+                });
+                if (response.ok) {
+                    showToast('Skin installed successfully');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    const error = await response.text();
+                    showToast('Failed to install skin: ' + error, true);
+                }
+            } catch (e) {
+                showToast('Error installing skin: ' + e.message, true);
+            }
+        }
+
+        // --- WebUI Server ---
+        async function startWebUI() {
+            try {
+                const response = await fetch(baseUrl + '/api/v1/webui/server/start', { method: 'POST' });
+                if (response.ok) {
+                    showToast('WebUI server started');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    const error = await response.text();
+                    showToast('Failed to start WebUI server: ' + error, true);
+                }
+            } catch (e) {
+                showToast('Error starting WebUI server: ' + e.message, true);
+            }
+        }
+
+        async function stopWebUI() {
+            try {
+                const response = await fetch(baseUrl + '/api/v1/webui/server/stop', { method: 'POST' });
+                if (response.ok) {
+                    showToast('WebUI server stopped');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    const error = await response.text();
+                    showToast('Failed to stop WebUI server: ' + error, true);
+                }
+            } catch (e) {
+                showToast('Error stopping WebUI server: ' + e.message, true);
+            }
+        }
+
+        // --- Data Management ---
+        async function importData() {
+            const fileInput = document.getElementById('importFile');
+            if (!fileInput.files || !fileInput.files[0]) {
+                showToast('Please select a ZIP file first', true);
+                return;
+            }
+            try {
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                showToast('Importing data...');
+                const response = await fetch(baseUrl + '/api/v1/data/import', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (response.ok) {
+                    const result = await response.json();
+                    showToast('Data imported successfully');
+                } else {
+                    const error = await response.text();
+                    showToast('Failed to import data: ' + error, true);
+                }
+            } catch (e) {
+                showToast('Error importing data: ' + e.message, true);
+            }
+        }
+
+        async function syncData() {
+            const target = document.getElementById('syncTarget').value.trim();
+            if (!target) { showToast('Please enter a target URL', true); return; }
+
+            const mode = document.getElementById('syncMode').value;
+            const onConflict = document.getElementById('syncConflict').value;
+            const sectionCheckboxes = document.querySelectorAll('.sync-section:checked');
+            const sections = Array.from(sectionCheckboxes).map(cb => cb.value);
+
+            if (sections.length === 0) {
+                showToast('Please select at least one section to sync', true);
+                return;
+            }
+
+            try {
+                showToast('Syncing data...');
+                const response = await fetch(baseUrl + '/api/v1/data/sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target, mode, onConflict, sections })
+                });
+                if (response.ok) {
+                    const result = await response.json();
+                    showToast('Sync completed successfully');
+                } else {
+                    const error = await response.text();
+                    showToast('Sync failed: ' + error, true);
+                }
+            } catch (e) {
+                showToast('Error syncing data: ' + e.message, true);
+            }
+        }
+
+        // --- Plugin Management ---
+        async function enablePlugin(id) {
+            try {
+                const response = await fetch(baseUrl + '/api/v1/plugins/' + encodeURIComponent(id) + '/enable', { method: 'POST' });
+                if (response.ok) {
+                    showToast('Plugin enabled');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    const error = await response.text();
+                    showToast('Failed to enable plugin: ' + error, true);
+                }
+            } catch (e) {
+                showToast('Error enabling plugin: ' + e.message, true);
+            }
+        }
+
+        async function disablePlugin(id) {
+            try {
+                const response = await fetch(baseUrl + '/api/v1/plugins/' + encodeURIComponent(id) + '/disable', { method: 'POST' });
+                if (response.ok) {
+                    showToast('Plugin disabled');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    const error = await response.text();
+                    showToast('Failed to disable plugin: ' + error, true);
+                }
+            } catch (e) {
+                showToast('Error disabling plugin: ' + e.message, true);
+            }
+        }
+
+        async function removePlugin(id, name) {
+            if (!confirm('Remove plugin "' + name + '"? This cannot be undone.')) return;
+            try {
+                const response = await fetch(baseUrl + '/api/v1/plugins/' + encodeURIComponent(id), {
+                    method: 'DELETE'
+                });
+                if (response.ok) {
+                    showToast('Plugin removed');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    const error = await response.text();
+                    showToast('Failed to remove plugin: ' + error, true);
+                }
+            } catch (e) {
+                showToast('Error removing plugin: ' + e.message, true);
+            }
+        }
+
+        async function installPlugin() {
+            const url = document.getElementById('pluginUrl').value.trim();
+            if (!url) { showToast('Please enter a plugin URL', true); return; }
+            try {
+                showToast('Installing plugin...');
+                const response = await fetch(baseUrl + '/api/v1/plugins/install', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+                if (response.ok) {
+                    showToast('Plugin installed successfully');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    const error = await response.text();
+                    showToast('Failed to install plugin: ' + error, true);
+                }
+            } catch (e) {
+                showToast('Error installing plugin: ' + e.message, true);
+            }
+        }
+
+        // --- Feedback ---
+        async function submitFeedback() {
+            const text = document.getElementById('feedbackText').value.trim();
+            if (!text) { showToast('Please enter your feedback', true); return; }
+            try {
+                const response = await fetch(baseUrl + '/api/v1/feedback', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ description: text })
+                });
+                if (response.ok || response.status === 201) {
+                    showToast('Feedback submitted. Thank you!');
+                    document.getElementById('feedbackText').value = '';
+                } else {
+                    const error = await response.text();
+                    showToast('Failed to submit feedback: ' + error, true);
+                }
+            } catch (e) {
+                showToast('Error submitting feedback: ' + e.message, true);
+            }
+        }
+
         // Keyboard shortcuts
         document.addEventListener('keydown', function(e) {
             // Alt+R to refresh
@@ -862,7 +1435,7 @@ function createPlugin(host) {
   // Return the plugin object
   return {
     id: "settings.reaplugin",
-    version: "0.0.13",
+    version: "0.1.0",
 
     onLoad(settings) {
       state.refreshInterval = settings.RefreshInterval !== undefined ? settings.RefreshInterval : 5;
@@ -885,9 +1458,12 @@ function createPlugin(host) {
           fetchDe1AdvancedSettings(),
           fetchWebUISkins(),
           fetchCalibrationSettings(),
-          fetchPresenceSettings()
-        ]).then(([reaSettings, de1Settings, de1AdvancedSettings, webUISkins, calibrationSettings, presenceSettings]) => {
-          const html = generateSettingsHTML(reaSettings, de1Settings, de1AdvancedSettings, webUISkins, calibrationSettings, presenceSettings);
+          fetchPresenceSettings(),
+          fetchAppInfo(),
+          fetchWebUIServerStatus(),
+          fetchPlugins()
+        ]).then(([reaSettings, de1Settings, de1AdvancedSettings, webUISkins, calibrationSettings, presenceSettings, appInfo, webUIStatus, plugins]) => {
+          const html = generateSettingsHTML(reaSettings, de1Settings, de1AdvancedSettings, webUISkins, calibrationSettings, presenceSettings, appInfo, webUIStatus, plugins);
           
           return {
             requestId: request.requestId,
