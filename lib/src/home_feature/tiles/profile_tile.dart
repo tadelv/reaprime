@@ -422,71 +422,76 @@ class _ProfileState extends State<ProfileTile> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    Text("Input dose"),
-                    Expanded(
-                      child: ShadInput(
-                        key: Key(doseWeight.toString()),
-                        keyboardType: TextInputType.numberWithOptions(
-                          decimal: true,
+                MergeSemantics(
+                  child: Row(
+                    children: [
+                      Text("Input dose"),
+                      Expanded(
+                        child: ShadInput(
+                          key: Key(doseWeight.toString()),
+                          keyboardType: TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          initialValue: doseWeight.toStringAsFixed(1),
+                          onSubmitted: (val) {
+                            setState(() {
+                              final newDoseWeight = double.parse(val);
+                              final newYield = newDoseWeight * ratio;
+                              final newCtx = ctx.copyWith(
+                                targetDoseWeight: newDoseWeight,
+                                targetYield: newYield,
+                              );
+                              widget.workflowController.setWorkflow(
+                                widget.workflowController.currentWorkflow.copyWith(context: newCtx),
+                              );
+                            });
+                          },
                         ),
-                        initialValue: doseWeight.toStringAsFixed(1),
-                        onSubmitted: (val) {
-                          setState(() {
-                            final newDoseWeight = double.parse(val);
-                            final newYield = newDoseWeight * ratio;
-                            final newCtx = ctx.copyWith(
-                              targetDoseWeight: newDoseWeight,
-                              targetYield: newYield,
-                            );
-                            widget.workflowController.setWorkflow(
-                              widget.workflowController.currentWorkflow.copyWith(context: newCtx),
-                            );
-                          });
-                        },
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                Row(
-                  children: [
-                    Text("Ratio 1:"),
-                    Expanded(
-                      child: ShadInput(
-                        key: Key(ratio.toString()),
-                        keyboardType: TextInputType.numberWithOptions(
-                          decimal: true,
+                MergeSemantics(
+                  child: Row(
+                    children: [
+                      Text("Ratio 1:"),
+                      Expanded(
+                        child: ShadInput(
+                          key: Key(ratio.toString()),
+                          keyboardType: TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          initialValue: ratio.toStringAsFixed(1),
+                          onSubmitted: (val) {
+                            setState(() {
+                              final newRatio = double.parse(val);
+                              final newYield = doseWeight * newRatio;
+                              final newCtx = ctx.copyWith(targetYield: newYield);
+                              widget.workflowController.setWorkflow(
+                                widget.workflowController.currentWorkflow.copyWith(context: newCtx),
+                              );
+                            });
+                          },
                         ),
-                        initialValue: ratio.toStringAsFixed(1),
-                        onSubmitted: (val) {
-                          setState(() {
-                            final newRatio = double.parse(val);
-                            final newYield = doseWeight * newRatio;
-                            final newCtx = ctx.copyWith(targetYield: newYield);
-                            widget.workflowController.setWorkflow(
-                              widget.workflowController.currentWorkflow.copyWith(context: newCtx),
-                            );
-                          });
-                        },
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                Row(
-                  children: [
-                    Text("Target weight"),
-                    Expanded(
-                      child: ShadInput(
-                        key: Key(yield_.toString()),
-                        keyboardType: TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        initialValue: yield_.toStringAsFixed(1),
-                        onSubmitted: (val) {
-                          setState(() {
-                            final newYield = double.parse(val);
-                            final newCtx = ctx.copyWith(targetYield: newYield);
+                MergeSemantics(
+                  child: Row(
+                    children: [
+                      Text("Target weight"),
+                      Expanded(
+                        child: ShadInput(
+                          key: Key(yield_.toString()),
+                          keyboardType: TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          initialValue: yield_.toStringAsFixed(1),
+                          onSubmitted: (val) {
+                            setState(() {
+                              final newYield = double.parse(val);
+                              final newCtx = ctx.copyWith(targetYield: newYield);
                             widget.workflowController.setWorkflow(
                               widget.workflowController.currentWorkflow.copyWith(context: newCtx),
                             );
@@ -495,6 +500,7 @@ class _ProfileState extends State<ProfileTile> {
                       ),
                     ),
                   ],
+                  ),
                 ),
               ],
             ),
@@ -650,73 +656,77 @@ class _ProfileState extends State<ProfileTile> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          spacing: 16,
-          children: [
-            Text("Grind setting"),
-            Expanded(
-              child: Autocomplete<String>(
-                // TODO: Grinder setting autocomplete was previously sourced from shot history.
-                // Now that the in-memory cache is removed, setting suggestions are not available.
-                // Consider adding a distinct grinder_setting query to ShotDao.
-                optionsBuilder: (TextEditingValue val) {
-                  if (val.text.isEmpty) return const [];
-                  return [val.text];
-                },
-                key: Key(ctx.grinderSetting ?? ""),
-                initialValue: TextEditingValue(text: ctx.grinderSetting ?? ""),
-                onSelected: (val) {
-                  setState(() {
-                    widget.workflowController.setWorkflow(
-                      widget.workflowController.currentWorkflow.copyWith(
-                        context: ctx.copyWith(grinderSetting: val),
-                      ),
-                    );
-                  });
-                  setDialogState(() {});
-                },
+        MergeSemantics(
+          child: Row(
+            spacing: 16,
+            children: [
+              Text("Grind setting"),
+              Expanded(
+                child: Autocomplete<String>(
+                  // TODO: Grinder setting autocomplete was previously sourced from shot history.
+                  // Now that the in-memory cache is removed, setting suggestions are not available.
+                  // Consider adding a distinct grinder_setting query to ShotDao.
+                  optionsBuilder: (TextEditingValue val) {
+                    if (val.text.isEmpty) return const [];
+                    return [val.text];
+                  },
+                  key: Key(ctx.grinderSetting ?? ""),
+                  initialValue: TextEditingValue(text: ctx.grinderSetting ?? ""),
+                  onSelected: (val) {
+                    setState(() {
+                      widget.workflowController.setWorkflow(
+                        widget.workflowController.currentWorkflow.copyWith(
+                          context: ctx.copyWith(grinderSetting: val),
+                        ),
+                      );
+                    });
+                    setDialogState(() {});
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-        Row(
-          spacing: 16,
-          children: [
-            Text("Grinder model"),
-            Expanded(
-              child: Autocomplete<String>(
-                optionsBuilder: (TextEditingValue val) async {
-                  if (val.text.isEmpty || widget.grinderStorage == null) return const <String>[];
-                  final grinders = await widget.grinderStorage!.getAllGrinders();
-                  final matches = grinders
-                      .where((g) => g.model.toLowerCase().contains(val.text.toLowerCase()))
-                      .map((g) => g.model)
-                      .toSet()
-                      .toList();
-                  if (!matches.contains(val.text)) {
-                    return [val.text, ...matches];
-                  }
-                  return matches;
-                },
-                key: Key(ctx.grinderModel ?? ""),
-                initialValue: TextEditingValue(text: ctx.grinderModel ?? ""),
-                onSelected: (val) {
-                  setState(() {
-                    // Clear grinderId when freeform model is manually edited
-                    final newCtx = ctx.grinderId != null
-                        ? ctx.clearGrinder().copyWith(grinderModel: val)
-                        : ctx.copyWith(grinderModel: val);
-                    widget.workflowController.setWorkflow(
-                      widget.workflowController.currentWorkflow.copyWith(
-                        context: newCtx,
-                      ),
-                    );
-                  });
-                  setDialogState(() {});
-                },
+        MergeSemantics(
+          child: Row(
+            spacing: 16,
+            children: [
+              Text("Grinder model"),
+              Expanded(
+                child: Autocomplete<String>(
+                  optionsBuilder: (TextEditingValue val) async {
+                    if (val.text.isEmpty || widget.grinderStorage == null) return const <String>[];
+                    final grinders = await widget.grinderStorage!.getAllGrinders();
+                    final matches = grinders
+                        .where((g) => g.model.toLowerCase().contains(val.text.toLowerCase()))
+                        .map((g) => g.model)
+                        .toSet()
+                        .toList();
+                    if (!matches.contains(val.text)) {
+                      return [val.text, ...matches];
+                    }
+                    return matches;
+                  },
+                  key: Key(ctx.grinderModel ?? ""),
+                  initialValue: TextEditingValue(text: ctx.grinderModel ?? ""),
+                  onSelected: (val) {
+                    setState(() {
+                      // Clear grinderId when freeform model is manually edited
+                      final newCtx = ctx.grinderId != null
+                          ? ctx.clearGrinder().copyWith(grinderModel: val)
+                          : ctx.copyWith(grinderModel: val);
+                      widget.workflowController.setWorkflow(
+                        widget.workflowController.currentWorkflow.copyWith(
+                          context: newCtx,
+                        ),
+                      );
+                    });
+                    setDialogState(() {});
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -857,83 +867,87 @@ class _ProfileState extends State<ProfileTile> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          spacing: 16,
-          children: [
-            Text("Coffee name"),
-            Expanded(
-              child: Autocomplete<String>(
-                optionsBuilder: (TextEditingValue val) async {
-                  if (val.text.isEmpty || widget.beanStorage == null) return const <String>[];
-                  final beans = await widget.beanStorage!.getAllBeans();
-                  final matches = beans
-                      .where((b) => b.name.toLowerCase().contains(val.text.toLowerCase()))
-                      .map((b) => b.name)
-                      .toSet()
-                      .toList();
-                  if (!matches.contains(val.text)) {
-                    return [val.text, ...matches];
-                  }
-                  return matches;
-                },
-                key: Key(ctx.coffeeName ?? ""),
-                initialValue: TextEditingValue(text: ctx.coffeeName ?? ""),
-                onSelected: (val) {
-                  setState(() {
-                    // Clear beanBatchId when freeform is manually edited
-                    final newCtx = ctx.beanBatchId != null
-                        ? ctx.clearBeanBatch().copyWith(coffeeName: val)
-                        : ctx.copyWith(coffeeName: val);
-                    widget.workflowController.setWorkflow(
-                      widget.workflowController.currentWorkflow.copyWith(
-                        context: newCtx,
-                      ),
-                    );
-                  });
-                  setDialogState(() {});
-                },
+        MergeSemantics(
+          child: Row(
+            spacing: 16,
+            children: [
+              Text("Coffee name"),
+              Expanded(
+                child: Autocomplete<String>(
+                  optionsBuilder: (TextEditingValue val) async {
+                    if (val.text.isEmpty || widget.beanStorage == null) return const <String>[];
+                    final beans = await widget.beanStorage!.getAllBeans();
+                    final matches = beans
+                        .where((b) => b.name.toLowerCase().contains(val.text.toLowerCase()))
+                        .map((b) => b.name)
+                        .toSet()
+                        .toList();
+                    if (!matches.contains(val.text)) {
+                      return [val.text, ...matches];
+                    }
+                    return matches;
+                  },
+                  key: Key(ctx.coffeeName ?? ""),
+                  initialValue: TextEditingValue(text: ctx.coffeeName ?? ""),
+                  onSelected: (val) {
+                    setState(() {
+                      // Clear beanBatchId when freeform is manually edited
+                      final newCtx = ctx.beanBatchId != null
+                          ? ctx.clearBeanBatch().copyWith(coffeeName: val)
+                          : ctx.copyWith(coffeeName: val);
+                      widget.workflowController.setWorkflow(
+                        widget.workflowController.currentWorkflow.copyWith(
+                          context: newCtx,
+                        ),
+                      );
+                    });
+                    setDialogState(() {});
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-        Row(
-          spacing: 16,
-          children: [
-            Text("Roaster"),
-            Expanded(
-              child: Autocomplete<String>(
-                optionsBuilder: (TextEditingValue val) async {
-                  if (val.text.isEmpty || widget.beanStorage == null) return const <String>[];
-                  final beans = await widget.beanStorage!.getAllBeans();
-                  final matches = beans
-                      .where((b) => b.roaster.toLowerCase().contains(val.text.toLowerCase()))
-                      .map((b) => b.roaster)
-                      .toSet()
-                      .toList();
-                  if (!matches.contains(val.text)) {
-                    return [val.text, ...matches];
-                  }
-                  return matches;
-                },
-                key: Key(ctx.coffeeRoaster ?? ""),
-                initialValue: TextEditingValue(text: ctx.coffeeRoaster ?? ""),
-                onSelected: (val) {
-                  setState(() {
-                    // Clear beanBatchId when freeform is manually edited
-                    final newCtx = ctx.beanBatchId != null
-                        ? ctx.clearBeanBatch().copyWith(coffeeRoaster: val)
-                        : ctx.copyWith(coffeeRoaster: val);
-                    widget.workflowController.setWorkflow(
-                      widget.workflowController.currentWorkflow.copyWith(
-                        context: newCtx,
-                      ),
-                    );
-                  });
-                  setDialogState(() {});
-                },
+        MergeSemantics(
+          child: Row(
+            spacing: 16,
+            children: [
+              Text("Roaster"),
+              Expanded(
+                child: Autocomplete<String>(
+                  optionsBuilder: (TextEditingValue val) async {
+                    if (val.text.isEmpty || widget.beanStorage == null) return const <String>[];
+                    final beans = await widget.beanStorage!.getAllBeans();
+                    final matches = beans
+                        .where((b) => b.roaster.toLowerCase().contains(val.text.toLowerCase()))
+                        .map((b) => b.roaster)
+                        .toSet()
+                        .toList();
+                    if (!matches.contains(val.text)) {
+                      return [val.text, ...matches];
+                    }
+                    return matches;
+                  },
+                  key: Key(ctx.coffeeRoaster ?? ""),
+                  initialValue: TextEditingValue(text: ctx.coffeeRoaster ?? ""),
+                  onSelected: (val) {
+                    setState(() {
+                      // Clear beanBatchId when freeform is manually edited
+                      final newCtx = ctx.beanBatchId != null
+                          ? ctx.clearBeanBatch().copyWith(coffeeRoaster: val)
+                          : ctx.copyWith(coffeeRoaster: val);
+                      widget.workflowController.setWorkflow(
+                        widget.workflowController.currentWorkflow.copyWith(
+                          context: newCtx,
+                        ),
+                      );
+                    });
+                    setDialogState(() {});
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
