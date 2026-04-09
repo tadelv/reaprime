@@ -37,22 +37,29 @@ class _WaterLevelsFormState extends State<WaterLevelsForm> {
         mainAxisSize: MainAxisSize.min,
         spacing: 16,
         children: [
-          Text("Refill level: ${settings.refillLevel.toStringAsFixed(1)}mm"),
-          ShadSlider(
-            initialValue: settings.refillLevel.toDouble(),
-            min: 0,
-            max: 30,
-						divisions: 6,
-            thumbRadius: 15,
-            trackHeight: 15,
-            onChanged: (val) {
-              setState(() {
-                settings = De1WaterLevels(
-                  currentLevel: settings.currentLevel,
-                  refillLevel: val,
-                );
-              });
-            },
+          MergeSemantics(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Refill level: ${settings.refillLevel.toStringAsFixed(1)}mm"),
+                ShadSlider(
+                  initialValue: settings.refillLevel.toDouble(),
+                  min: 0,
+                  max: 30,
+                  divisions: 6,
+                  thumbRadius: 15,
+                  trackHeight: 15,
+                  onChanged: (val) {
+                    setState(() {
+                      settings = De1WaterLevels(
+                        currentLevel: settings.currentLevel,
+                        refillLevel: val,
+                      );
+                    });
+                  },
+                ),
+              ],
+            ),
           ),
           ShadButton(
             child: const Text('Apply'),

@@ -76,15 +76,19 @@ class _ProfileState extends State<ProfileTile> {
   }
 
   Widget _body(BuildContext context) {
-    return Column(
-      children: [
-        DefaultTextStyle(
-          style: Theme.of(context).textTheme.titleMedium!,
-          child: _title(context),
-        ),
-        ..._workflow(context),
-        ..._profileChart(context),
-      ],
+    return Semantics(
+      explicitChildNodes: true,
+      label: 'Profile and workflow',
+      child: Column(
+        children: [
+          DefaultTextStyle(
+            style: Theme.of(context).textTheme.titleMedium!,
+            child: _title(context),
+          ),
+          ..._workflow(context),
+          ..._profileChart(context),
+        ],
+      ),
     );
   }
 
@@ -93,7 +97,13 @@ class _ProfileState extends State<ProfileTile> {
       //mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        ShadButton.link(
+        Semantics(
+          button: true,
+          label: loadedProfile != null
+              ? 'Load profile, current: ${loadedProfile!.title}'
+              : 'Load profile',
+          child: ExcludeSemantics(
+            child: ShadButton.link(
           size: ShadButtonSize.sm,
           child: Text(
             loadedProfile != null ? loadedProfile!.title : "Load profile",
@@ -122,6 +132,8 @@ class _ProfileState extends State<ProfileTile> {
             }
           },
         ),
+          ),
+        ),
         ..._profileStats(),
       ],
     );
@@ -146,7 +158,10 @@ class _ProfileState extends State<ProfileTile> {
       (m, s) => max(m, max(s.getTarget(), s.limiter?.value ?? 0.0)),
     );
     return [
-      SizedBox(
+      Semantics(
+        label: 'Profile chart for ${profile.title}',
+        child: ExcludeSemantics(
+          child: SizedBox(
         height: 250,
         child: LineChart(
           LineChartData(
@@ -209,6 +224,8 @@ class _ProfileState extends State<ProfileTile> {
               ),
             ),
           ),
+        ),
+      ),
         ),
       ),
     ];
@@ -372,11 +389,17 @@ class _ProfileState extends State<ProfileTile> {
               ],
             ),
           ),
-      child: ShadButton.link(
-        child: Text("${startTemp.toStringAsFixed(1)}℃"),
-        onPressed: () {
-          temperaturePopoverController.toggle();
-        },
+      child: Semantics(
+        button: true,
+        label: 'Adjust start temperature, currently ${startTemp.toStringAsFixed(1)} degrees',
+        child: ExcludeSemantics(
+          child: ShadButton.link(
+            child: Text("${startTemp.toStringAsFixed(1)}℃"),
+            onPressed: () {
+              temperaturePopoverController.toggle();
+            },
+          ),
+        ),
       ),
     );
   }
@@ -476,11 +499,17 @@ class _ProfileState extends State<ProfileTile> {
               ],
             ),
           ),
-      child: ShadButton.link(
-        onPressed: () {
-          weightPopoverController.toggle();
-        },
-        child: Text("$doseIn : $doseOut"),
+      child: Semantics(
+        button: true,
+        label: 'Adjust dose weight, $doseIn grams in, $doseOut grams out',
+        child: ExcludeSemantics(
+          child: ShadButton.link(
+            onPressed: () {
+              weightPopoverController.toggle();
+            },
+            child: Text("$doseIn : $doseOut"),
+          ),
+        ),
       ),
     );
   }
@@ -488,35 +517,44 @@ class _ProfileState extends State<ProfileTile> {
   Widget _grinderDialog(BuildContext context) {
     final ctx = widget.workflowController.currentWorkflow.context;
     final hasGrinder = ctx?.grinderSetting != null || ctx?.grinderModel != null;
-    return ShadButton.link(
-      onPressed: () {
-        showShadDialog(
-          context: context,
-          builder:
-              (context) => ShadDialog(
-                title: const Text("Grinder Settings"),
-                child: Dialog(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    spacing: 16,
-                    children: [
-                      _grinderDataFormWithPicker(context),
-                      ShadButton(
-                        child: Text("Done"),
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
+    final grinderLabel = hasGrinder
+        ? 'Grinder settings, ${ctx?.grinderModel ?? ""} ${ctx?.grinderSetting ?? ""}'
+        : 'Set grinder';
+    return Semantics(
+      button: true,
+      label: grinderLabel,
+      child: ExcludeSemantics(
+        child: ShadButton.link(
+          onPressed: () {
+            showShadDialog(
+              context: context,
+              builder:
+                  (context) => ShadDialog(
+                    title: const Text("Grinder Settings"),
+                    child: Dialog(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        spacing: 16,
+                        children: [
+                          _grinderDataFormWithPicker(context),
+                          ShadButton(
+                            child: Text("Done"),
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                            },
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-        );
-      },
-      child: Text(
-        !hasGrinder
-            ? "Grind settings"
-            : '${ctx?.grinderModel ?? ""} ${ctx?.grinderSetting ?? ""}',
+            );
+          },
+          child: Text(
+            !hasGrinder
+                ? "Grind settings"
+                : '${ctx?.grinderModel ?? ""} ${ctx?.grinderSetting ?? ""}',
+          ),
+        ),
       ),
     );
   }
@@ -698,33 +736,42 @@ class _ProfileState extends State<ProfileTile> {
   Widget _coffeeDialog(BuildContext context) {
     final ctx = widget.workflowController.currentWorkflow.context;
     final coffeeName = ctx?.coffeeName;
+    final coffeeLabel = coffeeName != null && coffeeName.isNotEmpty
+        ? 'Coffee settings, $coffeeName'
+        : 'Set coffee';
 
-    return ShadButton.link(
-      onPressed: () {
-        showShadDialog(
-          context: context,
-          builder:
-              (context) => ShadDialog(
-                title: const Text("Coffee data"),
-                child: Dialog(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    spacing: 16,
-                    children: [
-                      _coffeeDataFormWithPicker(context),
-                      ShadButton(
-                        child: Text("Done"),
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
+    return Semantics(
+      button: true,
+      label: coffeeLabel,
+      child: ExcludeSemantics(
+        child: ShadButton.link(
+          onPressed: () {
+            showShadDialog(
+              context: context,
+              builder:
+                  (context) => ShadDialog(
+                    title: const Text("Coffee data"),
+                    child: Dialog(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        spacing: 16,
+                        children: [
+                          _coffeeDataFormWithPicker(context),
+                          ShadButton(
+                            child: Text("Done"),
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                            },
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-        );
-      },
-      child: Text(coffeeName == null || coffeeName.isEmpty ? "Coffee settings" : coffeeName),
+            );
+          },
+          child: Text(coffeeName == null || coffeeName.isEmpty ? "Coffee settings" : coffeeName),
+        ),
+      ),
     );
   }
 

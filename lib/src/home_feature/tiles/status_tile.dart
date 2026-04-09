@@ -83,7 +83,10 @@ class _StatusTileState extends State<StatusTile> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Semantics(
+      explicitChildNodes: true,
+      label: 'Machine status',
+      child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         _firstRow(),
@@ -105,87 +108,117 @@ class _StatusTileState extends State<StatusTile> {
               children: [
                 SizedBox(
                   width: 90,
-                  child: GestureDetector(
-                    onTap: () async {
-                      _showRinseSettingsDialog(context, widget.controller);
-                    },
-                    child: Row(
-                      children: [
-                        Icon(
-                          LucideIcons.showerHead,
-                          size: 32.0,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
+                  child: Semantics(
+                    button: true,
+                    label:
+                        'Flush settings, ${rinseSettings.targetTemperature} degrees, '
+                        '${rinseSettings.duration} seconds, '
+                        '${rinseSettings.flow.toStringAsFixed(1)} millilitres per second',
+                    child: GestureDetector(
+                      onTap: () async {
+                        _showRinseSettingsDialog(context, widget.controller);
+                      },
+                      child: ExcludeSemantics(
+                        child: Row(
                           children: [
-                            Text("${rinseSettings.targetTemperature}℃"),
-                            Text("${rinseSettings.duration}s"),
-                            Text(
-                              "${rinseSettings.flow.toStringAsFixed(1)}ml/s",
+                            Icon(
+                              LucideIcons.showerHead,
+                              size: 32.0,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text("${rinseSettings.targetTemperature}℃"),
+                                Text("${rinseSettings.duration}s"),
+                                Text(
+                                  "${rinseSettings.flow.toStringAsFixed(1)}ml/s",
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
                 SizedBox(
                   width: 120,
-                  child: GestureDetector(
-                    onTap: () async {
-                      _showHotWaterSettingsDialog(context, widget.controller);
-                    },
-                    child: Row(
-                      children: [
-                        Icon(
-                          LucideIcons.paintBucket,
-                          size: 32.0,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
+                  child: Semantics(
+                    button: true,
+                    label:
+                        'Hot water settings, ${hotWaterSettings.targetTemperature} degrees, '
+                        '${hotWaterSettings.volume} millilitres, '
+                        '${hotWaterSettings.duration} seconds, '
+                        '${hotWaterSettings.flow.toStringAsFixed(1)} millilitres per second',
+                    child: GestureDetector(
+                      onTap: () async {
+                        _showHotWaterSettingsDialog(
+                            context, widget.controller);
+                      },
+                      child: ExcludeSemantics(
+                        child: Row(
                           children: [
-                            Text("${hotWaterSettings.targetTemperature}℃"),
-                            Text(
-                              "${hotWaterSettings.volume}ml | ${hotWaterSettings.duration}s",
+                            Icon(
+                              LucideIcons.paintBucket,
+                              size: 32.0,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
-                            Text(
-                              "${hotWaterSettings.flow.toStringAsFixed(1)}ml/s",
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                    "${hotWaterSettings.targetTemperature}℃"),
+                                Text(
+                                  "${hotWaterSettings.volume}ml | ${hotWaterSettings.duration}s",
+                                ),
+                                Text(
+                                  "${hotWaterSettings.flow.toStringAsFixed(1)}ml/s",
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
                 SizedBox(
                   width: 90,
-                  child: GestureDetector(
-                    onTap: () async {
-                      await _showSteamSettingsDialog(
-                        context,
-                        widget.controller,
-                      );
-                    },
-                    child: Row(
-                      children: [
-                        Icon(
-                          LucideIcons.wind,
-                          size: 32.0,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
+                  child: Semantics(
+                    button: true,
+                    label:
+                        'Steam settings, ${steamSettings.targetTemperature} degrees, '
+                        '${steamSettings.duration} seconds, '
+                        '${steamSettings.flow.toStringAsFixed(1)} millilitres per second',
+                    child: GestureDetector(
+                      onTap: () async {
+                        await _showSteamSettingsDialog(
+                          context,
+                          widget.controller,
+                        );
+                      },
+                      child: ExcludeSemantics(
+                        child: Row(
                           children: [
-                            Text(
-                              "${steamSettings.flow.toStringAsFixed(1)}ml/s",
+                            Icon(
+                              LucideIcons.wind,
+                              size: 32.0,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
-                            Text("${steamSettings.targetTemperature}℃"),
-                            Text("${steamSettings.duration}s"),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  "${steamSettings.flow.toStringAsFixed(1)}ml/s",
+                                ),
+                                Text("${steamSettings.targetTemperature}℃"),
+                                Text("${steamSettings.duration}s"),
+                              ],
+                            ),
                           ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -195,6 +228,7 @@ class _StatusTileState extends State<StatusTile> {
           },
         ),
       ],
+    ),
     );
   }
 
@@ -321,71 +355,88 @@ class _StatusTileState extends State<StatusTile> {
   bool _isFindingScale = false;
 
   List<Widget> _scaleWidgets(BuildContext context) {
+    final isConnected = widget.scaleController.currentConnectionState ==
+        device.ConnectionState.connected;
+    final scaleLabel = isConnected
+        ? _weightSnapshot != null
+            ? 'Tare scale, weight ${_weightSnapshot!.weight.toStringAsFixed(1)} grams, battery ${_weightSnapshot!.battery ?? 0} percent'
+            : 'Tare scale'
+        : _isFindingScale
+            ? 'Scanning for scale'
+            : 'Connect scale';
     return [
       SizedBox(
         width: 110,
-        child: GestureDetector(
-          onTap: () async {
-            if (widget.scaleController.currentConnectionState !=
-                device.ConnectionState.connected) {
-              setState(() => _isFindingScale = true);
-              try {
-                await widget.connectionManager.connect(scaleOnly: true);
-              } catch (_) {
-                // Connection errors are handled by ConnectionManager status
-              } finally {
-                if (mounted) setState(() => _isFindingScale = false);
+        child: Semantics(
+          button: true,
+          label: scaleLabel,
+          child: GestureDetector(
+            onTap: () async {
+              if (widget.scaleController.currentConnectionState !=
+                  device.ConnectionState.connected) {
+                setState(() => _isFindingScale = true);
+                try {
+                  await widget.connectionManager.connect(scaleOnly: true);
+                } catch (_) {
+                  // Connection errors are handled by ConnectionManager status
+                } finally {
+                  if (mounted) setState(() => _isFindingScale = false);
+                }
+                if (!context.mounted) return;
+                final status = widget.connectionManager.currentStatus;
+                if (status.pendingAmbiguity == AmbiguityReason.scalePicker) {
+                  _showScalePicker(context, status.foundScales);
+                }
+              } else {
+                widget.scaleController.connectedScale().tare();
               }
-              if (!context.mounted) return;
-              final status = widget.connectionManager.currentStatus;
-              if (status.pendingAmbiguity == AmbiguityReason.scalePicker) {
-                _showScalePicker(context, status.foundScales);
-              }
-            } else {
-              widget.scaleController.connectedScale().tare();
-            }
-          },
-          child: Row(
-            spacing: 8,
-            children: [
-              Icon(
-                LucideIcons.scale,
-                size: 32.0,
-                color: Theme.of(context).colorScheme.onSurface,
+            },
+            child: ExcludeSemantics(
+              child: Row(
+                spacing: 8,
+                children: [
+                  Icon(
+                    LucideIcons.scale,
+                    size: 32.0,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  StreamBuilder(
+                    stream: widget.scaleController.connectionState,
+                    builder: (context, state) {
+                      if (state.connectionState != ConnectionState.active ||
+                          !state.hasData ||
+                          state.data != device.ConnectionState.connected) {
+                        return _isFindingScale
+                            ? Semantics(
+                              label: 'Scanning for scale',
+                              child: CircularProgressIndicator(
+                                constraints: BoxConstraints.tightFor(
+                                  width: 22,
+                                  height: 22,
+                                ),
+                              ),
+                            )
+                            : Text("Scale");
+                      }
+                      return _weightSnapshot == null
+                          ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [Text("W: --g"), Text("B: --%")],
+                          )
+                          : Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                "W: ${_weightSnapshot!.weight.toStringAsFixed(1)}g",
+                              ),
+                              Text("B: ${_weightSnapshot!.battery ?? 0}%"),
+                            ],
+                          );
+                    },
+                  ),
+                ],
               ),
-              StreamBuilder(
-                stream: widget.scaleController.connectionState,
-                builder: (context, state) {
-                  if (state.connectionState != ConnectionState.active ||
-                      !state.hasData ||
-                      state.data != device.ConnectionState.connected) {
-                    return _isFindingScale
-                        ? CircularProgressIndicator(
-                          constraints: BoxConstraints.tightFor(
-                            width: 22,
-                            height: 22,
-                          ),
-                        )
-                        : Text("Scale");
-                  }
-                  return _weightSnapshot == null
-                      ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [Text("W: --g"), Text("B: --%")],
-                      )
-                      : Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            "W: ${_weightSnapshot!.weight.toStringAsFixed(1)}g",
-                          ),
-
-                          Text("B: ${_weightSnapshot!.battery ?? 0}%"),
-                        ],
-                      );
-                },
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -452,8 +503,9 @@ class _StatusTileState extends State<StatusTile> {
           Text("Waiting")
         else
           Semantics(
+            button: true,
             label:
-                'Water level ${_waterLevels!.currentLevel.toStringAsFixed(1)} millimeters',
+                'Water level ${_waterLevels!.currentLevel.toStringAsFixed(1)} millimeters, tap to edit',
             child: ExcludeSemantics(
               child: SizedBox(
                 width: boxWidth,
