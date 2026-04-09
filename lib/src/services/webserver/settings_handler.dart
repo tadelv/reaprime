@@ -45,6 +45,8 @@ class SettingsHandler {
         'nightModeSleepTime': _controller.nightModeSleepTime,
         'nightModeMorningTime': _controller.nightModeMorningTime,
         'lowBatteryBrightnessLimit': _controller.lowBatteryBrightnessLimit,
+        'simulatedDevices': _controller.simulatedDevices.map((e) => e.name).toList(),
+        'themeMode': _controller.themeMode.name,
       };
       if (_batteryController?.currentChargingState != null) {
         result['chargingState'] = _batteryController!.currentChargingState!.toJson();
@@ -201,6 +203,28 @@ class SettingsHandler {
           return Response.badRequest(
             body: {'message': 'lowBatteryBrightnessLimit must be a boolean'},
           );
+        }
+      }
+      if (json.containsKey('simulatedDevices')) {
+        final value = json['simulatedDevices'];
+        if (value is List) {
+          final devices = <SimulatedDevicesTypes>{};
+          for (final item in value) {
+            if (item is String) {
+              final type = SimulatedDevicesTypesFromString.fromString(item);
+              if (type != null) devices.add(type);
+            }
+          }
+          await _controller.setSimulatedDevices(devices);
+        }
+      }
+      if (json.containsKey('themeMode')) {
+        final value = json['themeMode'];
+        if (value is String) {
+          final mode = ThemeMode.values.where((e) => e.name == value).firstOrNull;
+          if (mode != null) {
+            await _controller.updateThemeMode(mode);
+          }
         }
       }
       return Response.ok('');
