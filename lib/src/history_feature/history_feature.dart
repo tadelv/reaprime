@@ -86,6 +86,44 @@ class _HistoryFeatureState extends State<HistoryFeature> {
     }
   }
 
+  String _shotListItemLabel(ShotRecord record, int durationSeconds) {
+    final parts = <String>[record.shotTime()];
+    if (record.workflow.context?.coffeeName != null) {
+      parts.add(record.workflow.context!.coffeeName!);
+    }
+    if (record.workflow.context?.coffeeRoaster != null) {
+      parts.add('by ${record.workflow.context!.coffeeRoaster!}');
+    }
+    parts.add(record.workflow.profile.title);
+    if (record.workflow.context?.targetDoseWeight != null) {
+      parts.add('${record.workflow.context!.targetDoseWeight!}g in');
+    }
+    if (record.workflow.context?.targetYield != null) {
+      parts.add('${record.workflow.context!.targetYield!}g out');
+    }
+    parts.add('${durationSeconds}s');
+    return parts.join(', ');
+  }
+
+  String _chartSummaryLabel(ShotRecord record) {
+    final duration = record.measurements.isNotEmpty
+        ? record.measurements.last.machine.timestamp.difference(record.timestamp)
+        : Duration.zero;
+    final parts = <String>['Shot profile chart'];
+    parts.add('duration ${duration.inSeconds} seconds');
+    if (record.measurements.isNotEmpty) {
+      final maxPressure = record.measurements
+          .map((m) => m.machine.pressure)
+          .reduce((a, b) => a > b ? a : b);
+      parts.add('peak pressure ${maxPressure.toStringAsFixed(1)} bar');
+      final maxFlow = record.measurements
+          .map((m) => m.machine.flow)
+          .reduce((a, b) => a > b ? a : b);
+      parts.add('peak flow ${maxFlow.toStringAsFixed(1)} millilitres per second');
+    }
+    return parts.join(', ');
+  }
+
   @override
   void dispose() {
     _shotsSubscription.cancel();
@@ -127,12 +165,15 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                   hintText: "Search by coffee, roaster, profile, grinder, or notes...",
                 ),
                 if (_searchController.text.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4.0, left: 8.0),
-                    child: Text(
-                      "Found ${_shots.length} shot${_shots.length == 1 ? '' : 's'}",
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                  Semantics(
+                    liveRegion: true,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 4.0, left: 8.0),
+                      child: Text(
+                        "Found ${_shots.length} shot${_shots.length == 1 ? '' : 's'}",
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                        ),
                       ),
                     ),
                   ),
@@ -150,7 +191,13 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                     : Duration.zero;
                 final durationSeconds = duration.inSeconds;
                 
-                return Padding(
+                return Semantics(
+                  button: true,
+                  selected: isSelected,
+                  label: _shotListItemLabel(record, durationSeconds),
+                  onTap: () => _selectShot(record),
+                  child: ExcludeSemantics(
+                    child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
                   child: TapRegion(
                     onTapUpInside: (_) {
@@ -158,8 +205,8 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                     },
                     child: Container(
                       decoration: BoxDecoration(
-                        color: isSelected 
-                            ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3)
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3)
                             : null,
                         border: isSelected
                             ? Border.all(
@@ -201,12 +248,12 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                             ],
                           ),
                           const SizedBox(height: 8),
-                          
+
                           // Coffee and roaster
                           if (record.workflow.context?.coffeeName != null) ...[
                             Row(
                               children: [
-                                Icon(Icons.coffee, size: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+                                Icon(Icons.coffee, size: 14, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
@@ -226,7 +273,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                                 child: Text(
                                   record.workflow.context!.coffeeRoaster!,
                                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -234,11 +281,11 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                               ),
                             const SizedBox(height: 6),
                           ],
-                          
+
                           // Profile name
                           Row(
                             children: [
-                              Icon(Icons.dashboard_customize, size: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+                              Icon(Icons.dashboard_customize, size: 14, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
@@ -251,12 +298,12 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                             ],
                           ),
                           const SizedBox(height: 6),
-                          
+
                           // Dose ratio
                           if (record.workflow.context?.targetDoseWeight != null) ...[
                             Row(
                               children: [
-                                Icon(Icons.scale, size: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+                                Icon(Icons.scale, size: 14, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
                                 const SizedBox(width: 4),
                                 Text(
                                   "${record.workflow.context!.targetDoseWeight!}g → ${record.workflow.context?.targetYield ?? 0}g",
@@ -269,20 +316,20 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                                   Text(
                                     "(1:${record.workflow.context!.ratio!.toStringAsFixed(1)})",
                                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                                     ),
                                   ),
                                 ],
                               ],
                             ),
                           ],
-                          
+
                           // Grinder info
                           if (record.workflow.context?.grinderModel != null || record.workflow.context?.grinderSetting != null) ...[
                             const SizedBox(height: 6),
                             Row(
                               children: [
-                                Icon(Icons.settings, size: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+                                Icon(Icons.settings, size: 14, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
@@ -295,7 +342,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                               ],
                             ),
                           ],
-                          
+
                           // Notes preview
                           if (record.annotations?.espressoNotes != null && record.annotations!.espressoNotes!.isNotEmpty) ...[
                             const SizedBox(height: 8),
@@ -308,7 +355,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(Icons.note, size: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+                                  Icon(Icons.note, size: 12, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
                                   const SizedBox(width: 4),
                                   Expanded(
                                     child: Text(
@@ -324,7 +371,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                               ),
                             ),
                           ],
-                          
+
                           // Metadata tags
                           if (record.annotations?.extras != null && record.annotations!.extras!['tags'] != null) ...[
                             const SizedBox(height: 6),
@@ -354,6 +401,8 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                       ),
                     ),
                   ),
+                ),
+                  ),
                 );
               },
             ),
@@ -369,7 +418,12 @@ class _HistoryFeatureState extends State<HistoryFeature> {
       child:
           _selectedShot != null
               ? shotDetail(context, _selectedShot!)
-              : Center(child: Text("No shot selected")),
+              : Center(
+                  child: Semantics(
+                    label: 'No shot selected, select a shot from the list',
+                    child: ExcludeSemantics(child: Text("No shot selected")),
+                  ),
+                ),
     );
   }
 
@@ -404,7 +458,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                       Text(
                         record.shotTime(),
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                         ),
                       ),
                     ],
@@ -414,40 +468,58 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    ShadButton.outline(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.edit, size: 16),
-                          SizedBox(width: 4),
-                          Text("Edit"),
-                        ],
+                    Semantics(
+                      button: true,
+                      label: 'Edit shot notes',
+                      child: ExcludeSemantics(
+                        child: ShadButton.outline(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.edit, size: 16),
+                              SizedBox(width: 4),
+                              Text("Edit"),
+                            ],
+                          ),
+                          onPressed: () => _showEditDialog(context, record),
+                        ),
                       ),
-                      onPressed: () => _showEditDialog(context, record),
                     ),
-                    ShadButton(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.replay, size: 16),
-                          SizedBox(width: 4),
-                          Text("Repeat"),
-                        ],
+                    Semantics(
+                      button: true,
+                      label: 'Repeat this shot',
+                      child: ExcludeSemantics(
+                        child: ShadButton(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.replay, size: 16),
+                              SizedBox(width: 4),
+                              Text("Repeat"),
+                            ],
+                          ),
+                          onPressed: () {
+                            widget.workflowController.setWorkflow(record.workflow.copyWith());
+                          },
+                        ),
                       ),
-                      onPressed: () {
-                        widget.workflowController.setWorkflow(record.workflow.copyWith());
-                      },
                     ),
-                    ShadButton.destructive(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.delete, size: 16),
-                          SizedBox(width: 4),
-                          Text("Delete"),
-                        ],
+                    Semantics(
+                      button: true,
+                      label: 'Delete this shot',
+                      child: ExcludeSemantics(
+                        child: ShadButton.destructive(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.delete, size: 16),
+                              SizedBox(width: 4),
+                              Text("Delete"),
+                            ],
+                          ),
+                          onPressed: () => _confirmDelete(context, record),
+                        ),
                       ),
-                      onPressed: () => _confirmDelete(context, record),
                     ),
                   ],
                 ),
@@ -491,19 +563,24 @@ class _HistoryFeatureState extends State<HistoryFeature> {
             SizedBox(height: 20),
             
             // Coffee details section
-            ShadCard(
+            Semantics(
+              explicitChildNodes: true,
+              child: ShadCard(
               padding: EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.coffee, size: 20),
+                      ExcludeSemantics(child: Icon(Icons.coffee, size: 20)),
                       SizedBox(width: 8),
-                      Text(
-                        "Coffee Details",
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          "Coffee Details",
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
@@ -535,22 +612,28 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                 ],
               ),
             ),
+            ),
             SizedBox(height: 16),
-            
+
             // Equipment section
-            ShadCard(
+            Semantics(
+              explicitChildNodes: true,
+              child: ShadCard(
               padding: EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.settings, size: 20),
+                      ExcludeSemantics(child: Icon(Icons.settings, size: 20)),
                       SizedBox(width: 8),
-                      Text(
-                        "Equipment",
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          "Equipment",
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
@@ -577,23 +660,29 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                 ],
               ),
             ),
+            ),
             
             // Notes section
             if (record.annotations?.espressoNotes != null && record.annotations!.espressoNotes!.isNotEmpty) ...[
               SizedBox(height: 16),
-              ShadCard(
+              Semantics(
+                explicitChildNodes: true,
+                child: ShadCard(
                 padding: EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.note, size: 20),
+                        ExcludeSemantics(child: Icon(Icons.note, size: 20)),
                         SizedBox(width: 8),
-                        Text(
-                          "Notes",
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            "Notes",
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],
@@ -606,24 +695,30 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                   ],
                 ),
               ),
+              ),
             ],
             
             // Extras section
             if (record.annotations?.extras != null && record.annotations!.extras!.isNotEmpty) ...[
               SizedBox(height: 16),
-              ShadCard(
+              Semantics(
+                explicitChildNodes: true,
+                child: ShadCard(
                 padding: EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.label, size: 20),
+                        ExcludeSemantics(child: Icon(Icons.label, size: 20)),
                         SizedBox(width: 8),
-                        Text(
-                          "Additional Info",
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            "Additional Info",
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],
@@ -633,35 +728,40 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                       if (entry.key == 'tags' && entry.value is List) {
                         return Padding(
                           padding: EdgeInsets.only(bottom: 8),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "Tags:",
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                                ),
-                              ),
-                              SizedBox(height: 4),
-                              Wrap(
-                                spacing: 6,
-                                runSpacing: 6,
+                          child: Semantics(
+                            label: 'Tags: ${(entry.value as List).join(", ")}',
+                            child: ExcludeSemantics(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  for (var tag in (entry.value as List))
-                                    Container(
-                                      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context).colorScheme.tertiaryContainer,
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      child: Text(
-                                        tag.toString(),
-                                        style: Theme.of(context).textTheme.bodySmall,
-                                      ),
+                                  Text(
+                                    "Tags:",
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                                     ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: [
+                                      for (var tag in (entry.value as List))
+                                        Container(
+                                          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(context).colorScheme.tertiaryContainer,
+                                            borderRadius: BorderRadius.circular(16),
+                                          ),
+                                          child: Text(
+                                            tag.toString(),
+                                            style: Theme.of(context).textTheme.bodySmall,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
                                 ],
                               ),
-                            ],
+                            ),
                           ),
                         );
                       }
@@ -674,24 +774,33 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                   ],
                 ),
               ),
+              ),
             ],
             
             SizedBox(height: 20),
             
             // Chart section
-            Text(
-              "Shot Profile",
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+            Semantics(
+              header: true,
+              child: Text(
+                "Shot Profile",
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             SizedBox(height: 12),
-            SizedBox(
-              height: 500,
-              child: ShotChart(
-                key: ValueKey(record.id),
-                shotSnapshots: record.measurements,
-                shotStartTime: record.timestamp,
+            Semantics(
+              label: _chartSummaryLabel(record),
+              child: ExcludeSemantics(
+                child: SizedBox(
+                  height: 500,
+                  child: ShotChart(
+                    key: ValueKey(record.id),
+                    shotSnapshots: record.measurements,
+                    shotStartTime: record.timestamp,
+                  ),
+                ),
               ),
             ),
             
@@ -701,7 +810,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
               child: Text(
                 "Shot ID: ${record.id}",
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
               ),
             ),
@@ -818,26 +927,31 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ShadCard(
-      padding: EdgeInsets.all(12),
-      child: Column(
-        children: [
-          Icon(icon, size: 24, color: Theme.of(context).colorScheme.primary),
-          SizedBox(height: 8),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+    return Semantics(
+      label: '$label: $value',
+      child: ExcludeSemantics(
+        child: ShadCard(
+          padding: EdgeInsets.all(12),
+          child: Column(
+            children: [
+              Icon(icon, size: 24, color: Theme.of(context).colorScheme.primary),
+              SizedBox(height: 8),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+            ],
           ),
-          SizedBox(height: 4),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -856,27 +970,29 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              "$label:",
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+    return MergeSemantics(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 100,
+              child: Text(
+                "$label:",
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
               ),
             ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: Theme.of(context).textTheme.bodyMedium,
+            Expanded(
+              child: Text(
+                value,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
