@@ -209,20 +209,20 @@ class SettingsHandler {
         final value = json['simulatedDevices'];
         if (value is! List) {
           return Response.badRequest(
-            body: 'simulatedDevices must be a list',
+            body: {'message': 'simulatedDevices must be a list'},
           );
         }
         final devices = <SimulatedDevicesTypes>{};
         for (final item in value) {
           if (item is! String) {
             return Response.badRequest(
-              body: 'Invalid simulated device type: $item',
+              body: {'message': 'Invalid simulated device type: $item'},
             );
           }
           final type = SimulatedDevicesTypesFromString.fromString(item);
           if (type == null) {
             return Response.badRequest(
-              body: 'Invalid simulated device type: $item',
+              body: {'message': 'Invalid simulated device type: $item'},
             );
           }
           devices.add(type);
@@ -233,14 +233,16 @@ class SettingsHandler {
         final value = json['themeMode'];
         if (value is! String) {
           return Response.badRequest(
-            body: 'themeMode must be a string',
+            body: {'message': 'themeMode must be a string'},
           );
         }
         final mode = ThemeMode.values.where((e) => e.name == value).firstOrNull;
         if (mode == null) {
           return Response.badRequest(
-            body:
-                'Invalid theme mode: $value. Valid values: system, light, dark',
+            body: {
+              'message':
+                  'Invalid theme mode: $value. Valid values: system, light, dark',
+            },
           );
         }
         await _controller.updateThemeMode(mode);

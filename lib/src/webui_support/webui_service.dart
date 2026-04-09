@@ -92,11 +92,12 @@ class WebUIService {
 
     try {
       _server = await shelf_io.serve(handler, '0.0.0.0', port);
+      _log.fine("serving $path");
+      _path = path;
     } catch (e, st) {
       _log.severe("failed to start serving", e, st);
+      rethrow;
     }
-    _log.fine("serving $path");
-    _path = path;
   }
 
   String serverIP() {
