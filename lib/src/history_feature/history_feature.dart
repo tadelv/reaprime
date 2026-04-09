@@ -101,7 +101,16 @@ class _HistoryFeatureState extends State<HistoryFeature> {
     if (record.workflow.context?.targetYield != null) {
       parts.add('${record.workflow.context!.targetYield!}g out');
     }
+    if (record.workflow.context?.grinderModel != null) {
+      final grinder = record.workflow.context!.grinderModel!;
+      final setting = record.workflow.context?.grinderSetting;
+      parts.add(setting != null ? '$grinder at $setting' : grinder);
+    }
     parts.add('${durationSeconds}s');
+    if (record.annotations?.espressoNotes != null &&
+        record.annotations!.espressoNotes!.isNotEmpty) {
+      parts.add('has notes');
+    }
     return parts.join(', ');
   }
 
@@ -195,14 +204,14 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                   button: true,
                   selected: isSelected,
                   label: _shotListItemLabel(record, durationSeconds),
-                  onTap: () => _selectShot(record),
                   child: ExcludeSemantics(
                     child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                  child: TapRegion(
-                    onTapUpInside: (_) {
+                  child: InkWell(
+                    onTap: () {
                       _selectShot(record);
                     },
+                    borderRadius: BorderRadius.circular(8),
                     child: Container(
                       decoration: BoxDecoration(
                         color: isSelected
@@ -770,7 +779,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                         value: entry.value.toString(),
                         context: context,
                       );
-                    }).toList(),
+                    }),
                   ],
                 ),
               ),
@@ -828,20 +837,6 @@ class _HistoryFeatureState extends State<HistoryFeature> {
       builder: (context) => ShadDialog(
         title: Text('Edit Shot'),
         description: Text('Update shot notes'),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              ShadInput(
-                controller: notesController,
-                placeholder: const Text('Add notes about this shot...'),
-                maxLines: 5,
-              ),
-            ],
-          ),
-        ),
         actions: [
           ShadButton.outline(
             child: const Text('Cancel'),
@@ -858,6 +853,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                   annotations: updatedAnnotations,
                 );
                 await widget.persistenceController.updateShot(updatedShot);
+                if (!context.mounted) return;
                 Navigator.of(context).pop();
                 if (!mounted) return;
                 setState(() {
@@ -865,7 +861,7 @@ class _HistoryFeatureState extends State<HistoryFeature> {
                 });
               } catch (e) {
                 _log.severe("Failed to update shot", e);
-                // Show error toast
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Failed to update shot: $e')),
                 );
@@ -873,6 +869,20 @@ class _HistoryFeatureState extends State<HistoryFeature> {
             },
           ),
         ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ShadInput(
+                controller: notesController,
+                placeholder: const Text('Add notes about this shot...'),
+                maxLines: 5,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -893,12 +903,15 @@ class _HistoryFeatureState extends State<HistoryFeature> {
             onPressed: () async {
               try {
                 await widget.persistenceController.deleteShot(record.id);
+                if (!context.mounted) return;
                 Navigator.of(context).pop();
+                if (!mounted) return;
                 setState(() {
                   _selectedShot = null;
                 });
               } catch (e) {
                 _log.severe("Failed to delete shot", e);
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Failed to delete shot: $e')),
                 );
