@@ -9,5 +9,13 @@
     "type": "github_branch",
     "repo": "allofmeng/streamline_project",
     "branch": "main"
+  },
+  {
+    "type": "github_release",
+    "repo": "tadelv/extracto-patronum"
+  },
+  {
+    "type": "github_release",
+    "repo": "tadelv/passione"
   }
 ]

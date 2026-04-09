@@ -209,20 +209,23 @@ class SettingsHandler {
         final value = json['simulatedDevices'];
         if (value is! List) {
           return Response.badRequest(
-            body: {'message': 'simulatedDevices must be a list'},
+            body: jsonEncode({'message': 'simulatedDevices must be a list'}),
+            headers: {'Content-Type': 'application/json'},
           );
         }
         final devices = <SimulatedDevicesTypes>{};
         for (final item in value) {
           if (item is! String) {
             return Response.badRequest(
-              body: {'message': 'Invalid simulated device type: $item'},
+              body: jsonEncode({'message': 'Invalid simulated device type: $item'}),
+              headers: {'Content-Type': 'application/json'},
             );
           }
           final type = SimulatedDevicesTypesFromString.fromString(item);
           if (type == null) {
             return Response.badRequest(
-              body: {'message': 'Invalid simulated device type: $item'},
+              body: jsonEncode({'message': 'Invalid simulated device type: $item'}),
+              headers: {'Content-Type': 'application/json'},
             );
           }
           devices.add(type);
@@ -233,16 +236,18 @@ class SettingsHandler {
         final value = json['themeMode'];
         if (value is! String) {
           return Response.badRequest(
-            body: {'message': 'themeMode must be a string'},
+            body: jsonEncode({'message': 'themeMode must be a string'}),
+            headers: {'Content-Type': 'application/json'},
           );
         }
         final mode = ThemeMode.values.where((e) => e.name == value).firstOrNull;
         if (mode == null) {
           return Response.badRequest(
-            body: {
+            body: jsonEncode({
               'message':
                   'Invalid theme mode: $value. Valid values: system, light, dark',
-            },
+            }),
+            headers: {'Content-Type': 'application/json'},
           );
         }
         await _controller.updateThemeMode(mode);
