@@ -140,7 +140,7 @@ Future<void> startWebServer(
 
   final profileHandler = ProfileHandler(controller: profileController);
   
-  final webUIHandler = WebUIHandler(storage: webUIStorage);
+  final webUIHandler = WebUIHandler(storage: webUIStorage, service: webUIService);
 
   final feedbackHandler = FeedbackHandler(
     service: FeedbackService(
