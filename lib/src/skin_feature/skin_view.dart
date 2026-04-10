@@ -75,6 +75,10 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (_webViewController == null) return;
 
+    if (!(Platform.isAndroid || Platform.isIOS)) {
+      return;
+    }
+
     if (state == AppLifecycleState.paused) {
       _log.info('App backgrounded — pausing WebView and loading blank page');
       _webViewController?.pause();
