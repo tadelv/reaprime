@@ -2489,6 +2489,25 @@ paths:
         "500":
           description: Internal Server Error
 
+  /api/v1/webui/skins/update:
+    post:
+      summary: Check for skin updates
+      description: Triggers an update check for all skins from their remote sources (GitHub releases, branches). Skins with newer versions available will be downloaded and updated.
+      tags: [WebUI]
+      responses:
+        "200":
+          description: Update check completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Skin update check completed"
+        "500":
+          description: Update check failed
+
   /api/v1/webui/server/status:
     get:
       summary: Get WebUI server status
