@@ -766,7 +766,7 @@ function createPlugin(host) {
             <!-- Web Interface -->
             <section class="section" aria-labelledby="webui-heading">
                 <h2 id="webui-heading">Web Interface</h2>
-                ${webUISkins && webUIStatus ? `
+                ${webUISkins ? `
                 <div class="settings-grid" role="group" aria-label="Active skin and server status">
                     <div class="setting-item">
                         <label class="setting-label" for="activeSkin">Active Skin</label>
@@ -779,6 +779,7 @@ function createPlugin(host) {
                             <button class="btn btn-primary" onclick="switchSkin()">Apply</button>
                         </div>
                     </div>
+                    ${webUIStatus ? `
                     <div class="setting-item">
                         <span class="setting-label">Server</span>
                         <span class="readonly">
@@ -796,6 +797,7 @@ function createPlugin(host) {
                               : '<button class="btn btn-primary" onclick="startWebUI()">Start Server</button>'}
                         </div>
                     </div>
+                    ` : '<div class="setting-item"><span class="setting-label">Server</span><span class="readonly" style="color: #e74c3c;">Failed to load server status</span></div>'}
                 </div>
 
                 <h3 style="margin-top: 20px; margin-bottom: 10px; color: #2c3e50;">Installed Skins</h3>
@@ -930,12 +932,12 @@ function createPlugin(host) {
                         </tr>`).join('')}
                     </tbody>
                 </table>
-                <h3 style="margin-bottom: 10px; color: #2c3e50;">Install Plugin</h3>
+                <h3 style="margin-bottom: 10px; color: #2c3e50;">Install Plugin (coming soon)</h3>
                 <div class="setting-item" style="flex-wrap: wrap; gap: 10px;">
                     <label class="setting-label" for="pluginUrl" style="flex-basis: 100%;">Plugin URL</label>
                     <div class="setting-control" style="flex: 1;">
-                        <input type="text" id="pluginUrl" placeholder="https://example.com/plugin.zip" style="width: 100%; min-width: 250px;">
-                        <button class="btn btn-primary" onclick="installPlugin()">Install</button>
+                        <input type="text" id="pluginUrl" placeholder="https://example.com/plugin.zip" style="width: 100%; min-width: 250px;" disabled>
+                        <button class="btn btn-primary" onclick="installPlugin()" disabled>Install</button>
                     </div>
                 </div>
                 ` : '<div class="error" role="alert">Failed to load plugins</div>'}
@@ -1146,7 +1148,6 @@ function createPlugin(host) {
         //   2. If server is running: stop, then start (picks up new default)
         async function switchSkin() {
             const skinId = document.getElementById('activeSkin').value;
-            console.log('[settings plugin] switchSkin called with:', skinId);
             if (!skinId) { showToast('Please select a skin', true); return; }
             try {
                 showToast('Switching skin...');
@@ -1285,17 +1286,16 @@ function createPlugin(host) {
                 showToast('Please select a ZIP file first', true);
                 return;
             }
+            showToast('Importing data...');
             try {
-                const formData = new FormData();
-                formData.append('file', fileInput.files[0]);
-                showToast('Importing data...');
                 const response = await fetch(baseUrl + '/api/v1/data/import', {
                     method: 'POST',
-                    body: formData
+                    headers: { 'Content-Type': 'application/zip' },
+                    body: fileInput.files[0]
                 });
                 if (response.ok) {
-                    const result = await response.json();
                     showToast('Data imported successfully');
+                    setTimeout(() => location.reload(), 1000);
                 } else {
                     const error = await response.text();
                     showToast('Failed to import data: ' + error, true);

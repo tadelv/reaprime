@@ -990,22 +990,30 @@ class WebUIStorage {
     for (final dir in directories) {
       try {
         final skinId = p.basename(dir.path);
-        
+
         // Get REA metadata if it exists
         final reaMetadata = _skinMetadata[skinId];
-        
-        // Try to load metadata from manifest.json if it exists
+
+        // Try to load metadata from skin-manifest.json first (skin-specific),
+        // then manifest.json (may be a PWA manifest without an id field)
+        final skinManifestFile = File('${dir.path}/skin-manifest.json');
         final manifestFile = File('${dir.path}/manifest.json');
         WebUISkin skin;
-        
-        if (manifestFile.existsSync()) {
-          final manifestJson = jsonDecode(await manifestFile.readAsString());
+
+        Map<String, dynamic>? skinMeta;
+        if (skinManifestFile.existsSync()) {
+          skinMeta = jsonDecode(await skinManifestFile.readAsString()) as Map<String, dynamic>;
+        } else if (manifestFile.existsSync()) {
+          skinMeta = jsonDecode(await manifestFile.readAsString()) as Map<String, dynamic>;
+        }
+
+        if (skinMeta != null) {
           skin = WebUISkin(
-            id: manifestJson['id'] as String? ?? skinId,
-            name: manifestJson['name'] as String? ?? skinId,
+            id: skinMeta['id'] as String? ?? skinId,
+            name: skinMeta['name'] as String? ?? skinId,
             path: dir.path,
-            description: manifestJson['description'] as String?,
-            version: manifestJson['version'] as String?,
+            description: skinMeta['description'] as String?,
+            version: skinMeta['version'] as String?,
             isBundled: _isBundledSkin(skinId),
             reaMetadata: reaMetadata,
           );
@@ -1103,11 +1111,16 @@ class WebUIStorage {
   /// Install a WebUI skin from a directory
   /// Returns the installed skin ID
   Future<String> _installFromDirectory(Directory sourceDir) async {
-    // Try to load manifest to get skin ID, otherwise use directory name
+    // Try to load skin ID from skin-manifest.json first, then manifest.json,
+    // otherwise fall back to directory name
     String skinId;
+    final skinManifestFile = File('${sourceDir.path}/skin-manifest.json');
     final manifestFile = File('${sourceDir.path}/manifest.json');
-    
-    if (manifestFile.existsSync()) {
+
+    if (skinManifestFile.existsSync()) {
+      final skinManifestJson = jsonDecode(await skinManifestFile.readAsString());
+      skinId = skinManifestJson['id'] as String? ?? p.basename(sourceDir.path);
+    } else if (manifestFile.existsSync()) {
       final manifestJson = jsonDecode(await manifestFile.readAsString());
       skinId = manifestJson['id'] as String? ?? p.basename(sourceDir.path);
     } else {
