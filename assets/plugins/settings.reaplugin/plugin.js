@@ -820,6 +820,10 @@ function createPlugin(host) {
                     </tbody>
                 </table>
 
+                <div style="margin-bottom: 20px;">
+                    <button class="btn btn-primary" onclick="checkSkinUpdates()">Check for Skin Updates</button>
+                </div>
+
                 <h3 style="margin-bottom: 10px; color: #2c3e50;">Install Skin</h3>
                 <div class="setting-item" style="flex-wrap: wrap; gap: 10px;">
                     <label class="setting-label" for="skinSource" style="flex-basis: 100%;">GitHub repo (owner/repo) or ZIP URL</label>
@@ -1192,6 +1196,22 @@ function createPlugin(host) {
                 }
             } catch (e) {
                 showToast('Error removing skin: ' + e.message, true);
+            }
+        }
+
+        async function checkSkinUpdates() {
+            try {
+                showToast('Checking for skin updates...');
+                const response = await fetch(baseUrl + '/api/v1/webui/skins/update', { method: 'POST' });
+                if (response.ok) {
+                    showToast('Skin update check completed');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    const error = await response.text();
+                    showToast('Update check failed: ' + error, true);
+                }
+            } catch (e) {
+                showToast('Error checking for updates: ' + e.message, true);
             }
         }
 
