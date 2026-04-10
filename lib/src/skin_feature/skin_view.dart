@@ -530,7 +530,7 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
             final url = navigationAction.request.url.toString();
 
             // Allow all navigation within localhost:3000
-            if (url.startsWith('http://localhost:3000')) {
+            if (url.startsWith('http://localhost:3000') || url.contains('/api/v1/plugins/settings.reaplugin')) {
               _log.fine('Allowing navigation to: $url');
               return NavigationActionPolicy.ALLOW;
             }
