@@ -15,7 +15,7 @@ This file provides guidance for AI coding agents that don't natively read `CLAUD
 These sections are tool-agnostic and apply to all agents:
 - **Project Overview** — Tech stack, architecture, supported platforms
 - **Commands** — Run, test, lint, build commands
-- **Architecture** — Design principles, layer overview, key controllers, storage, REST API
+- **Architecture** — Design principles, layer overview, key controllers, storage
 - **Conventions & Gotchas** — RxDart patterns, BLE handling, StreamBuilder patterns
 - **Testing** — Test tiers, helpers, widget test patterns
 - **Common Workflows** — Adding devices, API endpoints
@@ -57,5 +57,6 @@ The **MCP Server** section describes Claude-specific MCP tools. For other agents
 | Project instructions | `CLAUDE.md` |
 | TDD workflow | `.claude/skills/tdd-workflow/SKILL.md` |
 | Plans (before commit) | `doc/plans/` |
-| API specs | `assets/api/rest_v1.yml`, `assets/api/websocket_v1.yml` |
+| API reference | `doc/Api.md` |
+| API specs (OpenAPI) | `assets/api/rest_v1.yml`, `assets/api/websocket_v1.yml` |
 | Detailed docs | `doc/*.md` |

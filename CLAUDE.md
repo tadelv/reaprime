@@ -77,7 +77,7 @@ Plans go in `doc/plans/`. Don't commit unless asked. After implementation, ask w
 
 **Before opening a PR, merging locally, or considering work done:**
 1. Move all plans and implementation documents from `doc/plans/` to `doc/plans/archive/<meaningful-subfolder-name>/`. The subfolder name should reflect the feature or fix (e.g., `app-store-readiness`, `scale-auto-connect`).
-2. Check if any documentation needs updating based on the changes made — e.g., `doc/Skins.md` if endpoints changed/added, `doc/Plugins.md` if events changed/added, `doc/Profiles.md` if profile handling changed, `doc/DeviceManagement.md` if device flows changed, etc.
+2. Check if any documentation needs updating based on the changes made — e.g., `doc/Api.md` if endpoints changed/added, `doc/Skins.md` if skin behavior changed, `doc/Plugins.md` if events changed/added, `doc/Profiles.md` if profile handling changed, `doc/DeviceManagement.md` if device flows changed, etc.
 
 Both steps are required, not optional.
 
@@ -97,7 +97,7 @@ Both steps are required, not optional.
 | Controllers | `lib/src/controllers/` | Business logic orchestration between devices and services |
 | Services | `lib/src/services/` | Discovery, storage, settings, web server |
 | Plugins | `lib/src/plugins/` | JS plugin lifecycle, manifest, sandboxed runtime |
-| Bundled Plugins | `packages/dye2-plugin/` | DYE2 (Describe Your Espresso) — TypeScript/Vite plugin for bean & grinder management. Reference implementation for bundled plugins. |
+| Bundled Plugins | `packages/dye2-plugin/`, `assets/plugins/` | DYE2 (bean/grinder management, TypeScript/Vite), Settings (web-based settings dashboard, plain JS). |
 | UI Features | `lib/src/` | `home_feature/`, `history_feature/`, `realtime_shot_feature/`, `settings/`, etc. |
 | WebUI Skins | `lib/src/webui_support/` | Web-based UI skin management and serving |
 
@@ -127,31 +127,9 @@ Persistence uses Drift (SQLite) via `AppDatabase` in `lib/src/services/database/
 
 Handler-based routing in `lib/src/services/webserver/`. Each handler has `addRoutes()`, registered in `webserver_service.dart` `_init()`. Most handlers use `part of webserver_service.dart`; standalone imports: `shots_handler`, `beans_handler`, `grinders_handler`, `workflow_handler`, `data_export_handler`, `data_sync_handler`, `info_handler`. API docs on port 4001, specs in `assets/api/`.
 
-### REST API Overview
+### REST & WebSocket API
 
-| Resource | Base Path | Handler |
-|----------|-----------|---------|
-| Machine | `/api/v1/machine/` | `de1handler.dart` (part of) |
-| Scale | `/api/v1/scale/` | `scale_handler.dart` (part of) |
-| Devices | `/api/v1/devices` | `devices_handler.dart` (part of) |
-| Shots | `/api/v1/shots` | `shots_handler.dart` — paginated list with filtering (see `assets/api/rest_v1.yml`) |
-| Profiles | `/api/v1/profiles` | `profile_handler.dart` (part of) |
-| Workflow | `/api/v1/workflow` | `workflow_handler.dart` — GET/PUT with deep merge |
-| Beans | `/api/v1/beans` | `beans_handler.dart` — CRUD + `/api/v1/beans/<id>/batches` for batches, `/api/v1/bean-batches/<id>` for individual batch ops |
-| Grinders | `/api/v1/grinders` | `grinders_handler.dart` — CRUD |
-| Settings | `/api/v1/settings` | `settings_handler.dart` (part of) |
-| Sensors | `/api/v1/sensors` | `sensors_handler.dart` (part of) |
-| Plugins | `/api/v1/plugins` | `plugins_handler.dart` (part of) |
-| Display | `/api/v1/display` | `display_handler.dart` (part of) |
-| Presence | `/api/v1/presence` | `presence_handler.dart` (part of) |
-| KV Store | `/api/v1/kv` | `kv_store_handler.dart` (part of) |
-| Data Export | `/api/v1/data/export`, `/import` | `data_export_handler.dart` — ZIP-based full data export/import |
-| Data Sync | `/api/v1/data/sync` | `data_sync_handler.dart` — POST sync between Bridge instances |
-| Feedback | `/api/v1/feedback` | `feedback_handler.dart` (part of) — POST creates GitHub issue with optional logs/screenshots as Gist. Requires `GITHUB_FEEDBACK_TOKEN` at build time. |
-| Logs | `/api/v1/logs` | `logs_handler.dart` (part of) |
-| Info | `/api/v1/info` | `info_handler.dart` — build metadata (version, commit, branch) |
-| WebUI | — | `webui_handler.dart` (part of) — skin asset serving |
-| WebView Logs | `/api/v1/webview-logs` | `webview_logs_handler.dart` (part of) — WebView console log forwarding |
+Full endpoint reference in **[`doc/Api.md`](doc/Api.md)**. OpenAPI specs in `assets/api/rest_v1.yml` and `assets/api/websocket_v1.yml`.
 
 ### MCP Server
 
@@ -229,11 +207,12 @@ All Dart tests (unit + integration) live in `test/` and run via `flutter test`. 
 2. Add route in handler's `addRoutes()`
 3. Register in `webserver_service.dart` `_init()`
 4. Add corresponding MCP tool in `packages/mcp-server/src/tools/` and register in `server.ts`
-5. Document in `assets/api/rest_v1.yml` or `websocket_v1.yml`
+5. Document in `assets/api/rest_v1.yml` or `websocket_v1.yml` and update `doc/Api.md`
 
 ## Documentation
 
 Detailed docs in `doc/`:
+- **`doc/Api.md`** — Full REST & WebSocket API reference (all endpoints, methods, payloads)
 - **`doc/Skins.md`** — WebUI skin development (API reference, deployment, examples)
 - **`doc/Plugins.md`** — Plugin development (JS API, manifest, events, permissions)
 - **`doc/Profiles.md`** — Profile API (content-based hashing, version tracking, endpoints)

@@ -3096,6 +3096,29 @@ Live-edit validates that the selected folder contains an `index.html`.
 
 **App Store Restrictions:** When running as an App Store build, custom skin installation, deletion, and update checks are disabled. Only bundled skins are available.
 
+### Settings Plugin (Web-Based Management)
+
+The bundled **settings plugin** provides a web-based settings dashboard at `/api/v1/plugins/settings.reaplugin/ui`. It includes a "Web Interface" section for skin management: select active skin, start/stop server, install/remove skins, and check for updates — all from a browser.
+
+**Linking back from your skin:** Skins can link to the settings plugin with a customizable back button label using the `backName` query parameter:
+
+```
+http://<host>:8080/api/v1/plugins/settings.reaplugin/ui?backName=MySkin
+```
+
+This shows "Back to MySkin" in the settings plugin's nav bar. When clicked, it navigates to `http://<host>:3000/?_=<timestamp>` (with cache busting). This allows skins to provide a "Settings" link that returns to the skin after configuration changes.
+
+**Server control endpoints:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/webui/server/status` | Current status (`{serving, path, port, ip}`) |
+| POST | `/api/v1/webui/server/start` | Start serving the default skin on port 3000 |
+| POST | `/api/v1/webui/server/stop` | Stop serving |
+| POST | `/api/v1/webui/skins/update` | Check all remote skin sources for updates |
+
+The start endpoint uses `defaultSkinId` from settings. To switch skins: set the default via `PUT /api/v1/webui/skins/default`, then restart the server.
+
 ### For User-Installable Skins (via REST API)
 
 Users can also install skins dynamically via REST API without using the Settings UI:

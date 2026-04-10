@@ -382,6 +382,22 @@ The DYE2 (Describe Your Espresso) plugin in `packages/dye2-plugin/` is a product
 
 See `packages/dye2-plugin/README.md` for architecture details, build instructions, and extension guide.
 
+## Plugin Lifecycle Management (REST API)
+
+Plugins can be managed via REST API:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/plugins` | List all plugins (includes `loaded`, `autoLoad` fields) |
+| POST | `/api/v1/plugins/:id/enable` | Load plugin + enable auto-load on startup |
+| POST | `/api/v1/plugins/:id/disable` | Unload plugin + disable auto-load |
+| DELETE | `/api/v1/plugins/:id` | Remove plugin (unload + delete files) |
+| POST | `/api/v1/plugins/install` | Install from URL (not yet implemented) |
+| GET | `/api/v1/plugins/:id/settings` | Get plugin settings |
+| POST | `/api/v1/plugins/:id/settings` | Update plugin settings |
+
+The bundled **settings plugin** (`settings.reaplugin`) provides a web UI for plugin management at `/api/v1/plugins/settings.reaplugin/ui`. It includes an enable/disable toggle and remove button for each plugin, with a self-protection guard that prevents disabling itself.
+
 ## Next Steps
 
 1. Review the example plugins in `assets/plugins/` and the DYE2 plugin in `packages/dye2-plugin/`
