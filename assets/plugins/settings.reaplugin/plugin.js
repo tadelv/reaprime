@@ -1202,7 +1202,7 @@ function createPlugin(host) {
             try {
                 let url, body;
                 // Detect owner/repo format (e.g. "user/repo")
-                if (/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(source)) {
+                if (source.indexOf('/') > 0 && source.indexOf('/') === source.lastIndexOf('/') && !source.startsWith('http')) {
                     url = baseUrl + '/api/v1/webui/skins/install/github-release';
                     body = JSON.stringify({ repo: source });
                 } else {
