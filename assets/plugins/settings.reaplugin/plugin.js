@@ -169,7 +169,7 @@ function createPlugin(host) {
   /**
    * Generate HTML page with all settings (with editable controls)
    */
-  function generateSettingsHTML(reaSettings, de1Settings, de1AdvancedSettings, webUISkins, calibrationSettings, presenceSettings, appInfo, webUIStatus, plugins) {
+  function generateSettingsHTML(reaSettings, de1Settings, de1AdvancedSettings, webUISkins, calibrationSettings, presenceSettings, appInfo, webUIStatus, plugins, backName) {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -371,7 +371,7 @@ function createPlugin(host) {
 <body>
     <nav style="position: sticky; top: 0; z-index: 100; background: #f5f5f5; padding: 12px 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
       <h1 style="margin: 0; font-size: 1.2em; color: #333;">Streamline-Bridge Settings</h1>
-      <a href="http://localhost:3000" style="color: #2980b9; text-decoration: none; padding: 8px 16px; border: 1px solid #2980b9; border-radius: 6px;">&#8592; Back to WebUI</a>
+      <a id="back-link" href="#" onclick="window.location.href='http://'+window.location.hostname+':3000'; return false;" style="color: #2980b9; text-decoration: none; padding: 8px 16px; border: 1px solid #2980b9; border-radius: 6px;">&#8592; Back to ${escapeHtml(backName || 'WebUI')}</a>
     </nav>
     <a href="#main-content" class="skip-link">Skip to main content</a>
     <div class="container">
@@ -1463,7 +1463,8 @@ function createPlugin(host) {
           fetchWebUIServerStatus(),
           fetchPlugins()
         ]).then(([reaSettings, de1Settings, de1AdvancedSettings, webUISkins, calibrationSettings, presenceSettings, appInfo, webUIStatus, plugins]) => {
-          const html = generateSettingsHTML(reaSettings, de1Settings, de1AdvancedSettings, webUISkins, calibrationSettings, presenceSettings, appInfo, webUIStatus, plugins);
+          const backName = request.query && request.query.backName ? request.query.backName : null;
+          const html = generateSettingsHTML(reaSettings, de1Settings, de1AdvancedSettings, webUISkins, calibrationSettings, presenceSettings, appInfo, webUIStatus, plugins, backName);
           
           return {
             requestId: request.requestId,
