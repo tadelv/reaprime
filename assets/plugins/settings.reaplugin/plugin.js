@@ -316,7 +316,7 @@ function createPlugin(host) {
         }
         .success-toast {
             position: fixed;
-            top: 20px;
+            top: 60px;
             right: 20px;
             background: #2ecc71;
             color: white;
@@ -328,7 +328,7 @@ function createPlugin(host) {
         }
         .error-toast {
             position: fixed;
-            top: 20px;
+            top: 60px;
             right: 20px;
             background: #e74c3c;
             color: white;
@@ -1142,6 +1142,7 @@ function createPlugin(host) {
         //   2. If server is running: stop, then start (picks up new default)
         async function switchSkin() {
             const skinId = document.getElementById('activeSkin').value;
+            console.log('[settings plugin] switchSkin called with:', skinId);
             if (!skinId) { showToast('Please select a skin', true); return; }
             try {
                 showToast('Switching skin...');
