@@ -39,6 +39,9 @@ class WebUIHandler {
     // Remove/uninstall skin
     app.delete('/api/v1/webui/skins/<id>', _handleRemoveSkin);
 
+    // Skin updates
+    app.post('/api/v1/webui/skins/update', _handleUpdateSkins);
+
     // WebUI server lifecycle
     app.get('/api/v1/webui/server/status', _handleServerStatus);
     app.post('/api/v1/webui/server/start', _handleServerStart);
@@ -322,6 +325,23 @@ class WebUIHandler {
 
       return Response.internalServerError(
         body: jsonEncode({'error': e.toString()}),
+      );
+    }
+  }
+
+  /// POST /api/v1/webui/skins/update
+  /// Triggers update check for all skins from their remote sources
+  Future<Response> _handleUpdateSkins(Request request) async {
+    try {
+      await _storage.updateAllSkins();
+      return Response.ok(
+        jsonEncode({'message': 'Skin update check completed'}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    } catch (e) {
+      return Response.internalServerError(
+        body: jsonEncode({'error': 'Failed to check for updates: $e'}),
+        headers: {'Content-Type': 'application/json'},
       );
     }
   }
