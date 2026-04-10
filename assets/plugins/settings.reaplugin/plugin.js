@@ -371,7 +371,7 @@ function createPlugin(host) {
 <body>
     <nav style="position: sticky; top: 0; z-index: 100; background: #f5f5f5; padding: 12px 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
       <h1 style="margin: 0; font-size: 1.2em; color: #333;">Streamline-Bridge Settings</h1>
-      <a id="back-link" href="#" onclick="window.location.href='http://'+window.location.hostname+':3000'; return false;" style="color: #2980b9; text-decoration: none; padding: 8px 16px; border: 1px solid #2980b9; border-radius: 6px;">&#8592; Back to ${escapeHtml(backName || 'WebUI')}</a>
+      <a id="back-link" href="#" onclick="window.location.href='http://'+window.location.hostname+':3000/?_='+Date.now(); return false;" style="color: #2980b9; text-decoration: none; padding: 8px 16px; border: 1px solid #2980b9; border-radius: 6px;">&#8592; Back to ${escapeHtml(backName || 'WebUI')}</a>
     </nav>
     <a href="#main-content" class="skip-link">Skip to main content</a>
     <div class="container">
