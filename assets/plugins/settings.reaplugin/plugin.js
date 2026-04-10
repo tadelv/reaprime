@@ -484,18 +484,6 @@ function createPlugin(host) {
                             <button class="btn btn-primary" onclick="updateReaSetting('preferredScaleId', document.getElementById('preferredScaleId').value || null)" aria-label="Save preferred scale ID setting">Save</button>
                         </div>
                     </div>
-                    <div class="setting-item">
-                        <label class="setting-label" for="defaultSkinId">Default WebUI Skin</label>
-                        <div class="setting-control">
-                            <select id="defaultSkinId" aria-describedby="defaultSkinId-desc" style="width: 200px;">
-                                ${webUISkins ? webUISkins.map(skin =>
-                                    `<option value="${escapeHtml(skin.id)}" ${reaSettings.defaultSkinId === skin.id ? 'selected' : ''}>${escapeHtml(skin.name || skin.id)}</option>`
-                                ).join('') : '<option>Loading...</option>'}
-                            </select>
-                            <span id="defaultSkinId-desc" class="visually-hidden">WebUI skin to load by default on application startup</span>
-                            <button class="btn btn-primary" onclick="updateReaSetting('defaultSkinId', document.getElementById('defaultSkinId').value)" aria-label="Save default skin ID setting">Save</button>
-                        </div>
-                    </div>
                 </div>
             ` : '<div class="error" role="alert" aria-live="assertive">Failed to load REA settings</div>'}
             </section>
@@ -775,10 +763,42 @@ function createPlugin(host) {
                 ` : '<div class="error" role="alert">Failed to load settings</div>'}
             </section>
 
-            <!-- Skins Management -->
-            <section class="section" aria-labelledby="skins-management-heading">
-                <h2 id="skins-management-heading">Skins Management</h2>
-                ${webUISkins ? `
+            <!-- Web Interface -->
+            <section class="section" aria-labelledby="webui-heading">
+                <h2 id="webui-heading">Web Interface</h2>
+                ${webUISkins && webUIStatus ? `
+                <div class="settings-grid" role="group" aria-label="Active skin and server status">
+                    <div class="setting-item">
+                        <label class="setting-label" for="activeSkin">Active Skin</label>
+                        <div class="setting-control">
+                            <select id="activeSkin" style="width: 200px;">
+                                ${webUISkins.map(skin =>
+                                    `<option value="${escapeHtml(skin.id)}" ${reaSettings && reaSettings.defaultSkinId === skin.id ? 'selected' : ''}>${escapeHtml(skin.name || skin.id)}${skin.version ? ' v' + escapeHtml(skin.version) : ''}</option>`
+                                ).join('')}
+                            </select>
+                            <button class="btn btn-primary" onclick="switchSkin()">Apply</button>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <span class="setting-label">Server</span>
+                        <span class="readonly">
+                            <span class="status-indicator ${webUIStatus.serving ? 'status-ok' : 'status-error'}"></span>
+                            ${webUIStatus.serving ? 'Serving' : 'Stopped'}
+                            ${webUIStatus.serving ? ` at ${escapeHtml(webUIStatus.ip)}:${escapeHtml(webUIStatus.port)}` : ''}
+                        </span>
+                    </div>
+                    <div class="setting-item">
+                        <span class="setting-label">Controls</span>
+                        <div class="setting-control">
+                            ${webUIStatus.serving
+                              ? `<button class="btn btn-primary" onclick="window.open('http://'+window.location.hostname+':3000','_blank')" style="margin-right: 4px;">Open in Browser</button>
+                                 <button class="btn" style="background: #e74c3c; color: white;" onclick="stopWebUI()">Stop Server</button>`
+                              : '<button class="btn btn-primary" onclick="startWebUI()">Start Server</button>'}
+                        </div>
+                    </div>
+                </div>
+
+                <h3 style="margin-top: 20px; margin-bottom: 10px; color: #2c3e50;">Installed Skins</h3>
                 <table style="width: 100%; border-collapse: collapse; background: #f8f9fa; border-radius: 6px; overflow: hidden; margin-bottom: 20px;">
                     <thead>
                         <tr style="background: #3498db; color: white;">
@@ -789,17 +809,17 @@ function createPlugin(host) {
                         </tr>
                     </thead>
                     <tbody>
-                        ${webUISkins.map(skin => `<tr style="border-bottom: 1px solid #ddd;">
-                            <td style="padding: 10px;">${escapeHtml(skin.name || skin.id)}</td>
+                        ${webUISkins.map(skin => `<tr style="border-bottom: 1px solid #ddd; ${reaSettings && reaSettings.defaultSkinId === skin.id ? 'background: #d5f5e3;' : ''}">
+                            <td style="padding: 10px;">${escapeHtml(skin.name || skin.id)}${reaSettings && reaSettings.defaultSkinId === skin.id ? ' <strong>(active)</strong>' : ''}</td>
                             <td style="padding: 10px;">${escapeHtml(skin.version) || 'N/A'}</td>
                             <td style="padding: 10px;">${skin.isBundled ? 'Bundled' : 'Installed'}</td>
                             <td style="padding: 10px;">
-                                <button class="btn btn-primary" onclick="setDefaultSkin(${escapeHtml(JSON.stringify(skin.id))})" style="margin-right: 4px;">Set Default</button>
                                 ${!skin.isBundled ? `<button class="btn" style="background: #e74c3c; color: white;" onclick="removeSkin(${escapeHtml(JSON.stringify(skin.id))}, ${escapeHtml(JSON.stringify(skin.name || skin.id))})">Remove</button>` : ''}
                             </td>
                         </tr>`).join('')}
                     </tbody>
                 </table>
+
                 <h3 style="margin-bottom: 10px; color: #2c3e50;">Install Skin</h3>
                 <div class="setting-item" style="flex-wrap: wrap; gap: 10px;">
                     <label class="setting-label" for="skinSource" style="flex-basis: 100%;">GitHub repo (owner/repo) or ZIP URL</label>
@@ -808,42 +828,7 @@ function createPlugin(host) {
                         <button class="btn btn-primary" onclick="installSkin()">Install</button>
                     </div>
                 </div>
-                ` : '<div class="error" role="alert">Failed to load skins</div>'}
-            </section>
-
-            <!-- WebUI Server -->
-            <section class="section" aria-labelledby="webui-server-heading">
-                <h2 id="webui-server-heading">WebUI Server</h2>
-                ${webUIStatus ? `
-                <div class="settings-grid" role="group" aria-label="WebUI server status">
-                    <div class="setting-item">
-                        <span class="setting-label">Status</span>
-                        <span class="readonly">
-                            <span class="status-indicator ${webUIStatus.serving ? 'status-ok' : 'status-error'}"></span>
-                            ${webUIStatus.serving ? 'Serving' : 'Stopped'}
-                        </span>
-                    </div>
-                    ${webUIStatus.serving ? `
-                    <div class="setting-item">
-                        <span class="setting-label">Address</span>
-                        <span class="readonly">${escapeHtml(webUIStatus.ip) || 'N/A'}:${escapeHtml(webUIStatus.port) || 'N/A'}</span>
-                    </div>
-                    <div class="setting-item">
-                        <span class="setting-label">Path</span>
-                        <span class="readonly" style="word-break: break-all; font-size: 12px;">${escapeHtml(webUIStatus.path) || 'N/A'}</span>
-                    </div>
-                    ` : ''}
-                    <div class="setting-item">
-                        <span class="setting-label">Controls</span>
-                        <div class="setting-control">
-                            ${webUIStatus.serving
-                              ? '<button class="btn" style="background: #e74c3c; color: white;" onclick="stopWebUI()">Stop Server</button>'
-                              : '<button class="btn btn-primary" onclick="startWebUI()">Start Server</button>'}
-                        </div>
-                    </div>
-                </div>
-                <p style="color: #666; margin-top: 10px; font-size: 0.9em;">The server uses the default skin. Change the default skin in Skins Management above.</p>
-                ` : '<div class="error" role="alert">Failed to load WebUI server status</div>'}
+                ` : '<div class="error" role="alert">Failed to load web interface data</div>'}
             </section>
 
             <!-- Data Management -->
@@ -1151,22 +1136,43 @@ function createPlugin(host) {
         }
 
         // --- Skins Management ---
-        async function setDefaultSkin(id) {
+        // Switch skin: set as default, then restart server if running
+        // Mirrors native settings_view.dart _restartServerWithSkin flow:
+        //   1. Set default skin via PUT /api/v1/webui/skins/default
+        //   2. If server is running: stop, then start (picks up new default)
+        async function switchSkin() {
+            const skinId = document.getElementById('activeSkin').value;
+            if (!skinId) { showToast('Please select a skin', true); return; }
             try {
-                const response = await fetch(baseUrl + '/api/v1/webui/skins/default', {
+                showToast('Switching skin...');
+                // Step 1: Set as default
+                const setResponse = await fetch(baseUrl + '/api/v1/webui/skins/default', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ skinId: id })
+                    body: JSON.stringify({ skinId: skinId })
                 });
-                if (response.ok) {
-                    showToast('Default skin updated');
-                    setTimeout(() => location.reload(), 500);
-                } else {
-                    const error = await response.text();
+                if (!setResponse.ok) {
+                    const error = await setResponse.text();
                     showToast('Failed to set default skin: ' + error, true);
+                    return;
                 }
+                // Step 2: If server is running, restart with new skin
+                const statusResponse = await fetch(baseUrl + '/api/v1/webui/server/status');
+                const status = await statusResponse.json();
+                if (status.serving) {
+                    await fetch(baseUrl + '/api/v1/webui/server/stop', { method: 'POST' });
+                    const startResponse = await fetch(baseUrl + '/api/v1/webui/server/start', { method: 'POST' });
+                    if (startResponse.ok) {
+                        showToast('Skin switched and server restarted');
+                    } else {
+                        showToast('Skin set but server failed to restart', true);
+                    }
+                } else {
+                    showToast('Default skin updated');
+                }
+                setTimeout(() => location.reload(), 500);
             } catch (e) {
-                showToast('Error setting default skin: ' + e.message, true);
+                showToast('Error switching skin: ' + e.message, true);
             }
         }
 
