@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
@@ -337,20 +338,23 @@ class PluginLoaderService {
         }
 
         // Read version from manifest, overwrite if our version is newer
+        // In non-release builds, always overwrite to pick up development changes
         final manifestAsset = await rootBundle.loadString(
           '$pluginPath/manifest.json',
         );
-        final newManifest = PluginManifest.fromJson(jsonDecode(manifestAsset));
-        final existingManifestFile = File('${destDir.path}/manifest.json');
-        final existingManifest = PluginManifest.fromJson(
-          jsonDecode(await existingManifestFile.readAsString()),
-        );
-        if (_compareVersions(newManifest.version, existingManifest.version) <= 0) {
-          // existing plugin has same or newer version
-          _log.fine(
-            "not overriding bundled plugin: [bundled: ${newManifest.version}], [existing: ${existingManifest.version}]",
+        if (kReleaseMode) {
+          final newManifest = PluginManifest.fromJson(jsonDecode(manifestAsset));
+          final existingManifestFile = File('${destDir.path}/manifest.json');
+          final existingManifest = PluginManifest.fromJson(
+            jsonDecode(await existingManifestFile.readAsString()),
           );
-          continue;
+          if (_compareVersions(newManifest.version, existingManifest.version) <= 0) {
+            // existing plugin has same or newer version
+            _log.fine(
+              "not overriding bundled plugin: [bundled: ${newManifest.version}], [existing: ${existingManifest.version}]",
+            );
+            continue;
+          }
         }
         File('${destDir.path}/manifest.json').writeAsStringSync(manifestAsset);
 
