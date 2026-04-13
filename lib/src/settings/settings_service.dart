@@ -296,9 +296,9 @@ class SharedPreferencesSettingsService extends SettingsService {
   Future<ChargingMode> chargingMode() async {
     return ChargingModeFromString.fromString(
           await prefs.getString(SettingsKeys.chargingMode.name) ??
-              ChargingMode.balanced.name,
+              ChargingMode.disabled.name,
         ) ??
-        ChargingMode.balanced;
+        ChargingMode.disabled;
   }
 
   @override

@@ -1,4 +1,5 @@
 import 'package:reaprime/src/import/parsers/tcl_parser.dart';
+import 'package:reaprime/src/settings/charging_mode.dart';
 
 /// Parsed result from a de1app `settings.tdb` file.
 ///
@@ -14,6 +15,7 @@ class SettingsTdbResult {
   // Settings
   final bool? keepScaleOn;
   final int? sleepTimeoutMinutes;
+  final ChargingMode? chargingMode;
 
   // Workflow context
   final double? doseWeight;
@@ -44,6 +46,7 @@ class SettingsTdbResult {
     this.keepAwakeForMinutes,
     this.keepScaleOn,
     this.sleepTimeoutMinutes,
+    this.chargingMode,
     this.doseWeight,
     this.grinderSetting,
     this.grinderModel,
@@ -68,6 +71,7 @@ class SettingsTdbResult {
       keepAwakeForMinutes == null &&
       keepScaleOn == null &&
       sleepTimeoutMinutes == null &&
+      chargingMode == null &&
       doseWeight == null &&
       grinderSetting == null &&
       grinderModel == null &&
@@ -141,6 +145,7 @@ class SettingsTdbParser {
       keepAwakeForMinutes: keepAwakeFor,
       keepScaleOn: _parseBool(data['keep_scale_on']),
       sleepTimeoutMinutes: sleepTimeoutMinutes,
+      chargingMode: _parseChargingMode(data['smart_battery_charging']),
       doseWeight: doseWeight,
       grinderSetting: grinderSetting,
       grinderModel: grinderModel,
@@ -161,6 +166,30 @@ class SettingsTdbParser {
   static bool? _parseBool(dynamic value) {
     if (value == null) return null;
     return value.toString() == '1';
+  }
+
+  /// Maps de1app's `smart_battery_charging` integer enum to Bridge's
+  /// [ChargingMode]. Unknown values return null so the caller leaves the
+  /// existing Bridge setting untouched.
+  ///
+  /// de1app values:
+  /// - `0` → off (USB charger always on) → [ChargingMode.disabled]
+  /// - `1` → longevity (55-65%) → [ChargingMode.longevity]
+  /// - `2` → high availability (90-95%) → [ChargingMode.highAvailability]
+  ///
+  /// de1app has no analog for [ChargingMode.balanced].
+  static ChargingMode? _parseChargingMode(dynamic value) {
+    if (value == null) return null;
+    switch (value.toString()) {
+      case '0':
+        return ChargingMode.disabled;
+      case '1':
+        return ChargingMode.longevity;
+      case '2':
+        return ChargingMode.highAvailability;
+      default:
+        return null;
+    }
   }
 
   static int? _parseInt(dynamic value) {

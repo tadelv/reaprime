@@ -47,7 +47,7 @@ void main() {
       expect(settings['volumeFlowMultiplier'], equals(0.3));
       expect(settings['scalePowerMode'], equals('disabled'));
       expect(settings['automaticUpdateCheck'], isTrue);
-      expect(settings['chargingMode'], equals('balanced'));
+      expect(settings['chargingMode'], equals('disabled'));
       expect(settings['nightModeEnabled'], isFalse);
       expect(settings['nightModeSleepTime'], equals(1320));
       expect(settings['nightModeMorningTime'], equals(420));

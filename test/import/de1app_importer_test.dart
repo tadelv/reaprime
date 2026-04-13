@@ -14,6 +14,7 @@ import 'package:reaprime/src/services/storage/bean_storage_service.dart';
 import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
+import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 
@@ -508,7 +509,8 @@ void main() {
           'water_temperature 80\n'
           'water_volume 200\n'
           'flush_flow 4.5\n'
-          'flush_seconds 8\n',
+          'flush_seconds 8\n'
+          'smart_battery_charging 2\n',
         );
 
         // Create a workflow with defaults so it can be updated
@@ -601,6 +603,13 @@ void main() {
         final rinse = storage._currentWorkflow!.rinseData;
         expect(rinse.flow, equals(4.5));
         expect(rinse.duration, equals(8));
+      });
+
+      test('maps smart_battery_charging 2 → highAvailability', () {
+        expect(
+          settingsController.chargingMode,
+          equals(ChargingMode.highAvailability),
+        );
       });
 
       test('has no errors', () {

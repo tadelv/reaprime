@@ -24,7 +24,7 @@ class MockSettingsService extends SettingsService {
   bool _telemetryPromptShown = true; // skip prompt in tests
   bool _telemetryConsentDialogShown = true; // skip dialog in tests
   String? _skippedVersion;
-  ChargingMode _chargingMode = ChargingMode.balanced;
+  ChargingMode _chargingMode = ChargingMode.disabled;
   bool _nightModeEnabled = false;
   int _nightModeSleepTime = 1320;
   int _nightModeMorningTime = 420;

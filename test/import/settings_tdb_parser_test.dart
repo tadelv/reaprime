@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/import/parsers/settings_tdb_parser.dart';
+import 'package:reaprime/src/settings/charging_mode.dart';
 
 void main() {
   group('SettingsTdbParser', () {
@@ -170,6 +171,43 @@ water_volume 200
       });
     });
 
+    group('charging mode', () {
+      test('smart_battery_charging 0 → disabled', () {
+        final result =
+            SettingsTdbParser.parse('smart_battery_charging 0\n');
+        expect(result.chargingMode, ChargingMode.disabled);
+      });
+
+      test('smart_battery_charging 1 → longevity', () {
+        final result =
+            SettingsTdbParser.parse('smart_battery_charging 1\n');
+        expect(result.chargingMode, ChargingMode.longevity);
+      });
+
+      test('smart_battery_charging 2 → highAvailability', () {
+        final result =
+            SettingsTdbParser.parse('smart_battery_charging 2\n');
+        expect(result.chargingMode, ChargingMode.highAvailability);
+      });
+
+      test('unknown value returns null (leave Bridge setting untouched)', () {
+        final result =
+            SettingsTdbParser.parse('smart_battery_charging 99\n');
+        expect(result.chargingMode, isNull);
+      });
+
+      test('missing key returns null', () {
+        final result = SettingsTdbParser.parse('');
+        expect(result.chargingMode, isNull);
+      });
+
+      test('chargingMode alone makes isEmpty false', () {
+        final result =
+            SettingsTdbParser.parse('smart_battery_charging 0\n');
+        expect(result.isEmpty, false);
+      });
+    });
+
     group('rinse settings', () {
       test('parses rinse flow and duration', () {
         final content = '''
@@ -191,6 +229,7 @@ flush_seconds 10
         expect(result.keepAwakeForMinutes, isNull);
         expect(result.keepScaleOn, isNull);
         expect(result.sleepTimeoutMinutes, isNull);
+        expect(result.chargingMode, isNull);
         expect(result.doseWeight, isNull);
         expect(result.grinderSetting, isNull);
         expect(result.grinderModel, isNull);
