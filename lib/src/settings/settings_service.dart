@@ -202,8 +202,18 @@ class SharedPreferencesSettingsService extends SettingsService {
 
   @override
   Future<String> defaultSkinId() async {
-    return await prefs.getString(SettingsKeys.defaultSkinId.name) ??
-        'streamline_project-main';
+    final stored = await prefs.getString(SettingsKeys.defaultSkinId.name);
+    // One-shot migration: old bundled-skin id (github_branch dir-name fallback)
+    // → new release id (declared in skin-manifest.json inside the release zip).
+    // Runs on every call, but rewrites pref only once per user.
+    if (stored == 'streamline_project-main') {
+      await prefs.setString(
+        SettingsKeys.defaultSkinId.name,
+        'streamline.js',
+      );
+      return 'streamline.js';
+    }
+    return stored ?? 'streamline.js';
   }
 
   @override

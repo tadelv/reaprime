@@ -17,7 +17,7 @@ class MockSettingsService extends SettingsService {
   ScalePowerMode _scalePowerMode = ScalePowerMode.disabled;
   String? _preferredMachineId;
   String? _preferredScaleId;
-  String _defaultSkinId = 'streamline_project-main';
+  String _defaultSkinId = 'streamline.js';
   bool _automaticUpdateCheck = true;
   DateTime? _lastUpdateCheckTime;
   bool _telemetryConsent = false;
