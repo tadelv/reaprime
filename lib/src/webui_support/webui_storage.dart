@@ -9,6 +9,7 @@ import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
+import 'package:reaprime/src/webui_support/webui_zip_support.dart';
 
 /// REA metadata for tracking WebUI skin source and version
 class WebUIReaMetadata {
@@ -909,17 +910,28 @@ class WebUIStorage {
       }
     }
 
-    // Install bundled skin zips from assets/bundled_skins/
+    // Install bundled skin zips from assets/bundled_skins/.
+    //
+    // The outer try only covers the manifest load. Each skin install runs
+    // inside installBundledSkinList, which isolates per-skin failures so one
+    // bad zip cannot silently drop every later bundled skin (issue #148).
+    List<String> skinIds;
     try {
       final manifestString =
           await rootBundle.loadString('assets/bundled_skins/manifest.json');
-      final skinIds = (jsonDecode(manifestString) as List).cast<String>();
+      skinIds = (jsonDecode(manifestString) as List).cast<String>();
+    } catch (e, st) {
+      _log.warning('Failed to load bundled skins manifest', e, st);
+      return;
+    }
 
-      for (final skinId in skinIds) {
+    await installBundledSkinList(
+      skinIds,
+      (skinId) async {
         final destDir = Directory('${_webUIDir.path}/$skinId');
         if (destDir.existsSync() && destDir.listSync().isNotEmpty) {
           _log.fine('Bundled skin already exists: $skinId');
-          continue;
+          return;
         }
 
         // Load zip from assets and extract
@@ -934,10 +946,9 @@ class WebUIStorage {
         } finally {
           if (tempFile.existsSync()) await tempFile.delete();
         }
-      }
-    } catch (e) {
-      _log.fine('No bundled skin zips found in assets: $e');
-    }
+      },
+      log: _log,
+    );
   }
 
   /// Copy an entire asset folder to a destination path
@@ -1070,20 +1081,19 @@ class WebUIStorage {
       final zipFile = File(zipPath);
       final bytes = await zipFile.readAsBytes();
       final archive = ZipDecoder().decodeBytes(bytes);
-      
-      // Extract files to temp directory
-      for (final file in archive) {
-        final filename = file.name;
-        final filePath = '${tempDir.path}/$filename';
-        
-        if (file.isFile) {
-          final outFile = File(filePath);
-          outFile.createSync(recursive: true);
-          outFile.writeAsBytesSync(file.content as List<int>);
-        } else {
-          Directory(filePath).createSync(recursive: true);
-        }
-      }
+
+      // Extract files to temp directory. On Windows we sanitise filenames
+      // to dodge the Win32-reserved chars; on macOS/Linux we leave them
+      // alone so skins that legitimately use characters like `:` in
+      // filenames keep working. Per-entry failures are isolated so a
+      // single bad entry can't abort the whole install (issue #147). The
+      // helper logs each skipped entry, so we don't repeat that here.
+      extractArchiveToDirectory(
+        archive,
+        tempDir,
+        sanitize: Platform.isWindows,
+        log: _log,
+      );
 
       // Find the actual content directory
       // (GitHub zips have a root folder like "repo-main/")
