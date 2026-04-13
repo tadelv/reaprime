@@ -60,3 +60,7 @@ assets/plugins/dye2.reaplugin/
 # Skin bundling
 .skin_cache/
 assets/bundled_skins/
+
+# Ruby / fastlane (bundler vendored install)
+.bundle/
+vendor/bundle/
