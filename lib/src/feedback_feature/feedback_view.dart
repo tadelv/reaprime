@@ -67,7 +67,7 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
   }
 
   Future<void> _pickScreenshots() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.image,
       allowMultiple: true,
     );
@@ -134,7 +134,7 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
           .first;
       final fileName = 'feedback_report_$timestamp.html';
 
-      final result = await FilePicker.platform.saveFile(
+      final result = await FilePicker.saveFile(
         dialogTitle: 'Save Feedback Report',
         fileName: fileName,
         bytes: Uint8List.fromList(bytes),

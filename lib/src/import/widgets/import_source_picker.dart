@@ -31,7 +31,7 @@ class ImportSourcePicker extends StatelessWidget {
         onDe1appFolderSelected(picked.uri);
       }
     } else {
-      final path = await FilePicker.platform.getDirectoryPath(
+      final path = await FilePicker.getDirectoryPath(
         dialogTitle: 'Select your de1plus folder',
       );
       if (path != null && context.mounted) {
@@ -41,7 +41,7 @@ class ImportSourcePicker extends StatelessWidget {
   }
 
   Future<void> _pickZipFile(BuildContext context) async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['zip'],
       dialogTitle: 'Select a .zip backup file',
