@@ -369,7 +369,7 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
   Future<void> _installPlugin(BuildContext context) async {
     final logger = Logger('PluginsSettingsView');
     try {
-      final result = await FilePicker.platform.getDirectoryPath(
+      final result = await FilePicker.getDirectoryPath(
         // type: FileType.custom,
         // allowedExtensions: ['reaplugin'],
         // allowMultiple: false,

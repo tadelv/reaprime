@@ -1031,7 +1031,7 @@ class _SettingsViewState extends State<SettingsView>
   }
 
   Future<void> _pickCustomSkinZip(BuildContext context) async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['zip'],
     );
@@ -1087,7 +1087,7 @@ class _SettingsViewState extends State<SettingsView>
   }
 
   Future<void> _pickLiveEditFolder(BuildContext context) async {
-    final selectedDirectory = await FilePicker.platform.getDirectoryPath();
+    final selectedDirectory = await FilePicker.getDirectoryPath();
 
     if (selectedDirectory != null) {
       final indexFile = File('$selectedDirectory/index.html');

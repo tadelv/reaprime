@@ -242,7 +242,7 @@ class _ImportResultViewState extends State<ImportResultView> {
         await Share.shareXFiles([XFile(reportFile.path)]);
       } else {
         final bytes = await reportFile.readAsBytes();
-        await FilePicker.platform.saveFile(
+        await FilePicker.saveFile(
           fileName: 'import_report.txt',
           dialogTitle: 'Save Import Report',
           bytes: bytes,

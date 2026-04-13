@@ -732,7 +732,7 @@ class ScanStepViewState extends State<ScanStepView> {
       }
 
       final bytes = await logFile.readAsBytes();
-      final outputFile = await FilePicker.platform.saveFile(
+      final outputFile = await FilePicker.saveFile(
         fileName: 'R1-logs-${DateTime.now().millisecondsSinceEpoch}.txt',
         dialogTitle: 'Choose where to save logs',
         bytes: bytes,

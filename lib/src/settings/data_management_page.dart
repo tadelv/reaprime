@@ -284,7 +284,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
             .first;
         final fileName = 'streamline_bridge_export_$timestamp.zip';
 
-        final outputFile = await FilePicker.platform.saveFile(
+        final outputFile = await FilePicker.saveFile(
           fileName: fileName,
           dialogTitle: 'Choose where to save backup',
           bytes: Uint8List.fromList(responseBytes),
@@ -351,7 +351,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
       final zipBytes =
           Uint8List.fromList(ZipEncoder().encode(archive));
 
-      final outputFile = await FilePicker.platform.saveFile(
+      final outputFile = await FilePicker.saveFile(
         fileName: "R1-logs.zip",
         dialogTitle: "Choose where to save logs",
         bytes: zipBytes,
@@ -388,7 +388,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
       final tempDir = await getTemporaryDirectory();
       final source = File("${tempDir.path}/shots.json");
       await source.writeAsString(jsonData);
-      final destination = await FilePicker.platform.getDirectoryPath(
+      final destination = await FilePicker.getDirectoryPath(
         dialogTitle: "Pick export dir",
       );
       if (destination != null) {
@@ -455,7 +455,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
     if (strategy == null) return;
 
     // Pick file
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['zip'],
     );
@@ -517,7 +517,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
   }
 
   Future<void> _importLegacyShots() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['json'],
       dialogTitle: 'Select shots JSON file',
@@ -662,7 +662,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
         return;
       }
     } else {
-      folderPath = await FilePicker.platform.getDirectoryPath(
+      folderPath = await FilePicker.getDirectoryPath(
         dialogTitle: 'Select Decent app folder',
       );
     }

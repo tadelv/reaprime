@@ -110,7 +110,7 @@ class _ProfileState extends State<ProfileTile> {
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           onPressed: () async {
-            FilePickerResult? result = await FilePicker.platform.pickFiles(
+            FilePickerResult? result = await FilePicker.pickFiles(
               type: FileType.custom,
               allowedExtensions: ['json'],
               allowMultiple: false,
