@@ -10,14 +10,14 @@ PODS:
   - Firebase/Crashlytics (12.9.0):
     - Firebase/CoreOnly
     - FirebaseCrashlytics (~> 12.9.0)
-  - firebase_analytics (12.1.3):
+  - firebase_analytics (12.2.0):
     - firebase_core
     - FirebaseAnalytics (= 12.9.0)
     - FlutterMacOS
-  - firebase_core (4.5.0):
+  - firebase_core (4.6.0):
     - Firebase/CoreOnly (~> 12.9.0)
     - FlutterMacOS
-  - firebase_crashlytics (5.0.8):
+  - firebase_crashlytics (5.1.0):
     - Firebase/CoreOnly (~> 12.9.0)
     - Firebase/Crashlytics (~> 12.9.0)
     - firebase_core
@@ -159,31 +159,6 @@ PODS:
   - shared_preferences_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
-  - sqlite3 (3.51.1):
-    - sqlite3/common (= 3.51.1)
-  - sqlite3/common (3.51.1)
-  - sqlite3/dbstatvtab (3.51.1):
-    - sqlite3/common
-  - sqlite3/fts5 (3.51.1):
-    - sqlite3/common
-  - sqlite3/math (3.51.1):
-    - sqlite3/common
-  - sqlite3/perf-threadsafe (3.51.1):
-    - sqlite3/common
-  - sqlite3/rtree (3.51.1):
-    - sqlite3/common
-  - sqlite3/session (3.51.1):
-    - sqlite3/common
-  - sqlite3_flutter_libs (0.0.1):
-    - Flutter
-    - FlutterMacOS
-    - sqlite3 (~> 3.51.1)
-    - sqlite3/dbstatvtab
-    - sqlite3/fts5
-    - sqlite3/math
-    - sqlite3/perf-threadsafe
-    - sqlite3/rtree
-    - sqlite3/session
   - universal_ble (0.0.1):
     - Flutter
     - FlutterMacOS
@@ -212,7 +187,6 @@ DEPENDENCIES:
   - screen_retriever_macos (from `Flutter/ephemeral/.symlinks/plugins/screen_retriever_macos/macos`)
   - share_plus (from `Flutter/ephemeral/.symlinks/plugins/share_plus/macos`)
   - shared_preferences_foundation (from `Flutter/ephemeral/.symlinks/plugins/shared_preferences_foundation/darwin`)
-  - sqlite3_flutter_libs (from `Flutter/ephemeral/.symlinks/plugins/sqlite3_flutter_libs/darwin`)
   - universal_ble (from `Flutter/ephemeral/.symlinks/plugins/universal_ble/darwin`)
   - url_launcher_macos (from `Flutter/ephemeral/.symlinks/plugins/url_launcher_macos/macos`)
   - wakelock_plus (from `Flutter/ephemeral/.symlinks/plugins/wakelock_plus/macos`)
@@ -237,7 +211,6 @@ SPEC REPOS:
     - OrderedSet
     - PromisesObjC
     - PromisesSwift
-    - sqlite3
 
 EXTERNAL SOURCES:
   battery_plus:
@@ -274,8 +247,6 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/share_plus/macos
   shared_preferences_foundation:
     :path: Flutter/ephemeral/.symlinks/plugins/shared_preferences_foundation/darwin
-  sqlite3_flutter_libs:
-    :path: Flutter/ephemeral/.symlinks/plugins/sqlite3_flutter_libs/darwin
   universal_ble:
     :path: Flutter/ephemeral/.symlinks/plugins/universal_ble/darwin
   url_launcher_macos:
@@ -290,9 +261,9 @@ SPEC CHECKSUMS:
   device_info_plus: 4fb280989f669696856f8b129e4a5e3cd6c48f76
   file_picker: 7584aae6fa07a041af2b36a2655122d42f578c1a
   Firebase: 065f2bb395062046623036d8e6dc857bc2521d56
-  firebase_analytics: 7b6cfdcfc2866ddb8d8e77320f33aae2d068986e
-  firebase_core: c74b220e9288decea6bed17399c249734a7e76d2
-  firebase_crashlytics: 0254867f8b44faa3fb6978724f2533d740c7d250
+  firebase_analytics: c87b65da9e1e5edaa7f4821e3a6efcc036a717ee
+  firebase_core: 82d678e9e10fc0b515ea1872dd446eee4722f144
+  firebase_crashlytics: 48c49b7f01aa34ff47d6e49e09a9eb9fd28a0f7e
   FirebaseAnalytics: cd7d01d352f3c237c9a0e31552c257cd0b0c0352
   FirebaseCore: 428912f751178b06bef0a1793effeb4a5e09a9b8
   FirebaseCoreExtension: e911052d59cd0da237a45d706fc0f81654f035c1
@@ -320,8 +291,6 @@ SPEC CHECKSUMS:
   screen_retriever_macos: 452e51764a9e1cdb74b3c541238795849f21557f
   share_plus: 510bf0af1a42cd602274b4629920c9649c52f4cc
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
-  sqlite3: 8d708bc63e9f4ce48f0ad9d6269e478c5ced1d9b
-  sqlite3_flutter_libs: d13b8b3003f18f596e542bcb9482d105577eff41
   universal_ble: 45519b2aeafe62761e2c6309f8927edb5288b914
   url_launcher_macos: f87a979182d112f911de6820aefddaf56ee9fbfd
   wakelock_plus: 917609be14d812ddd9e9528876538b2263aaa03b
