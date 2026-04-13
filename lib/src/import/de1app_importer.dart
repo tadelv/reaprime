@@ -384,6 +384,13 @@ class De1appImporter {
                 .setSleepTimeoutMinutes(settings.sleepTimeoutMinutes!);
           }
 
+          // Charging mode — map from de1app's smart_battery_charging enum.
+          // Unknown values leave the current Bridge setting untouched (see
+          // SettingsTdbParser._parseChargingMode).
+          if (settings.chargingMode != null) {
+            await settingsController!.setChargingMode(settings.chargingMode!);
+          }
+
           // Preferred device IDs (Android only — BLE IDs are MAC addresses)
           if (Platform.isAndroid) {
             if (settings.machineBluetoothAddress != null) {
