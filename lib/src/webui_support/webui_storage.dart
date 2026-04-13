@@ -471,10 +471,6 @@ class WebUIStorage {
   /// to keep all skins up to date. Each skin update is independent — one failure
   /// does not prevent others from updating.
   Future<void> updateAllSkins() async {
-    if (_appStoreMode) {
-      _log.fine('Skin updates disabled in App Store mode');
-      return;
-    }
     _log.info('Starting update check for all skins');
 
     // 1. Update remote-bundled skins
