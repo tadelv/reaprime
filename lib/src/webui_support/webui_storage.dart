@@ -216,7 +216,7 @@ class WebUIStorage {
   WebUISkin? getSkin(String id) => _installedSkins[id];
 
   /// Get the default skin based on user preference
-  /// Falls back to 'streamline-project' if preference not found
+  /// Falls back to 'streamline.js' if preference not found
   /// Then falls back to first bundled skin or first available skin
   WebUISkin? get defaultSkin {
     // Try to get skin from preference
@@ -227,12 +227,12 @@ class WebUIStorage {
     }
 
     // Log if preferred skin not found
-    if (preferredSkinId != 'streamline_project-main') {
+    if (preferredSkinId != 'streamline.js') {
       _log.warning('Preferred skin "$preferredSkinId" not found, falling back to default');
     }
 
-    // Try to find streamline-project as default
-    final streamlineSkin = _installedSkins['streamline_project-main'];
+    // Try to find streamline.js as default
+    final streamlineSkin = _installedSkins['streamline.js'];
     if (streamlineSkin != null) {
       return streamlineSkin;
     }

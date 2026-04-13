@@ -6,9 +6,8 @@
     "prerelease": true
   },
   {
-    "type": "github_branch",
-    "repo": "allofmeng/streamline_project",
-    "branch": "main"
+    "type": "github_release",
+    "repo": "allofmeng/streamline_project"
   },
   {
     "type": "github_release",

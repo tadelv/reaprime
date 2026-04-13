@@ -21,6 +21,10 @@ CACHE_TTL=3600
 
 mkdir -p "$CACHE_DIR" "$OUTPUT_DIR"
 
+# Clear stale bundled zips so removed/renamed skin_sources entries don't linger.
+# Cache dir is preserved to avoid re-downloading unchanged sources.
+rm -f "$OUTPUT_DIR"/*.zip "$OUTPUT_DIR"/manifest.json
+
 COUNT=$(jq length "$CONFIG")
 
 for ((i=0; i<COUNT; i++)); do
