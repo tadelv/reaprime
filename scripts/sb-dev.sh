@@ -228,7 +228,8 @@ wait_for_pattern_after() {
   start=$(date +%s)
   while (( $(date +%s) - start < timeout )); do
     # Only scan new lines since start_line
-    if tail -n +"$((start_line + 1))" "$LOGFILE" 2>/dev/null | grep -qi -- "$pattern"; then
+    if tail -n +"$((start_line + 1))" "$LOGFILE" 2>/dev/null \
+         | awk -v pat="$pattern" '$0 ~ pat {found=1; exit} END {exit !found}'; then
       return 0
     fi
     sleep 0.2
@@ -244,9 +245,10 @@ reload_cmd() {
   local before
   before=$(wc -l < "$LOGFILE")
   echo r > "$STDIN_FIFO"
-  if wait_for_pattern_after "reloaded" 30 "$before"; then
+  if wait_for_pattern_after 'Reloaded [0-9]+ of [0-9]+ libraries' 30 "$before"; then
     echo "Hot reload complete"
-    tail -n +"$((before + 1))" "$LOGFILE" | grep -i "reloaded" | head -1
+    tail -n +"$((before + 1))" "$LOGFILE" \
+      | awk '/Reloaded [0-9]+ of [0-9]+ libraries/ {print; exit}'
   else
     echo "Timed out waiting for reload confirmation" >&2
     return 1
@@ -261,9 +263,10 @@ hot_restart_cmd() {
   local before
   before=$(wc -l < "$LOGFILE")
   echo R > "$STDIN_FIFO"
-  if wait_for_pattern_after "restarted" 60 "$before"; then
+  if wait_for_pattern_after 'Restarted application in [0-9]+ms' 60 "$before"; then
     echo "Hot restart complete"
-    tail -n +"$((before + 1))" "$LOGFILE" | grep -i "restarted" | head -1
+    tail -n +"$((before + 1))" "$LOGFILE" \
+      | awk '/Restarted application in [0-9]+ms/ {print; exit}'
   else
     echo "Timed out waiting for restart confirmation" >&2
     return 1
