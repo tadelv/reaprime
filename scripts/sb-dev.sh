@@ -42,7 +42,113 @@ Env:
 EOF
 }
 
+init_runtime() {
+  mkdir -p "$RUNTIME_DIR"
+}
+
+is_running() {
+  [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null
+}
+
+wait_ready() {
+  local start timeout=120
+  start=$(date +%s)
+  while (( $(date +%s) - start < timeout )); do
+    if curl -sf "$BASE_URL/api/v1/devices" >/dev/null 2>&1; then
+      echo "HTTP server ready"
+      return 0
+    fi
+    if ! is_running; then
+      echo "Flutter process exited before becoming ready. Last logs:" >&2
+      tail -n 30 "$LOGFILE" >&2 || true
+      return 1
+    fi
+    sleep 1
+  done
+  echo "Timed out after ${timeout}s waiting for HTTP ready" >&2
+  return 1
+}
+
+connect_machine() {
+  local name="$1" start
+  curl -sf "$BASE_URL/api/v1/devices/scan?connect=true" >/dev/null || {
+    echo "Scan request failed" >&2
+    return 1
+  }
+  start=$(date +%s)
+  while (( $(date +%s) - start < 15 )); do
+    local devices
+    devices=$(curl -sf "$BASE_URL/api/v1/devices" || echo "[]")
+    if echo "$devices" | grep -qi "\"name\":\"$name\"" && echo "$devices" | grep -q '"state":"connected"'; then
+      echo "Connected to $name"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "Timed out waiting for $name to connect" >&2
+}
+
+start_cmd() {
+  init_runtime
+  if is_running; then
+    echo "Already running (pid=$(cat "$PIDFILE"))" >&2
+    return 1
+  fi
+
+  local platform="" machine="" scale=""
+  local -a extra_defines=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --platform) platform="$2"; shift 2 ;;
+      --connect-machine) machine="$2"; shift 2 ;;
+      --connect-scale) scale="$2"; shift 2 ;;
+      --dart-define) extra_defines+=("--dart-define=$2"); shift 2 ;;
+      *) echo "Unknown flag: $1" >&2; return 2 ;;
+    esac
+  done
+
+  # Persist flags for `sb-dev restart`
+  {
+    [[ -n "$platform" ]] && printf '%s\n' "--platform $platform"
+    [[ -n "$machine" ]] && printf '%s\n' "--connect-machine $machine"
+    [[ -n "$scale" ]] && printf '%s\n' "--connect-scale $scale"
+    for d in "${extra_defines[@]}"; do printf '%s\n' "--dart-define ${d#--dart-define=}"; done
+  } > "$FLAGSFILE"
+
+  local -a defines=("--dart-define=simulate=1")
+  [[ -n "$machine" ]] && defines+=("--dart-define=preferredMachineId=$machine")
+  [[ -n "$scale" ]] && defines+=("--dart-define=preferredScaleId=$scale")
+  defines+=("${extra_defines[@]}")
+
+  local -a platform_flag=()
+  [[ -n "$platform" ]] && platform_flag=(-d "$platform")
+
+  # Fresh fifo each run
+  rm -f "$STDIN_FIFO"
+  mkfifo "$STDIN_FIFO"
+
+  # Persistent writer so flutter's reader never sees EOF
+  tail -f /dev/null > "$STDIN_FIFO" &
+  echo $! > "$HOLDER_PIDFILE"
+
+  # Spawn flutter with stdin from the fifo, logs redirected
+  nohup ./flutter_with_commit.sh run "${platform_flag[@]}" "${defines[@]}" \
+    < "$STDIN_FIFO" > "$LOGFILE" 2>&1 &
+  echo $! > "$PIDFILE"
+
+  echo "Started flutter (pid=$(cat "$PIDFILE")), waiting for HTTP server..."
+  if ! wait_ready; then
+    echo "Start failed. Run 'sb-dev logs' to inspect." >&2
+    return 1
+  fi
+
+  if [[ -n "$machine" ]]; then
+    connect_machine "$machine" || true
+  fi
+}
+
 case "$cmd" in
   help|-h|--help) usage; exit 0 ;;
+  start) start_cmd "$@" ;;
   *) echo "Not yet implemented: $cmd" >&2; exit 2 ;;
 esac
