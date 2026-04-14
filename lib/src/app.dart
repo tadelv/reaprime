@@ -203,9 +203,11 @@ class _MyAppState extends State<MyApp> {
     final navigator = NavigationService.navigatorKey.currentState;
     if (navigator == null) return;
 
-    // Check platform - only use WebView on iOS, Android, macOS
-    final supportedPlatforms =
-        Platform.isIOS || Platform.isAndroid || Platform.isMacOS;
+    // Check platform - WebView supported on iOS, Android, macOS, Windows
+    final supportedPlatforms = Platform.isIOS ||
+        Platform.isAndroid ||
+        Platform.isMacOS ||
+        Platform.isWindows;
 
     if (!supportedPlatforms) {
       _log.info(
