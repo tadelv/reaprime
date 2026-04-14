@@ -188,9 +188,45 @@ stop_cmd() {
   echo "Stopped"
 }
 
+status_cmd() {
+  if is_running; then
+    echo "Running (pid=$(cat "$PIDFILE"))"
+    if curl -sf "$BASE_URL/api/v1/devices" >/dev/null 2>&1; then
+      echo "HTTP: reachable at $BASE_URL"
+      curl -sf "$BASE_URL/api/v1/devices" | jq -c '.' 2>/dev/null || true
+    else
+      echo "HTTP: not yet reachable"
+    fi
+  else
+    echo "Not running"
+  fi
+}
+
+logs_cmd() {
+  local count=50 filter=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -n|--count) count="$2"; shift 2 ;;
+      --filter) filter="$2"; shift 2 ;;
+      *) echo "Unknown flag: $1" >&2; return 2 ;;
+    esac
+  done
+  if [[ ! -f "$LOGFILE" ]]; then
+    echo "No log file yet at $LOGFILE" >&2
+    return 1
+  fi
+  if [[ -n "$filter" ]]; then
+    grep -i -- "$filter" "$LOGFILE" | tail -n "$count" || true
+  else
+    tail -n "$count" "$LOGFILE"
+  fi
+}
+
 case "$cmd" in
   help|-h|--help) usage; exit 0 ;;
   start) start_cmd "$@" ;;
   stop) stop_cmd ;;
+  status) status_cmd ;;
+  logs) logs_cmd "$@" ;;
   *) echo "Not yet implemented: $cmd" >&2; exit 2 ;;
 esac
