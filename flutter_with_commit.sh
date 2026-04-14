@@ -84,7 +84,7 @@ if [ "$COMMAND" = "build" ]; then
 fi
 
 # --- All other commands (flutter run, test, analyze, etc.) ---
-flutter "$COMMAND" \
+exec flutter "$COMMAND" \
   --dart-define=COMMIT="$COMMIT" \
   --dart-define=COMMIT_SHORT="$COMMIT_SHORT" \
   --dart-define=BRANCH="$BRANCH" \
