@@ -653,6 +653,12 @@ git add scripts/sb-dev.sh
 git commit -m "scripts: sb-dev shellcheck clean"
 ```
 
+**Known issues surfaced during T7 that are out of scope here but worth carrying forward:**
+
+- **Upstream race in `lib/src/services/simulated_device_service.dart:33-36`.** `scanForDevices()` early-returns when `enabledDevices` is empty, and on first call after boot the settings listener hasn't yet merged enabled devices. sb-dev's `connect_machine` works around this with a re-scan loop, but the app-side bug should also be fixed (e.g., `await _settingsService.ready` before the early return). File as a follow-up; not blocking this refactor.
+- **`wait_ready` port ownership.** The HTTP probe can latch onto a stale server (e.g. a leftover playwright listener on port 8080). Cheap hardening: wait for `API Web server running` in `$LOGFILE` (from `lib/src/services/webserver_service.dart:232`) before trusting port 8080. Defer to a follow-up.
+- **`restart_cmd` flag round-trip** via `$FLAGSFILE` doesn't survive values containing spaces (e.g. real BLE device names like "Acaia Pyxis"). Current `MockDe1`/`MockScale` names are safe. Consider NUL-delimited storage for flags in a follow-up.
+
 ---
 
 ## Phase 2: Write the skill

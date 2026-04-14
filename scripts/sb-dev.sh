@@ -19,7 +19,7 @@ PORT="${SB_PORT:-8080}"
 BASE_URL="http://$HOST:$PORT"
 
 if ! command -v jq >/dev/null 2>&1; then
-  echo "error: jq is required for sb-dev (install via 'brew install jq')" >&2
+  echo "error: jq is required for sb-dev (install via your package manager, e.g. 'brew install jq' / 'apt install jq' / 'pacman -S jq')" >&2
   exit 1
 fi
 
