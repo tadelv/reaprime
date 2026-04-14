@@ -5,9 +5,24 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build (push to main always builds all)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - android
+          - macos
+          - linux
+          - raspberrypi
+          - ios
+          - windows
 
 jobs:
   build-android:
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'android'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -71,6 +86,7 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
 
   build-macos:
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'macos'
     runs-on: macos-latest
     steps:
       - name: Check out repository
@@ -202,6 +218,7 @@ jobs:
           path: streamline-bridge-macos-develop.zip
 
   build-linux:
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'linux'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -244,6 +261,7 @@ jobs:
 
   build-raspberrypi:
     name: Build for Raspberry Pi (ARM64 / Pi 4+)
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'raspberrypi'
     runs-on: ubuntu-22.04-arm     # ARM64 hosted runner label
     steps:
       - name: Check out repository
@@ -289,6 +307,7 @@ jobs:
           path: build/linux/arm64/release/bundle
 
   build-ios:
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'ios'
     runs-on: macos-latest
     steps:
       - name: Check out repository
@@ -422,6 +441,7 @@ jobs:
       # TestFlight upload is only done in release builds (release.yml)
 
   build-windows:
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'windows'
     runs-on: windows-latest
     steps:
       - name: Check out repository
