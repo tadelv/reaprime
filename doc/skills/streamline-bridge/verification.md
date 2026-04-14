@@ -37,9 +37,10 @@ Boot the app with a mock machine connected, confirm REST is reachable and a DE1 
 2. `scripts/sb-dev.sh reload`.
 3. One-shot verify against the affected channel:
    ```bash
-   timeout 3 websocat -t ws://localhost:8080/ws/v1/machine/snapshot | jq .
+   websocat --no-async-stdio -n -U -t --max-messages-rev 3 \
+     ws://localhost:8080/ws/v1/machine/snapshot | jq .
    ```
-   Adjust the channel URL to match what you touched.
+   Adjust the channel URL to match what you touched. See `websocket.md` for what each flag does.
 4. **Update `assets/api/websocket_v1.yml` in the same commit as the handler change.**
 5. Update `doc/Api.md` and/or `doc/Plugins.md` if events or event shapes changed.
 
