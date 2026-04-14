@@ -577,10 +577,52 @@ git commit -m "scripts: sb-dev restart replays saved flags"
 
 ---
 
-### Task 7: Add `shellcheck` clean pass + final smoke test
+### Task 7: Hardening pass — shellcheck + review follow-ups + final smoke test
 
 **Files:**
-- Modify: `scripts/sb-dev.sh` (fix any shellcheck issues)
+- Modify: `scripts/sb-dev.sh` (shellcheck clean, guard `shift 2`, optional jq warning, `connect_machine` fixes)
+
+This task rolls up follow-up items surfaced during T2 and T4 reviews. Each item is small and tightly scoped; make them in one commit.
+
+**Step 0: Apply review follow-ups before running shellcheck**
+
+**0a. Guard `shift 2` against missing values** in both `start_cmd` and `logs_cmd` flag loops. Under `set -u`, `shift 2` with only one arg followed by `$2` reference dies with "unbound variable" — cryptic. Replace each `shift 2` call with a guarded version:
+
+```bash
+case "$1" in
+  --platform)
+    [[ $# -ge 2 ]] || { echo "Missing value for $1" >&2; return 2; }
+    platform="$2"; shift 2 ;;
+  # ... same pattern for --connect-machine, --connect-scale, --dart-define in start_cmd
+  # ... same pattern for -n|--count and --filter in logs_cmd
+```
+
+Apply at every `shift 2` site in `start_cmd` and `logs_cmd`.
+
+**0b. Fix `connect_machine` quiet failure modes** (T2 review findings 4–6):
+
+- Add an explicit `return 1` at the end of `connect_machine` after the timeout message so the return code is not an implicit falsy leftover.
+- Change the grep pattern from `grep -qi "..."` to `grep -qiF "..."` (`-F` = fixed string) so device names containing regex metacharacters don't break matching. Apply to both grep calls.
+- The two independent `grep`s in `connect_machine` don't actually verify that the **same** device entry both has the right name AND is connected. Replace the combined check with a `jq` expression that parses the JSON properly:
+
+```bash
+if echo "$devices" | jq -e --arg name "$name" '.[] | select(.name == $name and .state == "connected")' >/dev/null 2>&1; then
+  echo "Connected to $name"
+  return 0
+fi
+```
+
+If `jq` is a hard dependency, that's fine (T7 optional step 0c adds a warning). If you prefer to keep it grep-only, use a more specific pattern but document the limitation.
+
+**0c. (Optional) Warn once at script top if `jq` is missing.** Near the top of the script, after the env var declarations:
+
+```bash
+if ! command -v jq >/dev/null 2>&1; then
+  echo "warning: jq not found; status and connect-machine output will be limited" >&2
+fi
+```
+
+This is a friendly hint, not a hard dependency — `status_cmd`'s `|| true` already tolerates missing `jq`, but a one-time warning helps users diagnose why output looks different.
 
 **Step 1: Run shellcheck**
 
