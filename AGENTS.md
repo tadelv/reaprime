@@ -50,6 +50,17 @@ The **MCP Server** section describes Claude-specific MCP tools. For other agents
 - Use `flutter run --dart-define=simulate=1` for simulated testing
 - MCP scenarios in `test/mcp_scenarios/*.yaml` define end-to-end verification flows
 
+## Working with Streamline Bridge (all agents)
+
+The authoritative dev-loop skill lives in `doc/skills/streamline-bridge/`. Any agent that can read markdown can use it — no MCP, no plugin install.
+
+- **Entry point:** `doc/skills/streamline-bridge/README.md`
+- **Routing:** the README has a table pointing at sub-files for lifecycle, REST, WebSocket, simulated devices, and verification.
+- **Lifecycle helper:** `scripts/sb-dev.sh` (POSIX shell) manages `flutter run` in simulate mode — start, stop, hot reload, logs, status.
+- **Authoritative specs:** `assets/api/rest_v1.yml` (OpenAPI 3.0) and `assets/api/websocket_v1.yml` (AsyncAPI 3.0). Always read the relevant spec before making calls — don't guess endpoint paths or payload shapes.
+
+Prerequisites: `bash`, `curl`, `jq`, `websocat`, `flutter`, and POSIX `mkfifo` (macOS/Linux). Windows contributors run `flutter run` in a real terminal — see `doc/skills/streamline-bridge/lifecycle.md` for the Windows caveat.
+
 ## File Locations
 
 | Purpose | Path |
