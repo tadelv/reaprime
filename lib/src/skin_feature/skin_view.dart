@@ -102,8 +102,18 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
     // Clear HTTP cache. Note: this does NOT clear service worker
     // CacheStorage on Android — the SW is bypassed via a cache-
     // busting query param on the initial URL instead.
-    await InAppWebViewController.clearAllCache();
-    _log.fine('WebView cache cleared');
+    //
+    // Skipped on Windows: flutter_inappwebview_windows has no native
+    // handler for clearAllCache, and awaiting it hangs SkinView on
+    // "Checking compatibility...".
+    if (!Platform.isWindows) {
+      try {
+        await InAppWebViewController.clearAllCache();
+        _log.fine('WebView cache cleared');
+      } catch (e, st) {
+        _log.warning('clearAllCache failed, continuing', e, st);
+      }
+    }
 
     final result = await WebViewCompatibilityChecker.checkCompatibility();
 
