@@ -189,6 +189,8 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
       instructions = 'Use system back button to return to Dashboard';
     } else if (Platform.isMacOS) {
       instructions = 'Press ⌘D or use View → Back to Dashboard to return';
+    } else if (Platform.isWindows) {
+      instructions = 'Press Ctrl+ESC to return to Dashboard';
     } else {
       // Fallback for other platforms
       instructions = 'Use back navigation to return to Dashboard';
@@ -338,12 +340,13 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
                   ElevatedButton.icon(
                     icon: const Icon(Icons.download),
                     label: const Text('Install WebView2'),
-                    onPressed: () => launchUrl(
-                      Uri.parse(
-                        'https://go.microsoft.com/fwlink/p/?LinkId=2124703',
-                      ),
-                      mode: LaunchMode.externalApplication,
-                    ),
+                    onPressed:
+                        () => launchUrl(
+                          Uri.parse(
+                            'https://go.microsoft.com/fwlink/p/?LinkId=2124703',
+                          ),
+                          mode: LaunchMode.externalApplication,
+                        ),
                   ),
               ],
             ),
@@ -492,6 +495,21 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
       );
     }
 
+    if (Platform.isWindows) {
+      return CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.escape, control: true): () {
+            Navigator.of(context).pop();
+          },
+        },
+        child: _buildWebViewStack(),
+      );
+    }
+
+    return _buildWebViewStack();
+  }
+
+  Widget _buildWebViewStack() {
     return Stack(
       children: [
         InAppWebView(
