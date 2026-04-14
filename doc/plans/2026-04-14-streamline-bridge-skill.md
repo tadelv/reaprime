@@ -255,10 +255,15 @@ git commit -m "scripts: sb-dev start with ready probe + auto-connect"
 
 ---
 
-### Task 3: Implement `sb-dev stop`
+### Task 3: Implement `sb-dev stop` (and fix PID cascade)
 
 **Files:**
-- Modify: `scripts/sb-dev.sh`
+- Modify: `flutter_with_commit.sh` (one-line fix so wrapper PID = flutter PID)
+- Modify: `scripts/sb-dev.sh` (stop_cmd + cleanup_runtime, wire cleanup into start error path)
+
+**Step 0: Fix `flutter_with_commit.sh` to `exec flutter ...`**
+
+Line 87 of `flutter_with_commit.sh` currently reads `flutter "$COMMAND" \`. Change to `exec flutter "$COMMAND" \`. Rationale: without `exec`, the bash wrapper is the parent of `flutter`, and `kill $wrapper_pid` leaves the Dart VM child orphaned. With `exec`, the wrapper process image is replaced by flutter, so `$!` captured by sb-dev is the actual flutter PID — `kill` cascades cleanly. Behavior for non-run commands (test, analyze) is unchanged because `exec` still captures the same exit code that the calling shell sees.
 
 **Step 1: Add `stop_cmd` and `cleanup_runtime` helpers**
 
@@ -272,6 +277,17 @@ cleanup_runtime() {
   fi
   rm -f "$PIDFILE" "$STDIN_FIFO"
 }
+
+# Also wire cleanup into start_cmd's error path: wherever start_cmd has
+# `return 1` after a failure (wait_ready, mkfifo, etc.), call cleanup_runtime
+# first. Add the call so a failed start doesn't leak fifo + holder + pidfile.
+# Specifically replace the wait_ready failure branch in start_cmd with:
+#
+#   if ! wait_ready; then
+#     echo "Start failed. Run 'sb-dev logs' to inspect." >&2
+#     cleanup_runtime
+#     return 1
+#   fi
 
 stop_cmd() {
   if ! is_running; then
