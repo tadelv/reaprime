@@ -273,6 +273,18 @@ hot_restart_cmd() {
   fi
 }
 
+restart_cmd() {
+  local -a saved_args=()
+  if [[ -f "$FLAGSFILE" ]]; then
+    while IFS= read -r line; do
+      # shellcheck disable=SC2206
+      saved_args+=($line)
+    done < "$FLAGSFILE"
+  fi
+  stop_cmd || true
+  start_cmd "${saved_args[@]}"
+}
+
 case "$cmd" in
   help|-h|--help) usage; exit 0 ;;
   start) start_cmd "$@" ;;
@@ -281,5 +293,6 @@ case "$cmd" in
   logs) logs_cmd "$@" ;;
   reload) reload_cmd ;;
   hot-restart) hot_restart_cmd ;;
+  restart) restart_cmd ;;
   *) echo "Not yet implemented: $cmd" >&2; exit 2 ;;
 esac
