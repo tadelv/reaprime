@@ -144,9 +144,18 @@ class _SettingsViewState extends State<SettingsView>
             value: widget.controller.themeMode,
             onChanged: widget.controller.updateThemeMode,
             items: const [
-              DropdownMenuItem(value: ThemeMode.system, child: Text('System Theme')),
-              DropdownMenuItem(value: ThemeMode.light, child: Text('Light Theme')),
-              DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark Theme')),
+              DropdownMenuItem(
+                value: ThemeMode.system,
+                child: Text('System Theme'),
+              ),
+              DropdownMenuItem(
+                value: ThemeMode.light,
+                child: Text('Light Theme'),
+              ),
+              DropdownMenuItem(
+                value: ThemeMode.dark,
+                child: Text('Dark Theme'),
+              ),
             ],
           ),
         ),
@@ -167,9 +176,9 @@ class _SettingsViewState extends State<SettingsView>
             children: [
               Text(
                 'Gateway Mode',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 8),
               DropdownButton<GatewayMode>(
@@ -185,7 +194,9 @@ class _SettingsViewState extends State<SettingsView>
                   ),
                   DropdownMenuItem(
                     value: GatewayMode.tracking,
-                    child: Text('Tracking (Rea will stop shot if target weight is reached)'),
+                    child: Text(
+                      'Tracking (Rea will stop shot if target weight is reached)',
+                    ),
                   ),
                   DropdownMenuItem(
                     value: GatewayMode.disabled,
@@ -216,8 +227,8 @@ class _SettingsViewState extends State<SettingsView>
                   child: Text(
                     'Battery & Charging',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -226,8 +237,10 @@ class _SettingsViewState extends State<SettingsView>
             Text(
               'Smart charging and night mode settings',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                  ),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
             ),
             const SizedBox(height: 16),
             Text(
@@ -250,9 +263,10 @@ class _SettingsViewState extends State<SettingsView>
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => BatteryChargingSettingsPage(
-                          controller: widget.controller,
-                        ),
+                        builder:
+                            (_) => BatteryChargingSettingsPage(
+                              controller: widget.controller,
+                            ),
                       ),
                     );
                   },
@@ -307,8 +321,8 @@ class _SettingsViewState extends State<SettingsView>
                   child: Text(
                     'Presence & Sleep',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -317,17 +331,13 @@ class _SettingsViewState extends State<SettingsView>
             Text(
               'Automatic sleep and scheduled wake settings',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.7),
-                  ),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
             ),
             const SizedBox(height: 16),
-            Text(
-              subtitle,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
+            Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: 12),
             Semantics(
               button: true,
@@ -337,10 +347,12 @@ class _SettingsViewState extends State<SettingsView>
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => PresenceSettingsPage(
-                          controller: widget.controller,
-                          keepAwakeUntil: widget.presenceController.keepAwakeUntil,
-                        ),
+                        builder:
+                            (_) => PresenceSettingsPage(
+                              controller: widget.controller,
+                              keepAwakeUntil:
+                                  widget.presenceController.keepAwakeUntil,
+                            ),
                       ),
                     );
                   },
@@ -377,8 +389,8 @@ class _SettingsViewState extends State<SettingsView>
                   child: Text(
                     'Device Management',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -387,11 +399,10 @@ class _SettingsViewState extends State<SettingsView>
             Text(
               'Configure preferred auto-connect devices',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.7),
-                  ),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
             ),
             const SizedBox(height: 16),
             Text(
@@ -412,10 +423,11 @@ class _SettingsViewState extends State<SettingsView>
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => DeviceManagementPage(
-                          settingsController: widget.controller,
-                          deviceController: widget.deviceController,
-                        ),
+                        builder:
+                            (_) => DeviceManagementPage(
+                              settingsController: widget.controller,
+                              deviceController: widget.deviceController,
+                            ),
                       ),
                     );
                   },
@@ -426,16 +438,18 @@ class _SettingsViewState extends State<SettingsView>
             const Divider(height: 32),
             Text(
               'Simulated Devices',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
             ),
             const SizedBox(height: 4),
             Text(
               'Select which simulated devices appear in scan results',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                  ),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
             ),
             const SizedBox(height: 8),
             for (final type in SimulatedDevicesTypes.values)
@@ -454,7 +468,9 @@ class _SettingsViewState extends State<SettingsView>
                     _log.info("simulated devices: $current");
                     await widget.controller.setSimulatedDevices(current);
                   },
-                  label: Text(type.name[0].toUpperCase() + type.name.substring(1)),
+                  label: Text(
+                    type.name[0].toUpperCase() + type.name.substring(1),
+                  ),
                 ),
               ),
           ],
@@ -479,8 +495,8 @@ class _SettingsViewState extends State<SettingsView>
                   child: Text(
                     'Data Management',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -489,11 +505,10 @@ class _SettingsViewState extends State<SettingsView>
             Text(
               'Export, import, and backup your data',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.7),
-                  ),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
             ),
             const SizedBox(height: 16),
             Text(
@@ -509,14 +524,18 @@ class _SettingsViewState extends State<SettingsView>
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => DataManagementPage(
-                          controller: widget.controller,
-                          persistenceController: widget.persistenceController,
-                          profileStorageService: widget.profileStorageService,
-                          beanStorageService: widget.beanStorageService,
-                          grinderStorageService: widget.grinderStorageService,
-                          workflowController: widget.workflowController,
-                        ),
+                        builder:
+                            (_) => DataManagementPage(
+                              controller: widget.controller,
+                              persistenceController:
+                                  widget.persistenceController,
+                              profileStorageService:
+                                  widget.profileStorageService,
+                              beanStorageService: widget.beanStorageService,
+                              grinderStorageService:
+                                  widget.grinderStorageService,
+                              workflowController: widget.workflowController,
+                            ),
                       ),
                     );
                   },
@@ -586,10 +605,7 @@ class _SettingsViewState extends State<SettingsView>
       icon: Icons.web_outlined,
       description: 'Select and manage web-based user interface skins',
       children: [
-        _SettingRow(
-          label: 'Skin',
-          child: _buildSkinSelector(),
-        ),
+        _SettingRow(label: 'Skin', child: _buildSkinSelector()),
         _buildStoragePermissionRow(),
         const Divider(height: 24),
         if (!widget.webUIService.isServing)
@@ -614,7 +630,7 @@ class _SettingsViewState extends State<SettingsView>
                 child: ExcludeSemantics(
                   child: ShadButton(
                     onPressed: () async {
-                      await launchUrl(Uri.parse('http://localhost:3000'));
+                      await _openWebUIInBrowser();
                     },
                     child: const Text("Open UI in browser"),
                   ),
@@ -685,9 +701,7 @@ class _SettingsViewState extends State<SettingsView>
               }
             },
             label: const Text("Automatic update checks"),
-            sublabel: const Text(
-              "Check for updates every 12 hours",
-            ),
+            sublabel: const Text("Check for updates every 12 hours"),
           ),
         ),
         const SizedBox(height: 16),
@@ -709,8 +723,8 @@ class _SettingsViewState extends State<SettingsView>
                   child: Text(
                     'Update available: ${widget.updateCheckService?.availableUpdate?.version}',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onPrimaryContainer,
-                        ),
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    ),
                   ),
                 ),
               ],
@@ -727,7 +741,10 @@ class _SettingsViewState extends State<SettingsView>
               label: 'Open plugins settings',
               child: ExcludeSemantics(
                 child: ShadButton.outline(
-                  onPressed: () => Navigator.of(context).pushNamed(PluginsSettingsView.routeName),
+                  onPressed:
+                      () => Navigator.of(
+                        context,
+                      ).pushNamed(PluginsSettingsView.routeName),
                   child: const Text("Plugins"),
                 ),
               ),
@@ -774,9 +791,9 @@ class _SettingsViewState extends State<SettingsView>
         const Divider(height: 24),
         Text(
           'License',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 4),
         Text(
@@ -795,7 +812,9 @@ class _SettingsViewState extends State<SettingsView>
           child: ExcludeSemantics(
             child: ShadButton.outline(
               onPressed: () async {
-                await launchUrl(Uri.parse('https://www.gnu.org/licenses/gpl-3.0.html'));
+                await launchUrl(
+                  Uri.parse('https://www.gnu.org/licenses/gpl-3.0.html'),
+                );
               },
               child: const Text('View GPL v3 License'),
             ),
@@ -832,10 +851,7 @@ class _SettingsViewState extends State<SettingsView>
             value: skin.id,
             child: Row(
               children: [
-                Icon(
-                  skin.isBundled ? Icons.verified : Icons.folder,
-                  size: 16,
-                ),
+                Icon(skin.isBundled ? Icons.verified : Icons.folder, size: 16),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(skin.name, overflow: TextOverflow.ellipsis),
@@ -860,24 +876,29 @@ class _SettingsViewState extends State<SettingsView>
 
                         final confirmed = await showDialog<bool>(
                           context: context,
-                          builder: (dialogContext) => AlertDialog(
-                            title: const Text('Remove skin?'),
-                            content: Text(
-                              'Remove "${skin.name}"? This cannot be undone.',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.of(dialogContext).pop(false),
-                                child: const Text('Cancel'),
+                          builder:
+                              (dialogContext) => AlertDialog(
+                                title: const Text('Remove skin?'),
+                                content: Text(
+                                  'Remove "${skin.name}"? This cannot be undone.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed:
+                                        () => Navigator.of(
+                                          dialogContext,
+                                        ).pop(false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  TextButton(
+                                    onPressed:
+                                        () => Navigator.of(
+                                          dialogContext,
+                                        ).pop(true),
+                                    child: const Text('Remove'),
+                                  ),
+                                ],
                               ),
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.of(dialogContext).pop(true),
-                                child: const Text('Remove'),
-                              ),
-                            ],
-                          ),
                         );
                         if (confirmed != true) return;
 
@@ -895,8 +916,8 @@ class _SettingsViewState extends State<SettingsView>
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                  content:
-                                      Text('Failed to remove skin: $e')),
+                                content: Text('Failed to remove skin: $e'),
+                              ),
                             );
                           }
                         }
@@ -973,9 +994,9 @@ class _SettingsViewState extends State<SettingsView>
     } catch (e) {
       _log.severe('Failed to restart WebUI server', e);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to restart WebUI: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to restart WebUI: $e')));
       }
     }
   }
@@ -1023,9 +1044,9 @@ class _SettingsViewState extends State<SettingsView>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to start WebUI: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to start WebUI: $e')));
       }
     }
   }
@@ -1062,12 +1083,10 @@ class _SettingsViewState extends State<SettingsView>
           SnackBar(
             content: Row(
               children: [
-                const Expanded(
-                  child: Text('Custom skin installed and loaded'),
-                ),
+                const Expanded(child: Text('Custom skin installed and loaded')),
                 ShadButton.outline(
                   onPressed: () async {
-                    await launchUrl(Uri.parse('http://localhost:3000'));
+                    await _openWebUIInBrowser();
                   },
                   child: const Text("Open"),
                 ),
@@ -1078,9 +1097,9 @@ class _SettingsViewState extends State<SettingsView>
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to install skin: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to install skin: $e')));
       }
       setState(() => _selectedSkinId = widget.webUIStorage.defaultSkin?.id);
     }
@@ -1102,13 +1121,10 @@ class _SettingsViewState extends State<SettingsView>
             SnackBar(
               content: Row(
                 children: [
-                  Expanded(
-                    child:
-                        Text('Live-editing from $selectedDirectory'),
-                  ),
+                  Expanded(child: Text('Live-editing from $selectedDirectory')),
                   ShadButton.outline(
                     onPressed: () async {
-                      await launchUrl(Uri.parse('http://localhost:3000'));
+                      await _openWebUIInBrowser();
                     },
                     child: const Text("Open"),
                   ),
@@ -1130,6 +1146,14 @@ class _SettingsViewState extends State<SettingsView>
     } else {
       setState(() => _selectedSkinId = widget.webUIStorage.defaultSkin?.id);
     }
+  }
+
+  Future<bool> _openWebUIInBrowser() async {
+    return await launchUrl(
+      Uri.parse(
+        'http://localhost:3000?_=${DateTime.now().millisecondsSinceEpoch}',
+      ),
+    );
   }
 
   // MARK: - Update Actions
@@ -1167,9 +1191,9 @@ class _SettingsViewState extends State<SettingsView>
   Future<void> _checkForUpdates(BuildContext context) async {
     try {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Checking for updates...')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Checking for updates...')));
 
       // Check for app updates
       final updateInfo = await widget.updateCheckService?.checkForUpdate();
@@ -1182,57 +1206,61 @@ class _SettingsViewState extends State<SettingsView>
           final updater = AndroidUpdater(owner: 'tadelv', repo: 'reaprime');
           showDialog(
             context: context,
-            builder: (context) => UpdateDialog(
-              updateInfo: updateInfo,
-              currentVersion: BuildInfo.version,
-              onDownload: (info) => updater.downloadUpdate(info),
-              onInstall: (path) => updater.installUpdate(path),
-            ),
+            builder:
+                (context) => UpdateDialog(
+                  updateInfo: updateInfo,
+                  currentVersion: BuildInfo.version,
+                  onDownload: (info) => updater.downloadUpdate(info),
+                  onInstall: (path) => updater.installUpdate(path),
+                ),
           );
         } else {
           // On other platforms, show dialog and open browser
           final releaseUrl = widget.updateCheckService?.getReleaseUrl();
           showDialog(
             context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Update Available'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Version ${updateInfo.version} is available'),
-                  const SizedBox(height: 8),
-                  Text('Current version: ${BuildInfo.version}'),
-                  if (updateInfo.releaseNotes.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    const Text('Release Notes:',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    Container(
-                      constraints: const BoxConstraints(maxHeight: 200),
-                      child: SingleChildScrollView(
-                        child: Text(updateInfo.releaseNotes),
-                      ),
+            builder:
+                (context) => AlertDialog(
+                  title: const Text('Update Available'),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Version ${updateInfo.version} is available'),
+                      const SizedBox(height: 8),
+                      Text('Current version: ${BuildInfo.version}'),
+                      if (updateInfo.releaseNotes.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Release Notes:',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          constraints: const BoxConstraints(maxHeight: 200),
+                          child: SingleChildScrollView(
+                            child: Text(updateInfo.releaseNotes),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Later'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        if (releaseUrl != null) {
+                          await launchUrl(Uri.parse(releaseUrl));
+                        }
+                      },
+                      child: const Text('Download'),
                     ),
                   ],
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Later'),
                 ),
-                ElevatedButton(
-                  onPressed: () async {
-                    Navigator.of(context).pop();
-                    if (releaseUrl != null) {
-                      await launchUrl(Uri.parse(releaseUrl));
-                    }
-                  },
-                  child: const Text('Download'),
-                ),
-              ],
-            ),
           );
         }
       } else {
@@ -1305,8 +1333,8 @@ class _SettingsSection extends StatelessWidget {
                   child: Text(
                     title,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 if (onInfoPressed != null)
@@ -1328,8 +1356,10 @@ class _SettingsSection extends StatelessWidget {
               Text(
                 description!,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                    ),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
               ),
             ],
             const SizedBox(height: 16),
@@ -1345,10 +1375,7 @@ class _SettingRow extends StatelessWidget {
   final String label;
   final Widget child;
 
-  const _SettingRow({
-    required this.label,
-    required this.child,
-  });
+  const _SettingRow({required this.label, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -1361,9 +1388,9 @@ class _SettingRow extends StatelessWidget {
               width: 140,
               child: Text(
                 label,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
               ),
             ),
             Expanded(child: child),
@@ -1398,9 +1425,9 @@ class _InfoRow extends StatelessWidget {
             Expanded(
               child: Text(
                 value,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontFamily: 'monospace',
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(fontFamily: 'monospace'),
               ),
             ),
           ],
@@ -1409,6 +1436,3 @@ class _InfoRow extends StatelessWidget {
     );
   }
 }
-
-
-

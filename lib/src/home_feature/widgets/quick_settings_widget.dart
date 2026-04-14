@@ -205,7 +205,7 @@ class _QuickSettingsState extends State<QuickSettingsWidget> {
                           Navigator.of(context).pushNamed(SkinView.routeName);
                         } else {
                           // On other platforms, open in external browser
-                          final url = Uri.parse('http://localhost:3000');
+                          final url = Uri.parse('http://localhost:3000?_=${DateTime.now().millisecondsSinceEpoch}');
                           await launchUrl(url);
                         }
                       },

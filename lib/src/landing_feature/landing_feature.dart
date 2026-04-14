@@ -148,7 +148,7 @@ class _LandingState extends State<LandingFeature> {
     _autoNavigateTimer?.cancel();
 
     try {
-      final url = Uri.parse('http://localhost:3000');
+      final url = Uri.parse('http://localhost:3000?_=${DateTime.now().millisecondsSinceEpoch}');
       await launchUrl(url);
 
       // Still navigate to home after opening browser
