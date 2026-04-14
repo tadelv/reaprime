@@ -14,15 +14,15 @@ final class SensorsHandler {
             final info = s.info;
             return {'id': s.deviceId, 'info': info.toJson()};
           }).toList();
-      return Response.ok(jsonEncode(list));
+      return jsonOk(list);
     });
 
     app.get('/api/v1/sensors/<id>', (Request req, String id) async {
       final sensor = _controller.sensors[id];
       if (sensor == null) {
-        return Response.notFound('not found');
+        return jsonNotFound({'error': 'Sensor not found: $id'});
       }
-      return Response.ok(jsonEncode(sensor.info.toJson()));
+      return jsonOk(sensor.info.toJson());
     });
 
     app.get('/ws/v1/sensors/<id>/snapshot', _handleSensorSnapshot);
@@ -30,7 +30,7 @@ final class SensorsHandler {
     app.post('/api/v1/sensors/<id>/execute', (Request req, String id) async {
       final sensor = _controller.sensors[id];
       if (sensor == null) {
-        return Response.notFound('not found');
+        return jsonNotFound({'error': 'Sensor not found: $id'});
       }
 
       final body = await req.readAsString();
@@ -39,15 +39,9 @@ final class SensorsHandler {
       final params = jsonBody['params'] as Map<String, dynamic>?;
       try {
         final res = await sensor.execute(cmdId, params);
-        return Response.ok(
-          jsonEncode({'status': 'ok', 'result': res}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonOk({'status': 'ok', 'result': res});
       } catch (e) {
-        return Response.internalServerError(
-          body: jsonEncode({'status': 'error', 'message': e.toString()}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonError({'status': 'error', 'message': e.toString()});
       }
     });
   }

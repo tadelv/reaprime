@@ -7,30 +7,28 @@ final class KvStoreHandler {
     app.get('/api/v1/store/<namespace>', (Request req) async {
       final namespace = req.params['namespace'];
       if (namespace == null) {
-        return Response.badRequest();
+        return jsonBadRequest({'error': 'Missing namespace'});
       }
-      return Response.ok(jsonEncode(await store.keys(namespace: namespace)));
+      return jsonOk(await store.keys(namespace: namespace));
     });
 
     app.get('/api/v1/store/<namespace>/<key>', (Request req) async {
       final namespace = req.params['namespace'];
       final key = req.params['key'];
       if (namespace == null || key == null) {
-        return Response.badRequest();
+        return jsonBadRequest({'error': 'Missing namespace or key'});
       }
-      return Response.ok(
-        jsonEncode(await store.get(namespace: namespace, key: key)),
-      );
+      return jsonOk(await store.get(namespace: namespace, key: key));
     });
 
     app.delete('/api/v1/store/<namespace>/<key>', (Request req) async {
       final namespace = req.params['namespace'];
       final key = req.params['key'];
       if (namespace == null || key == null) {
-        return Response.badRequest();
+        return jsonBadRequest({'error': 'Missing namespace or key'});
       }
       await store.delete(key: key, namespace: namespace);
-      return Response.ok("{}");
+      return jsonOk({});
     });
 
     app.post('/api/v1/store/<namespace>/<key>', (Request req) async {
@@ -39,14 +37,14 @@ final class KvStoreHandler {
       final value = await req.readAsString();
       final maybeJson = jsonDecode(value);
       if (namespace == null || key == null) {
-        return Response.badRequest();
+        return jsonBadRequest({'error': 'Missing namespace or key'});
       }
       await store.set(
         key: key,
         value: maybeJson ?? value,
         namespace: namespace,
       );
-      return Response.ok("{}");
+      return jsonOk({});
     });
   }
 }

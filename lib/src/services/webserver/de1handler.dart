@@ -46,7 +46,7 @@ class De1Handler {
         if (json['refillLevel'] != null) {
           await de1.setRefillLevel((json['refillLevel'] as num).toInt());
         }
-        return Response(202);
+        return jsonAccepted();
       });
     });
 
@@ -84,7 +84,7 @@ class De1Handler {
           await de1.setSteamPurgeMode(parseInt(json['steamPurgeMode']));
         }
 
-        return Response(202);
+        return jsonAccepted();
       });
     });
 
@@ -100,7 +100,7 @@ class De1Handler {
         json['steamFlow'] = await de1.getSteamFlow();
         json['tankTemp'] = await de1.getTankTempThreshold();
         json['steamPurgeMode'] = await de1.getSteamPurgeMode();
-        return Response.ok(jsonEncode(json));
+        return jsonOk(json);
       });
     });
 
@@ -121,7 +121,7 @@ class De1Handler {
             parseDouble(json['heaterPh2Timeout']),
           );
         }
-        return Response(202);
+        return jsonAccepted();
       });
     });
 
@@ -132,7 +132,7 @@ class De1Handler {
         json['heaterPh2Flow'] = await de1.getHeaterPhase2Flow();
         json['heaterIdleTemp'] = await de1.getHeaterIdleTemp();
         json['heaterPh2Timeout'] = await de1.getHeaterPhase2Timeout();
-        return Response.ok(jsonEncode(json));
+        return jsonOk(json);
       });
     });
 
@@ -140,7 +140,7 @@ class De1Handler {
       return withDe1((de1) async {
         var json = <String, dynamic>{};
         json['flowMultiplier'] = await de1.getFlowEstimation();
-        return Response.ok(jsonEncode(json));
+        return jsonOk(json);
       });
     });
 
@@ -150,7 +150,7 @@ class De1Handler {
         if (json['flowMultiplier'] != null) {
           await de1.setFlowEstimation(parseDouble(json['flowMultiplier']));
         }
-        return Response(202);
+        return jsonAccepted();
       });
     });
 
@@ -163,9 +163,7 @@ class De1Handler {
       try {
         de1 = _controller.connectedDe1();
       } catch (e) {
-        return Response.internalServerError(
-          body: jsonEncode({'error': e.toString()}),
-        );
+        return jsonError({'error': e.toString()});
       }
 
       final progressController = StreamController<List<int>>();
@@ -220,9 +218,7 @@ class De1Handler {
       var de1 = _controller.connectedDe1();
       return await call(de1);
     } catch (e, st) {
-      return Response.internalServerError(
-        body: jsonEncode({'error': e.toString(), 'st': st.toString()}),
-      );
+      return jsonError({'error': e.toString(), 'st': st.toString()});
     }
   }
 
@@ -243,14 +239,14 @@ class De1Handler {
 
   Future<Response> _infoHandler(Request request) async {
     return withDe1((De1Interface de1) async {
-      return Response.ok(jsonEncode(de1.machineInfo.toJson()));
+      return jsonOk(de1.machineInfo.toJson());
     });
   }
 
   Future<Response> _stateHandler(Request request) async {
     return withDe1((De1Interface de1) async {
       var snapshot = await de1.currentSnapshot.first;
-      return Response.ok(jsonEncode(snapshot.toJson()));
+      return jsonOk(snapshot.toJson());
     });
   }
 
@@ -261,7 +257,7 @@ class De1Handler {
     return withDe1((de1) async {
       var requestState = MachineState.values.byName(newState);
       await de1.requestState(requestState);
-      return Response.ok("");
+      return jsonOk(null);
     });
   }
 
@@ -272,7 +268,7 @@ class De1Handler {
       Map<String, dynamic> json = jsonDecode(payload);
       Profile profile = Profile.fromJson(json);
       await de1.setProfile(profile);
-      return Response.ok("");
+      return jsonOk(null);
     });
   }
 
@@ -283,7 +279,7 @@ class De1Handler {
       Map<String, dynamic> json = jsonDecode(payload);
       De1ShotSettings settings = De1ShotSettings.fromJson(json);
       await de1.updateShotSettings(settings);
-      return Response.ok("");
+      return jsonOk(null);
     });
   }
 

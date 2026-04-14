@@ -216,9 +216,7 @@ class DevicesHandler {
       try {
         return await _deviceList();
       } catch (e, st) {
-        return Response.internalServerError(
-          body: {'e': e.toString(), 'st': st.toString()},
-        );
+        return jsonError({'e': e.toString(), 'st': st.toString()});
       }
     });
     app.get('/api/v1/devices/scan', (Request req) async {
@@ -294,10 +292,10 @@ class DevicesHandler {
     }
     final device = devices.firstWhereOrNull((e) => e.deviceId == deviceId);
     if (device == null) {
-      return Response.notFound(null);
+      return jsonNotFound({'error': 'Device not found: $deviceId'});
     }
     await _connectDevice(device);
-    return Response.ok(null);
+    return jsonOk(null);
   }
 
   Future<Response> _handleDisconnect(Request req) async {
@@ -308,11 +306,11 @@ class DevicesHandler {
     }
     final device = devices.firstWhereOrNull((e) => e.deviceId == deviceId);
     if (device == null) {
-      return Response.notFound(null);
+      return jsonNotFound({'error': 'Device not found: $deviceId'});
     }
     await device.disconnect();
 
-    return Response.ok(null);
+    return jsonOk(null);
   }
 
   // -- WebSocket handler --

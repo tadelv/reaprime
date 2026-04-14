@@ -61,8 +61,8 @@ class SettingsHandler {
           json['gatewayMode'],
         );
         if (gatewayMode == null) {
-          return Response.badRequest(
-            body: {'message': '${json["gatewayMode"]} is not a gateway mode'},
+          return jsonBadRequest(
+            {'message': '${json["gatewayMode"]} is not a gateway mode'},
           );
         }
         await _controller.updateGatewayMode(gatewayMode);
@@ -81,8 +81,8 @@ class SettingsHandler {
         if (value is num) {
           await _controller.setWeightFlowMultiplier(value.toDouble());
         } else {
-          return Response.badRequest(
-            body: {'message': 'weightFlowMultiplier must be a number'},
+          return jsonBadRequest(
+            {'message': 'weightFlowMultiplier must be a number'},
           );
         }
       }
@@ -91,8 +91,8 @@ class SettingsHandler {
         if (value is num) {
           await _controller.setVolumeFlowMultiplier(value.toDouble());
         } else {
-          return Response.badRequest(
-            body: {'message': 'volumeFlowMultiplier must be a number'},
+          return jsonBadRequest(
+            {'message': 'volumeFlowMultiplier must be a number'},
           );
         }
       }
@@ -101,12 +101,10 @@ class SettingsHandler {
           json['scalePowerMode'],
         );
         if (mode == null) {
-          return Response.badRequest(
-            body: {
-              'message':
-                  '${json["scalePowerMode"]} is not a valid scale power mode',
-            },
-          );
+          return jsonBadRequest({
+            'message':
+                '${json["scalePowerMode"]} is not a valid scale power mode',
+          });
         }
         await _controller.setScalePowerMode(mode);
       }
@@ -115,8 +113,8 @@ class SettingsHandler {
         if (value == null || value is String) {
           await _controller.setPreferredMachineId(value);
         } else {
-          return Response.badRequest(
-            body: {'message': 'preferredMachineId must be a string or null'},
+          return jsonBadRequest(
+            {'message': 'preferredMachineId must be a string or null'},
           );
         }
       }
@@ -125,8 +123,8 @@ class SettingsHandler {
         if (value == null || value is String) {
           await _controller.setPreferredScaleId(value);
         } else {
-          return Response.badRequest(
-            body: {'message': 'preferredScaleId must be a string or null'},
+          return jsonBadRequest(
+            {'message': 'preferredScaleId must be a string or null'},
           );
         }
       }
@@ -136,13 +134,13 @@ class SettingsHandler {
           try {
             await _webUIStorage.setDefaultSkin(value);
           } catch (e) {
-            return Response.badRequest(
-              body: {'message': 'Invalid skin ID: ${e.toString()}'},
+            return jsonBadRequest(
+              {'message': 'Invalid skin ID: ${e.toString()}'},
             );
           }
         } else {
-          return Response.badRequest(
-            body: {'message': 'defaultSkinId must be a string'},
+          return jsonBadRequest(
+            {'message': 'defaultSkinId must be a string'},
           );
         }
       }
@@ -151,16 +149,16 @@ class SettingsHandler {
         if (value is bool) {
           await _controller.setAutomaticUpdateCheck(value);
         } else {
-          return Response.badRequest(
-            body: {'message': 'automaticUpdateCheck must be a boolean'},
+          return jsonBadRequest(
+            {'message': 'automaticUpdateCheck must be a boolean'},
           );
         }
       }
       if (json.containsKey('chargingMode')) {
         final mode = ChargingModeFromString.fromString(json['chargingMode']);
         if (mode == null) {
-          return Response.badRequest(
-            body: {'message': '${json["chargingMode"]} is not a valid charging mode'},
+          return jsonBadRequest(
+            {'message': '${json["chargingMode"]} is not a valid charging mode'},
           );
         }
         await _controller.setChargingMode(mode);
@@ -170,8 +168,8 @@ class SettingsHandler {
         if (value is bool) {
           await _controller.setNightModeEnabled(value);
         } else {
-          return Response.badRequest(
-            body: {'message': 'nightModeEnabled must be a boolean'},
+          return jsonBadRequest(
+            {'message': 'nightModeEnabled must be a boolean'},
           );
         }
       }
@@ -180,8 +178,8 @@ class SettingsHandler {
         if (value is int && value >= 0 && value < 1440) {
           await _controller.setNightModeSleepTime(value);
         } else {
-          return Response.badRequest(
-            body: {'message': 'nightModeSleepTime must be an integer 0-1439'},
+          return jsonBadRequest(
+            {'message': 'nightModeSleepTime must be an integer 0-1439'},
           );
         }
       }
@@ -190,8 +188,8 @@ class SettingsHandler {
         if (value is int && value >= 0 && value < 1440) {
           await _controller.setNightModeMorningTime(value);
         } else {
-          return Response.badRequest(
-            body: {'message': 'nightModeMorningTime must be an integer 0-1439'},
+          return jsonBadRequest(
+            {'message': 'nightModeMorningTime must be an integer 0-1439'},
           );
         }
       }
@@ -200,33 +198,24 @@ class SettingsHandler {
         if (value is bool) {
           await _controller.setLowBatteryBrightnessLimit(value);
         } else {
-          return Response.badRequest(
-            body: {'message': 'lowBatteryBrightnessLimit must be a boolean'},
+          return jsonBadRequest(
+            {'message': 'lowBatteryBrightnessLimit must be a boolean'},
           );
         }
       }
       if (json.containsKey('simulatedDevices')) {
         final value = json['simulatedDevices'];
         if (value is! List) {
-          return Response.badRequest(
-            body: jsonEncode({'message': 'simulatedDevices must be a list'}),
-            headers: {'Content-Type': 'application/json'},
-          );
+          return jsonBadRequest({'message': 'simulatedDevices must be a list'});
         }
         final devices = <SimulatedDevicesTypes>{};
         for (final item in value) {
           if (item is! String) {
-            return Response.badRequest(
-              body: jsonEncode({'message': 'Invalid simulated device type: $item'}),
-              headers: {'Content-Type': 'application/json'},
-            );
+            return jsonBadRequest({'message': 'Invalid simulated device type: $item'});
           }
           final type = SimulatedDevicesTypesFromString.fromString(item);
           if (type == null) {
-            return Response.badRequest(
-              body: jsonEncode({'message': 'Invalid simulated device type: $item'}),
-              headers: {'Content-Type': 'application/json'},
-            );
+            return jsonBadRequest({'message': 'Invalid simulated device type: $item'});
           }
           devices.add(type);
         }
@@ -235,24 +224,18 @@ class SettingsHandler {
       if (json.containsKey('themeMode')) {
         final value = json['themeMode'];
         if (value is! String) {
-          return Response.badRequest(
-            body: jsonEncode({'message': 'themeMode must be a string'}),
-            headers: {'Content-Type': 'application/json'},
-          );
+          return jsonBadRequest({'message': 'themeMode must be a string'});
         }
         final mode = ThemeMode.values.where((e) => e.name == value).firstOrNull;
         if (mode == null) {
-          return Response.badRequest(
-            body: jsonEncode({
-              'message':
-                  'Invalid theme mode: $value. Valid values: system, light, dark',
-            }),
-            headers: {'Content-Type': 'application/json'},
-          );
+          return jsonBadRequest({
+            'message':
+                'Invalid theme mode: $value. Valid values: system, light, dark',
+          });
         }
         await _controller.updateThemeMode(mode);
       }
-      return Response.ok('');
+      return jsonOk(null);
     });
 
     // Adding logs here, even though they aren't part of Settings
