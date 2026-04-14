@@ -139,6 +139,9 @@ start_cmd() {
   echo "Started flutter (pid=$(cat "$PIDFILE")), waiting for HTTP server..."
   if ! wait_ready; then
     echo "Start failed. Run 'sb-dev logs' to inspect." >&2
+    if [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+      kill "$(cat "$PIDFILE")" 2>/dev/null || true
+    fi
     cleanup_runtime
     return 1
   fi
