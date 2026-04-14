@@ -434,9 +434,9 @@ jobs:
           channel: 'stable'
 
       - name: Install nuget
-        uses: jmealo/action-utilities-cdn@nuget-installer
+        uses: nuget/setup-nuget@v2
         with:
-          version: 'latest'
+          nuget-version: 'latest'
 
       - name: Install dependencies
         run: flutter pub get
