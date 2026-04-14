@@ -16,37 +16,51 @@ Fallback if websocat isn't available: `npm install -g wscat`. All examples below
 
 ## One-shot snapshot — the default
 
-Each `Bash` tool call is a fresh shell, so bounded reads (no background state) are the safe default. Two ways to bound:
+Each `Bash` tool call is a fresh shell, so bounded reads (no background state) are the safe default. Always bound by message count (`--max-messages-rev N`) — websocat exits cleanly as soon as it has received N messages from the WebSocket.
 
 ```bash
-# GNU timeout (Linux, or macOS with `brew install coreutils` → `gtimeout`)
-timeout 3 websocat -t ws://localhost:8080/ws/v1/machine/snapshot | jq .
-
-# Message count — portable, no timeout dependency
-websocat -n -t --max-messages 5 ws://localhost:8080/ws/v1/machine/snapshot
+websocat --no-async-stdio -n -U -t --max-messages-rev 5 \
+  ws://localhost:8080/ws/v1/machine/snapshot | jq .
 ```
 
-macOS ships without GNU `timeout`; use `gtimeout` from coreutils or prefer `--max-messages`.
+Flag breakdown (all four are needed for a clean agent-shell run):
+
+- `--no-async-stdio` — forces blocking stdio. Required on macOS; without it, `-t` against piped/redirected stdout fails with `Invalid argument (os error 22)`.
+- `-n` / `--no-close` — don't close the socket when our stdin hits EOF. Our stdin is a pipe or `/dev/null`, so EOF is immediate — without this we'd quit before the server sends anything.
+- `-U` — inhibit our stdin→WebSocket direction entirely. Receive-only. Do NOT use this for bidirectional channels; see below.
+- `-t` — websocket text mode. Required, and websocat will warn if omitted.
+- `--max-messages-rev N` — stop after receiving N messages from the server. (`--max-messages` without `-rev` bounds what we *send*, not what we receive.)
+
+Adding a safety-net timeout is optional but cheap if you want to guarantee the shell comes back. macOS ships without GNU `timeout`; install `coreutils` for `gtimeout`, or just trust `--max-messages-rev`:
+
+```bash
+gtimeout 5 websocat --no-async-stdio -n -U -t --max-messages-rev 5 \
+  ws://localhost:8080/ws/v1/machine/snapshot | jq .
+```
 
 ## Background subscription
 
 For long-lived tailing across multiple Bash calls, persist the pid to a file (shell variables do not survive between calls):
 
 ```bash
-websocat -t ws://localhost:8080/ws/v1/machine/snapshot > /tmp/sb-stream.log 2>&1 &
+websocat --no-async-stdio -n -U -t ws://localhost:8080/ws/v1/machine/snapshot \
+  > /tmp/sb-stream.log 2>&1 &
 echo $! > /tmp/sb-stream.pid
 # … do other work in later Bash calls …
 tail -n 50 /tmp/sb-stream.log
 kill "$(cat /tmp/sb-stream.pid)" && rm /tmp/sb-stream.pid
 ```
 
+Same flags as the one-shot form but without `--max-messages-rev` so the subscription runs until you kill it.
+
 ## Bidirectional channels
 
-`ws/v1/devices` and `ws/v1/display` accept commands as well as emit state. Payload shape lives in the spec (`DevicesCommand`, `DisplayCommand`) — check before sending. Example: kick off a scan on the devices channel.
+`ws/v1/devices` and `ws/v1/display` accept commands as well as emit state. Payload shape lives in the spec (`DevicesCommand`, `DisplayCommand`) — check before sending. Drop `-U` (we need stdin→ws now) and bound by `--max-messages-rev` so the shell returns after reading the ack. Example: kick off a scan on the devices channel.
 
 ```bash
 echo '{"command": "scan", "connect": false, "quick": true}' \
-  | websocat -n -t ws://localhost:8080/ws/v1/devices
+  | websocat --no-async-stdio -n -t --max-messages-rev 1 \
+      ws://localhost:8080/ws/v1/devices
 ```
 
 The field is `command`, not `cmd`. `DevicesCommand.command` enum: `scan`, `connect`, `disconnect` (`connect` / `disconnect` also need `deviceId`).
@@ -56,15 +70,19 @@ The field is `command`, not `cmd`. `DevicesCommand.command` enum: `scan`, `conne
 Extract a single field from the machine snapshot stream:
 
 ```bash
-timeout 3 websocat -t ws://localhost:8080/ws/v1/machine/snapshot | jq -c '.pressure'
+websocat --no-async-stdio -n -U -t --max-messages-rev 5 \
+  ws://localhost:8080/ws/v1/machine/snapshot | jq -c '.pressure'
 ```
 
 Filter events — only pouring substates:
 
 ```bash
-timeout 5 websocat -t ws://localhost:8080/ws/v1/machine/snapshot \
+websocat --no-async-stdio -n -U -t --max-messages-rev 50 \
+  ws://localhost:8080/ws/v1/machine/snapshot \
   | jq -c 'select(.state.substate == "pouring")'
 ```
+
+Tune `--max-messages-rev` to how long you expect the interesting substate to last; at ~2Hz, 50 messages is ~25s of stream.
 
 ## See also
 
