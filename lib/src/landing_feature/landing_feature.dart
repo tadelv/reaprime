@@ -30,7 +30,6 @@ class _LandingState extends State<LandingFeature> {
 
   WebUISkin? _selectedSkin;
   bool _isLoading = true;
-  bool _isServingUI = false;
   String? _errorMessage;
   Timer? _autoNavigateTimer;
   int _remainingSeconds = 30;
@@ -69,7 +68,6 @@ class _LandingState extends State<LandingFeature> {
         final defaultSkin = widget.webUIStorage.defaultSkin;
         setState(() {
           _selectedSkin = defaultSkin;
-          _isServingUI = true;
           _isLoading = false;
         });
       } else {
@@ -93,7 +91,6 @@ class _LandingState extends State<LandingFeature> {
 
   Future<void> _serveSkin(WebUISkin skin) async {
     setState(() {
-      _isServingUI = true;
       _errorMessage = null;
     });
 
@@ -107,7 +104,6 @@ class _LandingState extends State<LandingFeature> {
 
       setState(() {
         _selectedSkin = skin;
-        _isServingUI = false;
       });
 
       // Save preference
@@ -120,7 +116,6 @@ class _LandingState extends State<LandingFeature> {
       _log.severe('Failed to serve WebUI skin', e, st);
       setState(() {
         _errorMessage = 'Failed to serve skin: $e';
-        _isServingUI = false;
       });
     }
   }
@@ -191,10 +186,8 @@ class _LandingState extends State<LandingFeature> {
                 _buildErrorView()
               else if (widget.webUIStorage.installedSkins.isEmpty)
                 _buildNoSkinsView()
-              else if (!_isServingUI && _selectedSkin == null)
+              else if (!widget.webUIService.isServing && _selectedSkin == null)
                 _buildSkinSelectionView()
-              else if (_isServingUI)
-                _buildLoadingView()
               else if (_selectedSkin != null && widget.webUIService.isServing)
                 _buildServingView()
               else
