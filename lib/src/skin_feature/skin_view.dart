@@ -261,6 +261,14 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
         description =
             'Unable to initialize WebView on your device.\n\n${result.reason}';
         break;
+      case CompatibilityIssue.webView2RuntimeMissing:
+        icon = Icons.download;
+        iconColor = Colors.orange;
+        title = 'WebView2 Runtime Missing';
+        description =
+            'Microsoft Edge WebView2 Runtime is required to display the '
+            'skin on Windows. Install it and restart the app.';
+        break;
       default:
         icon = Icons.info;
         iconColor = Colors.blue;
@@ -326,6 +334,17 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
                     );
                   },
                 ),
+                if (result.issue == CompatibilityIssue.webView2RuntimeMissing)
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.download),
+                    label: const Text('Install WebView2'),
+                    onPressed: () => launchUrl(
+                      Uri.parse(
+                        'https://go.microsoft.com/fwlink/p/?LinkId=2124703',
+                      ),
+                      mode: LaunchMode.externalApplication,
+                    ),
+                  ),
               ],
             ),
             Row(

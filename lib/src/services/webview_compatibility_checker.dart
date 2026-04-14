@@ -35,6 +35,7 @@ enum CompatibilityIssue {
   oldAndroidVersion,
   webViewRenderingFailed,
   webViewNotAvailable,
+  webView2RuntimeMissing,
 }
 
 /// Checks if the device's WebView implementation is compatible with SkinView
@@ -61,6 +62,11 @@ class WebViewCompatibilityChecker {
       return _cachedResult!;
     }
 
+    if (Platform.isWindows) {
+      _cachedResult = await _checkWindowsWebView2Runtime();
+      return _cachedResult!;
+    }
+
     if (!Platform.isAndroid) {
       _log.info('Non-Android platform - WebView is compatible');
       _cachedResult = const CompatibilityResult.compatible();
@@ -80,6 +86,41 @@ class WebViewCompatibilityChecker {
     final runtimeCheckResult = await _testWebViewRendering();
     _cachedResult = runtimeCheckResult;
     return _cachedResult!;
+  }
+
+  /// Checks if the WebView2 Runtime is installed on Windows.
+  ///
+  /// Returns compatible if `WebViewEnvironment.getAvailableVersion()`
+  /// reports a non-null version. Returns an incompatible result with
+  /// `webView2RuntimeMissing` otherwise so the UI can prompt the user
+  /// to install it.
+  ///
+  /// WebView2 Runtime ships with Windows 11 but may be missing on
+  /// Windows 10 installations.
+  static Future<CompatibilityResult> _checkWindowsWebView2Runtime() async {
+    _log.info('Checking WebView2 Runtime availability on Windows...');
+    try {
+      final version = await WebViewEnvironment.getAvailableVersion().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => null,
+      );
+      if (version == null) {
+        _log.warning('WebView2 Runtime not found on this system');
+        return CompatibilityResult.incompatible(
+          'Microsoft Edge WebView2 Runtime is not installed. '
+          'Install it from https://go.microsoft.com/fwlink/p/?LinkId=2124703',
+          CompatibilityIssue.webView2RuntimeMissing,
+        );
+      }
+      _log.info('WebView2 Runtime available: $version');
+      return const CompatibilityResult.compatible();
+    } catch (e, stackTrace) {
+      _log.severe('Failed to probe WebView2 Runtime', e, stackTrace);
+      return CompatibilityResult.incompatible(
+        'Could not verify WebView2 Runtime: $e',
+        CompatibilityIssue.webView2RuntimeMissing,
+      );
+    }
   }
 
   /// Checks device manufacturer, model, and Android version
