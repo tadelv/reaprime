@@ -222,11 +222,61 @@ logs_cmd() {
   fi
 }
 
+wait_for_pattern_after() {
+  local pattern="$1" timeout="$2" start_line="$3"
+  local start
+  start=$(date +%s)
+  while (( $(date +%s) - start < timeout )); do
+    # Only scan new lines since start_line
+    if tail -n +"$((start_line + 1))" "$LOGFILE" 2>/dev/null | grep -qi -- "$pattern"; then
+      return 0
+    fi
+    sleep 0.2
+  done
+  return 1
+}
+
+reload_cmd() {
+  if ! is_running; then
+    echo "Not running" >&2
+    return 1
+  fi
+  local before
+  before=$(wc -l < "$LOGFILE")
+  echo r > "$STDIN_FIFO"
+  if wait_for_pattern_after "reloaded" 30 "$before"; then
+    echo "Hot reload complete"
+    tail -n +"$((before + 1))" "$LOGFILE" | grep -i "reloaded" | head -1
+  else
+    echo "Timed out waiting for reload confirmation" >&2
+    return 1
+  fi
+}
+
+hot_restart_cmd() {
+  if ! is_running; then
+    echo "Not running" >&2
+    return 1
+  fi
+  local before
+  before=$(wc -l < "$LOGFILE")
+  echo R > "$STDIN_FIFO"
+  if wait_for_pattern_after "restarted" 60 "$before"; then
+    echo "Hot restart complete"
+    tail -n +"$((before + 1))" "$LOGFILE" | grep -i "restarted" | head -1
+  else
+    echo "Timed out waiting for restart confirmation" >&2
+    return 1
+  fi
+}
+
 case "$cmd" in
   help|-h|--help) usage; exit 0 ;;
   start) start_cmd "$@" ;;
   stop) stop_cmd ;;
   status) status_cmd ;;
   logs) logs_cmd "$@" ;;
+  reload) reload_cmd ;;
+  hot-restart) hot_restart_cmd ;;
   *) echo "Not yet implemented: $cmd" >&2; exit 2 ;;
 esac
