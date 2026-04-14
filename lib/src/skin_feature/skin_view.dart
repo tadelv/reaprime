@@ -160,8 +160,7 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
       // Memory management: let Android kill the renderer process (not the app)
       // when the WebView is not visible and memory is tight.
       rendererPriorityPolicy: RendererPriorityPolicy(
-        rendererRequestedPriority:
-            RendererPriority.RENDERER_PRIORITY_BOUND,
+        rendererRequestedPriority: RendererPriority.RENDERER_PRIORITY_BOUND,
         waivedWhenNotVisible: true,
       ),
       useOnRenderProcessGone: true,
@@ -302,9 +301,7 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
                 ),
                 OutlinedButton.icon(
                   onPressed: () {
-                    Navigator.of(
-                      context,
-                    ).pop();
+                    Navigator.of(context).pop();
                   },
                   icon: const Icon(Icons.dashboard),
                   label: const Text('Dashboard'),
@@ -313,7 +310,10 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
                   icon: const Icon(Icons.qr_code),
                   label: const Text('Show address'),
                   onPressed: () {
-                    QuickSettingsWidget.showQRCodeDialog(context, widget.deviceIp);
+                    QuickSettingsWidget.showQRCodeDialog(
+                      context,
+                      widget.deviceIp,
+                    );
                   },
                 ),
               ],
@@ -352,7 +352,9 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
   }
 
   Future<void> _openInExternalBrowser() async {
-    final url = Uri.parse('http://localhost:3000');
+    final url = Uri.parse(
+      'http://localhost:3000?_=${DateTime.now().millisecondsSinceEpoch}',
+    );
     _log.info('Opening WebUI in external browser: $url');
 
     try {
@@ -435,9 +437,7 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () {
-                  Navigator.of(
-                    context,
-                  ).pop();
+                  Navigator.of(context).pop();
                 },
                 child: const Text('Go to Dashboard'),
               ),
@@ -469,9 +469,7 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
           // Cache-busting param bypasses stale service workers: a SW
           // caches responses by exact URL, so /?_=<ts> won't match
           // its cached '/' and falls through to the network.
-          initialUrlRequest: URLRequest(
-            url: WebUri(_skinUrl),
-          ),
+          initialUrlRequest: URLRequest(url: WebUri(_skinUrl)),
           initialSettings: _settings,
           onWebViewCreated: (controller) {
             _log.info('InAppWebView created');
@@ -534,7 +532,8 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
             final url = navigationAction.request.url.toString();
 
             // Allow all navigation within localhost:3000
-            if (url.startsWith('http://localhost:3000') || url.contains('/api/v1/plugins/settings.reaplugin')) {
+            if (url.startsWith('http://localhost:3000') ||
+                url.contains('/api/v1/plugins/settings.reaplugin')) {
               _log.fine('Allowing navigation to: $url');
               return NavigationActionPolicy.ALLOW;
             }

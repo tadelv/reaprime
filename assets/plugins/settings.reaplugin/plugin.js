@@ -792,7 +792,7 @@ function createPlugin(host) {
                         <span class="setting-label">Controls</span>
                         <div class="setting-control">
                             ${webUIStatus.serving
-                              ? `<button class="btn btn-primary" onclick="window.open('http://'+window.location.hostname+':3000','_blank')" style="margin-right: 4px;">Open in Browser</button>
+                              ? `<button class="btn btn-primary" onclick="window.open('http://'+window.location.hostname+':3000/?_='+Date.now(),'_blank')" style="margin-right: 4px;">Open in Browser</button>
                                  <button class="btn" style="background: #e74c3c; color: white;" onclick="stopWebUI()">Stop Server</button>`
                               : '<button class="btn btn-primary" onclick="startWebUI()">Start Server</button>'}
                         </div>
