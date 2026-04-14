@@ -18,6 +18,11 @@ HOST="${SB_HOST:-localhost}"
 PORT="${SB_PORT:-8080}"
 BASE_URL="http://$HOST:$PORT"
 
+if ! command -v jq >/dev/null 2>&1; then
+  echo "error: jq is required for sb-dev (install via 'brew install jq')" >&2
+  exit 1
+fi
+
 cmd="${1:-help}"
 shift || true
 
@@ -71,21 +76,28 @@ wait_ready() {
 
 connect_machine() {
   local name="$1" start
-  curl -sf "$BASE_URL/api/v1/devices/scan?connect=true" >/dev/null || {
-    echo "Scan request failed" >&2
-    return 1
-  }
   start=$(date +%s)
-  while (( $(date +%s) - start < 15 )); do
+  # Re-scan each iteration: early post-boot scans can return empty (simulate
+  # service may not have populated yet), so we retry within the 30s window
+  # rather than trusting a single scan result. Each scan call blocks until
+  # ConnectionManager.connect() completes, so the loop self-paces.
+  while (( $(date +%s) - start < 30 )); do
+    curl -sf "$BASE_URL/api/v1/devices/scan?connect=true" >/dev/null || {
+      echo "Scan request failed" >&2
+      return 1
+    }
     local devices
     devices=$(curl -sf "$BASE_URL/api/v1/devices" || echo "[]")
-    if echo "$devices" | grep -qi "\"name\":\"$name\"" && echo "$devices" | grep -q '"state":"connected"'; then
+    if printf '%s' "$devices" \
+         | jq -e --arg name "$name" '.[] | select(.name == $name and .state == "connected")' \
+           >/dev/null 2>&1; then
       echo "Connected to $name"
       return 0
     fi
     sleep 1
   done
   echo "Timed out waiting for $name to connect" >&2
+  return 1
 }
 
 start_cmd() {
@@ -99,10 +111,18 @@ start_cmd() {
   local -a extra_defines=()
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --platform) platform="$2"; shift 2 ;;
-      --connect-machine) machine="$2"; shift 2 ;;
-      --connect-scale) scale="$2"; shift 2 ;;
-      --dart-define) extra_defines+=("--dart-define=$2"); shift 2 ;;
+      --platform)
+        [[ $# -ge 2 ]] || { echo "Missing value for $1" >&2; return 2; }
+        platform="$2"; shift 2 ;;
+      --connect-machine)
+        [[ $# -ge 2 ]] || { echo "Missing value for $1" >&2; return 2; }
+        machine="$2"; shift 2 ;;
+      --connect-scale)
+        [[ $# -ge 2 ]] || { echo "Missing value for $1" >&2; return 2; }
+        scale="$2"; shift 2 ;;
+      --dart-define)
+        [[ $# -ge 2 ]] || { echo "Missing value for $1" >&2; return 2; }
+        extra_defines+=("--dart-define=$2"); shift 2 ;;
       *) echo "Unknown flag: $1" >&2; return 2 ;;
     esac
   done
@@ -206,8 +226,12 @@ logs_cmd() {
   local count=50 filter=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      -n|--count) count="$2"; shift 2 ;;
-      --filter) filter="$2"; shift 2 ;;
+      -n|--count)
+        [[ $# -ge 2 ]] || { echo "Missing value for $1" >&2; return 2; }
+        count="$2"; shift 2 ;;
+      --filter)
+        [[ $# -ge 2 ]] || { echo "Missing value for $1" >&2; return 2; }
+        filter="$2"; shift 2 ;;
       *) echo "Unknown flag: $1" >&2; return 2 ;;
     esac
   done
@@ -245,10 +269,10 @@ reload_cmd() {
   local before
   before=$(wc -l < "$LOGFILE")
   echo r > "$STDIN_FIFO"
-  if wait_for_pattern_after 'Reloaded [0-9]+ of [0-9]+ libraries' 30 "$before"; then
+  if wait_for_pattern_after 'Reloaded [0-9]+( of [0-9]+)? libraries' 30 "$before"; then
     echo "Hot reload complete"
     tail -n +"$((before + 1))" "$LOGFILE" \
-      | awk '/Reloaded [0-9]+ of [0-9]+ libraries/ {print; exit}'
+      | awk '/Reloaded [0-9]+( of [0-9]+)? libraries/ {print; exit}'
   else
     echo "Timed out waiting for reload confirmation" >&2
     return 1
