@@ -110,9 +110,7 @@ class PresenceHandler {
 
       final keepAwakeFor = json['keepAwakeFor'] as int?;
       if (keepAwakeFor != null && (keepAwakeFor < 0 || keepAwakeFor > 720)) {
-        return Response(400,
-            body: jsonEncode({'error': 'keepAwakeFor must be 1-720 minutes, or 0/null to clear'}),
-            headers: {'content-type': 'application/json'});
+        return jsonBadRequest({'error': 'keepAwakeFor must be 1-720 minutes, or 0/null to clear'});
       }
 
       final schedule = WakeSchedule.create(
@@ -178,9 +176,7 @@ class PresenceHandler {
       if (json.containsKey('keepAwakeFor')) {
         final val = json['keepAwakeFor'] as int?;
         if (val != null && (val < 0 || val > 720)) {
-          return Response(400,
-              body: jsonEncode({'error': 'keepAwakeFor must be 1-720 minutes, or 0/null to clear'}),
-              headers: {'content-type': 'application/json'});
+          return jsonBadRequest({'error': 'keepAwakeFor must be 1-720 minutes, or 0/null to clear'});
         }
         if (val == null || val == 0) {
           clearKeepAwakeFor = true;

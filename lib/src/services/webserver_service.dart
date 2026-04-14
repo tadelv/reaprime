@@ -262,38 +262,6 @@ Handler _init(
   log.info("called _init");
   var app = Router().plus;
 
-  Future<Response> Function(Request request) jsonContentTypeMiddleware(
-    Handler innerHandler,
-  ) {
-    return (Request request) async {
-      log.finest("handling request: ${request.requestedUri.path}");
-      final response = await innerHandler(request);
-
-      // Option 1: Check by path if it starts with "/ws" (or any other condition)
-      if (request.requestedUri.path.startsWith('/ws')) {
-        return response;
-      }
-
-      if (request.requestedUri.path.startsWith('/api/v1/plugins/')) {
-        // Plugins determine their own response content type
-        return response;
-      }
-
-      // Option 2: Alternatively, check if the request has an Upgrade header
-      // if ((request.headers['upgrade']?.toLowerCase() ?? '') == 'websocket') {
-      //   return response;
-      // }
-
-      // Only add JSON content-type if the handler didn't already set one.
-      if (response.headers.containsKey('content-type')) {
-        return response;
-      }
-      return response.change(
-        headers: {...response.headersAll, 'content-type': 'application/json'},
-      );
-    };
-  }
-
   deviceHandler.addRoutes(app);
   de1Handler.addRoutes(app);
   scaleHandler.addRoutes(app);
@@ -333,7 +301,6 @@ Handler _init(
         ),
       )
       .addMiddleware(corsHeaders())
-      .addMiddleware(jsonContentTypeMiddleware)
       .addHandler(app.call);
 
   return handler;

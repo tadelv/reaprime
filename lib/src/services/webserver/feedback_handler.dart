@@ -16,14 +16,11 @@ class FeedbackHandler {
   Future<Response> _handleSubmitFeedback(Request request) async {
     try {
       if (!_service.isConfigured) {
-        return Response(
-          503,
-          body: jsonEncode({
-            'error': 'Service unavailable',
-            'message':
-                'Feedback service is not configured. Build with --dart-define=GITHUB_FEEDBACK_TOKEN=<token>',
-          }),
-        );
+        return jsonServiceUnavailable({
+          'error': 'Service unavailable',
+          'message':
+              'Feedback service is not configured. Build with --dart-define=GITHUB_FEEDBACK_TOKEN=<token>',
+        });
       }
 
       final body = await request.readAsString();
@@ -31,33 +28,23 @@ class FeedbackHandler {
 
       if (!json.containsKey('description') ||
           (json['description'] as String).trim().isEmpty) {
-        return Response.badRequest(
-          body: jsonEncode({
-            'error': 'Missing required field',
-            'message': 'Request must contain a non-empty "description" field',
-          }),
-        );
+        return jsonBadRequest({
+          'error': 'Missing required field',
+          'message': 'Request must contain a non-empty "description" field',
+        });
       }
 
       final feedbackRequest = FeedbackRequest.fromJson(json);
       final result = await _service.submitFeedback(feedbackRequest);
 
       if (result.success) {
-        return Response(
-          201,
-          body: jsonEncode(result.toJson()),
-          headers: {'Content-Type': 'application/json'},
-        );
+        return jsonCreated(result.toJson());
       } else {
-        return Response.internalServerError(
-          body: jsonEncode(result.toJson()),
-        );
+        return jsonError(result.toJson());
       }
     } catch (e, st) {
       log.severe('Error in _handleSubmitFeedback', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'error': 'Internal server error', 'message': '$e'}),
-      );
+      return jsonError({'error': 'Internal server error', 'message': '$e'});
     }
   }
 }

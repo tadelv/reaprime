@@ -53,15 +53,10 @@ class WebUIHandler {
   Future<Response> _handleListSkins(Request request) async {
     try {
       final skins = _storage.installedSkins;
-
-      return Response.ok(
-        jsonEncode(skins.map((skin) => skin.toJson()).toList()),
-      );
+      return jsonOk(skins.map((skin) => skin.toJson()).toList());
     } catch (e, st) {
       log.severe('Failed to list skins', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'error': e.toString()}),
-      );
+      return jsonError({'error': e.toString()});
     }
   }
 
@@ -70,21 +65,13 @@ class WebUIHandler {
   Future<Response> _handleGetSkin(Request request, String id) async {
     try {
       final skin = _storage.getSkin(id);
-
       if (skin == null) {
-        return Response.notFound(
-          jsonEncode({'error': 'Skin not found: $id'}),
-        );
+        return jsonNotFound({'error': 'Skin not found: $id'});
       }
-
-      return Response.ok(
-        jsonEncode(skin.toJson()),
-      );
+      return jsonOk(skin.toJson());
     } catch (e, st) {
       log.severe('Failed to get skin: $id', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'error': e.toString()}),
-      );
+      return jsonError({'error': e.toString()});
     }
   }
 
@@ -93,21 +80,13 @@ class WebUIHandler {
   Future<Response> _handleGetDefaultSkin(Request request) async {
     try {
       final defaultSkin = _storage.defaultSkin;
-
       if (defaultSkin == null) {
-        return Response.notFound(
-          jsonEncode({'error': 'No default skin available'}),
-        );
+        return jsonNotFound({'error': 'No default skin available'});
       }
-
-      return Response.ok(
-        jsonEncode(defaultSkin.toJson()),
-      );
+      return jsonOk(defaultSkin.toJson());
     } catch (e, st) {
       log.severe('Failed to get default skin', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'error': e.toString()}),
-      );
+      return jsonError({'error': e.toString()});
     }
   }
 
@@ -124,34 +103,23 @@ class WebUIHandler {
       final skinId = body['skinId'] as String?;
 
       if (skinId == null || skinId.isEmpty) {
-        return Response.badRequest(
-          body: jsonEncode({'error': 'Missing required field: skinId'}),
-        );
+        return jsonBadRequest({'error': 'Missing required field: skinId'});
       }
 
       log.info('Setting default skin to: $skinId');
-
       await _storage.setDefaultSkin(skinId);
 
-      return Response.ok(
-        jsonEncode({
-          'success': true,
-          'message': 'Default skin updated successfully',
-          'skinId': skinId,
-        }),
-      );
+      return jsonOk({
+        'success': true,
+        'message': 'Default skin updated successfully',
+        'skinId': skinId,
+      });
     } catch (e, st) {
       log.severe('Failed to set default skin', e, st);
-      
       if (e.toString().contains('Skin not found')) {
-        return Response.notFound(
-          jsonEncode({'error': e.toString()}),
-        );
+        return jsonNotFound({'error': e.toString()});
       }
-      
-      return Response.internalServerError(
-        body: jsonEncode({'error': e.toString()}),
-      );
+      return jsonError({'error': e.toString()});
     }
   }
 
@@ -166,19 +134,14 @@ class WebUIHandler {
   /// }
   Future<Response> _handleInstallFromGitHubRelease(Request request) async {
     if (_appStoreMode) {
-      return Response.forbidden(
-        jsonEncode({'error': 'Skin installation is not available on this platform'}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonForbidden({'error': 'Skin installation is not available on this platform'});
     }
     try {
       final body = jsonDecode(await request.readAsString()) as Map<String, dynamic>;
       final repo = body['repo'] as String?;
 
       if (repo == null || repo.isEmpty) {
-        return Response.badRequest(
-          body: jsonEncode({'error': 'Missing required field: repo'}),
-        );
+        return jsonBadRequest({'error': 'Missing required field: repo'});
       }
 
       final asset = body['asset'] as String?;
@@ -192,18 +155,14 @@ class WebUIHandler {
         includePrerelease: prerelease,
       );
 
-      return Response.ok(
-        jsonEncode({
-          'success': true,
-          'message': 'Skin installed successfully from GitHub release',
-          'repo': repo,
-        }),
-      );
+      return jsonOk({
+        'success': true,
+        'message': 'Skin installed successfully from GitHub release',
+        'repo': repo,
+      });
     } catch (e, st) {
       log.severe('Failed to install skin from GitHub release', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'error': e.toString()}),
-      );
+      return jsonError({'error': e.toString()});
     }
   }
 
@@ -217,19 +176,14 @@ class WebUIHandler {
   /// }
   Future<Response> _handleInstallFromGitHubBranch(Request request) async {
     if (_appStoreMode) {
-      return Response.forbidden(
-        jsonEncode({'error': 'Skin installation is not available on this platform'}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonForbidden({'error': 'Skin installation is not available on this platform'});
     }
     try {
       final body = jsonDecode(await request.readAsString()) as Map<String, dynamic>;
       final repo = body['repo'] as String?;
 
       if (repo == null || repo.isEmpty) {
-        return Response.badRequest(
-          body: jsonEncode({'error': 'Missing required field: repo'}),
-        );
+        return jsonBadRequest({'error': 'Missing required field: repo'});
       }
 
       final branch = body['branch'] as String? ?? 'main';
@@ -238,19 +192,15 @@ class WebUIHandler {
 
       await _storage.installFromGitHub(repo, branch: branch);
 
-      return Response.ok(
-        jsonEncode({
-          'success': true,
-          'message': 'Skin installed successfully from GitHub branch',
-          'repo': repo,
-          'branch': branch,
-        }),
-      );
+      return jsonOk({
+        'success': true,
+        'message': 'Skin installed successfully from GitHub branch',
+        'repo': repo,
+        'branch': branch,
+      });
     } catch (e, st) {
       log.severe('Failed to install skin from GitHub branch', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'error': e.toString()}),
-      );
+      return jsonError({'error': e.toString()});
     }
   }
 
@@ -263,37 +213,28 @@ class WebUIHandler {
   /// }
   Future<Response> _handleInstallFromUrl(Request request) async {
     if (_appStoreMode) {
-      return Response.forbidden(
-        jsonEncode({'error': 'Skin installation is not available on this platform'}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonForbidden({'error': 'Skin installation is not available on this platform'});
     }
     try {
       final body = jsonDecode(await request.readAsString()) as Map<String, dynamic>;
       final url = body['url'] as String?;
 
       if (url == null || url.isEmpty) {
-        return Response.badRequest(
-          body: jsonEncode({'error': 'Missing required field: url'}),
-        );
+        return jsonBadRequest({'error': 'Missing required field: url'});
       }
 
       log.info('Installing skin from URL: $url');
 
       await _storage.installFromUrl(url);
 
-      return Response.ok(
-        jsonEncode({
-          'success': true,
-          'message': 'Skin installed successfully from URL',
-          'url': url,
-        }),
-      );
+      return jsonOk({
+        'success': true,
+        'message': 'Skin installed successfully from URL',
+        'url': url,
+      });
     } catch (e, st) {
       log.severe('Failed to install skin from URL', e, st);
-      return Response.internalServerError(
-        body: jsonEncode({'error': e.toString()}),
-      );
+      return jsonError({'error': e.toString()});
     }
   }
 
@@ -305,27 +246,17 @@ class WebUIHandler {
 
       await _storage.removeSkin(id);
 
-      return Response.ok(
-        jsonEncode({
-          'success': true,
-          'message': 'Skin removed successfully',
-          'id': id,
-        }),
-      );
+      return jsonOk({
+        'success': true,
+        'message': 'Skin removed successfully',
+        'id': id,
+      });
     } catch (e, st) {
       log.severe('Failed to remove skin: $id', e, st);
-      
-      // Check if it's because it's a bundled skin
       if (e.toString().contains('Cannot remove bundled skin')) {
-        return Response(
-          403,
-          body: jsonEncode({'error': e.toString()}),
-        );
+        return jsonForbidden({'error': e.toString()});
       }
-
-      return Response.internalServerError(
-        body: jsonEncode({'error': e.toString()}),
-      );
+      return jsonError({'error': e.toString()});
     }
   }
 
@@ -334,65 +265,43 @@ class WebUIHandler {
   Future<Response> _handleUpdateSkins(Request request) async {
     try {
       await _storage.updateAllSkins();
-      return Response.ok(
-        jsonEncode({'message': 'Skin update check completed'}),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonOk({'message': 'Skin update check completed'});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({'error': 'Failed to check for updates: $e'}),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonError({'error': 'Failed to check for updates: $e'});
     }
   }
 
   /// GET /api/v1/webui/server/status
   /// Returns current WebUI server serving status
   Response _handleServerStatus(Request request) {
-    return Response.ok(
-      jsonEncode({
-        'serving': _service.isServing,
-        'path': _service.isServing ? _service.serverPath() : null,
-        'port': _service.isServing ? _service.port : null,
-        'ip': _service.isServing ? _service.serverIP() : null,
-      }),
-      headers: {'Content-Type': 'application/json'},
-    );
+    return jsonOk({
+      'serving': _service.isServing,
+      'path': _service.isServing ? _service.serverPath() : null,
+      'port': _service.isServing ? _service.port : null,
+      'ip': _service.isServing ? _service.serverIP() : null,
+    });
   }
 
   /// POST /api/v1/webui/server/start
   /// Starts serving the default skin
   Future<Response> _handleServerStart(Request request) async {
     if (_service.isServing) {
-      return Response.ok(
-        jsonEncode({'message': 'Already serving'}),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonOk({'message': 'Already serving'});
     }
     final defaultSkin = _storage.defaultSkin;
     if (defaultSkin == null) {
-      return Response(400,
-        body: jsonEncode({
-          'error':
-              'No default skin set. Set defaultSkinId in settings first.',
-        }),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonBadRequest({
+        'error': 'No default skin set. Set defaultSkinId in settings first.',
+      });
     }
     try {
       await _service.serveFolderAtPath(defaultSkin.path);
-      return Response.ok(
-        jsonEncode({
-          'message': 'WebUI server started',
-          'path': defaultSkin.path,
-        }),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonOk({
+        'message': 'WebUI server started',
+        'path': defaultSkin.path,
+      });
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({'error': 'Failed to start: $e'}),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonError({'error': 'Failed to start: $e'});
     }
   }
 
@@ -400,22 +309,13 @@ class WebUIHandler {
   /// Stops the WebUI server
   Future<Response> _handleServerStop(Request request) async {
     if (!_service.isServing) {
-      return Response.ok(
-        jsonEncode({'message': 'Not serving'}),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonOk({'message': 'Not serving'});
     }
     try {
       await _service.stopServing();
-      return Response.ok(
-        jsonEncode({'message': 'WebUI server stopped'}),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonOk({'message': 'WebUI server stopped'});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({'error': 'Failed to stop: $e'}),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonError({'error': 'Failed to stop: $e'});
     }
   }
 }

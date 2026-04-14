@@ -156,19 +156,11 @@ class DataSyncHandler {
     // - 207: partial success in two_way mode (one phase failed)
     // - 502: all phases failed, or single-direction mode failed
     if (mode == SyncMode.twoWay && (pullFailed != pushFailed)) {
-      return Response(
-        207,
-        body: jsonEncode(results),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonMultiStatus(results);
     }
 
     if (pullFailed || pushFailed) {
-      return Response(
-        502,
-        body: jsonEncode(results),
-        headers: {'Content-Type': 'application/json'},
-      );
+      return jsonBadGateway(results);
     }
 
     return jsonOk(results);

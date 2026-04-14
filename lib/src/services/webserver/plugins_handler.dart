@@ -24,35 +24,26 @@ final class PluginsHandler {
         json['autoLoad'] = await pluginService.shouldAutoLoad(manifest.id);
         list.add(json);
       }
-      return Response.ok(jsonEncode(list),
-          headers: {'Content-Type': 'application/json'});
+      return jsonOk(list);
     });
 
     app.post('/api/v1/plugins/install', (Request request) async {
       if (_appStoreMode) {
-        return Response.forbidden(
-            jsonEncode(
-                {'error': 'Plugin installation is not available on this platform'}),
-            headers: {'Content-Type': 'application/json'});
+        return jsonForbidden(
+            {'error': 'Plugin installation is not available on this platform'});
       }
       try {
         final payload = await request.readAsString();
         final json = jsonDecode(payload) as Map<String, dynamic>;
         final url = json['url'] as String?;
         if (url == null || url.isEmpty) {
-          return Response.badRequest(
-              body: jsonEncode({'error': 'url is required'}),
-              headers: {'Content-Type': 'application/json'});
+          return jsonBadRequest({'error': 'url is required'});
         }
         // Plugin install from URL not yet implemented
-        return Response(501,
-            body: jsonEncode(
-                {'error': 'Plugin install from URL not yet implemented'}),
-            headers: {'Content-Type': 'application/json'});
+        return jsonNotImplemented(
+            {'error': 'Plugin install from URL not yet implemented'});
       } catch (e) {
-        return Response.internalServerError(
-            body: jsonEncode({'error': 'Failed to install plugin: $e'}),
-            headers: {'Content-Type': 'application/json'});
+        return jsonError({'error': 'Failed to install plugin: $e'});
       }
     });
 
@@ -63,21 +54,15 @@ final class PluginsHandler {
         (Request request, String id) async {
       try {
         if (pluginService.getPluginManifest(id) == null) {
-          return Response.notFound(
-              jsonEncode({'error': 'Plugin not found: $id'}),
-              headers: {'Content-Type': 'application/json'});
+          return jsonNotFound({'error': 'Plugin not found: $id'});
         }
         if (!pluginService.isPluginLoaded(id)) {
           await pluginService.loadPlugin(id);
         }
         await pluginService.setPluginAutoLoad(id, true);
-        return Response.ok(
-            jsonEncode({'message': 'Plugin enabled', 'id': id}),
-            headers: {'Content-Type': 'application/json'});
+        return jsonOk({'message': 'Plugin enabled', 'id': id});
       } catch (e) {
-        return Response.internalServerError(
-            body: jsonEncode({'error': 'Failed to enable plugin: $e'}),
-            headers: {'Content-Type': 'application/json'});
+        return jsonError({'error': 'Failed to enable plugin: $e'});
       }
     });
 
@@ -85,45 +70,31 @@ final class PluginsHandler {
         (Request request, String id) async {
       try {
         if (pluginService.getPluginManifest(id) == null) {
-          return Response.notFound(
-              jsonEncode({'error': 'Plugin not found: $id'}),
-              headers: {'Content-Type': 'application/json'});
+          return jsonNotFound({'error': 'Plugin not found: $id'});
         }
         if (pluginService.isPluginLoaded(id)) {
           await pluginService.unloadPlugin(id);
         }
         await pluginService.setPluginAutoLoad(id, false);
-        return Response.ok(
-            jsonEncode({'message': 'Plugin disabled', 'id': id}),
-            headers: {'Content-Type': 'application/json'});
+        return jsonOk({'message': 'Plugin disabled', 'id': id});
       } catch (e) {
-        return Response.internalServerError(
-            body: jsonEncode({'error': 'Failed to disable plugin: $e'}),
-            headers: {'Content-Type': 'application/json'});
+        return jsonError({'error': 'Failed to disable plugin: $e'});
       }
     });
 
     app.delete('/api/v1/plugins/<id>', (Request request, String id) async {
       if (_appStoreMode) {
-        return Response.forbidden(
-            jsonEncode(
-                {'error': 'Plugin removal is not available on this platform'}),
-            headers: {'Content-Type': 'application/json'});
+        return jsonForbidden(
+            {'error': 'Plugin removal is not available on this platform'});
       }
       try {
         if (pluginService.getPluginManifest(id) == null) {
-          return Response.notFound(
-              jsonEncode({'error': 'Plugin not found: $id'}),
-              headers: {'Content-Type': 'application/json'});
+          return jsonNotFound({'error': 'Plugin not found: $id'});
         }
         await pluginService.removePlugin(id);
-        return Response.ok(
-            jsonEncode({'message': 'Plugin removed', 'id': id}),
-            headers: {'Content-Type': 'application/json'});
+        return jsonOk({'message': 'Plugin removed', 'id': id});
       } catch (e) {
-        return Response.internalServerError(
-            body: jsonEncode({'error': 'Failed to remove plugin: $e'}),
-            headers: {'Content-Type': 'application/json'});
+        return jsonError({'error': 'Failed to remove plugin: $e'});
       }
     });
 
@@ -140,17 +111,17 @@ final class PluginsHandler {
             .firstWhereOrNull((e) => e.pluginId == id)
             ?.manifest;
     if (manifest == null) {
-      return Response.notFound('plugin with $id not loaded');
+      return jsonNotFound({'error': 'plugin with $id not loaded'});
     }
     final apiEndpoint = manifest.api?.endpoints.firstWhereOrNull(
       (e) => e.id == endpoint,
     );
     if (apiEndpoint == null) {
-      return Response.notFound('endpoint $endpoint not available');
+      return jsonNotFound({'error': 'endpoint $endpoint not available'});
     }
     if (apiEndpoint.type != ApiEndpointType.websocket) {
-      return Response.badRequest(
-        body: {'error': 'endpoint $endpoint is not a websocket type'},
+      return jsonBadRequest(
+        {'error': 'endpoint $endpoint is not a websocket type'},
       );
     }
 
@@ -195,7 +166,7 @@ final class PluginsHandler {
     final endpoint = req.params['endpoint'];
 
     if (id == null || endpoint == null) {
-      return Response.badRequest(body: "id and endpoint required");
+      return jsonBadRequest({'error': 'id and endpoint required'});
     }
 
     final manifest =
@@ -204,7 +175,7 @@ final class PluginsHandler {
             ?.manifest;
 
     if (manifest == null) {
-      return Response.notFound('plugin with $id not loaded');
+      return jsonNotFound({'error': 'plugin with $id not loaded'});
     }
 
     final apiEndpoint = manifest.api?.endpoints.firstWhereOrNull(
@@ -212,12 +183,12 @@ final class PluginsHandler {
     );
 
     if (apiEndpoint == null) {
-      return Response.notFound('endpoint $endpoint not available');
+      return jsonNotFound({'error': 'endpoint $endpoint not available'});
     }
 
     if (apiEndpoint.type != ApiEndpointType.http) {
-      return Response.badRequest(
-        body: {'error': 'endpoint $endpoint is not a http type'},
+      return jsonBadRequest(
+        {'error': 'endpoint $endpoint is not a http type'},
       );
     }
 
@@ -252,9 +223,7 @@ final class PluginsHandler {
       final response = await _waitForPluginResponse(requestId);
 
       if (response == null) {
-        return Response.internalServerError(
-          body: 'Plugin did not respond in time',
-        );
+        return jsonError({'error': 'Plugin did not respond in time'});
       }
 
       // Parse the plugin's response
@@ -268,9 +237,7 @@ final class PluginsHandler {
       return Response(status, body: responseBody, headers: responseHeaders);
     } catch (e) {
       _log.warning("Error handling HTTP request for plugin $id", e);
-      return Response.internalServerError(
-        body: "Error processing request: ${e.toString()}",
-      );
+      return jsonError({'error': 'Error processing request: ${e.toString()}'});
     }
   }
 
@@ -303,7 +270,7 @@ final class PluginsHandler {
   ) async {
     final id = req.params['id'];
     if (id == null) {
-      return Response.badRequest(body: "plugin id is required");
+      return jsonBadRequest({'error': 'plugin id is required'});
     }
     return call(req, id);
   }
@@ -311,7 +278,7 @@ final class PluginsHandler {
   Future<Response> _handlePluginSettingsGet(Request req) async {
     return _extractPluginId(req, (r, id) async {
       final settings = await pluginService.pluginSettings(id);
-      return Response.ok(jsonEncode(settings));
+      return jsonOk(settings);
     });
   }
 
@@ -322,13 +289,10 @@ final class PluginsHandler {
       try {
         await pluginService.savePluginSettings(id, json);
       } on PluginSettingsValidationException catch (e) {
-        return Response.badRequest(
-          body: jsonEncode({'error': e.message}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({'error': e.message});
       }
       await pluginService.reloadPlugin(id);
-      return Response.ok(body);
+      return jsonOk(json);
     });
   }
 }

@@ -7,6 +7,7 @@ import 'package:reaprime/src/home_feature/forms/hot_water_form.dart';
 import 'package:reaprime/src/home_feature/forms/steam_form.dart';
 import 'package:reaprime/src/models/data/json_utils.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
+import 'package:reaprime/src/services/webserver/json_response.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
 class WorkflowHandler {
@@ -32,7 +33,7 @@ class WorkflowHandler {
 
   Future<Response> _getWorkflow(Request req) async {
     final workflow = _controller.currentWorkflow;
-    return Response.ok(jsonEncode(workflow.toJson()));
+    return jsonOk(workflow.toJson());
   }
 
   Future<Response> _updateWorkflow(Request req) async {
@@ -87,9 +88,8 @@ class WorkflowHandler {
       );
     }
 
-    final responseBody = jsonEncode(updatedWorkflow.toJson());
     for (final completer in responses) {
-      completer.complete(Response.ok(responseBody));
+      completer.complete(jsonOk(updatedWorkflow.toJson()));
     }
   }
 }
