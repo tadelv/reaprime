@@ -139,6 +139,7 @@ start_cmd() {
   echo "Started flutter (pid=$(cat "$PIDFILE")), waiting for HTTP server..."
   if ! wait_ready; then
     echo "Start failed. Run 'sb-dev logs' to inspect." >&2
+    cleanup_runtime
     return 1
   fi
 
@@ -147,8 +148,46 @@ start_cmd() {
   fi
 }
 
+cleanup_runtime() {
+  if [[ -f "$HOLDER_PIDFILE" ]]; then
+    kill "$(cat "$HOLDER_PIDFILE")" 2>/dev/null || true
+    rm -f "$HOLDER_PIDFILE"
+  fi
+  rm -f "$PIDFILE" "$STDIN_FIFO"
+}
+
+stop_cmd() {
+  if ! is_running; then
+    echo "Not running"
+    cleanup_runtime
+    return 0
+  fi
+  local pid
+  pid=$(cat "$PIDFILE")
+
+  # Graceful quit via fifo — flutter run honors 'q'
+  echo q > "$STDIN_FIFO" || true
+
+  local start
+  start=$(date +%s)
+  while (( $(date +%s) - start < 5 )); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      break
+    fi
+    sleep 0.2
+  done
+
+  if kill -0 "$pid" 2>/dev/null; then
+    echo "Flutter did not quit gracefully, sending SIGKILL" >&2
+    kill -9 "$pid" 2>/dev/null || true
+  fi
+  cleanup_runtime
+  echo "Stopped"
+}
+
 case "$cmd" in
   help|-h|--help) usage; exit 0 ;;
   start) start_cmd "$@" ;;
+  stop) stop_cmd ;;
   *) echo "Not yet implemented: $cmd" >&2; exit 2 ;;
 esac
