@@ -11,6 +11,7 @@ This skill covers driving a running Streamline Bridge Flutter app in simulate mo
 | Read/write WebSocket streams | `websocket.md` |
 | Work with MockDe1 / MockScale | `simulated-devices.md` |
 | Smoke-test a code change | `verification.md` |
+| End-to-end regression recipes | `scenarios/` |
 
 ## Authoritative sources
 
