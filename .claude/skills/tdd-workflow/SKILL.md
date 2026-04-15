@@ -1,13 +1,13 @@
 ---
 name: tdd-workflow
-description: Use when implementing any feature, bugfix, or refactor in this project — before writing implementation code. Covers test tier selection, MCP verification, and iteration loops.
+description: Use when implementing any feature, bugfix, or refactor in this project — before writing implementation code. Covers test tier selection, end-to-end verification via sb-dev, and iteration loops.
 ---
 
 # TDD Workflow
 
 ## Overview
 
-Project-specific test-driven development process for Streamline-Bridge. Defines **what** to test (three tiers), **when** to test (outside-in writing, inside-out implementation), and **how** to verify (including Claude-driven MCP scenarios).
+Project-specific test-driven development process for Streamline-Bridge. Defines **what** to test (three tiers), **when** to test (outside-in writing, inside-out implementation), and **how** to verify (including end-to-end smoke tests against a running app via `scripts/sb-dev.sh`).
 
 **REQUIRED BACKGROUND:** You MUST follow `superpowers:test-driven-development` for core red-green-refactor discipline. This skill does not replace it — it layers project-specific process on top.
 
@@ -19,7 +19,7 @@ Select during planning. Not every change needs all three. Zero tiers is valid fo
 |------|--------------|--------|---------------|
 | **Unit** | Single controller, model, DAO, handler | `flutter test` | Direct collaborators mocked |
 | **Integration** | Multi-component flows (e.g., BLE scan → ConnectionManager → ScaleController → weight) | `flutter test` (same runner) | Only hardware/transport edge mocked (use TestScale, MockDeviceDiscoveryService, in-memory Drift) |
-| **MCP verification** | API surface, WebSocket streams, end-to-end through running app | Claude-driven via MCP tools | App runs in simulate mode (MockDe1, MockScale) |
+| **End-to-end** | API surface, WebSocket streams, full-stack through running app | `scripts/sb-dev.sh` + `curl` / `websocat` | App runs in simulate mode (MockDe1, MockScale) |
 
 **Integration tests live in `test/` alongside unit tests.** No `integration_test/` directory. The difference is what they wire up — integration tests instantiate multiple real collaborators.
 
@@ -37,7 +37,7 @@ digraph tdd_workflow {
     self_review [label="Phase 4\nSelf-Review\n(max 3 passes)", shape=box, style=filled, fillcolor="#ccccff"];
     review_green [label="Unit tests\nstill green?", shape=diamond];
     integration_green [label="Integration tests\ngreen?", shape=diamond];
-    mcp_green [label="MCP verification\npasses?", shape=diamond];
+    e2e_green [label="End-to-end\nverification passes?", shape=diamond];
     done [label="Phase 5\nDone\n(full suite + evidence)", shape=doublecircle];
 
     plan -> write_tests;
@@ -50,10 +50,10 @@ digraph tdd_workflow {
     self_review -> review_green;
     review_green -> integration_green [label="yes"];
     review_green -> self_review [label="fix"];
-    integration_green -> mcp_green [label="yes"];
+    integration_green -> e2e_green [label="yes"];
     integration_green -> implement [label="fix impl\n(keep unit green)"];
-    mcp_green -> done [label="yes"];
-    mcp_green -> implement [label="fix impl\n(keep all green)"];
+    e2e_green -> done [label="yes"];
+    e2e_green -> implement [label="fix impl\n(keep all green)"];
 }
 ```
 
@@ -69,7 +69,7 @@ digraph tdd_workflow {
 
 Write tests in this order — API surface down to unit level:
 
-1. **MCP scenario** (if applicable): Write structured YAML in `test/mcp_scenarios/`. See MCP Verification section below.
+1. **End-to-end recipe** (if applicable): Write a markdown scenario under `doc/skills/streamline-bridge/scenarios/` — preconditions, `curl` / `websocat` commands, expected output hints, postconditions. Mirror the existing recipes (`build-info.md`, `display-brightness.md`, etc).
 2. **Integration tests** (if applicable): Wire real controllers with mock transport boundaries.
 3. **Unit tests**: Isolated, one behavior per test.
 
@@ -83,76 +83,41 @@ Then verify all tests fail for the right reason. Apply `superpowers:test-driven-
 
 ### Phase 4 — Self-Review (1-3 passes)
 
-After unit tests are green, before moving to integration/MCP:
+After unit tests are green, before moving to integration / end-to-end:
 
 1. Review own code for readability, DRY, SRP.
 2. Make improvements.
 3. **Re-run unit tests** after every change. If anything breaks, fix before continuing.
 4. Stop when a review pass finds nothing to improve.
 
-Clean code foundation before building upward — integration and MCP layers should build on refined code.
+Clean code foundation before building upward — integration and end-to-end layers should build on refined code.
 
-### Phase 5 — Integration & MCP Verification
+### Phase 5 — Integration & End-to-end Verification
 
-1. Run **integration tests**. If failing: fix implementation (not tests), re-confirm unit tests green.
-2. Run **MCP verification**. If failing: fix implementation, re-confirm unit + integration green.
+1. Run **integration tests** via `flutter test`. If failing: fix implementation (not tests), re-confirm unit tests green.
+2. Run the **end-to-end scenario(s)** via `scripts/sb-dev.sh` + `curl` / `websocat`. If failing: fix implementation, re-confirm unit + integration green.
 
 ### Phase 6 — Done
 
 1. Run full `flutter test` + `flutter analyze`.
-2. Run all MCP scenarios in `test/mcp_scenarios/` (regression check).
-3. Report completion with evidence — test output and MCP results.
+2. Walk the related end-to-end scenarios under `doc/skills/streamline-bridge/scenarios/` as a regression check.
+3. Report completion with evidence — test output and curl/websocat results.
 
-## MCP Verification
+## End-to-end Verification
 
-### Scenario Format
+See `doc/skills/streamline-bridge/verification.md` for the full verification protocol and `doc/skills/streamline-bridge/scenarios/` for concrete, reproducible recipes. Summary:
 
-Location: `test/mcp_scenarios/{feature-or-flow-name}.yaml`
+1. **Boot** — `scripts/sb-dev.sh start --connect-machine MockDe1 --connect-scale MockScale`.
+2. **Exercise** — walk the scenario steps (`curl` for REST, `websocat` for WebSocket). Each recipe file lists expected output hints; use `jq -e` predicates for one-shot assertions where it makes sense.
+3. **Reload** — `scripts/sb-dev.sh reload` after each Dart edit so the next call hits the new code.
+4. **Stop** — `scripts/sb-dev.sh stop`.
 
-```yaml
-name: scale-connection-weight-flow
-description: Verify scale discovery, connection, and weight measurement through API
-
-preconditions:
-  app_start:
-    connectDevice: MockDe1
-    connectScale: MockScale
-
-steps:
-  - tool: devices_list
-    expect:
-      status: 200
-      body_contains:
-        - MockScale
-
-  - tool: machine_get_state
-    expect:
-      status: 200
-
-  - tool: scale_tare
-    expect:
-      status: 200
-
-postconditions:
-  - app_stop
-```
-
-### Execution Protocol
-
-1. Read scenario file.
-2. Execute preconditions (typically `app_start` with simulate mode).
-3. Execute each step: call MCP tool, compare response to `expect`.
-4. On failure: report step number, expected vs actual, stop.
-5. On success: execute postconditions, report all steps passed.
-
-### Regression
-
-When verifying a new feature, also run existing scenarios in `test/mcp_scenarios/` to catch regressions. Report any failures from existing scenarios separately.
+Scenario files live as markdown, not YAML — they're written to be pasted into a shell verbatim. When verifying a new feature that lives end-to-end, also walk any existing recipe that exercises the surrounding area to catch regressions.
 
 ## Tier Selection Guide
 
-| Change type | Unit | Integration | MCP |
-|------------|------|-------------|-----|
+| Change type | Unit | Integration | End-to-end |
+|------------|------|-------------|-----------|
 | Model/DAO logic | Yes | Rarely | No |
 | Single controller behavior | Yes | No | No |
 | Multi-controller flow | Yes | Yes | Maybe |
@@ -167,7 +132,7 @@ When verifying a new feature, also run existing scenarios in `test/mcp_scenarios
 |---------|-----|
 | Writing implementation before tests | Delete it. Follow `superpowers:test-driven-development` Iron Law. |
 | Modifying tests to match implementation | Tests reflect requirements, not implementation. Go back to planning. |
-| Skipping MCP verification "because unit tests pass" | Unit tests don't cover the API surface. If MCP tier was selected, run it. |
-| Running only new MCP scenario, skipping existing ones | Always run full `test/mcp_scenarios/` for regression. |
+| Skipping end-to-end verification "because unit tests pass" | Unit tests don't cover the REST/WebSocket surface. If the end-to-end tier was selected, run it. |
+| Running only the new scenario, skipping existing ones | Also walk neighbouring recipes under `doc/skills/streamline-bridge/scenarios/` as regression. |
 | Self-review keeps cycling without finding improvements | Stop when a pass finds nothing to change. |
 | Skipping `flutter analyze` | Run it. Every time. Non-negotiable. |

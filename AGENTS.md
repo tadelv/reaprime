@@ -42,14 +42,6 @@ The **Development Workflow** references a TDD skill in `.claude/skills/tdd-workf
 - **Self-review:** Review your own code before claiming done
 - **Full suite:** Run `flutter test` and `flutter analyze` before committing
 
-### MCP Server
-
-The **MCP Server** section describes Claude-specific MCP tools. For other agents:
-
-- The app exposes REST (port 8080) and WebSocket APIs
-- Use `flutter run --dart-define=simulate=1` for simulated testing
-- MCP scenarios in `test/mcp_scenarios/*.yaml` define end-to-end verification flows
-
 ## Working with Streamline Bridge (all agents)
 
 The authoritative dev-loop skill lives in `doc/skills/streamline-bridge/`. Any agent that can read markdown can use it — no MCP, no plugin install.

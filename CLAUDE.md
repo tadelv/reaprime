@@ -60,12 +60,12 @@ gh pr create --base main
 
 ### Development Workflow
 
-**For features, bugfixes, and refactors:** Follow the TDD workflow skill (`.claude/skills/tdd-workflow/`). It covers test tier selection (unit, integration, MCP), outside-in test writing, inside-out implementation, self-review loops, and MCP verification protocol.
+**For features, bugfixes, and refactors:** Follow the TDD workflow skill (`.claude/skills/tdd-workflow/`). It covers test tier selection (unit, integration, end-to-end), outside-in test writing, inside-out implementation, self-review loops, and the end-to-end verification protocol via `scripts/sb-dev.sh`.
 
 **For non-code changes** (docs, config, CI) where no test tiers apply, ask the user which verification approach to use:
 - **Analyze only** — `flutter analyze`. Minimum for any change.
 - **Run app** — run with `simulate=1` so user can visually verify. For GUI/UX changes.
-- **MCP smoke test** — use MCP tools to exercise affected endpoints. For API spec or manifest changes.
+- **End-to-end smoke test** — use `scripts/sb-dev.sh` + `curl` / `websocat` to exercise affected endpoints. See `doc/skills/streamline-bridge/verification.md`. For API spec or manifest changes.
 - **Custom check** — user specifies (e.g., real hardware test, WebSocket stream check).
 
 After every meaningful code change:
@@ -131,15 +131,9 @@ Handler-based routing in `lib/src/services/webserver/`. Each handler has `addRou
 
 Full endpoint reference in **[`doc/Api.md`](doc/Api.md)**. OpenAPI specs in `assets/api/rest_v1.yml` and `assets/api/websocket_v1.yml`.
 
-### MCP Server
+### Dev-loop skill
 
-The MCP server in `packages/mcp-server/` bridges Claude to the Flutter app's REST/WebSocket APIs. Tool files in `src/tools/`, registered in `src/server.ts`. Lifecycle management (start/stop/reload) in `src/lifecycle/app-manager.ts`.
-
-**When using MCP hot reload:** Always try `app_hot_reload` first (preserves state). Only use `app_hot_restart` if reload fails. Both have 30-second timeouts.
-
-**Adding MCP tools:** Create a tool file in `src/tools/`, export a `register*Tools(server, rest)` function, import and call it in `server.ts`. Follow existing patterns (Zod schemas, REST client delegation, JSON responses).
-
-**Using MCP for verification:** When the app is running (or can be started via `app_start`), prefer MCP tools over raw `curl` for smoke-testing changes. Use `app_start` with `connectDevice: "MockDe1"` and/or `connectScale: "MockScale"` for simulated testing. MCP tools can read machine state, exercise REST endpoints, subscribe to WebSocket streams, and manage workflows — all from within the conversation.
+Driving a running Flutter app (start, stop, hot reload, curl, websocat) is documented in `doc/skills/streamline-bridge/`. Entry point: `doc/skills/streamline-bridge/README.md`. Lifecycle is managed by `scripts/sb-dev.sh` (POSIX shell, macOS/Linux only). Prefer `sb-dev reload` (preserves state) over `sb-dev hot-restart`. For end-to-end smoke-testing a change, see `doc/skills/streamline-bridge/verification.md` and the regression recipes under `doc/skills/streamline-bridge/scenarios/`.
 
 ### Data Flow (key paths)
 
@@ -173,9 +167,9 @@ Run with `flutter test`. Simulated devices available via `--dart-define=simulate
 |------|------|---------------|
 | **Unit** | Single controller, model, DAO, handler | Direct collaborators mocked |
 | **Integration** | Multi-component flows (e.g., scan → connect → measure) | Only hardware/transport edge mocked |
-| **MCP verification** | API surface, end-to-end through running app | App in simulate mode (MockDe1, MockScale) |
+| **End-to-end** | API surface, WebSocket streams, full-stack through running app | App in simulate mode (MockDe1, MockScale) |
 
-All Dart tests (unit + integration) live in `test/` and run via `flutter test`. MCP verification scenarios live in `test/mcp_scenarios/*.yaml` and are executed by Claude using MCP tools. See `.claude/skills/tdd-workflow/` for the full process.
+All Dart tests (unit + integration) live in `test/` and run via `flutter test`. End-to-end regression recipes live under `doc/skills/streamline-bridge/scenarios/` as markdown — run them via `scripts/sb-dev.sh` + `curl` / `websocat`. See `.claude/skills/tdd-workflow/` for the full process.
 
 ### Test Helpers (`test/helpers/`)
 
@@ -206,8 +200,8 @@ All Dart tests (unit + integration) live in `test/` and run via `flutter test`. 
 1. Create/modify handler in `lib/src/services/webserver/`
 2. Add route in handler's `addRoutes()`
 3. Register in `webserver_service.dart` `_init()`
-4. Add corresponding MCP tool in `packages/mcp-server/src/tools/` and register in `server.ts`
-5. Document in `assets/api/rest_v1.yml` or `websocket_v1.yml` and update `doc/Api.md`
+4. **Update `assets/api/rest_v1.yml` (or `websocket_v1.yml`) in the same commit** — the spec is authoritative, stale spec = stale agent knowledge
+5. Update `doc/Api.md` if user-facing. Smoke-test via `scripts/sb-dev.sh` + `curl` — see `doc/skills/streamline-bridge/verification.md`
 
 ## Documentation
 
@@ -218,5 +212,6 @@ Detailed docs in `doc/`:
 - **`doc/Profiles.md`** — Profile API (content-based hashing, version tracking, endpoints)
 - **`doc/DeviceManagement.md`** — Device discovery and connection management
 - **`doc/RELEASE.md`** — Release process and versioning
+- **`doc/skills/streamline-bridge/`** — Dev-loop skill: `sb-dev` lifecycle, REST/WebSocket recipes, simulated devices, verification scenarios
 - **`packages/dye2-plugin/README.md`** — DYE2 bundled plugin (architecture, build, dev server, extension guide)
 
