@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # sb-dev.sh — Streamline Bridge dev-session manager
 #
-# Manages a `flutter run` process for simulate-mode development. Replaces
-# the lifecycle tools from the old packages/mcp-server/ package.
+# Manages a `flutter run` process for simulate-mode development.
+# See doc/skills/streamline-bridge/lifecycle.md for the full reference.
 #
 # Runtime state lives under $SB_RUNTIME_DIR (default /tmp/streamline-bridge-$USER).
 
