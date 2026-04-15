@@ -49,8 +49,7 @@ Full shot flow with machine + scale:
 scripts/sb-dev.sh start --connect-machine MockDe1 --connect-scale MockScale
 curl -sX POST http://localhost:8080/api/v1/machine/profile \
   -H 'content-type: application/json' --data @test_data/profile.json
-curl -sX POST http://localhost:8080/api/v1/machine/state \
-  -H 'content-type: application/json' --data '{"state":"espresso"}'
+curl -sX PUT http://localhost:8080/api/v1/machine/state/espresso
 websocat --no-async-stdio -n -U -t --max-messages-rev 20 \
   ws://localhost:8080/ws/v1/machine/snapshot | jq -c .
 ```
