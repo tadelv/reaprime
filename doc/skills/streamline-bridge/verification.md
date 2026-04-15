@@ -58,6 +58,17 @@ Before opening a PR, merging locally, or calling work done:
 - `flutter test` green.
 - Full sb-dev smoke completed: `start` → `status` → exercise feature → `reload` → re-exercise → `stop`.
 
+## Regression scenarios
+
+Concrete end-to-end recipes that used to live as MCP yaml fixtures now live as markdown under `scenarios/`:
+
+- `scenarios/build-info.md` — `/api/v1/info` compile-time metadata.
+- `scenarios/display-brightness.md` — display REST + WebSocket + validation + low-battery toggle.
+- `scenarios/onboarding-connection-phases.md` — verify MockDe1 + MockScale auto-connect reaches a healthy machine state.
+- `scenarios/onboarding-preferred-device.md` — `/api/v1/settings` round-trip and null-clear of preferred IDs.
+
+Run any scenario before calling related work done. Each file lists preconditions, a sequence of `curl` / `websocat` commands, expected output hints, and postconditions — paste them verbatim.
+
 ## Stale spec, stale skill
 
 The skill only works because `assets/api/rest_v1.yml` and `assets/api/websocket_v1.yml` are authoritative. `rest.md` and `websocket.md` both tell readers to trust the spec over their own guesses; future agents generate code from those specs. Any API-shape change that ships without a matching spec update is a regression in the skill itself — the next agent will produce broken code against the wrong contract. This is load-bearing. Update the spec in the same commit as the handler. No exceptions.
