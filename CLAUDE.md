@@ -65,7 +65,7 @@ gh pr create --base main
 **For non-code changes** (docs, config, CI) where no test tiers apply, ask the user which verification approach to use:
 - **Analyze only** — `flutter analyze`. Minimum for any change.
 - **Run app** — run with `simulate=1` so user can visually verify. For GUI/UX changes.
-- **End-to-end smoke test** — use `scripts/sb-dev.sh` + `curl` / `websocat` to exercise affected endpoints. See `doc/skills/streamline-bridge/verification.md`. For API spec or manifest changes.
+- **End-to-end smoke test** — use `scripts/sb-dev.sh` + `curl` / `websocat` to exercise affected endpoints. See `.agents/skills/streamline-bridge/verification.md`. For API spec or manifest changes.
 - **Custom check** — user specifies (e.g., real hardware test, WebSocket stream check).
 
 After every meaningful code change:
@@ -133,7 +133,7 @@ Full endpoint reference in **[`doc/Api.md`](doc/Api.md)**. OpenAPI specs in `ass
 
 ### Dev-loop skill
 
-Driving a running Flutter app (start, stop, hot reload, curl, websocat) is documented in `doc/skills/streamline-bridge/`. Entry point: `doc/skills/streamline-bridge/README.md`. Lifecycle is managed by `scripts/sb-dev.sh` (POSIX shell, macOS/Linux only). Prefer `sb-dev reload` (preserves state) over `sb-dev hot-restart`. For end-to-end smoke-testing a change, see `doc/skills/streamline-bridge/verification.md` and the regression recipes under `doc/skills/streamline-bridge/scenarios/`.
+Driving a running Flutter app (start, stop, hot reload, curl, websocat) is documented in `.agents/skills/streamline-bridge/`. Entry point: `.agents/skills/streamline-bridge/README.md`. Lifecycle is managed by `scripts/sb-dev.sh` (POSIX shell, macOS/Linux only). Prefer `sb-dev reload` (preserves state) over `sb-dev hot-restart`. For end-to-end smoke-testing a change, see `.agents/skills/streamline-bridge/verification.md` and the regression recipes under `.agents/skills/streamline-bridge/scenarios/`.
 
 ### Data Flow (key paths)
 
@@ -169,7 +169,7 @@ Run with `flutter test`. Simulated devices available via `--dart-define=simulate
 | **Integration** | Multi-component flows (e.g., scan → connect → measure) | Only hardware/transport edge mocked |
 | **End-to-end** | API surface, WebSocket streams, full-stack through running app | App in simulate mode (MockDe1, MockScale) |
 
-All Dart tests (unit + integration) live in `test/` and run via `flutter test`. End-to-end regression recipes live under `doc/skills/streamline-bridge/scenarios/` as markdown — run them via `scripts/sb-dev.sh` + `curl` / `websocat`. See `.claude/skills/tdd-workflow/` for the full process.
+All Dart tests (unit + integration) live in `test/` and run via `flutter test`. End-to-end regression recipes live under `.agents/skills/streamline-bridge/scenarios/` as markdown — run them via `scripts/sb-dev.sh` + `curl` / `websocat`. See `.claude/skills/tdd-workflow/` for the full process.
 
 ### Test Helpers (`test/helpers/`)
 
@@ -201,7 +201,7 @@ All Dart tests (unit + integration) live in `test/` and run via `flutter test`. 
 2. Add route in handler's `addRoutes()`
 3. Register in `webserver_service.dart` `_init()`
 4. **Update `assets/api/rest_v1.yml` (or `websocket_v1.yml`) in the same commit** — the spec is authoritative, stale spec = stale agent knowledge
-5. Update `doc/Api.md` if user-facing. Smoke-test via `scripts/sb-dev.sh` + `curl` — see `doc/skills/streamline-bridge/verification.md`
+5. Update `doc/Api.md` if user-facing. Smoke-test via `scripts/sb-dev.sh` + `curl` — see `.agents/skills/streamline-bridge/verification.md`
 
 ## Documentation
 
@@ -212,6 +212,6 @@ Detailed docs in `doc/`:
 - **`doc/Profiles.md`** — Profile API (content-based hashing, version tracking, endpoints)
 - **`doc/DeviceManagement.md`** — Device discovery and connection management
 - **`doc/RELEASE.md`** — Release process and versioning
-- **`doc/skills/streamline-bridge/`** — Dev-loop skill: `sb-dev` lifecycle, REST/WebSocket recipes, simulated devices, verification scenarios
+- **`.agents/skills/streamline-bridge/`** — Dev-loop skill: `sb-dev` lifecycle, REST/WebSocket recipes, simulated devices, verification scenarios
 - **`packages/dye2-plugin/README.md`** — DYE2 bundled plugin (architecture, build, dev server, extension guide)
 

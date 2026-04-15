@@ -5,26 +5,8 @@ description: Use when touching the Flutter app, its REST/WebSocket API, profiles
 
 # Streamline Bridge
 
-Streamline Bridge is a Flutter gateway app for Decent Espresso machines. It exposes a REST API on port 8080 and WebSocket channels under `/ws/v1/*`.
+This is a Claude Code forwarder. The canonical skill lives under the cross-client [agentskills.io](https://agentskills.io) path:
 
-## Authoritative sources
+**`.agents/skills/streamline-bridge/SKILL.md`**
 
-- REST spec: `assets/api/rest_v1.yml`
-- WebSocket (AsyncAPI) spec: `assets/api/websocket_v1.yml`
-- Dev loop script: `scripts/sb-dev.sh`
-
-Full skill content lives in `doc/skills/streamline-bridge/`. Read the sub-file matching your task.
-
-## Routing
-
-| Task | File |
-|---|---|
-| Start/stop/reload the app | `doc/skills/streamline-bridge/lifecycle.md` |
-| Call REST endpoints / add endpoints | `doc/skills/streamline-bridge/rest.md` |
-| Read/write WebSocket streams | `doc/skills/streamline-bridge/websocket.md` |
-| Work with MockDe1/MockScale | `doc/skills/streamline-bridge/simulated-devices.md` |
-| Smoke-test a code change | `doc/skills/streamline-bridge/verification.md` |
-
-## Rule of thumb
-
-If you're about to guess an endpoint path, payload shape, or WebSocket channel — stop and read the relevant spec first. If you're about to run `flutter run` by hand, use `scripts/sb-dev.sh start` instead.
+Read that file and the sibling routing targets (`lifecycle.md`, `rest.md`, `websocket.md`, `simulated-devices.md`, `verification.md`, `scenarios/`) for everything the skill covers. Relative paths in those files resolve against `.agents/skills/streamline-bridge/`.
