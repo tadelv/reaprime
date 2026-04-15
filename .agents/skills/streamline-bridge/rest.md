@@ -55,4 +55,4 @@ curl -sf http://localhost:8080/api/v1/devices \
 
 ## When REST isn't enough
 
-Live telemetry (shot frames, scale weights, snapshot stream) is WebSocket-only. See `doc/skills/streamline-bridge/websocket.md`.
+Live telemetry (shot frames, scale weights, snapshot stream) is WebSocket-only. See `websocket.md`.

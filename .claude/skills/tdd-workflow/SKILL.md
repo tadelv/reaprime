@@ -69,7 +69,7 @@ digraph tdd_workflow {
 
 Write tests in this order — API surface down to unit level:
 
-1. **End-to-end recipe** (if applicable): Write a markdown scenario under `doc/skills/streamline-bridge/scenarios/` — preconditions, `curl` / `websocat` commands, expected output hints, postconditions. Mirror the existing recipes (`build-info.md`, `display-brightness.md`, etc).
+1. **End-to-end recipe** (if applicable): Write a markdown scenario under `.agents/skills/streamline-bridge/scenarios/` — preconditions, `curl` / `websocat` commands, expected output hints, postconditions. Mirror the existing recipes (`build-info.md`, `display-brightness.md`, etc).
 2. **Integration tests** (if applicable): Wire real controllers with mock transport boundaries.
 3. **Unit tests**: Isolated, one behavior per test.
 
@@ -100,12 +100,12 @@ Clean code foundation before building upward — integration and end-to-end laye
 ### Phase 6 — Done
 
 1. Run full `flutter test` + `flutter analyze`.
-2. Walk the related end-to-end scenarios under `doc/skills/streamline-bridge/scenarios/` as a regression check.
+2. Walk the related end-to-end scenarios under `.agents/skills/streamline-bridge/scenarios/` as a regression check.
 3. Report completion with evidence — test output and curl/websocat results.
 
 ## End-to-end Verification
 
-See `doc/skills/streamline-bridge/verification.md` for the full verification protocol and `doc/skills/streamline-bridge/scenarios/` for concrete, reproducible recipes. Summary:
+See `.agents/skills/streamline-bridge/verification.md` for the full verification protocol and `.agents/skills/streamline-bridge/scenarios/` for concrete, reproducible recipes. Summary:
 
 1. **Boot** — `scripts/sb-dev.sh start --connect-machine MockDe1 --connect-scale MockScale`.
 2. **Exercise** — walk the scenario steps (`curl` for REST, `websocat` for WebSocket). Each recipe file lists expected output hints; use `jq -e` predicates for one-shot assertions where it makes sense.
@@ -133,6 +133,6 @@ Scenario files live as markdown, not YAML — they're written to be pasted into 
 | Writing implementation before tests | Delete it. Follow `superpowers:test-driven-development` Iron Law. |
 | Modifying tests to match implementation | Tests reflect requirements, not implementation. Go back to planning. |
 | Skipping end-to-end verification "because unit tests pass" | Unit tests don't cover the REST/WebSocket surface. If the end-to-end tier was selected, run it. |
-| Running only the new scenario, skipping existing ones | Also walk neighbouring recipes under `doc/skills/streamline-bridge/scenarios/` as regression. |
+| Running only the new scenario, skipping existing ones | Also walk neighbouring recipes under `.agents/skills/streamline-bridge/scenarios/` as regression. |
 | Self-review keeps cycling without finding improvements | Stop when a pass finds nothing to change. |
 | Skipping `flutter analyze` | Run it. Every time. Non-negotiable. |

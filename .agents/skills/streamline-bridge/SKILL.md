@@ -1,6 +1,13 @@
+---
+name: streamline-bridge
+description: Use when touching the Flutter app, its REST/WebSocket API, profiles, shots, or simulated devices, or whenever exercising a code change against a running Streamline Bridge instance. Covers the dev loop (sb-dev start/reload/stop), REST calls via curl, WebSocket streams via websocat, and smoke-test verification.
+---
+
 # Streamline Bridge — agent skill
 
 This skill covers driving a running Streamline Bridge Flutter app in simulate mode from the shell: REST via `curl`, WebSocket via `websocat`, and lifecycle (start, stop, reload, logs) via `scripts/sb-dev.sh`. It's written for any agent that can read markdown and execute shell commands — Claude Code, Cursor, Codex, Windsurf, humans — and deliberately avoids agent-specific mechanisms like MCP tools or slash commands.
+
+The skill lives under `.agents/skills/streamline-bridge/` following the [agentskills.io](https://agentskills.io) cross-client convention. Any compliant client will auto-discover it. Claude Code also loads it via a forwarder at `.claude/skills/streamline-bridge/SKILL.md`.
 
 ## Routing
 
@@ -12,6 +19,8 @@ This skill covers driving a running Streamline Bridge Flutter app in simulate mo
 | Work with MockDe1 / MockScale | `simulated-devices.md` |
 | Smoke-test a code change | `verification.md` |
 | End-to-end regression recipes | `scenarios/` |
+
+All files above are siblings of this `SKILL.md` under `.agents/skills/streamline-bridge/`. Relative paths in the sub-files resolve against that directory.
 
 ## Authoritative sources
 
@@ -42,3 +51,7 @@ scripts/sb-dev.sh stop
 ```
 
 From here, pick the file in the routing table that matches your task.
+
+## Rule of thumb
+
+If you're about to guess an endpoint path, payload shape, or WebSocket channel — stop and read the relevant spec first. If you're about to run `flutter run` by hand, use `scripts/sb-dev.sh start` instead.
