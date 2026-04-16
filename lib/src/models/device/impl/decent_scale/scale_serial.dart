@@ -28,19 +28,27 @@ class HDSSerial implements Scale {
   @override
   String get deviceId => _transport.name;
 
+  bool _isDisconnecting = false;
+
   @override
   disconnect() async {
-    _connectionSubject.add(ConnectionState.disconnected);
-    _transportSubscription.cancel();
-    _stringSubscription.cancel();
-    await _transport.disconnect();
+    if (_isDisconnecting) return;
+    _isDisconnecting = true;
+    try {
+      _connectionSubject.add(ConnectionState.disconnected);
+      _transportSubscription?.cancel();
+      await _transport.disconnect();
+    } catch (e) {
+      _log.warning("Error during disconnect", e);
+    } finally {
+      _isDisconnecting = false;
+    }
   }
 
   @override
   String get name => "Half Decent Scale";
 
-  late StreamSubscription<Uint8List> _transportSubscription;
-  late StreamSubscription<String> _stringSubscription;
+  StreamSubscription<Uint8List>? _transportSubscription;
   @override
   Future<void> onConnect() async {
     _log.info("on connect");
@@ -56,18 +64,6 @@ class HDSSerial implements Scale {
       },
     );
 
-    // N.B.: reads weight by reading the Serial.print reported weight
-    // too slow for coffee use case
-    // _stringSubscription = _transport.readStream.listen(
-    //   onStringData,
-    //   onError: (error) {
-    //     _log.warning("transport error", error);
-    //     disconnect();
-    //   },
-    //   onDone: () {
-    //     disconnect();
-    //   },
-    // );
     await _transport.writeHexCommand(Uint8List.fromList([0x03, 0x20, 0x01]));
     _connectionSubject.add(ConnectionState.connected);
   }
