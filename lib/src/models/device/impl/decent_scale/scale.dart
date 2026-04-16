@@ -29,6 +29,15 @@ class DecentScale implements Scale {
 
   Timer? _heartbeatTimer;
 
+  // Watchdog: heartbeat fires every 4s; warn after 3 missed (12s), disconnect after 5 (20s).
+  // BLE is slower than USB so thresholds are more generous than HDSSerial.
+  static const _watchdogWarningTicks = 3;
+  static const _watchdogDisconnectTicks = 5;
+  int _ticksSinceLastNotification = 0;
+  bool _watchdogRetryAttempted = false;
+  int _totalNotifications = 0;
+  int _heartbeatTotalTicks = 0;
+
   DecentScale({required BLETransport transport})
     : _deviceId = transport.id,
       _device = transport;
@@ -55,7 +64,7 @@ class DecentScale implements Scale {
   StreamSubscription<ConnectionState>? subscription;
   @override
   Future<void> onConnect() async {
-    _log.info("on connect");
+    _log.info("on connect (id=$deviceId)");
     if (await _device.connectionState.first == ConnectionState.connected) {
       return;
     }
@@ -80,6 +89,10 @@ class DecentScale implements Scale {
       }
       _registerNotifications();
       _heartbeatTimer?.cancel();
+      _ticksSinceLastNotification = 0;
+      _watchdogRetryAttempted = false;
+      _totalNotifications = 0;
+      _heartbeatTotalTicks = 0;
       _heartbeatTimer = Timer.periodic(Duration(seconds: 4), (timer) async {
         if (await _connectionStateController.stream.first !=
             ConnectionState.connected) {
@@ -87,6 +100,32 @@ class DecentScale implements Scale {
           disconnect();
           return;
         }
+        _ticksSinceLastNotification++;
+        _heartbeatTotalTicks++;
+
+        // Periodic heartbeat log every 5 min (75 ticks at 4s)
+        if (_heartbeatTotalTicks % 75 == 0) {
+          final uptimeMin = (_heartbeatTotalTicks * 4) ~/ 60;
+          _log.fine("heartbeat: ${uptimeMin}m uptime, $_totalNotifications notifications");
+        }
+
+        if (_ticksSinceLastNotification >= _watchdogDisconnectTicks) {
+          _log.severe(
+            "No BLE notifications for ${_watchdogDisconnectTicks * 4}s "
+            "(total=$_totalNotifications, uptime=${_heartbeatTotalTicks * 4}s), disconnecting",
+          );
+          disconnect();
+          return;
+        } else if (_ticksSinceLastNotification >= _watchdogWarningTicks &&
+            !_watchdogRetryAttempted) {
+          _watchdogRetryAttempted = true;
+          _log.warning(
+            "No BLE notifications for ${_watchdogWarningTicks * 4}s "
+            "(total=$_totalNotifications), re-subscribing",
+          );
+          _registerNotifications();
+        }
+
         await _sendHeartBeat();
       });
       _sendOledOn();
@@ -112,6 +151,8 @@ class DecentScale implements Scale {
       return;
     }
     _isDisconnecting = true;
+    final uptimeSec = _heartbeatTotalTicks * 4;
+    _log.info("disconnecting (notifications=$_totalNotifications, uptime=${uptimeSec}s)");
     subscription?.cancel();
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
@@ -171,6 +212,9 @@ class DecentScale implements Scale {
   }
 
   void _parseNotification(List<int> data) {
+    _ticksSinceLastNotification = 0;
+    _watchdogRetryAttempted = false;
+    _totalNotifications++;
     if (data.length < 4) return;
     _log.finest("$hashCode recv: ${data[1].toHex()}");
     switch (data[1]) {
