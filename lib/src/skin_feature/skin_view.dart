@@ -190,7 +190,7 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
     } else if (Platform.isMacOS) {
       instructions = 'Press ⌘D or use View → Back to Dashboard to return';
     } else if (Platform.isWindows) {
-      instructions = 'Press Ctrl+ESC to return to Dashboard';
+      instructions = 'Press Alt+Backspace to return to Dashboard';
     } else {
       // Fallback for other platforms
       instructions = 'Use back navigation to return to Dashboard';
