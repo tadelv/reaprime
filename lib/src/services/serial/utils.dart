@@ -27,3 +27,11 @@ bool isDE1(List<String> data, List<int> bytes) {
   print("figuring out $data");
   return data.any((e) => e.startsWith("[M]"));
 }
+
+/// Build a stable device ID for HDS from USB metadata.
+/// Returns null if vid or pid are missing (can't form a meaningful ID).
+String? computeUsbStableId({int? vid, int? pid, String? serial}) {
+  if (vid == null || pid == null) return null;
+  final s = (serial != null && serial.isNotEmpty) ? serial : 'unknown';
+  return 'usb-${vid.toRadixString(16)}-${pid.toRadixString(16)}-$s';
+}

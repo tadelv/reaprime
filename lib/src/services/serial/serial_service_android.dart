@@ -91,11 +91,20 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
 
     _devices.removeWhere((d) => connected.contains(d) == false);
     var devices = await UsbSerial.listDevices();
+    // Filter out USB devices whose stable ID matches an already-known device.
+    // Previous code compared domain deviceId against UsbDevice.deviceId (int)
+    // which never matched. Now we compute the same stable ID for comparison.
     devices.removeWhere((d) {
-      return _devices.firstWhereOrNull((t) {
-            return t.deviceId == "${d.deviceId}";
-          }) !=
-          null;
+      final usbStableId = computeUsbStableId(
+        vid: d.vid,
+        pid: d.pid,
+        serial: d.serial,
+      );
+      if (usbStableId == null) {
+        // No stable ID — fall back to checking the int deviceId as string
+        return _devices.any((t) => t.deviceId == "${d.deviceId}");
+      }
+      return _devices.any((t) => t.deviceId == usbStableId);
     });
 
     _log.info("have new devices: $devices");
@@ -236,7 +245,14 @@ class AndroidSerialPort implements SerialTransport {
   }
 
   @override
-  String get id => "${_device.deviceId}";
+  String get id {
+    final stable = computeUsbStableId(
+      vid: _device.vid,
+      pid: _device.pid,
+      serial: _device.serial,
+    );
+    return stable ?? "${_device.deviceId}";
+  }
 
   @override
   String get name => _device.deviceName;
