@@ -53,7 +53,7 @@ class QuickSettingsWidget extends StatefulWidget {
                 height: 220,
                 // width: 220,
                 child: PrettyQrView.data(
-                  data: 'http://$deviceIp:3000',
+                  data: 'http://$deviceIp:3000/?_=${DateTime.now().millisecondsSinceEpoch}',
                   decoration: PrettyQrDecoration(
                     quietZone: PrettyQrQuietZone.standard,
                     shape: PrettyQrSquaresSymbol(
@@ -199,14 +199,12 @@ class _QuickSettingsState extends State<QuickSettingsWidget> {
                       child: Text("Open", overflow: TextOverflow.ellipsis),
                       onPressed: () async {
                         // On supported platforms (iOS, Android, macOS), use in-app WebView
-                        if (Platform.isIOS ||
-                            Platform.isAndroid ||
-                            Platform.isMacOS) {
-                          Navigator.of(context).pushNamed(SkinView.routeName);
-                        } else {
+                        if (Platform.isLinux) {
                           // On other platforms, open in external browser
                           final url = Uri.parse('http://localhost:3000?_=${DateTime.now().millisecondsSinceEpoch}');
                           await launchUrl(url);
+                        } else {
+                          Navigator.of(context).pushNamed(SkinView.routeName);
                         }
                       },
                     ),
