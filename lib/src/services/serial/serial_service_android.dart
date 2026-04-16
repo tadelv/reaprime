@@ -38,18 +38,48 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
     UsbSerial.usbEventStream?.listen((data) async {
       switch (data.event) {
         case UsbEvent.ACTION_USB_DETACHED:
-          // we lost connectivity, disconnect the device that we lost.
-          if (data.device == null) {
-            break;
+          _log.info("USB_DETACHED: device=${data.device?.productName ?? 'null'} "
+              "raw=${data.device?.deviceId}");
+          if (data.device != null) {
+            // Match by stable ID, falling back to vid:pid prefix match.
+            // Android detach events often have null serial, so exact stable ID
+            // won't match. Use vid:pid prefix to find the orphaned device.
+            final vid = data.device!.vid;
+            final pid = data.device!.pid;
+            final detachedStableId = computeUsbStableId(
+              vid: vid,
+              pid: pid,
+              serial: data.device!.serial,
+            );
+            final vidPidPrefix = (vid != null && pid != null)
+                ? 'usb-${vid.toRadixString(16)}-${pid.toRadixString(16)}-'
+                : null;
+            _log.info("USB_DETACHED: stableId=${detachedStableId ?? 'none'}, "
+                "prefix=$vidPidPrefix");
+            final match = _devices.firstWhereOrNull((d) =>
+                d.deviceId == detachedStableId ||
+                (vidPidPrefix != null && d.deviceId.startsWith(vidPidPrefix)) ||
+                d.deviceId == "${data.device!.deviceId}");
+            if (match != null) {
+              _log.info("USB_DETACHED: disconnecting ${match.name}(${match.deviceId})");
+              match.disconnect();
+              _devices.remove(match);
+            } else {
+              _log.warning("USB_DETACHED: no matching device in $_devices");
+            }
+          } else {
+            // No device info — disconnect all serial devices as a fallback
+            _log.warning("USB_DETACHED: device is null, disconnecting "
+                "${_devices.length} serial device(s)");
+            for (final d in _devices) {
+              d.disconnect();
+            }
+            _devices.clear();
           }
-          _devices
-              .firstWhereOrNull((d) => d.deviceId == "${data.device!.deviceId}")
-              ?.disconnect();
-          _devices.removeWhere((d) => d.deviceId == "${data.device!.deviceId}");
           _machineSubject.add(_devices);
           break;
         default:
-          // require user initiated scan for now
+          _log.info("USB event: ${data.event}, device=${data.device?.productName ?? 'null'}");
           break;
       }
     });
@@ -103,6 +133,18 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
     var devices = await UsbSerial.listDevices();
     _log.info("USB enumeration: ${devices.length} ports "
         "(${devices.map((d) => '${d.productName ?? d.deviceName}[${computeUsbStableId(vid: d.vid, pid: d.pid, serial: d.serial) ?? d.deviceId}]').join(', ')})");
+
+    // Orphan GC: force-disconnect connected devices whose port vanished from USB enumeration
+    final enumeratedIds = devices.map((d) =>
+        computeUsbStableId(vid: d.vid, pid: d.pid, serial: d.serial) ?? "${d.deviceId}"
+    ).toSet();
+    final orphans = connected.where((d) => !enumeratedIds.contains(d.deviceId)).toList();
+    for (final orphan in orphans) {
+      _log.warning("Orphan GC: ${orphan.name}(${orphan.deviceId}) not in USB enumeration, forcing disconnect");
+      await orphan.disconnect();
+      connected.remove(orphan);
+      _devices.remove(orphan);
+    }
 
     // Filter out USB devices whose stable ID matches an already-known device.
     devices.removeWhere((d) {
@@ -314,6 +356,7 @@ class AndroidSerialPort implements SerialTransport {
       },
       onDone: () {
         _log.warning("inputStream closed (onDone) — USB pipe may be dead");
+        disconnect();
       },
     );
     _log.info("port connected (id=$id, path=${_device.deviceName})");
