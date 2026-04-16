@@ -198,6 +198,18 @@ Sync accepts: `target` (URL), `mode` (pull/push/two_way), `onConflict` (skip/ove
 | GET | `/api/v1/logs` | Recent log entries | `logs_handler.dart` |
 | GET | `/api/v1/webview-logs` | WebView console log forwarding | `webview_logs_handler.dart` |
 
+### Debug (simulate mode only)
+
+Only registered when the app is launched with `--dart-define=simulate=1`. Returns 404 on production builds.
+
+| Method | Endpoint | Description | Handler |
+|--------|----------|-------------|---------|
+| POST | `/api/v1/debug/scale/stall` | Pause mock scale weight emission (stays "connected") | `debug_handler.dart` |
+| POST | `/api/v1/debug/scale/resume` | Resume weight emission after stall | `debug_handler.dart` |
+| POST | `/api/v1/debug/scale/disconnect` | Simulate scale disconnect (emits disconnected state, stops data) | `debug_handler.dart` |
+
+All endpoints return 400 if no scale is connected or the connected scale is not a `MockScale`.
+
 ---
 
 ## WebSocket API
