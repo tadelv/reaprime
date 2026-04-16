@@ -1184,7 +1184,9 @@ class _SettingsViewState extends State<SettingsView>
   }
 
   Future<void> _exitApp() async {
-    await ForegroundTaskService.stop();
+    if (Platform.isAndroid) {
+      await ForegroundTaskService.stop();
+    }
     exit(0);
   }
 
