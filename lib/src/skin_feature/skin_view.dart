@@ -498,7 +498,7 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
     if (Platform.isWindows) {
       return CallbackShortcuts(
         bindings: {
-          const SingleActivator(LogicalKeyboardKey.escape, control: true): () {
+          const SingleActivator(LogicalKeyboardKey.backspace, alt: true): () {
             Navigator.of(context).pop();
           },
         },
