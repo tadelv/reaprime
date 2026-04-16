@@ -31,7 +31,7 @@ class HDSSerial implements Scale {
       _snapshotHandler.asBroadcastStream();
 
   @override
-  String get deviceId => _transport.name;
+  String get deviceId => _transport.id;
 
   bool _isDisconnecting = false;
   Timer? _watchdogTimer;

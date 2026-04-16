@@ -84,6 +84,9 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     _portPathToDeviceId.removeWhere((portPath, deviceId) =>
         !connected.any((d) => d.deviceId == deviceId));
 
+    // Collect stable IDs of already-connected devices for dedup
+    final connectedStableIds = connected.map((d) => d.deviceId).toSet();
+
     // Pre-filter ports: skip already-connected, Bluetooth, and non-USB ports
     final scanPorts = ports.where((p) {
       if (_portPathToDeviceId.containsKey(p)) return false;
@@ -91,7 +94,14 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       final transport = port.transport.toTransport();
       final name = port.name ?? '';
       final productName = port.productName ?? '';
+      // Check stable ID dedup: skip if this port's stable ID matches a connected device
+      final stableId = computeUsbStableId(
+        vid: port.vendorId,
+        pid: port.productId,
+        serial: port.serialNumber,
+      );
       port.dispose();
+      if (stableId != null && connectedStableIds.contains(stableId)) return false;
       if (transport == "Bluetooth") return false;
       // Known device productNames — always scan regardless of port name
       if (productName == 'DE1' || productName == 'Half Decent Scale') {
@@ -259,7 +269,14 @@ class _DesktopSerialPort implements SerialTransport {
   }
 
   @override
-  String get id => "${_port.address}";
+  String get id {
+    final stable = computeUsbStableId(
+      vid: _port.vendorId,
+      pid: _port.productId,
+      serial: _port.serialNumber,
+    );
+    return stable ?? "${_port.address}";
+  }
 
   @override
   String get name => _port.name ?? "Unknown port";
