@@ -69,6 +69,7 @@ import 'package:reaprime/src/models/wake_schedule.dart';
 import 'package:reaprime/src/services/webview_log_service.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/services/webserver/info_handler.dart';
+import 'package:reaprime/src/services/webserver/debug_handler.dart';
 
 part 'webserver/de1handler.dart';
 part 'webserver/scale_handler.dart';
@@ -201,6 +202,13 @@ Future<void> startWebServer(
   );
 
   final infoHandler = InfoHandler();
+
+  DebugHandler? debugHandler;
+  const simulateEnv = String.fromEnvironment("simulate");
+  if (simulateEnv.isNotEmpty) {
+    debugHandler = DebugHandler(scaleController: scaleController);
+  }
+
   // Start server
   final server = await io.serve(
     _init(
@@ -225,6 +233,7 @@ Future<void> startWebServer(
       beansHandler,
       grindersHandler,
       infoHandler,
+      debugHandler,
     ),
     '0.0.0.0',
     8080,
@@ -258,6 +267,7 @@ Handler _init(
   BeansHandler? beansHandler,
   GrindersHandler? grindersHandler,
   InfoHandler infoHandler,
+  DebugHandler? debugHandler,
 ) {
   log.info("called _init");
   var app = Router().plus;
@@ -291,6 +301,9 @@ Handler _init(
     grindersHandler.addRoutes(app);
   }
   infoHandler.addRoutes(app);
+  if (debugHandler != null) {
+    debugHandler.addRoutes(app);
+  }
 
   final handler = const Pipeline()
       .addMiddleware(
