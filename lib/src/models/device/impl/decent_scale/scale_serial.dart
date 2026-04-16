@@ -11,6 +11,11 @@ class HDSSerial implements Scale {
   late Logger _log;
   final SerialTransport _transport;
 
+  static const _enableCommand = [0x03, 0x20, 0x01];
+  static const _watchdogInterval = Duration(seconds: 2);
+  static const _warningTicks = 3; // 6s with 2s interval
+  static const _disconnectTicks = 6; // 12s with 2s interval
+
   HDSSerial({required SerialTransport transport}) : _transport = transport {
     _log = Logger("Serial HDS#${_transport.name}");
   }
@@ -29,12 +34,17 @@ class HDSSerial implements Scale {
   String get deviceId => _transport.name;
 
   bool _isDisconnecting = false;
+  Timer? _watchdogTimer;
+  int _ticksSinceLastData = 0;
+  bool _retryAttempted = false;
 
   @override
   disconnect() async {
     if (_isDisconnecting) return;
     _isDisconnecting = true;
     try {
+      _watchdogTimer?.cancel();
+      _watchdogTimer = null;
       _connectionSubject.add(ConnectionState.disconnected);
       _transportSubscription?.cancel();
       await _transport.disconnect();
@@ -64,8 +74,30 @@ class HDSSerial implements Scale {
       },
     );
 
-    await _transport.writeHexCommand(Uint8List.fromList([0x03, 0x20, 0x01]));
+    await _transport.writeHexCommand(Uint8List.fromList(_enableCommand));
+    _startWatchdog();
     _connectionSubject.add(ConnectionState.connected);
+  }
+
+  void _startWatchdog() {
+    _ticksSinceLastData = 0;
+    _retryAttempted = false;
+    _watchdogTimer?.cancel();
+    _watchdogTimer = Timer.periodic(_watchdogInterval, (_) {
+      _ticksSinceLastData++;
+      if (_ticksSinceLastData >= _disconnectTicks) {
+        _log.severe(
+          "No data for ${_disconnectTicks * _watchdogInterval.inSeconds}s, disconnecting",
+        );
+        disconnect();
+      } else if (_ticksSinceLastData >= _warningTicks && !_retryAttempted) {
+        _retryAttempted = true;
+        _log.warning(
+          "No data for ${_warningTicks * _watchdogInterval.inSeconds}s, resending enable command",
+        );
+        _transport.writeHexCommand(Uint8List.fromList(_enableCommand));
+      }
+    });
   }
 
   @override
@@ -111,6 +143,8 @@ class HDSSerial implements Scale {
   DeviceType get type => DeviceType.scale;
 
   void onData(Uint8List data) {
+    _ticksSinceLastData = 0;
+    _retryAttempted = false;
     try {
       _log.finest("got message: $data");
     } catch (_) {}
@@ -129,27 +163,6 @@ class HDSSerial implements Scale {
         batteryLevel: 100,
       ),
     );
-  }
-
-  final _hdsRegex = RegExp(r'\d+ Weight: (.*)');
-  void onStringData(String data) {
-    return;
-    _log.finest("received string $data");
-    final matches = _hdsRegex.allMatches(data);
-    if (matches.isNotEmpty) {
-      final weightStr = matches.first.groups([1]).first;
-      if (weightStr != null) {
-        final weight = double.parse(weightStr);
-
-        _snapshotHandler.add(
-          ScaleSnapshot(
-            timestamp: DateTime.now(),
-            weight: weight,
-            batteryLevel: 100,
-          ),
-        );
-      }
-    }
   }
 
   @override
