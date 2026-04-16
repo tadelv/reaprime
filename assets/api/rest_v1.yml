@@ -3204,6 +3204,48 @@ paths:
                   - buildNumber
                   - appStore
                   - fullVersion
+  /api/v1/debug/scale/{command}:
+    post:
+      summary: Control mock scale (simulate mode only)
+      description: |
+        Debug endpoints for controlling the simulated scale. Only available
+        when the app is launched with `--dart-define=simulate=1`.
+        Returns 404 on production builds.
+      tags: [Debug]
+      parameters:
+        - name: command
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [stall, resume, disconnect]
+          description: |
+            - `stall` — pause weight emission (scale stays "connected")
+            - `resume` — resume weight emission after stall
+            - `disconnect` — simulate disconnect (emits disconnected state, stops data)
+      responses:
+        "200":
+          description: Command executed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [stalled, resumed, disconnected]
+        "400":
+          description: No scale connected or scale is not a MockScale
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "404":
+          description: Unknown command or endpoint not available (non-simulate build)
+
 components:
   schemas:
     Error:
