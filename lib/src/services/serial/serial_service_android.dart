@@ -89,25 +89,39 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
       }
     }
 
+    final removed = _devices.where((d) => !connected.contains(d)).toList();
+    if (removed.isNotEmpty) {
+      _log.info("Removing ${removed.length} non-connected devices: "
+          "${removed.map((d) => '${d.name}(${d.deviceId})').join(', ')}");
+    }
     _devices.removeWhere((d) => connected.contains(d) == false);
+    if (connected.isNotEmpty) {
+      _log.fine("Keeping ${connected.length} connected: "
+          "${connected.map((d) => '${d.name}(${d.deviceId})').join(', ')}");
+    }
+
     var devices = await UsbSerial.listDevices();
+    _log.info("USB enumeration: ${devices.length} ports "
+        "(${devices.map((d) => '${d.productName ?? d.deviceName}[${computeUsbStableId(vid: d.vid, pid: d.pid, serial: d.serial) ?? d.deviceId}]').join(', ')})");
+
     // Filter out USB devices whose stable ID matches an already-known device.
-    // Previous code compared domain deviceId against UsbDevice.deviceId (int)
-    // which never matched. Now we compute the same stable ID for comparison.
     devices.removeWhere((d) {
       final usbStableId = computeUsbStableId(
         vid: d.vid,
         pid: d.pid,
         serial: d.serial,
       );
-      if (usbStableId == null) {
-        // No stable ID — fall back to checking the int deviceId as string
-        return _devices.any((t) => t.deviceId == "${d.deviceId}");
+      final isDuplicate = usbStableId != null
+          ? _devices.any((t) => t.deviceId == usbStableId)
+          : _devices.any((t) => t.deviceId == "${d.deviceId}");
+      if (isDuplicate) {
+        _log.fine("Skipping ${d.productName ?? d.deviceName}: "
+            "already connected as ${usbStableId ?? d.deviceId}");
       }
-      return _devices.any((t) => t.deviceId == usbStableId);
+      return isDuplicate;
     });
 
-    _log.info("have new devices: $devices");
+    _log.info("${devices.length} new devices to detect");
     final results = await Future.wait(
       devices.map((d) async {
         try {
@@ -239,6 +253,7 @@ class AndroidSerialPort implements SerialTransport {
   }
   @override
   Future<void> disconnect() async {
+    _log.info("disconnecting (id=$id, path=${_device.deviceName})");
     _open.add(ConnectionState.disconnected);
     _portSubscription?.cancel();
     await _port.close();
@@ -278,7 +293,11 @@ class AndroidSerialPort implements SerialTransport {
       UsbPort.PARITY_NONE,
     );
 
-    _portSubscription = _port.inputStream?.listen(
+    final inputStream = _port.inputStream;
+    if (inputStream == null) {
+      _log.warning("inputStream is null after port.open() — no data will flow");
+    }
+    _portSubscription = inputStream?.listen(
       (Uint8List event) {
         _rawController.add(event);
         try {
@@ -293,7 +312,11 @@ class AndroidSerialPort implements SerialTransport {
         _log.severe("port read failed", error);
         disconnect();
       },
+      onDone: () {
+        _log.warning("inputStream closed (onDone) — USB pipe may be dead");
+      },
     );
+    _log.info("port connected (id=$id, path=${_device.deviceName})");
     _open.add(ConnectionState.connected);
   }
 
