@@ -84,6 +84,17 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     _portPathToDeviceId.removeWhere((portPath, deviceId) =>
         !connected.any((d) => d.deviceId == deviceId));
 
+    // Orphan GC: force-disconnect connected devices whose port vanished
+    final portSet = ports.toSet();
+    final orphans = connected.where((d) =>
+        !_portPathToDeviceId.entries.any((e) =>
+            e.value == d.deviceId && portSet.contains(e.key))).toList();
+    for (final orphan in orphans) {
+      _log.warning("Orphan GC: ${orphan.name}(${orphan.deviceId}) port no longer present, forcing disconnect");
+      await orphan.disconnect();
+      connected.remove(orphan);
+    }
+
     // Collect stable IDs of already-connected devices for dedup
     final connectedStableIds = connected.map((d) => d.deviceId).toSet();
 
@@ -333,6 +344,10 @@ class _DesktopSerialPort implements SerialTransport {
         onError: (error) {
           _log.severe("port error:", error);
           _readController.addError(error);
+          disconnect();
+        },
+        onDone: () {
+          _log.warning("serial stream closed (onDone) — cable may be unplugged");
           disconnect();
         },
       );
