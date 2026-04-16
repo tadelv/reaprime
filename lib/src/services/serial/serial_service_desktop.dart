@@ -333,7 +333,6 @@ class _DesktopSerialPort implements SerialTransport {
         onError: (error) {
           _log.severe("port error:", error);
           _readController.addError(error);
-          _readController.close();
           disconnect();
         },
       );
