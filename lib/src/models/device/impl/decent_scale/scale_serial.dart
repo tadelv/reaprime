@@ -42,6 +42,8 @@ class HDSSerial implements Scale {
   disconnect() async {
     if (_isDisconnecting) return;
     _isDisconnecting = true;
+    final uptimeSec = _watchdogTotalTicks * _watchdogInterval.inSeconds;
+    _log.info("disconnecting (totalFrames=$_totalFrames, uptime=${uptimeSec}s)");
     try {
       _watchdogTimer?.cancel();
       _watchdogTimer = null;
@@ -59,9 +61,12 @@ class HDSSerial implements Scale {
   String get name => "Half Decent Scale";
 
   StreamSubscription<Uint8List>? _transportSubscription;
+  int _totalFrames = 0;
+
   @override
   Future<void> onConnect() async {
-    _log.info("on connect");
+    _log.info("on connect (id=$deviceId, transport=${_transport.name})");
+    _totalFrames = 0;
     await _transport.connect();
     _transportSubscription = _transport.rawStream.listen(
       onData,
@@ -79,21 +84,34 @@ class HDSSerial implements Scale {
     _connectionSubject.add(ConnectionState.connected);
   }
 
+  int _watchdogTotalTicks = 0;
+
   void _startWatchdog() {
     _ticksSinceLastData = 0;
     _retryAttempted = false;
+    _watchdogTotalTicks = 0;
     _watchdogTimer?.cancel();
     _watchdogTimer = Timer.periodic(_watchdogInterval, (_) {
       _ticksSinceLastData++;
+      _watchdogTotalTicks++;
+
+      // Periodic heartbeat: log every 5 min (150 ticks at 2s) at FINE level
+      if (_watchdogTotalTicks % 150 == 0) {
+        final uptimeMin = (_watchdogTotalTicks * _watchdogInterval.inSeconds) ~/ 60;
+        _log.fine("heartbeat: ${uptimeMin}m uptime, $_totalFrames frames received");
+      }
+
       if (_ticksSinceLastData >= _disconnectTicks) {
         _log.severe(
-          "No data for ${_disconnectTicks * _watchdogInterval.inSeconds}s, disconnecting",
+          "No data for ${_disconnectTicks * _watchdogInterval.inSeconds}s "
+          "(totalFrames=$_totalFrames, uptime=${_watchdogTotalTicks * _watchdogInterval.inSeconds}s), disconnecting",
         );
         disconnect();
       } else if (_ticksSinceLastData >= _warningTicks && !_retryAttempted) {
         _retryAttempted = true;
         _log.warning(
-          "No data for ${_warningTicks * _watchdogInterval.inSeconds}s, resending enable command",
+          "No data for ${_warningTicks * _watchdogInterval.inSeconds}s "
+          "(totalFrames=$_totalFrames), resending enable command",
         );
         _transport.writeHexCommand(Uint8List.fromList(_enableCommand));
       }
@@ -145,11 +163,12 @@ class HDSSerial implements Scale {
   void onData(Uint8List data) {
     _ticksSinceLastData = 0;
     _retryAttempted = false;
+    _totalFrames++;
     try {
       _log.finest("got message: $data");
     } catch (_) {}
     if (data.length < 5 || data[0] != 0x03 || data[1] != 0xCE) {
-      _log.finest("data is not weight data");
+      _log.finest("data is not weight data (len=${data.length})");
       return;
     }
     var d = ByteData(2);
