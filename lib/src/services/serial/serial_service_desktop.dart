@@ -102,29 +102,27 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     final scanPorts = ports.where((p) {
       if (_portPathToDeviceId.containsKey(p)) return false;
       final port = SerialPort(p);
-      final transport = port.transport.toTransport();
-      final name = port.name ?? '';
-      final productName = port.productName ?? '';
-      // Check stable ID dedup: skip if this port's stable ID matches a connected device
-      final stableId = computeUsbStableId(
-        vid: port.vendorId,
-        pid: port.productId,
-        serial: port.serialNumber,
-      );
+      final meta = _readPortMetadata(p, port);
       port.dispose();
-      if (stableId != null && connectedStableIds.contains(stableId)) return false;
-      if (transport == "Bluetooth") return false;
+      if (meta.stableId != null &&
+          connectedStableIds.contains(meta.stableId)) {
+        return false;
+      }
+      if (meta.transport == "Bluetooth") return false;
       // Known device productNames — always scan regardless of port name
-      if (productName == 'DE1' || productName == 'Half Decent Scale') {
+      if (meta.productName == 'DE1' ||
+          meta.productName == 'Half Decent Scale') {
         return true;
       }
       // Unix-style USB serial port names
-      if (name.contains('serial') || name.contains('usbmodem') ||
-          name.contains('ttyACM') || name.contains('ttyUSB')) {
+      if (meta.name.contains('serial') ||
+          meta.name.contains('usbmodem') ||
+          meta.name.contains('ttyACM') ||
+          meta.name.contains('ttyUSB')) {
         return true;
       }
       // Windows COM ports with USB transport
-      if (transport == "USB" && name.startsWith('COM')) {
+      if (meta.transport == "USB" && meta.name.startsWith('COM')) {
         return true;
       }
       return false;
@@ -148,6 +146,32 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     _devices = results.whereType<Device>().toList();
     _machineSubject.add(_devices);
     _log.info("Added devices: $_devices");
+  }
+
+  _PortMetadata _readPortMetadata(String path, SerialPort port) {
+    // libserialport reads USB descriptors from sysfs on Linux; some drivers
+    // (or missing udev rules / permissions) cause getters to throw
+    // `SerialPortError: No such file or directory, errno = 2`. Any throw here
+    // must not abort the whole scan — fall back to name-based matching.
+    String name = path;
+    String transport = 'Unknown';
+    String? productName;
+    int? vid;
+    int? pid;
+    String? serial;
+    try { name = port.name ?? path; } catch (_) {}
+    try { transport = port.transport.toTransport(); } catch (_) {}
+    try { productName = port.productName; } catch (_) {}
+    try { vid = port.vendorId; } catch (_) {}
+    try { pid = port.productId; } catch (_) {}
+    try { serial = port.serialNumber; } catch (_) {}
+    final stableId = computeUsbStableId(vid: vid, pid: pid, serial: serial);
+    return _PortMetadata(
+      name: name,
+      transport: transport,
+      productName: productName,
+      stableId: stableId,
+    );
   }
 
   Future<Device?> _detectDevice(String id) async {
@@ -281,11 +305,15 @@ class _DesktopSerialPort implements SerialTransport {
 
   @override
   String get id {
-    final stable = computeUsbStableId(
-      vid: _port.vendorId,
-      pid: _port.productId,
-      serial: _port.serialNumber,
-    );
+    // USB descriptor getters can throw on Linux when sysfs attrs are missing
+    // (some drivers / permission issues). Fall back to port address.
+    int? vid;
+    int? pid;
+    String? serial;
+    try { vid = _port.vendorId; } catch (_) {}
+    try { pid = _port.productId; } catch (_) {}
+    try { serial = _port.serialNumber; } catch (_) {}
+    final stable = computeUsbStableId(vid: vid, pid: pid, serial: serial);
     return stable ?? "${_port.address}";
   }
 
@@ -399,6 +427,19 @@ class _DesktopSerialPort implements SerialTransport {
       rethrow;
     }
   }
+}
+
+class _PortMetadata {
+  final String name;
+  final String transport;
+  final String? productName;
+  final String? stableId;
+  _PortMetadata({
+    required this.name,
+    required this.transport,
+    required this.productName,
+    required this.stableId,
+  });
 }
 
 extension IntToString on int {
