@@ -288,6 +288,13 @@ class UnifiedDe1 implements De1Interface {
   @override
   Future<void> setProfile(Profile profile) async {
     await _sendProfile(profile);
+    // Guard against firmware ProfileDownloadInProgress race: the DE1 writes
+    // the shot descriptor to internal flash inside APIView::write for the
+    // final frame and tail, and only clears ProfileDownloadInProgress when
+    // that flash write returns. If a state=espresso request hits the
+    // firmware task loop before the flag clears, doEspresso() aborts to
+    // HeaterDown and the shot ends after preinfuse. See BC 9788201734.
+    await Future.delayed(const Duration(milliseconds: 500));
   }
 
   @override
