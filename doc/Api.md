@@ -219,7 +219,7 @@ All WebSocket endpoints are on port 8080 at `/ws/v1/...`. See [`assets/api/webso
 | Path | Description | Data |
 |------|-------------|------|
 | `/ws/v1/machine/snapshot` | Machine state stream (~10Hz) | Temps, pressures, flow, state |
-| `/ws/v1/scale/snapshot` | Scale weight/flow stream | Weight, flow, battery |
+| `/ws/v1/scale/snapshot` | Scale weight/flow stream. Stays open across scale disconnects; emits `{"status":"connected"\|"disconnected"}` frames on state change. | Weight, flow, battery |
 | `/ws/v1/machine/shot-settings` | Shot settings changes | Target temp, volume, weight |
 | `/ws/v1/machine/water-levels` | Water level changes | Current/limit levels |
 | `/ws/v1/machine/raw` | Raw BLE characteristic data | Hex-encoded bytes |

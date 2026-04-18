@@ -4,7 +4,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'dart:collection';
 import 'package:collection/collection.dart';
-import 'package:flutter/material.dart' hide Router, Visibility;
+import 'package:flutter/material.dart' hide Router, Visibility, ConnectionState;
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';

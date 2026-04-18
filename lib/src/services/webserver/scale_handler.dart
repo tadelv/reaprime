@@ -51,26 +51,55 @@ class ScaleHandler {
 
   _handleSnapshot(WebSocketChannel socket, String? protocol) async {
     _log.fine("handling websocket connection");
-    Scale scale;
-    try {
-      scale = _controller.connectedScale();
-    } catch (e) {
-      socket.sink.add(jsonEncode({'error': 'No scale connected'}));
-      socket.sink.close();
-      return;
-    }
-    var sub = scale.currentSnapshot.listen((snapshot) {
+
+    StreamSubscription<ScaleSnapshot>? snapshotSub;
+
+    void sendStatus(String status) {
       try {
-        var json = jsonEncode(snapshot.toJson());
-        socket.sink.add(json);
-      } catch (e, st) {
-        _log.severe("failed to send: ", e, st);
+        socket.sink.add(jsonEncode({'status': status}));
+      } catch (_) {}
+    }
+
+    void attachSnapshots() {
+      snapshotSub?.cancel();
+      snapshotSub = null;
+      final Scale scale;
+      try {
+        scale = _controller.connectedScale();
+      } catch (e) {
+        _log.warning('connected state reported but no scale: $e');
+        return;
+      }
+      snapshotSub = scale.currentSnapshot.listen((snapshot) {
+        try {
+          socket.sink.add(jsonEncode(snapshot.toJson()));
+        } catch (e, st) {
+          _log.severe("failed to send: ", e, st);
+        }
+      });
+    }
+
+    final connSub = _controller.connectionState.listen((state) {
+      if (state == ConnectionState.connected) {
+        sendStatus('connected');
+        attachSnapshots();
+      } else {
+        snapshotSub?.cancel();
+        snapshotSub = null;
+        sendStatus('disconnected');
       }
     });
+
     socket.stream.listen(
       (e) {},
-      onDone: () => sub.cancel(),
-      onError: (e, st) => sub.cancel(),
+      onDone: () {
+        connSub.cancel();
+        snapshotSub?.cancel();
+      },
+      onError: (e, st) {
+        connSub.cancel();
+        snapshotSub?.cancel();
+      },
     );
   }
 }
