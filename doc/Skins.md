@@ -1652,7 +1652,20 @@ ws.onmessage = (event) => {
 
 **Update Frequency:** Variable (based on scale model, typically 5-10 Hz)
 
-**Message Format:**
+**Connection lifecycle:** The socket is held open across scale
+connect/disconnect cycles. Do not reconnect the WebSocket when the scale
+disconnects — the server will resume streaming automatically once a scale
+connects. On open and on every scale connection-state transition the
+server emits a status frame:
+
+```json
+{ "status": "connected" }
+```
+```json
+{ "status": "disconnected" }
+```
+
+**Snapshot message format** (sent only while a scale is connected):
 ```json
 {
   "timestamp": "2026-02-06T10:30:45.123Z",
@@ -1660,6 +1673,9 @@ ws.onmessage = (event) => {
   "batteryLevel": 85
 }
 ```
+
+Client code should branch on the presence of a `status` field vs. a
+`weight` field.
 
 ### 3. Shot Settings Stream
 

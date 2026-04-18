@@ -39,11 +39,19 @@ channels:
       waterLevelsMessage:
         $ref: '#/components/messages/WaterLevels'
   ScaleSnapshot:
-    description: Real-time scale weight and battery data.
+    description: >
+      Real-time scale weight and battery data. The socket is held open across
+      scale connect/disconnect cycles — clients should not reconnect on scale
+      disconnect. On open and on every scale connection-state change the
+      server emits a status frame (`{"status":"connected"}` or
+      `{"status":"disconnected"}`). Snapshot frames (see ScaleSnapshot
+      schema) are only sent while a scale is connected.
     address: ws/v1/scale/snapshot
     messages:
       scaleSnapshotMessage:
         $ref: '#/components/messages/ScaleSnapshot'
+      scaleStatusMessage:
+        $ref: '#/components/messages/ScaleStatus'
   MachineRaw:
     description: Real-time raw BLE data from machine (read/write/notify).
     address: ws/v1/machine/raw
@@ -174,6 +182,11 @@ components:
       title: Scale Snapshot
       payload:
         $ref: '#/components/schemas/ScaleSnapshot'
+    ScaleStatus:
+      name: ScaleStatus
+      title: Scale connection status
+      payload:
+        $ref: '#/components/schemas/ScaleStatus'
     MachineSnapshot:
       name: MachineSnapshot
       title: Machine Snapshot
@@ -255,6 +268,16 @@ components:
           type: integer
           nullable: true
           description: Timer elapsed time in milliseconds. Null if scale doesn't support timers or timer hasn't been started.
+    ScaleStatus:
+      type: object
+      description: >
+        Connection status frame emitted by ws/v1/scale/snapshot when the
+        socket opens and whenever scale connection state changes. Clients
+        should keep the socket open across disconnected periods.
+      properties:
+        status:
+          type: string
+          enum: [connected, disconnected]
     MachineSnapshot:
       type: object
       properties:
