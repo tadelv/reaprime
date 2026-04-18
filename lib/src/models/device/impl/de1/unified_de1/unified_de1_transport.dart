@@ -154,6 +154,11 @@ class UnifiedDe1Transport {
   }
 
   Future<void> disconnect() async {
+    _log.warning(
+      'disconnect() called by app code',
+      null,
+      StackTrace.current,
+    );
     switch (transportType) {
       case TransportType.serial:
         if (_transport is! SerialTransport) {

@@ -54,6 +54,13 @@ class AndroidBluePlusTransport implements BLETransport {
     // Forward native connection state to our subject
     _nativeConnectionSub?.cancel();
     _nativeConnectionSub = _device.connectionState.listen((state) {
+      if (state == BluetoothConnectionState.disconnected) {
+        final reason = _device.disconnectReason;
+        _log.warning(
+          'Native disconnect: platform=${reason?.platform} '
+          'code=${reason?.code} description=${reason?.description}',
+        );
+      }
       _connectionStateSubject.add(
         state == BluetoothConnectionState.connected
             ? device.ConnectionState.connected
@@ -126,6 +133,11 @@ class AndroidBluePlusTransport implements BLETransport {
 
   @override
   Future<void> disconnect() async {
+    _log.warning(
+      'disconnect() called by app code',
+      null,
+      StackTrace.current,
+    );
     try {
       await _device.disconnect(queue: false, timeout: 5);
     } catch (e) {
