@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/connection_error.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
@@ -104,7 +105,7 @@ class ConnectionManager {
       if (de1 == null && _machineConnected && !_isConnectingMachine) {
         _log.fine('Machine disconnected');
         _machineConnected = false;
-        _statusSubject.add(
+        _publishStatus(
           currentStatus.copyWith(phase: ConnectionPhase.idle),
         );
       }
@@ -115,6 +116,89 @@ class ConnectionManager {
       _scaleConnected = state == device.ConnectionState.connected;
       _log.fine("scale connection update: $_scaleConnected");
     });
+  }
+
+  void _emit(ConnectionError err) {
+    final msg = 'emit error: kind=${err.kind} message=${err.message} '
+        'deviceId=${err.deviceId}';
+    if (err.severity == ConnectionErrorSeverity.error) {
+      _log.severe(msg);
+    } else {
+      _log.warning(msg);
+    }
+    _statusSubject.add(currentStatus.copyWith(error: () => err));
+  }
+
+  // ignore: unused_element — wired up in task 8 (environmental recovery)
+  void _clearError() {
+    if (currentStatus.error == null) return;
+    _statusSubject.add(currentStatus.copyWith(error: () => null));
+  }
+
+  void _publishStatus(ConnectionStatus next) {
+    final prev = _statusSubject.value;
+    // Auto-clear transient errors on phase transitions that start a new
+    // operation or reach a stable good state.
+    const clearingPhases = {
+      ConnectionPhase.scanning,
+      ConnectionPhase.connectingMachine,
+      ConnectionPhase.connectingScale,
+      ConnectionPhase.ready,
+    };
+
+    ConnectionError? effectiveError = next.error;
+    final movingIntoClearingPhase =
+        prev.phase != next.phase && clearingPhases.contains(next.phase);
+
+    if (effectiveError == null &&
+        prev.error != null &&
+        ConnectionErrorKind.sticky.contains(prev.error!.kind)) {
+      // Caller published null but a sticky error was active — keep it.
+      // Sticky errors only clear via explicit environmental-recovery handlers.
+      effectiveError = prev.error;
+    } else if (effectiveError != null &&
+        movingIntoClearingPhase &&
+        !ConnectionErrorKind.sticky.contains(effectiveError.kind)) {
+      // A new status that carries a transient error into a clearing phase
+      // means the caller is re-publishing an old error — strip it.
+      effectiveError = null;
+    } else if (prev.error != null &&
+        // copyWith preserves the error reference when the caller does not
+        // pass `error:`, so `identical` is the right identity check here.
+        identical(next.error, prev.error) &&
+        movingIntoClearingPhase &&
+        !ConnectionErrorKind.sticky.contains(prev.error!.kind)) {
+      effectiveError = null;
+    }
+
+    _statusSubject.add(next.copyWith(error: () => effectiveError));
+  }
+
+  @visibleForTesting
+  void debugEmitError({
+    required String kind,
+    required String severity,
+    required String message,
+    String? deviceId,
+    String? deviceName,
+    String? suggestion,
+    Map<String, dynamic>? details,
+  }) {
+    _emit(ConnectionError(
+      kind: kind,
+      severity: severity,
+      timestamp: DateTime.now().toUtc(),
+      message: message,
+      deviceId: deviceId,
+      deviceName: deviceName,
+      suggestion: suggestion,
+      details: details,
+    ));
+  }
+
+  @visibleForTesting
+  void debugSetPhase(ConnectionPhase phase) {
+    _statusSubject.add(currentStatus.copyWith(phase: phase));
   }
 
   /// Scan for devices and connect based on preference policy.
@@ -148,11 +232,12 @@ class ConnectionManager {
     // Track matched devices and their connection results
     final matchedDeviceResults = <String, _MatchedDeviceTracker>{};
 
-    // Emit scanning phase
-    _statusSubject.add(
+    // Emit scanning phase. Do not explicitly clear `error` — the gatekeeper
+    // strips transient errors on phase transitions into clearing phases and
+    // preserves sticky ones (e.g. adapterOff).
+    _publishStatus(
       currentStatus.copyWith(
         phase: ConnectionPhase.scanning,
-        error: () => null,
         pendingAmbiguity: () => null,
       ),
     );
@@ -272,7 +357,7 @@ class ConnectionManager {
 
     if (scaleOnly) {
       // Update found scales in status
-      _statusSubject.add(
+      _publishStatus(
         currentStatus.copyWith(foundScales: scales),
       );
       // Apply scale preference policy only
@@ -288,7 +373,7 @@ class ConnectionManager {
     }
 
     // Store found devices in status for UI pickers
-    _statusSubject.add(
+    _publishStatus(
       currentStatus.copyWith(foundMachines: machines, foundScales: scales),
     );
 
@@ -311,26 +396,26 @@ class ConnectionManager {
     if (preferredMachineId != null) {
       // Preferred was set but not found during scan
       if (machines.isNotEmpty) {
-        _statusSubject.add(
+        _publishStatus(
           currentStatus.copyWith(
             phase: ConnectionPhase.idle,
             pendingAmbiguity: () => AmbiguityReason.machinePicker,
           ),
         );
       } else {
-        _statusSubject.add(currentStatus.copyWith(phase: ConnectionPhase.idle));
+        _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.idle));
       }
     } else {
       // No preferred machine set
       if (machines.isEmpty) {
-        _statusSubject.add(currentStatus.copyWith(phase: ConnectionPhase.idle));
+        _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.idle));
       } else if (machines.length == 1) {
         // Exactly one machine — auto-connect
         await _connectMachineTracked(machines.first, matchedDeviceResults);
         await _connectScalePhase(scales, matchedDeviceResults);
       } else {
         // Multiple machines — picker
-        _statusSubject.add(
+        _publishStatus(
           currentStatus.copyWith(
             phase: ConnectionPhase.idle,
             pendingAmbiguity: () => AmbiguityReason.machinePicker,
@@ -382,7 +467,7 @@ class ConnectionManager {
       } else if (scales.isNotEmpty) {
         // Preferred not found but others available — picker
         _log.fine('Scale phase: preferred not found, showing picker');
-        _statusSubject.add(
+        _publishStatus(
           currentStatus.copyWith(
             pendingAmbiguity: () => AmbiguityReason.scalePicker,
           ),
@@ -398,7 +483,7 @@ class ConnectionManager {
         }
       } else if (scales.length > 1) {
         // Multiple scales — picker
-        _statusSubject.add(
+        _publishStatus(
           currentStatus.copyWith(
             pendingAmbiguity: () => AmbiguityReason.scalePicker,
           ),
@@ -417,11 +502,11 @@ class ConnectionManager {
       'connectMachine: connecting to ${machine.name} (${machine.deviceId})',
     );
 
-    _statusSubject.add(
+    // Do not explicitly clear `error` — the gatekeeper handles it.
+    _publishStatus(
       currentStatus.copyWith(
         phase: ConnectionPhase.connectingMachine,
         pendingAmbiguity: () => null,
-        error: () => null,
       ),
     );
 
@@ -429,9 +514,9 @@ class ConnectionManager {
       await de1Controller.connectToDe1(machine);
       await settingsController.setPreferredMachineId(machine.deviceId);
       _machineConnected = true;
-      _statusSubject.add(currentStatus.copyWith(phase: ConnectionPhase.ready));
+      _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.ready));
     } catch (e) {
-      _statusSubject.add(
+      _publishStatus(
         currentStatus.copyWith(
           phase: ConnectionPhase.idle,
           // TODO(task-5): emit structured ConnectionError here.
@@ -452,11 +537,11 @@ class ConnectionManager {
     _isConnectingScale = true;
     _log.fine('connectScale: connecting to ${scale.name} (${scale.deviceId})');
 
-    _statusSubject.add(
+    // Do not explicitly clear `error` — the gatekeeper handles it.
+    _publishStatus(
       currentStatus.copyWith(
         phase: ConnectionPhase.connectingScale,
         pendingAmbiguity: () => null,
-        error: () => null,
       ),
     );
 
@@ -466,11 +551,11 @@ class ConnectionManager {
       _scaleConnected = true;
       // Only emit ready if machine is also connected — scale alone isn't enough
       if (_machineConnected) {
-        _statusSubject.add(currentStatus.copyWith(phase: ConnectionPhase.ready));
+        _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.ready));
       }
     } catch (e) {
       // Scale failure is non-blocking — stay at ready if machine connected, else idle
-      _statusSubject.add(
+      _publishStatus(
         currentStatus.copyWith(
           phase:
               _machineConnected ? ConnectionPhase.ready : ConnectionPhase.idle,
@@ -589,7 +674,7 @@ class ConnectionManager {
     // Reset flag before disconnect to prevent the disconnect listener from
     // also emitting idle (which would cause a double emission).
     _machineConnected = false;
-    _statusSubject.add(currentStatus.copyWith(phase: ConnectionPhase.idle));
+    _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.idle));
     final de1 = await de1Controller.de1.first;
     if (de1 != null) {
       await de1.disconnect();
