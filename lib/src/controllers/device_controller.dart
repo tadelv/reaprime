@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/device_scanner.dart';
+import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -20,6 +22,15 @@ class DeviceController implements DeviceScanner {
 
   Stream<bool> get scanningStream => _scanningStream.stream;
   bool get isScanning => _scanningStream.value;
+
+  /// Aggregated adapter state across BLE discovery services. Replays the
+  /// most recent state to new subscribers.
+  final BehaviorSubject<AdapterState> _adapterStateStream =
+      BehaviorSubject.seeded(AdapterState.unknown);
+
+  @override
+  Stream<AdapterState> get adapterStateStream =>
+      _adapterStateStream.stream;
 
   final List<StreamSubscription> _serviceSubscriptions = [];
 
@@ -68,6 +79,14 @@ class DeviceController implements DeviceScanner {
           (devices) => _serviceUpdate(service, devices),
         );
         _serviceSubscriptions.add(subscription);
+        if (service is BleDiscoveryService) {
+          final adapterSub = service.adapterStateStream.listen((state) {
+            if (!_adapterStateStream.isClosed) {
+              _adapterStateStream.add(state);
+            }
+          });
+          _serviceSubscriptions.add(adapterSub);
+        }
       } catch (e) {
         _log.warning("Service $service failed to init:", e);
       }
@@ -235,5 +254,6 @@ class DeviceController implements DeviceScanner {
     _serviceSubscriptions.clear();
     _deviceStream.close();
     _scanningStream.close();
+    _adapterStateStream.close();
   }
 }
