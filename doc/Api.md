@@ -223,10 +223,30 @@ All WebSocket endpoints are on port 8080 at `/ws/v1/...`. See [`assets/api/webso
 | `/ws/v1/machine/shot-settings` | Shot settings changes | Target temp, volume, weight |
 | `/ws/v1/machine/water-levels` | Water level changes | Current/limit levels |
 | `/ws/v1/machine/raw` | Raw BLE characteristic data | Hex-encoded bytes |
+| `/ws/v1/devices` | Device discovery + `ConnectionManager` status (phase, found devices, ambiguity, errors). Also accepts `scan`/`connect`/`disconnect` commands. | Device list, `connectionStatus` |
 | `/ws/v1/sensors/:id/snapshot` | Sensor data stream | Sensor-specific |
 | `/ws/v1/plugins/:id/:endpoint` | Plugin WebSocket proxy | Plugin-specific |
 | `/ws/v1/logs` | App log stream | Timestamped log entries |
 | `/ws/v1/display` | Display state changes | Brightness, wakelock |
+
+### `connectionStatus.error`
+
+When a BLE operation fails (connect timeout, mid-session disconnect, adapter off, permission denied, scan failure), the devices WebSocket emits an update with a structured `connectionStatus.error` object. `null` when no error is active.
+
+```json
+{
+  "kind": "scaleConnectFailed",
+  "severity": "error",
+  "timestamp": "2026-04-19T07:49:29.025Z",
+  "deviceId": "50:78:7D:1F:AE:E1",
+  "deviceName": "Decent Scale",
+  "message": "Scale Decent Scale failed to connect.",
+  "suggestion": "Wake the scale and try again.",
+  "details": {"fbp_code": 1}
+}
+```
+
+See [`assets/api/websocket_v1.yml`](../assets/api/websocket_v1.yml) for the full `ConnectionError` schema. Full `kind` taxonomy, lifecycle rules, and the recommended skin handling pattern are in [`doc/Skins.md`](Skins.md#handling-connection-errors).
 
 ---
 
