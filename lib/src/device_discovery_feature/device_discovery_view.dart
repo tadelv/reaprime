@@ -9,6 +9,7 @@ import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/home_feature/home_feature.dart';
 import 'package:reaprime/src/home_feature/widgets/device_selection_widget.dart';
 import 'package:reaprime/src/landing_feature/landing_feature.dart';
+import 'package:reaprime/src/shared/connection_error_banner.dart';
 import 'package:reaprime/src/skin_feature/skin_view.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
@@ -165,12 +166,18 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 
   @override
   Widget build(BuildContext context) {
-    // Error state
-    if (_status.error != null &&
-        _status.phase == ConnectionPhase.idle) {
-      return _errorView(context);
-    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ConnectionErrorBanner(connectionManager: widget.connectionManager),
+        Flexible(child: Center(child: _body(context))),
+      ],
+    );
+  }
 
+  Widget _body(BuildContext context) {
+    // Error state is handled by ConnectionErrorBanner above the body.
     // Scanning
     if (_status.phase == ConnectionPhase.scanning) {
       return _searchingView(context);
@@ -342,37 +349,6 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                 child: Text('Dashboard'),
               ),
           ],
-        ),
-      ],
-    );
-  }
-
-  Widget _errorView(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      spacing: 16,
-      children: [
-        Icon(LucideIcons.triangleAlert, size: 48, color: theme.colorScheme.destructive),
-        Text(
-          'Connection Error',
-          style: theme.textTheme.h4,
-        ),
-        Text(
-          _status.error?.message ?? 'An unknown error occurred.',
-          style: theme.textTheme.muted,
-          textAlign: TextAlign.center,
-        ),
-        ShadButton(
-          onPressed: () => widget.connectionManager.connect(),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            spacing: 8,
-            children: [
-              Icon(LucideIcons.refreshCw, size: 16),
-              Text('Retry'),
-            ],
-          ),
         ),
       ],
     );
