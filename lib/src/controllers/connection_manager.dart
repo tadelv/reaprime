@@ -89,6 +89,7 @@ class ConnectionManager {
 
   StreamSubscription? _machineDisconnectSub;
   StreamSubscription? _scaleDisconnectSub;
+  StreamSubscription<AdapterState>? _adapterSub;
 
   final Set<String> _expectingDisconnectFor = {};
   final Map<String, Timer> _expectingDisconnectTimers = {};
@@ -100,6 +101,24 @@ class ConnectionManager {
     required this.settingsController,
   }) {
     _listenForDisconnects();
+    _listenForAdapter();
+  }
+
+  void _listenForAdapter() {
+    _adapterSub = deviceScanner.adapterStateStream.listen((state) {
+      if (state == AdapterState.poweredOff) {
+        _emit(ConnectionError(
+          kind: ConnectionErrorKind.adapterOff,
+          severity: ConnectionErrorSeverity.error,
+          timestamp: DateTime.now().toUtc(),
+          message: 'Bluetooth is turned off.',
+          suggestion: 'Turn Bluetooth on to scan for devices.',
+        ));
+      } else if (state == AdapterState.poweredOn &&
+          currentStatus.error?.kind == ConnectionErrorKind.adapterOff) {
+        _clearError();
+      }
+    });
   }
 
   void _listenForDisconnects() {
@@ -190,7 +209,8 @@ class ConnectionManager {
     );
   }
 
-  // ignore: unused_element — wired up in task 8 (environmental recovery)
+  /// Clears the current error. Called by environmental recovery handlers
+  /// (adapter on, permission granted).
   void _clearError() {
     if (currentStatus.error == null) return;
     _statusSubject.add(currentStatus.copyWith(error: () => null));
@@ -842,6 +862,7 @@ class ConnectionManager {
   void dispose() {
     _machineDisconnectSub?.cancel();
     _scaleDisconnectSub?.cancel();
+    _adapterSub?.cancel();
     for (final t in _expectingDisconnectTimers.values) {
       t.cancel();
     }

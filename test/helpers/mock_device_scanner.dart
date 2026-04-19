@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/device_scanner.dart';
 import 'package:rxdart/rxdart.dart';
@@ -15,6 +16,8 @@ import 'package:rxdart/rxdart.dart';
 class MockDeviceScanner implements DeviceScanner {
   final _deviceSubject = BehaviorSubject<List<Device>>.seeded([]);
   final _scanningSubject = BehaviorSubject<bool>.seeded(false);
+  final _adapterStateSubject =
+      BehaviorSubject<AdapterState>.seeded(AdapterState.unknown);
   final List<Device> _devices = [];
 
   /// Number of times [stopScan] has been called.
@@ -32,7 +35,17 @@ class MockDeviceScanner implements DeviceScanner {
   Stream<bool> get scanningStream => _scanningSubject.stream;
 
   @override
+  Stream<AdapterState> get adapterStateStream =>
+      _adapterStateSubject.stream;
+
+  @override
   List<Device> get devices => List.from(_devices);
+
+  /// Push an adapter state onto the stream for tests that drive environmental
+  /// recovery paths in [ConnectionManager].
+  void mockAdapterState(AdapterState state) {
+    _adapterStateSubject.add(state);
+  }
 
   /// Add a device and emit on the device stream.
   void addDevice(Device device) {
@@ -76,5 +89,6 @@ class MockDeviceScanner implements DeviceScanner {
   void dispose() {
     _deviceSubject.close();
     _scanningSubject.close();
+    _adapterStateSubject.close();
   }
 }

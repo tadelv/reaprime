@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/connection_error.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/scan_report.dart';
@@ -1003,6 +1004,39 @@ void main() {
             ConnectionErrorKind.scaleDisconnected);
         expect(connectionManager.currentStatus.error?.deviceId,
             '50:78:7D:1F:AE:E1');
+      });
+    });
+
+    group('adapter state', () {
+      test('adapter off emits adapterOff error', () async {
+        mockScanner.mockAdapterState(AdapterState.poweredOff);
+        await Future<void>.delayed(Duration.zero);
+        expect(connectionManager.currentStatus.error?.kind,
+            ConnectionErrorKind.adapterOff);
+      });
+
+      test('adapter on clears adapterOff', () async {
+        mockScanner.mockAdapterState(AdapterState.poweredOff);
+        await Future<void>.delayed(Duration.zero);
+        expect(connectionManager.currentStatus.error?.kind,
+            ConnectionErrorKind.adapterOff);
+
+        mockScanner.mockAdapterState(AdapterState.poweredOn);
+        await Future<void>.delayed(Duration.zero);
+        expect(connectionManager.currentStatus.error, isNull);
+      });
+
+      test('adapter on does NOT clear an unrelated transient error',
+          () async {
+        connectionManager.debugEmitError(
+          kind: ConnectionErrorKind.scaleConnectFailed,
+          severity: ConnectionErrorSeverity.error,
+          message: 'x',
+        );
+        mockScanner.mockAdapterState(AdapterState.poweredOn);
+        await Future<void>.delayed(Duration.zero);
+        expect(connectionManager.currentStatus.error?.kind,
+            ConnectionErrorKind.scaleConnectFailed);
       });
     });
   });
