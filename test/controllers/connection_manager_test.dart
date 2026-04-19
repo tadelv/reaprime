@@ -689,6 +689,54 @@ void main() {
       });
     });
 
+    group('error surfacing', () {
+      test('emitting an error publishes it on the status stream', () async {
+        final future = connectionManager.status
+            .firstWhere((s) => s.error != null);
+        connectionManager.debugEmitError(
+          kind: ConnectionErrorKind.scaleConnectFailed,
+          severity: ConnectionErrorSeverity.error,
+          message: 'test',
+        );
+        final status = await future;
+        expect(status.error!.kind, ConnectionErrorKind.scaleConnectFailed);
+        expect(status.error!.timestamp.isUtc, isTrue);
+      });
+
+      test('transient error cleared by _publishStatus on scanning transition',
+          () async {
+        connectionManager.debugEmitError(
+          kind: ConnectionErrorKind.scaleConnectFailed,
+          severity: ConnectionErrorSeverity.error,
+          message: 'test',
+        );
+        expect(connectionManager.currentStatus.error, isNotNull);
+
+        // connect() transitions into scanning via _publishStatus without
+        // explicitly nulling — the gatekeeper must strip the transient error.
+        await connectionManager.connect(scaleOnly: true);
+        expect(connectionManager.currentStatus.error, isNull);
+      });
+
+      test('sticky error survives phase transition through _publishStatus',
+          () async {
+        connectionManager.debugEmitError(
+          kind: ConnectionErrorKind.adapterOff,
+          severity: ConnectionErrorSeverity.error,
+          message: 'off',
+        );
+        expect(connectionManager.currentStatus.error, isNotNull);
+
+        // A real scan path goes through _publishStatus(scanning). Sticky
+        // adapterOff must survive even though the caller itself does not
+        // explicitly re-attach it.
+        await connectionManager.connect(scaleOnly: true);
+        expect(connectionManager.currentStatus.error, isNotNull);
+        expect(connectionManager.currentStatus.error!.kind,
+            ConnectionErrorKind.adapterOff);
+      });
+    });
+
     group('connectScale', () {
       test('delegates to ScaleController and saves preference on success',
           () async {
