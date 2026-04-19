@@ -43,6 +43,14 @@ class AndroidBluePlusTransport implements BLETransport {
       BehaviorSubject<device.ConnectionState>.seeded(device.ConnectionState.discovered);
   StreamSubscription? _nativeConnectionSub;
 
+  // Tracks whether we've ever observed a real `connected` event from
+  // flutter_blue_plus. The native connectionState stream replays the
+  // current cached state on subscribe, so a fresh BluetoothDevice fires
+  // a `disconnected` event immediately even though no real disconnect
+  // happened — without this gate the diagnostic warning would fire
+  // spuriously on every connect().
+  bool _everConnected = false;
+
   AndroidBluePlusTransport({required String remoteId})
     : _device = BluetoothDevice(remoteId: DeviceIdentifier(remoteId)),
       _log = Logger("AndroidBPTransport-$remoteId");
@@ -54,12 +62,16 @@ class AndroidBluePlusTransport implements BLETransport {
     // Forward native connection state to our subject
     _nativeConnectionSub?.cancel();
     _nativeConnectionSub = _device.connectionState.listen((state) {
-      if (state == BluetoothConnectionState.disconnected) {
+      if (state == BluetoothConnectionState.connected) {
+        _everConnected = true;
+      } else if (state == BluetoothConnectionState.disconnected &&
+          _everConnected) {
         final reason = _device.disconnectReason;
         _log.warning(
           'Native disconnect: platform=${reason?.platform} '
           'code=${reason?.code} description=${reason?.description}',
         );
+        _everConnected = false;
       }
       _connectionStateSubject.add(
         state == BluetoothConnectionState.connected
