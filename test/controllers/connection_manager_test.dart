@@ -10,6 +10,7 @@ import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/models/scan_report.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 
@@ -1037,6 +1038,44 @@ void main() {
         await Future<void>.delayed(Duration.zero);
         expect(connectionManager.currentStatus.error?.kind,
             ConnectionErrorKind.scaleConnectFailed);
+      });
+    });
+
+    group('scan failures', () {
+      test('scan throwing permission error emits bluetoothPermissionDenied',
+          () async {
+        mockScanner.failNextScanWith =
+            const PermissionDeniedException('denied');
+        await connectionManager.connect(scaleOnly: true);
+        expect(connectionManager.currentStatus.error?.kind,
+            ConnectionErrorKind.bluetoothPermissionDenied);
+      });
+
+      test('scan throwing generic error emits scanFailed', () async {
+        mockScanner.failNextScanWith = Exception('adapter busy');
+        await connectionManager.connect(scaleOnly: true);
+        expect(connectionManager.currentStatus.error?.kind,
+            ConnectionErrorKind.scanFailed);
+      });
+
+      test('exception containing "permission" classified as permissionDenied',
+          () async {
+        mockScanner.failNextScanWith =
+            Exception('Missing bluetooth permission');
+        await connectionManager.connect(scaleOnly: true);
+        expect(connectionManager.currentStatus.error?.kind,
+            ConnectionErrorKind.bluetoothPermissionDenied);
+      });
+
+      test('successful scan-start clears prior scanFailed', () async {
+        connectionManager.debugEmitError(
+          kind: ConnectionErrorKind.scanFailed,
+          severity: ConnectionErrorSeverity.error,
+          message: 'prior fail',
+        );
+        expect(connectionManager.currentStatus.error, isNotNull);
+        await connectionManager.connect(scaleOnly: true);
+        expect(connectionManager.currentStatus.error, isNull);
       });
     });
   });
