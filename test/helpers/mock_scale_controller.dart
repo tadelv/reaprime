@@ -11,8 +11,13 @@ class MockScaleController extends ScaleController {
   /// Every [Scale] passed to [connectToScale].
   final List<Scale> connectCalls = [];
 
-  /// When true, [connectToScale] throws instead of succeeding.
+  /// When true, [connectToScale] throws a generic [Exception].
   bool shouldFailConnect = false;
+
+  /// When non-null, [connectToScale] throws this exact object. Takes
+  /// precedence over [shouldFailConnect]. Useful for exercising
+  /// typed-exception branches (e.g. `FlutterBluePlusException`).
+  Object? failNextConnectWith;
 
   /// The subject backing the overridden [connectionState] stream.
   /// Tests can call `connectionStateSubject.add(...)` to simulate changes.
@@ -28,6 +33,11 @@ class MockScaleController extends ScaleController {
   @override
   Future<void> connectToScale(Scale scale) async {
     connectCalls.add(scale);
+    if (failNextConnectWith != null) {
+      final err = failNextConnectWith!;
+      failNextConnectWith = null;
+      throw err;
+    }
     if (shouldFailConnect) {
       throw Exception('MockScaleController: simulated connection failure');
     }

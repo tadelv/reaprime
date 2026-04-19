@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter_blue_plus/flutter_blue_plus.dart'
+    show FlutterBluePlusException;
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/connection_error.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
@@ -127,6 +129,42 @@ class ConnectionManager {
       _log.warning(msg);
     }
     _statusSubject.add(currentStatus.copyWith(error: () => err));
+  }
+
+  /// Build a [ConnectionError] for a failed connect attempt. Pulls out
+  /// `fbp_code` / `fbp_description` when the caught exception is a
+  /// [FlutterBluePlusException]; otherwise stashes the stringified
+  /// exception under `details.exception`.
+  ConnectionError _buildConnectError({
+    required String kind,
+    required String deviceId,
+    required String deviceName,
+    required String message,
+    String? suggestion,
+    required Object exception,
+  }) {
+    Map<String, dynamic>? details;
+    if (exception is FlutterBluePlusException) {
+      final map = <String, dynamic>{
+        if (exception.code != null) 'fbp_code': exception.code,
+        if (exception.description != null)
+          'fbp_description': exception.description,
+        if (exception.function.isNotEmpty) 'fbp_function': exception.function,
+      };
+      details = map.isEmpty ? null : map;
+    } else {
+      details = {'exception': exception.toString()};
+    }
+    return ConnectionError(
+      kind: kind,
+      severity: ConnectionErrorSeverity.error,
+      timestamp: DateTime.now().toUtc(),
+      deviceId: deviceId,
+      deviceName: deviceName,
+      message: message,
+      suggestion: suggestion,
+      details: details,
+    );
   }
 
   // ignore: unused_element — wired up in task 8 (environmental recovery)
@@ -554,14 +592,27 @@ class ConnectionManager {
         _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.ready));
       }
     } catch (e) {
-      // Scale failure is non-blocking — stay at ready if machine connected, else idle
+      // Scale failure is non-blocking — stay at ready if machine connected, else idle.
       _publishStatus(
         currentStatus.copyWith(
           phase:
               _machineConnected ? ConnectionPhase.ready : ConnectionPhase.idle,
-          error: () => null,
         ),
       );
+      // DO NOT REORDER — `ready` is a clearing phase and `scaleConnectFailed`
+      // is transient, so emitting first and then publishing `ready` would
+      // run the error through the gatekeeper's strip rule. Publishing the
+      // phase first (no error present) then calling `_emit` (bypasses the
+      // gatekeeper) is the only order that keeps the error visible.
+      _emit(_buildConnectError(
+        kind: ConnectionErrorKind.scaleConnectFailed,
+        deviceId: scale.deviceId,
+        deviceName: scale.name,
+        message: 'Scale ${scale.name} failed to connect.',
+        suggestion: 'Wake the scale and try again. If the problem persists, '
+            'toggle Bluetooth off and on.',
+        exception: e,
+      ));
     } finally {
       _isConnectingScale = false;
     }

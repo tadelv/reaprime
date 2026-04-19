@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter_blue_plus/flutter_blue_plus.dart'
+    show FlutterBluePlusException, ErrorPlatform;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/connection_error.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
@@ -748,13 +750,45 @@ void main() {
         expect(settingsController.preferredScaleId, 'my-scale');
       });
 
-      test('does not save preference on failure (silent)', () async {
+      test('does not save preference on failure', () async {
         mockScaleController.shouldFailConnect = true;
         final testScale = TestScale(deviceId: 'fail-scale');
 
         await connectionManager.connectScale(testScale);
 
         expect(settingsController.preferredScaleId, isNull);
+        // Failure now surfaces a structured error (no longer silent).
+        expect(connectionManager.currentStatus.error, isNotNull);
+      });
+
+      test('emits scaleConnectFailed when the scale controller throws',
+          () async {
+        mockScaleController.shouldFailConnect = true;
+        final fakeScale =
+            TestScale(deviceId: '50:78:7D:1F:AE:E1', name: 'Decent Scale');
+
+        await connectionManager.connectScale(fakeScale);
+
+        final err = connectionManager.currentStatus.error;
+        expect(err, isNotNull);
+        expect(err!.kind, ConnectionErrorKind.scaleConnectFailed);
+        expect(err.deviceId, '50:78:7D:1F:AE:E1');
+        expect(err.deviceName, 'Decent Scale');
+        expect(err.severity, ConnectionErrorSeverity.error);
+      });
+
+      test(
+          'emits scaleConnectFailed with fbp_code in details when '
+          'FlutterBluePlusException thrown', () async {
+        mockScaleController.failNextConnectWith = FlutterBluePlusException(
+            ErrorPlatform.fbp, 'connect', 1, 'Timed out');
+        final fakeScale =
+            TestScale(deviceId: '50:78:7D:1F:AE:E1', name: 'Decent Scale');
+
+        await connectionManager.connectScale(fakeScale);
+
+        final err = connectionManager.currentStatus.error!;
+        expect(err.details, containsPair('fbp_code', 1));
       });
 
       test('rejects concurrent scale connection attempts', () async {
@@ -806,6 +840,27 @@ void main() {
         await sub.cancel();
       });
 
+      test(
+          'emits scaleConnectFailed even when fallback phase is ready (machine connected)',
+          () async {
+        // Seed connected-machine state so the scale-fail catch falls through
+        // to phase=ready (a clearing phase). The _emit must survive the
+        // gatekeeper's strip rule — if ordering regresses, this test fails.
+        final fakeMachine = _FakeDe1(deviceId: 'D9:11:0B:E6:9F:86');
+        await connectionManager.connectMachine(fakeMachine);
+        expect(connectionManager.currentStatus.phase, ConnectionPhase.ready);
+
+        mockScaleController.shouldFailConnect = true;
+        final fakeScale =
+            TestScale(deviceId: '50:78:7D:1F:AE:E1', name: 'Decent Scale');
+        await connectionManager.connectScale(fakeScale);
+
+        expect(connectionManager.currentStatus.phase, ConnectionPhase.ready);
+        expect(connectionManager.currentStatus.error, isNotNull);
+        expect(connectionManager.currentStatus.error!.kind,
+            ConnectionErrorKind.scaleConnectFailed);
+      });
+
       test('stays at idle on failure when no machine connected', () async {
         mockScaleController.shouldFailConnect = true;
 
@@ -818,13 +873,18 @@ void main() {
         await connectionManager.connectScale(testScale);
         await Future.delayed(Duration.zero);
 
+        // Two trailing idles: one from the phase revert, one from _emit
+        // re-publishing on the same phase with the error attached.
         expect(phases, [
           ConnectionPhase.idle,
           ConnectionPhase.connectingScale,
           ConnectionPhase.idle,
+          ConnectionPhase.idle,
         ]);
 
-        expect(connectionManager.currentStatus.error, isNull);
+        final err = connectionManager.currentStatus.error;
+        expect(err, isNotNull);
+        expect(err!.kind, ConnectionErrorKind.scaleConnectFailed);
 
         await sub.cancel();
       });
