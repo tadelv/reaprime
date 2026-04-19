@@ -28,6 +28,11 @@ class MockDeviceScanner implements DeviceScanner {
   /// add devices mid-scan and verify early-stop behavior.
   Completer<void>? scanCompleter;
 
+  /// When set, the next [scanForDevices] call throws this object instead of
+  /// running a scan. Consumed after one throw. Tests use this to exercise
+  /// scan-start failure classification in [ConnectionManager].
+  Object? failNextScanWith;
+
   @override
   Stream<List<Device>> get deviceStream => _deviceSubject.stream;
 
@@ -68,6 +73,11 @@ class MockDeviceScanner implements DeviceScanner {
 
   @override
   Future<void> scanForDevices() async {
+    if (failNextScanWith != null) {
+      final e = failNextScanWith;
+      failNextScanWith = null;
+      throw e!;
+    }
     _scanningSubject.add(true);
     // Re-emit current devices to simulate scan rediscovery.
     // This ensures listeners that skip(1) the BehaviorSubject replay

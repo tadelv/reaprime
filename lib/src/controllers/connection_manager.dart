@@ -12,6 +12,7 @@ import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/device_scanner.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/models/scan_report.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:rxdart/rxdart.dart';
@@ -207,6 +208,22 @@ class ConnectionManager {
       suggestion: suggestion,
       details: details,
     );
+  }
+
+  /// Map a scan-start exception to a [ConnectionErrorKind]. Checks the
+  /// exception type first (for the known [PermissionDeniedException]
+  /// type); falls back to a lowercase substring match on the message
+  /// so platforms that surface permission failures as generic exceptions
+  /// still route to the right kind.
+  String _classifyScanError(Object e) {
+    if (e is PermissionDeniedException) {
+      return ConnectionErrorKind.bluetoothPermissionDenied;
+    }
+    final msg = e.toString().toLowerCase();
+    if (msg.contains('permission')) {
+      return ConnectionErrorKind.bluetoothPermissionDenied;
+    }
+    return ConnectionErrorKind.scanFailed;
   }
 
   /// Clears the current error. Called by environmental recovery handlers
@@ -456,13 +473,62 @@ class ConnectionManager {
       }
     });
 
-    // Run full unfiltered scan
-    deviceScanner.scanForDevices();
+    // Run full unfiltered scan. Classify any throw from scan-start
+    // into bluetoothPermissionDenied or scanFailed. Both are sticky
+    // errors — they survive phase transitions and only clear when the
+    // environment recovers (see the success path below).
+    try {
+      // Start the scan and subscribe to scanningStream concurrently so we
+      // can race the "scanning started" signal against an error from
+      // scanForDevices() (which may reject asynchronously on permission /
+      // adapter failures). Without the race, awaiting scanForDevices first
+      // would miss the scanning=true emission, and awaiting the stream
+      // first would hang if the scan never started.
+      final scanFuture = deviceScanner.scanForDevices();
+      // Swallow a late rejection from scanFuture if the stream wins the
+      // race — otherwise Future.any leaves it as an unhandled async error.
+      // A real classify-and-emit still fires via the catch below because
+      // scanFuture rejects BEFORE firstWhere sees scanning=true in that
+      // failure case; this only guards the already-started path.
+      scanFuture.catchError((_) {});
+      await Future.any<Object?>([
+        deviceScanner.scanningStream.firstWhere((s) => s),
+        scanFuture,
+      ]);
+    } catch (e) {
+      sub.cancel();
+      final kind = _classifyScanError(e);
+      // DO NOT REORDER — same rationale as connectScale: publish idle
+      // first, then _emit the error (which bypasses the phase-change
+      // error-stripping gatekeeper) so the sticky error is preserved.
+      _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.idle));
+      _emit(ConnectionError(
+        kind: kind,
+        severity: ConnectionErrorSeverity.error,
+        timestamp: DateTime.now().toUtc(),
+        message: kind == ConnectionErrorKind.bluetoothPermissionDenied
+            ? 'Bluetooth permission was denied.'
+            : 'Failed to start Bluetooth scan.',
+        suggestion: kind == ConnectionErrorKind.bluetoothPermissionDenied
+            ? 'Grant Bluetooth permission in system settings and retry.'
+            : 'Check that Bluetooth is enabled and retry.',
+        details: {'exception': e.toString()},
+      ));
+      return;
+    }
 
-    // Ensure we observe the scan starting before waiting for it to end.
-    // scanForDevices() synchronously emits true, but guard against future
-    // changes that might add an await before the emission.
-    await deviceScanner.scanningStream.firstWhere((s) => s);
+    // Past this point, scan actually started. Sticky-error environmental
+    // recovery: a successful scan-start means permission and scan
+    // subsystems are working again. Clear any sticky scan-related error
+    // that was hanging on — _publishStatus' gatekeeper would preserve
+    // it otherwise.
+    final prevErr = currentStatus.error;
+    if (prevErr != null &&
+        (prevErr.kind == ConnectionErrorKind.scanFailed ||
+            prevErr.kind == ConnectionErrorKind.bluetoothPermissionDenied)) {
+      _clearError();
+    }
+
     await deviceScanner.scanningStream.firstWhere((s) => !s);
     sub.cancel();
 
