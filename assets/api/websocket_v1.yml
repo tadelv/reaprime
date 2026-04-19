@@ -254,6 +254,43 @@ components:
           type: string
         st:
           type: string
+    ConnectionError:
+      type: object
+      required: [kind, severity, timestamp, message]
+      properties:
+        kind:
+          type: string
+          description: >
+            Error kind identifier. Skins should look up localized copy
+            by this field. Initial set:
+            scaleConnectFailed, machineConnectFailed,
+            scaleDisconnected, machineDisconnected,
+            adapterOff, bluetoothPermissionDenied, scanFailed.
+            New kinds may be added without a version bump.
+        severity:
+          type: string
+          enum: [warning, error]
+        timestamp:
+          type: string
+          format: date-time
+        deviceId:
+          type: string
+          nullable: true
+        deviceName:
+          type: string
+          nullable: true
+        message:
+          type: string
+          description: App-supplied English default message.
+        suggestion:
+          type: string
+          nullable: true
+          description: App-supplied English default suggestion for the user.
+        details:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Freeform diagnostic payload; shape varies by kind.
     ScaleSnapshot:
       type: object
       properties:
@@ -481,9 +518,12 @@ components:
               nullable: true
               description: If set, the UI should present a device picker for the indicated type.
             error:
-              type: string
+              allOf:
+                - $ref: '#/components/schemas/ConnectionError'
               nullable: true
-              description: Error message from the last connection attempt.
+              description: >
+                Structured error object when a BLE operation has failed.
+                Null when no error. See ConnectionError.
 
     DeviceInfo:
       type: object

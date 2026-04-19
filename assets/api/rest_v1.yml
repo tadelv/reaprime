@@ -3256,6 +3256,44 @@ components:
         st:
           type: string
 
+    ConnectionError:
+      type: object
+      required: [kind, severity, timestamp, message]
+      properties:
+        kind:
+          type: string
+          description: >
+            Error kind identifier. Skins should look up localized copy
+            by this field. Initial set:
+            scaleConnectFailed, machineConnectFailed,
+            scaleDisconnected, machineDisconnected,
+            adapterOff, bluetoothPermissionDenied, scanFailed.
+            New kinds may be added without a version bump.
+        severity:
+          type: string
+          enum: [warning, error]
+        timestamp:
+          type: string
+          format: date-time
+        deviceId:
+          type: string
+          nullable: true
+        deviceName:
+          type: string
+          nullable: true
+        message:
+          type: string
+          description: App-supplied English default message.
+        suggestion:
+          type: string
+          nullable: true
+          description: App-supplied English default suggestion for the user.
+        details:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Freeform diagnostic payload; shape varies by kind.
+
     MachineInfo:
       type: object
       properties:
