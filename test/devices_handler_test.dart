@@ -6,6 +6,7 @@ import 'package:reaprime/src/models/device/device.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import 'package:shelf_plus/shelf_plus.dart';
+import 'package:reaprime/src/controllers/connection_error.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
@@ -329,6 +330,41 @@ void main() {
       expect((state['devices'] as List), isEmpty);
       expect(state['scanning'], false);
       expect(state['timestamp'], isA<String>());
+    });
+
+    test('snapshot error is null when no error set', () async {
+      final state = await aggregator.stateStream.first;
+
+      expect(state['connectionStatus'], isA<Map>());
+      expect(state['connectionStatus']['error'], isNull);
+    });
+
+    test('snapshot serializes structured ConnectionError', () async {
+      // Consume initial state
+      await aggregator.stateStream.first;
+
+      connectionManager.debugEmitError(
+        kind: ConnectionErrorKind.scaleConnectFailed,
+        severity: ConnectionErrorSeverity.error,
+        message: 'fail',
+        deviceId: '50:78:7D:1F:AE:E1',
+        deviceName: 'Decent Scale',
+        timestamp: DateTime.utc(2026, 4, 19),
+      );
+
+      final state = await aggregator.stateStream
+          .where((s) => s['connectionStatus']?['error'] != null)
+          .first
+          .timeout(Duration(seconds: 2));
+
+      expect(state['connectionStatus']['error'], {
+        'kind': 'scaleConnectFailed',
+        'severity': 'error',
+        'timestamp': '2026-04-19T00:00:00.000Z',
+        'deviceId': '50:78:7D:1F:AE:E1',
+        'deviceName': 'Decent Scale',
+        'message': 'fail',
+      });
     });
 
     test('emits update when device is added', () async {

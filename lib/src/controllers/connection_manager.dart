@@ -281,11 +281,12 @@ class ConnectionManager {
     String? deviceName,
     String? suggestion,
     Map<String, dynamic>? details,
+    DateTime? timestamp,
   }) {
     _emit(ConnectionError(
       kind: kind,
       severity: severity,
-      timestamp: DateTime.now().toUtc(),
+      timestamp: (timestamp ?? DateTime.now()).toUtc(),
       message: message,
       deviceId: deviceId,
       deviceName: deviceName,
