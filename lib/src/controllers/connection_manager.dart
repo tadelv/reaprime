@@ -554,13 +554,19 @@ class ConnectionManager {
       _machineConnected = true;
       _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.ready));
     } catch (e) {
-      _publishStatus(
-        currentStatus.copyWith(
-          phase: ConnectionPhase.idle,
-          // TODO(task-5): emit structured ConnectionError here.
-          error: () => null,
-        ),
-      );
+      // Unlike connectScale, this path reverts to `idle` (not a clearing
+      // phase), so the _publishStatus/_emit ordering isn't load-bearing —
+      // kept consistent with connectScale for readability.
+      _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.idle));
+      _emit(_buildConnectError(
+        kind: ConnectionErrorKind.machineConnectFailed,
+        deviceId: machine.deviceId,
+        deviceName: machine.name,
+        message: 'Machine ${machine.name} failed to connect.',
+        suggestion:
+            'Make sure the DE1 is powered on and in range, then retry.',
+        exception: e,
+      ));
       rethrow;
     } finally {
       _isConnectingMachine = false;

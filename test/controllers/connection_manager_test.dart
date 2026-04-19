@@ -677,17 +677,55 @@ void main() {
         } catch (_) {}
         await Future.delayed(Duration.zero);
 
+        // Two trailing idles: one from the phase revert, one from _emit
+        // re-publishing the status with the structured error attached.
         expect(phases, [
           ConnectionPhase.idle,
           ConnectionPhase.connectingMachine,
           ConnectionPhase.idle,
+          ConnectionPhase.idle,
         ]);
-        // TODO(task-5): tighten this to assert a non-null ConnectionError with
-        // kind == machineConnectFailed once emission is restored. For now we
-        // only guarantee no premature/incorrect emission slips in.
-        expect(errors.last, isNull);
+        final err = errors.last;
+        expect(err, isNotNull);
+        expect(err!.kind, ConnectionErrorKind.machineConnectFailed);
+        expect(err.deviceId, 'err-de1');
 
         await sub.cancel();
+      });
+
+      test('emits machineConnectFailed on De1Controller.connectToDe1 throw',
+          () async {
+        mockDe1Controller.shouldFailConnect = true;
+        final fakeDe1 = _FailingFakeDe1(deviceId: 'D9:11:0B:E6:9F:86');
+
+        try {
+          await connectionManager.connectMachine(fakeDe1);
+        } catch (_) {
+          // connectMachine rethrows — that's expected.
+        }
+        await Future<void>.delayed(Duration.zero);
+
+        final err = connectionManager.currentStatus.error!;
+        expect(err.kind, ConnectionErrorKind.machineConnectFailed);
+        expect(err.deviceId, 'D9:11:0B:E6:9F:86');
+        expect(err.deviceName, 'DE1-D9:11:0B:E6:9F:86');
+        expect(err.severity, ConnectionErrorSeverity.error);
+      });
+
+      test(
+          'emits machineConnectFailed with fbp_code in details when '
+          'FlutterBluePlusException thrown', () async {
+        mockDe1Controller.failNextConnectWith = FlutterBluePlusException(
+            ErrorPlatform.fbp, 'connect', 133, 'GATT Error 133');
+        final fakeDe1 = _FailingFakeDe1(deviceId: 'D9:11:0B:E6:9F:86');
+
+        try {
+          await connectionManager.connectMachine(fakeDe1);
+        } catch (_) {}
+        await Future<void>.delayed(Duration.zero);
+
+        final err = connectionManager.currentStatus.error!;
+        expect(err.details, containsPair('fbp_code', 133));
       });
     });
 

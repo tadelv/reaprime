@@ -13,6 +13,11 @@ class MockDe1Controller extends De1Controller {
   /// When true, [connectToDe1] throws instead of succeeding.
   bool shouldFailConnect = false;
 
+  /// When non-null, [connectToDe1] throws this exact object. Takes
+  /// precedence over [shouldFailConnect]. Useful for exercising
+  /// typed-exception branches (e.g. `FlutterBluePlusException`).
+  Object? failNextConnectWith;
+
   /// The subject backing the overridden [de1] stream.
   /// Tests can call `de1Subject.add(someDe1)` to simulate connection changes.
   final BehaviorSubject<De1Interface?> de1Subject =
@@ -26,6 +31,11 @@ class MockDe1Controller extends De1Controller {
   @override
   Future<void> connectToDe1(De1Interface de1Interface) async {
     connectCalls.add(de1Interface);
+    if (failNextConnectWith != null) {
+      final err = failNextConnectWith!;
+      failNextConnectWith = null;
+      throw err;
+    }
     if (shouldFailConnect) {
       throw Exception('MockDe1Controller: simulated connection failure');
     }
