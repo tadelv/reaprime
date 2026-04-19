@@ -16,6 +16,7 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/services/storage/bean_storage_service.dart';
 import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
+import 'package:reaprime/src/shared/connection_error_banner.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -90,7 +91,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         child: Semantics(
           explicitChildNodes: true,
           label: 'Espresso machine dashboard',
-          child: _home(context),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ConnectionErrorBanner(
+                connectionManager: widget.connectionManager,
+              ),
+              Expanded(child: _home(context)),
+            ],
+          ),
         ),
       ),
     );

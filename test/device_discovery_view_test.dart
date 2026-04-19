@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/controllers/connection_error.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
@@ -8,10 +9,12 @@ import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/device_discovery_feature/device_discovery_view.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
+import 'package:reaprime/src/shared/connection_error_banner.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import 'helpers/fake_connection_manager.dart';
 import 'helpers/mock_device_discovery_service.dart';
 import 'helpers/mock_settings_service.dart';
 import 'helpers/test_scale.dart';
@@ -153,6 +156,57 @@ void main() {
         expect(find.text('Scales'), findsOneWidget);
         expect(find.text('MockDe1'), findsWidgets);
         expect(find.text('Mock Scale'), findsOneWidget);
+      });
+    });
+
+    testWidgets('mounts ConnectionErrorBanner when error present',
+        (tester) async {
+      final origOnError = FlutterError.onError;
+      FlutterError.onError = (details) {
+        if (details.toString().contains('overflowed') ||
+            details.toString().contains('deactivated')) return;
+        origOnError?.call(details);
+      };
+      addTearDown(() => FlutterError.onError = origOnError);
+
+      final fakeCm = FakeConnectionManager();
+      addTearDown(fakeCm.dispose);
+
+      Widget view() => MediaQuery(
+            data: MediaQueryData(size: Size(1024, 768)),
+            child: ShadApp(
+              home: Scaffold(
+                body: DeviceDiscoveryView(
+                  connectionManager: fakeCm,
+                  deviceController: deviceController,
+                  settingsController: settingsController,
+                  webUIService: webUIService,
+                  webUIStorage: webUIStorage,
+                  logger: Logger('test'),
+                ),
+              ),
+            ),
+          );
+
+      await tester.runAsync(() async {
+        fakeCm.setError(ConnectionError(
+          kind: ConnectionErrorKind.scaleConnectFailed,
+          severity: ConnectionErrorSeverity.error,
+          timestamp: DateTime.now().toUtc(),
+          message: 'Scale connect timed out.',
+        ));
+
+        await tester.pumpWidget(view());
+        await tester.pump();
+
+        expect(find.byType(ConnectionErrorBanner), findsOneWidget);
+        // Banner title is specific to its rendering; distinguishes it from
+        // the DeviceDiscoveryView's own inline _errorView.
+        expect(find.text('Connect failed'), findsOneWidget);
+        // Banner and inline fallback may both show the message in the
+        // idle+error state, so just assert at least one renders it.
+        expect(find.textContaining('Scale connect timed out'),
+            findsAtLeastNWidgets(1));
       });
     });
   });
