@@ -414,7 +414,7 @@ class ScanStepViewState extends State<ScanStepView> {
                     showHeader: true,
                     headerText: machineHeader,
                     connectingDeviceId: connectingDeviceId,
-                    errorMessage: _status.error,
+                    errorMessage: _status.error?.message,
                     selectedDeviceId: null,
                     preferredDeviceId:
                         widget.settingsController.preferredMachineId,
@@ -536,7 +536,7 @@ class ScanStepViewState extends State<ScanStepView> {
           ),
           Text('Connection Error', style: theme.textTheme.h4),
           Text(
-            _status.error ?? 'An unknown error occurred.',
+            _status.error?.message ?? 'An unknown error occurred.',
             style: theme.textTheme.muted,
             textAlign: TextAlign.center,
           ),

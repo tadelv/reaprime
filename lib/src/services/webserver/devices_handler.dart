@@ -163,7 +163,7 @@ class DevicesStateAggregator {
               })
           .toList(),
       'pendingAmbiguity': cs.pendingAmbiguity?.name,
-      'error': cs.error,
+      'error': cs.error?.toJson(),
     };
     return snapshot;
   }
