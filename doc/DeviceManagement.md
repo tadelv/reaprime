@@ -479,6 +479,14 @@ Preferred device IDs are auto-saved on successful connection and can be managed 
 
 ---
 
+## Error Surfacing
+
+BLE errors (connect failures, mid-session disconnects, adapter-level problems) emit on `ConnectionManager.status` as a structured `ConnectionError`. The error appears on `ws/v1/devices` as `connectionStatus.error`. See [`doc/Api.md`](Api.md) and [`doc/Skins.md`](Skins.md#handling-connection-errors) for the taxonomy and skin contract.
+
+When wiring a new app-initiated disconnect call site, precede the disconnect with `ConnectionManager.markExpectingDisconnect(deviceId)` so the resulting disconnect event doesn't fire a `scaleDisconnected` / `machineDisconnected` error. A 10s TTL safety timer clears stale expectations if the disconnect event never arrives.
+
+---
+
 ## Adding New Devices
 
 ### Step-by-Step Guide

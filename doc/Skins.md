@@ -1843,6 +1843,91 @@ displayWs.onmessage = (event) => {
 // Wake-lock is automatically released when this WebSocket closes
 ```
 
+### 10. Devices Stream & Connection Errors
+
+**Endpoint:** `ws/v1/devices`
+
+**Purpose:** Broadcasts the full `ConnectionManager` status (discovered devices, current phase, pending ambiguity, and the most recent BLE error) plus a snapshot of all known devices. Also accepts `scan`, `connect`, and `disconnect` commands — see [`assets/api/websocket_v1.yml`](../assets/api/websocket_v1.yml) for the command schema.
+
+#### Handling connection errors
+
+When a BLE operation fails, the stream emits an update with a structured `connectionStatus.error` object. The socket stays open across errors — do not reconnect the WebSocket when you see one.
+
+Example payload:
+
+```json
+{
+  "connectionStatus": {
+    "phase": "idle",
+    "error": {
+      "kind": "scaleConnectFailed",
+      "severity": "error",
+      "timestamp": "2026-04-19T07:49:29.025Z",
+      "deviceId": "50:78:7D:1F:AE:E1",
+      "deviceName": "Decent Scale",
+      "message": "Scale Decent Scale failed to connect.",
+      "suggestion": "Wake the scale and try again.",
+      "details": {"fbp_code": 1}
+    }
+  }
+}
+```
+
+`connectionStatus.error` is `null` when no error is active.
+
+**Kind taxonomy:**
+
+| `kind` | When | Recommended action |
+|---|---|---|
+| `scaleConnectFailed` | Scale connect timeout / GATT 133 retries exhausted / etc. | Retry scan |
+| `machineConnectFailed` | DE1 connect fails | Retry scan |
+| `scaleDisconnected` | Scale drops mid-session (unexpected) | Retry scan |
+| `machineDisconnected` | DE1 drops mid-session (unexpected) | Retry scan |
+| `adapterOff` | Bluetooth adapter powered off | Instruct user to enable Bluetooth (no retry button) |
+| `bluetoothPermissionDenied` | BLE runtime permission refused | Instruct user to grant permission |
+| `scanFailed` | Scan failed to start | Retry scan |
+
+**Lifecycle rules:**
+
+- **Transient kinds** (`scaleConnectFailed`, `machineConnectFailed`, `scaleDisconnected`, `machineDisconnected`) auto-clear when a new operation starts — i.e. the phase transitions to `scanning`, `connectingMachine`, `connectingScale`, or `ready`.
+- **Sticky kinds** (`adapterOff`, `bluetoothPermissionDenied`, `scanFailed`) survive phase transitions. They clear only when the environment recovers (adapter on, permission granted, successful scan start).
+- Emitting any new error overwrites the previous one. **Latest event wins.**
+
+**Client pattern:** use `kind` as the primary lookup key for your own copy / action mapping; fall back to `message` + `suggestion` for unknown kinds. De-duplicate toasts by `timestamp`.
+
+```javascript
+const copyForKind = {
+  scaleConnectFailed: 'Scale did not connect. Wake it and retry.',
+  machineConnectFailed: 'DE1 did not connect. Retry scan.',
+  scaleDisconnected: 'Scale dropped. Retry scan.',
+  machineDisconnected: 'DE1 dropped. Retry scan.',
+  adapterOff: 'Bluetooth is off. Turn it on to continue.',
+  bluetoothPermissionDenied: 'Grant Bluetooth permission to continue.',
+  scanFailed: 'Scan could not start. Retry.',
+};
+
+let lastSeen = null;
+
+ws.addEventListener('message', (e) => {
+  const msg = JSON.parse(e.data);
+  const err = msg.connectionStatus?.error;
+
+  if (!err) {
+    hideBanner();
+    return;
+  }
+
+  if (err.timestamp !== lastSeen) {
+    lastSeen = err.timestamp;
+    toast(copyForKind[err.kind] ?? `${err.message}\n${err.suggestion ?? ''}`);
+  }
+
+  showBanner(copyForKind[err.kind] ?? err.message);
+});
+```
+
+**Do not reconnect the WebSocket on an error.** The socket stays open across errors; reconnecting will just miss the next status update.
+
 ---
 
 ## Best Practices
