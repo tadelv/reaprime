@@ -106,20 +106,40 @@ class ConnectionManager {
     // Watch de1Controller.de1 stream — null means machine disconnected.
     // Ignore null emissions while actively connecting (connectToDe1 calls
     // _onDisconnect() at the start, which emits null transiently).
+    String? lastKnownMachineId;
     _machineDisconnectSub = de1Controller.de1.listen((de1) {
-      if (de1 == null && _machineConnected && !_isConnectingMachine) {
+      if (de1 != null) {
+        lastKnownMachineId = de1.deviceId;
+        return;
+      }
+      if (_machineConnected && !_isConnectingMachine) {
         _log.fine('Machine disconnected');
         _machineConnected = false;
         _publishStatus(
           currentStatus.copyWith(phase: ConnectionPhase.idle),
         );
+        final id = lastKnownMachineId;
+        if (id != null) {
+          _handleMachineDisconnect(id);
+        }
       }
     });
 
-    // Watch scaleController.connectionState — disconnected resets flag
+    // Watch scaleController.connectionState — emit scaleDisconnected on a
+    // connected → disconnected transition (unless marked expected).
     _scaleDisconnectSub = scaleController.connectionState.listen((state) {
+      final wasConnected = _scaleConnected;
       _scaleConnected = state == device.ConnectionState.connected;
       _log.fine("scale connection update: $_scaleConnected");
+      if (wasConnected &&
+          state == device.ConnectionState.disconnected &&
+          !_isConnectingScale) {
+        final id = scaleController.lastConnectedDeviceId ??
+            settingsController.preferredScaleId;
+        if (id != null) {
+          _handleScaleDisconnect(id);
+        }
+      }
     });
   }
 
@@ -803,6 +823,7 @@ class ConnectionManager {
     _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.idle));
     final de1 = await de1Controller.de1.first;
     if (de1 != null) {
+      markExpectingDisconnect(de1.deviceId);
       await de1.disconnect();
     }
   }
@@ -810,6 +831,7 @@ class ConnectionManager {
   Future<void> disconnectScale() async {
     try {
       final scale = scaleController.connectedScale();
+      markExpectingDisconnect(scale.deviceId);
       await scale.disconnect();
     } catch (_) {
       // No scale connected — nothing to disconnect

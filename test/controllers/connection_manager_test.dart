@@ -971,6 +971,40 @@ void main() {
             ConnectionErrorKind.machineDisconnected);
       });
     });
+
+    group('disconnect subscribers', () {
+      test('scale disconnect during expected flow suppresses error', () async {
+        // Pretend scale was connected.
+        mockScaleController
+            .mockEmitConnectionState(ConnectionState.connected);
+        mockScaleController.debugSetLastConnectedId('50:78:7D:1F:AE:E1');
+        await Future<void>.delayed(Duration.zero);
+
+        // Mark expected, then emit disconnect.
+        connectionManager.markExpectingDisconnect('50:78:7D:1F:AE:E1');
+        mockScaleController
+            .mockEmitConnectionState(ConnectionState.disconnected);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(connectionManager.currentStatus.error, isNull);
+      });
+
+      test('unexpected scale disconnect emits scaleDisconnected', () async {
+        mockScaleController
+            .mockEmitConnectionState(ConnectionState.connected);
+        mockScaleController.debugSetLastConnectedId('50:78:7D:1F:AE:E1');
+        await Future<void>.delayed(Duration.zero);
+
+        mockScaleController
+            .mockEmitConnectionState(ConnectionState.disconnected);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(connectionManager.currentStatus.error?.kind,
+            ConnectionErrorKind.scaleDisconnected);
+        expect(connectionManager.currentStatus.error?.deviceId,
+            '50:78:7D:1F:AE:E1');
+      });
+    });
   });
 }
 

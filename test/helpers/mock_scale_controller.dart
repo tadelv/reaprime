@@ -24,7 +24,23 @@ class MockScaleController extends ScaleController {
   final BehaviorSubject<ConnectionState> connectionStateSubject =
       BehaviorSubject.seeded(ConnectionState.discovered);
 
+  String? _mockLastConnectedDeviceId;
+
   MockScaleController();
+
+  @override
+  String? get lastConnectedDeviceId => _mockLastConnectedDeviceId;
+
+  /// Seed [lastConnectedDeviceId] without going through [connectToScale].
+  void debugSetLastConnectedId(String id) {
+    _mockLastConnectedDeviceId = id;
+  }
+
+  /// Push a [ConnectionState] onto the stream that ConnectionManager
+  /// subscribes to, simulating a transport-level transition.
+  void mockEmitConnectionState(ConnectionState state) {
+    connectionStateSubject.add(state);
+  }
 
   @override
   Stream<ConnectionState> get connectionState =>
@@ -43,6 +59,7 @@ class MockScaleController extends ScaleController {
     }
     // Don't call super — we don't want real connection logic in tests.
     // Instead, emit connected state so listeners see the change.
+    _mockLastConnectedDeviceId = scale.deviceId;
     connectionStateSubject.add(ConnectionState.connected);
   }
 }
