@@ -13,6 +13,12 @@ class ScaleController {
   StreamSubscription<ConnectionState>? _scaleConnection;
   StreamSubscription<ScaleSnapshot>? _scaleSnapshot;
 
+  /// The deviceId of the most recently connected scale. Not cleared on
+  /// disconnect — ConnectionManager reads this after a drop to know which
+  /// device went away. Overwritten on the next successful connect.
+  String? _lastConnectedDeviceId;
+  String? get lastConnectedDeviceId => _lastConnectedDeviceId;
+
   final Logger log = Logger('ScaleController');
 
   ScaleController();
@@ -39,6 +45,7 @@ class ScaleController {
     // state from before reconnection.
     _scaleConnection = scale.connectionState.listen(_processConnection);
     _scale = scale;
+    _lastConnectedDeviceId = scale.deviceId;
     _connectionController.add(ConnectionState.connected);
   }
 

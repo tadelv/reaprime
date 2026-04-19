@@ -308,6 +308,7 @@ class DevicesHandler {
     if (device == null) {
       return jsonNotFound({'error': 'Device not found: $deviceId'});
     }
+    _connectionManager.markExpectingDisconnect(device.deviceId);
     await device.disconnect();
 
     return jsonOk(null);
@@ -409,6 +410,7 @@ class DevicesHandler {
           socket.sink.add(jsonEncode({'error': 'Device not found: $deviceId'}));
           return;
         }
+        _connectionManager.markExpectingDisconnect(device.deviceId);
         device.disconnect().catchError((e) {
           socket.sink.add(jsonEncode({'error': 'Disconnect failed: $e'}));
         });

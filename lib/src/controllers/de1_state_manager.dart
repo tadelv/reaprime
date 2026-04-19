@@ -254,6 +254,7 @@ class De1StateManager with WidgetsBindingObserver {
             _logger.warning('Failed to sleep scale display: $e');
           });
         } else if (scalePowerMode == ScalePowerMode.disconnect) {
+          _connectionManager.markExpectingDisconnect(scale.deviceId);
           scale.disconnect().catchError((e) {
             _logger.warning('Failed to disconnect scale: $e');
           });
