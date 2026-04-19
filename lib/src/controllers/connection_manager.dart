@@ -90,6 +90,9 @@ class ConnectionManager {
   StreamSubscription? _machineDisconnectSub;
   StreamSubscription? _scaleDisconnectSub;
 
+  final Set<String> _expectingDisconnectFor = {};
+  final Map<String, Timer> _expectingDisconnectTimers = {};
+
   ConnectionManager({
     required this.deviceScanner,
     required this.de1Controller,
@@ -237,6 +240,72 @@ class ConnectionManager {
   @visibleForTesting
   void debugSetPhase(ConnectionPhase phase) {
     _statusSubject.add(currentStatus.copyWith(phase: phase));
+  }
+
+  /// Call immediately before an app-initiated disconnect. The next
+  /// `disconnected` event for `deviceId` will be treated as expected and
+  /// will not emit an error. A 10-second TTL safety timer clears the
+  /// expectation if the disconnect event never arrives.
+  void markExpectingDisconnect(String deviceId) {
+    _expectingDisconnectFor.add(deviceId);
+    _expectingDisconnectTimers[deviceId]?.cancel();
+    _expectingDisconnectTimers[deviceId] =
+        Timer(const Duration(seconds: 10), () {
+      _expectingDisconnectFor.remove(deviceId);
+      _expectingDisconnectTimers.remove(deviceId);
+    });
+  }
+
+  bool _consumeExpectingDisconnect(String deviceId) {
+    final wasExpecting = _expectingDisconnectFor.remove(deviceId);
+    if (wasExpecting) {
+      _expectingDisconnectTimers.remove(deviceId)?.cancel();
+    }
+    return wasExpecting;
+  }
+
+  void _handleScaleDisconnect(String deviceId) {
+    if (_consumeExpectingDisconnect(deviceId)) {
+      _log.fine('Scale $deviceId: expected disconnect, suppressing error');
+      return;
+    }
+    _emit(ConnectionError(
+      kind: ConnectionErrorKind.scaleDisconnected,
+      severity: ConnectionErrorSeverity.error,
+      timestamp: DateTime.now().toUtc(),
+      deviceId: deviceId,
+      message: 'Scale disconnected unexpectedly.',
+      suggestion:
+          'The scale may have powered off or moved out of range. '
+          'Wake the scale and reconnect.',
+    ));
+  }
+
+  void _handleMachineDisconnect(String deviceId) {
+    if (_consumeExpectingDisconnect(deviceId)) {
+      _log.fine('Machine $deviceId: expected disconnect, suppressing error');
+      return;
+    }
+    _emit(ConnectionError(
+      kind: ConnectionErrorKind.machineDisconnected,
+      severity: ConnectionErrorSeverity.error,
+      timestamp: DateTime.now().toUtc(),
+      deviceId: deviceId,
+      message: 'Machine disconnected unexpectedly.',
+      suggestion:
+          'Check the machine is powered on and in range, then '
+          'reconnect.',
+    ));
+  }
+
+  @visibleForTesting
+  void debugNotifyScaleDisconnected(String deviceId) {
+    _handleScaleDisconnect(deviceId);
+  }
+
+  @visibleForTesting
+  void debugNotifyMachineDisconnected(String deviceId) {
+    _handleMachineDisconnect(deviceId);
   }
 
   /// Scan for devices and connect based on preference policy.
@@ -751,6 +820,11 @@ class ConnectionManager {
   void dispose() {
     _machineDisconnectSub?.cancel();
     _scaleDisconnectSub?.cancel();
+    for (final t in _expectingDisconnectTimers.values) {
+      t.cancel();
+    }
+    _expectingDisconnectTimers.clear();
+    _expectingDisconnectFor.clear();
     _statusSubject.close();
     _scanReportSubject.close();
   }
