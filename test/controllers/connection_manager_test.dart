@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart'
     show FlutterBluePlusException, ErrorPlatform;
 import 'package:flutter_test/flutter_test.dart';
@@ -925,6 +926,49 @@ void main() {
         expect(err!.kind, ConnectionErrorKind.scaleConnectFailed);
 
         await sub.cancel();
+      });
+    });
+
+    group('deliberate disconnect tracking', () {
+      test('markExpectingDisconnect suppresses next disconnect error', () {
+        connectionManager.markExpectingDisconnect('50:78:7D:1F:AE:E1');
+        connectionManager.debugNotifyScaleDisconnected('50:78:7D:1F:AE:E1');
+        expect(connectionManager.currentStatus.error, isNull);
+      });
+
+      test('unexpected disconnect emits scaleDisconnected', () {
+        connectionManager.debugNotifyScaleDisconnected('50:78:7D:1F:AE:E1');
+        expect(connectionManager.currentStatus.error?.kind,
+            ConnectionErrorKind.scaleDisconnected);
+        expect(connectionManager.currentStatus.error?.deviceId,
+            '50:78:7D:1F:AE:E1');
+      });
+
+      test('TTL clears expectation after 10 seconds', () {
+        fakeAsync((async) {
+          connectionManager.markExpectingDisconnect('50:78:7D:1F:AE:E1');
+          async.elapse(const Duration(seconds: 11));
+          connectionManager.debugNotifyScaleDisconnected('50:78:7D:1F:AE:E1');
+          expect(connectionManager.currentStatus.error?.kind,
+              ConnectionErrorKind.scaleDisconnected);
+        });
+      });
+
+      test('only one matching disconnect is consumed per mark', () {
+        connectionManager.markExpectingDisconnect('50:78:7D:1F:AE:E1');
+        connectionManager.debugNotifyScaleDisconnected('50:78:7D:1F:AE:E1');
+        expect(connectionManager.currentStatus.error, isNull);
+
+        connectionManager.debugNotifyScaleDisconnected('50:78:7D:1F:AE:E1');
+        expect(connectionManager.currentStatus.error?.kind,
+            ConnectionErrorKind.scaleDisconnected);
+      });
+
+      test('marks for different devices are independent', () {
+        connectionManager.markExpectingDisconnect('50:78:7D:1F:AE:E1');
+        connectionManager.debugNotifyMachineDisconnected('D9:11:0B:E6:9F:86');
+        expect(connectionManager.currentStatus.error?.kind,
+            ConnectionErrorKind.machineDisconnected);
       });
     });
   });
