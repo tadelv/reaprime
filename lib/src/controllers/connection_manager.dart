@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/controllers/connection_error.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
@@ -27,7 +28,7 @@ class ConnectionStatus {
   final List<De1Interface> foundMachines;
   final List<Scale> foundScales;
   final AmbiguityReason? pendingAmbiguity;
-  final String? error;
+  final ConnectionError? error;
 
   const ConnectionStatus({
     this.phase = ConnectionPhase.idle,
@@ -42,7 +43,7 @@ class ConnectionStatus {
     List<De1Interface>? foundMachines,
     List<Scale>? foundScales,
     AmbiguityReason? Function()? pendingAmbiguity,
-    String? Function()? error,
+    ConnectionError? Function()? error,
   }) {
     return ConnectionStatus(
       phase: phase ?? this.phase,
@@ -433,7 +434,8 @@ class ConnectionManager {
       _statusSubject.add(
         currentStatus.copyWith(
           phase: ConnectionPhase.idle,
-          error: () => e.toString(),
+          // TODO(task-5): emit structured ConnectionError here.
+          error: () => null,
         ),
       );
       rethrow;

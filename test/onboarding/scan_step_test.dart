@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reaprime/src/controllers/connection_error.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scan_state_guardian.dart';
@@ -337,9 +338,14 @@ void main() {
       await tester.pump();
 
       mockConnectionManager.emitStatus(
-        const ConnectionStatus(
+        ConnectionStatus(
           phase: ConnectionPhase.idle,
-          error: 'Connection timed out',
+          error: ConnectionError(
+            kind: ConnectionErrorKind.machineConnectFailed,
+            severity: ConnectionErrorSeverity.error,
+            timestamp: DateTime.utc(2026),
+            message: 'Connection timed out',
+          ),
         ),
       );
       await tester.pump();
@@ -354,9 +360,14 @@ void main() {
       await tester.pump();
 
       mockConnectionManager.emitStatus(
-        const ConnectionStatus(
+        ConnectionStatus(
           phase: ConnectionPhase.idle,
-          error: 'Connection timed out',
+          error: ConnectionError(
+            kind: ConnectionErrorKind.machineConnectFailed,
+            severity: ConnectionErrorSeverity.error,
+            timestamp: DateTime.utc(2026),
+            message: 'Connection timed out',
+          ),
         ),
       );
       await tester.pump();
