@@ -15,6 +15,7 @@ import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1_tran
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/rxdart.dart';
 
 part 'unified_de1.mmr.dart';

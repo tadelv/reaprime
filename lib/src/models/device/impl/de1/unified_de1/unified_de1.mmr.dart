@@ -1,5 +1,10 @@
 part of 'unified_de1.dart';
 
+/// Bounded wait for an MMR notification matching the read request.
+/// Without this, a single dropped notify during `onConnect` hangs the
+/// entire connect call chain forever. See comms-harden #2.
+const _mmrReadTimeout = Duration(seconds: 2);
+
 extension UnifiedDe1MMR on UnifiedDe1 {
   Future<List<int>> _mmrRead(MMRItem item, {int length = 0}) async {
     _log.info("mmr read: ${item.name}");
@@ -29,7 +34,12 @@ extension UnifiedDe1MMR on UnifiedDe1 {
           } else {
             return false;
           }
-        }, orElse: () => <int>[]);
+        }, orElse: () => <int>[])
+        .timeout(
+          _mmrReadTimeout,
+          onTimeout: () =>
+              throw MmrTimeoutException(item.name, _mmrReadTimeout),
+        );
     _log.info(
       "listen event Result:  ${result.map((e) => e.toRadixString(16)).toList()}",
     );
@@ -118,6 +128,16 @@ extension UnifiedDe1MMR on UnifiedDe1 {
   };
 
   int _unpackMMRInt(List<int> buffer) {
+    // Defensive guard: `_mmrRead` now throws `MmrTimeoutException` on
+    // missing responses and shouldn't reach here with a short buffer,
+    // but an explicit error beats a downstream `RangeError` if the
+    // upstream contract ever changes. The loop below reads 20 bytes.
+    if (buffer.length < 20) {
+      throw StateError(
+        'MMR response buffer too short (got ${buffer.length} bytes, '
+        'expected at least 20)',
+      );
+    }
     ByteData bytes = ByteData(20);
     var i = 0;
     var list = bytes.buffer.asUint8List();

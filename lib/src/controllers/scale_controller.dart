@@ -4,6 +4,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/weight_flow_calculator.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/util/moving_average.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -59,7 +60,7 @@ class ScaleController {
 
   Scale connectedScale() {
     if (_scale == null) {
-      throw "No scale connected";
+      throw const DeviceNotConnectedException.scale();
     }
     return _scale!;
   }
