@@ -231,6 +231,12 @@ class UnifiedDe1 implements De1Interface {
 
   final StreamController<De1RawMessage> _rawInputController =
       StreamController();
+
+  /// Guards `initRawStream()` against a second `.listen()` on the
+  /// single-subscription `_rawInputController`. Without this, a
+  /// reconnect on the same `UnifiedDe1` instance throws
+  /// `Bad state: Stream has already been listened to.` See comms-harden #3.
+  bool _rawStreamInitialized = false;
   @override
   void sendRawMessage(De1RawMessage message) {
     _rawInputController.add(message);
