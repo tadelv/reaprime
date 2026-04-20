@@ -378,7 +378,9 @@ class LinuxBleDiscoveryService extends BleDiscoveryService {
       _log.warning("Refresh scan failed: $e");
       try {
         await FlutterBluePlus.stopScan();
-      } catch (_) {}
+      } catch (e, st) {
+        _log.fine('stopScan after failed refresh scan errored', e, st);
+      }
     }
   }
 

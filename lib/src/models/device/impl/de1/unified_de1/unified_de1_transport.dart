@@ -481,7 +481,9 @@ class UnifiedDe1Transport {
       try {
         // Don't await — BLE stack may be unresponsive
         _transport.disconnect();
-      } catch (_) {}
+      } catch (e, st) {
+        _log.fine('transport.disconnect() during BLE recovery failed', e, st);
+      }
       return false;
     }
   }
