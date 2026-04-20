@@ -7,6 +7,7 @@ import 'package:reaprime/src/home_feature/forms/steam_form.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/subjects.dart';
 
 part 'de1_controller.defaults.dart';
@@ -179,14 +180,14 @@ class De1Controller {
 
   De1Interface connectedDe1() {
     if (_de1 == null) {
-      throw "De1 not connected yet";
+      throw const DeviceNotConnectedException.machine();
     }
     return _de1!;
   }
 
   Future<SteamFormSettings> steamSettings() async {
     if (_de1 == null) {
-      throw "De1 not connected yet";
+      throw const DeviceNotConnectedException.machine();
     }
     De1ShotSettings shotSettings = await connectedDe1().shotSettings.first;
     double flowRate = await connectedDe1().getSteamFlow();
@@ -215,7 +216,7 @@ class De1Controller {
 
   Future<HotWaterFormSettings> hotWaterSettings() async {
     if (_de1 == null) {
-      throw "De1 not connected yet";
+      throw const DeviceNotConnectedException.machine();
     }
     De1ShotSettings shotSettings = await connectedDe1().shotSettings.first;
     double flowRate = await connectedDe1().getHotWaterFlow();
