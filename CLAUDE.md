@@ -146,7 +146,7 @@ Driving a running Flutter app (start, stop, hot reload, curl, websocat) is docum
 
 - **RxDart:** Controllers use `BehaviorSubject` for state broadcasting
 - **Async init:** Services/controllers have `initialize()` methods called from `main.dart`
-- **Logging:** `package:logging`, configured in `main.dart`. Logs to `~/Download/REA1/log.txt` (Android) or app documents dir (other platforms)
+- **Logging:** `package:logging`, configured in `main.dart`. File log lives under `getApplicationDocumentsDirectory()/log.txt` (plus rotated `log.txt.1..3`) — app-private on every platform. On Android retrieve with `adb shell run-as net.tadel.reaprime cat app_flutter/log.txt` (or use `adb logcat` for live output). The legacy `~/Download/REA1/log.txt` path from older Android builds is obsolete and no longer written.
 - **Foreground service:** Android uses `ForegroundTaskService` to maintain BLE in background. Auto-stops after a 5-minute grace period when the machine disconnects; auto-restarts on reconnect. Shows connection state in the notification.
 - **StreamBuilder patterns:**
   - Check both `hasData` AND `data != null` for nullable streams (e.g., `De1Interface?`)
