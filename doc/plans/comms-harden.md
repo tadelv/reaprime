@@ -2,7 +2,12 @@
 
 Roadmap + task list for hardening and simplifying the device connectivity layer. Combines findings from two independent code reviews plus a cross-affect analysis that groups issues by structural coupling and sequences them for lowest-risk execution.
 
-**Status:** Phase 0 + Phase 1 complete as of 2026-04-20 (see `archive/comms-phase-1/`). Five items landed: #1 profile guard, #2 MMR timeout, #3 initRawStream idempotency (promoted from Phase 5), #25 typed exceptions, #26 comms-critical catch logging. Real-hardware smoke test on tablet + DE1Pro confirmed the reconnect-wedge bug (#3) is gone. Phase 2 (state derivation — Cluster A keystone) is next.
+**Status:** Phase 0, 1, and 2 complete as of 2026-04-20 (see `archive/comms-phase-1/`, `archive/comms-phase-2/`). 14 items landed total.
+
+- **Phase 1 (5 items):** #1 profile guard, #2 MMR timeout, #3 initRawStream idempotency (promoted from Phase 5), #25 typed exceptions, #26 comms-critical catch logging.
+- **Phase 2 (9 items):** #4 ScaleController flag stuck, #6 flags diverge, #7 early-connect race (partial), #8 error emission ordering, #9 scaleOnly queue, #14 deviceStream re-wrap, #17 duplicate device tracking, #18 Future-as-flag, #22 scan API shape. #21 (the scan-start race comment) fell out naturally with #22.
+
+Real-hardware smokes on tablet + DE1Pro validated each sub-PR. Phase 3 (scan ownership — Cluster B) is next.
 
 **How to read this doc:**
 
@@ -237,7 +242,7 @@ Also: `_unpackMMRInt` indexes `buffer[i]` without bounds check — if `firstWher
 
 ---
 
-### [ ] 4. `ScaleController` flag set before `onConnect` verified — `[A · Phase 2]`
+### [x] 4. `ScaleController` flag set before `onConnect` verified — `[A · Phase 2 — DONE]`
 
 **File:** `connection_manager.dart` `connectScale` (~line 823) and `scale_controller.dart`.
 
@@ -261,7 +266,7 @@ Also: `scale_controller.dart:29–31` subscribes to `scale.currentSnapshot` befo
 
 ## P1 — State-sync & concurrency
 
-### [ ] 6. `_machineConnected` / `_scaleConnected` flags diverge from real state — `[A · Phase 2]`
+### [x] 6. `_machineConnected` / `_scaleConnected` flags diverge from real state — `[A · Phase 2 — DONE (replaced with getters over tracked-latest fields)]`
 
 **File:** `connection_manager.dart:85–90`, `133–163`.
 
@@ -277,7 +282,7 @@ Scan reports can claim "machine connected" going into scale phase when it isn't.
 
 ---
 
-### [ ] 7. Early-connect race in `_connectImpl` stream listener — `[A · Phase 2]`
+### [~] 7. Early-connect race in `_connectImpl` stream listener — `[A · Phase 2 — PARTIAL: Future-as-flag gone; subscription-before-scan race remains as theoretical concern, not observed in practice]`
 
 **File:** `connection_manager.dart` `_connectImpl` (~lines 437–475).
 
@@ -289,7 +294,7 @@ Separately: `earlyMachineConnect` / `earlyScaleConnect` guards are not atomic wi
 
 ---
 
-### [ ] 8. Error emission ordering is fragile — `[A · Phase 2]`
+### [x] 8. Error emission ordering is fragile — `[A · Phase 2 — DONE (_emit routes through _publishStatus; single path)]`
 
 **File:** `connection_manager.dart` `_publishStatus` / `_emit`.
 
@@ -299,7 +304,7 @@ Two paths: `_publishStatus` has phase-clearing logic, `_emit` bypasses it. Order
 
 ---
 
-### [ ] 9. `scaleOnly` reconnect silently dropped during machine-connect — `[A · Phase 2, pending product call]`
+### [x] 9. `scaleOnly` reconnect silently dropped during machine-connect — `[A · Phase 2 — DONE (queued via shared completer, drained after in-flight connect)]`
 
 **File:** `connection_manager.dart` `connect()` `_isConnecting` guard (~lines 384–391).
 
@@ -351,7 +356,7 @@ All three transports cancel+recreate `_nativeConnectionSub` at the start of `con
 
 ---
 
-### [ ] 14. `deviceStream` getter re-wraps on every call — `[A · Phase 2]`
+### [x] 14. `deviceStream` getter re-wraps on every call — `[A · Phase 2 — DONE (exposes `.stream` directly)]`
 
 **File:** `device_controller.dart:54`.
 
@@ -393,7 +398,7 @@ Collaborator classes for status/state, scan orchestration, policy application.
 
 ---
 
-### [ ] 17. Duplicate device tracking — three sources of truth — `[B · Phase 2]`
+### [x] 17. Duplicate device tracking — three sources of truth — `[B · Phase 2 — DONE (ScanResult.matchedDevices is authoritative)]`
 
 `matchedDeviceResults` Map, `deviceScanner.devices`, and the `deviceStream` subscription callback all represent "devices seen during scan". Ambiguous which is authoritative.
 
@@ -401,7 +406,7 @@ Collaborator classes for status/state, scan orchestration, policy application.
 
 ---
 
-### [ ] 18. Nullable `Future<void>?` as state flag — `[A · Phase 2]`
+### [x] 18. Nullable `Future<void>?` as state flag — `[A · Phase 2 — DONE (explicit `(started, pending)` pairs for early connect)]`
 
 `earlyMachineConnect`, `earlyScaleConnect` — using `Future<void>?` to track "in progress". Obscures intent.
 
@@ -427,7 +432,7 @@ Collaborator classes for status/state, scan orchestration, policy application.
 
 ---
 
-### [ ] 21. Over-commented workaround in scan-start race — `[B · Phase 2, collapses with #22]`
+### [x] 21. Over-commented workaround in scan-start race — `[B · Phase 2 — DONE (15-line comment deleted with #22 fix)]`
 
 ```dart
 // Start the scan and subscribe to scanningStream concurrently so we
@@ -444,7 +449,7 @@ Collaborator classes for status/state, scan orchestration, policy application.
 
 ---
 
-### [ ] 22. `DeviceController.scanForDevices` returns before scan completes; errors swallowed — `[B · Phase 2, keystone]`
+### [x] 22. `DeviceController.scanForDevices` returns before scan completes; errors swallowed — `[B · Phase 2 — DONE (Future<ScanResult> with partial-failure semantics)]`
 
 **File:** `device_controller.dart:99–150`.
 
