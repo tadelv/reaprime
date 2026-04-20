@@ -96,56 +96,86 @@ class DeviceController implements DeviceScanner {
     // This avoids competing BLE scans that interfere with each other.
   }
 
-  Future<void> scanForDevices() async {
+  /// In-flight scan Future so concurrent callers share a single scan
+  /// cycle instead of kicking off parallel scans that would interfere
+  /// with each other at the BLE layer.
+  Future<ScanResult>? _inFlightScan;
+
+  @override
+  Future<ScanResult> scanForDevices() {
+    return _inFlightScan ??= _runScan().whenComplete(() {
+      _inFlightScan = null;
+    });
+  }
+
+  Future<ScanResult> _runScan() async {
     _scanningStream.add(true);
-    // throw out disconnected/discovered devices (keep connected and connecting)
-    for (final entry in _devices.entries) {
-      final devices = entry.value;
-      final toRemove = <Device>[];
-      for (final device in devices) {
-        final state = await device.connectionState.first
-            .timeout(const Duration(seconds: 2),
-                onTimeout: () => ConnectionState.disconnected);
-        if (state != ConnectionState.connected &&
-            state != ConnectionState.connecting) {
-          toRemove.add(device);
+    final start = DateTime.now();
+    try {
+      // Throw out disconnected/discovered devices (keep connected and connecting).
+      for (final entry in _devices.entries) {
+        final devices = entry.value;
+        final toRemove = <Device>[];
+        for (final device in devices) {
+          final state = await device.connectionState.first.timeout(
+            const Duration(seconds: 2),
+            onTimeout: () => ConnectionState.disconnected,
+          );
+          if (state != ConnectionState.connected &&
+              state != ConnectionState.connecting) {
+            toRemove.add(device);
+          }
+        }
+        for (final device in toRemove) {
+          devices.remove(device);
         }
       }
-      for (final device in toRemove) {
-        devices.remove(device);
-      }
-    }
-    // Sync the disconnect-detection baseline with the cleaned list so that
-    // service emissions arriving during the scan don't see false diffs.
-    _previousDeviceNames.clear();
-    _previousDeviceNames.addAll(devices.map((d) => d.name));
-    _deviceStream.add(devices);
-    // Scan all services in parallel
-    final completer = Completer();
-    try {
-      completer.complete(
-        Future.wait(
-          _services.map((service) async {
-            try {
-              _log.fine("starting scan for $service");
-              await service.scanForDevices();
-            } catch (e, st) {
-              _log.warning("Service $service failed to scan:", e, st);
-            }
-          }),
-        ),
+      // Sync the disconnect-detection baseline with the cleaned list so
+      // that service emissions arriving during the scan don't see false
+      // diffs.
+      _previousDeviceNames.clear();
+      _previousDeviceNames.addAll(devices.map((d) => d.name));
+      _deviceStream.add(devices);
+
+      // Run every service's scan in parallel and capture per-service
+      // failures in the result rather than torpedoing the whole scan.
+      // A user with BLE permission denied but a USB DE1 connected still
+      // gets their machine back from the serial service.
+      final failures = <ServiceScanFailure>[];
+      await Future.wait(
+        _services.map((service) async {
+          try {
+            _log.fine("starting scan for $service");
+            await service.scanForDevices();
+          } catch (e, st) {
+            _log.warning("Service $service failed to scan:", e, st);
+            failures.add(
+              ServiceScanFailure(
+                serviceName: service.runtimeType.toString(),
+                error: e,
+                stackTrace: st,
+              ),
+            );
+          }
+        }),
+      );
+
+      _log.info("current devices: $devices");
+      // Settle delay before flipping scanningStream so downstream UI
+      // observers see a stable "scanning" period rather than a
+      // zero-duration flicker when services resolve synchronously.
+      // Preserved from the pre-PR-A implementation to keep widget-test
+      // timing assumptions intact; revisit in PR B when status
+      // derivation is in place.
+      await Future.delayed(const Duration(milliseconds: 200));
+      return ScanResult(
+        matchedDevices: List.unmodifiable(devices),
+        failedServices: List.unmodifiable(failures),
+        terminationReason: ScanTerminationReason.completed,
+        duration: DateTime.now().difference(start),
       );
     } finally {
-      completer.future
-          .timeout(Duration(seconds: 30))
-          .then((_) {}, onError: (e) {
-        _log.warning("scan timed out or failed: $e");
-      }).whenComplete(() async {
-        await Future.delayed(Duration(milliseconds: 200), () {
-          if (!_scanningStream.isClosed) _scanningStream.add(false);
-          _log.info("current devices: $devices");
-        });
-      });
+      if (!_scanningStream.isClosed) _scanningStream.add(false);
     }
   }
 
