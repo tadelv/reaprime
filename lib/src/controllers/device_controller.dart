@@ -51,7 +51,13 @@ class DeviceController implements DeviceScanner {
     _telemetryService = service;
   }
 
-  Stream<List<Device>> get deviceStream => _deviceStream.asBroadcastStream();
+  // Expose the BehaviorSubject's own stream directly — it is already
+  // broadcast-compatible and supports multiple listeners with replay.
+  // Avoids the previous `asBroadcastStream()` wrapping, which created
+  // a new broadcast wrapper on every getter call and accumulated
+  // underlying subscriptions (comms-harden #14).
+  @override
+  Stream<List<Device>> get deviceStream => _deviceStream.stream;
 
   List<Device> get devices =>
       _devices.values.fold(List<Device>.empty(growable: true), (res, el) {
