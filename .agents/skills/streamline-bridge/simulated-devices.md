@@ -1,6 +1,6 @@
 # Simulated devices
 
-Streamline Bridge ships with in-process mock implementations of its supported devices so you can develop and run tests without a real DE1 or scale on hand. Simulate mode is deterministic, CI-friendly, and enabled via `--dart-define=simulate=1` (all mocks), a comma-delimited subset like `--dart-define=simulate=machine,scale`, or the in-app Settings UI toggle (`SimulatedDevicesTypes` — machine, scale, sensor). `sb-dev start` always injects `--dart-define=simulate=1`.
+Streamline Bridge ships with in-process mock implementations of its supported devices so you can develop and run tests without a real DE1 or scale on hand. Simulate mode is deterministic, CI-friendly, and enabled via `--dart-define=simulate=1` (all mocks), a comma-delimited subset like `--dart-define=simulate=machine,scale`, or the in-app Settings UI toggle (`SimulatedDevicesTypes` — machine, scale, sensor). `sb-dev start` injects `--dart-define=simulate=1` by default; pass `--real` to opt out and run against real hardware (see `lifecycle.md`).
 
 ## Available mocks
 

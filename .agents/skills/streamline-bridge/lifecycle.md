@@ -1,6 +1,6 @@
 # sb-dev lifecycle
 
-`scripts/sb-dev.sh` is a POSIX Bash helper that drives `flutter run` in simulate mode for development work. It owns the flutter child process, exposes hot reload / hot restart / cold restart, and tails the combined log — replacing the old MCP lifecycle tools (`app_start`, `app_stop`, etc). It targets macOS and Linux contributors. Windows users should run `flutter run --dart-define=simulate=1` directly in a terminal and skip this file.
+`scripts/sb-dev.sh` is a POSIX Bash helper that drives `flutter run` for development work. By default it injects `--dart-define=simulate=1` for MockDe1/MockScale; `--real` opts out to exercise real BLE or USB devices. It owns the flutter child process, exposes hot reload / hot restart / cold restart, and tails the combined log — replacing the old MCP lifecycle tools (`app_start`, `app_stop`, etc). It targets macOS and Linux contributors. Windows users should run `flutter run` directly (add `--dart-define=simulate=1` for simulate mode) and skip this file.
 
 ## Prerequisites
 
@@ -18,17 +18,27 @@ All commands are run from the repo root as `scripts/sb-dev.sh <cmd>`.
 
 ### `start`
 
-Spawns `flutter run` via `./flutter_with_commit.sh run` with `--dart-define=simulate=1` always injected, waits up to 120s for `GET /api/v1/devices` to respond, then (if `--connect-machine` was passed) scans and waits up to 30s for the named device to report `connected`.
+Spawns `flutter run` via `./flutter_with_commit.sh run`, waits up to 120s for `GET /api/v1/devices` to respond, then (if `--connect-machine` was passed) scans and waits up to 30s for the named device to report `connected`. `--dart-define=simulate=1` is injected by default — add `--real` for real hardware.
 
 Flags:
 
-- `--platform <name>` — forwarded as `-d <name>` to flutter (`macos`, `linux`, `chrome`, etc).
-- `--connect-machine <id>` — sets `--dart-define=preferredMachineId=<id>` and triggers a post-boot scan loop. Use `MockDe1` in simulate mode.
-- `--connect-scale <id>` — sets `--dart-define=preferredScaleId=<id>`. Use `MockScale`. Note: the scale's REST `name` field is `"Mock Scale"` (with space); the flag takes the dart-define identifier without a space.
+- `--platform <id>` — forwarded as `-d <id>` to flutter (`macos`, `linux`, `chrome`, or an Android adb serial like `8734SCCFAC00000747`).
+- `--connect-machine <name|id>` — sets `--dart-define=preferredMachineId=<value>` and triggers a post-boot scan loop. Simulate: `MockDe1`. Real BLE: the advertised name (`DE1`) or the MAC (`D9:11:0B:E6:9F:86`) — the scan loop matches either.
+- `--connect-scale <name|id>` — same semantics for the scale. Simulate example: `MockScale` (note the REST `name` field is `"Mock Scale"` with a space; the flag takes the dart-define identifier without one).
+- `--real` — skip injecting `--dart-define=simulate=1`. Mock device registration is compiled out, so only real transports (BLE, USB serial, HDS) will discover devices.
+- `--adb-forward` — before spawning flutter, run `adb forward tcp:$PORT tcp:$PORT` so the readiness check and all `curl` calls against `localhost:$PORT` reach the REST server on an Android device. Removed on `stop`.
 - `--dart-define key=val` — repeatable passthrough for extra defines.
 
 ```bash
+# Simulate (default)
 scripts/sb-dev.sh start --connect-machine MockDe1 --connect-scale MockScale
+
+# Real hardware on an Android tablet (adb serial from `flutter devices`)
+scripts/sb-dev.sh start \
+  --platform 8734SCCFAC00000747 \
+  --real \
+  --adb-forward \
+  --connect-machine DE1
 ```
 
 ### `stop`
@@ -95,6 +105,7 @@ Everything sb-dev owns lives under `$SB_RUNTIME_DIR` (default `/tmp/streamline-b
 - `stdin` — named pipe; flutter's stdin reads from it (`r`, `R`, `q` are written here)
 - `flutter.log` — combined stdout + stderr
 - `last-flags` — the flags from the most recent `start`, used by `restart`
+- `adb-forwarded` — touched when `start --adb-forward` installed a forward; `stop` removes the forward iff this marker is present
 
 `SB_HOST` and `SB_PORT` override the host/port used for `curl` checks (default `localhost:8080`).
 
