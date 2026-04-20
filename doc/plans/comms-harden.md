@@ -2,6 +2,8 @@
 
 Roadmap + task list for hardening and simplifying the device connectivity layer. Combines findings from two independent code reviews plus a cross-affect analysis that groups issues by structural coupling and sequences them for lowest-risk execution.
 
+**Status:** Phase 0 + Phase 1 complete as of 2026-04-20 (see `archive/comms-phase-1/`). Five items landed: #1 profile guard, #2 MMR timeout, #3 initRawStream idempotency (promoted from Phase 5), #25 typed exceptions, #26 comms-critical catch logging. Real-hardware smoke test on tablet + DE1Pro confirmed the reconnect-wedge bug (#3) is gone. Phase 2 (state derivation — Cluster A keystone) is next.
+
 **How to read this doc:**
 
 1. [Coupling map](#coupling-map) — clusters the 31 issues by what actually binds them together.
@@ -201,7 +203,7 @@ Files in scope:
 
 ## P0 — Ship-blockers (functional bugs)
 
-### [ ] 1. `setProfile` guard poisoned by failed upload — `[E · Phase 1]`
+### [x] 1. `setProfile` guard poisoned by failed upload — `[E · Phase 1 — DONE]`
 
 **File:** `unified_de1.dart` `setProfile` (`_currentProfile == profile` guard).
 
@@ -213,7 +215,7 @@ Equality itself is correct (`Profile extends Equatable`, deep field equality ove
 
 ---
 
-### [ ] 2. `_mmrRead` hangs `onConnect` forever on dropped notify — `[C · Phase 1]`
+### [x] 2. `_mmrRead` hangs `onConnect` forever on dropped notify — `[C · Phase 1 — DONE]`
 
 **File:** `unified_de1.mmr.dart:20–32`.
 
@@ -225,7 +227,7 @@ Also: `_unpackMMRInt` indexes `buffer[i]` without bounds check — if `firstWher
 
 ---
 
-### [ ] 3. `UnifiedDe1` raw stream controllers are single-subscription — `[C · Phase 5]`
+### [x] 3. `UnifiedDe1` raw stream controllers are single-subscription — `[C · Phase 1 — DONE (promoted from Phase 5 after real-hardware smoke test surfaced the reconnect wedge)]`
 
 **File:** `unified_de1.dart` (`_rawInputController`, `_rawMessageController`, ~lines 213, 231). No `dispose()`.
 
@@ -483,7 +485,7 @@ static const disconnectExpectationTTL = Duration(seconds: 10);
 
 ---
 
-### [ ] 25. Replace raw `String` throws with typed exceptions — `[E · Phase 1, unblocks #5]`
+### [x] 25. Replace raw `String` throws with typed exceptions — `[E · Phase 1 — DONE, unblocks #5]`
 
 `connectedDe1()` and `connectedScale()` throw raw string literals (`"De1 not connected yet"`). Callers must `catch (Object)`. No typed handling.
 
@@ -491,7 +493,7 @@ static const disconnectExpectationTTL = Duration(seconds: 10);
 
 ---
 
-### [ ] 26. Add logging to all swallowed catches — `[E · Phase 1]`
+### [x] 26. Add logging to all swallowed catches — `[E · Phase 1 — DONE (4 comms-critical sites; 15 non-comms sites deferred to a later hygiene sweep)]`
 
 Currently: `} catch (_) {}` with no log, no handling. At minimum:
 
