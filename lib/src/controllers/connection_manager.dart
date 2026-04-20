@@ -537,15 +537,20 @@ class ConnectionManager {
     if (earlyMachineConnect != null) {
       try {
         await earlyMachineConnect;
-      } catch (_) {
-        // connectMachine already handled the error and updated status
+      } catch (e, st) {
+        // connectMachine already emitted machineConnectFailed and
+        // _connectMachineTracked recorded the outcome on the tracker.
+        // If an error still slipped out, log for diagnostics.
+        _log.fine('Early machine connect slipped past tracker', e, st);
       }
     }
 
     if (earlyScaleConnect != null) {
       try {
         await earlyScaleConnect;
-      } catch (_) {}
+      } catch (e, st) {
+        _log.fine('Early scale connect slipped past tracker', e, st);
+      }
     }
 
     // Collect found devices

@@ -151,7 +151,9 @@ class LinuxBluePlusTransport implements BLETransport {
       _log.warning("Pre-connect cache refresh scan failed: $e");
       try {
         await FlutterBluePlus.stopScan();
-      } catch (_) {}
+      } catch (e, st) {
+        _log.fine('stopScan after failed cache refresh errored', e, st);
+      }
     }
   }
 
