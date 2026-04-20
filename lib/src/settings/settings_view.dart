@@ -706,28 +706,23 @@ class _SettingsViewState extends State<SettingsView>
         ),
         const SizedBox(height: 16),
         if (widget.updateCheckService?.hasAvailableUpdate == true) ...[
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Icon(
+          Semantics(
+            button: true,
+            label: "Update available",
+            child: ExcludeSemantics(
+              child: ShadButton(
+                onPressed: () => _checkForUpdates(context),
+                leading: Icon(
                   Icons.system_update,
-                  color: Theme.of(context).colorScheme.primary,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Update available: ${widget.updateCheckService?.availableUpdate?.version}',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onPrimaryContainer,
-                    ),
+                child: Text(
+                  'Update available: ${widget.updateCheckService?.availableUpdate?.version}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
                   ),
                 ),
-              ],
+              ),
             ),
           ),
           const SizedBox(height: 16),
