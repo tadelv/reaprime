@@ -2,6 +2,8 @@ part of 'unified_de1.dart';
 
 extension UnifiedDe1Raw on UnifiedDe1 {
   void initRawStream() {
+    if (_rawStreamInitialized) return;
+    _rawStreamInitialized = true;
     _rawInputController.stream.listen((data) async {
       if (data.operation == De1RawOperationType.notify) {
         _log.fine("Ignoring ${data.operation.name}");

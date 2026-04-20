@@ -1,11 +1,11 @@
 ---
 name: streamline-bridge
-description: Use when touching the Flutter app, its REST/WebSocket API, profiles, shots, or simulated devices, or whenever exercising a code change against a running Streamline Bridge instance. Covers the dev loop (sb-dev start/reload/stop), REST calls via curl, WebSocket streams via websocat, and smoke-test verification.
+description: Use when touching the Flutter app, its REST/WebSocket API, profiles, shots, simulated devices, or real BLE/USB hardware via an Android tablet or desktop, or whenever exercising a code change against a running Streamline Bridge instance. Covers the dev loop (sb-dev start/reload/stop in simulate or real-hardware mode), REST calls via curl, WebSocket streams via websocat, and smoke-test verification.
 ---
 
 # Streamline Bridge — agent skill
 
-This skill covers driving a running Streamline Bridge Flutter app in simulate mode from the shell: REST via `curl`, WebSocket via `websocat`, and lifecycle (start, stop, reload, logs) via `scripts/sb-dev.sh`. It's written for any agent that can read markdown and execute shell commands — Claude Code, Cursor, Codex, Windsurf, humans — and deliberately avoids agent-specific mechanisms like MCP tools or slash commands.
+This skill covers driving a running Streamline Bridge Flutter app from the shell — simulate mode by default, real hardware via `--real` (+ `--adb-forward` for Android). It exposes REST via `curl`, WebSocket via `websocat`, and lifecycle (start, stop, reload, logs) via `scripts/sb-dev.sh`. Written for any agent that can read markdown and execute shell commands — Claude Code, Cursor, Codex, Windsurf, humans — and deliberately avoids agent-specific mechanisms like MCP tools or slash commands.
 
 The skill lives under `.agents/skills/streamline-bridge/` following the [agentskills.io](https://agentskills.io) cross-client convention. Any compliant client will auto-discover it. Claude Code also loads it via a forwarder at `.claude/skills/streamline-bridge/SKILL.md`.
 
@@ -44,8 +44,20 @@ Hard dependencies on `PATH`:
 
 ## Quick start
 
+Simulate mode (default — no hardware needed):
+
 ```bash
 scripts/sb-dev.sh start --connect-machine MockDe1
+curl -sf http://localhost:8080/api/v1/devices | jq .
+scripts/sb-dev.sh stop
+```
+
+Real hardware on an Android tablet (adb serial from `flutter devices`):
+
+```bash
+scripts/sb-dev.sh start \
+  --platform 8734SCCFAC00000747 --real --adb-forward \
+  --connect-machine DE1
 curl -sf http://localhost:8080/api/v1/devices | jq .
 scripts/sb-dev.sh stop
 ```

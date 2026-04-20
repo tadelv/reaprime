@@ -331,6 +331,64 @@ void main() {
         });
       });
 
+      // Gap A — comms-harden #4: after a scale connect failure, a
+      // subsequent connect() must re-attempt the scale. Current code
+      // happens to pass this because _scaleConnected is guarded behind
+      // a successful `await scaleController.connectToScale(...)`, but
+      // the invariant must survive the Phase 2 state-derivation
+      // refactor. These tests pin the contract.
+      //
+      // See: doc/plans/comms-harden.md #4,
+      //      doc/plans/comms-phase-0-1.md Gap A.
+      group('scale failure recovery (comms-harden #4)', () {
+        test('after scaleOnly connect fails, next connect retries scale',
+            () async {
+          mockScaleController.shouldFailConnect = true;
+
+          final scale = TestScale(deviceId: 'scale-1');
+          mockScanner.addDevice(scale);
+          await Future.delayed(Duration.zero);
+
+          await connectionManager.connect(scaleOnly: true);
+          await Future.delayed(Duration.zero);
+          expect(mockScaleController.connectCalls, hasLength(1),
+              reason: 'first scaleOnly attempt should call connectToScale');
+
+          mockScaleController.shouldFailConnect = false;
+          await connectionManager.connect(scaleOnly: true);
+          await Future.delayed(Duration.zero);
+
+          expect(mockScaleController.connectCalls, hasLength(2),
+              reason:
+                  'scale must be retried after a prior failed scaleOnly connect');
+        });
+
+        test(
+            'after full connect fails on scale phase, next scaleOnly retries',
+            () async {
+          mockScaleController.shouldFailConnect = true;
+
+          final fakeDe1 = _FakeDe1(deviceId: 'de1');
+          final scale = TestScale(deviceId: 'scale-1');
+          mockScanner.addDevice(fakeDe1);
+          mockScanner.addDevice(scale);
+          await Future.delayed(Duration.zero);
+
+          await connectionManager.connect();
+          await Future.delayed(Duration.zero);
+          expect(mockScaleController.connectCalls, hasLength(1),
+              reason: 'full connect reaches scale phase on first attempt');
+
+          mockScaleController.shouldFailConnect = false;
+          await connectionManager.connect(scaleOnly: true);
+          await Future.delayed(Duration.zero);
+
+          expect(mockScaleController.connectCalls, hasLength(2),
+              reason:
+                  'scale phase must retry after a prior full-connect failure');
+        });
+      });
+
       group('early-stop', () {
         test(
             'both preferred set and both connected → calls stopScan',

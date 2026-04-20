@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # sb-dev.sh — Streamline Bridge dev-session manager
 #
-# Manages a `flutter run` process for simulate-mode development.
-# See .agents/skills/streamline-bridge/lifecycle.md for the full reference.
+# Manages a `flutter run` process for simulate-mode development by default,
+# with opt-in flags for running against real hardware (including Android
+# devices via adb port forwarding). See
+# .agents/skills/streamline-bridge/lifecycle.md for the full reference.
 #
 # Runtime state lives under $SB_RUNTIME_DIR (default /tmp/streamline-bridge-$USER).
 
@@ -14,6 +16,7 @@ HOLDER_PIDFILE="$RUNTIME_DIR/holder.pid"
 STDIN_FIFO="$RUNTIME_DIR/stdin"
 LOGFILE="$RUNTIME_DIR/flutter.log"
 FLAGSFILE="$RUNTIME_DIR/last-flags"
+ADB_FORWARD_MARK="$RUNTIME_DIR/adb-forwarded"
 HOST="${SB_HOST:-localhost}"
 PORT="${SB_PORT:-8080}"
 BASE_URL="http://$HOST:$PORT"
@@ -31,7 +34,8 @@ usage() {
 sb-dev.sh — Streamline Bridge dev-session manager
 
 Usage:
-  sb-dev start [--platform macos] [--connect-machine MockDe1] [--connect-scale MockScale] [--dart-define k=v]
+  sb-dev start [--platform <id>] [--connect-machine <name|id>] [--connect-scale <name|id>]
+               [--real] [--adb-forward] [--dart-define k=v]
   sb-dev stop
   sb-dev restart           — cold restart with the same flags as the last start
   sb-dev reload            — hot reload (preserves app state)
@@ -39,6 +43,18 @@ Usage:
   sb-dev status            — pid + http reachability + devices
   sb-dev logs [-n 50] [--filter text]
   sb-dev help
+
+Flags:
+  --platform <id>          Flutter device id (`-d` passthrough). Examples: macos,
+                           linux, chrome, or an Android adb serial like 8734SCCFAC00000747.
+  --connect-machine <v>    Match by device name OR id; used as preferredMachineId.
+                           Simulate: MockDe1. Real BLE: DE1 (name) or D9:11:… (MAC).
+  --connect-scale <v>      Same semantics for the scale.
+  --real                   Do NOT inject --dart-define=simulate=1. Use real BLE/USB.
+  --adb-forward            Run `adb forward tcp:$PORT tcp:$PORT` on start so host
+                           localhost:$PORT reaches the REST server on an Android
+                           device. Removed on stop.
+  --dart-define k=v        Extra --dart-define passed to flutter (repeatable).
 
 Env:
   SB_RUNTIME_DIR  runtime state directory (default: /tmp/streamline-bridge-$USER)
@@ -75,12 +91,15 @@ wait_ready() {
 }
 
 connect_machine() {
-  local name="$1" start
+  local needle="$1" start
   start=$(date +%s)
-  # Re-scan each iteration: early post-boot scans can return empty (simulate
-  # service may not have populated yet), so we retry within the 30s window
-  # rather than trusting a single scan result. Each scan call blocks until
+  # Re-scan each iteration: early post-boot scans can return empty
+  # (simulate service may not have populated yet, and real BLE scans
+  # take ~15 s), so we retry within the 30 s window rather than trusting
+  # a single scan result. Each scan call blocks until
   # ConnectionManager.connect() completes, so the loop self-paces.
+  # Match by either device name or id so callers can pass "DE1" or a
+  # BLE MAC like "D9:11:0B:E6:9F:86" against real hardware.
   while (( $(date +%s) - start < 30 )); do
     curl -sf "$BASE_URL/api/v1/devices/scan?connect=true" >/dev/null || {
       echo "Scan request failed" >&2
@@ -89,14 +108,18 @@ connect_machine() {
     local devices
     devices=$(curl -sf "$BASE_URL/api/v1/devices" || echo "[]")
     if printf '%s' "$devices" \
-         | jq -e --arg name "$name" '.[] | select(.name == $name and .state == "connected")' \
+         | jq -e --arg needle "$needle" '
+             .[] | select(
+               (.name == $needle or .id == $needle)
+               and .state == "connected"
+             )' \
            >/dev/null 2>&1; then
-      echo "Connected to $name"
+      echo "Connected to $needle"
       return 0
     fi
     sleep 1
   done
-  echo "Timed out waiting for $name to connect" >&2
+  echo "Timed out waiting for $needle to connect" >&2
   return 1
 }
 
@@ -108,6 +131,7 @@ start_cmd() {
   fi
 
   local platform="" machine="" scale=""
+  local real=0 adb_forward=0
   local -a extra_defines=()
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -120,6 +144,10 @@ start_cmd() {
       --connect-scale)
         [[ $# -ge 2 ]] || { echo "Missing value for $1" >&2; return 2; }
         scale="$2"; shift 2 ;;
+      --real)
+        real=1; shift ;;
+      --adb-forward)
+        adb_forward=1; shift ;;
       --dart-define)
         [[ $# -ge 2 ]] || { echo "Missing value for $1" >&2; return 2; }
         extra_defines+=("--dart-define=$2"); shift 2 ;;
@@ -132,10 +160,28 @@ start_cmd() {
     [[ -n "$platform" ]] && printf '%s\n' "--platform $platform"
     [[ -n "$machine" ]] && printf '%s\n' "--connect-machine $machine"
     [[ -n "$scale" ]] && printf '%s\n' "--connect-scale $scale"
+    [[ "$real" -eq 1 ]] && printf '%s\n' "--real"
+    [[ "$adb_forward" -eq 1 ]] && printf '%s\n' "--adb-forward"
     for d in "${extra_defines[@]}"; do printf '%s\n' "--dart-define ${d#--dart-define=}"; done
   } > "$FLAGSFILE"
 
-  local -a defines=("--dart-define=simulate=1")
+  # Set up adb port forwarding before spawning flutter so readiness
+  # checks against $BASE_URL work immediately after the app binds 8080.
+  if [[ "$adb_forward" -eq 1 ]]; then
+    if ! command -v adb >/dev/null 2>&1; then
+      echo "error: --adb-forward requires adb on PATH" >&2
+      return 1
+    fi
+    if ! adb forward "tcp:$PORT" "tcp:$PORT" >/dev/null; then
+      echo "error: adb forward tcp:$PORT tcp:$PORT failed" >&2
+      return 1
+    fi
+    : > "$ADB_FORWARD_MARK"
+    echo "adb forward tcp:$PORT -> device tcp:$PORT"
+  fi
+
+  local -a defines=()
+  [[ "$real" -eq 0 ]] && defines+=("--dart-define=simulate=1")
   [[ -n "$machine" ]] && defines+=("--dart-define=preferredMachineId=$machine")
   [[ -n "$scale" ]] && defines+=("--dart-define=preferredScaleId=$scale")
   defines+=("${extra_defines[@]}")
@@ -175,6 +221,14 @@ cleanup_runtime() {
   if [[ -f "$HOLDER_PIDFILE" ]]; then
     kill "$(cat "$HOLDER_PIDFILE")" 2>/dev/null || true
     rm -f "$HOLDER_PIDFILE"
+  fi
+  # Best-effort: remove the adb forward we installed on start. Ignore
+  # errors (adb may be gone, device detached, etc).
+  if [[ -f "$ADB_FORWARD_MARK" ]]; then
+    if command -v adb >/dev/null 2>&1; then
+      adb forward --remove "tcp:$PORT" 2>/dev/null || true
+    fi
+    rm -f "$ADB_FORWARD_MARK"
   fi
   rm -f "$PIDFILE" "$STDIN_FIFO"
 }

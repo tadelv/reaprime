@@ -15,6 +15,7 @@ import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1_tran
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/rxdart.dart';
 
 part 'unified_de1.mmr.dart';
@@ -230,6 +231,12 @@ class UnifiedDe1 implements De1Interface {
 
   final StreamController<De1RawMessage> _rawInputController =
       StreamController();
+
+  /// Guards `initRawStream()` against a second `.listen()` on the
+  /// single-subscription `_rawInputController`. Without this, a
+  /// reconnect on the same `UnifiedDe1` instance throws
+  /// `Bad state: Stream has already been listened to.` See comms-harden #3.
+  bool _rawStreamInitialized = false;
   @override
   void sendRawMessage(De1RawMessage message) {
     _rawInputController.add(message);
@@ -285,9 +292,18 @@ class UnifiedDe1 implements De1Interface {
     );
   }
 
+  Profile? _currentProfile;
   @override
   Future<void> setProfile(Profile profile) async {
+    if (_currentProfile == profile) {
+      return;
+    }
+    // Assign only after a successful send. A mid-upload throw leaves
+    // `_currentProfile` at its previous value so a retry with the same
+    // `Profile` won't silently no-op on the equality guard. See
+    // comms-harden #1.
     await _sendProfile(profile);
+    _currentProfile = profile;
     // Guard against firmware ProfileDownloadInProgress race: the DE1 writes
     // the shot descriptor to internal flash inside APIView::write for the
     // final frame and tail, and only clears ProfileDownloadInProgress when
