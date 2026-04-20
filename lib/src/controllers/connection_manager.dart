@@ -447,19 +447,10 @@ class ConnectionManager {
     Future<void>? earlyMachinePending;
     var earlyScaleStarted = false;
     Future<void>? earlyScalePending;
+    // The listener only handles early-connect triggering. Per-device
+    // tracker entries are seeded once from the authoritative
+    // ScanResult after the scan completes (comms-harden #17).
     final sub = deviceScanner.deviceStream.skip(1).listen((devices) {
-      // Track all matched devices as they appear
-      for (final d in devices) {
-        matchedDeviceResults.putIfAbsent(
-          d.deviceId,
-          () => _MatchedDeviceTracker(
-            deviceName: d.name,
-            deviceId: d.deviceId,
-            deviceType: d.type,
-          ),
-        );
-      }
-
       if (preferredMachineId != null &&
           !_machineConnected &&
           !earlyMachineStarted) {
@@ -471,6 +462,10 @@ class ConnectionManager {
         if (match != null) {
           _log.fine('Preferred machine found during scan, connecting early');
           earlyMachineStarted = true;
+          // Seed the tracker now so the connection attempt + result
+          // land on the right entry; the post-scan populate below uses
+          // putIfAbsent and will leave our seeded tracker intact.
+          _seedTracker(matchedDeviceResults, match);
           earlyMachinePending = _connectMachineTracked(
             match,
             matchedDeviceResults,
@@ -491,6 +486,7 @@ class ConnectionManager {
         if (match != null) {
           _log.fine('Preferred scale found during scan, connecting early');
           earlyScaleStarted = true;
+          _seedTracker(matchedDeviceResults, match);
           earlyScalePending = _connectScaleTracked(
             match,
             matchedDeviceResults,
@@ -506,8 +502,9 @@ class ConnectionManager {
     // catastrophic, scan-wide error throws out of the Future. Classify
     // any such throw into bluetoothPermissionDenied or scanFailed —
     // both are sticky errors that survive phase transitions.
+    final ScanResult scanResult;
     try {
-      await deviceScanner.scanForDevices();
+      scanResult = await deviceScanner.scanForDevices();
     } catch (e) {
       sub.cancel();
       final kind = _classifyScanError(e);
@@ -566,21 +563,18 @@ class ConnectionManager {
       }
     }
 
-    // Collect found devices
-    final allDevices = deviceScanner.devices;
+    // Collect found devices from the authoritative ScanResult rather
+    // than re-reading `deviceScanner.devices`. This is the single
+    // source of truth for "what the scan turned up" (comms-harden #17).
+    final allDevices = scanResult.matchedDevices;
     final machines = allDevices.whereType<De1Interface>().toList();
     final scales = allDevices.whereType<Scale>().toList();
 
-    // Ensure all final devices are tracked (in case some weren't seen mid-scan)
+    // Seed tracker entries for every device in the final snapshot.
+    // Early-connect paths pre-seeded their targets in the stream
+    // listener; putIfAbsent preserves those entries untouched.
     for (final d in allDevices) {
-      matchedDeviceResults.putIfAbsent(
-        d.deviceId,
-        () => _MatchedDeviceTracker(
-          deviceName: d.name,
-          deviceId: d.deviceId,
-          deviceType: d.type,
-        ),
-      );
+      _seedTracker(matchedDeviceResults, d);
     }
 
     _log.fine(
@@ -853,6 +847,24 @@ class ConnectionManager {
     } catch (e) {
       tracker?.connectionResult = ConnectionResult.failed(e.toString());
     }
+  }
+
+  /// Seed a `_MatchedDeviceTracker` entry for `d` if one isn't already
+  /// present. Idempotent via `putIfAbsent` so early-connect paths and
+  /// the post-scan snapshot can share the same tracker map without
+  /// clobbering connection-attempt results (comms-harden #17).
+  void _seedTracker(
+    Map<String, _MatchedDeviceTracker> trackers,
+    device.Device d,
+  ) {
+    trackers.putIfAbsent(
+      d.deviceId,
+      () => _MatchedDeviceTracker(
+        deviceName: d.name,
+        deviceId: d.deviceId,
+        deviceType: d.type,
+      ),
+    );
   }
 
   /// Build and emit a [ScanReport] from the collected scan data.
