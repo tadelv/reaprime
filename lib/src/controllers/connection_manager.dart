@@ -109,6 +109,11 @@ class ConnectionManager {
   final Set<String> _expectingDisconnectFor = {};
   final Map<String, Timer> _expectingDisconnectTimers = {};
 
+  /// Completer shared by all `connect(scaleOnly: true)` callers that
+  /// arrive while another connect is already running. Drained in the
+  /// outer connect()'s finally block (comms-harden #9).
+  Completer<void>? _queuedScaleOnly;
+
   ConnectionManager({
     required this.deviceScanner,
     required this.de1Controller,
@@ -399,10 +404,46 @@ class ConnectionManager {
   /// Early-stop: if both preferred machine and preferred scale are set,
   /// the scan stops early once both are connected. If only one (or neither)
   /// preference is set, the full scan runs to discover all available devices.
+  ///
+  /// Concurrency: a `scaleOnly` call that arrives while another `connect`
+  /// is already running is queued and replayed after the in-flight call
+  /// completes. Multiple queued `scaleOnly` calls coalesce into one
+  /// replay and share the same returned Future. Non-`scaleOnly` calls
+  /// during an in-flight connect are still dropped silently
+  /// (comms-harden #9).
   Future<void> connect({bool scaleOnly = false}) async {
-    if (_isConnecting) return;
-    _isConnecting = true;
+    if (_isConnecting) {
+      if (scaleOnly) {
+        final completer = _queuedScaleOnly ??= Completer<void>();
+        return completer.future;
+      }
+      return;
+    }
 
+    // Run the current call, then drain any scale-only requests that
+    // queued up while it was running. The drain runs in a `finally`
+    // so stranded callers get woken up even if the initial call
+    // throws.
+    try {
+      await _executeConnect(scaleOnly);
+    } finally {
+      while (_queuedScaleOnly != null) {
+        final drain = _queuedScaleOnly!;
+        _queuedScaleOnly = null;
+        try {
+          await _executeConnect(true);
+          drain.complete();
+        } catch (e, st) {
+          drain.completeError(e, st);
+        }
+      }
+    }
+  }
+
+  /// One connect iteration — sets `_isConnecting` for the duration so
+  /// the concurrency guard in [connect] sees the in-flight state.
+  Future<void> _executeConnect(bool scaleOnly) async {
+    _isConnecting = true;
     try {
       await _connectImpl(scaleOnly: scaleOnly);
     } finally {

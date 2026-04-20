@@ -568,20 +568,64 @@ void main() {
         expect(mockScanner.stopScanCallCount, 0);
       });
 
-      test('guards against concurrent connect calls', () async {
-        // Start a scaleOnly connect
+      test(
+          'concurrent scaleOnly during another connect is queued and '
+          'drained after the in-flight call (comms-harden #9)', () async {
+        // Start a scaleOnly connect that will block on the scan
+        // completer for deterministic timing.
         mockScanner.scanCompleter = Completer<void>();
         final future1 = connectionManager.connect(scaleOnly: true);
 
-        // Second call should be skipped
+        // Second and third scaleOnly calls arrive while the first is
+        // mid-scan. They must return Futures that complete after the
+        // drain runs the scale-only scan.
         final future2 = connectionManager.connect(scaleOnly: true);
+        final future3 = connectionManager.connect(scaleOnly: true);
+
+        // No scan should have started for future2/future3 yet —
+        // queued requests share the in-flight scan.
+        await Future.delayed(Duration.zero);
+        expect(future2, isA<Future<void>>());
+        expect(future3, isA<Future<void>>());
+        // future2 and future3 must share the same pending completer,
+        // so they resolve at the same moment.
+        var future2Done = false;
+        var future3Done = false;
+        future2.then((_) => future2Done = true);
+        future3.then((_) => future3Done = true);
+        await Future.delayed(Duration.zero);
+        expect(future2Done, isFalse);
+        expect(future3Done, isFalse);
+
+        // Let the first scan finish. The drain runs a second scale-only
+        // scan that resolves future2/future3.
+        mockScanner.completeScan();
+        await future1;
+        // Second scan (the drain) runs its own scanForDevices call.
+        // MockDeviceScanner.scanForDevices with no completer resolves
+        // synchronously after a microtask, so await everything.
+        await Future.delayed(Duration.zero);
+        await Future.delayed(Duration.zero);
+
+        await future2;
+        await future3;
+        expect(future2Done, isTrue);
+        expect(future3Done, isTrue);
+      });
+
+      test(
+          'non-scaleOnly concurrent connect is still dropped (no queue)',
+          () async {
+        mockScanner.scanCompleter = Completer<void>();
+        final future1 = connectionManager.connect();
+
+        // A full-connect call during another full-connect returns
+        // immediately (silent drop), exactly as before.
+        final future2 = connectionManager.connect();
         await future2;
 
         mockScanner.completeScan();
         await future1;
-
-        // Only one scan should have been triggered
-        // (scanForDevices is called once, not twice)
       });
     });
 
