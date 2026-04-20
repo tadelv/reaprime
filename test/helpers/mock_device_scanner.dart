@@ -72,12 +72,13 @@ class MockDeviceScanner implements DeviceScanner {
   }
 
   @override
-  Future<void> scanForDevices() async {
+  Future<ScanResult> scanForDevices() async {
     if (failNextScanWith != null) {
       final e = failNextScanWith;
       failNextScanWith = null;
       throw e!;
     }
+    final start = DateTime.now();
     _scanningSubject.add(true);
     // Re-emit current devices to simulate scan rediscovery.
     // This ensures listeners that skip(1) the BehaviorSubject replay
@@ -89,6 +90,12 @@ class MockDeviceScanner implements DeviceScanner {
       await Future.delayed(Duration.zero);
       _scanningSubject.add(false);
     }
+    return ScanResult(
+      matchedDevices: List.unmodifiable(_devices),
+      failedServices: const [],
+      terminationReason: ScanTerminationReason.completed,
+      duration: DateTime.now().difference(start),
+    );
   }
 
   @override
