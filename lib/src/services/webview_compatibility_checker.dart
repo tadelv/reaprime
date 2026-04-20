@@ -82,6 +82,29 @@ class WebViewCompatibilityChecker {
       return _cachedResult!;
     }
 
+    // Step 1b: let the BLE / platform-channel burst that typically
+    // runs right before SkinView mounts (profile auto-upload + MMR
+    // reads during onConnect) drain before the headless WebView
+    // spins up. Teclast tablets in particular can't keep the
+    // WebView's platform-channel traffic alive under BLE load and
+    // time out the 10-second rendering test.
+    //
+    // Exploratory fix — see doc/plans/comms-harden.md WebView
+    // investigation notes. If it holds, fold into a named constant.
+    try {
+      final androidInfo = await DeviceInfoPlugin().androidInfo;
+      final manufacturer = androidInfo.manufacturer.toLowerCase();
+      if (_isProblematicManufacturer(manufacturer)) {
+        _log.info(
+          'Problematic manufacturer ($manufacturer) — delaying '
+          'WebView test by 500ms to let BLE traffic settle.',
+        );
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+    } catch (e, st) {
+      _log.warning('Pre-WebView-test delay probe failed, continuing', e, st);
+    }
+
     // Step 2: Runtime WebView test
     final runtimeCheckResult = await _testWebViewRendering();
     _cachedResult = runtimeCheckResult;
