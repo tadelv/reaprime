@@ -474,28 +474,13 @@ class ConnectionManager {
       }
     });
 
-    // Run full unfiltered scan. Classify any throw from scan-start
-    // into bluetoothPermissionDenied or scanFailed. Both are sticky
-    // errors — they survive phase transitions and only clear when the
-    // environment recovers (see the success path below).
+    // Run full unfiltered scan. The scanner awaits every service's scan
+    // and returns a ScanResult carrying per-service failures; only a
+    // catastrophic, scan-wide error throws out of the Future. Classify
+    // any such throw into bluetoothPermissionDenied or scanFailed —
+    // both are sticky errors that survive phase transitions.
     try {
-      // Start the scan and subscribe to scanningStream concurrently so we
-      // can race the "scanning started" signal against an error from
-      // scanForDevices() (which may reject asynchronously on permission /
-      // adapter failures). Without the race, awaiting scanForDevices first
-      // would miss the scanning=true emission, and awaiting the stream
-      // first would hang if the scan never started.
-      final scanFuture = deviceScanner.scanForDevices();
-      // Swallow a late rejection from scanFuture if the stream wins the
-      // race — otherwise Future.any leaves it as an unhandled async error.
-      // A real classify-and-emit still fires via the catch below because
-      // scanFuture rejects BEFORE firstWhere sees scanning=true in that
-      // failure case; this only guards the already-started path.
-      scanFuture.catchError((_) {});
-      await Future.any<Object?>([
-        deviceScanner.scanningStream.firstWhere((s) => s),
-        scanFuture,
-      ]);
+      await deviceScanner.scanForDevices();
     } catch (e) {
       sub.cancel();
       final kind = _classifyScanError(e);
@@ -517,21 +502,22 @@ class ConnectionManager {
       ));
       return;
     }
+    sub.cancel();
 
-    // Past this point, scan actually started. Sticky-error environmental
-    // recovery: a successful scan-start means permission and scan
-    // subsystems are working again. Clear any sticky scan-related error
-    // that was hanging on — _publishStatus' gatekeeper would preserve
-    // it otherwise.
+    // Sticky-error environmental recovery: reaching a completed scan
+    // means permission and scan subsystems are working again. Clear
+    // any sticky scan-related error that was hanging on — the
+    // _publishStatus gatekeeper would preserve it otherwise.
+    //
+    // TODO(comms-phase-2 PR B): consult scanResult.failedServices to
+    // surface per-transport failures (e.g. BLE permission denied while
+    // serial succeeded). Deferred to the error-path unification pass.
     final prevErr = currentStatus.error;
     if (prevErr != null &&
         (prevErr.kind == ConnectionErrorKind.scanFailed ||
             prevErr.kind == ConnectionErrorKind.bluetoothPermissionDenied)) {
       _clearError();
     }
-
-    await deviceScanner.scanningStream.firstWhere((s) => !s);
-    sub.cancel();
 
     // Wait for early connections to finish if started
     if (earlyMachineConnect != null) {
