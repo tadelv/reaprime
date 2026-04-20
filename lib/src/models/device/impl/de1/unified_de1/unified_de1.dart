@@ -285,9 +285,18 @@ class UnifiedDe1 implements De1Interface {
     );
   }
 
+  Profile? _currentProfile;
   @override
   Future<void> setProfile(Profile profile) async {
+    if (_currentProfile == profile) {
+      return;
+    }
+    // Assign only after a successful send. A mid-upload throw leaves
+    // `_currentProfile` at its previous value so a retry with the same
+    // `Profile` won't silently no-op on the equality guard. See
+    // comms-harden #1.
     await _sendProfile(profile);
+    _currentProfile = profile;
     // Guard against firmware ProfileDownloadInProgress race: the DE1 writes
     // the shot descriptor to internal flash inside APIView::write for the
     // final frame and tail, and only clears ProfileDownloadInProgress when
