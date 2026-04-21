@@ -27,8 +27,8 @@
   - `_disconnectedAt: Map<String, DateTime>` → keyed by `Device.id`.
   - Diff computation (lines 208–250) swaps to ids.
   - Telemetry custom key: `reconnection_duration_$deviceName` → `reconnection_duration_$deviceId`.
+  - Telemetry custom key: `device_${device.name}_type` → `device_${device.id}_type` (move to id too — any two same-name devices would clobber each other in the custom-key map).
   - Log strings keep `device.name` *in the message body* (human readable) but track by id.
-  - `_updateDeviceCustomKeys`: `device_${device.name}_type` — keep as name (user-facing diagnostic string, not used for correlation). Document why.
 
 **Migration audit — required before touching code:**
 1. Grep every `device.name` / `_previousDeviceNames` / `_disconnectedAt` reference.

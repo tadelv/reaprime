@@ -37,11 +37,18 @@ class DeviceController implements DeviceScanner {
   // Telemetry service for reporting device state changes
   TelemetryService? _telemetryService;
 
-  // Track when devices were last seen disconnecting
+  // Track when devices were last seen disconnecting, keyed by deviceId.
+  // Keying by id (not name) avoids cross-attribution when two devices
+  // advertise the same name, and survives firmware-update name changes
+  // (comms-harden #20).
   final Map<String, DateTime> _disconnectedAt = {};
 
-  // Track previously seen device names for disconnection detection
-  final Set<String> _previousDeviceNames = {};
+  // Track previously seen device ids for disconnection detection.
+  final Set<String> _previousDeviceIds = {};
+
+  // Map of deviceId → display name for the most recent observation.
+  // Used only to render human-readable log messages; correlation is by id.
+  final Map<String, String> _deviceNamesById = {};
 
   /// Set the telemetry service for tracking device state changes
   ///
@@ -147,8 +154,11 @@ class DeviceController implements DeviceScanner {
       // Sync the disconnect-detection baseline with the cleaned list so
       // that service emissions arriving during the scan don't see false
       // diffs.
-      _previousDeviceNames.clear();
-      _previousDeviceNames.addAll(devices.map((d) => d.name));
+      _previousDeviceIds.clear();
+      _previousDeviceIds.addAll(devices.map((d) => d.deviceId));
+      _deviceNamesById
+        ..clear()
+        ..addEntries(devices.map((d) => MapEntry(d.deviceId, d.name)));
       _deviceStream.add(devices);
 
       // Run every service's scan in parallel and capture per-service
@@ -204,50 +214,58 @@ class DeviceController implements DeviceScanner {
     _log.fine("$service update: $devices");
     _devices[service] = devices;
 
-    // Get current device names
-    final currentDeviceNames = this.devices.map((d) => d.name).toSet();
+    // Snapshot current device ids + id→name map. Correlation keys are
+    // always deviceId; name is kept only for human-readable log output
+    // (comms-harden #20).
+    final currentDevices = this.devices;
+    final currentDeviceIds = currentDevices.map((d) => d.deviceId).toSet();
+    for (final d in currentDevices) {
+      _deviceNamesById[d.deviceId] = d.name;
+    }
 
     // Skip disconnect/reconnect detection during active scans — the device
     // list is in flux and intermediate states are transient noise. The scan
     // will produce the authoritative list when it completes.
     if (!isScanning) {
       // Detect disconnections: devices that were in previous update but not in current
-      final disconnectedDevices =
-          _previousDeviceNames.difference(currentDeviceNames);
-      for (var deviceName in disconnectedDevices) {
-        _disconnectedAt[deviceName] = DateTime.now();
-        _log.info("Device $deviceName disconnected");
+      final disconnectedIds =
+          _previousDeviceIds.difference(currentDeviceIds);
+      for (var deviceId in disconnectedIds) {
+        _disconnectedAt[deviceId] = DateTime.now();
+        final name = _deviceNamesById[deviceId] ?? deviceId;
+        _log.info("Device $name ($deviceId) disconnected");
       }
 
       // Detect reconnections: devices in current update that have disconnection timestamps
-      for (var deviceName in currentDeviceNames) {
-        if (_disconnectedAt.containsKey(deviceName)) {
-          final disconnectedTime = _disconnectedAt[deviceName]!;
+      for (var deviceId in currentDeviceIds) {
+        if (_disconnectedAt.containsKey(deviceId)) {
+          final disconnectedTime = _disconnectedAt[deviceId]!;
           final duration = DateTime.now().difference(disconnectedTime);
+          final name = _deviceNamesById[deviceId] ?? deviceId;
           _log.info(
-              "Device $deviceName reconnected after ${duration.inSeconds}s");
+              "Device $name ($deviceId) reconnected after ${duration.inSeconds}s");
 
           // Set telemetry custom key with reconnection duration
           _telemetryService?.setCustomKey(
-            'reconnection_duration_$deviceName',
+            'reconnection_duration_$deviceId',
             duration.inSeconds,
           );
 
           // Remove from disconnected tracking
-          _disconnectedAt.remove(deviceName);
+          _disconnectedAt.remove(deviceId);
         }
       }
 
       // Clean up stale disconnection entries (older than 24 hours)
       final now = DateTime.now();
-      _disconnectedAt.removeWhere((deviceName, timestamp) {
+      _disconnectedAt.removeWhere((_, timestamp) {
         return now.difference(timestamp).inHours > 24;
       });
     }
 
-    // Update previous device names for next comparison
-    _previousDeviceNames.clear();
-    _previousDeviceNames.addAll(currentDeviceNames);
+    // Update previous device ids for next comparison
+    _previousDeviceIds.clear();
+    _previousDeviceIds.addAll(currentDeviceIds);
 
     _deviceStream.add(this.devices);
     _updateDeviceCustomKeys();
@@ -265,9 +283,10 @@ class DeviceController implements DeviceScanner {
     int sensorCount = 0;
 
     for (var device in devices) {
-      // Set individual device type key
+      // Set individual device type key, keyed by deviceId so same-named
+      // devices don't clobber each other (comms-harden #20).
       _telemetryService!.setCustomKey(
-        'device_${device.name}_type',
+        'device_${device.deviceId}_type',
         device.type.name,
       );
 
