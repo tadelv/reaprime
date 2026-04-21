@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:logging/logging.dart';
 
@@ -53,9 +54,18 @@ class WebViewCompatibilityChecker {
 
   /// Settle delay inserted before the headless WebView test on devices
   /// whose platform-channel throughput can't cope with BLE traffic
-  /// running concurrently. Validated on the Teclast M50Mini.
-  static const _problematicManufacturerSettleDelay =
+  /// running concurrently. Adaptive: release builds get the minimum
+  /// window needed on the Teclast M50Mini; debug builds are
+  /// measurably slower (no optimizer, VM checks, verbose logging) and
+  /// need more headroom before the WebView test can succeed.
+  static const _problematicManufacturerSettleDelayRelease =
       Duration(milliseconds: 500);
+  static const _problematicManufacturerSettleDelayDebug =
+      Duration(milliseconds: 1500);
+
+  static Duration get _problematicManufacturerSettleDelay => kDebugMode
+      ? _problematicManufacturerSettleDelayDebug
+      : _problematicManufacturerSettleDelayRelease;
 
   /// Checks WebView compatibility using device info and runtime test
   ///
