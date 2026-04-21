@@ -150,11 +150,27 @@ class AndroidBluePlusTransport implements BLETransport {
       null,
       StackTrace.current,
     );
+    // Keep `_nativeConnectionSub` alive here — it forwards the
+    // eventual `disconnected` state from the platform stream to
+    // `_connectionStateSubject`. The subscription is cycled at
+    // connect() start so it doesn't accumulate across reconnect
+    // cycles (comms-harden #12 — closed by dispose() only).
     try {
       await _device.disconnect(queue: false, timeout: 5);
     } catch (e) {
       _log.warning("Error during disconnect: $e");
       _connectionStateSubject.add(device.ConnectionState.disconnected);
+    }
+  }
+
+  /// End-of-life cleanup — close the connection-state subject + any
+  /// lingering native subscription. Re-use after dispose is not
+  /// supported.
+  void dispose() {
+    _nativeConnectionSub?.cancel();
+    _nativeConnectionSub = null;
+    if (!_connectionStateSubject.isClosed) {
+      _connectionStateSubject.close();
     }
   }
 

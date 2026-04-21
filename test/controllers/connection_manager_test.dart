@@ -718,6 +718,49 @@ void main() {
         expect(settingsController.preferredMachineId, isNull);
       });
 
+      test(
+          'connect timeout: machine that never responds fails after 30s '
+          '(comms-harden #31)',
+          () {
+        fakeAsync((async) {
+          final completer = Completer<void>();
+          final slowDe1Controller = _SlowMockDe1Controller(
+              controller: DeviceController([dummyDiscoveryService]));
+          slowDe1Controller.connectCompleter = completer;
+
+          final manager = ConnectionManager(
+            deviceScanner: mockScanner,
+            de1Controller: slowDe1Controller,
+            scaleController: mockScaleController,
+            settingsController: settingsController,
+          );
+
+          final fakeDe1 = _FakeDe1(deviceId: 'timeout-de1');
+          Object? caughtError;
+          manager
+              .connectMachine(fakeDe1)
+              .catchError((e) => caughtError = e);
+
+          // Advance past the 30s connect budget; the TimeoutException
+          // in connectMachine should cause rethrow + machineConnectFailed.
+          async.elapse(const Duration(seconds: 35));
+          async.flushMicrotasks();
+
+          expect(caughtError, isA<TimeoutException>(),
+              reason: 'connectMachine must rethrow TimeoutException');
+          final status = manager.currentStatus;
+          expect(status.phase, ConnectionPhase.idle);
+          expect(status.error?.kind, ConnectionErrorKind.machineConnectFailed);
+          expect(
+            status.error?.message,
+            contains('did not respond within 30s'),
+            reason: 'timeout-specific error message should surface',
+          );
+
+          manager.dispose();
+        });
+      });
+
       test('rejects concurrent connection attempts', () async {
         final completer = Completer<void>();
         final slowDe1Controller =

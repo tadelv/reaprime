@@ -57,11 +57,30 @@ class BluePlusTransport implements BLETransport {
 
   @override
   Future<void> disconnect() async {
+    // Keep `_nativeConnectionSub` alive here — it's the channel that
+    // forwards the eventual `disconnected` state from the platform
+    // stream to `_connectionStateSubject`, which higher-level code
+    // relies on to clear `_de1` on next reconnect. The subscription
+    // is cycled (cancel+reassign) at the start of each `connect()`
+    // so it doesn't accumulate across reconnect cycles
+    // (comms-harden #12 — closed by the new `dispose()` only).
     try {
       await _device.disconnect(queue: false, timeout: 5);
     } catch (e) {
       _log.warning("Error during disconnect: $e");
       _connectionStateSubject.add(device.ConnectionState.disconnected);
+    }
+  }
+
+  /// End-of-life cleanup — close the connection-state subject so
+  /// downstream listeners see `onDone`. Also cancels any lingering
+  /// native subscription. Safe to call more than once; re-using this
+  /// transport after dispose is not supported.
+  void dispose() {
+    _nativeConnectionSub?.cancel();
+    _nativeConnectionSub = null;
+    if (!_connectionStateSubject.isClosed) {
+      _connectionStateSubject.close();
     }
   }
 

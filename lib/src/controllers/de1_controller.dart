@@ -61,6 +61,14 @@ class De1Controller {
   bool _dataInitialized = false;
   Timer? _shotSettingsDebounce;
 
+  /// Bumped every time `_onDisconnect()` runs. Captured by the
+  /// `_shotSettingsUpdate` debounce-timer closure at scheduling
+  /// time so a timer that fires after a disconnect can see "the
+  /// connection I was scheduled for is gone" and bail out before
+  /// calling `connectedDe1()` (which would throw
+  /// `DeviceNotConnectedException`). Covers comms-harden #5.
+  int _connectionGeneration = 0;
+
   De1Controller({required DeviceController controller})
       : _deviceController = controller {
     _log.info("checking ${_deviceController.devices}");
@@ -110,6 +118,7 @@ class De1Controller {
 
   void _onDisconnect() {
     _log.info("resetting de1");
+    _connectionGeneration++;
     _de1 = null;
     _de1Controller.add(_de1);
     _dataInitialized = false;
@@ -140,11 +149,29 @@ class De1Controller {
   }
 
   Future<void> _shotSettingsUpdate(De1ShotSettings data) async {
-    // Debounce rapid successive calls (e.g., from setSteamFlow + setHotWaterFlow + updateShotSettings)
+    // Debounce rapid successive calls (e.g., from setSteamFlow +
+    // setHotWaterFlow + updateShotSettings). Capture the current
+    // generation so a disconnect + cancel race where the timer has
+    // already fired but the closure hasn't started awaiting yet still
+    // bails out cleanly (comms-harden #5).
     _shotSettingsDebounce?.cancel();
+    final generation = _connectionGeneration;
     _shotSettingsDebounce = Timer(const Duration(milliseconds: 100), () async {
+      if (generation != _connectionGeneration || _de1 == null) {
+        _log.fine(
+          'Shot settings debounce fired after disconnect '
+          '(gen=$generation, current=$_connectionGeneration) — skipping',
+        );
+        return;
+      }
       _log.info('Processing shot settings update (debounced)');
-      await _processShotSettingsUpdate(data);
+      try {
+        await _processShotSettingsUpdate(data);
+      } on DeviceNotConnectedException catch (e) {
+        // Defence in depth: device may have disconnected between the
+        // generation check above and any of the awaits in the body.
+        _log.fine('Shot settings update aborted by disconnect: $e');
+      }
     });
   }
 
