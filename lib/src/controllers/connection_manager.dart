@@ -4,6 +4,9 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_blue_plus/flutter_blue_plus.dart'
     show FlutterBluePlusException;
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/controllers/connection/disconnect_expectations.dart';
+import 'package:reaprime/src/controllers/connection/scan_report_builder.dart';
+import 'package:reaprime/src/controllers/connection/status_publisher.dart';
 import 'package:reaprime/src/controllers/connection_error.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
@@ -68,13 +71,12 @@ class ConnectionManager {
 
   final _log = Logger('ConnectionManager');
 
-  final BehaviorSubject<ConnectionStatus> _statusSubject =
-      BehaviorSubject.seeded(const ConnectionStatus());
+  final StatusPublisher _statusPublisher = StatusPublisher();
 
   final BehaviorSubject<ScanReport> _scanReportSubject = BehaviorSubject();
 
-  Stream<ConnectionStatus> get status => _statusSubject.stream;
-  ConnectionStatus get currentStatus => _statusSubject.value;
+  Stream<ConnectionStatus> get status => _statusPublisher.stream;
+  ConnectionStatus get currentStatus => _statusPublisher.current;
 
   /// The most recent scan report, or null if no scan has completed yet.
   ScanReport? get lastScanReport => _scanReportSubject.valueOrNull;
@@ -106,8 +108,8 @@ class ConnectionManager {
   StreamSubscription? _scaleDisconnectSub;
   StreamSubscription<AdapterState>? _adapterSub;
 
-  final Set<String> _expectingDisconnectFor = {};
-  final Map<String, Timer> _expectingDisconnectTimers = {};
+  final DisconnectExpectations _disconnectExpectations =
+      DisconnectExpectations();
 
   /// Completer shared by all `connect(scaleOnly: true)` callers that
   /// arrive while another connect is already running. Drained in the
@@ -185,18 +187,10 @@ class ConnectionManager {
   }
 
   /// Emit a [ConnectionError] onto the status stream without changing
-  /// the current phase. Thin wrapper over [_publishStatus] so every
-  /// outbound update goes through the same gatekeeper (comms-harden #8).
-  void _emit(ConnectionError err) {
-    final msg = 'emit error: kind=${err.kind} message=${err.message} '
-        'deviceId=${err.deviceId}';
-    if (err.severity == ConnectionErrorSeverity.error) {
-      _log.severe(msg);
-    } else {
-      _log.warning(msg);
-    }
-    _publishStatus(currentStatus.copyWith(error: () => err));
-  }
+  /// the current phase. Thin proxy over [StatusPublisher.emitError] so
+  /// every outbound update goes through the same gatekeeper
+  /// (comms-harden #8).
+  void _emit(ConnectionError err) => _statusPublisher.emitError(err);
 
   /// Build a [ConnectionError] for a failed connect attempt. Pulls out
   /// `fbp_code` / `fbp_description` when the caught exception is a
@@ -250,51 +244,14 @@ class ConnectionManager {
     return ConnectionErrorKind.scanFailed;
   }
 
-  /// Clears the current error. Called by environmental recovery handlers
-  /// (adapter on, permission granted).
-  void _clearError() {
-    if (currentStatus.error == null) return;
-    _statusSubject.add(currentStatus.copyWith(error: () => null));
-  }
+  /// Clears the current error. Proxy over [StatusPublisher.clearError]
+  /// — called by environmental recovery handlers (adapter on,
+  /// permission granted).
+  void _clearError() => _statusPublisher.clearError();
 
-  void _publishStatus(ConnectionStatus next) {
-    final prev = _statusSubject.value;
-    // Auto-clear transient errors on phase transitions that start a new
-    // operation or reach a stable good state.
-    const clearingPhases = {
-      ConnectionPhase.scanning,
-      ConnectionPhase.connectingMachine,
-      ConnectionPhase.connectingScale,
-      ConnectionPhase.ready,
-    };
-
-    ConnectionError? effectiveError = next.error;
-    final movingIntoClearingPhase =
-        prev.phase != next.phase && clearingPhases.contains(next.phase);
-
-    if (effectiveError == null &&
-        prev.error != null &&
-        ConnectionErrorKind.sticky.contains(prev.error!.kind)) {
-      // Caller published null but a sticky error was active — keep it.
-      // Sticky errors only clear via explicit environmental-recovery handlers.
-      effectiveError = prev.error;
-    } else if (effectiveError != null &&
-        movingIntoClearingPhase &&
-        !ConnectionErrorKind.sticky.contains(effectiveError.kind)) {
-      // A new status that carries a transient error into a clearing phase
-      // means the caller is re-publishing an old error — strip it.
-      effectiveError = null;
-    } else if (prev.error != null &&
-        // copyWith preserves the error reference when the caller does not
-        // pass `error:`, so `identical` is the right identity check here.
-        identical(next.error, prev.error) &&
-        movingIntoClearingPhase &&
-        !ConnectionErrorKind.sticky.contains(prev.error!.kind)) {
-      effectiveError = null;
-    }
-
-    _statusSubject.add(next.copyWith(error: () => effectiveError));
-  }
+  /// Publish a new [ConnectionStatus] with sticky/transient error
+  /// gating. Proxy over [StatusPublisher.publish].
+  void _publishStatus(ConnectionStatus next) => _statusPublisher.publish(next);
 
   @visibleForTesting
   void debugEmitError({
@@ -321,7 +278,7 @@ class ConnectionManager {
 
   @visibleForTesting
   void debugSetPhase(ConnectionPhase phase) {
-    _statusSubject.add(currentStatus.copyWith(phase: phase));
+    _statusPublisher.publish(currentStatus.copyWith(phase: phase));
   }
 
   /// Call immediately before an app-initiated disconnect. The next
@@ -329,22 +286,11 @@ class ConnectionManager {
   /// will not emit an error. A 10-second TTL safety timer clears the
   /// expectation if the disconnect event never arrives.
   void markExpectingDisconnect(String deviceId) {
-    _expectingDisconnectFor.add(deviceId);
-    _expectingDisconnectTimers[deviceId]?.cancel();
-    _expectingDisconnectTimers[deviceId] =
-        Timer(const Duration(seconds: 10), () {
-      _expectingDisconnectFor.remove(deviceId);
-      _expectingDisconnectTimers.remove(deviceId);
-    });
+    _disconnectExpectations.mark(deviceId);
   }
 
-  bool _consumeExpectingDisconnect(String deviceId) {
-    final wasExpecting = _expectingDisconnectFor.remove(deviceId);
-    if (wasExpecting) {
-      _expectingDisconnectTimers.remove(deviceId)?.cancel();
-    }
-    return wasExpecting;
-  }
+  bool _consumeExpectingDisconnect(String deviceId) =>
+      _disconnectExpectations.consume(deviceId);
 
   void _handleScaleDisconnect(String deviceId) {
     if (_consumeExpectingDisconnect(deviceId)) {
@@ -454,8 +400,9 @@ class ConnectionManager {
   Future<void> _connectImpl({required bool scaleOnly}) async {
     final scanStartTime = DateTime.now();
 
-    // Track matched devices and their connection results
-    final matchedDeviceResults = <String, _MatchedDeviceTracker>{};
+    // Per-scan builder that accumulates attempted/succeeded/failed
+    // results and emits the final ScanReport.
+    final scanReport = ScanReportBuilder(scanStartTime: scanStartTime);
 
     // Emit scanning phase. Do not explicitly clear `error` — the gatekeeper
     // strips transient errors on phase transitions into clearing phases and
@@ -504,12 +451,12 @@ class ConnectionManager {
           _log.fine('Preferred machine found during scan, connecting early');
           earlyMachineStarted = true;
           // Seed the tracker now so the connection attempt + result
-          // land on the right entry; the post-scan populate below uses
-          // putIfAbsent and will leave our seeded tracker intact.
-          _seedTracker(matchedDeviceResults, match);
+          // land on the right entry; the post-scan seed below is
+          // idempotent and leaves this seed intact.
+          scanReport.seed(match);
           earlyMachinePending = _connectMachineTracked(
             match,
-            matchedDeviceResults,
+            scanReport,
           ).then((_) {
             _checkEarlyStop(earlyStopEnabled);
           });
@@ -527,10 +474,10 @@ class ConnectionManager {
         if (match != null) {
           _log.fine('Preferred scale found during scan, connecting early');
           earlyScaleStarted = true;
-          _seedTracker(matchedDeviceResults, match);
+          scanReport.seed(match);
           earlyScalePending = _connectScaleTracked(
             match,
-            matchedDeviceResults,
+            scanReport,
           ).then((_) {
             _checkEarlyStop(earlyStopEnabled);
           });
@@ -613,9 +560,10 @@ class ConnectionManager {
 
     // Seed tracker entries for every device in the final snapshot.
     // Early-connect paths pre-seeded their targets in the stream
-    // listener; putIfAbsent preserves those entries untouched.
+    // listener; ScanReportBuilder.seed is idempotent so those entries
+    // stay intact.
     for (final d in allDevices) {
-      _seedTracker(matchedDeviceResults, d);
+      scanReport.seed(d);
     }
 
     _log.fine(
@@ -628,10 +576,9 @@ class ConnectionManager {
         currentStatus.copyWith(foundScales: scales),
       );
       // Apply scale preference policy only
-      await _connectScalePhase(scales, matchedDeviceResults);
+      await _connectScalePhase(scales, scanReport);
       _emitScanReport(
-        scanStartTime: scanStartTime,
-        matchedDeviceResults: matchedDeviceResults,
+        scanReport: scanReport,
         preferredMachineId: null,
         preferredScaleId: preferredScaleId,
         terminationReason: ScanTerminationReason.completed,
@@ -648,10 +595,9 @@ class ConnectionManager {
     // skip straight to scale phase
     if (_machineConnected) {
       _log.fine('Machine connected, proceeding to scale phase');
-      await _connectScalePhase(scales, matchedDeviceResults);
+      await _connectScalePhase(scales, scanReport);
       _emitScanReport(
-        scanStartTime: scanStartTime,
-        matchedDeviceResults: matchedDeviceResults,
+        scanReport: scanReport,
         preferredMachineId: preferredMachineId,
         preferredScaleId: preferredScaleId,
         terminationReason: ScanTerminationReason.completed,
@@ -678,8 +624,8 @@ class ConnectionManager {
         _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.idle));
       } else if (machines.length == 1) {
         // Exactly one machine — auto-connect
-        await _connectMachineTracked(machines.first, matchedDeviceResults);
-        await _connectScalePhase(scales, matchedDeviceResults);
+        await _connectMachineTracked(machines.first, scanReport);
+        await _connectScalePhase(scales, scanReport);
       } else {
         // Multiple machines — picker
         _publishStatus(
@@ -692,8 +638,7 @@ class ConnectionManager {
     }
 
     _emitScanReport(
-      scanStartTime: scanStartTime,
-      matchedDeviceResults: matchedDeviceResults,
+      scanReport: scanReport,
       preferredMachineId: preferredMachineId,
       preferredScaleId: preferredScaleId,
       terminationReason: ScanTerminationReason.completed,
@@ -708,10 +653,13 @@ class ConnectionManager {
     }
   }
 
-  /// Apply scale preference policy after machine connects.
+  /// Apply scale preference policy after machine connects. If
+  /// [scanReport] is provided, the attempt outcome is recorded on it;
+  /// otherwise a bare `connectScale` is used (the non-scan-driven
+  /// paths don't need tracker bookkeeping).
   Future<void> _connectScalePhase(
     List<Scale> scales, [
-    Map<String, _MatchedDeviceTracker>? matchedDeviceResults,
+    ScanReportBuilder? scanReport,
   ]) async {
     if (_scaleConnected) {
       _log.fine('Scale already connected, skipping scale phase');
@@ -726,8 +674,8 @@ class ConnectionManager {
       final preferred =
           scales.where((s) => s.deviceId == preferredScaleId).toList();
       if (preferred.isNotEmpty) {
-        if (matchedDeviceResults != null) {
-          await _connectScaleTracked(preferred.first, matchedDeviceResults);
+        if (scanReport != null) {
+          await _connectScaleTracked(preferred.first, scanReport);
         } else {
           await connectScale(preferred.first);
         }
@@ -743,8 +691,8 @@ class ConnectionManager {
     } else {
       // No preferred scale set
       if (scales.length == 1) {
-        if (matchedDeviceResults != null) {
-          await _connectScaleTracked(scales.first, matchedDeviceResults);
+        if (scanReport != null) {
+          await _connectScaleTracked(scales.first, scanReport);
         } else {
           await connectScale(scales.first);
         }
@@ -856,125 +804,63 @@ class ConnectionManager {
     }
   }
 
-  /// Connect a machine and track the result for the scan report.
+  /// Connect a machine and record the attempt outcome on the scan
+  /// report builder.
   Future<void> _connectMachineTracked(
     De1Interface machine,
-    Map<String, _MatchedDeviceTracker> trackers,
+    ScanReportBuilder scanReport,
   ) async {
-    final tracker = trackers[machine.deviceId];
-    if (tracker != null) {
-      tracker.connectionAttempted = true;
-    }
+    scanReport.markAttempted(machine.deviceId);
     try {
       await connectMachine(machine);
-      tracker?.connectionResult = const ConnectionResult.succeeded();
+      scanReport.recordResult(
+        machine.deviceId,
+        const ConnectionResult.succeeded(),
+      );
     } catch (e) {
-      tracker?.connectionResult = ConnectionResult.failed(e.toString());
+      scanReport.recordResult(
+        machine.deviceId,
+        ConnectionResult.failed(e.toString()),
+      );
     }
   }
 
-  /// Connect a scale and track the result for the scan report.
+  /// Connect a scale and record the attempt outcome on the scan
+  /// report builder.
   Future<void> _connectScaleTracked(
     Scale scale,
-    Map<String, _MatchedDeviceTracker> trackers,
+    ScanReportBuilder scanReport,
   ) async {
-    final tracker = trackers[scale.deviceId];
-    if (tracker != null) {
-      tracker.connectionAttempted = true;
-    }
+    scanReport.markAttempted(scale.deviceId);
     try {
       await connectScale(scale);
-      tracker?.connectionResult = const ConnectionResult.succeeded();
+      scanReport.recordResult(
+        scale.deviceId,
+        const ConnectionResult.succeeded(),
+      );
     } catch (e) {
-      tracker?.connectionResult = ConnectionResult.failed(e.toString());
+      scanReport.recordResult(
+        scale.deviceId,
+        ConnectionResult.failed(e.toString()),
+      );
     }
   }
 
-  /// Seed a `_MatchedDeviceTracker` entry for `d` if one isn't already
-  /// present. Idempotent via `putIfAbsent` so early-connect paths and
-  /// the post-scan snapshot can share the same tracker map without
-  /// clobbering connection-attempt results (comms-harden #17).
-  void _seedTracker(
-    Map<String, _MatchedDeviceTracker> trackers,
-    device.Device d,
-  ) {
-    trackers.putIfAbsent(
-      d.deviceId,
-      () => _MatchedDeviceTracker(
-        deviceName: d.name,
-        deviceId: d.deviceId,
-        deviceType: d.type,
-      ),
-    );
-  }
-
-  /// Build and emit a [ScanReport] from the collected scan data.
+  /// Build a [ScanReport] from [scanReport] and publish it on the
+  /// scan-report stream + log the human-readable form.
   void _emitScanReport({
-    required DateTime scanStartTime,
-    required Map<String, _MatchedDeviceTracker> matchedDeviceResults,
+    required ScanReportBuilder scanReport,
     required String? preferredMachineId,
     required String? preferredScaleId,
     required ScanTerminationReason terminationReason,
   }) {
-    final scanDuration = DateTime.now().difference(scanStartTime);
-    final matchedDevices =
-        matchedDeviceResults.values.map((t) => t.toMatchedDevice()).toList();
-
-    final report = ScanReport(
-      totalBleDevicesSeen: matchedDevices.length,
-      matchedDevices: matchedDevices,
-      scanDuration: scanDuration,
-      adapterStateAtStart: AdapterState.unknown,
-      adapterStateAtEnd: AdapterState.unknown,
-      scanTerminationReason: terminationReason,
+    final report = scanReport.build(
       preferredMachineId: preferredMachineId,
       preferredScaleId: preferredScaleId,
+      terminationReason: terminationReason,
     );
-
     _scanReportSubject.add(report);
-    _log.info(_formatScanReport(report));
-  }
-
-  String _formatScanReport(ScanReport report) {
-    final buf = StringBuffer('Scan report: ');
-    buf.write('${report.matchedDevices.length} devices matched, ');
-    buf.write('duration=${report.scanDuration.inMilliseconds}ms, ');
-    buf.write('termination=${report.scanTerminationReason.name}');
-
-    if (report.preferredMachineId != null) {
-      final found = report.matchedDevices
-          .any((d) => d.deviceId == report.preferredMachineId);
-      buf.write(
-        ', preferred machine ${report.preferredMachineId} '
-        '${found ? "found" : "NOT found"}',
-      );
-    }
-    if (report.preferredScaleId != null) {
-      final found = report.matchedDevices
-          .any((d) => d.deviceId == report.preferredScaleId);
-      buf.write(
-        ', preferred scale ${report.preferredScaleId} '
-        '${found ? "found" : "NOT found"}',
-      );
-    }
-
-    for (final d in report.matchedDevices) {
-      buf.write('\n  ${d.deviceName} (${d.deviceId}, ${d.deviceType.name})');
-      if (d.connectionAttempted) {
-        final result = d.connectionResult;
-        if (result == null) {
-          buf.write(' — connection attempted, no result');
-        } else if (result.success) {
-          buf.write(' — connected');
-        } else if (result.error != null) {
-          buf.write(' — connection failed: ${result.error}');
-        } else {
-          buf.write(' — skipped');
-        }
-      }
-    }
-
-    return buf.toString();
+    _log.info(ScanReportBuilder.format(report));
   }
 
   Future<void> disconnectMachine() async {
@@ -1008,36 +894,9 @@ class ConnectionManager {
     _machineDisconnectSub?.cancel();
     _scaleDisconnectSub?.cancel();
     _adapterSub?.cancel();
-    for (final t in _expectingDisconnectTimers.values) {
-      t.cancel();
-    }
-    _expectingDisconnectTimers.clear();
-    _expectingDisconnectFor.clear();
-    _statusSubject.close();
+    _disconnectExpectations.dispose();
+    _statusPublisher.dispose();
     _scanReportSubject.close();
   }
 }
 
-/// Mutable tracker used during a scan to accumulate connection attempt results
-/// before building the immutable [MatchedDevice].
-class _MatchedDeviceTracker {
-  final String deviceName;
-  final String deviceId;
-  final device.DeviceType deviceType;
-  bool connectionAttempted = false;
-  ConnectionResult? connectionResult;
-
-  _MatchedDeviceTracker({
-    required this.deviceName,
-    required this.deviceId,
-    required this.deviceType,
-  });
-
-  MatchedDevice toMatchedDevice() => MatchedDevice(
-        deviceName: deviceName,
-        deviceId: deviceId,
-        deviceType: deviceType,
-        connectionAttempted: connectionAttempted,
-        connectionResult: connectionResult,
-      );
-}
