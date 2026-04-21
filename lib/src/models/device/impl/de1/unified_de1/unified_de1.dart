@@ -4,6 +4,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/controllers/connection/connection_timings.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_firmwaremodel.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
@@ -310,7 +311,7 @@ class UnifiedDe1 implements De1Interface {
     // that flash write returns. If a state=espresso request hits the
     // firmware task loop before the flag clears, doEspresso() aborts to
     // HeaterDown and the shot ends after preinfuse. See BC 9788201734.
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future.delayed(ConnectionTimings.profileDownloadGuard);
   }
 
   @override

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/controllers/connection/connection_timings.dart';
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/device_scanner.dart';
@@ -23,14 +24,22 @@ class DeviceController implements DeviceScanner {
   Stream<bool> get scanningStream => _scanningStream.stream;
   bool get isScanning => _scanningStream.value;
 
-  /// Aggregated adapter state across BLE discovery services. Replays the
-  /// most recent state to new subscribers.
+  /// Adapter state surfaced to consumers. Currently reflects the most
+  /// recent emission from *any* registered `BleDiscoveryService`, last
+  /// writer wins — we assume a single BLE adapter per host (true on
+  /// every platform this app runs on). If a second BLE stack is ever
+  /// added, this needs to merge per-adapter states rather than
+  /// overwrite, e.g. `on` if any adapter on, else `off` if any off,
+  /// else `unknown` (comms-harden #29).
   final BehaviorSubject<AdapterState> _adapterStateStream =
       BehaviorSubject.seeded(AdapterState.unknown);
 
   @override
   Stream<AdapterState> get adapterStateStream =>
       _adapterStateStream.stream;
+
+  @override
+  AdapterState get currentAdapterState => _adapterStateStream.value;
 
   final List<StreamSubscription> _serviceSubscriptions = [];
 
@@ -66,11 +75,26 @@ class DeviceController implements DeviceScanner {
   @override
   Stream<List<Device>> get deviceStream => _deviceStream.stream;
 
-  List<Device> get devices =>
-      _devices.values.fold(List<Device>.empty(growable: true), (res, el) {
-        res.addAll(el);
-        return res;
-      }).toList();
+  /// Flattened view over `_devices`. Rebuilt lazily when the underlying
+  /// per-service lists mutate (comms-harden #28 — hot-path callers like
+  /// telemetry + scan-cleanup were paying the fold cost per call).
+  List<Device>? _flatDevicesCache;
+
+  List<Device> get devices {
+    final cached = _flatDevicesCache;
+    if (cached != null) return cached;
+    final out = <Device>[];
+    for (final list in _devices.values) {
+      out.addAll(list);
+    }
+    final frozen = List<Device>.unmodifiable(out);
+    _flatDevicesCache = frozen;
+    return frozen;
+  }
+
+  void _invalidateDevicesCache() {
+    _flatDevicesCache = null;
+  }
 
   DeviceController(this._services) {
     _devices = {};
@@ -139,7 +163,7 @@ class DeviceController implements DeviceScanner {
       final staleFlags = await Future.wait(
         pairs.map((p) async {
           final state = await p.device.connectionState.first.timeout(
-            const Duration(seconds: 2),
+            ConnectionTimings.preScanDeviceCheckTimeout,
             onTimeout: () => ConnectionState.disconnected,
           );
           return state != ConnectionState.connected &&
@@ -149,6 +173,7 @@ class DeviceController implements DeviceScanner {
       for (var i = 0; i < pairs.length; i++) {
         if (staleFlags[i]) {
           _devices[pairs[i].service]?.remove(pairs[i].device);
+          _invalidateDevicesCache();
         }
       }
       // Sync the disconnect-detection baseline with the cleaned list so
@@ -191,7 +216,7 @@ class DeviceController implements DeviceScanner {
       // Preserved from the pre-PR-A implementation to keep widget-test
       // timing assumptions intact; revisit in PR B when status
       // derivation is in place.
-      await Future.delayed(const Duration(milliseconds: 200));
+      await Future.delayed(ConnectionTimings.postScanSettleDelay);
       return ScanResult(
         matchedDevices: List.unmodifiable(devices),
         failedServices: List.unmodifiable(failures),
@@ -213,6 +238,7 @@ class DeviceController implements DeviceScanner {
   void _serviceUpdate(DeviceDiscoveryService service, List<Device> devices) {
     _log.fine("$service update: $devices");
     _devices[service] = devices;
+    _invalidateDevicesCache();
 
     // Snapshot current device ids + id→name map. Correlation keys are
     // always deviceId; name is kept only for human-readable log output

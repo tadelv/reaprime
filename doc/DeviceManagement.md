@@ -198,11 +198,8 @@ The ConnectionManager is the centralized orchestrator for all device connection 
 
 ### Connection Status
 
-ConnectionManager exposes a `ConnectionStatus` stream with the following phases:
-
-```
-idle → scanning → connectingMachine → connectingScale → ready
-```
+ConnectionManager exposes a `ConnectionStatus` stream driven by the
+`ConnectionPhase` enum.
 
 - **`idle`:** No connection activity
 - **`scanning`:** BLE/USB scan in progress
@@ -214,6 +211,46 @@ The status also tracks:
 - `foundMachines` / `foundScales` — devices discovered during the last scan
 - `pendingAmbiguity` — `machinePicker` or `scalePicker` when the UI needs to show a device selection dialog
 - `error` — error message from the last connection attempt
+
+#### Phase transitions
+
+All phase writes route through `StatusPublisher.publish`. If a
+transition isn't listed below, it's not supposed to happen.
+
+```
+                       ┌──────────────────────────────┐
+                       │                              │
+                       ▼                              │
+   ┌─────┐         ┌──────────┐    ┌───────────────┐  │    ┌───────────────┐    ┌───────┐
+   │idle │──scan──▶│ scanning │───▶│connectingMach.│──┴───▶│connectingScale│───▶│ ready │
+   └─────┘         └──────────┘    └───────────────┘       └───────────────┘    └───────┘
+      ▲                │                    │                       │                │
+      │                │ error              │ error/no-match        │ error/no-scale │
+      │                ▼                    ▼                       ▼                │
+      │          (idle + error)       (idle + error / ready)   (ready / idle+err)    │
+      │                                                                              │
+      └──────────────────────────── disconnect ──────────────────────────────────────┘
+```
+
+Transition owners (where the `publish(phase: …)` call lives):
+
+| Edge                                    | Owner                                                   |
+|-----------------------------------------|---------------------------------------------------------|
+| `idle → scanning`                       | `ScanOrchestrator.runScan`                              |
+| `scanning → idle` (scan failure)        | `ScanOrchestrator._emitScanStartError`                  |
+| `scanning → connectingMachine`          | `ConnectionManager.connectMachine` (policy stage)       |
+| `connectingMachine → connectingScale`   | `ConnectionManager.connectScale` (post-machine policy)  |
+| `connectingMachine → ready` (no scale)  | `ConnectionManager._finalizePhase`                      |
+| `connectingScale → ready`               | `ConnectionManager._finalizePhase`                      |
+| `connectingScale → idle` (scale error)  | `StatusPublisher.emitError` → gatekeeper folds to idle  |
+| any `→ idle` on disconnect              | `DisconnectSupervisor._onMachineGone / _onScaleGone`    |
+
+`scaleOnly` reconnects (`scanAndConnectScale`) skip the
+`connectingMachine` edge and go `idle → scanning → connectingScale → ready`.
+
+Non-phase status fields (`error`, `foundMachines`, `pendingAmbiguity`)
+are allowed to change on any edge; only the `phase` field follows the
+table above.
 
 ### Connection Policy
 
