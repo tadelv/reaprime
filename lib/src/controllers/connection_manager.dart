@@ -6,7 +6,8 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart'
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/connection/disconnect_expectations.dart';
 import 'package:reaprime/src/controllers/connection/disconnect_supervisor.dart';
-import 'package:reaprime/src/controllers/connection/early_connect_watcher.dart';
+import 'package:reaprime/src/controllers/connection/policy_resolver.dart';
+import 'package:reaprime/src/controllers/connection/scan_orchestrator.dart';
 import 'package:reaprime/src/controllers/connection/scan_report_builder.dart';
 import 'package:reaprime/src/controllers/connection/status_publisher.dart';
 import 'package:reaprime/src/controllers/connection_error.dart';
@@ -16,7 +17,6 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device_scanner.dart';
 import 'package:reaprime/src/models/device/scale.dart';
-import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/models/scan_report.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:rxdart/rxdart.dart';
@@ -100,6 +100,7 @@ class ConnectionManager {
   bool get _scaleConnected => _disconnectSupervisor.isScaleConnected;
 
   late final DisconnectSupervisor _disconnectSupervisor;
+  late final ScanOrchestrator _scanOrchestrator;
 
   StreamSubscription<AdapterState>? _adapterSub;
 
@@ -126,6 +127,14 @@ class ConnectionManager {
       isConnectingScale: () => _isConnectingScale,
       scaleLastConnectedId: () => scaleController.lastConnectedDeviceId,
       preferredScaleId: () => settingsController.preferredScaleId,
+    );
+    _scanOrchestrator = ScanOrchestrator(
+      scanner: deviceScanner,
+      statusPublisher: _statusPublisher,
+      connectMachineTracked: _connectMachineTracked,
+      connectScaleTracked: _connectScaleTracked,
+      isMachineConnected: () => _machineConnected,
+      isScaleConnected: () => _scaleConnected,
     );
     _listenForAdapter();
   }
@@ -187,22 +196,6 @@ class ConnectionManager {
       suggestion: suggestion,
       details: details,
     );
-  }
-
-  /// Map a scan-start exception to a [ConnectionErrorKind]. Checks the
-  /// exception type first (for the known [PermissionDeniedException]
-  /// type); falls back to a lowercase substring match on the message
-  /// so platforms that surface permission failures as generic exceptions
-  /// still route to the right kind.
-  String _classifyScanError(Object e) {
-    if (e is PermissionDeniedException) {
-      return ConnectionErrorKind.bluetoothPermissionDenied;
-    }
-    final msg = e.toString().toLowerCase();
-    if (msg.contains('permission')) {
-      return ConnectionErrorKind.bluetoothPermissionDenied;
-    }
-    return ConnectionErrorKind.scanFailed;
   }
 
   /// Clears the current error. Proxy over [StatusPublisher.clearError]
@@ -320,125 +313,33 @@ class ConnectionManager {
   }
 
   Future<void> _connectImpl({required bool scaleOnly}) async {
-    final scanStartTime = DateTime.now();
-
-    // Per-scan builder that accumulates attempted/succeeded/failed
-    // results and emits the final ScanReport.
-    final scanReport = ScanReportBuilder(scanStartTime: scanStartTime);
-
-    // Emit scanning phase. Do not explicitly clear `error` — the gatekeeper
-    // strips transient errors on phase transitions into clearing phases and
-    // preserves sticky ones (e.g. adapterOff).
-    _publishStatus(
-      currentStatus.copyWith(
-        phase: ConnectionPhase.scanning,
-        pendingAmbiguity: () => null,
-      ),
-    );
-
     final preferredMachineId =
         scaleOnly ? null : settingsController.preferredMachineId;
     final preferredScaleId = settingsController.preferredScaleId;
-
-    // Early-stop is only enabled when both preferences are set (and not scaleOnly).
     final earlyStopEnabled =
         !scaleOnly && preferredMachineId != null && preferredScaleId != null;
 
-    // Watch device stream during scan — connect preferred devices immediately
-    // as they appear, rather than waiting for the full scan to complete.
-    //
-    // EarlyConnectWatcher owns the deviceStream subscription + the
-    // `(started, pending)` pair per device type + error handling on
-    // the pending futures (comms-harden #7, #18, #19).
-    final earlyConnect = EarlyConnectWatcher(
-      deviceStream: deviceScanner.deviceStream,
+    final scanStartTime = DateTime.now();
+    final scanRun = await _scanOrchestrator.runScan(
       preferredMachineId: preferredMachineId,
       preferredScaleId: preferredScaleId,
-      scanReport: scanReport,
-      isMachineConnected: () => _machineConnected,
-      isScaleConnected: () => _scaleConnected,
-      connectMachineTracked: _connectMachineTracked,
-      connectScaleTracked: _connectScaleTracked,
+      earlyStopEnabled: earlyStopEnabled,
       onEarlyAttemptComplete: () => _checkEarlyStop(earlyStopEnabled),
+      scanStartTime: scanStartTime,
     );
-    earlyConnect.start();
-
-    // Run full unfiltered scan. The scanner awaits every service's scan
-    // and returns a ScanResult carrying per-service failures; only a
-    // catastrophic, scan-wide error throws out of the Future. Classify
-    // any such throw into bluetoothPermissionDenied or scanFailed —
-    // both are sticky errors that survive phase transitions.
-    final ScanResult scanResult;
-    try {
-      scanResult = await deviceScanner.scanForDevices();
-    } catch (e) {
-      earlyConnect.stop();
-      final kind = _classifyScanError(e);
-      // DO NOT REORDER — same rationale as connectScale: publish idle
-      // first, then _emit the error (which bypasses the phase-change
-      // error-stripping gatekeeper) so the sticky error is preserved.
-      _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.idle));
-      _emit(ConnectionError(
-        kind: kind,
-        severity: ConnectionErrorSeverity.error,
-        timestamp: DateTime.now().toUtc(),
-        message: kind == ConnectionErrorKind.bluetoothPermissionDenied
-            ? 'Bluetooth permission was denied.'
-            : 'Failed to start Bluetooth scan.',
-        suggestion: kind == ConnectionErrorKind.bluetoothPermissionDenied
-            ? 'Grant Bluetooth permission in system settings and retry.'
-            : 'Check that Bluetooth is enabled and retry.',
-        details: {'exception': e.toString()},
-      ));
+    if (scanRun == null) {
+      // Scan failed catastrophically; orchestrator already emitted
+      // the sticky error + phase=idle.
       return;
     }
-    earlyConnect.stop();
 
-    // Sticky-error environmental recovery: reaching a completed scan
-    // means permission and scan subsystems are working again. Clear
-    // any sticky scan-related error that was hanging on — the
-    // _publishStatus gatekeeper would preserve it otherwise.
-    //
-    // TODO(comms-phase-2 PR B): consult scanResult.failedServices to
-    // surface per-transport failures (e.g. BLE permission denied while
-    // serial succeeded). Deferred to the error-path unification pass.
-    final prevErr = currentStatus.error;
-    if (prevErr != null &&
-        (prevErr.kind == ConnectionErrorKind.scanFailed ||
-            prevErr.kind == ConnectionErrorKind.bluetoothPermissionDenied)) {
-      _clearError();
-    }
-
-    // Wait for any in-flight early connects to finish before the
-    // post-scan policy runs.
-    await earlyConnect.awaitPending();
-
-    // Collect found devices from the authoritative ScanResult rather
-    // than re-reading `deviceScanner.devices`. This is the single
-    // source of truth for "what the scan turned up" (comms-harden #17).
-    final allDevices = scanResult.matchedDevices;
-    final machines = allDevices.whereType<De1Interface>().toList();
-    final scales = allDevices.whereType<Scale>().toList();
-
-    // Seed tracker entries for every device in the final snapshot.
-    // Early-connect paths pre-seeded their targets in the stream
-    // listener; ScanReportBuilder.seed is idempotent so those entries
-    // stay intact.
-    for (final d in allDevices) {
-      scanReport.seed(d);
-    }
-
-    _log.fine(
-      'Scan complete: ${machines.length} machines, ${scales.length} scales',
-    );
+    final machines = scanRun.machines;
+    final scales = scanRun.scales;
+    final scanReport = scanRun.reportBuilder;
 
     if (scaleOnly) {
-      // Update found scales in status
-      _publishStatus(
-        currentStatus.copyWith(foundScales: scales),
-      );
-      // Apply scale preference policy only
-      await _connectScalePhase(scales, scanReport);
+      _publishStatus(currentStatus.copyWith(foundScales: scales));
+      await _applyScalePolicy(scales, preferredScaleId, scanReport);
       _emitScanReport(
         scanReport: scanReport,
         preferredMachineId: null,
@@ -448,16 +349,15 @@ class ConnectionManager {
       return;
     }
 
-    // Store found devices in status for UI pickers
     _publishStatus(
       currentStatus.copyWith(foundMachines: machines, foundScales: scales),
     );
 
-    // If machine is already connected (either from before or early connect),
-    // skip straight to scale phase
+    // If machine is already connected (either from before or
+    // early-connect), skip straight to scale phase.
     if (_machineConnected) {
       _log.fine('Machine connected, proceeding to scale phase');
-      await _connectScalePhase(scales, scanReport);
+      await _applyScalePolicy(scales, preferredScaleId, scanReport);
       _emitScanReport(
         scanReport: scanReport,
         preferredMachineId: preferredMachineId,
@@ -467,36 +367,24 @@ class ConnectionManager {
       return;
     }
 
-    // Apply machine preference policy for remaining cases
-    if (preferredMachineId != null) {
-      // Preferred was set but not found during scan
-      if (machines.isNotEmpty) {
-        _publishStatus(
-          currentStatus.copyWith(
-            phase: ConnectionPhase.idle,
-            pendingAmbiguity: () => AmbiguityReason.machinePicker,
-          ),
-        );
-      } else {
+    // Post-scan machine policy. Early-connect already handled the
+    // "preferred found during scan" happy path; what arrives here
+    // is everything else.
+    final machineAction = resolveMachinePolicy(
+      machines: machines,
+      preferredMachineId: preferredMachineId,
+    );
+    switch (machineAction) {
+      case ConnectMachineAction(machine: final m):
+        await _connectMachineTracked(m, scanReport);
+        await _applyScalePolicy(scales, preferredScaleId, scanReport);
+      case MachinePickerAction():
+        _publishStatus(currentStatus.copyWith(
+          phase: ConnectionPhase.idle,
+          pendingAmbiguity: () => AmbiguityReason.machinePicker,
+        ));
+      case NoMachineAction():
         _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.idle));
-      }
-    } else {
-      // No preferred machine set
-      if (machines.isEmpty) {
-        _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.idle));
-      } else if (machines.length == 1) {
-        // Exactly one machine — auto-connect
-        await _connectMachineTracked(machines.first, scanReport);
-        await _connectScalePhase(scales, scanReport);
-      } else {
-        // Multiple machines — picker
-        _publishStatus(
-          currentStatus.copyWith(
-            phase: ConnectionPhase.idle,
-            pendingAmbiguity: () => AmbiguityReason.machinePicker,
-          ),
-        );
-      }
     }
 
     _emitScanReport(
@@ -515,57 +403,33 @@ class ConnectionManager {
     }
   }
 
-  /// Apply scale preference policy after machine connects. If
-  /// [scanReport] is provided, the attempt outcome is recorded on it;
-  /// otherwise a bare `connectScale` is used (the non-scan-driven
-  /// paths don't need tracker bookkeeping).
-  Future<void> _connectScalePhase(
-    List<Scale> scales, [
-    ScanReportBuilder? scanReport,
-  ]) async {
+  /// Apply the scale-phase policy, tracking attempts on [scanReport].
+  Future<void> _applyScalePolicy(
+    List<Scale> scales,
+    String? preferredScaleId,
+    ScanReportBuilder scanReport,
+  ) async {
     if (_scaleConnected) {
       _log.fine('Scale already connected, skipping scale phase');
       return;
     }
-    _log.fine('Scale phase: ${scales.length} scales found');
-    final preferredScaleId = settingsController.preferredScaleId;
-    _log.fine('Scale phase: preferredScaleId=$preferredScaleId');
-
-    if (preferredScaleId != null) {
-      // Preferred scale is set
-      final preferred =
-          scales.where((s) => s.deviceId == preferredScaleId).toList();
-      if (preferred.isNotEmpty) {
-        if (scanReport != null) {
-          await _connectScaleTracked(preferred.first, scanReport);
-        } else {
-          await connectScale(preferred.first);
-        }
-      } else if (scales.isNotEmpty) {
-        // Preferred not found but others available — picker
-        _log.fine('Scale phase: preferred not found, showing picker');
-        _publishStatus(
-          currentStatus.copyWith(
-            pendingAmbiguity: () => AmbiguityReason.scalePicker,
-          ),
-        );
-      }
-    } else {
-      // No preferred scale set
-      if (scales.length == 1) {
-        if (scanReport != null) {
-          await _connectScaleTracked(scales.first, scanReport);
-        } else {
-          await connectScale(scales.first);
-        }
-      } else if (scales.length > 1) {
-        // Multiple scales — picker
-        _publishStatus(
-          currentStatus.copyWith(
-            pendingAmbiguity: () => AmbiguityReason.scalePicker,
-          ),
-        );
-      }
+    _log.fine(
+      'Scale phase: ${scales.length} scales, preferredScaleId=$preferredScaleId',
+    );
+    final action = resolveScalePolicy(
+      scales: scales,
+      preferredScaleId: preferredScaleId,
+    );
+    switch (action) {
+      case ConnectScaleAction(scale: final s):
+        await _connectScaleTracked(s, scanReport);
+      case ScalePickerAction():
+        _publishStatus(currentStatus.copyWith(
+          pendingAmbiguity: () => AmbiguityReason.scalePicker,
+        ));
+      case NoScaleAction():
+        // Nothing to do — idle scale phase.
+        break;
     }
   }
 
