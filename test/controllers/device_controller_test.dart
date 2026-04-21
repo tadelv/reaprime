@@ -196,6 +196,38 @@ void main() {
     );
   });
 
+  group('devices getter caching (comms-harden #28)', () {
+    test(
+      'repeat getter calls return the same list instance until a mutation',
+      () async {
+        final service = _ManualDiscoveryService();
+        final controller = DeviceController([service]);
+        await controller.initialize();
+
+        service.emit([
+          _FakeDevice(
+            deviceId: 'AA:11:11:11:11:11',
+            name: 'DE1',
+            type: DeviceType.machine,
+          ),
+        ]);
+        await Future<void>.delayed(Duration.zero);
+
+        final first = controller.devices;
+        final second = controller.devices;
+        expect(identical(first, second), isTrue,
+            reason: 'cache should return the same instance on a hot call');
+
+        service.emit(const []);
+        await Future<void>.delayed(Duration.zero);
+
+        final afterMutation = controller.devices;
+        expect(identical(first, afterMutation), isFalse,
+            reason: 'cache must rebuild after a device-list mutation');
+      },
+    );
+  });
+
   group('disconnect tracking keys (comms-harden #20)', () {
     test(
       'two devices with same name but different IDs do not collide on disconnect',

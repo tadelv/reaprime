@@ -86,7 +86,8 @@ class ScanOrchestrator {
     required void Function() onEarlyAttemptComplete,
     required DateTime scanStartTime,
   }) async {
-    final reportBuilder = ScanReportBuilder(scanStartTime: scanStartTime);
+    final reportBuilder = ScanReportBuilder(scanStartTime: scanStartTime)
+      ..recordAdapterStateAtStart(_scanner.currentAdapterState);
 
     _statusPublisher.publish(
       _statusPublisher.current.copyWith(

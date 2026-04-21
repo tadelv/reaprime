@@ -42,7 +42,19 @@ class ScanReportBuilder {
   final DateTime scanStartTime;
   final Map<String, MatchedDeviceTracker> _trackers = {};
 
+  /// Adapter state captured at scan start. Set by the orchestrator
+  /// via [recordAdapterStateAtStart]; used by [build] so callers
+  /// don't have to thread it through a separate arg.
+  AdapterState _adapterStateAtStart = AdapterState.unknown;
+
   ScanReportBuilder({required this.scanStartTime});
+
+  /// Record the adapter state sampled at scan start. The end state is
+  /// supplied to [build] so the builder captures a true start/end pair
+  /// around the whole scan+connect window (comms-harden #27).
+  void recordAdapterStateAtStart(AdapterState state) {
+    _adapterStateAtStart = state;
+  }
 
   /// Ensure a tracker exists for [d]. Does not clobber an existing
   /// entry — `putIfAbsent` semantics so recorded attempt results
@@ -77,6 +89,7 @@ class ScanReportBuilder {
     required String? preferredMachineId,
     required String? preferredScaleId,
     required ScanTerminationReason terminationReason,
+    required AdapterState adapterStateAtEnd,
   }) {
     final matchedDevices =
         _trackers.values.map((t) => t.toMatchedDevice()).toList();
@@ -84,8 +97,8 @@ class ScanReportBuilder {
       totalBleDevicesSeen: matchedDevices.length,
       matchedDevices: matchedDevices,
       scanDuration: DateTime.now().difference(scanStartTime),
-      adapterStateAtStart: AdapterState.unknown,
-      adapterStateAtEnd: AdapterState.unknown,
+      adapterStateAtStart: _adapterStateAtStart,
+      adapterStateAtEnd: adapterStateAtEnd,
       scanTerminationReason: terminationReason,
       preferredMachineId: preferredMachineId,
       preferredScaleId: preferredScaleId,
