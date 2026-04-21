@@ -118,22 +118,30 @@ class DeviceController implements DeviceScanner {
     _scanningStream.add(true);
     final start = DateTime.now();
     try {
-      // Throw out disconnected/discovered devices (keep connected and connecting).
+      // Throw out disconnected/discovered devices (keep connected and
+      // connecting). Run the per-device `connectionState.first` checks
+      // across every service in parallel so pre-scan latency is
+      // capped at 2s total regardless of how many services or
+      // devices are cached (comms-harden #23).
+      final pairs = <({DeviceDiscoveryService service, Device device})>[];
       for (final entry in _devices.entries) {
-        final devices = entry.value;
-        final toRemove = <Device>[];
-        for (final device in devices) {
-          final state = await device.connectionState.first.timeout(
+        for (final device in entry.value) {
+          pairs.add((service: entry.key, device: device));
+        }
+      }
+      final staleFlags = await Future.wait(
+        pairs.map((p) async {
+          final state = await p.device.connectionState.first.timeout(
             const Duration(seconds: 2),
             onTimeout: () => ConnectionState.disconnected,
           );
-          if (state != ConnectionState.connected &&
-              state != ConnectionState.connecting) {
-            toRemove.add(device);
-          }
-        }
-        for (final device in toRemove) {
-          devices.remove(device);
+          return state != ConnectionState.connected &&
+              state != ConnectionState.connecting;
+        }),
+      );
+      for (var i = 0; i < pairs.length; i++) {
+        if (staleFlags[i]) {
+          _devices[pairs[i].service]?.remove(pairs[i].device);
         }
       }
       // Sync the disconnect-detection baseline with the cleaned list so
