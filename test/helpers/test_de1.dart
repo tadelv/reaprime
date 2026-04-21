@@ -13,6 +13,15 @@ import 'package:rxdart/rxdart.dart';
 /// [requestState] only records the call — it does NOT emit a new state.
 /// Use [emitSnapshot] or [emitStateAndSubstate] to drive the stream explicitly.
 class TestDe1 implements De1Interface {
+  /// Override for [deviceId]/[name]. Tests that need to distinguish two
+  /// TestDe1 instances (e.g. picker tests) pass these; everything else
+  /// gets the legacy defaults.
+  final String _deviceId;
+  final String _name;
+
+  TestDe1({String deviceId = 'test-de1', String name = 'TestDe1'})
+      : _deviceId = deviceId,
+        _name = name;
   final BehaviorSubject<MachineSnapshot> snapshotSubject =
       BehaviorSubject.seeded(
     MachineSnapshot(
@@ -97,9 +106,9 @@ class TestDe1 implements De1Interface {
   }
 
   @override
-  String get deviceId => 'test-de1';
+  String get deviceId => _deviceId;
   @override
-  String get name => 'TestDe1';
+  String get name => _name;
   @override
   DeviceType get type => DeviceType.machine;
   @override

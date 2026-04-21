@@ -30,7 +30,10 @@ class FakeConnectionManager extends ConnectionManager {
   bool _scaleOnlyLastCall = false;
   bool get scaleOnlyLastCall => _scaleOnlyLastCall;
 
-  FakeConnectionManager._({
+  /// Protected constructor — exposed so subclasses in other test files
+  /// can build their own collaborator wiring. Most tests should use
+  /// the default [FakeConnectionManager.new] factory below.
+  FakeConnectionManager.forSubclass({
     required super.deviceScanner,
     required super.de1Controller,
     required super.scaleController,
@@ -42,7 +45,7 @@ class FakeConnectionManager extends ConnectionManager {
     final de1 = MockDe1Controller(controller: DeviceController([]));
     final scale = MockScaleController();
     final settings = SettingsController(MockSettingsService());
-    return FakeConnectionManager._(
+    return FakeConnectionManager.forSubclass(
       deviceScanner: scanner,
       de1Controller: de1,
       scaleController: scale,

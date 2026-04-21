@@ -284,8 +284,49 @@ class _SettingsTileState extends State<SettingsTile> {
 
   Future<void> _handleScan(BuildContext context) async {
     setState(() => _isScanning = true);
-    await widget.connectionManager.connect();
-    if (mounted) setState(() => _isScanning = false);
+    try {
+      await widget.connectionManager.connect();
+    } catch (_) {
+      // Connection errors surface via the ConnectionManager status stream
+      // (banner / status tile). Nothing to do here.
+    } finally {
+      if (mounted) setState(() => _isScanning = false);
+    }
+    if (!context.mounted) return;
+    final status = widget.connectionManager.currentStatus;
+    if (status.pendingAmbiguity == AmbiguityReason.machinePicker) {
+      _showMachinePicker(context, status.foundMachines);
+    }
+  }
+
+  void _showMachinePicker(
+    BuildContext context,
+    List<De1Interface> machines,
+  ) {
+    showShadDialog(
+      context: context,
+      builder: (context) => ShadDialog(
+        title: const Text('Select Machine'),
+        child: Material(
+          color: Colors.transparent,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: machines
+                .map(
+                  (machine) => ListTile(
+                    title: Text(machine.name),
+                    subtitle: Text(machine.deviceId),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      widget.connectionManager.connectMachine(machine);
+                    },
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+      ),
+    );
   }
 }
 
