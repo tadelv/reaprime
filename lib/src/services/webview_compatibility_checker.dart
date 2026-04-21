@@ -51,6 +51,12 @@ class WebViewCompatibilityChecker {
   static final _log = Logger('WebViewCompatibilityChecker');
   static CompatibilityResult? _cachedResult;
 
+  /// Settle delay inserted before the headless WebView test on devices
+  /// whose platform-channel throughput can't cope with BLE traffic
+  /// running concurrently. Validated on the Teclast M50Mini.
+  static const _problematicManufacturerSettleDelay =
+      Duration(milliseconds: 500);
+
   /// Checks WebView compatibility using device info and runtime test
   ///
   /// Returns cached result if available, otherwise performs full check.
@@ -87,19 +93,19 @@ class WebViewCompatibilityChecker {
     // reads during onConnect) drain before the headless WebView
     // spins up. Teclast tablets in particular can't keep the
     // WebView's platform-channel traffic alive under BLE load and
-    // time out the 10-second rendering test.
-    //
-    // Exploratory fix — see doc/plans/comms-harden.md WebView
-    // investigation notes. If it holds, fold into a named constant.
+    // time out the 10-second rendering test without this settle
+    // window.
     try {
       final androidInfo = await DeviceInfoPlugin().androidInfo;
       final manufacturer = androidInfo.manufacturer.toLowerCase();
       if (_isProblematicManufacturer(manufacturer)) {
         _log.info(
           'Problematic manufacturer ($manufacturer) — delaying '
-          'WebView test by 500ms to let BLE traffic settle.',
+          'WebView test by '
+          '${_problematicManufacturerSettleDelay.inMilliseconds}ms '
+          'to let BLE traffic settle.',
         );
-        await Future.delayed(const Duration(milliseconds: 500));
+        await Future.delayed(_problematicManufacturerSettleDelay);
       }
     } catch (e, st) {
       _log.warning('Pre-WebView-test delay probe failed, continuing', e, st);
