@@ -35,6 +35,7 @@ sb-dev.sh — Streamline Bridge dev-session manager
 
 Usage:
   sb-dev start [--platform <id>] [--connect-machine <name|id>] [--connect-scale <name|id>]
+               [--preferred-machine-id <id>] [--preferred-scale-id <id>]
                [--real] [--adb-forward] [--dart-define k=v]
   sb-dev stop
   sb-dev restart           — cold restart with the same flags as the last start
@@ -47,9 +48,18 @@ Usage:
 Flags:
   --platform <id>          Flutter device id (`-d` passthrough). Examples: macos,
                            linux, chrome, or an Android adb serial like 8734SCCFAC00000747.
-  --connect-machine <v>    Match by device name OR id; used as preferredMachineId.
-                           Simulate: MockDe1. Real BLE: DE1 (name) or D9:11:… (MAC).
+  --connect-machine <v>    Match by device name OR id in the post-boot scan loop.
+                           In simulate mode also drives preferredMachineId (the
+                           mock's name == its id). In --real mode a name like
+                           "DE1" won't match a BLE MAC deviceId, so pair with
+                           --preferred-machine-id if you want auto-connect
+                           based on a saved preference.
   --connect-scale <v>      Same semantics for the scale.
+  --preferred-machine-id <id>   Explicit --dart-define=preferredMachineId=<id>.
+                                Use with --real to pin the preferred device to
+                                a BLE MAC or UUID that ConnectionManager
+                                actually matches on.
+  --preferred-scale-id <id>     Same for the scale.
   --real                   Do NOT inject --dart-define=simulate=1. Use real BLE/USB.
   --adb-forward            Run `adb forward tcp:$PORT tcp:$PORT` on start so host
                            localhost:$PORT reaches the REST server on an Android
@@ -131,6 +141,7 @@ start_cmd() {
   fi
 
   local platform="" machine="" scale=""
+  local preferred_machine_id="" preferred_scale_id=""
   local real=0 adb_forward=0
   local -a extra_defines=()
   while [[ $# -gt 0 ]]; do
@@ -144,6 +155,12 @@ start_cmd() {
       --connect-scale)
         [[ $# -ge 2 ]] || { echo "Missing value for $1" >&2; return 2; }
         scale="$2"; shift 2 ;;
+      --preferred-machine-id)
+        [[ $# -ge 2 ]] || { echo "Missing value for $1" >&2; return 2; }
+        preferred_machine_id="$2"; shift 2 ;;
+      --preferred-scale-id)
+        [[ $# -ge 2 ]] || { echo "Missing value for $1" >&2; return 2; }
+        preferred_scale_id="$2"; shift 2 ;;
       --real)
         real=1; shift ;;
       --adb-forward)
@@ -160,6 +177,10 @@ start_cmd() {
     [[ -n "$platform" ]] && printf '%s\n' "--platform $platform"
     [[ -n "$machine" ]] && printf '%s\n' "--connect-machine $machine"
     [[ -n "$scale" ]] && printf '%s\n' "--connect-scale $scale"
+    [[ -n "$preferred_machine_id" ]] && \
+      printf '%s\n' "--preferred-machine-id $preferred_machine_id"
+    [[ -n "$preferred_scale_id" ]] && \
+      printf '%s\n' "--preferred-scale-id $preferred_scale_id"
     [[ "$real" -eq 1 ]] && printf '%s\n' "--real"
     [[ "$adb_forward" -eq 1 ]] && printf '%s\n' "--adb-forward"
     for d in "${extra_defines[@]}"; do printf '%s\n' "--dart-define ${d#--dart-define=}"; done
@@ -182,8 +203,22 @@ start_cmd() {
 
   local -a defines=()
   [[ "$real" -eq 0 ]] && defines+=("--dart-define=simulate=1")
-  [[ -n "$machine" ]] && defines+=("--dart-define=preferredMachineId=$machine")
-  [[ -n "$scale" ]] && defines+=("--dart-define=preferredScaleId=$scale")
+  # In simulate mode the mock device's name doubles as its id, so
+  # reusing `--connect-machine` for `preferredMachineId` is harmless.
+  # In `--real` mode a name like "DE1" won't match a device.deviceId
+  # like "D9:11:0B:E6:9F:86", so only wire up the preferred-id dart
+  # define when the caller has explicitly provided one via
+  # `--preferred-machine-id` (same for scale).
+  if [[ "$real" -eq 0 && -n "$machine" ]]; then
+    defines+=("--dart-define=preferredMachineId=$machine")
+  fi
+  if [[ "$real" -eq 0 && -n "$scale" ]]; then
+    defines+=("--dart-define=preferredScaleId=$scale")
+  fi
+  [[ -n "$preferred_machine_id" ]] && \
+    defines+=("--dart-define=preferredMachineId=$preferred_machine_id")
+  [[ -n "$preferred_scale_id" ]] && \
+    defines+=("--dart-define=preferredScaleId=$preferred_scale_id")
   defines+=("${extra_defines[@]}")
 
   local -a platform_flag=()
