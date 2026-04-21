@@ -92,6 +92,14 @@ class ConnectionManager {
   bool _isConnectingMachine = false;
   bool _isConnectingScale = false;
 
+  /// End-to-end timeout for a single `connectMachine` / `connectScale`
+  /// call. Phase 1 bounded the MMR-read hang at 2s; this is the
+  /// belt-and-braces that keeps any other transport-level hang from
+  /// wedging `_isConnecting` (comms-harden #31). Real-hardware
+  /// connect currently observes 3–10s on tablet; 30s leaves ~3x
+  /// headroom for slow adapters without feeling sluggish.
+  static const _connectTimeout = Duration(seconds: 30);
+
   // Device-connection state + unexpected-disconnect emission live on
   // DisconnectSupervisor — it owns the two stream subscribers and
   // exposes `isMachineConnected` / `isScaleConnected` as live views
@@ -452,7 +460,9 @@ class ConnectionManager {
     );
 
     try {
-      await de1Controller.connectToDe1(machine);
+      await de1Controller
+          .connectToDe1(machine)
+          .timeout(_connectTimeout);
       await settingsController.setPreferredMachineId(machine.deviceId);
       // `_latestDe1` is populated by the de1Controller.de1 stream
       // listener; by the time connectToDe1 returns, that microtask has
@@ -463,13 +473,18 @@ class ConnectionManager {
       // phase), so the _publishStatus/_emit ordering isn't load-bearing —
       // kept consistent with connectScale for readability.
       _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.idle));
+      final timedOut = e is TimeoutException;
       _emit(_buildConnectError(
         kind: ConnectionErrorKind.machineConnectFailed,
         deviceId: machine.deviceId,
         deviceName: machine.name,
-        message: 'Machine ${machine.name} failed to connect.',
-        suggestion:
-            'Make sure the DE1 is powered on and in range, then retry.',
+        message: timedOut
+            ? 'Machine ${machine.name} did not respond within '
+                '${_connectTimeout.inSeconds}s.'
+            : 'Machine ${machine.name} failed to connect.',
+        suggestion: timedOut
+            ? 'Try again. If the problem persists, power-cycle the machine.'
+            : 'Make sure the DE1 is powered on and in range, then retry.',
         exception: e,
       ));
       rethrow;
@@ -495,7 +510,9 @@ class ConnectionManager {
     );
 
     try {
-      await scaleController.connectToScale(scale);
+      await scaleController
+          .connectToScale(scale)
+          .timeout(_connectTimeout);
       await settingsController.setPreferredScaleId(scale.deviceId);
       // `_latestScaleState` is populated by the scaleController
       // listener; `_scaleConnected` reads from it.
@@ -516,13 +533,19 @@ class ConnectionManager {
       // run the error through the gatekeeper's strip rule. Publishing the
       // phase first (no error present) then calling `_emit` (bypasses the
       // gatekeeper) is the only order that keeps the error visible.
+      final timedOut = e is TimeoutException;
       _emit(_buildConnectError(
         kind: ConnectionErrorKind.scaleConnectFailed,
         deviceId: scale.deviceId,
         deviceName: scale.name,
-        message: 'Scale ${scale.name} failed to connect.',
-        suggestion: 'Wake the scale and try again. If the problem persists, '
-            'toggle Bluetooth off and on.',
+        message: timedOut
+            ? 'Scale ${scale.name} did not respond within '
+                '${_connectTimeout.inSeconds}s.'
+            : 'Scale ${scale.name} failed to connect.',
+        suggestion: timedOut
+            ? 'Try again. If the problem persists, power-cycle the scale.'
+            : 'Wake the scale and try again. If the problem persists, '
+                'toggle Bluetooth off and on.',
         exception: e,
       ));
     } finally {

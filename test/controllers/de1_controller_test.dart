@@ -1,38 +1,82 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'dart:async';
 
-/// Gap E — regression coverage for comms-harden #5 (shot-settings debounce
-/// races disconnect).
-///
-/// `De1Controller._shotSettingsUpdate` schedules a 100 ms debounce timer
-/// that calls `_processShotSettingsUpdate`. Once the timer fires, its async
-/// body awaits a chain of `connectedDe1().getSteamFlow()` / `getFlushFlow()`
-/// / etc. If the DE1 disconnects mid-chain, `_de1` is nulled by
-/// `_onDisconnect()` and subsequent `connectedDe1()` calls throw the raw
-/// string `"De1 not connected yet"` — unhandled, leaking as an async error
-/// from the timer.
-///
-/// Phase 1 PR 3 replaces the raw string with `DeviceNotConnectedException`.
-/// Phase 5 (#5 proper) adds generation-token guards so the running debounce
-/// body bails out cleanly on disconnect.
-///
-/// When the fix lands:
-///   1. Remove the `skip:` arguments.
-///   2. Implement the test body using `runZonedGuarded` (or a test binding
-///      error hook) to catch async errors from the timer body.
-///   3. Fire `_shotSettingsUpdate`, immediately disconnect, advance time
-///      past the 100 ms debounce, and assert no unhandled exception was
-///      emitted.
-///
-/// See: doc/plans/comms-harden.md #5,
-///      doc/plans/comms-phase-0-1.md Gap E.
+import 'package:fake_async/fake_async.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:reaprime/src/controllers/de1_controller.dart';
+import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/device.dart';
+
+import '../helpers/mock_device_discovery_service.dart';
+import '../helpers/test_de1.dart';
+
+De1ShotSettings _emptyShotSettings() => De1ShotSettings(
+      steamSetting: 0,
+      targetSteamTemp: 0,
+      targetSteamDuration: 0,
+      targetHotWaterTemp: 0,
+      targetHotWaterVolume: 0,
+      targetHotWaterDuration: 0,
+      targetShotVolume: 0,
+      groupTemp: 0,
+    );
+
 void main() {
   group('shot-settings debounce race (comms-harden #5)', () {
     test(
       'disconnect during debounce does not leak an unhandled async error',
       () async {
-        fail('pending Phase 5 fix for #5');
+        final uncaughtErrors = <Object>[];
+
+        await runZonedGuarded(
+          () async {
+            final deviceController =
+                DeviceController([MockDeviceDiscoveryService()]);
+            await deviceController.initialize();
+            final de1Controller = De1Controller(controller: deviceController);
+            final testDe1 = TestDe1();
+
+            // Kick off connect: TestDe1.onConnect is a no-op, so
+            // connectToDe1 completes quickly. ready is Stream.value(true)
+            // so _initializeData fires on the next microtask.
+            await de1Controller.connectToDe1(testDe1);
+
+            // Unblock _initializeData's `shotSettings.first` await +
+            // trigger the first _shotSettingsUpdate, which schedules the
+            // 100ms debounce timer.
+            testDe1.emitShotSettings(_emptyShotSettings());
+            // Let the microtask chain reach the scheduled Timer.
+            await Future<void>.delayed(Duration.zero);
+
+            // Force a disconnect while the debounce timer is still
+            // pending. _onDisconnect bumps _connectionGeneration,
+            // nulls _de1, cancels _shotSettingsDebounce, and cancels
+            // the shotSettings subscription.
+            testDe1.setConnectionState(ConnectionState.disconnected);
+            await Future<void>.delayed(Duration.zero);
+
+            // Wait past the 100ms debounce window. With the generation
+            // fix, the timer body should find a stale generation (or
+            // null _de1) and bail without touching connectedDe1().
+            await Future<void>.delayed(
+                const Duration(milliseconds: 200));
+
+            testDe1.dispose();
+          },
+          (error, stack) {
+            uncaughtErrors.add(error);
+          },
+        );
+
+        expect(
+          uncaughtErrors,
+          isEmpty,
+          reason:
+              'debounce timer closure must bail on disconnect, not leak '
+              'DeviceNotConnectedException into the zone',
+        );
       },
-      skip: 'pending fix for comms-harden #5 — see doc/plans/comms-phase-0-1.md',
+      timeout: const Timeout(Duration(seconds: 5)),
     );
   });
 }

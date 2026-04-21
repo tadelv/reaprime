@@ -37,6 +37,17 @@ class TestDe1 implements De1Interface {
   final BehaviorSubject<ConnectionState> _connectionState =
       BehaviorSubject.seeded(ConnectionState.connected);
 
+  /// Drives the [shotSettings] stream — tests call [emitShotSettings]
+  /// to push a value, which is how [De1Controller._initializeData]
+  /// and its debounce-timer subscription are exercised.
+  final BehaviorSubject<De1ShotSettings> _shotSettingsSubject =
+      BehaviorSubject<De1ShotSettings>();
+
+  /// Emit a [De1ShotSettings] on the [shotSettings] stream.
+  void emitShotSettings(De1ShotSettings settings) {
+    _shotSettingsSubject.add(settings);
+  }
+
   /// Records every [MachineState] passed to [requestState].
   final List<MachineState> requestedStates = [];
 
@@ -63,6 +74,7 @@ class TestDe1 implements De1Interface {
   void dispose() {
     snapshotSubject.close();
     _connectionState.close();
+    _shotSettingsSubject.close();
   }
 
   // ---- Machine / Device ----
@@ -102,7 +114,7 @@ class TestDe1 implements De1Interface {
   @override
   Stream<bool> get ready => Stream.value(true);
   @override
-  Stream<De1ShotSettings> get shotSettings => const Stream.empty();
+  Stream<De1ShotSettings> get shotSettings => _shotSettingsSubject.stream;
   @override
   Future<void> updateShotSettings(De1ShotSettings newSettings) async {}
   @override
