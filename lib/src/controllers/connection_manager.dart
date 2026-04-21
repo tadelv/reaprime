@@ -5,6 +5,8 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart'
     show FlutterBluePlusException;
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/connection/disconnect_expectations.dart';
+import 'package:reaprime/src/controllers/connection/disconnect_supervisor.dart';
+import 'package:reaprime/src/controllers/connection/early_connect_watcher.dart';
 import 'package:reaprime/src/controllers/connection/scan_report_builder.dart';
 import 'package:reaprime/src/controllers/connection/status_publisher.dart';
 import 'package:reaprime/src/controllers/connection_error.dart';
@@ -12,7 +14,6 @@ import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/adapter_state.dart';
-import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/device_scanner.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/errors.dart';
@@ -91,21 +92,15 @@ class ConnectionManager {
   bool _isConnectingMachine = false;
   bool _isConnectingScale = false;
 
-  // Device-connection state tracked directly from the streams that own
-  // it. `_listenForDisconnects` keeps these in sync; nothing else
-  // mutates them, so they cannot drift from the source of truth.
-  // Replaces the previous `_machineConnected` / `_scaleConnected`
-  // parallel flags (comms-harden #4, #6).
-  De1Interface? _latestDe1;
-  device.ConnectionState _latestScaleState =
-      device.ConnectionState.discovered;
+  // Device-connection state + unexpected-disconnect emission live on
+  // DisconnectSupervisor — it owns the two stream subscribers and
+  // exposes `isMachineConnected` / `isScaleConnected` as live views
+  // of the source streams (no parallel flags).
+  bool get _machineConnected => _disconnectSupervisor.isMachineConnected;
+  bool get _scaleConnected => _disconnectSupervisor.isScaleConnected;
 
-  bool get _machineConnected => _latestDe1 != null;
-  bool get _scaleConnected =>
-      _latestScaleState == device.ConnectionState.connected;
+  late final DisconnectSupervisor _disconnectSupervisor;
 
-  StreamSubscription? _machineDisconnectSub;
-  StreamSubscription? _scaleDisconnectSub;
   StreamSubscription<AdapterState>? _adapterSub;
 
   final DisconnectExpectations _disconnectExpectations =
@@ -122,7 +117,16 @@ class ConnectionManager {
     required this.scaleController,
     required this.settingsController,
   }) {
-    _listenForDisconnects();
+    _disconnectSupervisor = DisconnectSupervisor(
+      machineStream: de1Controller.de1,
+      scaleStream: scaleController.connectionState,
+      statusPublisher: _statusPublisher,
+      expectations: _disconnectExpectations,
+      isConnectingMachine: () => _isConnectingMachine,
+      isConnectingScale: () => _isConnectingScale,
+      scaleLastConnectedId: () => scaleController.lastConnectedDeviceId,
+      preferredScaleId: () => settingsController.preferredScaleId,
+    );
     _listenForAdapter();
   }
 
@@ -139,49 +143,6 @@ class ConnectionManager {
       } else if (state == AdapterState.poweredOn &&
           currentStatus.error?.kind == ConnectionErrorKind.adapterOff) {
         _clearError();
-      }
-    });
-  }
-
-  void _listenForDisconnects() {
-    // Watch de1Controller.de1 stream — null means machine disconnected.
-    // Ignore null emissions while actively connecting (connectToDe1 calls
-    // _onDisconnect() at the start, which emits null transiently).
-    String? lastKnownMachineId;
-    _machineDisconnectSub = de1Controller.de1.listen((de1) {
-      final hadMachine = _latestDe1 != null;
-      _latestDe1 = de1;
-      if (de1 != null) {
-        lastKnownMachineId = de1.deviceId;
-        return;
-      }
-      if (hadMachine && !_isConnectingMachine) {
-        _log.fine('Machine disconnected');
-        _publishStatus(
-          currentStatus.copyWith(phase: ConnectionPhase.idle),
-        );
-        final id = lastKnownMachineId;
-        if (id != null) {
-          _handleMachineDisconnect(id);
-        }
-      }
-    });
-
-    // Watch scaleController.connectionState — emit scaleDisconnected on a
-    // connected → disconnected transition (unless marked expected).
-    _scaleDisconnectSub = scaleController.connectionState.listen((state) {
-      final wasConnected =
-          _latestScaleState == device.ConnectionState.connected;
-      _latestScaleState = state;
-      _log.fine("scale connection update: ${state.name}");
-      if (wasConnected &&
-          state == device.ConnectionState.disconnected &&
-          !_isConnectingScale) {
-        final id = scaleController.lastConnectedDeviceId ??
-            settingsController.preferredScaleId;
-        if (id != null) {
-          _handleScaleDisconnect(id);
-        }
       }
     });
   }
@@ -289,52 +250,13 @@ class ConnectionManager {
     _disconnectExpectations.mark(deviceId);
   }
 
-  bool _consumeExpectingDisconnect(String deviceId) =>
-      _disconnectExpectations.consume(deviceId);
-
-  void _handleScaleDisconnect(String deviceId) {
-    if (_consumeExpectingDisconnect(deviceId)) {
-      _log.fine('Scale $deviceId: expected disconnect, suppressing error');
-      return;
-    }
-    _emit(ConnectionError(
-      kind: ConnectionErrorKind.scaleDisconnected,
-      severity: ConnectionErrorSeverity.error,
-      timestamp: DateTime.now().toUtc(),
-      deviceId: deviceId,
-      message: 'Scale disconnected unexpectedly.',
-      suggestion:
-          'The scale may have powered off or moved out of range. '
-          'Wake the scale and reconnect.',
-    ));
-  }
-
-  void _handleMachineDisconnect(String deviceId) {
-    if (_consumeExpectingDisconnect(deviceId)) {
-      _log.fine('Machine $deviceId: expected disconnect, suppressing error');
-      return;
-    }
-    _emit(ConnectionError(
-      kind: ConnectionErrorKind.machineDisconnected,
-      severity: ConnectionErrorSeverity.error,
-      timestamp: DateTime.now().toUtc(),
-      deviceId: deviceId,
-      message: 'Machine disconnected unexpectedly.',
-      suggestion:
-          'Check the machine is powered on and in range, then '
-          'reconnect.',
-    ));
-  }
+  @visibleForTesting
+  void debugNotifyScaleDisconnected(String deviceId) =>
+      _disconnectSupervisor.notifyScaleDisconnected(deviceId);
 
   @visibleForTesting
-  void debugNotifyScaleDisconnected(String deviceId) {
-    _handleScaleDisconnect(deviceId);
-  }
-
-  @visibleForTesting
-  void debugNotifyMachineDisconnected(String deviceId) {
-    _handleMachineDisconnect(deviceId);
-  }
+  void debugNotifyMachineDisconnected(String deviceId) =>
+      _disconnectSupervisor.notifyMachineDisconnected(deviceId);
 
   /// Scan for devices and connect based on preference policy.
   ///
@@ -424,66 +346,22 @@ class ConnectionManager {
 
     // Watch device stream during scan — connect preferred devices immediately
     // as they appear, rather than waiting for the full scan to complete.
-    // Skip(1) avoids the BehaviorSubject replay of stale (disconnected) devices;
-    // we only want to react to fresh discoveries from the active scan.
     //
-    // Each early-connect is tracked as an explicit (started, pending)
-    // pair rather than a nullable Future-as-flag (comms-harden #7, #18).
-    // `started` stops the listener from firing a second attempt;
-    // `pending` is the awaitable for post-scan synchronisation.
-    var earlyMachineStarted = false;
-    Future<void>? earlyMachinePending;
-    var earlyScaleStarted = false;
-    Future<void>? earlyScalePending;
-    // The listener only handles early-connect triggering. Per-device
-    // tracker entries are seeded once from the authoritative
-    // ScanResult after the scan completes (comms-harden #17).
-    final sub = deviceScanner.deviceStream.skip(1).listen((devices) {
-      if (preferredMachineId != null &&
-          !_machineConnected &&
-          !earlyMachineStarted) {
-        final match =
-            devices
-                .whereType<De1Interface>()
-                .where((m) => m.deviceId == preferredMachineId)
-                .firstOrNull;
-        if (match != null) {
-          _log.fine('Preferred machine found during scan, connecting early');
-          earlyMachineStarted = true;
-          // Seed the tracker now so the connection attempt + result
-          // land on the right entry; the post-scan seed below is
-          // idempotent and leaves this seed intact.
-          scanReport.seed(match);
-          earlyMachinePending = _connectMachineTracked(
-            match,
-            scanReport,
-          ).then((_) {
-            _checkEarlyStop(earlyStopEnabled);
-          });
-        }
-      }
-
-      if (preferredScaleId != null &&
-          !_scaleConnected &&
-          !earlyScaleStarted) {
-        final match =
-            devices
-                .whereType<Scale>()
-                .where((m) => m.deviceId == preferredScaleId)
-                .firstOrNull;
-        if (match != null) {
-          _log.fine('Preferred scale found during scan, connecting early');
-          earlyScaleStarted = true;
-          scanReport.seed(match);
-          earlyScalePending = _connectScaleTracked(
-            match,
-            scanReport,
-          ).then((_) {
-            _checkEarlyStop(earlyStopEnabled);
-          });
-        }
-      }
-    });
+    // EarlyConnectWatcher owns the deviceStream subscription + the
+    // `(started, pending)` pair per device type + error handling on
+    // the pending futures (comms-harden #7, #18, #19).
+    final earlyConnect = EarlyConnectWatcher(
+      deviceStream: deviceScanner.deviceStream,
+      preferredMachineId: preferredMachineId,
+      preferredScaleId: preferredScaleId,
+      scanReport: scanReport,
+      isMachineConnected: () => _machineConnected,
+      isScaleConnected: () => _scaleConnected,
+      connectMachineTracked: _connectMachineTracked,
+      connectScaleTracked: _connectScaleTracked,
+      onEarlyAttemptComplete: () => _checkEarlyStop(earlyStopEnabled),
+    );
+    earlyConnect.start();
 
     // Run full unfiltered scan. The scanner awaits every service's scan
     // and returns a ScanResult carrying per-service failures; only a
@@ -494,7 +372,7 @@ class ConnectionManager {
     try {
       scanResult = await deviceScanner.scanForDevices();
     } catch (e) {
-      sub.cancel();
+      earlyConnect.stop();
       final kind = _classifyScanError(e);
       // DO NOT REORDER — same rationale as connectScale: publish idle
       // first, then _emit the error (which bypasses the phase-change
@@ -514,7 +392,7 @@ class ConnectionManager {
       ));
       return;
     }
-    sub.cancel();
+    earlyConnect.stop();
 
     // Sticky-error environmental recovery: reaching a completed scan
     // means permission and scan subsystems are working again. Clear
@@ -531,25 +409,9 @@ class ConnectionManager {
       _clearError();
     }
 
-    // Wait for early connections to finish if started
-    if (earlyMachinePending != null) {
-      try {
-        await earlyMachinePending;
-      } catch (e, st) {
-        // connectMachine already emitted machineConnectFailed and
-        // _connectMachineTracked recorded the outcome on the tracker.
-        // If an error still slipped out, log for diagnostics.
-        _log.fine('Early machine connect slipped past tracker', e, st);
-      }
-    }
-
-    if (earlyScalePending != null) {
-      try {
-        await earlyScalePending;
-      } catch (e, st) {
-        _log.fine('Early scale connect slipped past tracker', e, st);
-      }
-    }
+    // Wait for any in-flight early connects to finish before the
+    // post-scan policy runs.
+    await earlyConnect.awaitPending();
 
     // Collect found devices from the authoritative ScanResult rather
     // than re-reading `deviceScanner.devices`. This is the single
@@ -864,11 +726,11 @@ class ConnectionManager {
   }
 
   Future<void> disconnectMachine() async {
-    // Pre-null the tracked-latest view so the de1 stream listener's
+    // Pre-null the supervisor's tracked de1 view so its stream listener's
     // `hadMachine` check sees "no machine was connected" by the time
-    // it fires on the upcoming null emission — otherwise the listener
+    // it fires on the upcoming null emission — otherwise the supervisor
     // would emit a redundant phase=idle on top of the one below.
-    _latestDe1 = null;
+    _disconnectSupervisor.markMachineOffline();
     _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.idle));
     final de1 = await de1Controller.de1.first;
     if (de1 != null) {
@@ -891,8 +753,7 @@ class ConnectionManager {
   }
 
   void dispose() {
-    _machineDisconnectSub?.cancel();
-    _scaleDisconnectSub?.cancel();
+    _disconnectSupervisor.dispose();
     _adapterSub?.cancel();
     _disconnectExpectations.dispose();
     _statusPublisher.dispose();
