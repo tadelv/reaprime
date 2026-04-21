@@ -270,7 +270,7 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
               trackHeight: 24.0,
               label: _steamFlow.toStringAsFixed(1),
               onChanged: (value) async {
-                await _de1Controller.connectedDe1().setSteamFlow(value);
+                await _de1Controller.setSteamFlow(value);
                 setState(() {
                   _steamFlow = value;
                 });

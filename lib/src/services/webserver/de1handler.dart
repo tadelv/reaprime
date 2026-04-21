@@ -66,16 +66,16 @@ class De1Handler {
           await de1.setFlushTemperature(parseDouble(json['flushTemp']));
         }
         if (json['flushFlow'] != null) {
-          await de1.setFlushFlow(parseDouble(json['flushFlow']));
+          await _controller.setFlushFlow(parseDouble(json['flushFlow']));
         }
         if (json['flushTimeout'] != null) {
           await de1.setFlushTimeout(parseDouble(json['flushTimeout']));
         }
         if (json['hotWaterFlow'] != null) {
-          await de1.setHotWaterFlow(parseDouble(json['hotWaterFlow']));
+          await _controller.setHotWaterFlow(parseDouble(json['hotWaterFlow']));
         }
         if (json['steamFlow'] != null) {
-          await de1.setSteamFlow(parseDouble(json['steamFlow']));
+          await _controller.setSteamFlow(parseDouble(json['steamFlow']));
         }
         if (json['tankTemp'] != null) {
           await de1.setTankTempThreshold(parseInt(json['tankTemp']));
