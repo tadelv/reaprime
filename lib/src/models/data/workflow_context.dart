@@ -156,4 +156,47 @@ class WorkflowContext {
       'dose: $targetDoseWeight→$targetYield, '
       'grinder: $grinderModel/$grinderSetting, '
       'coffee: $coffeeName by $coffeeRoaster)';
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! WorkflowContext) return false;
+    return other.targetDoseWeight == targetDoseWeight &&
+        other.targetYield == targetYield &&
+        other.grinderId == grinderId &&
+        other.grinderModel == grinderModel &&
+        other.grinderSetting == grinderSetting &&
+        other.beanBatchId == beanBatchId &&
+        other.coffeeName == coffeeName &&
+        other.coffeeRoaster == coffeeRoaster &&
+        other.finalBeverageType == finalBeverageType &&
+        other.baristaName == baristaName &&
+        other.drinkerName == drinkerName &&
+        _mapEquals(other.extras, extras);
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        targetDoseWeight,
+        targetYield,
+        grinderId,
+        grinderModel,
+        grinderSetting,
+        beanBatchId,
+        coffeeName,
+        coffeeRoaster,
+        finalBeverageType,
+        baristaName,
+        drinkerName,
+        extras == null ? null : Object.hashAll(extras!.entries.map((e) => Object.hash(e.key, e.value))),
+      );
+}
+
+bool _mapEquals(Map<String, dynamic>? a, Map<String, dynamic>? b) {
+  if (identical(a, b)) return true;
+  if (a == null || b == null) return false;
+  if (a.length != b.length) return false;
+  for (final key in a.keys) {
+    if (!b.containsKey(key) || a[key] != b[key]) return false;
+  }
+  return true;
 }
