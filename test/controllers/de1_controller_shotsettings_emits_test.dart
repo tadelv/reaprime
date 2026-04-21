@@ -14,17 +14,14 @@ import '../helpers/mock_device_discovery_service.dart';
 /// Counts every event that crosses `MockDe1.shotSettings` — the same
 /// stream `/ws/v1/machine/shotSettings` delivers to clients. These
 /// tests pin the emit-count contract per De1Controller write op so we
-/// catch regressions (and drive follow-up reductions) in the number of
-/// WS messages per workflow change.
+/// catch regressions in the number of WS messages per workflow change.
 ///
 /// Context: the original redundant-writes report observed 5 WS emits
 /// per single steam-duration PUT. After adding value equality on the
-/// workflow data classes and awaiting the individual settings writes
-/// in WorkflowHandler, the count drops to 2 per changed field — one
-/// from the `setXFlow` "nudge" re-emit and one from the actual
-/// `updateShotSettings` write. The nudge is a workaround inside
-/// MockDe1/UnifiedDe1 to trigger the De1Controller refresh when flow
-/// values change; it's still a redundant WS emit from the client's POV.
+/// workflow data classes, awaiting individual settings writes in
+/// WorkflowHandler, dropping the `setXFlow` nudge re-emit in
+/// MockDe1/UnifiedDe1, and applying `.distinct()` on the shotSettings
+/// getter, the count is 1 per changed field.
 void main() {
   late MockDe1 mockDe1;
   late DeviceController deviceController;
@@ -54,7 +51,7 @@ void main() {
 
   group('updateSteamSettings — shotSettings emit count', () {
     test(
-      'exactly one emit per steam change (ideal after nudge removal)',
+      'exactly one emit per steam change',
       () async {
         await de1Controller.updateSteamSettings(
           SteamFormSettings(
@@ -69,52 +66,22 @@ void main() {
         expect(
           observedEmits.length,
           equals(1),
-          reason: 'every setXFlow call in MockDe1/UnifiedDe1 currently '
-              're-adds the current shotSettings to the subject as a '
-              'workaround to trigger the De1Controller refresh; this '
-              'leaks a redundant WS emit. Dropping the nudge (or '
-              'replacing it with a dedicated refresh channel) makes '
-              'this hit 1.',
+          reason: 'nudge re-emits are gone and `.distinct()` on the '
+              'getter collapses firmware echoes — only the actual '
+              'updateShotSettings write should reach the WS stream',
         );
-      },
-      skip: 'pending: drop setXFlow nudge re-emit in '
-          'mock_de1.dart/unified_de1.dart — see workflow-updates fix '
-          'doc. Remove skip when that lands.',
-    );
-
-    test(
-      'current behaviour: two emits per steam change (nudge + write)',
-      () async {
-        await de1Controller.updateSteamSettings(
-          SteamFormSettings(
-            steamEnabled: true,
-            targetTemp: 150,
-            targetDuration: 30,
-            targetFlow: 2.5,
-          ),
-        );
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-
-        expect(
-          observedEmits.length,
-          equals(2),
-          reason: '1 from MockDe1.setSteamFlow nudge re-emit + 1 from '
-              'MockDe1.updateShotSettings. Regression guard: if this '
-              'climbs back to 3+ we have reintroduced the '
-              'read-modify-write or diff-miss bug.',
-        );
-        expect(observedEmits.last.targetSteamDuration, equals(30));
+        expect(observedEmits.single.targetSteamDuration, equals(30));
       },
     );
 
     test(
-      'multi-field De1Controller sequence: one emit per setXFlow + write',
+      'multi-field De1Controller sequence: one emit per updateShotSettings',
       () async {
         // Mirrors what WorkflowHandler does for a multi-field PUT that
-        // touches steam + hot-water + rinse (which is how the original
-        // 5-emit report reproduced). With value equality the handler
-        // only enters the branches whose values actually changed; we
-        // simulate all three here to pin the per-path count.
+        // touches steam + hot-water + rinse (the original 5-emit
+        // report). With value equality + sequential awaits + nudge
+        // removal + distinct, the expected output is one emit per
+        // path that actually performs an updateShotSettings write.
         await de1Controller.updateFlushSettings(
           RinseData(targetTemperature: 91, duration: 11, flow: 6.5),
         );
@@ -136,20 +103,48 @@ void main() {
         );
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
-        // rinse  : setFlushFlow nudge (1). setFlushTimeout +
-        //          setFlushTemperature are no-ops on MockDe1 so no
-        //          additional emits.
-        // steam  : setSteamFlow nudge (1) + updateShotSettings (1).
-        // hw     : setHotWaterFlow nudge (1) + updateShotSettings (1).
+        // rinse  : no updateShotSettings call (only MMR writes).
+        // steam  : 1 updateShotSettings with new steam fields.
+        // hw     : 1 updateShotSettings with new hw fields.
         expect(
           observedEmits.length,
-          equals(5),
-          reason: 'post-fix: 1 rinse-nudge + 2 steam + 2 hot-water. '
-              'Reducing this requires dropping the setXFlow nudge '
-              're-emits.',
+          equals(2),
+          reason: '1 steam write + 1 hot-water write. Regression guard:'
+              ' nudge leaks or race-induced duplicates would push this '
+              'higher.',
         );
         expect(observedEmits.last.targetSteamDuration, equals(44));
         expect(observedEmits.last.targetHotWaterDuration, equals(55));
+      },
+    );
+
+    test(
+      'flow-only change via De1Controller.setSteamFlow emits no '
+      'shotSettings event but does broadcast steamData',
+      () async {
+        final steamDataEmits = <SteamSettings>[];
+        final steamSub = de1Controller.steamData.listen(steamDataEmits.add);
+        // Let the seed value replay.
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        steamDataEmits.clear();
+
+        await de1Controller.setSteamFlow(3.3);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        expect(
+          observedEmits,
+          isEmpty,
+          reason: 'flow is not part of the shotSettings characteristic, '
+              'so setSteamFlow must not cause a shotSettings emit',
+        );
+        expect(
+          steamDataEmits.map((s) => s.flow).toList(),
+          contains(3.3),
+          reason: 'steamData subscribers must receive the new flow so '
+              'UI (status tile, live slider) refreshes',
+        );
+
+        await steamSub.cancel();
       },
     );
   });
