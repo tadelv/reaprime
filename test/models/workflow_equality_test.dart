@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
+import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
+import 'package:reaprime/src/models/data/workflow_context.dart';
 
 // These tests pin down the value-equality contract for the workflow
 // settings classes. The workflow HTTP handler uses `!=` to decide
@@ -108,6 +110,80 @@ void main() {
       expect(wf.steamSettings, equals(roundTrip.steamSettings));
       expect(wf.hotWaterData, equals(roundTrip.hotWaterData));
       expect(wf.rinseData, equals(roundTrip.rinseData));
+    });
+  });
+
+  group('Profile equality + JSON round-trip', () {
+    // WorkflowHandler gates `setProfile` with
+    // `oldWorkflow.profile != updatedWorkflow.profile`. Every PUT
+    // rebuilds Profile via fromJson, so round-trip equality is what
+    // determines whether the guard short-circuits. If notes contain
+    // newlines and toJson escapes them without a matching unescape in
+    // fromJson, the guard always misses and setProfile fires every
+    // PUT — on real DE1 that means a full BLE profile re-send plus
+    // the 1 s profileDownloadGuard delay.
+
+    test('default profile (no newlines) round-trips equal', () {
+      final p = Defaults.createDefaultProfile();
+      expect(Profile.fromJson(p.toJson()), equals(p));
+    });
+
+    test('profile with newlines in notes round-trips equal', () {
+      final p = Profile(
+        version: '2',
+        title: 't',
+        notes: 'line1\nline2\nline3',
+        author: 'a',
+        beverageType: BeverageType.espresso,
+        steps: const [],
+        targetVolumeCountStart: 0,
+        tankTemperature: 0,
+      );
+      final rt = Profile.fromJson(p.toJson());
+      expect(rt.notes, equals(p.notes),
+          reason: 'toJson must not escape \\n without fromJson unescaping '
+              'it — the WorkflowHandler profile guard relies on '
+              'round-trip equality');
+      expect(rt, equals(p));
+    });
+  });
+
+  group('WorkflowContext equality', () {
+    test('equal by value', () {
+      const a = WorkflowContext(
+        targetDoseWeight: 18.0,
+        targetYield: 36.0,
+        grinderId: 'g1',
+        coffeeName: 'Illy',
+      );
+      const b = WorkflowContext(
+        targetDoseWeight: 18.0,
+        targetYield: 36.0,
+        grinderId: 'g1',
+        coffeeName: 'Illy',
+      );
+      expect(a, equals(b));
+      expect(a.hashCode, equals(b.hashCode));
+    });
+
+    test('differ when any field differs', () {
+      const base = WorkflowContext(targetDoseWeight: 18.0, targetYield: 36.0);
+      expect(base, isNot(equals(base.copyWith(targetDoseWeight: 18.5))));
+      expect(base, isNot(equals(base.copyWith(grinderId: 'g2'))));
+    });
+
+    test('round-trip via toJson/fromJson', () {
+      const original = WorkflowContext(
+        targetDoseWeight: 18.0,
+        targetYield: 36.0,
+        grinderId: '123',
+        grinderSetting: '5',
+        beanBatchId: '456',
+        coffeeName: 'Illy',
+        coffeeRoaster: 'Mixed',
+      );
+      final rt = WorkflowContext.fromJson(original.toJson());
+      expect(rt, equals(original));
     });
   });
 }
