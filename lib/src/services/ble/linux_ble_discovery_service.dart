@@ -48,6 +48,13 @@ class LinuxBleDiscoveryService extends BleDiscoveryService {
   /// Queue of devices discovered during scan, processed after scan stops.
   final List<_PendingDevice> _pendingDevices = [];
 
+  /// Set while a BlueZ-cache-refresh scan is in flight. The public
+  /// `stopScan()` ignores external cancels during this window so
+  /// `ConnectionManager._checkEarlyStop` can't abort the refresh
+  /// mid-flight and leave the cache in an uncertain state
+  /// (comms-harden #10).
+  bool _refreshScanInProgress = false;
+
   StreamSubscription<String>? _logSubscription;
   StreamSubscription<BluetoothAdapterState>? _adapterSubscription;
 
@@ -258,6 +265,18 @@ class LinuxBleDiscoveryService extends BleDiscoveryService {
 
   @override
   void stopScan() {
+    // Refresh scan runs post-main-scan to reset BlueZ's internal
+    // cache before (re-)creating devices. If we let an external stop
+    // abort it mid-flight (e.g., ConnectionManager._checkEarlyStop
+    // firing when both preferred devices connect fast), retries can
+    // silently fail on "Bad state: No element" lookups in
+    // flutter_blue_plus_linux. Refresh scans own their lane.
+    if (_refreshScanInProgress) {
+      _log.fine(
+        'External stopScan ignored — refresh scan in progress',
+      );
+      return;
+    }
     FlutterBluePlus.stopScan();
   }
 
@@ -366,7 +385,13 @@ class LinuxBleDiscoveryService extends BleDiscoveryService {
   }
 
   /// Brief scan to refresh BlueZ's internal device cache before a retry.
+  ///
+  /// Sets `_refreshScanInProgress` for the duration so the public
+  /// `stopScan()` short-circuits and ignores external cancel attempts
+  /// (see comms-harden #10 — fixes silent retry failures when
+  /// `_checkEarlyStop` fires during post-main-scan processing).
   Future<void> _runRefreshScan() async {
+    _refreshScanInProgress = true;
     _log.fine("Refresh scan for ${_refreshScanDuration.inSeconds}s");
     try {
       await FlutterBluePlus.startScan(oneByOne: true);
@@ -381,6 +406,8 @@ class LinuxBleDiscoveryService extends BleDiscoveryService {
       } catch (e, st) {
         _log.fine('stopScan after failed refresh scan errored', e, st);
       }
+    } finally {
+      _refreshScanInProgress = false;
     }
   }
 
