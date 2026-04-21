@@ -51,7 +51,7 @@ class WorkflowHandler {
     return completer.future;
   }
 
-  void _applyPendingUpdate() {
+  Future<void> _applyPendingUpdate() async {
     final merge = _pendingMerge;
     final responses = List<Completer<Response>>.from(_pendingResponses);
     _pendingMerge = {};
@@ -63,12 +63,14 @@ class WorkflowHandler {
     final updatedWorkflow = Workflow.fromJson(resultJson);
 
     _controller.setWorkflow(updatedWorkflow);
-    _de1controller.connectedDe1().setProfile(updatedWorkflow.profile);
+    if (oldWorkflow.profile != updatedWorkflow.profile) {
+      await _de1controller.connectedDe1().setProfile(updatedWorkflow.profile);
+    }
     if (oldWorkflow.rinseData != updatedWorkflow.rinseData) {
-      _de1controller.updateFlushSettings(updatedWorkflow.rinseData);
+      await _de1controller.updateFlushSettings(updatedWorkflow.rinseData);
     }
     if (oldWorkflow.steamSettings != updatedWorkflow.steamSettings) {
-      _de1controller.updateSteamSettings(
+      await _de1controller.updateSteamSettings(
         SteamFormSettings(
           steamEnabled: updatedWorkflow.steamSettings.duration > 0,
           targetTemp: updatedWorkflow.steamSettings.targetTemperature,
@@ -78,7 +80,7 @@ class WorkflowHandler {
       );
     }
     if (oldWorkflow.hotWaterData != updatedWorkflow.hotWaterData) {
-      _de1controller.updateHotWaterSettings(
+      await _de1controller.updateHotWaterSettings(
         HotWaterFormSettings(
           targetTemperature: updatedWorkflow.hotWaterData.targetTemperature,
           flow: updatedWorkflow.hotWaterData.flow,
