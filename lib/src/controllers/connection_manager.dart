@@ -21,6 +21,11 @@ import 'package:reaprime/src/models/scan_report.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:rxdart/rxdart.dart';
 
+/// High-level phase of the [ConnectionManager] state machine.
+///
+/// Transitions are documented in `doc/DeviceManagement.md` →
+/// "Phase transitions" (comms-harden #30). All writes route through
+/// `StatusPublisher.publish`.
 enum ConnectionPhase {
   idle,
   scanning,
@@ -607,6 +612,7 @@ class ConnectionManager {
       preferredMachineId: preferredMachineId,
       preferredScaleId: preferredScaleId,
       terminationReason: terminationReason,
+      adapterStateAtEnd: deviceScanner.currentAdapterState,
     );
     _scanReportSubject.add(report);
     _log.info(ScanReportBuilder.format(report));

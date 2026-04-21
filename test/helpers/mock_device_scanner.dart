@@ -44,6 +44,9 @@ class MockDeviceScanner implements DeviceScanner {
       _adapterStateSubject.stream;
 
   @override
+  AdapterState get currentAdapterState => _adapterStateSubject.value;
+
+  @override
   List<Device> get devices => List.from(_devices);
 
   /// Push an adapter state onto the stream for tests that drive environmental

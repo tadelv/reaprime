@@ -29,4 +29,9 @@ abstract class DeviceScanner {
   /// services. Non-BLE transports (serial, simulated) contribute nothing;
   /// if no BLE service is registered the stream emits [AdapterState.unknown].
   Stream<AdapterState> get adapterStateStream;
+
+  /// Synchronous snapshot of the most recently emitted adapter state.
+  /// Used by the scan orchestrator to populate `ScanReport` without
+  /// awaiting a stream value (comms-harden #27).
+  AdapterState get currentAdapterState;
 }

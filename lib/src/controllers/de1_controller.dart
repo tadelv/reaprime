@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/controllers/connection/connection_timings.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/home_feature/forms/hot_water_form.dart';
 import 'package:reaprime/src/home_feature/forms/steam_form.dart';
@@ -156,7 +157,7 @@ class De1Controller {
     // bails out cleanly (comms-harden #5).
     _shotSettingsDebounce?.cancel();
     final generation = _connectionGeneration;
-    _shotSettingsDebounce = Timer(const Duration(milliseconds: 100), () async {
+    _shotSettingsDebounce = Timer(ConnectionTimings.shotSettingsDebounce, () async {
       if (generation != _connectionGeneration || _de1 == null) {
         _log.fine(
           'Shot settings debounce fired after disconnect '
