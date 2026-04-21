@@ -67,6 +67,18 @@ class WebViewCompatibilityChecker {
       ? _problematicManufacturerSettleDelayDebug
       : _problematicManufacturerSettleDelayRelease;
 
+  /// Upper bound on how long the headless WebView's onLoadStop + the
+  /// three JS subtests are allowed to take. A fresh release-build boot
+  /// on the Teclast M50Mini finishes in ~270ms; debug builds can take
+  /// 5-10x longer, which trips the 10s budget even when the BLE burst
+  /// has already settled. Adaptive so production behaviour is
+  /// unchanged and dev/debug boots still succeed.
+  static const _runtimeTestTimeoutRelease = Duration(seconds: 10);
+  static const _runtimeTestTimeoutDebug = Duration(seconds: 30);
+
+  static Duration get _runtimeTestTimeout =>
+      kDebugMode ? _runtimeTestTimeoutDebug : _runtimeTestTimeoutRelease;
+
   /// Checks WebView compatibility using device info and runtime test
   ///
   /// Returns cached result if available, otherwise performs full check.
@@ -365,11 +377,17 @@ class WebViewCompatibilityChecker {
 
       await headlessWebView.run();
 
-      // Wait for test to complete with timeout
+      // Wait for test to complete with timeout. The timeout is
+      // adaptive (10s release, 30s debug) — debug builds are
+      // measurably slower and routinely trip the tighter budget even
+      // when the BLE burst has already settled.
+      final timeout = _runtimeTestTimeout;
       return await completer.future.timeout(
-        const Duration(seconds: 10),
+        timeout,
         onTimeout: () {
-          _log.warning('WebView test timed out');
+          _log.warning(
+            'WebView test timed out after ${timeout.inSeconds}s',
+          );
           headlessWebView?.dispose();
           return CompatibilityResult.incompatible(
             'WebView test timed out - may be too slow on this device',
