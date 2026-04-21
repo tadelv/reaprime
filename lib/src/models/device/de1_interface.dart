@@ -162,6 +162,31 @@ final class De1ShotSettings {
       groupTemp: groupTemp ?? this.groupTemp,
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! De1ShotSettings) return false;
+    return other.steamSetting == steamSetting &&
+        other.targetSteamTemp == targetSteamTemp &&
+        other.targetSteamDuration == targetSteamDuration &&
+        other.targetHotWaterTemp == targetHotWaterTemp &&
+        other.targetHotWaterVolume == targetHotWaterVolume &&
+        other.targetHotWaterDuration == targetHotWaterDuration &&
+        other.targetShotVolume == targetShotVolume &&
+        other.groupTemp == groupTemp;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        steamSetting,
+        targetSteamTemp,
+        targetSteamDuration,
+        targetHotWaterTemp,
+        targetHotWaterVolume,
+        targetHotWaterDuration,
+        targetShotVolume,
+        groupTemp,
+      );
 }
 
 final class De1WaterLevels {
