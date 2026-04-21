@@ -286,11 +286,6 @@ class UnifiedDe1 implements De1Interface {
   @override
   Future<void> setHotWaterFlow(double newFlow) async {
     await _writeMMRScaled(MMRItem.hotWaterFlowRate, newFlow);
-    // Workaround for hot water flow not part of shot settings, will trigger
-    // DE1Controller refresh
-    _transport.shotSettingsSubject.add(
-      await _transport.shotSettingsSubject.first,
-    );
   }
 
   Profile? _currentProfile;
@@ -317,11 +312,6 @@ class UnifiedDe1 implements De1Interface {
   @override
   Future<void> setSteamFlow(double newFlow) async {
     await _writeMMRScaled(MMRItem.targetSteamFlow, newFlow);
-    // Workaround for steam flow not part of shot settings, will trigger
-    // DE1Controller refresh
-    _transport.shotSettingsSubject.add(
-      await _transport.shotSettingsSubject.first,
-    );
   }
 
   @override
@@ -376,7 +366,8 @@ class UnifiedDe1 implements De1Interface {
         notifyFrom(Endpoint.shotSettings, d.buffer.asUint8List());
         return d;
       })
-      .map(_parseShotSettings);
+      .map(_parseShotSettings)
+      .distinct();
 
   @override
   DeviceType get type => DeviceType.machine;
