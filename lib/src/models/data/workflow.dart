@@ -46,7 +46,8 @@ class Workflow {
         coffeeName: ctx.coffeeName ?? coffee?['name'] as String?,
         coffeeRoaster: ctx.coffeeRoaster ?? coffee?['roaster'] as String?,
       );
-    } else if (ctx == null && (dose != null || grinder != null || coffee != null)) {
+    } else if (ctx == null &&
+        (dose != null || grinder != null || coffee != null)) {
       ctx = WorkflowContext(
         targetDoseWeight:
             dose != null ? parseOptionalDouble(dose['doseIn']) : null,
@@ -64,15 +65,18 @@ class Workflow {
       description: json['description'],
       profile: Profile.fromJson(json['profile']),
       context: ctx,
-      steamSettings: json['steamSettings'] != null
-          ? SteamSettings.fromJson(json['steamSettings'])
-          : SteamSettings.defaults(),
-      hotWaterData: json['hotWaterData'] != null
-          ? HotWaterData.fromJson(json['hotWaterData'])
-          : HotWaterData.defaults(),
-      rinseData: json['rinseData'] != null
-          ? RinseData.fromJson(json['rinseData'])
-          : RinseData.defaults(),
+      steamSettings:
+          json['steamSettings'] != null
+              ? SteamSettings.fromJson(json['steamSettings'])
+              : SteamSettings.defaults(),
+      hotWaterData:
+          json['hotWaterData'] != null
+              ? HotWaterData.fromJson(json['hotWaterData'])
+              : HotWaterData.defaults(),
+      rinseData:
+          json['rinseData'] != null
+              ? RinseData.fromJson(json['rinseData'])
+              : RinseData.defaults(),
     );
   }
 
@@ -153,6 +157,21 @@ class SteamSettings {
   factory SteamSettings.defaults() {
     return SteamSettings(targetTemperature: 150, duration: 50, flow: 0.8);
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! SteamSettings) {
+      return false;
+    }
+
+    return other.targetTemperature == targetTemperature &&
+        other.flow == flow &&
+        other.duration == duration;
+  }
+
+  @override
+  int get hashCode =>
+      targetTemperature.hashCode ^ flow.hashCode ^ duration.hashCode;
 }
 
 class HotWaterData {
@@ -208,6 +227,23 @@ class HotWaterData {
       flow: 10,
     );
   }
+
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! HotWaterData) {
+      return false;
+    }
+
+    return other.targetTemperature == targetTemperature &&
+        other.flow == flow &&
+        other.duration == duration &&
+        other.volume == volume;
+  }
+
+  @override
+  int get hashCode =>
+      targetTemperature.hashCode ^ flow.hashCode ^ duration.hashCode ^ volume.hashCode;
 }
 
 class RinseData {
@@ -231,8 +267,8 @@ class RinseData {
 
   factory RinseData.fromJson(Map<String, dynamic> json) {
     return RinseData(
-      targetTemperature: parseInt( json['targetTemperature']),
-      duration: parseInt( json['duration']),
+      targetTemperature: parseInt(json['targetTemperature']),
+      duration: parseInt(json['duration']),
       flow: parseDouble(json['flow']),
     );
   }
@@ -240,4 +276,20 @@ class RinseData {
   factory RinseData.defaults() {
     return RinseData(targetTemperature: 90, duration: 10, flow: 6.0);
   }
+
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! RinseData) {
+      return false;
+    }
+
+    return other.targetTemperature == targetTemperature &&
+        other.flow == flow &&
+        other.duration == duration;
+  }
+
+  @override
+  int get hashCode =>
+      targetTemperature.hashCode ^ flow.hashCode ^ duration.hashCode;
 }
