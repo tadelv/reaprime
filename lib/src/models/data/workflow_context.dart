@@ -54,18 +54,22 @@ class WorkflowContext {
   /// Legacy field migration (doseData/grinderData/coffeeData) is handled
   /// upstream in Workflow.fromJson, not here.
   factory WorkflowContext.fromJson(Map<String, dynamic> json) {
+    // String-typed fields are coerced via parseOptionalString so a
+    // client sending a numeric id (valid JSON) doesn't crash the
+    // handler. See issue #106 for the deepMerge re-parse flow that
+    // previously required a server restart to recover.
     return WorkflowContext(
       targetDoseWeight: parseOptionalDouble(json['targetDoseWeight']),
       targetYield: parseOptionalDouble(json['targetYield']),
-      grinderId: json['grinderId'] as String?,
-      grinderModel: json['grinderModel'] as String?,
-      grinderSetting: json['grinderSetting'] as String?,
-      beanBatchId: json['beanBatchId'] as String?,
-      coffeeName: json['coffeeName'] as String?,
-      coffeeRoaster: json['coffeeRoaster'] as String?,
-      finalBeverageType: json['finalBeverageType'] as String?,
-      baristaName: json['baristaName'] as String?,
-      drinkerName: json['drinkerName'] as String?,
+      grinderId: parseOptionalString(json['grinderId']),
+      grinderModel: parseOptionalString(json['grinderModel']),
+      grinderSetting: parseOptionalString(json['grinderSetting']),
+      beanBatchId: parseOptionalString(json['beanBatchId']),
+      coffeeName: parseOptionalString(json['coffeeName']),
+      coffeeRoaster: parseOptionalString(json['coffeeRoaster']),
+      finalBeverageType: parseOptionalString(json['finalBeverageType']),
+      baristaName: parseOptionalString(json['baristaName']),
+      drinkerName: parseOptionalString(json['drinkerName']),
       extras: json['extras'] as Map<String, dynamic>?,
     );
   }

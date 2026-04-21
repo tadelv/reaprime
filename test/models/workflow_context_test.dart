@@ -80,6 +80,81 @@ void main() {
       expect(updated.targetYield, 40.0);
       expect(updated.coffeeName, 'Ethiopian');
     });
+
+    group('fromJson non-string coercion (#106)', () {
+      test('int values for ID/text fields are stringified, not crashed', () {
+        final restored = WorkflowContext.fromJson({
+          'grinderId': 123,
+          'grinderSetting': 5,
+          'beanBatchId': 456,
+          'coffeeName': 789,
+        });
+        expect(restored.grinderId, '123');
+        expect(restored.grinderSetting, '5');
+        expect(restored.beanBatchId, '456');
+        expect(restored.coffeeName, '789');
+      });
+
+      test('double values are stringified', () {
+        final restored =
+            WorkflowContext.fromJson({'grinderSetting': 5.5});
+        expect(restored.grinderSetting, '5.5');
+      });
+
+      test('bool values are stringified', () {
+        final restored =
+            WorkflowContext.fromJson({'drinkerName': true});
+        expect(restored.drinkerName, 'true');
+      });
+
+      test('null values stay null', () {
+        final restored = WorkflowContext.fromJson({
+          'grinderId': null,
+          'coffeeName': null,
+        });
+        expect(restored.grinderId, isNull);
+        expect(restored.coffeeName, isNull);
+      });
+
+      test(
+        'Map / List values are refused (null-coerced), not silently stringified',
+        () {
+          final restored = WorkflowContext.fromJson({
+            'coffeeName': {'nested': 'map'},
+            'baristaName': [1, 2, 3],
+          });
+          expect(restored.coffeeName, isNull);
+          expect(restored.baristaName, isNull);
+        },
+      );
+
+      test(
+        'toJson → merge-with-int → fromJson roundtrip does not crash '
+        '(regression for workflow_handler deepMerge path)',
+        () {
+          final ctx = WorkflowContext(
+            grinderId: 'grinder-1',
+            grinderSetting: '5',
+            beanBatchId: 'batch-1',
+          );
+          // Simulate a client sending numeric grinderSetting; the
+          // handler's deepMerge produces a mixed-type map, which then
+          // needs to round-trip through fromJson on the next PUT.
+          final merged = {
+            ...ctx.toJson(),
+            'grinderSetting': 7, // int, not string
+          };
+          final reparsed = WorkflowContext.fromJson(merged);
+          expect(reparsed.grinderSetting, '7');
+
+          // Next PUT cycle: serialize + reparse again — must still work.
+          final second = WorkflowContext.fromJson(reparsed.toJson());
+          expect(second.grinderSetting, '7');
+          expect(second.grinderId, 'grinder-1');
+          expect(second.beanBatchId, 'batch-1');
+        },
+      );
+    });
   });
 
   group('Workflow.fromJson - migration-on-read', () {
