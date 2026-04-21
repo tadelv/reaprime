@@ -452,7 +452,8 @@ class MockDe1 implements De1Interface {
       );
 
   @override
-  Stream<De1ShotSettings> get shotSettings => _shotSettingsController.stream;
+  Stream<De1ShotSettings> get shotSettings =>
+      _shotSettingsController.stream.distinct();
 
   @override
   Future<void> updateShotSettings(De1ShotSettings newSettings) async {
@@ -490,7 +491,6 @@ class MockDe1 implements De1Interface {
   @override
   Future<void> setSteamFlow(double newFlow) async {
     _steamFlow = newFlow;
-    _shotSettingsController.add(await _shotSettingsController.stream.first);
   }
 
   double _hotWaterFlow = 1.0;
@@ -502,7 +502,6 @@ class MockDe1 implements De1Interface {
   @override
   Future<void> setHotWaterFlow(double newFlow) async {
     _hotWaterFlow = newFlow;
-    _shotSettingsController.add(await _shotSettingsController.stream.first);
   }
 
   double _flushFlow = 1.0;
@@ -514,7 +513,6 @@ class MockDe1 implements De1Interface {
   @override
   Future<void> setFlushFlow(double newFlow) async {
     _flushFlow = newFlow;
-    _shotSettingsController.add(await _shotSettingsController.stream.first);
   }
 
   @override
