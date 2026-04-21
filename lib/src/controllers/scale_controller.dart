@@ -24,7 +24,21 @@ class ScaleController {
 
   ScaleController();
 
-  void dispose() {}
+  /// End-of-life cleanup. Cancels active stream subscriptions and
+  /// closes the exposed subjects so downstream listeners see
+  /// `onDone` (comms-harden #13). Safe to call more than once.
+  void dispose() {
+    _scaleSnapshot?.cancel();
+    _scaleSnapshot = null;
+    _scaleConnection?.cancel();
+    _scaleConnection = null;
+    if (!_connectionController.isClosed) {
+      _connectionController.close();
+    }
+    if (!_weightSnapshotController.isClosed) {
+      _weightSnapshotController.close();
+    }
+  }
 
   Future<void> connectToScale(Scale scale) async {
     _onDisconnect();
