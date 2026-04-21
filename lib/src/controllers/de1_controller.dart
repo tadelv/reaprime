@@ -280,5 +280,48 @@ class De1Controller {
 
     _rinseStream.add(settings);
   }
+
+  /// Flow setters live outside the DE1 shot-settings characteristic, so
+  /// changing them used to require a nudge re-emit on `shotSettings` to
+  /// kick `_shotSettingsUpdate` into rebroadcasting the data-controllers
+  /// that UI subscribes to. The nudge leaked redundant WS emits; these
+  /// helpers replace it by writing the MMR value and updating the
+  /// relevant data-controller directly.
+  Future<void> setSteamFlow(double newFlow) async {
+    await connectedDe1().setSteamFlow(newFlow);
+    final current = _steamDataController.valueOrNull;
+    if (current != null) {
+      _steamDataController.add(SteamSettings(
+        targetTemperature: current.targetTemperature,
+        duration: current.duration,
+        flow: newFlow,
+      ));
+    }
+  }
+
+  Future<void> setHotWaterFlow(double newFlow) async {
+    await connectedDe1().setHotWaterFlow(newFlow);
+    final current = _hotWaterDataController.valueOrNull;
+    if (current != null) {
+      _hotWaterDataController.add(HotWaterData(
+        targetTemperature: current.targetTemperature,
+        duration: current.duration,
+        volume: current.volume,
+        flow: newFlow,
+      ));
+    }
+  }
+
+  Future<void> setFlushFlow(double newFlow) async {
+    await connectedDe1().setFlushFlow(newFlow);
+    final current = _rinseStream.valueOrNull;
+    if (current != null) {
+      _rinseStream.add(RinseData(
+        targetTemperature: current.targetTemperature,
+        duration: current.duration,
+        flow: newFlow,
+      ));
+    }
+  }
 }
 
