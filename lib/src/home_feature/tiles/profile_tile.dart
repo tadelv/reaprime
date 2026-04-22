@@ -14,7 +14,6 @@ import 'package:reaprime/src/services/storage/bean_storage_service.dart';
 import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/data/workflow_context.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -63,7 +62,9 @@ class _ProfileState extends State<ProfileTile> {
           "Changing profile to: ${widget.workflowController.currentWorkflow.profile.title}",
         );
         loadedProfile = widget.workflowController.currentWorkflow.profile;
-        widget.de1controller.connectedDe1().setProfile(loadedProfile!);
+        // DE1 upload is owned by WorkflowDeviceSync so REST and UI
+        // paths share one writer. The tile only refreshes its chart
+        // and labels here.
         _log.fine('Loaded profile: ${loadedProfile!.title}');
         _log.fine('Target weight: ${loadedProfile!.targetWeight}');
       }
