@@ -63,9 +63,10 @@ class WorkflowHandler {
     final updatedWorkflow = Workflow.fromJson(resultJson);
 
     _controller.setWorkflow(updatedWorkflow);
-    if (oldWorkflow.profile != updatedWorkflow.profile) {
-      await _de1controller.connectedDe1().setProfile(updatedWorkflow.profile);
-    }
+    // Profile push is owned by WorkflowDeviceSync — it observes
+    // `setWorkflow` and uploads the profile if it changed. Keeping a
+    // second setProfile call here would race against that listener and
+    // write every BLE frame twice (see the profile-double-upload P0).
     if (oldWorkflow.rinseData != updatedWorkflow.rinseData) {
       await _de1controller.updateFlushSettings(updatedWorkflow.rinseData);
     }

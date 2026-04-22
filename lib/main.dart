@@ -26,6 +26,7 @@ import 'package:reaprime/src/controllers/profile_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/sensor_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
+import 'package:reaprime/src/controllers/workflow_device_sync.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
@@ -293,6 +294,14 @@ void main() async {
     persistenceController.saveWorkflow(workflowController.currentWorkflow);
     de1Controller.defaultWorkflow = workflowController.currentWorkflow;
   });
+  // Single writer of DE1 setProfile across REST + UI paths. Must be
+  // constructed after workflowController has its persisted workflow
+  // loaded so its initial snapshot matches what was last pushed.
+  // ignore: unused_local_variable
+  final workflowDeviceSync = WorkflowDeviceSync(
+    workflowController: workflowController,
+    de1Controller: de1Controller,
+  );
   final PluginLoaderService pluginService = PluginLoaderService(
     kvStore: HiveStoreService(defaultNamespace: "plugins")..initialize(),
   );
