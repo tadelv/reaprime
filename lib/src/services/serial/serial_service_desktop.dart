@@ -330,8 +330,21 @@ class _DesktopSerialPort implements SerialTransport {
 
   @override
   Future<void> connect() async {
+    // Log name↔id mapping on every connect attempt so later log lines tagged
+    // either by path (`SerialPort:/dev/tty…`) or stable id
+    // (`UnifiedDe1Transport-usb-…`) can be correlated.
+    final instanceTag = "instance=${identityHashCode(this).toRadixString(16)}";
+    String? description;
+    String? manufacturer;
+    try { description = _port.description; } catch (_) {}
+    try { manufacturer = _port.manufacturer; } catch (_) {}
+    _log.info(
+      "connect() name=${_port.name} id=$id $instanceTag "
+      "description=$description manufacturer=$manufacturer isOpen=${_port.isOpen}",
+    );
+
     if (_port.isOpen) {
-      _log.warning("already open");
+      _log.warning("already open (id=$id $instanceTag) — bailing out of connect()");
       return;
     }
     await Future.microtask(() async {
@@ -358,7 +371,10 @@ class _DesktopSerialPort implements SerialTransport {
       _log.finest("current config: ${_port.config.baudRate}");
 
       _log.fine("port opened");
-      _portSubscription = SerialPortReader(_port).stream.listen(
+      final reader = SerialPortReader(_port);
+      final readerTag = "reader=${identityHashCode(reader).toRadixString(16)}";
+      _log.info("subscribing reader (id=$id $instanceTag $readerTag)");
+      _portSubscription = reader.stream.listen(
         (data) {
           _rawStreamController.add(data);
           try {
@@ -370,16 +386,26 @@ class _DesktopSerialPort implements SerialTransport {
           }
         },
         onError: (error) {
-          _log.severe("port error:", error);
+          _log.severe(
+            "port error (id=$id $instanceTag $readerTag): $error",
+          );
           _readController.addError(error);
           disconnect();
         },
         onDone: () {
-          _log.warning("serial stream closed (onDone) — cable may be unplugged");
+          // Also fires when the libserialport reader isolate dies on an
+          // uncaught `throw bytes` from `_SerialPortReaderImpl._waitRead`
+          // (package:libserialport/src/reader.dart:151). When that happens
+          // the Dart VM logs `[ERROR:…] Unhandled exception: <negative int>`
+          // with no port identity — correlate by $readerTag / time proximity.
+          _log.warning(
+            "serial stream closed (onDone) — cable unplug or reader isolate "
+            "death. id=$id $instanceTag $readerTag",
+          );
           disconnect();
         },
       );
-      _log.fine("port subscribed: ${_portSubscription}");
+      _log.fine("port subscribed: ${_portSubscription} ($readerTag)");
     });
     _open.add(ConnectionState.connected);
   }
