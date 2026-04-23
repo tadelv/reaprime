@@ -879,12 +879,12 @@ packages:
     source: hosted
     version: "3.0.2"
   libserialport:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       path: "."
-      ref: HEAD
-      resolved-ref: eab8ee5f860b547c098be732e979d14527d9e0cf
-      url: "https://github.com/AurelienBallier/libserialport.dart"
+      ref: "fix/reader-isolate-uhandled-throw"
+      resolved-ref: "4df4db2334446fdb6fcb8f632f70841889b1353d"
+      url: "https://github.com/tadelv/libserialport.dart"
     source: git
     version: "0.3.0+1"
   lints:
