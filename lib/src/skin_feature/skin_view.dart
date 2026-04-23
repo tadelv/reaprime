@@ -81,15 +81,39 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
 
     if (state == AppLifecycleState.paused) {
       _log.info('App backgrounded — pausing WebView and loading blank page');
-      _webViewController?.pause();
-      _webViewController?.pauseTimers();
+      try {
+        _webViewController?.pause();
+      } on UnimplementedError catch (e) {
+        _log.warning("Unimplemented: ", e);
+      } catch (e, st) {
+        _log.severe("Unexpected: ", e, st);
+      }
+      try {
+        _webViewController?.pauseTimers();
+      } on UnimplementedError catch (e) {
+        _log.warning("Unimplemented: ", e);
+      } catch (e, st) {
+        _log.severe("Unexpected: ", e, st);
+      }
       _webViewController?.loadUrl(
         urlRequest: URLRequest(url: WebUri('about:blank')),
       );
     } else if (state == AppLifecycleState.resumed) {
       _log.info('App foregrounded — resuming WebView and reloading skin');
-      _webViewController?.resumeTimers();
-      _webViewController?.resume();
+      try {
+        _webViewController?.resumeTimers();
+      } on UnimplementedError catch (e) {
+        _log.warning("Unimplemented: ", e);
+      } catch (e, st) {
+        _log.severe("Unexpected: ", e, st);
+      }
+      try {
+        _webViewController?.resume();
+      } on UnimplementedError catch (e) {
+        _log.warning("Unimplemented: ", e);
+      } catch (e, st) {
+        _log.severe("Unexpected: ", e, st);
+      }
       _webViewController?.loadUrl(
         urlRequest: URLRequest(url: WebUri(_skinUrl)),
       );
