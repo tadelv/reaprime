@@ -201,6 +201,24 @@ class UnifiedDe1Transport {
   static final _messagePattern =
       RegExp(r'(\[[A-Z]\][0-9A-Fa-f\s]*?)(?=\[|\n)');
 
+  // Render the first `max` characters of a buffer for a log line. Replaces
+  // non-printable and whitespace chars with their escape form so the sample
+  // stays on a single line and reveals whether the content is e.g. sensor
+  // basket text, binary noise, or something else.
+  static String _sampleForLog(String s, int max) {
+    final head = s.length <= max ? s : '${s.substring(0, max)}…';
+    final escaped = head
+        .replaceAll('\\', r'\\')
+        .replaceAll('\n', r'\n')
+        .replaceAll('\r', r'\r')
+        .replaceAll('\t', r'\t')
+        .replaceAllMapped(
+          RegExp(r'[^\x20-\x7e]'),
+          (m) => '\\x${m[0]!.codeUnitAt(0).toRadixString(16).padLeft(2, '0')}',
+        );
+    return '"$escaped"';
+  }
+
   void _processSerialInput(String input) {
     _currentBuffer += input;
 
@@ -226,7 +244,8 @@ class UnifiedDe1Transport {
       // Guard against unbounded buffer growth from corrupted serial streams
       if (_currentBuffer.length > 4096) {
         _log.warning(
-            'Serial buffer overflow (${_currentBuffer.length} bytes), discarding');
+            'Serial buffer overflow (${_currentBuffer.length} bytes), discarding. '
+            'Head sample: ${_sampleForLog(_currentBuffer, 200)}');
         _currentBuffer = '';
       }
       return;
