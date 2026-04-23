@@ -98,6 +98,10 @@ dependency_overrides:
   # Ubuntu/Debian, so the real flutter_inappwebview_linux plugin cannot build.
   flutter_inappwebview_linux:
     path: packages/flutter_inappwebview_linux_noop
+  libserialport:
+    git:
+      url: https://github.com/tadelv/libserialport.dart
+      ref: fix/reader-isolate-uhandled-throw
 
 dev_dependencies:
   flutter_test:
@@ -127,8 +131,3 @@ flutter:
     - assets/defaultProfiles/
     - assets/bundled_skins/
     - skin_sources.json
-
-
-
-
-
