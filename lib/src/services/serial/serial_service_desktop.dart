@@ -27,6 +27,12 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
   // so we can deduplicate across rescans.
   final Map<String, String> _portPathToDeviceId = {};
 
+  // Parallel map tracking the `_DesktopSerialPort` instance bound to each
+  // path. Used so scan cleanup can `dispose()` an orphaned transport (stops
+  // its reader isolate, closes the libserialport handle) when the
+  // underlying OS port vanishes.
+  final Map<String, _DesktopSerialPort> _portPathToTransport = {};
+
   // Guard against concurrent scans
   bool _isScanning = false;
   Future<void>? _currentScan;
@@ -71,32 +77,61 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     final ports = await SerialPort.availablePorts;
     _log.info("Found ports: $ports");
 
-    List<Device> connected = [];
-    // Create a copy to avoid concurrent modification during iteration
+    // Classify each currently-known device by liveness. Anything not yet
+    // `disconnected` is still owning its port — we must NOT re-detect it in
+    // this scan (that would create a duplicate `_DesktopSerialPort` with a
+    // second reader isolate on the same tty; previously observed as two
+    // `SensorBasket` instances after wake-from-sleep and two HDS instances
+    // on macOS after scale-picker pending).
     final devicesCopy = List<Device>.from(_devices);
+    final live = <Device>[];
     for (var d in devicesCopy) {
       final state = await d.connectionState.first;
-      if (state == ConnectionState.connected) {
-        connected.add(d);
+      if (state != ConnectionState.disconnected) {
+        live.add(d);
       }
     }
-    // Clean up port-path map: remove entries for devices that disconnected
-    _portPathToDeviceId.removeWhere((portPath, deviceId) =>
-        !connected.any((d) => d.deviceId == deviceId));
 
-    // Orphan GC: force-disconnect connected devices whose port vanished
-    final portSet = ports.toSet();
-    final orphans = connected.where((d) =>
-        !_portPathToDeviceId.entries.any((e) =>
-            e.value == d.deviceId && portSet.contains(e.key))).toList();
-    for (final orphan in orphans) {
-      _log.warning("Orphan GC: ${orphan.name}(${orphan.deviceId}) port no longer present, forcing disconnect");
-      await orphan.disconnect();
-      connected.remove(orphan);
+    // Reconcile dedup + transport maps with reality. A tracked path is
+    // stale if EITHER:
+    //   (a) the OS port no longer exists (physical unplug / OS rename), OR
+    //   (b) the device bound to that path has self-disconnected (watchdog,
+    //       serial error, explicit disconnect) even if the tty is still
+    //       present. Freeing the slot lets the next scan re-detect the
+    //       port with a fresh transport.
+    // In either case we dispose the transport (stops the reader isolate
+    // and frees the libserialport handle) and drop the entry.
+    final availablePorts = ports.toSet();
+    final liveDeviceIds = live.map((d) => d.deviceId).toSet();
+    final stalePaths = _portPathToDeviceId.entries
+        .where((e) =>
+            !availablePorts.contains(e.key) ||
+            !liveDeviceIds.contains(e.value))
+        .map((e) => e.key)
+        .toList();
+    for (final path in stalePaths) {
+      final deviceId = _portPathToDeviceId.remove(path);
+      final transport = _portPathToTransport.remove(path);
+      final reason = !availablePorts.contains(path)
+          ? "port vanished"
+          : "device disconnected";
+      _log.warning("Reaping transport for $path (deviceId=$deviceId, "
+          "reason=$reason) — disposing");
+      if (transport != null) {
+        try {
+          await transport.dispose();
+        } catch (e, st) {
+          _log.warning("dispose failed for $path", e, st);
+        }
+      }
+      if (deviceId != null) {
+        live.removeWhere((d) => d.deviceId == deviceId);
+      }
     }
 
-    // Collect stable IDs of already-connected devices for dedup
-    final connectedStableIds = connected.map((d) => d.deviceId).toSet();
+    // Collect stable IDs of live devices for the cross-path dedup below.
+    // (Recomputed after the stale-reap above in case it dropped anything.)
+    final liveStableIds = live.map((d) => d.deviceId).toSet();
 
     // Pre-filter ports: skip already-connected, Bluetooth, and non-USB ports
     final scanPorts = ports.where((p) {
@@ -105,7 +140,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       final meta = _readPortMetadata(p, port);
       port.dispose();
       if (meta.stableId != null &&
-          connectedStableIds.contains(meta.stableId)) {
+          liveStableIds.contains(meta.stableId)) {
         return false;
       }
       if (meta.transport == "Bluetooth") return false;
@@ -141,7 +176,12 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
         }
       }),
     );
-    final results = <Device?>[...rawResults, ...connected];
+    // Merge the still-live devices (any state except disconnected) with
+    // newly-detected ones. Previously the merge used only `connected`,
+    // which dropped devices sitting in `discovered` or `connecting` — the
+    // next scan would then re-detect them from scratch and spawn a second
+    // `_DesktopSerialPort` on the same tty.
+    final results = <Device?>[...rawResults, ...live];
 
     _devices = results.whereType<Device>().toList();
     _machineSubject.add(_devices);
@@ -183,6 +223,9 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     }
 
     final transport = _DesktopSerialPort(port: port);
+    // Track the transport up-front so any cleanup path (including an
+    // exception partway through detection) can find + dispose it.
+    _portPathToTransport[id] = transport;
     // De1 shortcut
     if (port.productName == "DE1") {
       final device = UnifiedDe1(transport: transport);
@@ -272,13 +315,13 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       }
 
       _log.warning("Unknown device on port $id");
-      await transport.disconnect();
-      port.dispose();
+      _portPathToTransport.remove(id);
+      await transport.dispose();
       return null;
     } catch (e, st) {
       _log.warning("Port $id is probably not a device we want", e, st);
-      await transport.disconnect();
-      port.dispose();
+      _portPathToTransport.remove(id);
+      await transport.dispose();
       return null;
     }
   }
@@ -301,6 +344,31 @@ class _DesktopSerialPort implements SerialTransport {
     _portSubscription?.cancel();
     _port.close();
     _open.add(ConnectionState.disconnected);
+  }
+
+  /// End-of-life cleanup. Calls `disconnect()` to stop the reader isolate +
+  /// close the tty, then frees the libserialport `sp_port` FFI handle and
+  /// closes the exposed stream controllers. Safe to call more than once.
+  Future<void> dispose() async {
+    try {
+      await disconnect();
+    } catch (e) {
+      _log.warning("dispose: disconnect failed", e);
+    }
+    try {
+      _port.dispose();
+    } catch (e) {
+      _log.warning("dispose: _port.dispose failed", e);
+    }
+    if (!_rawStreamController.isClosed) {
+      await _rawStreamController.close();
+    }
+    if (!_readController.isClosed) {
+      await _readController.close();
+    }
+    if (!_open.isClosed) {
+      await _open.close();
+    }
   }
 
   @override

@@ -64,3 +64,4 @@ assets/bundled_skins/
 # Ruby / fastlane (bundler vendored install)
 .bundle/
 vendor/bundle/
+pubspec_overrides.yaml
