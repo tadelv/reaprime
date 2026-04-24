@@ -157,19 +157,20 @@ class DecentScale implements Scale {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
     try {
-      // `await` is load-bearing: `disconnect()` is wired to fire on a
-      // disconnected transport-state event (see `onConnect` subscription),
-      // so the write inside `_sendPowerOff` frequently throws
-      // `device is disconnected`. Without the await, that exception
-      // orphans out of this try/catch and lands in
-      // `PlatformDispatcher.onError` → Crashlytics fatal.
-      await _sendPowerOff();
-      await _device.disconnect();
+      // Best-effort: `disconnect()` often fires *on* a transport-state
+      // disconnected event, in which case the write throws `device is
+      // disconnected` immediately. On the happy path the scale powers
+      // off after acking and severs BLE — neither outcome should block
+      // or escalate. The 2 s timeout caps the wait so a flaky link
+      // can't stall the rest of the disconnect sequence.
+      await _sendPowerOff().timeout(const Duration(seconds: 2));
     } catch (e) {
-      _log.warning(
-        "Power off sending failed, probably device was already turned off",
-        e,
-      );
+      _log.fine('power-off write skipped (device likely already off): $e');
+    }
+    // `BluePlusTransport.disconnect` swallows its own errors internally,
+    // so no extra try/catch needed here.
+    try {
+      await _device.disconnect();
     } finally {
       _connectionStateController.add(ConnectionState.disconnected);
       _isDisconnecting = false;

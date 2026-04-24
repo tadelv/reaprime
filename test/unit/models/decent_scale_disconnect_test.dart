@@ -92,6 +92,23 @@ class _DisconnectedBleTransport extends BLETransport {
   }
 }
 
+/// Variant of the throwing transport whose `write()` hangs forever.
+/// Models a flaky BLE link where the platform channel never resolves
+/// the write — the reason `disconnect()` now caps the wait with a 2 s
+/// timeout instead of relying on the underlying 10 s write timeout.
+class _HangingBleTransport extends _DisconnectedBleTransport {
+  @override
+  Future<void> write(
+    String serviceUUID,
+    String characteristicUUID,
+    Uint8List data, {
+    bool withResponse = true,
+    Duration? timeout,
+  }) {
+    return Completer<void>().future; // never completes
+  }
+}
+
 void main() {
   test(
     'disconnect() does not leak an uncaught async error when the '
@@ -131,5 +148,31 @@ void main() {
             'PlatformDispatcher.onError → Crashlytics fatal.',
       );
     },
+  );
+
+  test(
+    'disconnect() returns within the power-off timeout window when the '
+    'BLE write hangs forever',
+    () async {
+      final transport = _HangingBleTransport();
+      final scale = DecentScale(transport: transport);
+
+      final stopwatch = Stopwatch()..start();
+      await scale.disconnect();
+      stopwatch.stop();
+
+      // Power-off cap is 2s — give a generous ceiling to avoid flake
+      // on CI but still catch a regression that drops the timeout.
+      expect(
+        stopwatch.elapsed,
+        lessThan(const Duration(seconds: 4)),
+        reason:
+            'A hung BLE write must not stall the disconnect sequence — '
+            'common on flaky links after wake-from-sleep.',
+      );
+
+      transport.dispose();
+    },
+    timeout: const Timeout(Duration(seconds: 10)),
   );
 }
