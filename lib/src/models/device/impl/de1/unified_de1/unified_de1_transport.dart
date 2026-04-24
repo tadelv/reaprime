@@ -19,7 +19,11 @@ class UnifiedDe1Transport {
   final TransportType transportType;
   final Logger _log;
 
-  late StreamSubscription<String> _transportSubscription;
+  // Only assigned on the serial transport path (`_serialConnect`).
+  // Nullable so `disconnect()` can be called safely if connect failed
+  // before the subscription was wired, or on BLE transports where the
+  // serial branch never runs.
+  StreamSubscription<String>? _transportSubscription;
 
   Stream<device.ConnectionState> get connectionState => _transport.connectionState;
 
@@ -164,7 +168,8 @@ class UnifiedDe1Transport {
         if (_transport is! SerialTransport) {
           throw "Wrong transport type";
         }
-        _transportSubscription.cancel();
+        await _transportSubscription?.cancel();
+        _transportSubscription = null;
         // Start notifications - regular setup
         await _transport.writeCommand(
           "<-${Endpoint.stateInfo.representation}>",
@@ -309,11 +314,32 @@ class UnifiedDe1Transport {
     return result;
   }
 
+  // Minimum lengths required by `_parseStateAndShotSample` in
+  // `unified_de1.parsing.dart`. Shorter frames (observed in the wild on
+  // Galaxy Tab A9+ 0.5.13) cause a `RangeError` deep in rxdart and land
+  // in Crashlytics as fatal. Drop them here with a warning instead.
+  static const _minShotSampleBytes = 19;
+  static const _minStateBytes = 2;
+
   void _shotSampleNotification(ByteData d) {
+    if (d.lengthInBytes < _minShotSampleBytes) {
+      _log.warning(
+        'Dropping short shotSample frame '
+        '(${d.lengthInBytes} < $_minShotSampleBytes bytes)',
+      );
+      return;
+    }
     _shotSampleSubject.add(d);
   }
 
   void _stateNotification(ByteData d) {
+    if (d.lengthInBytes < _minStateBytes) {
+      _log.warning(
+        'Dropping short state frame '
+        '(${d.lengthInBytes} < $_minStateBytes bytes)',
+      );
+      return;
+    }
     _stateSubject.add(d);
   }
 

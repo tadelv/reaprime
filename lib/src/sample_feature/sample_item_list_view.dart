@@ -79,10 +79,17 @@ class SampleItemListView extends StatelessWidget {
                       size: ShadButtonSize.sm,
                       child: const Text('Connect'),
                       onPressed: () async {
-                        if (item is De1Interface) {
-                          await connectionManager.connectMachine(item);
-                        } else if (item is Scale) {
-                          await connectionManager.connectScale(item);
+                        try {
+                          if (item is De1Interface) {
+                            await connectionManager.connectMachine(item);
+                          } else if (item is Scale) {
+                            await connectionManager.connectScale(item);
+                          }
+                        } catch (_) {
+                          // Error already surfaced by ConnectionManager via
+                          // its status stream. Swallow here so the rethrow
+                          // doesn't escape the async onPressed into the
+                          // Flutter error zone (→ Crashlytics fatal).
                         }
                         if (!context.mounted) return;
                         _navigateToDebugView(context, item, inspect: false);
