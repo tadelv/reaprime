@@ -156,10 +156,14 @@ class DecentScale implements Scale {
     subscription?.cancel();
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
-    // final connected = await _device.connectionState.first;
-    // if (connected != ConnectionState.connected) return;
     try {
-      _sendPowerOff();
+      // `await` is load-bearing: `disconnect()` is wired to fire on a
+      // disconnected transport-state event (see `onConnect` subscription),
+      // so the write inside `_sendPowerOff` frequently throws
+      // `device is disconnected`. Without the await, that exception
+      // orphans out of this try/catch and lands in
+      // `PlatformDispatcher.onError` → Crashlytics fatal.
+      await _sendPowerOff();
       await _device.disconnect();
     } catch (e) {
       _log.warning(
