@@ -172,6 +172,14 @@ class De1Controller {
         // Defence in depth: device may have disconnected between the
         // generation check above and any of the awaits in the body.
         _log.fine('Shot settings update aborted by disconnect: $e');
+      } on MmrTimeoutException catch (e) {
+        // An MMR read inside the readback can time out if the BLE
+        // adapter drops mid-sequence. That's functionally the same as
+        // a disconnect — don't escalate to a fatal crash.
+        _log.warning(
+          'Shot settings update MMR read timed out '
+          '(treating as disconnect): $e',
+        );
       }
     });
   }
