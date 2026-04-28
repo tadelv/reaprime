@@ -66,6 +66,7 @@ import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 import 'package:reaprime/src/services/telemetry/log_buffer.dart';
 import 'package:reaprime/src/services/telemetry/anonymization.dart';
 import 'package:reaprime/src/services/telemetry/error_report_throttle.dart';
+import 'package:reaprime/src/services/telemetry/telemetry_forwarder_filter.dart';
 import 'package:reaprime/src/services/webview_log_service.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 
@@ -192,6 +193,8 @@ void main() async {
         '${record.level.name}: ${record.loggerName}: ${record.message}',
       );
       logBuffer.append(scrubbed);
+
+      if (!shouldForwardToTelemetry(record)) return;
 
       // Trigger telemetry error report if rate limit allows
       if (errorReportThrottle.shouldReport(scrubbed)) {
