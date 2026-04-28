@@ -11,6 +11,10 @@ class ProfileHandler {
     // Get all profiles
     app.get('/api/v1/profiles', _handleGetAll);
 
+    // List bundled default profiles — must be registered before the /<id> route
+    // so 'defaults' isn't matched as an id.
+    app.get('/api/v1/profiles/defaults', _handleListDefaults);
+
     // Get single profile by ID
     app.get('/api/v1/profiles/<id>', _handleGetById);
 
@@ -80,6 +84,17 @@ class ProfileHandler {
       return jsonOk(profiles.map((p) => p.toJson()).toList());
     } catch (e, st) {
       log.severe('Error in _handleGetAll', e, st);
+      return jsonError({'error': 'Internal server error', 'message': '$e'});
+    }
+  }
+
+  /// GET /api/v1/profiles/defaults
+  Future<Response> _handleListDefaults(Request request) async {
+    try {
+      final defaults = await _controller.listDefaults();
+      return jsonOk(defaults);
+    } catch (e, st) {
+      log.severe('Error in _handleListDefaults', e, st);
       return jsonError({'error': 'Internal server error', 'message': '$e'});
     }
   }

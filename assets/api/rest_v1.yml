@@ -2236,6 +2236,30 @@ paths:
         "500":
           description: Internal Server Error
 
+  /api/v1/profiles/defaults:
+    get:
+      summary: List bundled default profiles
+      description: |
+        Returns the entries from the bundled defaults manifest
+        (`assets/defaultProfiles/manifest.json`) with their human-readable
+        metadata. Use the `filename` from each entry as the `{filename}` path
+        parameter for `POST /api/v1/profiles/restore/{filename}`.
+
+        Returns an empty array when the manifest is missing or unreadable;
+        per-file parse failures are skipped and logged server-side.
+      tags: [Profiles]
+      responses:
+        "200":
+          description: Array of bundled default profile descriptors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DefaultProfileDescriptor'
+        "500":
+          description: Internal Server Error
+
   /api/v1/webui/skins:
     get:
       summary: List all installed WebUI skins
@@ -4199,6 +4223,34 @@ components:
       type: string
       enum: [visible, hidden, deleted]
       description: Visibility state of a profile. 'visible' = shown in UI, 'hidden' = hidden from UI but not deleted, 'deleted' = soft-deleted (user profiles only)
+
+    DefaultProfileDescriptor:
+      type: object
+      required:
+        - filename
+        - title
+        - author
+        - notes
+        - beverageType
+      properties:
+        filename:
+          type: string
+          description: Manifest filename. Use as `{filename}` for `POST /api/v1/profiles/restore/{filename}`.
+          example: "Default1.json"
+        title:
+          type: string
+          description: Human-readable profile title.
+          example: "Default 1"
+        author:
+          type: string
+          example: "Decent"
+        notes:
+          type: string
+          description: Free-form description; may be empty.
+        beverageType:
+          type: string
+          description: Beverage type enum value (e.g. `espresso`, `filter`).
+          example: "espresso"
 
     WebUISkin:
       type: object
