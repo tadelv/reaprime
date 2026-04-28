@@ -99,6 +99,48 @@ class ProfileController {
     }
   }
 
+  /// List bundled default profiles from the manifest
+  ///
+  /// Returns one entry per profile file referenced by `assets/defaultProfiles/manifest.json`,
+  /// each carrying `filename`, `title`, `author`, `notes`, `beverageType`. Clients use
+  /// `filename` to call `POST /api/v1/profiles/restore/{filename}`.
+  ///
+  /// Returns an empty list when the manifest is missing or unreadable.
+  /// Per-file parse failures are logged and skipped.
+  Future<List<Map<String, dynamic>>> listDefaults() async {
+    try {
+      final manifestData = await rootBundle.loadString(
+        'assets/defaultProfiles/manifest.json',
+      );
+      final manifest = jsonDecode(manifestData) as Map<String, dynamic>;
+      final profileFiles = manifest['profiles'] as List<dynamic>;
+
+      final defaults = <Map<String, dynamic>>[];
+      for (final filename in profileFiles) {
+        try {
+          final profileData = await rootBundle.loadString(
+            'assets/defaultProfiles/$filename',
+          );
+          final profileJson = jsonDecode(profileData) as Map<String, dynamic>;
+          final profile = Profile.fromJson(profileJson);
+          defaults.add({
+            'filename': filename,
+            'title': profile.title,
+            'author': profile.author,
+            'notes': profile.notes,
+            'beverageType': profile.beverageType.name,
+          });
+        } catch (e) {
+          _log.warning('Failed to parse default profile: $filename', e);
+        }
+      }
+      return defaults;
+    } catch (e) {
+      _log.warning('Failed to load default profiles manifest', e);
+      return [];
+    }
+  }
+
   /// Update the profile count stream
   Future<void> _updateProfileCount() async {
     final count = await _storage.count(visibility: Visibility.visible);

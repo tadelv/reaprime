@@ -59,16 +59,17 @@ For skin development, see [`doc/Skins.md`](Skins.md). For plugin development, se
 | Method | Path | Description | Handler |
 |--------|------|-------------|---------|
 | GET | `/api/v1/profiles` | List all profiles | `profile_handler.dart` |
+| GET | `/api/v1/profiles/defaults` | List bundled default profiles (filename + metadata) | |
 | GET | `/api/v1/profiles/:id` | Get profile by content-hash ID | |
 | POST | `/api/v1/profiles` | Create new profile | |
-| PUT | `/api/v1/profiles/:id` | Update profile | |
-| DELETE | `/api/v1/profiles/:id` | Soft-delete profile | |
-| POST | `/api/v1/profiles/:id/visibility` | Change profile visibility | |
+| PUT | `/api/v1/profiles/:id` | Update profile (in-place; hash change replaces the record) | |
+| DELETE | `/api/v1/profiles/:id` | Soft-delete profile (defaults hidden, user profiles soft-deleted) | |
+| PUT | `/api/v1/profiles/:id/visibility` | Change profile visibility | |
 | GET | `/api/v1/profiles/:id/lineage` | Get profile version history | |
-| DELETE | `/api/v1/profiles/:id/permanent` | Permanently delete | |
+| DELETE | `/api/v1/profiles/:id/purge` | Permanently delete (user profiles only) | |
 | GET | `/api/v1/profiles/export` | Export all profiles as JSON | |
 | POST | `/api/v1/profiles/import` | Import profiles from JSON | |
-| POST | `/api/v1/profiles/:id/restore` | Restore default profile | |
+| POST | `/api/v1/profiles/restore/:filename` | Restore a bundled default by manifest filename | |
 
 ### Workflow
 

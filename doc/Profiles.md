@@ -322,9 +322,32 @@ Response: JSON array of all `ProfileRecord` objects
 POST /api/v1/profiles/restore/{filename}
 ```
 
-Restores a bundled default profile from assets by filename (e.g., `best_practice.json`).
+Restores a bundled default profile from assets by filename (e.g., `Default1.json`). Use `GET /api/v1/profiles/defaults` (below) to discover valid filenames.
 
 Response: Restored `ProfileRecord` (200) or error (404)
+
+#### List Bundled Defaults
+```http
+GET /api/v1/profiles/defaults
+```
+
+Lists every entry from the bundled defaults manifest with its metadata. Each element:
+
+```json
+{
+  "filename": "Default1.json",
+  "title": "Default 1",
+  "author": "Decent",
+  "notes": "...",
+  "beverageType": "espresso"
+}
+```
+
+Use the `filename` from any entry as the `{filename}` path parameter for `POST /api/v1/profiles/restore/{filename}`.
+
+Returns an empty array if the manifest is missing or unreadable. Per-file parse failures are skipped server-side and logged.
+
+Response: `200` with array of descriptors.
 
 ### Usage Examples
 
@@ -376,6 +399,16 @@ curl http://localhost:8080/api/v1/profiles/export > profiles_backup.json
 curl -X POST http://localhost:8080/api/v1/profiles/import \
   -H "Content-Type: application/json" \
   -d @profiles_backup.json
+```
+
+**Discover and restore a bundled default:**
+```bash
+# 1. Discover available defaults
+curl http://localhost:8080/api/v1/profiles/defaults | jq '.[].title'
+
+# 2. Restore one by filename
+filename=$(curl -s http://localhost:8080/api/v1/profiles/defaults | jq -r '.[0].filename')
+curl -X POST "http://localhost:8080/api/v1/profiles/restore/${filename}"
 ```
 
 ### Testing
