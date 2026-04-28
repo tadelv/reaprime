@@ -81,7 +81,10 @@ class ProfileHandler {
         );
       }
 
-      return jsonOk(profiles.map((p) => p.toJson()).toList());
+      return jsonOkConditional(
+        request,
+        profiles.map((p) => p.toJson()).toList(),
+      );
     } catch (e, st) {
       log.severe('Error in _handleGetAll', e, st);
       return jsonError({'error': 'Internal server error', 'message': '$e'});

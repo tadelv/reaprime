@@ -684,10 +684,21 @@ paths:
       responses:
         "200":
           description: Paginated list of shots (without measurements)
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: |
+                Strong entity tag derived from the response body. Echo back as
+                `If-None-Match` on subsequent requests for conditional GET.
+                Tag is keyed on the full response (filters + pagination), so
+                the same query produces the same tag until shots change.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/PaginatedShots"
+        "304":
+          description: Not Modified — client's `If-None-Match` matched the current ETag.
   /api/v1/shots/ids:
     get:
       summary: Get a list of identifiers of all the shots
@@ -886,12 +897,21 @@ paths:
       responses:
         "200":
           description: Array of beans
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: |
+                Strong entity tag derived from the response body. Echo back as
+                `If-None-Match` on subsequent requests for conditional GET.
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: "#/components/schemas/Bean"
+        "304":
+          description: Not Modified — client's `If-None-Match` matched the current ETag.
         "500":
           description: Internal Server Error
     post:
@@ -1127,12 +1147,21 @@ paths:
       responses:
         "200":
           description: Array of batches
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: |
+                Strong entity tag derived from the response body. Echo back as
+                `If-None-Match` on subsequent requests for conditional GET.
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: "#/components/schemas/BeanBatch"
+        "304":
+          description: Not Modified — client's `If-None-Match` matched the current ETag.
         "500":
           description: Internal Server Error
     post:
@@ -1372,12 +1401,21 @@ paths:
       responses:
         "200":
           description: Array of grinders
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: |
+                Strong entity tag derived from the response body. Echo back as
+                `If-None-Match` on subsequent requests for conditional GET.
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: "#/components/schemas/Grinder"
+        "304":
+          description: Not Modified — client's `If-None-Match` matched the current ETag.
         "500":
           description: Internal Server Error
     post:
@@ -1903,12 +1941,21 @@ paths:
       responses:
         "200":
           description: Array of profile records
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: |
+                Strong entity tag derived from the response body. Echo back as
+                `If-None-Match` on subsequent requests for conditional GET.
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/ProfileRecord'
+        "304":
+          description: Not Modified — client's `If-None-Match` matched the current ETag.
         "400":
           description: Bad Request (invalid visibility value)
         "500":

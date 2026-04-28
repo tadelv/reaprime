@@ -235,6 +235,30 @@ void main() {
       expect(getRes.statusCode, 404);
     });
 
+    test('GET /api/v1/beans sets ETag and honours If-None-Match', () async {
+      // Empty list: still has ETag
+      final empty = await sendGet('/api/v1/beans');
+      expect(empty.statusCode, 200);
+      expect(empty.headers['etag'], isNotNull);
+
+      // After a mutation, ETag changes
+      await sendPost('/api/v1/beans', {'roaster': 'Sey', 'name': 'X'});
+      final populated = await sendGet('/api/v1/beans');
+      final etag = populated.headers['etag'];
+      expect(etag, isNotNull);
+      expect(etag, isNot(empty.headers['etag']));
+
+      // Re-request with the same ETag → 304, no body
+      final cached = await handler(Request(
+        'GET',
+        Uri.parse('http://localhost/api/v1/beans'),
+        headers: {'If-None-Match': etag!},
+      ));
+      expect(cached.statusCode, 304);
+      expect(cached.headers['etag'], etag);
+      expect(await cached.readAsString(), isEmpty);
+    });
+
     test('GET /api/v1/beans filters out archived by default', () async {
       final createRes = await sendPost('/api/v1/beans', {
         'roaster': 'Sey',

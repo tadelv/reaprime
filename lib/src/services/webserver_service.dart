@@ -313,7 +313,12 @@ Handler _init(
           },
         ),
       )
-      .addMiddleware(corsHeaders())
+      .addMiddleware(corsHeaders(headers: {
+        // Browsers gate cross-origin reads of non-safelisted response headers
+        // behind Access-Control-Expose-Headers. ETag isn't safelisted, so
+        // skin/web clients couldn't read it without this.
+        'Access-Control-Expose-Headers': 'ETag',
+      }))
       .addHandler(app.call);
 
   return handler;
