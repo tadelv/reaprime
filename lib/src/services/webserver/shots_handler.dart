@@ -102,7 +102,7 @@ class ShotsHandler {
       // Strip measurements from list response for performance
       final items = shots.map((s) => s.toJsonWithoutMeasurements()).toList();
 
-      return jsonOk({
+      return jsonOkConditional(req, {
         'items': items,
         'total': total,
         'limit': limit,

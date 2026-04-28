@@ -26,7 +26,7 @@ class GrindersHandler {
           req.url.queryParameters['includeArchived'] == 'true';
       final grinders =
           await _storage.getAllGrinders(includeArchived: includeArchived);
-      return jsonOk(grinders.map((g) => g.toJson()).toList());
+      return jsonOkConditional(req, grinders.map((g) => g.toJson()).toList());
     } catch (e, st) {
       _log.severe('Error getting grinders', e, st);
       return jsonError({'error': e.toString()});

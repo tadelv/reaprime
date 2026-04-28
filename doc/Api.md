@@ -6,6 +6,32 @@ For skin development, see [`doc/Skins.md`](Skins.md). For plugin development, se
 
 ---
 
+## Conditional GETs (ETag / If-None-Match)
+
+The following list endpoints set a strong `ETag` on every `200 OK` response and honour `If-None-Match` with `304 Not Modified` (empty body) when the client's tag matches:
+
+- `GET /api/v1/beans`
+- `GET /api/v1/beans/{beanId}/batches`
+- `GET /api/v1/grinders`
+- `GET /api/v1/profiles`
+- `GET /api/v1/shots` (per query-param combination — filters and pagination are part of the tag)
+
+Usage:
+
+```bash
+# First request — note the ETag
+curl -is http://localhost:8080/api/v1/beans
+
+# Re-request with If-None-Match — 304 if nothing changed
+curl -is -H 'If-None-Match: "abc123…"' http://localhost:8080/api/v1/beans
+```
+
+Tags are SHA-256 derived from the encoded response body. Single-resource GETs and mutation routes do **not** emit ETags.
+
+For browser clients on a different origin, `ETag` is exposed via `Access-Control-Expose-Headers`.
+
+---
+
 ## REST API
 
 ### Machine

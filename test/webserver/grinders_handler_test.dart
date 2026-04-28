@@ -179,6 +179,30 @@ void main() {
       expect(getRes.statusCode, 404);
     });
 
+    test('GET /api/v1/grinders sets ETag and honours If-None-Match', () async {
+      final empty = await sendGet('/api/v1/grinders');
+      expect(empty.statusCode, 200);
+      expect(empty.headers['etag'], isNotNull);
+
+      await sendPost('/api/v1/grinders', {
+        'manufacturer': 'Niche',
+        'model': 'Zero',
+      });
+      final populated = await sendGet('/api/v1/grinders');
+      final etag = populated.headers['etag'];
+      expect(etag, isNotNull);
+      expect(etag, isNot(empty.headers['etag']));
+
+      final cached = await handler(Request(
+        'GET',
+        Uri.parse('http://localhost/api/v1/grinders'),
+        headers: {'If-None-Match': etag!},
+      ));
+      expect(cached.statusCode, 304);
+      expect(cached.headers['etag'], etag);
+      expect(await cached.readAsString(), isEmpty);
+    });
+
     test('GET /api/v1/grinders filters out archived by default', () async {
       final createRes =
           await sendPost('/api/v1/grinders', {'model': 'Niche Zero'});
