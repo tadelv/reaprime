@@ -446,21 +446,16 @@ class UnifiedDe1 implements De1Interface {
   @protected
   Future<void> beforeFirmwareUpload() async {} // default no-op
 
-  /// Writes [data] to [endpoint]. Fire-and-forget writes
-  /// (`withResponse: false`) are not yet wired — passing `false` throws
-  /// [UnimplementedError] rather than silently using `writeWithResponse`.
-  /// When a capability needs without-response writes, add a sibling
-  /// method on [UnifiedDe1Transport] and dispatch here.
+  /// Writes [data] to [endpoint]. When [withResponse] is `true` (default)
+  /// dispatches to [UnifiedDe1Transport.writeWithResponse]; when `false`
+  /// dispatches to [UnifiedDe1Transport.write] for fire-and-forget writes.
   @protected
   Future<void> writeEndpoint(LogicalEndpoint endpoint, Uint8List data,
       {bool withResponse = true}) async {
-    if (!withResponse) {
-      throw UnimplementedError(
-          'UnifiedDe1.writeEndpoint: withResponse=false not yet wired. '
-          'When a capability needs fire-and-forget writes, add a sibling '
-          'write method on UnifiedDe1Transport and dispatch here.');
+    if (withResponse) {
+      return _transport.writeWithResponse(endpoint, data);
     }
-    return _transport.writeWithResponse(endpoint, data);
+    return _transport.write(endpoint, data);
   }
 
   @protected
@@ -470,7 +465,7 @@ class UnifiedDe1 implements De1Interface {
       throw StateError(
           'UnifiedDe1.readEndpoint: endpoint ${endpoint.name} has no BLE read path');
     }
-    return _transport.readEndpoint(endpoint, timeout: timeout);
+    return _transport.read(endpoint, timeout: timeout);
   }
 
   @protected

@@ -360,14 +360,6 @@ class UnifiedDe1Transport {
     _mmrSubject.add(d);
   }
 
-  /// Thin alias for [read] that accepts an optional BLE-side `timeout`.
-  /// Used by `UnifiedDe1.readEndpoint` (the @protected capability surface).
-  /// Serial transport ignores `timeout` — its read path is a one-shot
-  /// `Subject.first` already.
-  Future<ByteData> readEndpoint(LogicalEndpoint endpoint,
-          {Duration? timeout}) =>
-      read(endpoint, timeout: timeout);
-
   Future<ByteData> read(LogicalEndpoint endpoint, {Duration? timeout}) async {
     if (await _transport.connectionState.first != device.ConnectionState.connected) {
       throw ("de1 not connected");
