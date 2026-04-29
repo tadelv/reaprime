@@ -38,7 +38,13 @@ enum MmrValueKind {
 /// [writeScale], [min], [max] default to "no transform" so addresses
 /// without scaling don't have to declare anything. Addresses that need
 /// non-default values override the relevant getter (or pass via the
-/// constructor on enum implementers like [MMRItem]).
+/// constructor on enum implementers like `MMRItem`).
+///
+/// **Note for enum implementers:** Dart's analyzer doesn't see the
+/// synthesized `Enum.name` as satisfying this interface's `String get name`
+/// getter. Add `@override String get name => (this as Enum).name;` to your
+/// enum. See `MMRItem` for an example and fix-commit history
+/// (553550d / b7b8ed7).
 abstract class MmrAddress {
   int get address;
   int get length;

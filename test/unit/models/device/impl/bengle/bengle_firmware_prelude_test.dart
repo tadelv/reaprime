@@ -1,81 +1,17 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/machine.dart';
-import 'package:reaprime/src/models/device/transport/ble_transport.dart';
-import 'package:rxdart/rxdart.dart';
 
-/// Minimal BLE transport stub: captures every characteristic write so the
-/// test can decode the byte written to `Endpoint.requestedState`.
-class _CapturingBleTransport extends BLETransport {
-  final _connState =
-      BehaviorSubject<ConnectionState>.seeded(ConnectionState.connected);
-
-  /// Ordered list of `(uuid, data)` writes seen by the transport.
-  final List<({String characteristicUUID, Uint8List data})> writes = [];
-
-  /// Last `MachineState` requested via a write to `Endpoint.requestedState`,
-  /// decoded by reversing `De1StateEnum.fromMachineState(...)`.
-  MachineState? get lastRequestedState {
-    for (final w in writes.reversed) {
-      if (w.characteristicUUID != Endpoint.requestedState.uuid) continue;
-      if (w.data.isEmpty) continue;
-      final stateEnum = De1StateEnum.fromHexValue(w.data[0]);
-      for (final ms in MachineState.values) {
-        if (De1StateEnum.fromMachineState(ms) == stateEnum) return ms;
-      }
-      return null;
-    }
-    return null;
-  }
-
-  @override
-  String get id => 'capturing-ble';
-
-  @override
-  String get name => 'CapturingBle';
-
-  @override
-  Stream<ConnectionState> get connectionState => _connState.stream;
-
-  @override
-  Future<void> connect() async {}
-
-  @override
-  Future<void> disconnect() async {}
-
-  @override
-  Future<List<String>> discoverServices() async => [de1ServiceUUID];
-
-  @override
-  Future<Uint8List> read(String serviceUUID, String characteristicUUID,
-          {Duration? timeout}) async =>
-      Uint8List(20);
-
-  @override
-  Future<void> subscribe(String serviceUUID, String characteristicUUID,
-      void Function(Uint8List) callback) async {}
-
-  @override
-  Future<void> setTransportPriority(bool prioritized) async {}
-
-  @override
-  Future<void> write(
-      String serviceUUID, String characteristicUUID, Uint8List data,
-      {bool withResponse = true, Duration? timeout}) async {
-    writes.add((characteristicUUID: characteristicUUID, data: data));
-  }
-
-  void dispose() => _connState.close();
-}
+import '../../../../../helpers/fake_ble_transport.dart';
 
 void main() {
   group('Bengle.beforeFirmwareUpload', () {
     test('requests MachineState.fwUpgrade', () async {
-      final transport = _CapturingBleTransport();
+      final transport = FakeBleTransport();
       addTearDown(transport.dispose);
       final bengle = Bengle(transport: transport);
 
@@ -90,6 +26,47 @@ void main() {
           .toList();
       expect(stateWrites, hasLength(1));
       expect(stateWrites.single.data[0], 0x22);
+    });
+
+    test(
+        'updateFirmware drives sleeping -> fwUpgrade write sequence on the wire',
+        () async {
+      final transport = FakeBleTransport();
+      addTearDown(transport.dispose);
+      transport.queueOnConnectResponses();
+
+      final bengle = Bengle(transport: transport);
+      await bengle.onConnect();
+
+      final preFwWrites = transport.writes.length;
+
+      // The FW protocol blocks waiting on `fwMapRequest` notifications
+      // (and a 10s erase wait). Drive it just long enough for the
+      // prelude writes to land, then bail via timeout.
+      try {
+        await bengle
+            .updateFirmware(Uint8List(0), onProgress: (_) {})
+            .timeout(const Duration(seconds: 1));
+      } on TimeoutException catch (_) {
+        // Expected: protocol is blocked waiting on FW-path notifications.
+      }
+
+      final fwWrites = transport.writes.sublist(preFwWrites);
+      // First two writes belong to the prelude:
+      //   1. requestState(sleeping) — UnifiedDe1._updateFirmware
+      //   2. requestState(fwUpgrade) — Bengle.beforeFirmwareUpload
+      // Subsequent writes (poll for fwMapRequest, etc.) are FW-protocol
+      // territory and intentionally not asserted on.
+      expect(fwWrites.length, greaterThanOrEqualTo(2),
+          reason: 'expected at least the sleeping + fwUpgrade writes');
+      expect(fwWrites[0].characteristicUUID, Endpoint.requestedState.uuid);
+      expect(fwWrites[0].data[0],
+          De1StateEnum.fromMachineState(MachineState.sleeping).hexValue);
+      expect(fwWrites[1].characteristicUUID, Endpoint.requestedState.uuid);
+      expect(fwWrites[1].data[0], 0x22,
+          reason: 'second prelude write must be fwUpgrade (0x22)');
+      expect(fwWrites[1].data[0],
+          De1StateEnum.fromMachineState(MachineState.fwUpgrade).hexValue);
     });
   });
 }
