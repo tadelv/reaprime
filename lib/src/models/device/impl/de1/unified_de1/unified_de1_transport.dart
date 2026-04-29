@@ -370,17 +370,23 @@ class UnifiedDe1Transport {
         case TransportType.ble:
           if (endpoint.uuid == null) {
             throw StateError(
-                'Endpoint ${endpoint.name} has no BLE wire support');
+                'UnifiedDe1Transport.read: endpoint ${endpoint.name} has no BLE wire support');
           }
           return await _bleRead(endpoint);
         case TransportType.serial:
-          if (endpoint.representation == null) {
-            throw StateError(
-                'Endpoint ${endpoint.name} has no serial wire support');
-          }
+          // _serialRead has a closed switch on Endpoint values to map to RX subjects;
+          // non-Endpoint LogicalEndpoints can't be dispatched here.
           if (endpoint is! Endpoint) {
             throw StateError(
-                'Serial read requires DE1 Endpoint, got ${endpoint.name}');
+                'UnifiedDe1Transport.read: endpoint ${endpoint.name} is not a DE1 Endpoint, serial read not supported');
+          }
+          // Defense-in-depth: `Endpoint.representation` is currently
+          // declared non-null, but if a future variant relaxes that we
+          // want a clear error rather than passing null downstream.
+          // ignore: unnecessary_null_comparison
+          if (endpoint.representation == null) {
+            throw StateError(
+                'UnifiedDe1Transport.read: endpoint ${endpoint.name} has no serial wire support');
           }
           return await _serialRead(endpoint);
         default:
@@ -467,14 +473,14 @@ class UnifiedDe1Transport {
         case TransportType.ble:
           if (endpoint.uuid == null) {
             throw StateError(
-                'Endpoint ${endpoint.name} has no BLE wire support');
+                'UnifiedDe1Transport.write: endpoint ${endpoint.name} has no BLE wire support');
           }
           await _bleWrite(endpoint, data, false);
           break;
         case TransportType.serial:
           if (endpoint.representation == null) {
             throw StateError(
-                'Endpoint ${endpoint.name} has no serial wire support');
+                'UnifiedDe1Transport.write: endpoint ${endpoint.name} has no serial wire support');
           }
           await _serialWrite(endpoint, data);
           break;
@@ -506,14 +512,14 @@ class UnifiedDe1Transport {
         case TransportType.ble:
           if (endpoint.uuid == null) {
             throw StateError(
-                'Endpoint ${endpoint.name} has no BLE wire support');
+                'UnifiedDe1Transport.writeWithResponse: endpoint ${endpoint.name} has no BLE wire support');
           }
           await _bleWrite(endpoint, data, true);
           break;
         case TransportType.serial:
           if (endpoint.representation == null) {
             throw StateError(
-                'Endpoint ${endpoint.name} has no serial wire support');
+                'UnifiedDe1Transport.writeWithResponse: endpoint ${endpoint.name} has no serial wire support');
           }
           await _serialWrite(endpoint, data);
           break;

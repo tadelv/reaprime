@@ -32,7 +32,10 @@ enum Endpoint implements LogicalEndpoint {
 
   const Endpoint(this.uuid, this.representation);
 
-  // CFE doesn't accept the synthesized Enum.name through `implements`; cast satisfies it.
+  // Dart enums auto-synthesize `name`, but the analyzer doesn't see it as
+  // satisfying `LogicalEndpoint.name` through `implements` — the cast forces
+  // dispatch to the synthesized Enum.name. Do not "simplify" by removing the
+  // cast; it will fail to compile (see fix commits 553550d / b7b8ed7).
   @override
   String get name => (this as Enum).name;
 
