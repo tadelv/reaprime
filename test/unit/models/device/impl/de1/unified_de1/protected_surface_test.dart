@@ -1,14 +1,12 @@
-import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/mmr_address.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
-import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/models/device/transport/logical_endpoint.dart';
-import 'package:rxdart/rxdart.dart';
+
+import '../../../../../../helpers/fake_ble_transport.dart';
 
 // The mixin-on-UnifiedDe1 setup below (`_TestCapability` + `_TestDe1`) is
 // itself the load-bearing demonstration that the protected surface is
@@ -18,153 +16,6 @@ import 'package:rxdart/rxdart.dart';
 // would let the test class reach the protected members through plain
 // subclassing and stop proving what we actually need to prove (mixins
 // can call them).
-
-/// Programmable BLE transport that intercepts writes to the
-/// `writeToMMR` characteristic and synthesizes a matching `readFromMMR`
-/// notification with a queued integer payload. The DE1 firmware
-/// normally echoes the address bytes and appends the value as a
-/// little-endian int32 on the readFromMMR characteristic — this stub
-/// keeps that contract so `_mmrRead` finds its matching response.
-class _ProgrammableBleTransport extends BLETransport {
-  final _connState =
-      BehaviorSubject<ConnectionState>.seeded(ConnectionState.connected);
-  final Map<String, void Function(Uint8List)> _subscribers = {};
-
-  /// Map address (full 32-bit) -> integer to emit on the next matching
-  /// MMR read request.
-  final Map<int, int> _intResponses = {};
-
-  /// Map address -> raw 16-byte payload (bytes 4..19 of the 20-byte
-  /// MMR notification frame). Takes precedence over [_intResponses]
-  /// when both are queued for the same address.
-  final Map<int, List<int>> _rawResponses = {};
-
-  /// Captures each frame written to a non-MMR-read characteristic so
-  /// tests can assert on the bytes that hit the wire. Specifically used
-  /// for `Endpoint.writeToMMR` capture in the writeMmr* tests.
-  final List<({String characteristicUUID, Uint8List data, bool withResponse})>
-      writes = [];
-
-  void queueMmrResponseInt(MmrAddress addr, int value) {
-    _intResponses[addr.address] = value;
-  }
-
-  void queueMmrResponseRaw(MmrAddress addr, List<int> payload) {
-    _rawResponses[addr.address] = payload;
-  }
-
-  @override
-  String get id => 'programmable-ble';
-
-  @override
-  String get name => 'ProgrammableBle';
-
-  @override
-  Stream<ConnectionState> get connectionState => _connState.stream;
-
-  @override
-  Future<void> connect() async {}
-
-  @override
-  Future<void> disconnect() async {}
-
-  @override
-  Future<List<String>> discoverServices() async => [de1ServiceUUID];
-
-  @override
-  Future<Uint8List> read(String serviceUUID, String characteristicUUID,
-          {Duration? timeout}) async =>
-      // 20-byte zero buffer matches the MMR/state response width;
-      // tolerated by parsers during onConnect.
-      Uint8List(20);
-
-  @override
-  Future<void> subscribe(String serviceUUID, String characteristicUUID,
-      void Function(Uint8List) callback) async {
-    _subscribers[characteristicUUID] = callback;
-  }
-
-  @override
-  Future<void> setTransportPriority(bool prioritized) async {}
-
-  @override
-  Future<void> write(
-      String serviceUUID, String characteristicUUID, Uint8List data,
-      {bool withResponse = true, Duration? timeout}) async {
-    // Capture every write so tests can assert on bytes that hit the
-    // wire (used for writeMmr* coverage).
-    writes.add((
-      characteristicUUID: characteristicUUID,
-      data: data,
-      withResponse: withResponse,
-    ));
-
-    // Only react to MMR write-read requests on the writeToMMR
-    // characteristic (`Endpoint.readFromMMR.uuid` is what `_mmrRead`
-    // actually writes to — the firmware overloads the read endpoint
-    // with a write to request a payload, then notifies the same UUID).
-    // Looking at `_mmrRead`, it writes to `Endpoint.readFromMMR`.
-    if (characteristicUUID != Endpoint.readFromMMR.uuid) return;
-    if (data.length < 4) return;
-    final addrMid1 = data[1];
-    final addrMid2 = data[2];
-    final addrLow = data[3];
-    int? matchedRawAddr;
-    for (final addr in _rawResponses.keys) {
-      final bytes = ByteData(4)..setInt32(0, addr, Endian.big);
-      if (bytes.getUint8(1) == addrMid1 &&
-          bytes.getUint8(2) == addrMid2 &&
-          bytes.getUint8(3) == addrLow) {
-        matchedRawAddr = addr;
-        break;
-      }
-    }
-    if (matchedRawAddr != null) {
-      final payload = _rawResponses.remove(matchedRawAddr)!;
-      final resp = Uint8List(20);
-      resp[0] = data[0];
-      resp[1] = addrMid1;
-      resp[2] = addrMid2;
-      resp[3] = addrLow;
-      for (var i = 0; i < payload.length && i + 4 < 20; i++) {
-        resp[i + 4] = payload[i];
-      }
-      final cb = _subscribers[Endpoint.readFromMMR.uuid];
-      if (cb != null) {
-        scheduleMicrotask(() => cb(resp));
-      }
-      return;
-    }
-
-    int? matchedAddr;
-    for (final addr in _intResponses.keys) {
-      final bytes = ByteData(4)..setInt32(0, addr, Endian.big);
-      if (bytes.getUint8(1) == addrMid1 &&
-          bytes.getUint8(2) == addrMid2 &&
-          bytes.getUint8(3) == addrLow) {
-        matchedAddr = addr;
-        break;
-      }
-    }
-    if (matchedAddr == null) return;
-    final value = _intResponses.remove(matchedAddr)!;
-    final resp = Uint8List(20);
-    final view = ByteData.sublistView(resp);
-    view.setUint8(0, data[0]);
-    view.setUint8(1, addrMid1);
-    view.setUint8(2, addrMid2);
-    view.setUint8(3, addrLow);
-    view.setInt32(4, value, Endian.little);
-    final cb = _subscribers[Endpoint.readFromMMR.uuid];
-    if (cb != null) {
-      // Emit asynchronously so `_mmrRead`'s firstWhere subscription is
-      // set up before the value lands.
-      scheduleMicrotask(() => cb(resp));
-    }
-  }
-
-  void dispose() => _connState.close();
-}
 
 // Capability-style mixin that exercises the protected surface.
 mixin _TestCapability on UnifiedDe1 {
@@ -243,21 +94,15 @@ class _TestDe1 extends UnifiedDe1 with _TestCapability {
 
 void main() {
   group('UnifiedDe1 protected surface', () {
-    late _ProgrammableBleTransport transport;
+    late FakeBleTransport transport;
     late _TestDe1 de1;
 
     setUp(() async {
-      transport = _ProgrammableBleTransport();
+      transport = FakeBleTransport();
       de1 = _TestDe1(transport: transport);
       // Subscribe wiring needs the BLE connect path to run; queue the
       // MMR reads `onConnect` performs so it can complete.
-      transport
-        ..queueMmrResponseInt(MMRItem.v13Model, 1)
-        ..queueMmrResponseInt(MMRItem.ghcInfo, 0)
-        ..queueMmrResponseInt(MMRItem.serialN, 12345)
-        ..queueMmrResponseInt(MMRItem.cpuFirmwareBuild, 1300)
-        ..queueMmrResponseInt(MMRItem.heaterV, 230)
-        ..queueMmrResponseInt(MMRItem.refillKitPresent, 0);
+      transport.queueOnConnectResponses();
       await de1.onConnect();
     });
 
@@ -383,7 +228,7 @@ void main() {
             .first,
         completion(isA<ByteData>()),
       );
-      final cb = transport._subscribers[Endpoint.shotSample.uuid];
+      final cb = transport.subscribers[Endpoint.shotSample.uuid];
       expect(cb, isNotNull,
           reason: 'transport must have subscribed to shotSample on connect');
       cb!(marker);

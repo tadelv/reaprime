@@ -468,11 +468,22 @@ class UnifiedDe1 implements De1Interface {
     return _transport.read(endpoint, timeout: timeout);
   }
 
+  /// Returns the broadcast notification stream for [endpoint].
+  ///
+  /// Two fall-through paths exist for callers to be aware of:
+  ///
+  /// 1. A known DE1 [Endpoint] that is not a notifying characteristic
+  ///    (e.g. [Endpoint.versions], [Endpoint.requestedState],
+  ///    [Endpoint.headerWrite]) raises [UnimplementedError] — by design,
+  ///    these endpoints are write-only or one-shot reads. Asking for a
+  ///    notification stream is a usage bug, not a missing feature.
+  /// 2. A non-[Endpoint] [LogicalEndpoint] (capability-supplied — e.g.
+  ///    a future `BengleCupWarmerEndpoint`) also raises
+  ///    [UnimplementedError]. Runtime subscription wiring for capability
+  ///    endpoints lands with the first capability that needs it.
   @protected
   Stream<ByteData> notificationsFor(LogicalEndpoint endpoint) {
     // Known DE1 endpoints route to their existing typed Subjects.
-    // Capability-supplied endpoints throw — runtime subscription wiring
-    // lands with the first capability that needs it.
     if (endpoint is Endpoint) {
       switch (endpoint) {
         case Endpoint.shotSample:
@@ -489,7 +500,8 @@ class UnifiedDe1 implements De1Interface {
           return _transport.fwMapRequest;
         default:
           throw UnimplementedError(
-              'UnifiedDe1.notificationsFor: ${endpoint.name} has no Subject wired');
+              'UnifiedDe1.notificationsFor: Endpoint.${endpoint.name} is '
+              'not a notifying characteristic on UnifiedDe1');
       }
     }
     throw UnimplementedError(

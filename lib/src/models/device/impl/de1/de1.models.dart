@@ -283,8 +283,6 @@ enum MMRItem implements MmrAddress {
     MmrValueKind.int32,
     "GHC Info Bitmask, 0x1 = GHC LED Controller Present, 0x2 = GHC Touch Controller_Present, 0x4 GHC Active, 0x80000000 = Factory Mode",
   ),
-  prefGHCMCI(0x00803820, 4, MmrValueKind.int32, "TODO"),
-  maxShotPres(0x00803824, 4, MmrValueKind.int32, "TODO"),
   targetSteamFlow(
     0x00803828,
     4,

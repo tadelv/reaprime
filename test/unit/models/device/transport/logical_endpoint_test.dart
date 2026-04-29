@@ -5,10 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1_transport.dart';
-import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/models/device/transport/logical_endpoint.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
 import 'package:rxdart/rxdart.dart';
+
+import '../../../../helpers/fake_ble_transport.dart';
 
 /// Minimal LogicalEndpoint stub for exercising the guards in
 /// `UnifiedDe1Transport.{read,write,writeWithResponse}`. Not a Dart enum,
@@ -23,48 +24,9 @@ class _StubEndpoint implements LogicalEndpoint {
   const _StubEndpoint({this.uuid, this.representation, required this.name});
 }
 
-class _StubBleTransport extends BLETransport {
-  final _connState =
-      BehaviorSubject<ConnectionState>.seeded(ConnectionState.connected);
-
-  @override
-  String get id => 'stub-ble';
-
-  @override
-  String get name => 'StubBle';
-
-  @override
-  Stream<ConnectionState> get connectionState => _connState.stream;
-
-  @override
-  Future<void> connect() async {}
-
-  @override
-  Future<void> disconnect() async {}
-
-  @override
-  Future<List<String>> discoverServices() async => [];
-
-  @override
-  Future<Uint8List> read(String serviceUUID, String characteristicUUID,
-          {Duration? timeout}) async =>
-      Uint8List(0);
-
-  @override
-  Future<void> subscribe(String serviceUUID, String characteristicUUID,
-      void Function(Uint8List) callback) async {}
-
-  @override
-  Future<void> write(
-      String serviceUUID, String characteristicUUID, Uint8List data,
-      {bool withResponse = true, Duration? timeout}) async {}
-
-  @override
-  Future<void> setTransportPriority(bool prioritized) async {}
-
-  void dispose() => _connState.close();
-}
-
+/// Inline serial-transport stub: `FakeBleTransport` is BLE-only by
+/// design (the consolidated helper is used across the BLE-facing
+/// tests), so the small serial stub stays here for the wire-gap tests.
 class _StubSerialTransport extends SerialTransport {
   final _connState =
       BehaviorSubject<ConnectionState>.seeded(ConnectionState.connected);
@@ -118,7 +80,7 @@ void main() {
   group('UnifiedDe1Transport wire-support guards', () {
     test('read() on BLE with null uuid throws StateError mentioning '
         '"no BLE wire support"', () async {
-      final transport = _StubBleTransport();
+      final transport = FakeBleTransport();
       addTearDown(transport.dispose);
       final unified = UnifiedDe1Transport(transport: transport);
       const stub = _StubEndpoint(
