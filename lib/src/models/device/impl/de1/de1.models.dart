@@ -1,6 +1,7 @@
 // ignore_for_file: constant_identifier_names
 
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/device/impl/de1/mmr_address.dart';
 import 'package:reaprime/src/models/device/transport/logical_endpoint.dart';
 
 final String de1ServiceUUID = 'A000';
@@ -203,77 +204,136 @@ enum De1SubState {
   }
 }
 
-enum MMRItem {
-  externalFlash(0x00000000, 0xFFFFF, "Flash RW"),
-  hwConfig(0x00800000, 4, "HWConfig"),
-  model(0x00800004, 4, "Model"),
-  cpuBoardModel(0x00800008, 4, "CPU Board Model * 1000. eg: 1100 = 1.1"),
+enum MMRItem implements MmrAddress {
+  externalFlash(0x00000000, 0xFFFFF, MmrValueKind.bytes, "Flash RW"),
+  hwConfig(0x00800000, 4, MmrValueKind.int32, "HWConfig"),
+  model(0x00800004, 4, MmrValueKind.int32, "Model"),
+  cpuBoardModel(
+    0x00800008,
+    4,
+    MmrValueKind.int32,
+    "CPU Board Model * 1000. eg: 1100 = 1.1",
+  ),
   v13Model(
     0x0080000C,
     4,
+    MmrValueKind.int32,
     "v1.3+ Firmware Model (Unset = 0, DE1 = 1, DE1Plus = 2, DE1Pro = 3, DE1XL = 4, DE1Cafe = 5)",
   ),
   cpuFirmwareBuild(
     0x00800010,
     4,
+    MmrValueKind.int32,
     "CPU Board Firmware build number. (Starts at 1000 for 1.3, increments by 1 for every build)",
   ),
   debugLen(
     0x00802800,
     4,
+    MmrValueKind.int32,
     "How many characters in debug buffer are valid. Accessing this pauses BLE debug logging.",
   ),
   debugBuffer(
     0x00802804,
     0x1000,
+    MmrValueKind.bytes,
     "Last 4K of output. Zero terminated if buffer not full yet. Pauses BLE debug logging.",
   ),
   debugConfig(
     0x00803804,
     4,
+    MmrValueKind.int32,
     "BLEDebugConfig. (Reading restarts logging into the BLE log)",
   ),
-  fanThreshold(0x00803808, 4, "Fan threshold temp"),
-  tankTemp(0x0080380C, 4, "Tank water temp threshold."),
-  heaterUp1Flow(0x00803810, 4, "HeaterUp Phase 1 Flow Rate"),
-  heaterUp2Flow(0x00803814, 4, "HeaterUp Phase 2 Flow Rate"),
-  waterHeaterIdleTemp(0x00803818, 4, "Water Heater Idle Temperature"),
+  fanThreshold(0x00803808, 4, MmrValueKind.int32, "Fan threshold temp"),
+  tankTemp(0x0080380C, 4, MmrValueKind.int32, "Tank water temp threshold."),
+  heaterUp1Flow(
+    0x00803810,
+    4,
+    MmrValueKind.scaledFloat,
+    "HeaterUp Phase 1 Flow Rate",
+  ),
+  heaterUp2Flow(
+    0x00803814,
+    4,
+    MmrValueKind.scaledFloat,
+    "HeaterUp Phase 2 Flow Rate",
+  ),
+  waterHeaterIdleTemp(
+    0x00803818,
+    4,
+    MmrValueKind.scaledFloat,
+    "Water Heater Idle Temperature",
+  ),
   ghcInfo(
     0x0080381C,
     4,
+    MmrValueKind.int32,
     "GHC Info Bitmask, 0x1 = GHC LED Controller Present, 0x2 = GHC Touch Controller_Present, 0x4 GHC Active, 0x80000000 = Factory Mode",
   ),
-  prefGHCMCI(0x00803820, 4, "TODO"),
-  maxShotPres(0x00803824, 4, "TODO"),
-  targetSteamFlow(0x00803828, 4, "Target steam flow rate"),
+  prefGHCMCI(0x00803820, 4, MmrValueKind.int32, "TODO"),
+  maxShotPres(0x00803824, 4, MmrValueKind.int32, "TODO"),
+  targetSteamFlow(
+    0x00803828,
+    4,
+    MmrValueKind.scaledFloat,
+    "Target steam flow rate",
+  ),
   steamStartSecs(
     0x0080382C,
     4,
+    MmrValueKind.scaledFloat,
     "Seconds of high steam flow * 100. Valid range 0.0 - 4.0. 0 may result in an overheated heater. Be careful.",
   ),
-  serialN(0x00803830, 4, "Current serial number"),
+  serialN(0x00803830, 4, MmrValueKind.int32, "Current serial number"),
   heaterV(
     0x00803834,
     4,
+    MmrValueKind.int32,
     "Nominal Heater Voltage (0, 120V or 230V). +1000 if it's a set value.",
   ),
-  heaterUp2Timeout(0x00803838, 4, "HeaterUp Phase 2 Timeout"),
-  calFlowEst(0x0080383C, 4, "Flow Estimation Calibration"),
-  flushFlowRate(0x00803840, 4, "Flush Flow Rate"),
-  flushTemp(0x00803844, 4, "Flush Temp"),
-  flushTimeout(0x00803848, 4, "Flush Timeout"),
-  hotWaterFlowRate(0x0080384C, 4, "Hot Water Flow Rate"),
-  steamPurgeMode(0x00803850, 4, "Steam Purge Mode"),
-  allowUSBCharging(0x00803854, 4, "Allow USB charging"),
-  appFeatureFlags(0x00803858, 4, "App Feature Flags"),
-  refillKitPresent(0x0080385C, 4, "Refill Kit Present"),
-  userPresent(0x00803860, 4, "Is User Present");
+  heaterUp2Timeout(
+    0x00803838,
+    4,
+    MmrValueKind.scaledFloat,
+    "HeaterUp Phase 2 Timeout",
+  ),
+  calFlowEst(
+    0x0080383C,
+    4,
+    MmrValueKind.scaledFloat,
+    "Flow Estimation Calibration",
+  ),
+  flushFlowRate(0x00803840, 4, MmrValueKind.scaledFloat, "Flush Flow Rate"),
+  flushTemp(0x00803844, 4, MmrValueKind.scaledFloat, "Flush Temp"),
+  flushTimeout(0x00803848, 4, MmrValueKind.scaledFloat, "Flush Timeout"),
+  hotWaterFlowRate(
+    0x0080384C,
+    4,
+    MmrValueKind.scaledFloat,
+    "Hot Water Flow Rate",
+  ),
+  steamPurgeMode(0x00803850, 4, MmrValueKind.int32, "Steam Purge Mode"),
+  allowUSBCharging(0x00803854, 4, MmrValueKind.boolean, "Allow USB charging"),
+  appFeatureFlags(0x00803858, 4, MmrValueKind.int32, "App Feature Flags"),
+  refillKitPresent(0x0080385C, 4, MmrValueKind.int32, "Refill Kit Present"),
+  userPresent(0x00803860, 4, MmrValueKind.int32, "Is User Present");
 
+  @override
   final int address;
+  @override
   final int length;
+  @override
+  final MmrValueKind kind;
   final String description;
 
-  const MMRItem(this.address, this.length, this.description);
+  const MMRItem(this.address, this.length, this.kind, this.description);
+
+  // Dart enums auto-synthesize `name`, but the analyzer doesn't see it as
+  // satisfying `MmrAddress.name` through `implements` — the cast forces
+  // dispatch to the synthesized Enum.name. Do not "simplify" by removing the
+  // cast; it will fail to compile (see fix commits 553550d / b7b8ed7).
+  @override
+  String get name => (this as Enum).name;
 }
 
 enum DecentMachineModel {
