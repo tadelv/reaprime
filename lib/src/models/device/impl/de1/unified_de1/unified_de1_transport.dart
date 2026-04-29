@@ -360,7 +360,15 @@ class UnifiedDe1Transport {
     _mmrSubject.add(d);
   }
 
-  Future<ByteData> read(LogicalEndpoint endpoint) async {
+  /// Thin alias for [read] that accepts an optional BLE-side `timeout`.
+  /// Used by `UnifiedDe1.readEndpoint` (the @protected capability surface).
+  /// Serial transport ignores `timeout` — its read path is a one-shot
+  /// `Subject.first` already.
+  Future<ByteData> readEndpoint(LogicalEndpoint endpoint,
+          {Duration? timeout}) =>
+      read(endpoint, timeout: timeout);
+
+  Future<ByteData> read(LogicalEndpoint endpoint, {Duration? timeout}) async {
     if (await _transport.connectionState.first != device.ConnectionState.connected) {
       throw ("de1 not connected");
     }
@@ -372,7 +380,7 @@ class UnifiedDe1Transport {
             throw StateError(
                 'UnifiedDe1Transport.read: endpoint ${endpoint.name} has no BLE wire support');
           }
-          return await _bleRead(endpoint);
+          return await _bleRead(endpoint, timeout: timeout);
         case TransportType.serial:
           // _serialRead has a closed switch on Endpoint values to map to RX subjects;
           // non-Endpoint LogicalEndpoints can't be dispatched here.
@@ -396,7 +404,7 @@ class UnifiedDe1Transport {
       if (_isBleTimeout(e)) {
         if (await _handleBleTimeout(e, st)) {
           _log.info('Retrying read of ${endpoint.name} after reconnect');
-          return read(endpoint);
+          return read(endpoint, timeout: timeout);
         }
       }
       _log.severe("failed to read", e, st);
@@ -404,11 +412,12 @@ class UnifiedDe1Transport {
     }
   }
 
-  Future<ByteData> _bleRead(LogicalEndpoint e) async {
+  Future<ByteData> _bleRead(LogicalEndpoint e, {Duration? timeout}) async {
     if (_transport is! BLETransport) {
       throw "Invalid transport type, expected BLE";
     }
-    var data = await _transport.read(de1ServiceUUID, e.uuid!);
+    var data =
+        await _transport.read(de1ServiceUUID, e.uuid!, timeout: timeout);
     ByteData response = ByteData.sublistView(Uint8List.fromList(data));
     return response;
   }
