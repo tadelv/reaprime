@@ -9,9 +9,7 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
     _log.info("Starting firmware upgrade ...");
 
     await requestState(MachineState.sleeping);
-
-    // TODO: move to Machine impl that needs this
-    // await requestState(MachineState.fwUpgrade);
+    await beforeFirmwareUpload();
 
     // unsub = _subscribe(Endpoint.fwMapRequest, (ByteData data) async {
     final unsub = _transport.fwMapRequest.listen((ByteData data) async {

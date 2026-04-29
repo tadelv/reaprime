@@ -450,6 +450,19 @@ class UnifiedDe1 implements De1Interface {
   @protected
   Logger get log => _log;
 
+  /// Override on machine subclasses that need to take an action between
+  /// `requestState(sleeping)` and the start of FW image upload.
+  ///
+  /// Default: no-op. Bengle overrides this to request
+  /// `MachineState.fwUpgrade` (state 0x22) — Bengle FW requires entering
+  /// that state before the `.dat` upload protocol starts. DE1 doesn't.
+  ///
+  /// This resolves the TODO at `unified_de1.firmware.dart:13-14` (commented
+  /// `requestState(MachineState.fwUpgrade)` originally lived in the shared
+  /// upload routine).
+  @protected
+  Future<void> beforeFirmwareUpload() async {} // default no-op
+
   /// Writes [data] to [endpoint]. Fire-and-forget writes
   /// (`withResponse: false`) are not yet wired — passing `false` throws
   /// [UnimplementedError] rather than silently using `writeWithResponse`.
