@@ -26,6 +26,27 @@ void main() {
 
     test('boolean MMRItems have kind == boolean', () {
       expect(MMRItem.allowUSBCharging.kind, MmrValueKind.boolean);
+      expect(MMRItem.userPresent.kind, MmrValueKind.boolean);
+    });
+
+    test('entries with length > 4 are bytes or string', () {
+      for (final m in MMRItem.values) {
+        if (m.length > 4) {
+          expect([MmrValueKind.bytes, MmrValueKind.string], contains(m.kind),
+              reason: '${m.name} has length ${m.length} but kind ${m.kind.name}');
+        }
+      }
+    });
+
+    test('all kinds covered by at least one MMRItem (DE1 baseline)', () {
+      // string and int16 may legitimately be unused by DE1; the others must appear.
+      final used = MMRItem.values.map((m) => m.kind).toSet();
+      expect(used, containsAll([
+        MmrValueKind.int32,
+        MmrValueKind.scaledFloat,
+        MmrValueKind.boolean,
+        MmrValueKind.bytes,
+      ]));
     });
   });
 }
