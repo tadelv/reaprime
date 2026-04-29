@@ -9,6 +9,7 @@ import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/transport/ble_timeout_exception.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
+import 'package:reaprime/src/models/device/transport/logical_endpoint.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -359,16 +360,29 @@ class UnifiedDe1Transport {
     _mmrSubject.add(d);
   }
 
-  Future<ByteData> read(Endpoint endpoint) async {
+  Future<ByteData> read(LogicalEndpoint endpoint) async {
     if (await _transport.connectionState.first != device.ConnectionState.connected) {
       throw ("de1 not connected");
     }
 
+    final endpointName = _endpointName(endpoint);
     try {
       switch (transportType) {
         case TransportType.ble:
+          if (endpoint.uuid == null) {
+            throw StateError(
+                'Endpoint $endpointName has no BLE wire support');
+          }
           return await _bleRead(endpoint);
         case TransportType.serial:
+          if (endpoint.representation == null) {
+            throw StateError(
+                'Endpoint $endpointName has no serial wire support');
+          }
+          if (endpoint is! Endpoint) {
+            throw StateError(
+                'Serial read requires DE1 Endpoint, got $endpointName');
+          }
           return await _serialRead(endpoint);
         default:
           throw ("Unknown transport type: $transportType");
@@ -376,7 +390,7 @@ class UnifiedDe1Transport {
     } catch (e, st) {
       if (_isBleTimeout(e)) {
         if (await _handleBleTimeout(e, st)) {
-          _log.info('Retrying read of ${endpoint.name} after reconnect');
+          _log.info('Retrying read of $endpointName after reconnect');
           return read(endpoint);
         }
       }
@@ -385,11 +399,11 @@ class UnifiedDe1Transport {
     }
   }
 
-  Future<ByteData> _bleRead(Endpoint e) async {
+  Future<ByteData> _bleRead(LogicalEndpoint e) async {
     if (_transport is! BLETransport) {
       throw "Invalid transport type, expected BLE";
     }
-    var data = await _transport.read(de1ServiceUUID, e.uuid);
+    var data = await _transport.read(de1ServiceUUID, e.uuid!);
     ByteData response = ByteData.sublistView(Uint8List.fromList(data));
     return response;
   }
@@ -440,21 +454,30 @@ class UnifiedDe1Transport {
     }
   }
 
-  Future<void> write(Endpoint endpoint, Uint8List data) async {
+  Future<void> write(LogicalEndpoint endpoint, Uint8List data) async {
     if (await _transport.connectionState.first != device.ConnectionState.connected) {
       throw ("de1 not connected");
     }
+    final endpointName = _endpointName(endpoint);
     try {
-      _log.fine('about to write to ${endpoint.name}');
+      _log.fine('about to write to $endpointName');
       _log.fine(
         'payload: ${data.map((el) => el.toRadixString(16).padLeft(2, '0')).join(' ')}',
       );
 
       switch (transportType) {
         case TransportType.ble:
+          if (endpoint.uuid == null) {
+            throw StateError(
+                'Endpoint $endpointName has no BLE wire support');
+          }
           await _bleWrite(endpoint, data, false);
           break;
         case TransportType.serial:
+          if (endpoint.representation == null) {
+            throw StateError(
+                'Endpoint $endpointName has no serial wire support');
+          }
           await _serialWrite(endpoint, data);
           break;
         default:
@@ -463,7 +486,7 @@ class UnifiedDe1Transport {
     } catch (e, st) {
       if (_isBleTimeout(e)) {
         if (await _handleBleTimeout(e, st)) {
-          _log.info('Retrying write to ${endpoint.name} after reconnect');
+          _log.info('Retrying write to $endpointName after reconnect');
           return write(endpoint, data);
         }
       }
@@ -472,20 +495,29 @@ class UnifiedDe1Transport {
     }
   }
 
-  Future<void> writeWithResponse(Endpoint endpoint, Uint8List data) async {
+  Future<void> writeWithResponse(LogicalEndpoint endpoint, Uint8List data) async {
     if (await _transport.connectionState.first != device.ConnectionState.connected) {
       throw ("de1 not connected");
     }
+    final endpointName = _endpointName(endpoint);
     try {
-      _log.fine('about to write to ${endpoint.name}');
+      _log.fine('about to write to $endpointName');
       _log.fine(
         'payload: ${data.map((el) => el.toRadixString(16).padLeft(2, '0')).join(' ')}',
       );
       switch (transportType) {
         case TransportType.ble:
+          if (endpoint.uuid == null) {
+            throw StateError(
+                'Endpoint $endpointName has no BLE wire support');
+          }
           await _bleWrite(endpoint, data, true);
           break;
         case TransportType.serial:
+          if (endpoint.representation == null) {
+            throw StateError(
+                'Endpoint $endpointName has no serial wire support');
+          }
           await _serialWrite(endpoint, data);
           break;
         default:
@@ -494,7 +526,7 @@ class UnifiedDe1Transport {
     } catch (e, st) {
       if (_isBleTimeout(e)) {
         if (await _handleBleTimeout(e, st)) {
-          _log.info('Retrying write to ${endpoint.name} after reconnect');
+          _log.info('Retrying write to $endpointName after reconnect');
           return writeWithResponse(endpoint, data);
         }
       }
@@ -502,6 +534,9 @@ class UnifiedDe1Transport {
       rethrow;
     }
   }
+
+  String _endpointName(LogicalEndpoint e) =>
+      e is Enum ? (e as Enum).name : e.toString();
 
   bool _isBleTimeout(Object error) {
     return transportType == TransportType.ble &&
@@ -533,24 +568,24 @@ class UnifiedDe1Transport {
     }
   }
 
-  Future<void> _serialWrite(Endpoint e, Uint8List data) async {
+  Future<void> _serialWrite(LogicalEndpoint e, Uint8List data) async {
     if (_transport is! SerialTransport) {
       throw "Invalid transport type, expected Serial";
     }
     final payload = data
         .map((e) => e.toRadixString(16).padLeft(2, '0'))
         .join('');
-    await _transport.writeCommand('<${e.representation}>$payload');
+    await _transport.writeCommand('<${e.representation!}>$payload');
   }
 
-  Future<void> _bleWrite(Endpoint e, Uint8List data, bool withResponse) async {
+  Future<void> _bleWrite(LogicalEndpoint e, Uint8List data, bool withResponse) async {
     if (_transport is! BLETransport) {
       throw "Invalid transport type, expected BLE";
     }
 
     await _transport.write(
       de1ServiceUUID,
-      e.uuid,
+      e.uuid!,
       data,
       withResponse: withResponse,
     );
