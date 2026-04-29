@@ -1,10 +1,11 @@
 // ignore_for_file: constant_identifier_names
 
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/device/transport/logical_endpoint.dart';
 
 final String de1ServiceUUID = 'A000';
 
-enum Endpoint {
+enum Endpoint implements LogicalEndpoint {
   versions('A001', 'A'),
   requestedState('A002', 'B'),
   setTime('A003', 'C'),
@@ -24,7 +25,9 @@ enum Endpoint {
   waterLevels('A011', 'Q'),
   calibration('A012', 'R');
 
+  @override
   final String uuid;
+  @override
   final String representation;
 
   const Endpoint(this.uuid, this.representation);
