@@ -6,8 +6,11 @@
 /// `uuid` is the BLE characteristic UUID; null means the endpoint has no
 /// BLE wire support. `representation` is the single-character serial
 /// command id; null means no serial wire support. At least one must be
-/// non-null in any production endpoint.
+/// non-null in any production endpoint. `name` is a human-readable
+/// identifier used in logs and error messages — Dart enums satisfy this
+/// via `Enum.name` automatically.
 abstract class LogicalEndpoint {
   String? get uuid;
   String? get representation;
+  String get name;
 }

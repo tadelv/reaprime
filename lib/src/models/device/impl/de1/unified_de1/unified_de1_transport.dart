@@ -365,23 +365,22 @@ class UnifiedDe1Transport {
       throw ("de1 not connected");
     }
 
-    final endpointName = _endpointName(endpoint);
     try {
       switch (transportType) {
         case TransportType.ble:
           if (endpoint.uuid == null) {
             throw StateError(
-                'Endpoint $endpointName has no BLE wire support');
+                'Endpoint ${endpoint.name} has no BLE wire support');
           }
           return await _bleRead(endpoint);
         case TransportType.serial:
           if (endpoint.representation == null) {
             throw StateError(
-                'Endpoint $endpointName has no serial wire support');
+                'Endpoint ${endpoint.name} has no serial wire support');
           }
           if (endpoint is! Endpoint) {
             throw StateError(
-                'Serial read requires DE1 Endpoint, got $endpointName');
+                'Serial read requires DE1 Endpoint, got ${endpoint.name}');
           }
           return await _serialRead(endpoint);
         default:
@@ -390,7 +389,7 @@ class UnifiedDe1Transport {
     } catch (e, st) {
       if (_isBleTimeout(e)) {
         if (await _handleBleTimeout(e, st)) {
-          _log.info('Retrying read of $endpointName after reconnect');
+          _log.info('Retrying read of ${endpoint.name} after reconnect');
           return read(endpoint);
         }
       }
@@ -458,9 +457,8 @@ class UnifiedDe1Transport {
     if (await _transport.connectionState.first != device.ConnectionState.connected) {
       throw ("de1 not connected");
     }
-    final endpointName = _endpointName(endpoint);
     try {
-      _log.fine('about to write to $endpointName');
+      _log.fine('about to write to ${endpoint.name}');
       _log.fine(
         'payload: ${data.map((el) => el.toRadixString(16).padLeft(2, '0')).join(' ')}',
       );
@@ -469,14 +467,14 @@ class UnifiedDe1Transport {
         case TransportType.ble:
           if (endpoint.uuid == null) {
             throw StateError(
-                'Endpoint $endpointName has no BLE wire support');
+                'Endpoint ${endpoint.name} has no BLE wire support');
           }
           await _bleWrite(endpoint, data, false);
           break;
         case TransportType.serial:
           if (endpoint.representation == null) {
             throw StateError(
-                'Endpoint $endpointName has no serial wire support');
+                'Endpoint ${endpoint.name} has no serial wire support');
           }
           await _serialWrite(endpoint, data);
           break;
@@ -486,7 +484,7 @@ class UnifiedDe1Transport {
     } catch (e, st) {
       if (_isBleTimeout(e)) {
         if (await _handleBleTimeout(e, st)) {
-          _log.info('Retrying write to $endpointName after reconnect');
+          _log.info('Retrying write to ${endpoint.name} after reconnect');
           return write(endpoint, data);
         }
       }
@@ -499,9 +497,8 @@ class UnifiedDe1Transport {
     if (await _transport.connectionState.first != device.ConnectionState.connected) {
       throw ("de1 not connected");
     }
-    final endpointName = _endpointName(endpoint);
     try {
-      _log.fine('about to write to $endpointName');
+      _log.fine('about to write to ${endpoint.name}');
       _log.fine(
         'payload: ${data.map((el) => el.toRadixString(16).padLeft(2, '0')).join(' ')}',
       );
@@ -509,14 +506,14 @@ class UnifiedDe1Transport {
         case TransportType.ble:
           if (endpoint.uuid == null) {
             throw StateError(
-                'Endpoint $endpointName has no BLE wire support');
+                'Endpoint ${endpoint.name} has no BLE wire support');
           }
           await _bleWrite(endpoint, data, true);
           break;
         case TransportType.serial:
           if (endpoint.representation == null) {
             throw StateError(
-                'Endpoint $endpointName has no serial wire support');
+                'Endpoint ${endpoint.name} has no serial wire support');
           }
           await _serialWrite(endpoint, data);
           break;
@@ -526,7 +523,7 @@ class UnifiedDe1Transport {
     } catch (e, st) {
       if (_isBleTimeout(e)) {
         if (await _handleBleTimeout(e, st)) {
-          _log.info('Retrying write to $endpointName after reconnect');
+          _log.info('Retrying write to ${endpoint.name} after reconnect');
           return writeWithResponse(endpoint, data);
         }
       }
@@ -534,9 +531,6 @@ class UnifiedDe1Transport {
       rethrow;
     }
   }
-
-  String _endpointName(LogicalEndpoint e) =>
-      e is Enum ? (e as Enum).name : e.toString();
 
   bool _isBleTimeout(Object error) {
     return transportType == TransportType.ble &&

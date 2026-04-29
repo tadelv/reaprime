@@ -32,11 +32,20 @@ enum Endpoint implements LogicalEndpoint {
 
   const Endpoint(this.uuid, this.representation);
 
+  // Explicit override: Dart's CFE (test compiler) does not accept `Enum.name`
+  // as satisfying `String get name;` on an `implements` clause, even though
+  // the analyzer does. Delegate to the synthesized enum name via a thin
+  // top-level helper that takes `Enum`.
+  @override
+  String get name => _enumName(this);
+
   // Helper method to find an Endpoint by its UUID
   static Endpoint? fromUuid(String uuid) {
     return Endpoint.values.where((e) => e.uuid == uuid).firstOrNull;
   }
 }
+
+String _enumName(Enum e) => e.name;
 
 enum De1StateEnum {
   sleep(0x0), // Everything is off
