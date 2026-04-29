@@ -244,25 +244,38 @@ enum MMRItem implements MmrAddress {
     MmrValueKind.int32,
     "BLEDebugConfig. (Reading restarts logging into the BLE log)",
   ),
-  fanThreshold(0x00803808, 4, MmrValueKind.int32, "Fan threshold temp"),
+  fanThreshold(
+    0x00803808,
+    4,
+    MmrValueKind.int32,
+    "Fan threshold temp",
+    min: 0,
+    max: 50,
+  ),
   tankTemp(0x0080380C, 4, MmrValueKind.int32, "Tank water temp threshold."),
   heaterUp1Flow(
     0x00803810,
     4,
     MmrValueKind.scaledFloat,
     "HeaterUp Phase 1 Flow Rate",
+    readScale: 0.1,
+    writeScale: 10.0,
   ),
   heaterUp2Flow(
     0x00803814,
     4,
     MmrValueKind.scaledFloat,
     "HeaterUp Phase 2 Flow Rate",
+    readScale: 0.1,
+    writeScale: 10.0,
   ),
   waterHeaterIdleTemp(
     0x00803818,
     4,
     MmrValueKind.scaledFloat,
     "Water Heater Idle Temperature",
+    readScale: 0.1,
+    writeScale: 10.0,
   ),
   ghcInfo(
     0x0080381C,
@@ -277,6 +290,8 @@ enum MMRItem implements MmrAddress {
     4,
     MmrValueKind.scaledFloat,
     "Target steam flow rate",
+    readScale: 0.01,
+    writeScale: 100.0,
   ),
   steamStartSecs(
     0x0080382C,
@@ -296,21 +311,50 @@ enum MMRItem implements MmrAddress {
     4,
     MmrValueKind.scaledFloat,
     "HeaterUp Phase 2 Timeout",
+    readScale: 0.1,
+    writeScale: 10.0,
   ),
   calFlowEst(
     0x0080383C,
     4,
     MmrValueKind.scaledFloat,
     "Flow Estimation Calibration",
+    readScale: 0.001,
+    writeScale: 1000.0,
+    min: 130,
+    max: 2000,
   ),
-  flushFlowRate(0x00803840, 4, MmrValueKind.scaledFloat, "Flush Flow Rate"),
-  flushTemp(0x00803844, 4, MmrValueKind.scaledFloat, "Flush Temp"),
-  flushTimeout(0x00803848, 4, MmrValueKind.scaledFloat, "Flush Timeout"),
+  flushFlowRate(
+    0x00803840,
+    4,
+    MmrValueKind.scaledFloat,
+    "Flush Flow Rate",
+    readScale: 0.1,
+    writeScale: 10.0,
+  ),
+  flushTemp(
+    0x00803844,
+    4,
+    MmrValueKind.scaledFloat,
+    "Flush Temp",
+    readScale: 0.1,
+    writeScale: 10.0,
+  ),
+  flushTimeout(
+    0x00803848,
+    4,
+    MmrValueKind.scaledFloat,
+    "Flush Timeout",
+    readScale: 0.1,
+    writeScale: 10.0,
+  ),
   hotWaterFlowRate(
     0x0080384C,
     4,
     MmrValueKind.scaledFloat,
     "Hot Water Flow Rate",
+    readScale: 0.1,
+    writeScale: 10.0,
   ),
   steamPurgeMode(0x00803850, 4, MmrValueKind.int32, "Steam Purge Mode"),
   allowUSBCharging(0x00803854, 4, MmrValueKind.boolean, "Allow USB charging"),
@@ -326,8 +370,25 @@ enum MMRItem implements MmrAddress {
   @override
   final MmrValueKind kind;
   final String description;
+  @override
+  final double readScale;
+  @override
+  final double writeScale;
+  @override
+  final int? min;
+  @override
+  final int? max;
 
-  const MMRItem(this.address, this.length, this.kind, this.description);
+  const MMRItem(
+    this.address,
+    this.length,
+    this.kind,
+    this.description, {
+    this.readScale = 1.0,
+    this.writeScale = 1.0,
+    this.min,
+    this.max,
+  });
 
   // Dart enums auto-synthesize `name`, but the analyzer doesn't see it as
   // satisfying `MmrAddress.name` through `implements` — the cast forces

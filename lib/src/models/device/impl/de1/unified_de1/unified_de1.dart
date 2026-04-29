@@ -27,23 +27,6 @@ part 'unified_de1.profile.dart';
 part 'unified_de1.firmware.dart';
 part 'unified_de1.raw.dart';
 
-// Add this configuration class
-class _MMRConfig {
-  final MMRItem item;
-  final double readScale;
-  final double writeScale;
-  final int? minValue;
-  final int? maxValue;
-
-  const _MMRConfig({
-    required this.item,
-    this.readScale = 1.0,
-    this.writeScale = 1.0,
-    this.minValue,
-    this.maxValue,
-  });
-}
-
 class UnifiedDe1 implements De1Interface {
   static final BleServiceIdentifier advertisingIdentifier =
       BleServiceIdentifier.short('ffff');
@@ -531,7 +514,7 @@ class UnifiedDe1 implements De1Interface {
     return _unpackMMRInt(raw);
   }
 
-  /// Reads a `scaledFloat` MMR address as `raw * readScale`.
+  /// Reads a `scaledFloat` MMR address as `raw * addr.readScale`.
   ///
   /// Asymmetric with [writeMmrScaled]: read scaling is purely a
   /// multiplier — there is no `min`/`max` clamp here. Bounds are a
@@ -539,36 +522,35 @@ class UnifiedDe1 implements De1Interface {
   /// callers that need range validation should clamp before writing,
   /// not after reading).
   @protected
-  Future<double> readMmrScaled(MmrAddress addr,
-      {required double readScale}) async {
+  Future<double> readMmrScaled(MmrAddress addr) async {
     _assertKind(addr, const {MmrValueKind.scaledFloat}, 'readMmrScaled');
     if (addr is MMRItem) return _readMMRScaled(addr);
     final raw = await _mmrReadRaw(addr.address);
-    return _unpackMMRInt(raw).toDouble() * readScale;
+    return _unpackMMRInt(raw).toDouble() * addr.readScale;
   }
 
   @protected
-  Future<void> writeMmrInt(MmrAddress addr, int value,
-      {int? min, int? max}) async {
+  Future<void> writeMmrInt(MmrAddress addr, int value) async {
     _assertKind(addr, const {
       MmrValueKind.int32,
       MmrValueKind.int16,
       MmrValueKind.boolean,
     }, 'writeMmrInt');
     if (addr is MMRItem) return _writeMMRInt(addr, value);
-    final clamped =
-        (min != null && max != null) ? value.clamp(min, max) : value;
+    final clamped = (addr.min != null && addr.max != null)
+        ? value.clamp(addr.min!, addr.max!)
+        : value;
     return _mmrWriteRaw(addr.address, _packMMRInt(clamped));
   }
 
   @protected
-  Future<void> writeMmrScaled(MmrAddress addr, double value,
-      {required double writeScale, int? min, int? max}) async {
+  Future<void> writeMmrScaled(MmrAddress addr, double value) async {
     _assertKind(addr, const {MmrValueKind.scaledFloat}, 'writeMmrScaled');
-    final scaled = (value * writeScale).toInt();
+    final scaled = (value * addr.writeScale).toInt();
     if (addr is MMRItem) return _writeMMRInt(addr, scaled);
-    final clamped =
-        (min != null && max != null) ? scaled.clamp(min, max) : scaled;
+    final clamped = (addr.min != null && addr.max != null)
+        ? scaled.clamp(addr.min!, addr.max!)
+        : scaled;
     return _mmrWriteRaw(addr.address, _packMMRInt(clamped));
   }
 

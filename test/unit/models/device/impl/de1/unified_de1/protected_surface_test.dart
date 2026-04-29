@@ -168,18 +168,16 @@ mixin _TestCapability on UnifiedDe1 {
   // Intentionally calls `readMmrScaled` on an int32 address (fanThreshold)
   // — exercises the kind-mismatch StateError path.
   Future<double> readFanAsScaledFloat() =>
-      readMmrScaled(MMRItem.fanThreshold, readScale: 0.1);
+      readMmrScaled(MMRItem.fanThreshold);
 
   // Re-exports so tests can drive these from a mixin context (the only
   // legitimate access path for `@protected` members).
   Future<List<int>> capRead(MmrAddress addr) => readMmrRaw(addr);
   Future<void> capWrite(MmrAddress addr, List<int> bytes) =>
       writeMmrRaw(addr, bytes);
-  Future<double> capReadScaled(MmrAddress addr, double scale) =>
-      readMmrScaled(addr, readScale: scale);
-  Future<void> capWriteScaled(MmrAddress addr, double v,
-          {required double scale, int? min, int? max}) =>
-      writeMmrScaled(addr, v, writeScale: scale, min: min, max: max);
+  Future<double> capReadScaled(MmrAddress addr) => readMmrScaled(addr);
+  Future<void> capWriteScaled(MmrAddress addr, double v) =>
+      writeMmrScaled(addr, v);
   Stream<ByteData> capNotifications(LogicalEndpoint ep) =>
       notificationsFor(ep);
   Future<void> capWriteEndpoint(LogicalEndpoint ep, Uint8List data,
@@ -198,11 +196,23 @@ class _CapabilityAddr implements MmrAddress {
   final String name;
   @override
   final MmrValueKind kind;
+  @override
+  final double readScale;
+  @override
+  final double writeScale;
+  @override
+  final int? min;
+  @override
+  final int? max;
   const _CapabilityAddr({
     required this.address,
     required this.length,
     required this.name,
     required this.kind,
+    this.readScale = 1.0,
+    this.writeScale = 1.0,
+    this.min,
+    this.max,
   });
 }
 
@@ -322,10 +332,11 @@ void main() {
         length: 4,
         name: 'cupWarmerTemp',
         kind: MmrValueKind.scaledFloat,
+        readScale: 0.1,
       );
       // raw int32 = 250, little-endian -> [0xFA, 0x00, 0x00, 0x00]
       transport.queueMmrResponseRaw(addr, [0xFA, 0x00, 0x00, 0x00]);
-      final result = await de1.capReadScaled(addr, 0.1);
+      final result = await de1.capReadScaled(addr);
       expect(result, closeTo(25.0, 1e-9));
     });
 
@@ -335,10 +346,13 @@ void main() {
         length: 4,
         name: 'cupWarmerSetTemp',
         kind: MmrValueKind.scaledFloat,
+        writeScale: 10.0,
+        min: 0,
+        max: 500,
       );
       transport.writes.clear();
       // value 99.9 * writeScale 10.0 = 999, clamped to 500.
-      await de1.capWriteScaled(addr, 99.9, scale: 10.0, min: 0, max: 500);
+      await de1.capWriteScaled(addr, 99.9);
       final frame = transport.writes.firstWhere(
         (w) => w.characteristicUUID == Endpoint.writeToMMR.uuid,
       );
