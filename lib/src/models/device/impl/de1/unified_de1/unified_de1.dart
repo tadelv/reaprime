@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/connection/connection_timings.dart';
 import 'package:reaprime/src/models/data/profile.dart';
@@ -12,10 +12,12 @@ import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.utils.dart';
+import 'package:reaprime/src/models/device/impl/de1/mmr_address.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1_transport.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
+import 'package:reaprime/src/models/device/transport/logical_endpoint.dart';
 import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -437,6 +439,128 @@ class UnifiedDe1 implements De1Interface {
         return d;
       })
       .map(_parseWaterLevels);
+
+  // ---- Protected surface for capability mixins (`on UnifiedDe1`) ----
+  //
+  // Mixins reach the transport and MMR plumbing through these methods
+  // instead of touching `_transport` / `_log` directly. New capabilities
+  // (Bengle cup warmer, integrated scale, etc.) declare `on UnifiedDe1`
+  // and call only the @protected API below.
+
+  @protected
+  Logger get log => _log;
+
+  @protected
+  Future<void> writeEndpoint(LogicalEndpoint endpoint, Uint8List data,
+      {bool withResponse = true}) {
+    // All DE1 writes go through writeWithResponse today. If a future
+    // capability needs without-response writes, add a sibling method on
+    // the transport rather than branching here.
+    return _transport.writeWithResponse(endpoint, data);
+  }
+
+  @protected
+  Future<ByteData> readEndpoint(LogicalEndpoint endpoint,
+      {Duration? timeout}) async {
+    if (endpoint.uuid == null) {
+      throw StateError(
+          'UnifiedDe1.readEndpoint: endpoint ${endpoint.name} has no BLE read path');
+    }
+    return _transport.readEndpoint(endpoint, timeout: timeout);
+  }
+
+  @protected
+  Stream<ByteData> notificationsFor(LogicalEndpoint endpoint) {
+    // Known DE1 endpoints route to their existing typed Subjects.
+    // Capability-supplied endpoints throw — runtime subscription wiring
+    // lands with the first capability that needs it.
+    if (endpoint is Endpoint) {
+      switch (endpoint) {
+        case Endpoint.shotSample:
+          return _transport.shotSample;
+        case Endpoint.stateInfo:
+          return _transport.state;
+        case Endpoint.waterLevels:
+          return _transport.waterLevels;
+        case Endpoint.shotSettings:
+          return _transport.shotSettings;
+        case Endpoint.readFromMMR:
+          return _mmr;
+        case Endpoint.fwMapRequest:
+          return _transport.fwMapRequest;
+        default:
+          throw UnimplementedError(
+              'UnifiedDe1.notificationsFor: ${endpoint.name} has no Subject wired');
+      }
+    }
+    throw UnimplementedError(
+        'UnifiedDe1.notificationsFor: runtime subscription for ${endpoint.name} '
+        'lands with capability impl');
+  }
+
+  @protected
+  Future<int> readMmrInt(MmrAddress addr) async {
+    _assertKind(addr, const {
+      MmrValueKind.int32,
+      MmrValueKind.int16,
+      MmrValueKind.boolean,
+    }, 'readMmrInt');
+    if (addr is MMRItem) return _readMMRInt(addr);
+    final raw = await _mmrReadRaw(addr.address);
+    return _unpackMMRInt(raw);
+  }
+
+  @protected
+  Future<double> readMmrScaled(MmrAddress addr,
+      {required double readScale}) async {
+    _assertKind(addr, const {MmrValueKind.scaledFloat}, 'readMmrScaled');
+    if (addr is MMRItem) return _readMMRScaled(addr);
+    final raw = await _mmrReadRaw(addr.address);
+    return _unpackMMRInt(raw).toDouble() * readScale;
+  }
+
+  @protected
+  Future<void> writeMmrInt(MmrAddress addr, int value,
+      {int? min, int? max}) async {
+    _assertKind(addr, const {
+      MmrValueKind.int32,
+      MmrValueKind.int16,
+      MmrValueKind.boolean,
+    }, 'writeMmrInt');
+    if (addr is MMRItem) return _writeMMRInt(addr, value);
+    final clamped =
+        (min != null && max != null) ? value.clamp(min, max) : value;
+    return _mmrWriteRaw(addr.address, _packMMRInt(clamped));
+  }
+
+  @protected
+  Future<void> writeMmrScaled(MmrAddress addr, double value,
+      {required double writeScale, int? min, int? max}) async {
+    _assertKind(addr, const {MmrValueKind.scaledFloat}, 'writeMmrScaled');
+    final scaled = (value * writeScale).toInt();
+    return writeMmrInt(addr, scaled, min: min, max: max);
+  }
+
+  @protected
+  Future<List<int>> readMmrRaw(MmrAddress addr) async {
+    if (addr is MMRItem) return _mmrRead(addr);
+    return _mmrReadRaw(addr.address);
+  }
+
+  @protected
+  Future<void> writeMmrRaw(MmrAddress addr, List<int> data) async {
+    if (addr is MMRItem) return _mmrWrite(addr, data);
+    return _mmrWriteRaw(addr.address, data);
+  }
+
+  void _assertKind(MmrAddress addr, Set<MmrValueKind> allowed, String helper) {
+    if (!allowed.contains(addr.kind)) {
+      throw StateError(
+        'UnifiedDe1.$helper: called on ${addr.name} (kind=${addr.kind.name}); '
+        'expected one of $allowed',
+      );
+    }
+  }
 
   // Private getter for MMR stream with notifyFrom called once per event
   // Cached to ensure only one stream chain is created

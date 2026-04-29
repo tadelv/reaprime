@@ -6,10 +6,21 @@ part of 'unified_de1.dart';
 const _mmrReadTimeout = Duration(seconds: 2);
 
 extension UnifiedDe1MMR on UnifiedDe1 {
-  Future<List<int>> _mmrRead(MMRItem item, {int length = 0}) async {
-    _log.info("mmr read: ${item.name}");
+  Future<List<int>> _mmrRead(MMRItem item, {int length = 0}) =>
+      _mmrReadRaw(item.address, length: length, label: item.name);
+
+  Future<void> _mmrWrite(MMRItem item, List<int> bufferData) =>
+      _mmrWriteRaw(item.address, bufferData, label: item.name);
+
+  /// Address-only MMR read for capability mixins whose addresses aren't
+  /// in the [MMRItem] enum. Same wire behavior as [_mmrRead]; uses the
+  /// hex address as the log/timeout label when no enum name is given.
+  Future<List<int>> _mmrReadRaw(int address,
+      {int length = 0, String? label}) async {
+    final logLabel = label ?? '0x${address.toRadixString(16)}';
+    _log.info("mmr read: $logLabel");
     ByteData bytes = ByteData(20);
-    bytes.setInt32(0, item.address, Endian.big);
+    bytes.setInt32(0, address, Endian.big);
     var buffer = bytes.buffer.asUint8List();
     buffer[0] = (length % 0xFF);
 
@@ -25,8 +36,6 @@ extension UnifiedDe1MMR on UnifiedDe1 {
     var result = await _mmr
         .map((d) => d.buffer.asUint8List().toList())
         .firstWhere((element) {
-          // log.info("listen where event  ${element.map(toHexString).toList()}");
-
           if (buffer[1] == element[1] &&
               buffer[2] == element[2] &&
               buffer[3] == element[3]) {
@@ -38,7 +47,7 @@ extension UnifiedDe1MMR on UnifiedDe1 {
         .timeout(
           _mmrReadTimeout,
           onTimeout: () =>
-              throw MmrTimeoutException(item.name, _mmrReadTimeout),
+              throw MmrTimeoutException(logLabel, _mmrReadTimeout),
         );
     _log.info(
       "listen event Result:  ${result.map((e) => e.toRadixString(16)).toList()}",
@@ -46,11 +55,14 @@ extension UnifiedDe1MMR on UnifiedDe1 {
     return result;
   }
 
-  Future<void> _mmrWrite(MMRItem item, List<int> bufferData) {
-    _log.info("mmr write: ${item.name}");
+  /// Address-only MMR write for capability mixins; see [_mmrReadRaw].
+  Future<void> _mmrWriteRaw(int address, List<int> bufferData,
+      {String? label}) {
+    final logLabel = label ?? '0x${address.toRadixString(16)}';
+    _log.info("mmr write: $logLabel");
 
     ByteData bytes = ByteData(20);
-    bytes.setInt32(0, item.address, Endian.big);
+    bytes.setInt32(0, address, Endian.big);
     var buffer = bytes.buffer.asUint8List();
     buffer[0] = (bufferData.length % 0xFF);
     var i = 0;
