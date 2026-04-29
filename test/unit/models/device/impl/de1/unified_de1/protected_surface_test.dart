@@ -42,7 +42,8 @@ class _ProgrammableBleTransport extends BLETransport {
   /// Captures each frame written to a non-MMR-read characteristic so
   /// tests can assert on the bytes that hit the wire. Specifically used
   /// for `Endpoint.writeToMMR` capture in the writeMmr* tests.
-  final List<({String characteristicUUID, Uint8List data})> writes = [];
+  final List<({String characteristicUUID, Uint8List data, bool withResponse})>
+      writes = [];
 
   void queueMmrResponseInt(MmrAddress addr, int value) {
     _intResponses[addr.address] = value;
@@ -92,7 +93,11 @@ class _ProgrammableBleTransport extends BLETransport {
       {bool withResponse = true, Duration? timeout}) async {
     // Capture every write so tests can assert on bytes that hit the
     // wire (used for writeMmr* coverage).
-    writes.add((characteristicUUID: characteristicUUID, data: data));
+    writes.add((
+      characteristicUUID: characteristicUUID,
+      data: data,
+      withResponse: withResponse,
+    ));
 
     // Only react to MMR write-read requests on the writeToMMR
     // characteristic (`Endpoint.readFromMMR.uuid` is what `_mmrRead`
@@ -401,17 +406,17 @@ void main() {
       );
     });
 
-    test('writeEndpoint(withResponse: false) throws UnimplementedError',
+    test('writeEndpoint(withResponse: false) routes through transport.write',
         () async {
-      await expectLater(
-        de1.capWriteEndpoint(Endpoint.requestedState, Uint8List(1),
-            withResponse: false),
-        throwsA(isA<UnimplementedError>().having(
-          (e) => e.message,
-          'message',
-          contains('withResponse=false'),
-        )),
+      transport.writes.clear();
+      final payload = Uint8List.fromList([0xAB]);
+      await de1.capWriteEndpoint(Endpoint.requestedState, payload,
+          withResponse: false);
+      final frame = transport.writes.firstWhere(
+        (w) => w.characteristicUUID == Endpoint.requestedState.uuid,
       );
+      expect(frame.data, payload);
+      expect(frame.withResponse, isFalse);
     });
   });
 }
