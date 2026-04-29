@@ -450,12 +450,20 @@ class UnifiedDe1 implements De1Interface {
   @protected
   Logger get log => _log;
 
+  /// Writes [data] to [endpoint]. Fire-and-forget writes
+  /// (`withResponse: false`) are not yet wired — passing `false` throws
+  /// [UnimplementedError] rather than silently using `writeWithResponse`.
+  /// When a capability needs without-response writes, add a sibling
+  /// method on [UnifiedDe1Transport] and dispatch here.
   @protected
   Future<void> writeEndpoint(LogicalEndpoint endpoint, Uint8List data,
-      {bool withResponse = true}) {
-    // All DE1 writes go through writeWithResponse today. If a future
-    // capability needs without-response writes, add a sibling method on
-    // the transport rather than branching here.
+      {bool withResponse = true}) async {
+    if (!withResponse) {
+      throw UnimplementedError(
+          'UnifiedDe1.writeEndpoint: withResponse=false not yet wired. '
+          'When a capability needs fire-and-forget writes, add a sibling '
+          'write method on UnifiedDe1Transport and dispatch here.');
+    }
     return _transport.writeWithResponse(endpoint, data);
   }
 
@@ -510,6 +518,13 @@ class UnifiedDe1 implements De1Interface {
     return _unpackMMRInt(raw);
   }
 
+  /// Reads a `scaledFloat` MMR address as `raw * readScale`.
+  ///
+  /// Asymmetric with [writeMmrScaled]: read scaling is purely a
+  /// multiplier — there is no `min`/`max` clamp here. Bounds are a
+  /// write-side concern (the firmware reports whatever it stored;
+  /// callers that need range validation should clamp before writing,
+  /// not after reading).
   @protected
   Future<double> readMmrScaled(MmrAddress addr,
       {required double readScale}) async {
@@ -538,7 +553,10 @@ class UnifiedDe1 implements De1Interface {
       {required double writeScale, int? min, int? max}) async {
     _assertKind(addr, const {MmrValueKind.scaledFloat}, 'writeMmrScaled');
     final scaled = (value * writeScale).toInt();
-    return writeMmrInt(addr, scaled, min: min, max: max);
+    if (addr is MMRItem) return _writeMMRInt(addr, scaled);
+    final clamped =
+        (min != null && max != null) ? scaled.clamp(min, max) : scaled;
+    return _mmrWriteRaw(addr.address, _packMMRInt(clamped));
   }
 
   @protected

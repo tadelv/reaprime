@@ -7,7 +7,17 @@ import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/mmr_address.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/models/device/transport/logical_endpoint.dart';
 import 'package:rxdart/rxdart.dart';
+
+// The mixin-on-UnifiedDe1 setup below (`_TestCapability` + `_TestDe1`) is
+// itself the load-bearing demonstration that the protected surface is
+// reachable from real capability code: any future Bengle/scale/etc.
+// capability uses the exact same `mixin Foo on UnifiedDe1` pattern. Do
+// not refactor `_TestCapability` into helpers on `_TestDe1` — that
+// would let the test class reach the protected members through plain
+// subclassing and stop proving what we actually need to prove (mixins
+// can call them).
 
 /// Programmable BLE transport that intercepts writes to the
 /// `writeToMMR` characteristic and synthesizes a matching `readFromMMR`
@@ -24,8 +34,22 @@ class _ProgrammableBleTransport extends BLETransport {
   /// MMR read request.
   final Map<int, int> _intResponses = {};
 
+  /// Map address -> raw 16-byte payload (bytes 4..19 of the 20-byte
+  /// MMR notification frame). Takes precedence over [_intResponses]
+  /// when both are queued for the same address.
+  final Map<int, List<int>> _rawResponses = {};
+
+  /// Captures each frame written to a non-MMR-read characteristic so
+  /// tests can assert on the bytes that hit the wire. Specifically used
+  /// for `Endpoint.writeToMMR` capture in the writeMmr* tests.
+  final List<({String characteristicUUID, Uint8List data})> writes = [];
+
   void queueMmrResponseInt(MmrAddress addr, int value) {
     _intResponses[addr.address] = value;
+  }
+
+  void queueMmrResponseRaw(MmrAddress addr, List<int> payload) {
+    _rawResponses[addr.address] = payload;
   }
 
   @override
@@ -49,6 +73,8 @@ class _ProgrammableBleTransport extends BLETransport {
   @override
   Future<Uint8List> read(String serviceUUID, String characteristicUUID,
           {Duration? timeout}) async =>
+      // 20-byte zero buffer matches the MMR/state response width;
+      // tolerated by parsers during onConnect.
       Uint8List(20);
 
   @override
@@ -64,6 +90,10 @@ class _ProgrammableBleTransport extends BLETransport {
   Future<void> write(
       String serviceUUID, String characteristicUUID, Uint8List data,
       {bool withResponse = true, Duration? timeout}) async {
+    // Capture every write so tests can assert on bytes that hit the
+    // wire (used for writeMmr* coverage).
+    writes.add((characteristicUUID: characteristicUUID, data: data));
+
     // Only react to MMR write-read requests on the writeToMMR
     // characteristic (`Endpoint.readFromMMR.uuid` is what `_mmrRead`
     // actually writes to — the firmware overloads the read endpoint
@@ -74,6 +104,33 @@ class _ProgrammableBleTransport extends BLETransport {
     final addrMid1 = data[1];
     final addrMid2 = data[2];
     final addrLow = data[3];
+    int? matchedRawAddr;
+    for (final addr in _rawResponses.keys) {
+      final bytes = ByteData(4)..setInt32(0, addr, Endian.big);
+      if (bytes.getUint8(1) == addrMid1 &&
+          bytes.getUint8(2) == addrMid2 &&
+          bytes.getUint8(3) == addrLow) {
+        matchedRawAddr = addr;
+        break;
+      }
+    }
+    if (matchedRawAddr != null) {
+      final payload = _rawResponses.remove(matchedRawAddr)!;
+      final resp = Uint8List(20);
+      resp[0] = data[0];
+      resp[1] = addrMid1;
+      resp[2] = addrMid2;
+      resp[3] = addrLow;
+      for (var i = 0; i < payload.length && i + 4 < 20; i++) {
+        resp[i + 4] = payload[i];
+      }
+      final cb = _subscribers[Endpoint.readFromMMR.uuid];
+      if (cb != null) {
+        scheduleMicrotask(() => cb(resp));
+      }
+      return;
+    }
+
     int? matchedAddr;
     for (final addr in _intResponses.keys) {
       final bytes = ByteData(4)..setInt32(0, addr, Endian.big);
@@ -108,8 +165,61 @@ class _ProgrammableBleTransport extends BLETransport {
 mixin _TestCapability on UnifiedDe1 {
   Future<int> readFan() => readMmrInt(MMRItem.fanThreshold);
   Future<int> readFanViaWrongHelper() => readMmrInt(MMRItem.targetSteamFlow);
-  Future<double> readScaledViaWrongHelper() =>
+  // Intentionally calls `readMmrScaled` on an int32 address (fanThreshold)
+  // — exercises the kind-mismatch StateError path.
+  Future<double> readFanAsScaledFloat() =>
       readMmrScaled(MMRItem.fanThreshold, readScale: 0.1);
+
+  // Re-exports so tests can drive these from a mixin context (the only
+  // legitimate access path for `@protected` members).
+  Future<List<int>> capRead(MmrAddress addr) => readMmrRaw(addr);
+  Future<void> capWrite(MmrAddress addr, List<int> bytes) =>
+      writeMmrRaw(addr, bytes);
+  Future<double> capReadScaled(MmrAddress addr, double scale) =>
+      readMmrScaled(addr, readScale: scale);
+  Future<void> capWriteScaled(MmrAddress addr, double v,
+          {required double scale, int? min, int? max}) =>
+      writeMmrScaled(addr, v, writeScale: scale, min: min, max: max);
+  Stream<ByteData> capNotifications(LogicalEndpoint ep) =>
+      notificationsFor(ep);
+  Future<void> capWriteEndpoint(LogicalEndpoint ep, Uint8List data,
+          {bool withResponse = true}) =>
+      writeEndpoint(ep, data, withResponse: withResponse);
+}
+
+/// Capability-supplied MMR address that is *not* a [MMRItem]. Mirrors
+/// what e.g. `BengleCupWarmerMmr` will look like.
+class _CapabilityAddr implements MmrAddress {
+  @override
+  final int address;
+  @override
+  final int length;
+  @override
+  final String name;
+  @override
+  final MmrValueKind kind;
+  const _CapabilityAddr({
+    required this.address,
+    required this.length,
+    required this.name,
+    required this.kind,
+  });
+}
+
+/// LogicalEndpoint that isn't part of the [Endpoint] enum — mirrors
+/// what a future capability subscription will look like.
+class _StubLogicalEndpoint implements LogicalEndpoint {
+  @override
+  final String? uuid;
+  @override
+  final String? representation;
+  @override
+  final String name;
+  const _StubLogicalEndpoint({
+    required this.uuid,
+    required this.representation,
+    required this.name,
+  });
 }
 
 class _TestDe1 extends UnifiedDe1 with _TestCapability {
@@ -160,11 +270,132 @@ void main() {
     test('readMmrScaled throws on int32 address', () async {
       // fanThreshold.kind == int32 — wrong helper.
       await expectLater(
-        de1.readScaledViaWrongHelper(),
+        de1.readFanAsScaledFloat(),
         throwsA(isA<StateError>().having(
           (e) => e.message,
           'message',
           allOf(contains('readMmrScaled'), contains('kind')),
+        )),
+      );
+    });
+
+    test('readMmrRaw returns bytes for non-MMRItem MmrAddress', () async {
+      const addr = _CapabilityAddr(
+        address: 0x00802800,
+        length: 4,
+        name: 'cupWarmerStatus',
+        kind: MmrValueKind.bytes,
+      );
+      transport.queueMmrResponseRaw(addr, [0xDE, 0xAD, 0xBE, 0xEF]);
+      final result = await de1.capRead(addr);
+      // Result is the full 20-byte MMR frame: bytes 0..3 are the
+      // length+address echo from the request, bytes 4..7 are the
+      // queued payload.
+      expect(result.sublist(4, 8), [0xDE, 0xAD, 0xBE, 0xEF]);
+    });
+
+    test('writeMmrRaw sends the bytes on the wire for non-MMRItem', () async {
+      const addr = _CapabilityAddr(
+        address: 0x00803000,
+        length: 4,
+        name: 'cupWarmerSet',
+        kind: MmrValueKind.bytes,
+      );
+      transport.writes.clear();
+      await de1.capWrite(addr, [0x01, 0x02, 0x03, 0x04]);
+      // Find the writeToMMR frame.
+      final frame = transport.writes.firstWhere(
+        (w) => w.characteristicUUID == Endpoint.writeToMMR.uuid,
+      );
+      // Frame: [length, addrMid1, addrMid2, addrLow, payload..., 0...]
+      expect(frame.data[0], 4); // length byte
+      final addrBytes = ByteData(4)..setInt32(0, addr.address, Endian.big);
+      expect(frame.data[1], addrBytes.getUint8(1));
+      expect(frame.data[2], addrBytes.getUint8(2));
+      expect(frame.data[3], addrBytes.getUint8(3));
+      expect(frame.data.sublist(4, 8), [0x01, 0x02, 0x03, 0x04]);
+    });
+
+    test('readMmrScaled returns raw * readScale for non-MMRItem', () async {
+      const addr = _CapabilityAddr(
+        address: 0x00803800,
+        length: 4,
+        name: 'cupWarmerTemp',
+        kind: MmrValueKind.scaledFloat,
+      );
+      // raw int32 = 250, little-endian -> [0xFA, 0x00, 0x00, 0x00]
+      transport.queueMmrResponseRaw(addr, [0xFA, 0x00, 0x00, 0x00]);
+      final result = await de1.capReadScaled(addr, 0.1);
+      expect(result, closeTo(25.0, 1e-9));
+    });
+
+    test('writeMmrScaled clamps to min/max and writes scaled int', () async {
+      const addr = _CapabilityAddr(
+        address: 0x00804000,
+        length: 4,
+        name: 'cupWarmerSetTemp',
+        kind: MmrValueKind.scaledFloat,
+      );
+      transport.writes.clear();
+      // value 99.9 * writeScale 10.0 = 999, clamped to 500.
+      await de1.capWriteScaled(addr, 99.9, scale: 10.0, min: 0, max: 500);
+      final frame = transport.writes.firstWhere(
+        (w) => w.characteristicUUID == Endpoint.writeToMMR.uuid,
+      );
+      // bytes 4..7 are the little-endian int payload.
+      final payload = ByteData.sublistView(frame.data, 4, 8);
+      expect(payload.getInt32(0, Endian.little), 500);
+    });
+
+    test('notificationsFor(shotSample) routes to transport shotSample',
+        () async {
+      // The transport's BLE subscriber for the shotSample characteristic
+      // pushes onto the underlying BehaviorSubject. We emit synthetic
+      // bytes through that callback and verify the protected method's
+      // stream observes them — proving the dispatch table routes
+      // Endpoint.shotSample to the right subject.
+      final stream = de1.capNotifications(Endpoint.shotSample);
+      final marker = Uint8List(19);
+      // Sentinel byte the seeded value won't have.
+      marker[0] = 0x7F;
+      final received = expectLater(
+        stream
+            .where((d) => d.lengthInBytes >= 1 && d.getUint8(0) == 0x7F)
+            .first,
+        completion(isA<ByteData>()),
+      );
+      final cb = transport._subscribers[Endpoint.shotSample.uuid];
+      expect(cb, isNotNull,
+          reason: 'transport must have subscribed to shotSample on connect');
+      cb!(marker);
+      await received;
+    });
+
+    test('notificationsFor throws for non-Endpoint LogicalEndpoint', () {
+      const ep = _StubLogicalEndpoint(
+        uuid: 'C001',
+        representation: 'Z',
+        name: 'stub',
+      );
+      expect(
+        () => de1.capNotifications(ep),
+        throwsA(isA<UnimplementedError>().having(
+          (e) => e.message,
+          'message',
+          contains('runtime subscription'),
+        )),
+      );
+    });
+
+    test('writeEndpoint(withResponse: false) throws UnimplementedError',
+        () async {
+      await expectLater(
+        de1.capWriteEndpoint(Endpoint.requestedState, Uint8List(1),
+            withResponse: false),
+        throwsA(isA<UnimplementedError>().having(
+          (e) => e.message,
+          'message',
+          contains('withResponse=false'),
         )),
       );
     });
