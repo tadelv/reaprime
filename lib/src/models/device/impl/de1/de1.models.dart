@@ -315,8 +315,9 @@ enum MMRItem implements MmrAddress {
   steamPurgeMode(0x00803850, 4, MmrValueKind.int32, "Steam Purge Mode"),
   allowUSBCharging(0x00803854, 4, MmrValueKind.boolean, "Allow USB charging"),
   appFeatureFlags(0x00803858, 4, MmrValueKind.int32, "App Feature Flags"),
+  // Tri-state (0=absent, 1=present, 2=auto-detect). int32, not boolean.
   refillKitPresent(0x0080385C, 4, MmrValueKind.int32, "Refill Kit Present"),
-  userPresent(0x00803860, 4, MmrValueKind.int32, "Is User Present");
+  userPresent(0x00803860, 4, MmrValueKind.boolean, "Is User Present");
 
   @override
   final int address;
@@ -331,7 +332,8 @@ enum MMRItem implements MmrAddress {
   // Dart enums auto-synthesize `name`, but the analyzer doesn't see it as
   // satisfying `MmrAddress.name` through `implements` — the cast forces
   // dispatch to the synthesized Enum.name. Do not "simplify" by removing the
-  // cast; it will fail to compile (see fix commits 553550d / b7b8ed7).
+  // cast; it will fail to compile (see Endpoint history, fix commits
+  // 553550d / b7b8ed7).
   @override
   String get name => (this as Enum).name;
 }
