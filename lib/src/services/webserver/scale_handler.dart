@@ -49,10 +49,10 @@ class ScaleHandler {
     app.get('/ws/v1/scale/snapshot', sws.webSocketHandler(_handleSnapshot));
   }
 
-  _handleSnapshot(WebSocketChannel socket, String? protocol) async {
+  Future<void> _handleSnapshot(WebSocketChannel socket, String? protocol) async {
     _log.fine("handling websocket connection");
 
-    StreamSubscription<ScaleSnapshot>? snapshotSub;
+    StreamSubscription<WeightSnapshot>? snapshotSub;
 
     void sendStatus(String status) {
       try {
@@ -63,14 +63,13 @@ class ScaleHandler {
     void attachSnapshots() {
       snapshotSub?.cancel();
       snapshotSub = null;
-      final Scale scale;
       try {
-        scale = _controller.connectedScale();
+        _controller.connectedScale();
       } catch (e) {
         _log.warning('connected state reported but no scale: $e');
         return;
       }
-      snapshotSub = scale.currentSnapshot.listen((snapshot) {
+      snapshotSub = _controller.weightSnapshot.listen((snapshot) {
         try {
           socket.sink.add(jsonEncode(snapshot.toJson()));
         } catch (e, st) {
