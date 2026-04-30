@@ -6,13 +6,13 @@ class WebUIHandler {
   final WebUIService _service;
   final bool _appStoreMode;
 
-  WebUIHandler(
-      {required WebUIStorage storage,
-      required WebUIService service,
-      bool? appStoreMode})
-      : _storage = storage,
-        _service = service,
-        _appStoreMode = appStoreMode ?? BuildInfo.appStore;
+  WebUIHandler({
+    required WebUIStorage storage,
+    required WebUIService service,
+    bool? appStoreMode,
+  }) : _storage = storage,
+       _service = service,
+       _appStoreMode = appStoreMode ?? BuildInfo.appStore;
 
   void addRoutes(RouterPlus app) {
     // List all installed skins
@@ -28,10 +28,16 @@ class WebUIHandler {
     app.get('/api/v1/webui/skins/<id>', _handleGetSkin);
 
     // Install skin from GitHub release
-    app.post('/api/v1/webui/skins/install/github-release', _handleInstallFromGitHubRelease);
+    app.post(
+      '/api/v1/webui/skins/install/github-release',
+      _handleInstallFromGitHubRelease,
+    );
 
     // Install skin from GitHub branch
-    app.post('/api/v1/webui/skins/install/github-branch', _handleInstallFromGitHubBranch);
+    app.post(
+      '/api/v1/webui/skins/install/github-branch',
+      _handleInstallFromGitHubBranch,
+    );
 
     // Install skin from URL
     app.post('/api/v1/webui/skins/install/url', _handleInstallFromUrl);
@@ -46,6 +52,9 @@ class WebUIHandler {
     app.get('/api/v1/webui/server/status', _handleServerStatus);
     app.post('/api/v1/webui/server/start', _handleServerStart);
     app.post('/api/v1/webui/server/stop', _handleServerStop);
+
+    // Skin assets - support loading individual skin assets from other skins
+    app.get('/api/v1/webui/skin-assets/<id>/<path|.*>', _handleGetSkinAssets);
   }
 
   /// GET /api/v1/webui/skins
@@ -92,14 +101,15 @@ class WebUIHandler {
 
   /// PUT /api/v1/webui/skins/default
   /// Set the default skin
-  /// 
+  ///
   /// Body:
   /// {
   ///   "skinId": "my-skin-id"
   /// }
   Future<Response> _handleSetDefaultSkin(Request request) async {
     try {
-      final body = jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final body =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
       final skinId = body['skinId'] as String?;
 
       if (skinId == null || skinId.isEmpty) {
@@ -125,7 +135,7 @@ class WebUIHandler {
 
   /// POST /api/v1/webui/skins/install/github-release
   /// Install skin from GitHub release
-  /// 
+  ///
   /// Body:
   /// {
   ///   "repo": "username/repo",
@@ -134,10 +144,13 @@ class WebUIHandler {
   /// }
   Future<Response> _handleInstallFromGitHubRelease(Request request) async {
     if (_appStoreMode) {
-      return jsonForbidden({'error': 'Skin installation is not available on this platform'});
+      return jsonForbidden({
+        'error': 'Skin installation is not available on this platform',
+      });
     }
     try {
-      final body = jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final body =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
       final repo = body['repo'] as String?;
 
       if (repo == null || repo.isEmpty) {
@@ -168,7 +181,7 @@ class WebUIHandler {
 
   /// POST /api/v1/webui/skins/install/github-branch
   /// Install skin from GitHub branch
-  /// 
+  ///
   /// Body:
   /// {
   ///   "repo": "username/repo",
@@ -176,10 +189,13 @@ class WebUIHandler {
   /// }
   Future<Response> _handleInstallFromGitHubBranch(Request request) async {
     if (_appStoreMode) {
-      return jsonForbidden({'error': 'Skin installation is not available on this platform'});
+      return jsonForbidden({
+        'error': 'Skin installation is not available on this platform',
+      });
     }
     try {
-      final body = jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final body =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
       final repo = body['repo'] as String?;
 
       if (repo == null || repo.isEmpty) {
@@ -206,17 +222,20 @@ class WebUIHandler {
 
   /// POST /api/v1/webui/skins/install/url
   /// Install skin from direct URL
-  /// 
+  ///
   /// Body:
   /// {
   ///   "url": "https://example.com/skin.zip"
   /// }
   Future<Response> _handleInstallFromUrl(Request request) async {
     if (_appStoreMode) {
-      return jsonForbidden({'error': 'Skin installation is not available on this platform'});
+      return jsonForbidden({
+        'error': 'Skin installation is not available on this platform',
+      });
     }
     try {
-      final body = jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final body =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
       final url = body['url'] as String?;
 
       if (url == null || url.isEmpty) {
@@ -316,6 +335,34 @@ class WebUIHandler {
       return jsonOk({'message': 'WebUI server stopped'});
     } catch (e) {
       return jsonError({'error': 'Failed to stop: $e'});
+    }
+  }
+
+  /// GET /api/v1/webui/skin-assets/{id}/{filepath}
+  /// returns a file from the skin folder
+  Future<Response> _handleGetSkinAssets(
+    Request request,
+    String id,
+    String filepath,
+  ) async {
+    try {
+      log.fine("serving $filepath for $id");
+
+      final path = _storage.getSkinPath(id);
+
+      final File resource = File('$path/$filepath');
+      final content = await resource.readAsBytes();
+      final type = lookupMimeType(
+        resource.path,
+        headerBytes: content.sublist(0, 32),
+      );
+      return Response.ok(
+        content,
+        headers: {'content-type': type ?? 'application/octet-stream'},
+      );
+    } catch (e, st) {
+      log.warning('unable to serve requested skin asset', e, st);
+      return jsonError({'exception': e.toString()});
     }
   }
 }
