@@ -106,20 +106,10 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
   ) async {
     final total = list.length;
     int chunkNum = 0;
-    // Over BLE, writeWithResponse provides natural backpressure via ACKs.
-    // Over serial there's no such mechanism, so we pause every batch to let
-    // the machine's UART receive buffer drain during SPI flash writes.
-    // macOS serial drivers need a longer pause than Linux/Android.
-    final batchSize = switch (_transport.transportType) {
-      TransportType.serial => Platform.isAndroid ? 32 : 8,
-      _ => 8,
-    };
-    final batchPause = switch (_transport.transportType) {
-      TransportType.serial => Duration(
-        milliseconds: Platform.isMacOS ? 400 : 400,
-      ),
-      _ => Duration.zero,
-    };
+    // Per-machine tuning lives on the @protected getters so subclasses
+    // (e.g. Bengle, with USB CDC flow control) can drop the pause.
+    final batchSize = firmwareUploadBatchSize;
+    final batchPause = firmwareUploadBatchPause;
     for (int i = 0; i < list.length; i += 16) {
       if (cancelToken[0]) {
         _log.info('uploadFW: cancelled at byte $i');
