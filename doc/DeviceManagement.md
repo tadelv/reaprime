@@ -90,6 +90,16 @@ Discovery services are responsible for scanning and creating device instances. E
   - `lib/src/services/serial/serial_service.dart` (factory)
 - **Discovery:** Enumerates serial ports, probes for device identification
 
+  DE1-family detection is layered:
+  1. `productName == "DE1"` → `UnifiedDe1`. `productName == "Bengle"` →
+     `Bengle`. Cheapest path.
+  2. VID:PID match against `lib/src/services/serial/usb_ids.dart`.
+     Tables empty until concrete pairs are captured from hardware.
+  3. Fallback: open the port, send `<+M>` and the v13Model MMR-read
+     request, wait for `[M]` (DE1-protocol baseline) plus an `[E]…`
+     reply at addr `0x0080000C`. v13Model `>= 128` → `Bengle`, else
+     `UnifiedDe1`. Encoded via `lib/src/services/serial/mmr_codec.dart`.
+
 #### 4. SimulatedDeviceService
 - **Platform:** All
 - **File:** `lib/src/services/simulated_device_service.dart`
@@ -780,11 +790,17 @@ Use simulated devices for testing without hardware:
 
 ```bash
 flutter run --dart-define=simulate=1              # Simulate all devices
-flutter run --dart-define=simulate=machine         # Simulate machine only
-flutter run --dart-define=simulate=machine,scale   # Simulate machine and scale
+flutter run --dart-define=simulate=machine         # Simulate DE1 only
+flutter run --dart-define=simulate=bengle          # Simulate Bengle only
+flutter run --dart-define=simulate=machine,scale   # Simulate DE1 and scale
 ```
 
-Supported types: `machine`, `scale`, `sensor` (comma-separated).
+Supported types: `machine` (DE1), `bengle`, `scale`, `sensor` (comma-separated).
+
+`simulate=1` enables every type, so it surfaces both `MockDe1` and
+`MockBengle` simultaneously — `ConnectionManager`'s preferred-device
+policy picks one. For deterministic behavior in tests / CI prefer the
+explicit comma-separated form.
 
 Or toggle in Settings UI → Simulated Devices
 

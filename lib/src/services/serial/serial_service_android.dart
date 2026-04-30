@@ -282,12 +282,12 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
         await transport.writeCommand('<+M>');
         await transport.writeCommand('<+E>');
 
-        final req = buildMmrReadRequest(address: 0x0080000C, length: 4);
+        final req = buildMmrReadRequest(address: 0x0080000C, length: 0);
         final reqHex = req
             .map((b) => b.toRadixString(16).padLeft(2, '0'))
             .join();
         try {
-          await transport.writeCommand('<F>$reqHex');
+          await transport.writeCommand('<E>$reqHex');
         } catch (e) {
           _log.fine('MMR read request failed during probe', e);
         }

@@ -23,9 +23,13 @@ Uint8List buildMmrReadRequest({required int address, required int length}) {
 }
 
 /// Decodes a serial MMR-read response line of the form `[E]hex...` into
-/// a 32-bit big-endian int value, but only when bytes [1..3] of the
+/// a 32-bit little-endian int value, but only when bytes [1..3] of the
 /// payload match [expectedAddr]. Returns null when the line is the
 /// wrong shape, has malformed hex, or carries a different address.
+///
+/// The address is encoded big-endian in bytes [1..3], but the value
+/// payload at bytes [4..7] is little-endian — matches what
+/// `unified_de1.mmr.dart::_unpackMMRInt` does.
 int? decodeMmrInt32Response(
   String line, {
   required (int, int, int) expectedAddr,
@@ -41,7 +45,7 @@ int? decodeMmrInt32Response(
     return null;
   }
   final view = ByteData.sublistView(Uint8List.fromList(bytes));
-  return view.getInt32(4, Endian.big);
+  return view.getInt32(4, Endian.little);
 }
 
 Uint8List? _tryParseHex(String hex) {
