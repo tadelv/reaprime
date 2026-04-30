@@ -6,11 +6,14 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale_serial.dart';
 import 'package:reaprime/src/models/device/impl/sensor/debug_port.dart';
 import 'package:reaprime/src/models/device/impl/sensor/sensor_basket.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
+import 'mmr_codec.dart';
+import 'usb_ids.dart';
 import 'utils.dart';
 
 import 'package:rxdart/subjects.dart';
@@ -233,9 +236,31 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       return device;
     }
 
+    // Bengle shortcut (productName likely lands as "Bengle" once FW
+    // exposes it; trivial future-proofing).
+    if (port.productName == "Bengle") {
+      final device = Bengle(transport: transport);
+      _portPathToDeviceId[id] = device.deviceId;
+      return device;
+    }
+
     // Half Decent Scale shortcut
     if (port.productName == "Half Decent Scale") {
       final device = HDSSerial(transport: transport);
+      _portPathToDeviceId[id] = device.deviceId;
+      return device;
+    }
+
+    // VID:PID shortcut.
+    int? vid;
+    int? pid;
+    try { vid = port.vendorId; } catch (_) {}
+    try { pid = port.productId; } catch (_) {}
+    final usbModel = matchUsbDevice(usbDeviceTable, vid: vid, pid: pid);
+    if (usbModel != null) {
+      final device = usbModel == UsbDeviceModel.bengle
+          ? Bengle(transport: transport)
+          : UnifiedDe1(transport: transport);
       _portPathToDeviceId[id] = device.deviceId;
       return device;
     }
@@ -289,12 +314,27 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
         _portPathToDeviceId[id] = device.deviceId;
         return device;
       } else {
-        // Detect DE1 by sending state commands and checking for valid responses
+        // Detect DE1-family by sending state + MMR-notify enables, then
+        // waiting for `[M]` (DE1 protocol baseline) and `[E]` (v13Model
+        // MMR response) to come back. v13Model >= 128 → Bengle.
         final messages = <String>[];
         final stateSubscription = transport.readStream.listen(messages.add);
 
-        // Send state commands without a fixed delay, but with timeout
         await transport.writeCommand('<+M>');
+        await transport.writeCommand('<+E>');
+
+        // Fire the v13Model MMR-read request. Address layout for
+        // 0x0080000C: byte[0]=length, byte[1..3]=addr triplet.
+        final req = buildMmrReadRequest(address: 0x0080000C, length: 4);
+        final reqHex = req
+            .map((b) => b.toRadixString(16).padLeft(2, '0'))
+            .join();
+        try {
+          await transport.writeCommand('<F>$reqHex');
+        } catch (e) {
+          _log.fine('MMR read request failed during probe', e);
+        }
+
         try {
           await stateSubscription.asFuture<void>().timeout(
             readDuration,
@@ -304,11 +344,30 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
           );
         } finally {
           await transport.writeCommand('<-M>');
+          await transport.writeCommand('<-E>');
         }
 
         if (isDE1(messages.join().split('\n'), combined)) {
-          _log.info("Detected: DE1 Machine");
-          final device = UnifiedDe1(transport: transport);
+          // DE1-family confirmed. Scan the same message buffer for the
+          // v13Model MMR response to disambiguate DE1 vs Bengle.
+          int? v13Model;
+          for (final line in messages.join().split('\n')) {
+            final v = decodeMmrInt32Response(
+              line.trim(),
+              expectedAddr: (0x80, 0x00, 0x0C),
+            );
+            if (v != null) {
+              v13Model = v;
+              break;
+            }
+          }
+
+          final isBengle = v13Model != null && v13Model >= 128;
+          _log.info(
+              "Detected: ${isBengle ? 'Bengle' : 'DE1'} (v13Model=$v13Model)");
+          final device = isBengle
+              ? Bengle(transport: transport)
+              : UnifiedDe1(transport: transport);
           _portPathToDeviceId[id] = device.deviceId;
           return device;
         }

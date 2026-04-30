@@ -5,11 +5,14 @@ import 'dart:typed_data';
 import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale_serial.dart';
 import 'package:reaprime/src/models/device/impl/sensor/debug_port.dart';
 import 'package:reaprime/src/models/device/impl/sensor/sensor_basket.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
+import 'mmr_codec.dart';
+import 'usb_ids.dart';
 import 'utils.dart';
 import 'package:rxdart/subjects.dart';
 
@@ -206,10 +209,27 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
       return UnifiedDe1(transport: transport);
     }
 
+    // Bengle shortcut (productName likely lands as "Bengle" once FW
+    // exposes it; trivial future-proofing).
+    if (device.productName == "Bengle") {
+      _log.info("short circuit to bengle");
+      return Bengle(transport: transport);
+    }
+
     // Half Decent Scale shortcut
     if (device.productName == "Half Decent Scale") {
       _log.info("short circuit to Half Decent Scale");
       return HDSSerial(transport: transport);
+    }
+
+    // VID:PID shortcut.
+    final usbModel =
+        matchUsbDevice(usbDeviceTable, vid: device.vid, pid: device.pid);
+    if (usbModel != null) {
+      _log.info("short circuit via VID:PID -> $usbModel");
+      return usbModel == UsbDeviceModel.bengle
+          ? Bengle(transport: transport)
+          : UnifiedDe1(transport: transport);
     }
 
     final List<Uint8List> rawData = [];
@@ -252,19 +272,49 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
         _log.info("Detected: Sensor Basket");
         return SensorBasket(transport: transport);
       } else {
-        // try and check if we get some replies when subscribing to state
+        // try and check if we get some replies when subscribing to state.
+        // Also fire a v13Model MMR-read request so we can disambiguate
+        // DE1 vs Bengle inline.
         final List<String> messages = [];
         final sub = transport.readStream.listen((line) {
           messages.add(line);
         });
         await transport.writeCommand('<+M>');
+        await transport.writeCommand('<+E>');
+
+        final req = buildMmrReadRequest(address: 0x0080000C, length: 4);
+        final reqHex = req
+            .map((b) => b.toRadixString(16).padLeft(2, '0'))
+            .join();
+        try {
+          await transport.writeCommand('<F>$reqHex');
+        } catch (e) {
+          _log.fine('MMR read request failed during probe', e);
+        }
+
         await Future.delayed(duration);
         await transport.writeCommand('<-M>');
+        await transport.writeCommand('<-E>');
         sub.cancel();
         final List<String> lines = messages.join().split('\n');
         if (isDE1(lines, combined)) {
-          _log.info("Detected: DE1 Machine");
-          return UnifiedDe1(transport: transport);
+          int? v13Model;
+          for (final line in lines) {
+            final v = decodeMmrInt32Response(
+              line.trim(),
+              expectedAddr: (0x80, 0x00, 0x0C),
+            );
+            if (v != null) {
+              v13Model = v;
+              break;
+            }
+          }
+          final isBengle = v13Model != null && v13Model >= 128;
+          _log.info(
+              "Detected: ${isBengle ? 'Bengle' : 'DE1'} (v13Model=$v13Model)");
+          return isBengle
+              ? Bengle(transport: transport)
+              : UnifiedDe1(transport: transport);
         }
       }
 

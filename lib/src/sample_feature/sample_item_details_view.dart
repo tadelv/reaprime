@@ -2,10 +2,16 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+
+/// Title shown in the debug view's AppBar. Switches on the machine's
+/// concrete type so a connected Bengle is visibly distinct from a DE1.
+String debugViewTitle(De1Interface machine) =>
+    machine is BengleInterface ? 'Bengle Details' : 'DE1 Details';
 
 /// Displays detailed information about a SampleItem.
 class De1DebugView extends StatefulWidget {
@@ -41,7 +47,7 @@ class _De1DebugViewState extends State<De1DebugView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Device Details')),
+      appBar: AppBar(title: Text(debugViewTitle(widget.machine))),
       body: Center(
         child: Padding(
           padding: EdgeInsets.all(8),
