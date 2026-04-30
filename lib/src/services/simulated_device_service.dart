@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/impl/bengle/mock_bengle.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
 import 'package:reaprime/src/models/device/impl/mock_scale/mock_scale.dart';
 import 'package:reaprime/src/models/device/impl/sensor/mock/mock_debug_port.dart';
@@ -38,6 +39,11 @@ class SimulatedDeviceService
       _devices["MockDe1"] = MockDe1();
     } else {
       _devices.remove("MockDe1");
+    }
+    if (enabledDevices.contains(SimulatedDevicesTypes.bengle)) {
+      _devices["MockBengle"] = MockBengle();
+    } else {
+      _devices.remove("MockBengle");
     }
     if (enabledDevices.contains(SimulatedDevicesTypes.scale)) {
       _devices["MockScale"] = MockScale();
