@@ -116,41 +116,14 @@ Per `.claude/skills/tdd-workflow/`. Tier choices:
   - Simulated path: `flutter run --dart-define=simulate=bengle` → `MockBengle` appears in `GET /api/v1/devices/scan`; connect via API; profile send + state requests succeed.
   - **Real Bengle USB path** (hardware on hand): plug Bengle, run app, verify `Bengle` instance constructed (not `UnifiedDe1`); check debug view shows "Bengle" header; connect, profile, run a shot. Capture log output for PR description.
 
-## Verification + completion
+## Risks + open questions (at design time)
 
-1. `flutter test` clean.
-2. `flutter analyze` clean.
-3. End-to-end smoke (simulated + real Bengle USB) per above.
-4. Move plan to `doc/plans/archive/bengle-mock-and-usb/` (per CLAUDE.md archive policy — keep design, drop step-by-step).
-5. Update Obsidian roadmap with PR link + step 2/3 checkbox state on merge.
-
-## Risks + open questions
-
-- **Bengle VID:PID** — to be obtained from the hardware on hand. Procedure below.
-- **MMR read in fallback** — first time we encode an MMR request outside `UnifiedDe1Transport`. Verify the bytes-on-the-wire match what `_serialConnect` does. Cross-check by tracing what `UnifiedDe1Transport._serialConnect` writes for an MMR read, then mirror it in the fallback.
+- **Bengle VID:PID** — to be obtained from the hardware on hand.
+- **MMR read in fallback** — first time we encode an MMR request outside `UnifiedDe1Transport`. Wire shape that landed in code, after smoke-testing real Bengle: the request is written to **`<E>` (readFromMMR)**, not `<F>` (writeToMMR — that endpoint is for setting MMR values, not requesting reads). The response value bytes [4..7] are **little-endian** (the address bytes [1..3] are big-endian — quirk of the protocol). Both wrinkles were caught by the real-hardware smoke; commit `aebf7cf` carries the fix.
 - **Bengle protocol prefix letters** — confirmed Bengle preserves DE1 base protocol. New prefix letters fine; `isDE1()` only checks for `[M]`.
-- **`simulate=1` two-machine UX** — accepted as legacy behavior change. Document in PR.
+- **`simulate=1` two-machine UX** — accepted as legacy behavior change.
 
-## Implementation sequence
-
-1. **Step 2 — `MockBengle`**
-   1. Add `MockBengle extends MockDe1 implements BengleInterface` + unit test.
-   2. Extend `SimulatedDevicesTypes` enum + `SimulatedDeviceService.scanForDevices()`.
-   3. Verify settings UI toggle appears (auto-iter); webserver settings handler accepts `"bengle"`.
-2. **Step 3 — USB detection**
-   1. Obtain Bengle + DE1 VID:PID (procedure below). Land them in `usb_ids.dart`.
-   2. Add `productName == "Bengle"` + VID:PID shortcut to desktop service, alongside DE1 shortcut.
-   3. Extend desktop fallback: post-`isDE1()` confirm, send MMR-read for v13Model, decode 16-bit int, pick `Bengle` if `>= 128`.
-   4. Mirror to Android service.
-   5. Lift MMR pack/unpack to shared util if the in-place encoding is too coupled to `UnifiedDe1Transport`.
-3. **Step 4 — Debug view**
-   1. `De1DebugView` Bengle-aware header + placeholder capability section.
-4. **Wrap-up**
-   1. Update `doc/DeviceManagement.md`.
-   2. Smoke: simulated MockBengle path + real Bengle USB path.
-   3. Archive plan; open PR; tick Obsidian roadmap.
-
-## Obtaining Bengle VID:PID (with hardware on hand)
+## Obtaining VID:PID (with hardware on hand)
 
 Pick one:
 
