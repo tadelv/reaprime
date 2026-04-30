@@ -154,6 +154,7 @@ Settings fields include: `gatewayMode`, `themeMode`, `logLevel`, `weightFlowMult
 | GET | `/api/v1/webui/server/status` | Server status (`{serving, path, port, ip}`) | |
 | POST | `/api/v1/webui/server/start` | Start serving default skin on port 3000 | |
 | POST | `/api/v1/webui/server/stop` | Stop serving | |
+| GET | `/api/v1/webui/skin-assets/:id/:filepath` | Fetch a file from another installed skin (cross-skin asset sharing) | |
 
 ### Plugins
 

@@ -2859,6 +2859,30 @@ ApplicationDocuments/
     └── .rea_metadata.json    # Version tracking (managed by REA)
 ```
 
+### Cross-Skin Asset Sharing
+
+A skin can fetch files from any other installed skin via:
+
+```
+GET /api/v1/webui/skin-assets/{id}/{filepath}
+```
+
+- `{id}` — installed skin id (see `GET /api/v1/webui/skins`).
+- `{filepath}` — path inside that skin's folder (e.g. `assets/logo.svg`, `components/widget.js`).
+
+The response is the raw file bytes; `Content-Type` is sniffed from the file. This lets a skin reuse icons, fonts, web components, or shared scripts hosted by another installed skin instead of duplicating them.
+
+```html
+<!-- pulling a shared logo from another installed skin -->
+<img src="/api/v1/webui/skin-assets/shared-assets/icons/logo.svg" />
+
+<!-- loading a component module from a "components" skin -->
+<script type="module"
+        src="/api/v1/webui/skin-assets/sb-components/dist/gauge.js"></script>
+```
+
+The endpoint only serves files from already-installed skins — install the asset-providing skin first via the normal install flow.
+
 ### Skin Metadata: manifest.json
 
 While optional, including a `manifest.json` helps Streamline-Bridge display better skin information:

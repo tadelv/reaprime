@@ -71,6 +71,7 @@ import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/services/webserver/info_handler.dart';
 import 'package:reaprime/src/services/webserver/debug_handler.dart';
 import 'package:mime/mime.dart';
+import 'package:path/path.dart' as p;
 
 part 'webserver/de1handler.dart';
 part 'webserver/scale_handler.dart';
