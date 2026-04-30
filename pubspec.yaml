@@ -88,6 +88,7 @@ dependencies:
   drift_flutter: ^0.3.0
   sqlite3_flutter_libs: ^0.6.0+eol
   pretty_qr_code: ^3.6.0
+  mime: ^2.0.0
   # path: ../flutter_libserialport
   # git:
   #   url: https://github.com/tadelv/flutter_libserialport.git
