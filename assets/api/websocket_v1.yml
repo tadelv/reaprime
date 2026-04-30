@@ -40,10 +40,10 @@ channels:
         $ref: '#/components/messages/WaterLevels'
   ScaleSnapshot:
     description: >
-      Real-time scale weight and battery data. The socket is held open across
-      scale connect/disconnect cycles — clients should not reconnect on scale
-      disconnect. On open and on every scale connection-state change the
-      server emits a status frame (`{"status":"connected"}` or
+      Real-time scale weight, smoothed flow, and battery data. The socket is
+      held open across scale connect/disconnect cycles — clients should not
+      reconnect on scale disconnect. On open and on every scale connection-state
+      change the server emits a status frame (`{"status":"connected"}` or
       `{"status":"disconnected"}`). Snapshot frames (see ScaleSnapshot
       schema) are only sent while a scale is connected.
     address: ws/v1/scale/snapshot
@@ -293,14 +293,24 @@ components:
           description: Freeform diagnostic payload; shape varies by kind.
     ScaleSnapshot:
       type: object
+      description: >
+        Smoothed weight + flow frame emitted on `ws/v1/scale/snapshot`. Mirrors
+        the controller-level `WeightSnapshot` (raw scale frames are processed
+        through the flow calculator before broadcast).
       properties:
         timestamp:
           type: string
           format: date-time
         weight:
           type: number
-        batteryLevel:
+          description: Current weight reading in grams.
+        weightFlow:
+          type: number
+          description: Smoothed weight-derived flow in g/s (moving average over the smoothing window).
+        battery:
           type: integer
+          nullable: true
+          description: Scale battery level (0–100). Null if the scale does not report battery.
         timerValue:
           type: integer
           nullable: true

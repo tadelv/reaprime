@@ -142,6 +142,7 @@ class WeightSnapshot {
       "timestamp": timestamp.toIso8601String(),
       "weight": weight,
       "weightFlow": weightFlow,
+      "battery": battery,
       "timerValue": timerValue?.inMilliseconds,
     };
   }
@@ -151,6 +152,7 @@ class WeightSnapshot {
       timestamp: DateTime.parse(json["timestamp"]),
       weight: json["weight"],
       weightFlow: json["weightFlow"],
+      battery: json["battery"],
       timerValue: json["timerValue"] != null
           ? Duration(milliseconds: json["timerValue"])
           : null,
