@@ -1,0 +1,99 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:reaprime/src/services/serial/mmr_codec.dart';
+
+void main() {
+  group('buildMmrReadRequest', () {
+    test('encodes v13Model address (0x0080000C, length 4)', () {
+      final req = buildMmrReadRequest(address: 0x0080000C, length: 4);
+
+      expect(req, hasLength(20));
+      // Layout: setInt32(0, addr, big-endian) writes [0x00, 0x80, 0x00, 0x0C]
+      // then byte 0 is overwritten with length.
+      expect(req[0], equals(4));
+      expect(req[1], equals(0x80));
+      expect(req[2], equals(0x00));
+      expect(req[3], equals(0x0C));
+      // Remaining bytes are zero.
+      expect(req.sublist(4), everyElement(equals(0)));
+    });
+  });
+
+  group('decodeMmrInt32Response', () {
+    test('returns the int32 value when the address triplet matches', () {
+      // Build a fake [E]... payload: bytes [length, addr1, addr2, addr3, v0..v3, ...].
+      // For address 0x0080000C, expectedAddr = (0x80, 0x00, 0x0C).
+      // value = 0x00000005 (DE1Cafe per MMRItem.v13Model description)
+      final payload = [
+        0x04, 0x80, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x05, // first 8 bytes
+        ...List.filled(12, 0),
+      ];
+      final hex = payload
+          .map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join();
+      final line = '[E]$hex';
+
+      final result = decodeMmrInt32Response(
+        line,
+        expectedAddr: (0x80, 0x00, 0x0C),
+      );
+
+      expect(result, equals(5));
+    });
+
+    test('returns the int32 value for a Bengle-range model (>= 128)', () {
+      final payload = [
+        0x04, 0x80, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x80, // value = 128
+        ...List.filled(12, 0),
+      ];
+      final hex = payload
+          .map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join();
+      final result = decodeMmrInt32Response(
+        '[E]$hex',
+        expectedAddr: (0x80, 0x00, 0x0C),
+      );
+      expect(result, equals(128));
+    });
+
+    test('returns null when the address triplet does not match', () {
+      // Different address in the payload.
+      final payload = [
+        0x04, 0x99, 0x99, 0x99, 0x00, 0x00, 0x00, 0x05,
+        ...List.filled(12, 0),
+      ];
+      final hex = payload
+          .map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join();
+      final result = decodeMmrInt32Response(
+        '[E]$hex',
+        expectedAddr: (0x80, 0x00, 0x0C),
+      );
+      expect(result, isNull);
+    });
+
+    test('returns null for a non-[E] line', () {
+      expect(
+        decodeMmrInt32Response('[M]00112233',
+            expectedAddr: (0x80, 0x00, 0x0C)),
+        isNull,
+      );
+    });
+
+    test('returns null for malformed hex', () {
+      expect(
+        decodeMmrInt32Response('[E]xyz', expectedAddr: (0x80, 0x00, 0x0C)),
+        isNull,
+      );
+    });
+
+    test('returns null for too-short payload', () {
+      // Need at least 8 bytes (4 header + 4 value); supply 6.
+      final hex = '040000000000';
+      expect(
+        decodeMmrInt32Response('[E]$hex',
+            expectedAddr: (0x00, 0x00, 0x00)),
+        isNull,
+      );
+    });
+  });
+}
