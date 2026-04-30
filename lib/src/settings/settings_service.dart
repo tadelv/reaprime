@@ -417,7 +417,7 @@ enum SettingsKeys {
   onboardingCompleted,
 }
 
-enum SimulatedDevicesTypes { machine, scale, sensor }
+enum SimulatedDevicesTypes { machine, scale, sensor, bengle }
 
 extension SimulatedDevicesTypesFromString on SimulatedDevicesTypes {
   static SimulatedDevicesTypes? fromString(String value) {
