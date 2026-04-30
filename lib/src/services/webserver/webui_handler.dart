@@ -345,17 +345,30 @@ class WebUIHandler {
     String id,
     String filepath,
   ) async {
+    log.fine("serving $filepath for $id");
+
+    if (!_storage.isSkinInstalled(id)) {
+      return jsonNotFound({'error': 'Skin not found: $id'});
+    }
+
+    final base = p.normalize(p.absolute(_storage.getSkinPath(id)));
+    final target = p.normalize(p.absolute(p.join(base, filepath)));
+    if (target != base && !p.isWithin(base, target)) {
+      log.warning('rejected skin-asset path traversal: $id -> $filepath');
+      return jsonForbidden({'error': 'Invalid asset path'});
+    }
+
+    final resource = File(target);
+    if (!await resource.exists()) {
+      return jsonNotFound({'error': 'Asset not found'});
+    }
+
     try {
-      log.fine("serving $filepath for $id");
-
-      final path = _storage.getSkinPath(id);
-
-      final File resource = File('$path/$filepath');
       final content = await resource.readAsBytes();
-      final type = lookupMimeType(
-        resource.path,
-        headerBytes: content.sublist(0, 32),
-      );
+      final headerBytes = content.length < 32
+          ? content
+          : content.sublist(0, 32);
+      final type = lookupMimeType(resource.path, headerBytes: headerBytes);
       return Response.ok(
         content,
         headers: {'content-type': type ?? 'application/octet-stream'},

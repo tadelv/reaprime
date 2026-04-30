@@ -2647,6 +2647,55 @@ paths:
                   message:
                     type: string
 
+  /api/v1/webui/skin-assets/{id}/{filepath}:
+    get:
+      summary: Fetch an asset from an installed skin
+      description: |
+        Returns a file from another installed skin's folder. Lets a skin
+        reference shared assets (icons, fonts, components) hosted by a
+        different installed skin instead of duplicating them.
+
+        The `id` is the target skin's installed id. `filepath` is the path
+        inside that skin's folder, relative to its root. The response body
+        is the raw file bytes; `Content-Type` is sniffed from the file
+        contents and extension.
+      tags: [WebUI]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Installed skin id (as returned by `GET /api/v1/webui/skins`).
+        - name: filepath
+          in: path
+          required: true
+          schema:
+            type: string
+          description: |
+            Path of the asset relative to the skin's root folder
+            (e.g. `assets/logo.svg`). May contain forward slashes.
+      responses:
+        "200":
+          description: Asset bytes
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Skin or asset not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Failed to read asset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   # Presence API
   #
   # User presence detection and wake schedule management.
