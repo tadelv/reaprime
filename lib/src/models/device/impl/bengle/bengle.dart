@@ -16,6 +16,15 @@ class Bengle extends UnifiedDe1 implements BengleInterface {
   @override
   @protected
   Future<void> beforeFirmwareUpload() async {
-    await requestState(MachineState.fwUpgrade);
+    await Future.delayed(Duration(milliseconds: 500), () async {
+      await requestState(MachineState.fwUpgrade);
+    });
   }
+
+  /// Bengle has hardware flow control on the serial
+  /// path, so the per-batch backpressure pause that DE1 needs (UART
+  /// has none) is unnecessary. Stream chunks at full bandwidth.
+  @override
+  @protected
+  Duration get firmwareUploadBatchPause => Duration.zero;
 }

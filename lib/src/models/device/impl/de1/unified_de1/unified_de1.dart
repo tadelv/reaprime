@@ -446,6 +446,36 @@ class UnifiedDe1 implements De1Interface {
   @protected
   Future<void> beforeFirmwareUpload() async {} // default no-op
 
+  /// Number of 16-byte chunks written per batch during a firmware
+  /// upload before pausing for [firmwareUploadBatchPause].
+  ///
+  /// Tuning rationale: DE1 serial UART has no flow control, so chunks
+  /// pile up in the receive buffer faster than the SPI flash writer can
+  /// drain them. Periodic pauses prevent overrun. BLE writeWithResponse
+  /// provides ack-based backpressure, so no pause is needed.
+  ///
+  /// Bengle has built-in flow control on serial too,
+  /// so it overrides [firmwareUploadBatchPause] to zero — at which
+  /// point this value is unused.
+  @protected
+  int get firmwareUploadBatchSize {
+    return switch (_transport.transportType) {
+      TransportType.serial => Platform.isAndroid ? 32 : 8,
+      _ => 8,
+    };
+  }
+
+  /// Pause inserted between batches of [firmwareUploadBatchSize] chunks
+  /// during a firmware upload. See [firmwareUploadBatchSize] for the
+  /// rationale and per-transport tuning.
+  @protected
+  Duration get firmwareUploadBatchPause {
+    return switch (_transport.transportType) {
+      TransportType.serial => const Duration(milliseconds: 400),
+      _ => Duration.zero,
+    };
+  }
+
   /// Writes [data] to [endpoint]. When [withResponse] is `true` (default)
   /// dispatches to [UnifiedDe1Transport.writeWithResponse]; when `false`
   /// dispatches to [UnifiedDe1Transport.write] for fire-and-forget writes.
