@@ -320,17 +320,19 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
         final messages = <String>[];
         final stateSubscription = transport.readStream.listen(messages.add);
 
-        await transport.writeCommand('<+M>');
-        await transport.writeCommand('<+E>');
+        await transport.writeCommand('<+M>'); // shotSample (DE1 baseline)
+        await transport.writeCommand('<+E>'); // readFromMMR
 
-        // Fire the v13Model MMR-read request. Address layout for
-        // 0x0080000C: byte[0]=length, byte[1..3]=addr triplet.
-        final req = buildMmrReadRequest(address: 0x0080000C, length: 4);
+        // Fire the v13Model MMR-read request. The MMR protocol writes
+        // the addr buffer to the readFromMMR endpoint (`<E>`), and the
+        // device replies on the same channel as `[E]…` notify. Layout:
+        // byte[0]=length (0 = device-canonical), byte[1..3]=addr.
+        final req = buildMmrReadRequest(address: 0x0080000C, length: 0);
         final reqHex = req
             .map((b) => b.toRadixString(16).padLeft(2, '0'))
             .join();
         try {
-          await transport.writeCommand('<F>$reqHex');
+          await transport.writeCommand('<E>$reqHex');
         } catch (e) {
           _log.fine('MMR read request failed during probe', e);
         }

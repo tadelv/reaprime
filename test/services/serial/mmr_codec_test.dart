@@ -23,8 +23,9 @@ void main() {
       // Build a fake [E]... payload: bytes [length, addr1, addr2, addr3, v0..v3, ...].
       // For address 0x0080000C, expectedAddr = (0x80, 0x00, 0x0C).
       // value = 0x00000005 (DE1Cafe per MMRItem.v13Model description)
+      // Encoded little-endian at bytes [4..7].
       final payload = [
-        0x04, 0x80, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x05, // first 8 bytes
+        0x04, 0x80, 0x00, 0x0C, 0x05, 0x00, 0x00, 0x00, // value LE = 5
         ...List.filled(12, 0),
       ];
       final hex = payload
@@ -41,8 +42,10 @@ void main() {
     });
 
     test('returns the int32 value for a Bengle-range model (>= 128)', () {
+      // Real Bengle reply observed on hardware: [4, 80, 0, c, 80, 0, 0, 0, ...]
+      // Value bytes [4..7] = [0x80, 0x00, 0x00, 0x00] little-endian = 128.
       final payload = [
-        0x04, 0x80, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x80, // value = 128
+        0x04, 0x80, 0x00, 0x0C, 0x80, 0x00, 0x00, 0x00,
         ...List.filled(12, 0),
       ];
       final hex = payload
