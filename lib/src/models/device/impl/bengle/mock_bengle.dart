@@ -14,4 +14,14 @@ class MockBengle extends MockDe1 implements BengleInterface {
 
   @override
   String get name => 'MockBengle';
+
+  double _cupWarmerTemp = 0.0;
+
+  @override
+  Future<void> setCupWarmerTemperature(double celsius) async {
+    _cupWarmerTemp = celsius.clamp(0.0, 80.0).toDouble();
+  }
+
+  @override
+  Future<double> getCupWarmerTemperature() async => _cupWarmerTemp;
 }

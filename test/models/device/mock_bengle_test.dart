@@ -37,4 +37,29 @@ void main() {
       expect(m.deviceId, equals('CustomBengleId'));
     });
   });
+
+  group('MockBengle cup warmer', () {
+    test('initial setpoint is 0.0 (off)', () async {
+      final m = MockBengle();
+      expect(await m.getCupWarmerTemperature(), 0.0);
+    });
+
+    test('setCupWarmerTemperature stores the value', () async {
+      final m = MockBengle();
+      await m.setCupWarmerTemperature(60.0);
+      expect(await m.getCupWarmerTemperature(), 60.0);
+    });
+
+    test('clamps over-range values to 80.0', () async {
+      final m = MockBengle();
+      await m.setCupWarmerTemperature(120.0);
+      expect(await m.getCupWarmerTemperature(), 80.0);
+    });
+
+    test('clamps negative values to 0.0', () async {
+      final m = MockBengle();
+      await m.setCupWarmerTemperature(-10.0);
+      expect(await m.getCupWarmerTemperature(), 0.0);
+    });
+  });
 }
