@@ -377,6 +377,14 @@ enum MMRItem implements MmrAddress {
   @override
   final int? max;
 
+  // No DE1 MMRItem entry is float32 today; defaults satisfy the
+  // `implements MmrAddress` contract added when capability mixins
+  // gained float32 support.
+  @override
+  double? get minDouble => null;
+  @override
+  double? get maxDouble => null;
+
   const MMRItem(
     this.address,
     this.length,

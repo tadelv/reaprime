@@ -124,4 +124,28 @@ extension UnifiedDe1MMR on UnifiedDe1 {
     final scaledValue = (value * item.writeScale).toInt();
     await _writeMMRInt(item, scaledValue);
   }
+
+  /// IEEE-754 little-endian unpack for [MmrValueKind.float32] addresses.
+  /// Mirrors [_unpackMMRInt] but reads `getFloat32(4, Endian.little)`.
+  double _unpackMMRFloat32(List<int> buffer) {
+    if (buffer.length < 20) {
+      throw StateError(
+        'MMR response buffer too short (got ${buffer.length} bytes, '
+        'expected at least 20)',
+      );
+    }
+    final bytes = ByteData(20);
+    for (var i = 0; i < 20; i++) {
+      bytes.setUint8(i, buffer[i]);
+    }
+    return bytes.getFloat32(4, Endian.little);
+  }
+
+  /// IEEE-754 little-endian pack for [MmrValueKind.float32] addresses.
+  /// Returns the 4 raw bytes ready to ride on `Endpoint.writeToMMR`.
+  Uint8List _packMMRFloat32(double value) {
+    final bytes = ByteData(4);
+    bytes.setFloat32(0, value, Endian.little);
+    return bytes.buffer.asUint8List();
+  }
 }
