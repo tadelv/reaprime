@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_forwarder_filter.dart';
 
 LogRecord _record(
@@ -121,6 +122,103 @@ void main() {
           expect(shouldForwardToTelemetry(record), isTrue);
         },
       );
+    });
+
+    group('drops typed transient exceptions regardless of logger', () {
+      test('DeviceNotConnectedException.machine from any logger is dropped', () {
+        final record = _record(
+          Level.WARNING,
+          'BatteryController',
+          'Failed to set USB charger mode',
+          const DeviceNotConnectedException.machine(),
+        );
+        expect(shouldForwardToTelemetry(record), isFalse);
+      });
+
+      test('DeviceNotConnectedException.scale from any logger is dropped', () {
+        final record = _record(
+          Level.WARNING,
+          'PresenceController',
+          'Failed to send user present',
+          const DeviceNotConnectedException.scale(),
+        );
+        expect(shouldForwardToTelemetry(record), isFalse);
+      });
+
+      test('MmrTimeoutException from any logger is dropped', () {
+        final record = _record(
+          Level.SEVERE,
+          'De1Controller',
+          'shotSettings readback failed',
+          const MmrTimeoutException('flushFlowRate', Duration(seconds: 2)),
+        );
+        expect(shouldForwardToTelemetry(record), isFalse);
+      });
+
+      test('typed transient exception is dropped at SEVERE too', () {
+        final record = _record(
+          Level.SEVERE,
+          'AnyLogger',
+          'machine call failed',
+          const DeviceNotConnectedException.machine(),
+        );
+        expect(shouldForwardToTelemetry(record), isFalse);
+      });
+    });
+
+    group('extends transient-network-error skip to AndroidUpdater', () {
+      test('SocketException from AndroidUpdater is dropped', () {
+        final record = _record(
+          Level.WARNING,
+          'AndroidUpdater',
+          'checkForUpdate failed',
+          const SocketException(
+            'Failed host lookup: api.github.com',
+          ),
+        );
+        expect(shouldForwardToTelemetry(record), isFalse);
+      });
+
+      test('TimeoutException from AndroidUpdater is dropped', () {
+        final record = _record(
+          Level.WARNING,
+          'AndroidUpdater',
+          'checkForUpdate timed out',
+          TimeoutException('http get'),
+        );
+        expect(shouldForwardToTelemetry(record), isFalse);
+      });
+
+      test('Real bug from AndroidUpdater is kept', () {
+        final record = _record(
+          Level.SEVERE,
+          'AndroidUpdater',
+          'parse failed',
+          StateError('release manifest malformed'),
+        );
+        expect(shouldForwardToTelemetry(record), isTrue);
+      });
+    });
+
+    group('keeps genuinely-unexpected exceptions', () {
+      test('StateError from any logger is kept', () {
+        final record = _record(
+          Level.SEVERE,
+          'SomeController',
+          'invariant violated',
+          StateError('bad state'),
+        );
+        expect(shouldForwardToTelemetry(record), isTrue);
+      });
+
+      test('plain WARNING with no error is kept', () {
+        final record = _record(
+          Level.WARNING,
+          'SomeController',
+          'something unusual happened',
+        );
+        expect(shouldForwardToTelemetry(record), isTrue);
+      });
     });
   });
 }

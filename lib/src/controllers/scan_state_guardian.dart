@@ -34,7 +34,10 @@ class ScanStateGuardian with WidgetsBindingObserver {
 
     if (previous == AdapterState.poweredOn &&
         state == AdapterState.poweredOff) {
-      _log.warning('BLE adapter turned off');
+      // Adapter on/off is a user-driven environmental state, surfaced to
+      // the UI through ScanStateEvent. Logging at WARNING used to push it
+      // through the telemetry forwarder as a Crashlytics non-fatal.
+      _log.info('BLE adapter turned off');
       _eventSubject.add(ScanStateEvent.adapterTurnedOff);
     } else if (previous == AdapterState.poweredOff &&
         state == AdapterState.poweredOn) {

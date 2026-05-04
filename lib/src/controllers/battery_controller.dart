@@ -72,15 +72,22 @@ class BatteryController {
         'reason: ${decision.reason}',
       );
 
-      // Apply to DE1 — skip during BLE scan to avoid congesting the adapter
+      // Apply to DE1 — skip during BLE scan to avoid congesting the adapter,
+      // and skip when no machine is connected. Pre-checking avoids throwing
+      // DeviceNotConnectedException on every tick when the user has no
+      // machine, which used to log at WARNING and reach Crashlytics.
       if (_deviceController.isScanning) {
         _log.fine('Skipping USB charger mode update during BLE scan');
       } else {
-        try {
-          final de1 = _de1Controller.connectedDe1();
-          await de1.setUsbChargerMode(decision.shouldCharge);
-        } catch (e) {
-          _log.warning('Failed to set USB charger mode', e);
+        final de1 = _de1Controller.connectedDe1OrNull;
+        if (de1 == null) {
+          _log.fine('No machine connected, skipping USB charger mode update');
+        } else {
+          try {
+            await de1.setUsbChargerMode(decision.shouldCharge);
+          } catch (e) {
+            _log.warning('Failed to set USB charger mode', e);
+          }
         }
       }
 
