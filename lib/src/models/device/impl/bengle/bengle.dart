@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
+import 'package:reaprime/src/models/device/impl/bengle/bengle_mmr.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 
@@ -8,6 +9,14 @@ class Bengle extends UnifiedDe1 implements BengleInterface {
 
   @override
   String get name => "Bengle";
+
+  @override
+  Future<void> setCupWarmerTemperature(double celsius) =>
+      writeMmrFloat32(BengleMmr.matSetPoint, celsius);
+
+  @override
+  Future<double> getCupWarmerTemperature() =>
+      readMmrFloat32(BengleMmr.matSetPoint);
 
   /// Bengle FW requires entering state 0x22 (`MachineState.fwUpgrade`) between
   /// the `requestState(sleeping)` step and the start of `.dat` upload.
