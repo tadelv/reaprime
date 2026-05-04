@@ -1,5 +1,6 @@
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
+import 'package:reaprime/src/models/device/machine.dart';
 
 /// Simulated Bengle. Reuses [MockDe1]'s state machine — Bengle's behavior
 /// today is functionally identical to a DE1 plus the FW-prelude hook
@@ -24,4 +25,13 @@ class MockBengle extends MockDe1 implements BengleInterface {
 
   @override
   Future<double> getCupWarmerTemperature() async => _cupWarmerTemp;
+
+  @override
+  MachineInfo get machineInfo => MachineInfo(
+    version: "1.0",
+    model: "Bengle",
+    serialNumber: "110010101",
+    groupHeadControllerPresent: true,
+    extra: {'voltage': 220, 'refillKit': false},
+  );
 }
