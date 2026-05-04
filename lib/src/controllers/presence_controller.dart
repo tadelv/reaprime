@@ -168,8 +168,8 @@ class PresenceController {
     }
 
     _lastPresenceSent = now;
-    _de1?.sendUserPresent().catchError((e) {
-      _log.warning('Failed to send user present: $e');
+    _de1?.sendUserPresent().catchError((Object e) {
+      _log.warning('Failed to send user present', e);
     });
   }
 
@@ -218,8 +218,8 @@ class PresenceController {
     if (_currentMachineState == MachineState.idle ||
         _currentMachineState == MachineState.schedIdle) {
       _log.info('Sleep timeout fired, putting machine to sleep');
-      _de1!.requestState(MachineState.sleeping).catchError((e) {
-        _log.warning('Failed to request sleep: $e');
+      _de1!.requestState(MachineState.sleeping).catchError((Object e) {
+        _log.warning('Failed to request sleep', e);
       });
     }
   }
@@ -291,8 +291,8 @@ class PresenceController {
           _log.info(
               'Schedule ${schedule.id} matched at ${now.hour}:${now.minute}, waking machine');
           _firedScheduleIds.add(schedule.id);
-          _de1!.requestState(MachineState.schedIdle).catchError((e) {
-            _log.warning('Failed to request schedIdle: $e');
+          _de1!.requestState(MachineState.schedIdle).catchError((Object e) {
+            _log.warning('Failed to request schedIdle', e);
           });
           if (schedule.keepAwakeFor != null) {
             final newExpiry = now.add(Duration(minutes: schedule.keepAwakeFor!));
@@ -305,7 +305,7 @@ class PresenceController {
         }
       }
     } catch (e) {
-      _log.warning('Failed to parse wake schedules: $e');
+      _log.warning('Failed to parse wake schedules', e);
     }
   }
 }

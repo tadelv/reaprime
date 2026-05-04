@@ -74,10 +74,18 @@ class StatusPublisher {
   /// Emit [err] on the status stream without changing the current
   /// phase. Logs at severe/warning depending on severity, then routes
   /// through [publish] so the same gatekeeper applies.
+  ///
+  /// Sticky kinds (`adapterOff`, `bluetoothPermissionDenied`, `scanFailed`)
+  /// describe environmental states that the user already sees in the UI
+  /// `ConnectionErrorBanner`. They aren't crash signals, so they log at
+  /// `info` instead of `severe`/`warning` — keeping them out of the
+  /// Crashlytics forwarder while preserving them in the file log.
   void emitError(ConnectionError err) {
     final msg = 'emit error: kind=${err.kind} message=${err.message} '
         'deviceId=${err.deviceId}';
-    if (err.severity == ConnectionErrorSeverity.error) {
+    if (ConnectionErrorKind.sticky.contains(err.kind)) {
+      _log.info(msg);
+    } else if (err.severity == ConnectionErrorSeverity.error) {
       _log.severe(msg);
     } else {
       _log.warning(msg);

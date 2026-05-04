@@ -221,6 +221,14 @@ class De1Controller {
     return _de1!;
   }
 
+  /// Non-throwing accessor for callers that already model the
+  /// "no machine connected" branch (e.g. periodic timers). Returning
+  /// `null` here keeps the expected case off the WARNING log path,
+  /// which would otherwise reach Crashlytics via the telemetry
+  /// forwarder. Use this whenever pre-checking is cheaper than
+  /// catching `DeviceNotConnectedException`.
+  De1Interface? get connectedDe1OrNull => _de1;
+
   Future<SteamFormSettings> steamSettings() async {
     if (_de1 == null) {
       throw const DeviceNotConnectedException.machine();

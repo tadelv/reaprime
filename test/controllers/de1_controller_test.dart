@@ -22,6 +22,58 @@ De1ShotSettings _emptyShotSettings() => De1ShotSettings(
     );
 
 void main() {
+  group('connectedDe1OrNull accessor', () {
+    test('returns null when no machine connected', () async {
+      final deviceController =
+          DeviceController([MockDeviceDiscoveryService()]);
+      await deviceController.initialize();
+      final de1Controller = De1Controller(controller: deviceController);
+
+      expect(de1Controller.connectedDe1OrNull, isNull);
+    });
+
+    test('returns the connected DE1 once connectToDe1 completes', () async {
+      await runZonedGuarded(() async {
+        final deviceController =
+            DeviceController([MockDeviceDiscoveryService()]);
+        await deviceController.initialize();
+        final de1Controller = De1Controller(controller: deviceController);
+        final testDe1 = TestDe1();
+
+        await de1Controller.connectToDe1(testDe1);
+        // Unblock _initializeData so it does not leak into the test zone.
+        testDe1.emitShotSettings(_emptyShotSettings());
+        await Future<void>.delayed(Duration.zero);
+
+        expect(de1Controller.connectedDe1OrNull, same(testDe1));
+
+        testDe1.dispose();
+      }, (_, __) {});
+    });
+
+    test('returns null again after disconnect', () async {
+      await runZonedGuarded(() async {
+        final deviceController =
+            DeviceController([MockDeviceDiscoveryService()]);
+        await deviceController.initialize();
+        final de1Controller = De1Controller(controller: deviceController);
+        final testDe1 = TestDe1();
+
+        await de1Controller.connectToDe1(testDe1);
+        testDe1.emitShotSettings(_emptyShotSettings());
+        await Future<void>.delayed(Duration.zero);
+        expect(de1Controller.connectedDe1OrNull, isNotNull);
+
+        testDe1.setConnectionState(ConnectionState.disconnected);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(de1Controller.connectedDe1OrNull, isNull);
+
+        testDe1.dispose();
+      }, (_, __) {});
+    });
+  });
+
   group('shot-settings debounce race (comms-harden #5)', () {
     test(
       'disconnect during debounce does not leak an unhandled async error',
