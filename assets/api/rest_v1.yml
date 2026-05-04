@@ -208,6 +208,62 @@ paths:
       responses:
         "200":
           description: Shot settings updated successfully
+  /api/v1/machine/capabilities:
+    get:
+      summary: List machine capabilities
+      description: |
+        Returns the optional capability surfaces the currently connected
+        machine exposes. Plain DE1s return an empty list; Bengle returns
+        `["cupWarmer"]` plus any future capabilities (LED strip,
+        integrated scale, milk probe) as they ship. Skins should query
+        this endpoint once after connect to decide which UI to render
+        and which `/api/v1/machine/...` capability endpoints to call.
+      tags: [Machine]
+      responses:
+        "200":
+          description: Capability list for the currently connected machine
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MachineCapabilities"
+  /api/v1/machine/cupWarmer:
+    get:
+      summary: Get cup-warmer setpoint
+      description: |
+        Read the current cup-warmer mat target temperature in °C.
+        Returns 404 when the connected machine is not a Bengle.
+      tags: [Machine]
+      responses:
+        "200":
+          description: Current cup-warmer setpoint
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CupWarmerState"
+        "404":
+          description: Machine connected but does not support cup warmer
+    post:
+      summary: Set cup-warmer setpoint
+      description: |
+        Set the cup-warmer mat target temperature in °C. Range
+        `0.0`–`80.0`; `0.0` turns the mat off (there is no separate
+        enable flag). Out-of-range values return 400; the app does not
+        rely on FW-side clamping so callers see immediate feedback.
+        Returns 404 when the connected machine is not a Bengle.
+      tags: [Machine]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CupWarmerState"
+      responses:
+        "202":
+          description: Setpoint accepted
+        "400":
+          description: Temperature missing or out of range 0.0–80.0
+        "404":
+          description: Machine connected but does not support cup warmer
   /api/v1/machine/settings:
     get:
       summary: Get machine settings
@@ -3432,6 +3488,36 @@ components:
         extra:
           type: object
           description: various extra information
+
+    MachineCapabilities:
+      type: object
+      required: [capabilities]
+      properties:
+        capabilities:
+          type: array
+          description: |
+            Capability identifiers supported by the currently connected
+            machine. Plain DE1 returns an empty array. Future Bengle
+            peripherals (LED strip, integrated scale, milk probe) will
+            append their identifiers as they ship.
+          items:
+            type: string
+            enum: [cupWarmer]
+          example: [cupWarmer]
+
+    CupWarmerState:
+      type: object
+      required: [temperature]
+      properties:
+        temperature:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 80.0
+          description: |
+            Cup-warmer mat target temperature in °C. `0.0` turns the
+            mat off — there is no separate enable flag.
+          example: 60.0
 
     ScaleSnapshot:
       type: object

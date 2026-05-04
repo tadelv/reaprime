@@ -28,6 +28,43 @@ class De1Handler {
     });
     app.post('/api/v1/machine/shotSettings', _shotSettingsHandler);
 
+    app.get('/api/v1/machine/capabilities', (Request _) async {
+      return withDe1((de1) async {
+        final caps = <String>[];
+        if (de1 is BengleInterface) caps.add('cupWarmer');
+        return jsonOk({'capabilities': caps});
+      });
+    });
+
+    app.get('/api/v1/machine/cupWarmer', (Request _) async {
+      return withDe1((de1) async {
+        if (de1 is! BengleInterface) {
+          return jsonNotFound({'error': 'cupWarmer not supported'});
+        }
+        final t = await de1.getCupWarmerTemperature();
+        return jsonOk({'temperature': t});
+      });
+    });
+
+    app.post('/api/v1/machine/cupWarmer', (Request r) async {
+      return withDe1((de1) async {
+        if (de1 is! BengleInterface) {
+          return jsonNotFound({'error': 'cupWarmer not supported'});
+        }
+        final json = jsonDecode(await r.readAsString());
+        if (json is! Map || json['temperature'] == null) {
+          return jsonBadRequest({'error': 'temperature required'});
+        }
+        final t = parseDouble(json['temperature']);
+        if (t < 0.0 || t > 80.0) {
+          return jsonBadRequest(
+              {'error': 'temperature out of range 0.0-80.0'});
+        }
+        await de1.setCupWarmerTemperature(t);
+        return jsonAccepted();
+      });
+    });
+
     // Sockets
     app.get('/ws/v1/machine/snapshot', sws.webSocketHandler(_handleSnapshot));
     app.get(

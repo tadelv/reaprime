@@ -50,6 +50,9 @@ For browser clients on a different origin, `ETag` is exposed via `Access-Control
 | POST | `/api/v1/machine/profile` | Upload profile to machine | |
 | POST | `/api/v1/machine/usb-charger` | Toggle USB charger | |
 | POST | `/api/v1/machine/water-threshold` | Update water level threshold | |
+| GET | `/api/v1/machine/capabilities` | List capability identifiers (e.g. `cupWarmer`) supported by the connected machine | |
+| GET | `/api/v1/machine/cupWarmer` | Read cup-warmer setpoint °C — Bengle only, 404 elsewhere | |
+| POST | `/api/v1/machine/cupWarmer` | Set cup-warmer setpoint °C (range 0.0–80.0, `0.0` = off) — Bengle only | |
 
 ### Scale
 
