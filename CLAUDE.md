@@ -219,3 +219,17 @@ Detailed docs in `doc/`:
 - **`.agents/skills/streamline-bridge/`** — Dev-loop skill: `sb-dev` lifecycle, REST/WebSocket recipes, simulated devices, verification scenarios
 - **`packages/dye2-plugin/README.md`** — DYE2 bundled plugin (architecture, build, dev server, extension guide)
 
+## Agent skills
+
+### Issue tracker
+
+Issues tracked via Obsidian — use the `obsidian-todo-sync` skill for all create/list/update/triage operations. See `doc/agents/issue-tracker.md`.
+
+### Triage labels
+
+Canonical role names used as-is (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `doc/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context. Domain language and architectural context live in `CLAUDE.md` and `doc/` — no separate `CONTEXT.md` or `doc/adr/`. See `doc/agents/domain.md`.
+
