@@ -214,10 +214,10 @@ paths:
       description: |
         Returns the optional capability surfaces the currently connected
         machine exposes. Plain DE1s return an empty list; Bengle returns
-        `["cupWarmer"]` plus any future capabilities (LED strip,
-        integrated scale, milk probe) as they ship. Skins should query
-        this endpoint once after connect to decide which UI to render
-        and which `/api/v1/machine/...` capability endpoints to call.
+        `["cupWarmer", "integratedScale"]` plus any future capabilities
+        (LED strip, milk probe) as they ship. Skins should query this
+        endpoint once after connect to decide which UI to render and
+        which `/api/v1/machine/...` capability endpoints to call.
       tags: [Machine]
       responses:
         "200":
@@ -3497,13 +3497,14 @@ components:
           type: array
           description: |
             Capability identifiers supported by the currently connected
-            machine. Plain DE1 returns an empty array. Future Bengle
-            peripherals (LED strip, integrated scale, milk probe) will
-            append their identifiers as they ship.
+            machine. Plain DE1 returns an empty array. Bengle returns
+            `cupWarmer` and `integratedScale`. Future Bengle peripherals
+            (LED strip, milk probe) will append their identifiers as
+            they ship.
           items:
             type: string
-            enum: [cupWarmer]
-          example: [cupWarmer]
+            enum: [cupWarmer, integratedScale]
+          example: [cupWarmer, integratedScale]
 
     CupWarmerState:
       type: object
