@@ -15,6 +15,19 @@ enum BengleMmr implements MmrAddress {
     'MatSetPoint',
     minDouble: 0.0,
     maxDouble: 80.0,
+  ),
+
+  /// Integrated-scale tare trigger. Address and value semantics are
+  /// stubbed — FW slot TBD. Once published, fill in the real address
+  /// and tighten [kind] / bounds. Capability code (`IntegratedScale-
+  /// Capability.tareIntegratedScale`) currently routes through the
+  /// control endpoint, not MMR — this entry exists so the FW slot has
+  /// a home when the wire spec arrives.
+  scaleTare(
+    0x00000000, // TBD with FW
+    4,
+    MmrValueKind.int32, // TBD with FW
+    'ScaleTare',
   );
 
   const BengleMmr(
