@@ -1,4 +1,5 @@
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/scale.dart';
 
 /// Marker interface for Bengle-specific machine API. Currently empty —
 /// Bengle inherits the full DE1 surface unchanged.
@@ -18,4 +19,15 @@ abstract class BengleInterface extends De1Interface {
 
   /// Read the current cup-warmer mat setpoint in °C.
   Future<double> getCupWarmerTemperature();
+
+  /// Live snapshot stream from the integrated scale.
+  ///
+  /// Real `Bengle` wires this to `IntegratedScaleCapability.weightSnapshot`
+  /// (notify endpoint TBD with FW; lands in Task 7). `MockBengle` synthesises
+  /// weight by integrating `MockDe1`'s simulated flow.
+  Stream<ScaleSnapshot> get weightSnapshot;
+
+  /// Tare the integrated scale. Subsequent snapshots have weight relative
+  /// to this zero.
+  Future<void> tareIntegratedScale();
 }
