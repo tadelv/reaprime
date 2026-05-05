@@ -3,6 +3,7 @@ import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle_mmr.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/device/scale.dart';
 
 class Bengle extends UnifiedDe1 implements BengleInterface {
   Bengle({required super.transport});
@@ -17,6 +18,14 @@ class Bengle extends UnifiedDe1 implements BengleInterface {
   @override
   Future<double> getCupWarmerTemperature() =>
       readMmrFloat32(BengleMmr.matSetPoint);
+
+  @override
+  Stream<ScaleSnapshot> get weightSnapshot => const Stream.empty();
+  // TODO(task-7): replace with IntegratedScaleCapability.weightSnapshot.
+
+  @override
+  Future<void> tareIntegratedScale() async {}
+  // TODO(task-7): delegate to IntegratedScaleCapability.tareIntegratedScale().
 
   /// Bengle FW requires entering state 0x22 (`MachineState.fwUpgrade`) between
   /// the `requestState(sleeping)` step and the start of `.dat` upload.
