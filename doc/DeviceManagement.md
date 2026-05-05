@@ -372,6 +372,18 @@ Future<void> connectToScale(Scale scale) async {
 
 **Pattern:** Mirrors ScaleController auto-connect logic
 
+### Bengle integrated scale
+
+When a Bengle is the connected machine, its integrated scale is auto-attached
+to `ScaleController` as a virtual `BengleVirtualScale`. The integrated scale
+always wins on Bengle: external scale scanning is skipped entirely, and
+`preferredScaleId` is ignored while a Bengle is connected. Multi-scale
+support (external scale alongside the integrated scale) is on the roadmap.
+
+Capability discovery: `GET /api/v1/machine/capabilities` includes
+`"integratedScale"` when a Bengle is connected. Skins should use this flag
+to gate "internal scale" UX hints.
+
 ---
 
 ## Connection Flow
