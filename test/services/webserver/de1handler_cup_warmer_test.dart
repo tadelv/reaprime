@@ -69,6 +69,20 @@ void main() {
       final body = jsonDecode(await res.readAsString());
       expect(body['capabilities'], isEmpty);
     });
+
+    test('returns integratedScale when a Bengle is connected', () async {
+      await wireWith(MockBengle());
+      final res = await get('/api/v1/machine/capabilities');
+      final body = jsonDecode(await res.readAsString());
+      expect(body['capabilities'], contains('integratedScale'));
+    });
+
+    test('does not return integratedScale on plain DE1', () async {
+      await wireWith(MockDe1());
+      final res = await get('/api/v1/machine/capabilities');
+      final body = jsonDecode(await res.readAsString());
+      expect(body['capabilities'], isNot(contains('integratedScale')));
+    });
   });
 
   group('GET /api/v1/machine/cupWarmer', () {
