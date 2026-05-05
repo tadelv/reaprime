@@ -20,11 +20,17 @@ class Bengle extends UnifiedDe1 implements BengleInterface {
       readMmrFloat32(BengleMmr.matSetPoint);
 
   @override
-  Stream<ScaleSnapshot> get weightSnapshot => const Stream.empty();
+  Stream<ScaleSnapshot> get weightSnapshot {
+    log.warning('Integrated scale not yet wired (Task 7 pending) — '
+        'returning empty stream');
+    return const Stream.empty();
+  }
   // TODO(task-7): replace with IntegratedScaleCapability.weightSnapshot.
 
   @override
-  Future<void> tareIntegratedScale() async {}
+  Future<void> tareIntegratedScale() async {
+    log.warning('Integrated scale tare ignored (Task 7 pending)');
+  }
   // TODO(task-7): delegate to IntegratedScaleCapability.tareIntegratedScale().
 
   /// Bengle FW requires entering state 0x22 (`MachineState.fwUpgrade`) between

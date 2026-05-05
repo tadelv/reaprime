@@ -35,6 +35,10 @@ class MockBengle extends MockDe1 implements BengleInterface {
   // Synthesises weight by integrating MockDe1's simulated flow stream:
   // weight = ∫ flow dt. Tare snapshots `_accumulatedWeight` into
   // `_tareOffset` so subsequent emits read ~0.
+  // BehaviorSubject so a late subscriber (e.g. WS client connecting
+  // mid-shot) immediately gets the current weight without waiting for
+  // the next flow sample. Closed on onDisconnect; existing subscribers
+  // receive `done`.
   final BehaviorSubject<ScaleSnapshot> _weight = BehaviorSubject();
   StreamSubscription<MachineSnapshot>? _flowSub;
   double _accumulatedWeight = 0.0;
@@ -42,8 +46,7 @@ class MockBengle extends MockDe1 implements BengleInterface {
   DateTime? _lastSampleTime;
 
   @override
-  Stream<ScaleSnapshot> get weightSnapshot =>
-      _weight.isClosed ? const Stream.empty() : _weight.stream;
+  Stream<ScaleSnapshot> get weightSnapshot => _weight.stream;
 
   @override
   Future<void> tareIntegratedScale() async {
