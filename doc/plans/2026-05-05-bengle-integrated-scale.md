@@ -18,7 +18,7 @@ Bengle's onboard scale is exposed as a `BengleVirtualScale extends Scale` adapte
 
 **Rejected — hybrid** (virtual Scale primary, parallel raw stream secondary): premature; YAGNI until someone needs simultaneous Bengle+HDS streams.
 
-**Trade-off accepted.** `ScaleController._scale` is a single slot — can't have both an external scale and the virtual Bengle scale active. Resolved with a precedence rule in `ConnectionManager` (D3). Multi-scale concurrent streams logged as a follow-up in the ReaPrime TODO (P2).
+**Trade-off accepted.** `ScaleController._scale` is a single slot — can't have both an external scale and the virtual Bengle scale active. Resolved by **always** picking the virtual scale when Bengle is the machine (D3). External-scale scanning is skipped for the duration of the Bengle connection. Multi-scale concurrent streams (including external scale alongside Bengle integrated scale) logged as a follow-up in the ReaPrime TODO (P2).
 
 ### D2 — Stop-at-weight stays in software (`ShotController`)
 
@@ -26,14 +26,19 @@ Bengle FW exposes a SAW MMR (BC `9319446541`), but for v1 we keep the existing `
 
 **Rejected — push target to FW MMR.** Real latency win (≈ 50–200 ms) but small relative to typical SAW lead-time tuning, and it forces Bengle-specific branching in `ShotController`. Reserved as a perf optimisation if field data justifies it.
 
-### D3 — Auto-connect virtual scale; external scale takes precedence
+### D3 — Integrated scale always wins on Bengle; external-scale scanning skipped
 
 When `ConnectionManager.connectMachine` resolves a Bengle:
-- If no external scale is currently connected, instantiate `BengleVirtualScale` and pass to `ScaleController.connectToScale`.
-- If an external scale connects later, `ScaleController.connectToScale(externalScale)` swaps it in (existing `_onDisconnect` semantics handle the swap).
-- If the external scale disconnects while the machine is still connected, fall back to the virtual scale.
+- Instantiate `BengleVirtualScale(machine)` and pass to `ScaleController.connectToScale`.
+- **Skip the external scale-discovery phase entirely** for the duration of the Bengle connection. Even if the user has a `preferredScaleId` set, it is ignored while Bengle is the machine.
 
-**Rejected — discovery-surfaced virtual scale** (user picks "Bengle scale" from `DeviceDiscoveryView`): adds friction for the common case (Bengle owners with no external scale) and duplicates precedence logic into the user's mental model. Setting to opt-out can be added later if anyone asks.
+Resumes normal scale-discovery flow when the machine is non-Bengle (DE1).
+
+**Rationale.** Bengle's integrated scale is the headline differentiator; making it compete with external scales is unnecessary friction. The design started with an external-scale-precedence rule (D1 implication), but per user clarification (2026-05-05): "If we connect to Bengle, the integrated scale always takes precedence, we do not scan for other scales (currently)." Multi-scale support — including external scale concurrent with Bengle's integrated scale — stays on the roadmap (logged in `ReaPrime/TODO.md` as P2).
+
+**Rejected — discovery-surfaced virtual scale** (user picks "Bengle scale" from `DeviceDiscoveryView`): adds friction for the common case (Bengle owners) and duplicates lifecycle logic into the user's mental model.
+
+**Rejected — honor `preferredScaleId` even when Bengle is connected**: makes the connection flow conditional on a setting that pre-dates Bengle support. Cleaner to defer to multi-scale phase (TODO P2).
 
 ### D4 — `/api/v1/machine/capabilities` lists `"integratedScale"`
 
@@ -147,15 +152,16 @@ class BengleVirtualScale extends Scale {
 
 `weightSnapshot` is a new public method on `BengleInterface` (the mixin promotes it on `Bengle` and `MockBengle`).
 
-### `ConnectionManager` precedence wiring
+### `ConnectionManager` wiring
 
-Extend `ConnectionManager.connectMachine` (or its post-connect hook) so that on Bengle success:
+Extend `ConnectionManager.connect()` so that on Bengle machine resolution:
 
-1. If `ScaleController.currentConnectionState != connected`, instantiate `BengleVirtualScale(bengle)` and call `connectToScale`.
-2. When an external scale resolves through the existing scale-connect path, `ScaleController.connectToScale(external)` swaps the virtual out (existing `_onDisconnect` semantics already handle this).
-3. On external scale disconnect, if the machine is still a connected Bengle, re-instantiate and connect a fresh `BengleVirtualScale`.
+1. Instantiate `BengleVirtualScale(machine)` and pass to `ScaleController.connectToScale`.
+2. **Skip `_applyScalePolicy` entirely** for the duration of the Bengle connection — no scan for external scales, `preferredScaleId` ignored.
 
-The precedence rule lives in one place (`ConnectionManager`); `ScaleController` stays a single-slot holder unaware of "internal vs external."
+For non-Bengle machines, the existing scale-discovery flow runs unchanged.
+
+`ScaleController` stays a single-slot holder unaware of "internal vs external"; the integrated-scale logic lives in one place (`ConnectionManager`).
 
 ### Capabilities endpoint
 
