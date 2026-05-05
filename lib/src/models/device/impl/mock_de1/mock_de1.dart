@@ -90,7 +90,13 @@ class MockDe1 implements De1Interface {
   }
 
   @override
-  disconnect() async {}
+  disconnect() async {
+    // Mirror UnifiedDe1.disconnect(): run onDisconnect() so subclass
+    // overrides (e.g. MockBengle's integrated-scale teardown, this
+    // class's _stateTimer cancel) actually fire when the simulated
+    // machine "disconnects".
+    await onDisconnect();
+  }
 
   @override
   DeviceType get type => DeviceType.machine;

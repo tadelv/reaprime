@@ -83,6 +83,11 @@ class UnifiedDe1 implements De1Interface {
 
   @override
   Future<void> disconnect() async {
+    // Call onDisconnect() before tearing down the transport so capability
+    // mixins can still issue final BLE writes (writeEndpoint / writeMmr)
+    // while the transport is alive. The default is a no-op; subclasses
+    // (e.g. Bengle) override to dispose capability state.
+    await onDisconnect();
     await _transport.disconnect();
   }
 
@@ -203,9 +208,9 @@ class UnifiedDe1 implements De1Interface {
   /// disconnect. Default: no-op. Subclasses (e.g. `Bengle`) override
   /// to call their capability's dispose method.
   ///
-  /// Not wired into [disconnect] yet — capabilities call this directly
-  /// or are driven by the connection layer. Mirrors [onConnect] as an
-  /// extension point.
+  /// Invoked from [disconnect] before the transport is torn down, so
+  /// overrides may still issue BLE writes if final cleanup needs them.
+  /// Mirrors [onConnect] as an extension point.
   Future<void> onDisconnect() async {} // default no-op
 
   final StreamController<De1RawMessage> _rawMessageController =

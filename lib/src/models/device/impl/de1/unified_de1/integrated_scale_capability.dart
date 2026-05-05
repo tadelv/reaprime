@@ -28,12 +28,17 @@ enum BengleScaleEndpoint implements LogicalEndpoint {
 ///
 /// Owns the weight stream and tare endpoint. Lifecycle is managed by the
 /// concrete `Bengle` device — call [initIntegratedScale] from
-/// `onConnect`, [disposeIntegratedScale] from `onDisconnect`. The
-/// capability is intentionally a no-op until firmware publishes the
-/// wire identifiers (see [BengleScaleEndpoint]); when that happens, fill
-/// in the enum and replace the placeholder parser/encoder bodies.
+/// `onConnect`, [disposeIntegratedScale] from `onDisconnect`.
+/// `UnifiedDe1.disconnect()` invokes `onDisconnect()` for the device, so
+/// `disposeIntegratedScale()` runs on every real disconnect. The
+/// capability is also re-init-safe: `initIntegratedScale()` recreates
+/// `_bengleWeight` if a previous dispose closed it, so a reconnect on
+/// the same instance restores a live stream. The capability is
+/// intentionally a no-op until firmware publishes the wire identifiers
+/// (see [BengleScaleEndpoint]); when that happens, fill in the enum and
+/// replace the placeholder parser/encoder bodies.
 mixin IntegratedScaleCapability on UnifiedDe1 {
-  final BehaviorSubject<ScaleSnapshot> _bengleWeight =
+  BehaviorSubject<ScaleSnapshot> _bengleWeight =
       BehaviorSubject<ScaleSnapshot>();
   StreamSubscription<ByteData>? _bengleWeightSub;
 
@@ -43,7 +48,15 @@ mixin IntegratedScaleCapability on UnifiedDe1 {
 
   /// Subscribe to the integrated-scale weight notify endpoint. No-op
   /// (with a single info log) while the endpoint wires are null.
+  ///
+  /// Re-init-safe: if a previous [disposeIntegratedScale] closed the
+  /// subject, a fresh one is created here so that listeners attaching
+  /// after a reconnect see a live stream rather than an immediately-
+  /// done one.
   Future<void> initIntegratedScale() async {
+    if (_bengleWeight.isClosed) {
+      _bengleWeight = BehaviorSubject<ScaleSnapshot>();
+    }
     final endpoint = BengleScaleEndpoint.weight;
     if (endpoint.uuid == null && endpoint.representation == null) {
       this.log.info('IntegratedScaleCapability: weight endpoint unwired; '
