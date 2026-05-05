@@ -452,6 +452,11 @@ class ConnectionManager {
   /// attach it via [ScaleController]. Failures are logged but do not
   /// propagate — the machine remains connected and usable.
   Future<void> _attachBengleVirtualScale(BengleInterface machine) async {
+    // TODO(multi-scale, P2): when a user has an external scale already
+    // connected and Bengle reconnects, the virtual scale should take
+    // over. Today this short-circuit leaves the external scale in
+    // place — narrow edge case (Bengle is normally first in a
+    // session); revisit when multi-scale support lands.
     if (_scaleConnected) {
       _log.fine('Scale already connected, skipping Bengle virtual scale');
       return;
@@ -627,22 +632,50 @@ class ConnectionManager {
     }
   }
 
-  /// Wrap [_connectScaleTracked] with the Bengle gate. If a Bengle is
-  /// already the connected machine, OR a Bengle is among the
-  /// just-discovered devices that match the preferred machine id, skip
-  /// the external scale early-connect entirely — the integrated scale
-  /// will take the slot in the post-scan policy stage.
+  /// Wrap [_connectScaleTracked] with the early-connect deferral gate.
+  /// See [_shouldDeferEarlyScaleConnect] for the full policy.
   Future<void> _connectScaleTrackedGated(
     Scale scale,
     ScanReportBuilder scanReport,
   ) async {
-    if (_isBengleAboutToBeMachine()) {
+    if (_shouldDeferEarlyScaleConnect()) {
       _log.fine(
-        'Skipping external scale early-connect — Bengle machine takes the slot',
+        'Deferring external scale early-connect until machine resolves',
       );
       return;
     }
     return _connectScaleTracked(scale, scanReport);
+  }
+
+  /// Returns true when the external scale's early-connect path should
+  /// be skipped during the scan, leaving the post-scan
+  /// [_runScalePhase] to decide per resolved machine type.
+  ///
+  /// Two conditions trigger a defer:
+  ///
+  /// 1. A Bengle is already (or about to be) the connected machine —
+  ///    [_isBengleAboutToBeMachine]. The integrated scale will take
+  ///    the slot in the post-scan policy stage.
+  ///
+  /// 2. Conservative skip (added 2026-05-05): a `preferredMachineId`
+  ///    is configured but no machine has resolved yet on the de1
+  ///    stream. Without this, an external scale appearing in scan
+  ///    results before the (preferred) Bengle would race past the
+  ///    Bengle-inference check (Bengle not yet visible to scanner /
+  ///    `latestMachine` still null), early-connect, and then the
+  ///    post-scan virtual-attach path would short-circuit because the
+  ///    scale slot is already taken.
+  ///
+  ///    Cost: DE1+scale users lose parallel early-connect (~1s
+  ///    latency in the worst case). Acceptable trade for an
+  ///    unbreakable "integrated-always-wins on Bengle" invariant.
+  ///    Multi-scale support (TODO P2) will revisit.
+  bool _shouldDeferEarlyScaleConnect() {
+    if (_isBengleAboutToBeMachine()) return true;
+    final preferredMachineId = settingsController.preferredMachineId;
+    final machineResolved = _disconnectSupervisor.latestMachine != null;
+    if (preferredMachineId != null && !machineResolved) return true;
+    return false;
   }
 
   /// True if the connected machine is already a Bengle, or if the
