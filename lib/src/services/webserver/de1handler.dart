@@ -32,6 +32,7 @@ class De1Handler {
       return withDe1((de1) async {
         final caps = <String>[];
         if (de1 is BengleInterface) caps.add('cupWarmer');
+        if (de1 is BengleInterface) caps.add('integratedScale');
         return jsonOk({'capabilities': caps});
       });
     });
