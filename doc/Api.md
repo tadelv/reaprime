@@ -40,7 +40,7 @@ For browser clients on a different origin, `ETag` is exposed via `Access-Control
 |--------|------|-------------|---------|
 | GET | `/api/v1/machine/info` | Machine model, firmware, features | `de1handler.dart` |
 | GET | `/api/v1/machine/state` | Current machine state + substate | |
-| POST | `/api/v1/machine/state` | Request state change (idle, sleep, etc.) | |
+| PUT | `/api/v1/machine/state/{newState}` | Request state change (`idle`, `sleep`, `espresso`, …) | |
 | GET | `/api/v1/machine/settings` | DE1 machine settings (temps, flows) | |
 | POST | `/api/v1/machine/settings` | Update machine settings | |
 | GET | `/api/v1/machine/settings/advanced` | Advanced heater/phase settings | |
@@ -58,10 +58,10 @@ For browser clients on a different origin, `ETag` is exposed via `Access-Control
 
 | Method | Path | Description | Handler |
 |--------|------|-------------|---------|
-| POST | `/api/v1/scale/tare` | Tare the connected scale | `scale_handler.dart` |
-| POST | `/api/v1/scale/timer/start` | Start scale timer | |
-| POST | `/api/v1/scale/timer/stop` | Stop scale timer | |
-| POST | `/api/v1/scale/timer/reset` | Reset scale timer | |
+| PUT | `/api/v1/scale/tare` | Tare the connected scale | `scale_handler.dart` |
+| PUT | `/api/v1/scale/timer/start` | Start scale timer | |
+| PUT | `/api/v1/scale/timer/stop` | Stop scale timer | |
+| PUT | `/api/v1/scale/timer/reset` | Reset scale timer | |
 
 ### Devices
 
