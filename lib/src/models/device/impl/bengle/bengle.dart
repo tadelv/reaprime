@@ -3,9 +3,10 @@ import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle_mmr.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/machine.dart';
-import 'package:reaprime/src/models/device/scale.dart';
 
-class Bengle extends UnifiedDe1 implements BengleInterface {
+class Bengle extends UnifiedDe1
+    with IntegratedScaleCapability
+    implements BengleInterface {
   Bengle({required super.transport});
 
   @override
@@ -18,20 +19,6 @@ class Bengle extends UnifiedDe1 implements BengleInterface {
   @override
   Future<double> getCupWarmerTemperature() =>
       readMmrFloat32(BengleMmr.matSetPoint);
-
-  @override
-  Stream<ScaleSnapshot> get weightSnapshot {
-    log.warning('Integrated scale not yet wired (Task 7 pending) — '
-        'returning empty stream');
-    return const Stream.empty();
-  }
-  // TODO(task-7): replace with IntegratedScaleCapability.weightSnapshot.
-
-  @override
-  Future<void> tareIntegratedScale() async {
-    log.warning('Integrated scale tare ignored (Task 7 pending)');
-  }
-  // TODO(task-7): delegate to IntegratedScaleCapability.tareIntegratedScale().
 
   /// Bengle FW requires entering state 0x22 (`MachineState.fwUpgrade`) between
   /// the `requestState(sleeping)` step and the start of `.dat` upload.
@@ -51,4 +38,18 @@ class Bengle extends UnifiedDe1 implements BengleInterface {
   @override
   @protected
   Duration get firmwareUploadBatchPause => Duration.zero;
+
+  // --- integrated scale lifecycle ---
+
+  @override
+  Future<void> onConnect() async {
+    await super.onConnect();
+    await initIntegratedScale();
+  }
+
+  @override
+  Future<void> onDisconnect() async {
+    await disposeIntegratedScale();
+    await super.onDisconnect();
+  }
 }

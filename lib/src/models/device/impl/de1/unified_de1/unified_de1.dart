@@ -15,6 +15,7 @@ import 'package:reaprime/src/models/device/impl/de1/de1.utils.dart';
 import 'package:reaprime/src/models/device/impl/de1/mmr_address.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1_transport.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/device/transport/logical_endpoint.dart';
@@ -26,6 +27,7 @@ part 'unified_de1.parsing.dart';
 part 'unified_de1.profile.dart';
 part 'unified_de1.firmware.dart';
 part 'unified_de1.raw.dart';
+part 'integrated_scale_capability.dart';
 
 class UnifiedDe1 implements De1Interface {
   static final BleServiceIdentifier advertisingIdentifier =
@@ -196,6 +198,15 @@ class UnifiedDe1 implements De1Interface {
 
     await enableUserPresenceFeature();
   }
+
+  /// Lifecycle hook for capability mixins to release resources on
+  /// disconnect. Default: no-op. Subclasses (e.g. `Bengle`) override
+  /// to call their capability's dispose method.
+  ///
+  /// Not wired into [disconnect] yet — capabilities call this directly
+  /// or are driven by the connection layer. Mirrors [onConnect] as an
+  /// extension point.
+  Future<void> onDisconnect() async {} // default no-op
 
   final StreamController<De1RawMessage> _rawMessageController =
       StreamController.broadcast();
