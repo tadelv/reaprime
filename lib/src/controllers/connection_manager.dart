@@ -13,7 +13,9 @@ import 'package:reaprime/src/controllers/connection/status_publisher.dart';
 import 'package:reaprime/src/controllers/connection_error.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/impl/bengle/bengle_virtual_scale.dart';
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device_scanner.dart';
 import 'package:reaprime/src/models/device/scale.dart';
@@ -145,7 +147,7 @@ class ConnectionManager {
       scanner: deviceScanner,
       statusPublisher: _statusPublisher,
       connectMachineTracked: _connectMachineTracked,
-      connectScaleTracked: _connectScaleTracked,
+      connectScaleTracked: _connectScaleTrackedGated,
       isMachineConnected: () => _machineConnected,
       isScaleConnected: () => _scaleConnected,
     );
@@ -352,7 +354,12 @@ class ConnectionManager {
 
     if (scaleOnly) {
       _publishStatus(currentStatus.copyWith(foundScales: scales));
-      await _applyScalePolicy(scales, preferredScaleId, scanReport);
+      await _runScalePhase(
+        _disconnectSupervisor.latestMachine,
+        scales,
+        preferredScaleId,
+        scanReport,
+      );
       _emitScanReport(
         scanReport: scanReport,
         preferredMachineId: null,
@@ -370,7 +377,12 @@ class ConnectionManager {
     // early-connect), skip straight to scale phase.
     if (_machineConnected) {
       _log.fine('Machine connected, proceeding to scale phase');
-      await _applyScalePolicy(scales, preferredScaleId, scanReport);
+      await _runScalePhase(
+        _disconnectSupervisor.latestMachine,
+        scales,
+        preferredScaleId,
+        scanReport,
+      );
       _emitScanReport(
         scanReport: scanReport,
         preferredMachineId: preferredMachineId,
@@ -390,7 +402,7 @@ class ConnectionManager {
     switch (machineAction) {
       case ConnectMachineAction(machine: final m):
         await _connectMachineTracked(m, scanReport);
-        await _applyScalePolicy(scales, preferredScaleId, scanReport);
+        await _runScalePhase(m, scales, preferredScaleId, scanReport);
       case MachinePickerAction():
         _publishStatus(currentStatus.copyWith(
           phase: ConnectionPhase.idle,
@@ -413,6 +425,42 @@ class ConnectionManager {
     if (earlyStopEnabled && _machineConnected && _scaleConnected) {
       _log.fine('Both preferred devices connected, stopping scan early');
       deviceScanner.stopScan();
+    }
+  }
+
+  /// Gate the scale phase on machine type. When the connected machine
+  /// is a [BengleInterface], its integrated scale (exposed as a
+  /// [BengleVirtualScale]) takes the slot and external-scale discovery
+  /// is skipped entirely — even if `preferredScaleId` is set. Multi-scale
+  /// support is a roadmap follow-up; for now Bengle's integrated scale
+  /// always wins. For DE1 (and any non-Bengle machine), the existing
+  /// external-scale discovery flow runs unchanged.
+  Future<void> _runScalePhase(
+    De1Interface? machine,
+    List<Scale> scales,
+    String? preferredScaleId,
+    ScanReportBuilder scanReport,
+  ) async {
+    if (machine is BengleInterface) {
+      await _attachBengleVirtualScale(machine);
+      return;
+    }
+    await _applyScalePolicy(scales, preferredScaleId, scanReport);
+  }
+
+  /// Wrap the machine's integrated scale in a [BengleVirtualScale] and
+  /// attach it via [ScaleController]. Failures are logged but do not
+  /// propagate — the machine remains connected and usable.
+  Future<void> _attachBengleVirtualScale(BengleInterface machine) async {
+    if (_scaleConnected) {
+      _log.fine('Scale already connected, skipping Bengle virtual scale');
+      return;
+    }
+    final virtual = BengleVirtualScale(machine);
+    try {
+      await scaleController.connectToScale(virtual);
+    } catch (e, st) {
+      _log.warning('Failed to attach Bengle virtual scale', e, st);
     }
   }
 
@@ -577,6 +625,42 @@ class ConnectionManager {
         ConnectionResult.failed(e.toString()),
       );
     }
+  }
+
+  /// Wrap [_connectScaleTracked] with the Bengle gate. If a Bengle is
+  /// already the connected machine, OR a Bengle is among the
+  /// just-discovered devices that match the preferred machine id, skip
+  /// the external scale early-connect entirely — the integrated scale
+  /// will take the slot in the post-scan policy stage.
+  Future<void> _connectScaleTrackedGated(
+    Scale scale,
+    ScanReportBuilder scanReport,
+  ) async {
+    if (_isBengleAboutToBeMachine()) {
+      _log.fine(
+        'Skipping external scale early-connect — Bengle machine takes the slot',
+      );
+      return;
+    }
+    return _connectScaleTracked(scale, scanReport);
+  }
+
+  /// True if the connected machine is already a Bengle, or if the
+  /// preferred-machine id matches a `BengleInterface` device currently
+  /// visible to the scanner. Lets us short-circuit external-scale
+  /// connects before the Bengle's `connectToDe1` finishes.
+  bool _isBengleAboutToBeMachine() {
+    if (_disconnectSupervisor.latestMachine is BengleInterface) {
+      return true;
+    }
+    final preferredMachineId = settingsController.preferredMachineId;
+    if (preferredMachineId == null) return false;
+    for (final d in deviceScanner.devices) {
+      if (d is BengleInterface && d.deviceId == preferredMachineId) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// Connect a scale and record the attempt outcome on the scan
