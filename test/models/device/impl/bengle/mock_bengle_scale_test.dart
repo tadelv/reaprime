@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/impl/bengle/mock_bengle.dart';
 
 void main() {
@@ -49,11 +50,14 @@ void main() {
 
     test('disconnect closes the snapshot stream', () async {
       await bengle.onDisconnect();
-      // After close, listening should fail (stream done before any value).
-      await expectLater(
-        bengle.weightSnapshot.first.timeout(const Duration(milliseconds: 100)),
-        throwsA(anything),
-      );
+      // Subscribing post-close: BehaviorSubject replays its last buffered
+      // value (if any) then immediately delivers `done`. Either way the
+      // stream completes — `toList()` returns within the timeout. If the
+      // close didn't propagate, this would hang and time out.
+      final all = await bengle.weightSnapshot
+          .toList()
+          .timeout(const Duration(seconds: 1));
+      expect(all, isA<List<ScaleSnapshot>>());
     });
   });
 }
