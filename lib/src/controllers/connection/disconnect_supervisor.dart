@@ -65,6 +65,11 @@ class DisconnectSupervisor {
   /// this is a live view of the stream, not parallel state.
   bool get isMachineConnected => _latestDe1 != null;
 
+  /// The last non-null machine emitted on the machine stream, or `null`
+  /// if no machine is currently connected. Used by `ConnectionManager`
+  /// to special-case Bengle machines in the scale phase.
+  De1Interface? get latestMachine => _latestDe1;
+
   /// `true` if the scale stream has last emitted `connected`.
   bool get isScaleConnected =>
       _latestScaleState == device.ConnectionState.connected;
