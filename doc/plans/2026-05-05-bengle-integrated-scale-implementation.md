@@ -484,52 +484,76 @@ git commit -m "feat(bengle): BengleVirtualScale adapter routing through ScaleCon
 
 ---
 
-## Task 5 — `ConnectionManager` auto-connects virtual scale (no precedence yet)
+## Task 5 — `ConnectionManager` attaches virtual scale + skips external scale phase on Bengle
+
+> **Updated 2026-05-05** (user clarification): integrated scale always wins on Bengle. External scale scanning is skipped entirely while a Bengle is connected. Task 6 (external-scale precedence + reattach) is **dropped** — multi-scale support is on the roadmap (TODO P2) but out of scope here.
 
 **Files:**
-- Modify: `lib/src/controllers/connection_manager.dart` (post-machine-connect hook around line 449-499 and the scale-policy interactions around 422-445)
-- Create: `test/integration/connection_manager_bengle_scale_auto_connect_test.dart`
+- Modify: `lib/src/controllers/connection_manager.dart`
+- Create: `test/integration/connection_manager_bengle_scale_test.dart`
 
-**Step 1: Failing integration test**
+**Step 1: Failing integration tests**
 
 ```dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reaprime/src/controllers/connection_manager.dart';
-// + harness imports (mirror any existing ConnectionManager test under test/controllers/)
+// + harness imports (mirror existing ConnectionManager tests under test/controllers/)
 
 void main() {
   group('ConnectionManager + Bengle integrated scale', () {
-    test('auto-connects BengleVirtualScale after Bengle connect '
-         'when no external scale is preferred or available',
-        () async {
-      // Arrange: ConnectionManager with simulated Bengle preferred,
-      // no external scales discovered.
-      // Act: call connect()
-      // Assert: ScaleController.currentConnectionState == connected
+    test('auto-attaches BengleVirtualScale on Bengle machine connect', () async {
+      // Arrange: ConnectionManager with simulated Bengle preferred-machine,
+      // no external scales in the scan results.
+      // Act: connect().
+      // Assert: scaleController.currentConnectionState == connected.
       // Assert: scaleController.connectedScale().deviceId starts with
-      //         'bengle-internal-'
-      // (Fill in concrete harness; mirror existing ConnectionManager tests
-      //  e.g. test/controllers/connection_manager_*.dart)
+      //         'bengle-internal-'.
+    });
+
+    test('skips external scale phase when Bengle is the machine', () async {
+      // Arrange: Bengle preferred, AND a MockScale also discoverable
+      //          (and `preferredScaleId` set to its id).
+      // Act: connect().
+      // Assert: scaleController.connectedScale().deviceId starts with
+      //         'bengle-internal-'  (NOT the MockScale's id).
+      // Assert: the MockScale's onConnect was NOT called (i.e. the scale
+      //         scan/policy never ran). Use a counter or spy on the mock.
+    });
+
+    test('non-Bengle machine still runs external scale phase', () async {
+      // Arrange: MockDe1 + MockScale, preferredScaleId == MockScale id.
+      // Act: connect().
+      // Assert: scaleController.connectedScale().deviceId == MockScale id.
+      //         (Regression guard — Bengle wiring must not break the
+      //          existing DE1 + external scale path.)
     });
   });
 }
 ```
 
-(Implementer: pick the existing ConnectionManager test that's closest to a "machine-only connect" scenario and clone its harness.)
+(Implementer: pick the existing ConnectionManager test closest to a "machine + scale connect" scenario and clone its harness — likely something under `test/controllers/connection_manager_*.dart`.)
 
-**Step 2: Run tests** — fails.
+**Step 2: Run** — fails.
 
 **Step 3: Implement**
 
-In `connection_manager.dart`, after `connectMachine` succeeds (around line 449-499 — find the spot just *after* the existing connect logic returns), add:
+In `connection_manager.dart`'s `connect()` flow, after the machine resolves successfully:
 
 ```dart
-Future<void> _maybeAttachBengleVirtualScale(De1Interface machine) async {
-  if (machine is! BengleInterface) return;
-  if (_scaleController.currentConnectionState == ConnectionState.connected) {
-    // External scale already connected — leave it. Precedence work in Task 6.
-    return;
-  }
+// After `await _connectMachineTracked(m, scanReport);` succeeds —
+// or wherever the machine-success branch is in your local layout:
+if (m is BengleInterface) {
+  // Bengle wins: integrated scale takes the slot. Skip external scale
+  // scanning entirely until multi-scale support lands (TODO P2).
+  await _attachBengleVirtualScale(m);
+} else {
+  await _applyScalePolicy(scales, preferredScaleId, scanReport);
+}
+```
+
+Helper:
+
+```dart
+Future<void> _attachBengleVirtualScale(BengleInterface machine) async {
   final virtual = BengleVirtualScale(machine);
   try {
     await _scaleController.connectToScale(virtual);
@@ -539,79 +563,46 @@ Future<void> _maybeAttachBengleVirtualScale(De1Interface machine) async {
 }
 ```
 
-Wire the call from the right spot inside `connectMachine` after the success path. The exact insertion line will depend on local structure — find where `_de1Controller.attach(machine)` (or similar) is called, and call `_maybeAttachBengleVirtualScale(machine)` immediately after.
-
-Add the necessary imports at the top of the file:
+Add imports at top of file:
 
 ```dart
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle_virtual_scale.dart';
 ```
 
-**Step 4: Run tests + analyze.**
+Find every call site of `_applyScalePolicy` in `connect()` (there are likely 2–3 — early-out paths, partial-failure paths) and gate each one behind the same Bengle check. If multiple gates are needed, factor:
+
+```dart
+Future<void> _runScalePhase(
+  De1Interface? machine,
+  List<Scale> scales,
+  String? preferredScaleId,
+  ScanReport scanReport,
+) async {
+  if (machine is BengleInterface) {
+    await _attachBengleVirtualScale(machine);
+    return;
+  }
+  await _applyScalePolicy(scales, preferredScaleId, scanReport);
+}
+```
+
+…and call `_runScalePhase(m, scales, preferredScaleId, scanReport)` everywhere `_applyScalePolicy` is currently called inside `connect()`.
+
+**Step 4: Run tests + analyze** — green.
 
 **Step 5: Commit**
 
 ```bash
-git add lib/src/controllers/connection_manager.dart test/integration/connection_manager_bengle_scale_auto_connect_test.dart
-git commit -m "feat(bengle): auto-connect virtual scale on machine connect"
+git add lib/src/controllers/connection_manager.dart test/integration/connection_manager_bengle_scale_test.dart
+git commit -m "feat(bengle): attach virtual scale on machine connect; skip external scale phase"
 ```
 
 ---
 
-## Task 6 — External scale takes precedence
+## Task 6 — DROPPED
 
-**Files:**
-- Modify: `lib/src/controllers/connection_manager.dart`
-- Create: `test/integration/connection_manager_bengle_scale_precedence_test.dart`
-
-**Step 1: Failing test (two cases in one file)**
-
-```dart
-test('external scale connecting after Bengle swaps the virtual out', () async {
-  // Arrange: machine connected as Bengle, virtual scale attached.
-  // Act: discover + connect an external MockScale.
-  // Assert: scaleController.connectedScale().deviceId == external scale id.
-});
-
-test('external scale disconnecting reattaches the virtual scale', () async {
-  // Arrange: Bengle + external scale, external is the active scale.
-  // Act: disconnect external scale (machine still connected).
-  // Assert: scaleController.connectedScale().deviceId starts with
-  //         'bengle-internal-'.
-});
-```
-
-**Step 2: Run** — fails.
-
-**Step 3: Implement**
-
-`ScaleController.connectToScale` already swaps the active scale on next call (it calls `_onDisconnect` first). Case 1 falls out for free *if* the existing scale-policy path runs `connectToScale(external)` after `_maybeAttachBengleVirtualScale` has run. Verify the order in `_applyScalePolicy` — if it swaps out the virtual cleanly, no change needed.
-
-Case 2 — the reattach-on-external-disconnect — needs a listener. Add to `ConnectionManager` initialisation:
-
-```dart
-_scaleConnectionListener = _scaleController.connectionState.listen((s) async {
-  if (s != ConnectionState.disconnected) return;
-  final machine = _de1Controller.connectedMachineOrNull;
-  if (machine is BengleInterface) {
-    await _maybeAttachBengleVirtualScale(machine);
-  }
-});
-```
-
-Cancel in `dispose`.
-
-(If `connectedMachineOrNull` doesn't exist, add a small accessor on `De1Controller` mirroring the existing `connectedDe1OrNull` pattern.)
-
-**Step 4: Run tests** — both green.
-
-**Step 5: Commit**
-
-```bash
-git add lib/src/controllers/connection_manager.dart test/integration/connection_manager_bengle_scale_precedence_test.dart
-git commit -m "feat(bengle): external scale takes precedence over virtual"
-```
+External-scale precedence + reattach-on-disconnect logic is dropped per user clarification (2026-05-05): "the integrated scale always takes precedence, we do not scan for other scales (currently)". Behavior absorbed into Task 5 (skip external scale phase when machine is Bengle). Multi-scale support is on the roadmap (TODO P2).
 
 ---
 
