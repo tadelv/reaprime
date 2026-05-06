@@ -1,4 +1,5 @@
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/led_strip.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 
 /// Marker interface for Bengle-specific machine API. Currently empty —
@@ -30,4 +31,13 @@ abstract class BengleInterface extends De1Interface {
   /// Tare the integrated scale. Subsequent snapshots have weight relative
   /// to this zero.
   Future<void> tareIntegratedScale();
+
+  /// Current LED strip state stream.
+  Stream<LedStripState> get ledStripState;
+
+  /// One-shot read of the current LED strip state.
+  Future<LedStripState> getLedStripState();
+
+  /// Set the front/back LED strip colour. All channels 0–255.
+  Future<void> setLedStrip(LedStripState state);
 }
