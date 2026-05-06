@@ -264,6 +264,42 @@ paths:
           description: Temperature missing or out of range 0.0–80.0
         "404":
           description: Machine connected but does not support cup warmer
+  /api/v1/machine/ledStrip:
+    get:
+      summary: Get LED strip state
+      description: |
+        Read the current front/back RGB values of the Bengle LED strip.
+        Returns 404 when the connected machine is not a Bengle.
+      tags: [Machine]
+      responses:
+        "200":
+          description: Current LED strip state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LedStripState"
+        "404":
+          description: Machine connected but does not support LED strip
+    post:
+      summary: Set LED strip colour
+      description: |
+        Set the front and back LED strip colour via hex RGB strings
+        (e.g. `'FF8000'`). No `#` prefix. Returns 404 when the
+        connected machine is not a Bengle.
+      tags: [Machine]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LedStripState"
+      responses:
+        "202":
+          description: Colour accepted
+        "400":
+          description: Invalid request body
+        "404":
+          description: Machine connected but does not support LED strip
   /api/v1/machine/settings:
     get:
       summary: Get machine settings
@@ -3503,8 +3539,8 @@ components:
             they ship.
           items:
             type: string
-            enum: [cupWarmer, integratedScale]
-          example: [cupWarmer, integratedScale]
+            enum: [cupWarmer, integratedScale, ledStrip]
+          example: [cupWarmer, integratedScale, ledStrip]
 
     CupWarmerState:
       type: object
@@ -3519,6 +3555,26 @@ components:
             Cup-warmer mat target temperature in °C. `0.0` turns the
             mat off — there is no separate enable flag.
           example: 60.0
+
+    LedStripState:
+      type: object
+      properties:
+        front:
+          type: string
+          pattern: '^[0-9A-Fa-f]{6}$'
+          description: |
+            Front LED bank colour as hex RGB string (e.g. `FF8000`).
+            No `#` prefix. 6 hex digits, case-insensitive.
+            Missing/non-hex → treated as `000000`.
+          example: FF8000
+        back:
+          type: string
+          pattern: '^[0-9A-Fa-f]{6}$'
+          description: |
+            Back LED bank colour as hex RGB string (e.g. `0A141E`).
+            No `#` prefix. 6 hex digits, case-insensitive.
+            Missing/non-hex → treated as `000000`.
+          example: 0A141E
 
     ScaleSnapshot:
       type: object
