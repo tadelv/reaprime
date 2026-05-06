@@ -2,10 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle_mmr.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
+import 'package:reaprime/src/models/device/led_strip.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 
 class Bengle extends UnifiedDe1
-    with IntegratedScaleCapability
+    with IntegratedScaleCapability, LedStripCapability
     implements BengleInterface {
   Bengle({required super.transport});
 
@@ -45,11 +46,25 @@ class Bengle extends UnifiedDe1
   Future<void> onConnect() async {
     await super.onConnect();
     await initIntegratedScale();
+    await initLedStrip();
   }
 
   @override
   Future<void> onDisconnect() async {
+    await disposeLedStrip();
     await disposeIntegratedScale();
     await super.onDisconnect();
   }
+
+  // --- LED strip ---
+
+  @override
+  Stream<LedStripState> get ledStripState => super.ledStripState;
+
+  @override
+  Future<LedStripState> getLedStripState() => super.getLedStripState();
+
+  @override
+  Future<void> setLedStrip(LedStripState state) =>
+      super.setLedStrip(state);
 }

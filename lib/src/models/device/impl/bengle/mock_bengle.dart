@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
+import 'package:reaprime/src/models/device/led_strip.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:rxdart/rxdart.dart';
@@ -30,6 +31,21 @@ class MockBengle extends MockDe1 implements BengleInterface {
 
   @override
   Future<double> getCupWarmerTemperature() async => _cupWarmerTemp;
+
+  // --- LED strip ---
+  final BehaviorSubject<LedStripState> _ledState =
+      BehaviorSubject<LedStripState>.seeded(const LedStripState());
+
+  @override
+  Stream<LedStripState> get ledStripState => _ledState.stream;
+
+  @override
+  Future<LedStripState> getLedStripState() async => _ledState.value;
+
+  @override
+  Future<void> setLedStrip(LedStripState state) async {
+    _ledState.add(state);
+  }
 
   // --- integrated scale ---
   // Synthesises weight by integrating MockDe1's simulated flow stream:
@@ -65,6 +81,9 @@ class MockBengle extends MockDe1 implements BengleInterface {
 
   @override
   Future<void> onConnect() async {
+    if (_ledState.isClosed) {
+      _ledState.add(const LedStripState());
+    }
     await super.onConnect();
     _accumulatedWeight = 0.0;
     _tareOffset = 0.0;
@@ -88,6 +107,9 @@ class MockBengle extends MockDe1 implements BengleInterface {
   Future<void> onDisconnect() async {
     await _flowSub?.cancel();
     _flowSub = null;
+    if (!_ledState.isClosed) {
+      await _ledState.close();
+    }
     if (!_weight.isClosed) {
       await _weight.close();
     }
