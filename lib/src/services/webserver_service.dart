@@ -53,6 +53,7 @@ import 'dart:convert';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
+import 'package:reaprime/src/models/device/led_strip.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:shelf/shelf_io.dart' as io;
 import 'package:shelf_web_socket/shelf_web_socket.dart' as sws;

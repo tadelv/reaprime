@@ -33,6 +33,7 @@ class De1Handler {
         final caps = <String>[];
         if (de1 is BengleInterface) caps.add('cupWarmer');
         if (de1 is BengleInterface) caps.add('integratedScale');
+        if (de1 is BengleInterface) caps.add('ledStrip');
         return jsonOk({'capabilities': caps});
       });
     });
@@ -77,6 +78,31 @@ class De1Handler {
       sws.webSocketHandler(_handleWaterLevels),
     );
     app.get('/ws/v1/machine/raw', sws.webSocketHandler(_handleRawSocket));
+
+    app.get('/api/v1/machine/ledStrip', (Request _) async {
+      return withDe1((de1) async {
+        if (de1 is! BengleInterface) {
+          return jsonNotFound({'error': 'ledStrip not supported'});
+        }
+        final state = await de1.getLedStripState();
+        return jsonOk(state.toJson());
+      });
+    });
+
+    app.post('/api/v1/machine/ledStrip', (Request r) async {
+      return withDe1((de1) async {
+        if (de1 is! BengleInterface) {
+          return jsonNotFound({'error': 'ledStrip not supported'});
+        }
+        final json = jsonDecode(await r.readAsString());
+        if (json is! Map) {
+          return jsonBadRequest({'error': 'invalid JSON body'});
+        }
+        final state = LedStripState.fromJson(json as Map<String, dynamic>);
+        await de1.setLedStrip(state);
+        return jsonAccepted();
+      });
+    });
 
     app.post('/api/v1/machine/waterLevels', (Request r) async {
       return withDe1((de1) async {
