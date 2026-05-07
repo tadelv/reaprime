@@ -49,6 +49,9 @@ class MockDe1 implements De1Interface {
   double _profileStepElapsedTime = 0.0; // in milliseconds
   double _profileTargetTemperature = 94.0; // Default if no profile
   int _targetVolumeCountStart = 0;
+  // Smooth transition interpolation: targets at step entry.
+  double _fromFlowTarget = 0;
+  double _fromPressureTarget = 0;
 
   @override
   Stream<MachineSnapshot> get currentSnapshot => _snapshotStream.stream;
@@ -81,6 +84,8 @@ class MockDe1 implements De1Interface {
       _profileStepElapsedTime = 0.0;
       _espressoTickCount = 0;
       _pouringDoneTicks = 0;
+      _fromFlowTarget = 0;
+      _fromPressureTarget = 0;
     } else if (_currentState == MachineState.skipStep &&
         _simulationType == _SimulationType.espresso &&
         _currentProfile != null) {
@@ -88,6 +93,8 @@ class MockDe1 implements De1Interface {
       // ShotController owns the skip decision (weight-based); the mock
       // just advances the step index and continues simulating.
       if (_currentProfileStepIndex < _currentProfile!.steps.length - 1) {
+        // Capture current step targets for smooth transition.
+        _captureFromTargets(_currentProfile!.steps[_currentProfileStepIndex]);
         _currentProfileStepIndex++;
         _profileStepElapsedTime = 0.0;
         _espressoTickCount = 0; // reset preparingForShot for new step
@@ -235,6 +242,8 @@ class MockDe1 implements De1Interface {
     final stepDurationMs = currentStep.seconds * 1000;
     if (_profileStepElapsedTime >= stepDurationMs && _pouringDoneTicks == 0) {
       if (_currentProfileStepIndex < _currentProfile!.steps.length - 1) {
+        // Capture current step targets as "from" for smooth transition interpolation.
+        _captureFromTargets(currentStep);
         // Move to next step
         _currentProfileStepIndex++;
         _profileStepElapsedTime = 0.0;
@@ -287,17 +296,30 @@ class MockDe1 implements De1Interface {
       stepTargetPressure = currentStep.pressure;
       stepTargetFlow = 0; // unconstrained in this step
       targetPressure = currentStep.pressure;
-      targetFlow = double.infinity; // internal: pump gives what it can
+      targetFlow = 8.0; // internal: pump max ~8 mL/s
     } else if (currentStep is ProfileStepFlow) {
       stepTargetFlow = currentStep.flow;
       stepTargetPressure = 0; // unconstrained in this step
       targetFlow = currentStep.flow;
-      targetPressure = double.infinity; // internal: resistance sets pressure
+      targetPressure = 0; // internal: unconstrained, coupling sets pressure
     } else {
       stepTargetFlow = 4.0;
       stepTargetPressure = 0.0;
       targetFlow = 4.0;
       targetPressure = 0.0;
+    }
+
+    // Apply transition shaping: smooth interpolates target over step duration;
+    // fast uses step target immediately.
+    if (currentStep.transition == TransitionType.smooth) {
+      targetFlow = _fromFlowTarget +
+          (targetFlow - _fromFlowTarget) * stepProgress;
+      targetPressure = _fromPressureTarget +
+          (targetPressure - _fromPressureTarget) * stepProgress;
+      stepTargetFlow = _fromFlowTarget +
+          (stepTargetFlow - _fromFlowTarget) * stepProgress;
+      stepTargetPressure = _fromPressureTarget +
+          (stepTargetPressure - _fromPressureTarget) * stepProgress;
     }
 
     // Flow responds quickly (pump-driven).
@@ -389,6 +411,17 @@ class MockDe1 implements De1Interface {
       profileFrame: 0,
       steamTemperature: min(_lastSnapshot.steamTemperature + 1, 150),
     );
+  }
+
+  /// Snapshot the current step's targets so smooth transitions can interpolate from them.
+  void _captureFromTargets(ProfileStep step) {
+    if (step is ProfileStepPressure) {
+      _fromPressureTarget = step.pressure;
+      _fromFlowTarget = 0;
+    } else if (step is ProfileStepFlow) {
+      _fromFlowTarget = step.flow;
+      _fromPressureTarget = 0;
+    }
   }
 
   double _calculateTemperature({
