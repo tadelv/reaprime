@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
 import 'package:reaprime/src/models/device/led_strip.dart';
@@ -20,6 +21,12 @@ class MockBengle extends MockDe1 implements BengleInterface {
 
   @override
   String get name => 'MockBengle';
+
+  @override
+  Future<void> setProfile(Profile profile) async {
+    _tvs = profile.targetVolumeCountStart;
+    await super.setProfile(profile);
+  }
 
   // --- cup warmer ---
   double _cupWarmerTemp = 0.0;
@@ -64,12 +71,14 @@ class MockBengle extends MockDe1 implements BengleInterface {
 
   // --- integrated scale ---
   // Synthesises weight by integrating MockDe1's simulated flow stream:
-  // weight = ∫ flow dt. Tare snapshots `_accumulatedWeight` into
-  // `_tareOffset` so subsequent emits read ~0.
+  // weight = ∫ flow × extractionEfficiency dt, but only after
+  // profileFrame >= targetVolumeCountStart (preinfusion water is absorbed).
   // BehaviorSubject so a late subscriber (e.g. WS client connecting
   // mid-shot) immediately gets the current weight without waiting for
   // the next flow sample. Closed on onDisconnect; existing subscribers
   // receive `done`.
+  static const double _extractionEfficiency = 0.80;
+  int _tvs = 0; // cached targetVolumeCountStart
   final BehaviorSubject<ScaleSnapshot> _weight = BehaviorSubject();
   StreamSubscription<MachineSnapshot>? _flowSub;
   double _accumulatedWeight = 0.0;
@@ -114,7 +123,10 @@ class MockBengle extends MockDe1 implements BengleInterface {
     if (last == null) return;
     final dtSec = now.difference(last).inMilliseconds / 1000.0;
     if (dtSec <= 0) return;
-    _accumulatedWeight += s.flow * dtSec;
+    // Only accumulate weight after preinfusion frames (extraction phase).
+    if (s.profileFrame >= _tvs) {
+      _accumulatedWeight += s.flow * dtSec * _extractionEfficiency;
+    }
     _emit();
   }
 
