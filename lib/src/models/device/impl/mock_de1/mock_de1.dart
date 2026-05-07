@@ -268,40 +268,59 @@ class MockDe1 implements De1Interface {
       rate: heatingRate,
     );
 
-    // Calculate pressure/flow based on step type
-    double newPressure = _lastSnapshot.pressure;
-    double newFlow = _lastSnapshot.flow;
-    double targetPressure = 0;
-    double targetFlow = 0;
+    // --- Flow → Pressure coupling model ---
+    // Constants (tuned for visual believability from shot history):
+    const baseResistance = 2.5; // bar/(mL/s) — pressure per unit flow
+    const resistanceGrowth = 0.3; // 30% increase over step (puck compression)
+    const flowResponseRate = 0.7; // per-tick convergence toward flow target
+    const pressureDamping = 0.3; // per-tick convergence toward pressure eq
 
+    // Resistance grows over step duration (puck compression).
+    final resistance = baseResistance * (1.0 + resistanceGrowth * stepProgress);
+
+    // Determine flow/pressure targets from step type.
+    double targetFlow;
+    double targetPressure;
+    double stepTargetFlow; // what the profile step prescribes (for snapshot)
+    double stepTargetPressure; // what the profile step prescribes (for snapshot)
     if (currentStep is ProfileStepPressure) {
+      stepTargetPressure = currentStep.pressure;
+      stepTargetFlow = 0; // unconstrained in this step
       targetPressure = currentStep.pressure;
-      // Ramp up pressure faster at start of step, slower toward end
-      final pressureRate = 0.04 * (1.0 - stepProgress * 0.3);
-      newPressure = _calculateValueTowardTarget(
-        current: _lastSnapshot.pressure,
-        target: targetPressure,
-        rate: pressureRate,
-        maxValue: 9.0,
-      );
-      // Flow decreases as pressure builds
-      targetFlow = 0;
-      final flowDecayRate = 0.02 * (1.0 + stepProgress);
-      newFlow = max(_lastSnapshot.flow - flowDecayRate, 0);
+      targetFlow = double.infinity; // internal: pump gives what it can
     } else if (currentStep is ProfileStepFlow) {
+      stepTargetFlow = currentStep.flow;
+      stepTargetPressure = 0; // unconstrained in this step
       targetFlow = currentStep.flow;
-      // Ramp up flow faster at start of step
-      final flowRate = 0.05 * (1.0 - stepProgress * 0.3);
-      newFlow = _calculateValueTowardTarget(
-        current: _lastSnapshot.flow,
-        target: targetFlow,
-        rate: flowRate,
-        maxValue: 4.0,
-      );
-      // Pressure builds naturally with flow
-      targetPressure = 0;
-      final pressureBuildRate = 0.01 * newFlow;
-      newPressure = min(_lastSnapshot.pressure + pressureBuildRate, 9.0);
+      targetPressure = double.infinity; // internal: resistance sets pressure
+    } else {
+      stepTargetFlow = 4.0;
+      stepTargetPressure = 0.0;
+      targetFlow = 4.0;
+      targetPressure = 0.0;
+    }
+
+    // Flow responds quickly (pump-driven).
+    double newFlow = _lastSnapshot.flow +
+        (targetFlow - _lastSnapshot.flow) * flowResponseRate;
+
+    // Pressure lags behind flow (puck-mediated).
+    final unboundedPressure = newFlow * resistance;
+    double newPressure = _lastSnapshot.pressure +
+        (unboundedPressure - _lastSnapshot.pressure) * pressureDamping;
+
+    // Pressure-step: clamp flow when pressure hits the step's ceiling.
+    if (currentStep is ProfileStepPressure) {
+      if (newPressure >= targetPressure) {
+        newPressure = targetPressure;
+        // Flow rate that maintains target pressure against puck resistance.
+        newFlow = targetPressure / resistance;
+      }
+    }
+
+    // Flow-step: clamp flow to target (can't exceed what pump delivers).
+    if (currentStep is ProfileStepFlow && newFlow > targetFlow) {
+      newFlow = targetFlow;
     }
 
     _espressoTickCount++;
@@ -331,8 +350,8 @@ class MockDe1 implements De1Interface {
       state: MachineStateSnapshot(state: _currentState, substate: substate),
       flow: newFlow,
       pressure: newPressure,
-      targetFlow: targetFlow,
-      targetPressure: targetPressure,
+      targetFlow: stepTargetFlow,
+      targetPressure: stepTargetPressure,
       mixTemperature: newMixTemp,
       groupTemperature: newGroupTemp,
       targetMixTemperature: targetTemp,
