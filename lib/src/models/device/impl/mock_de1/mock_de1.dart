@@ -340,9 +340,16 @@ class MockDe1 implements De1Interface {
       }
     }
 
-    // Flow-step: clamp flow to target (can't exceed what pump delivers).
+    // Clamp flow-step: don't exceed target (pump can't deliver more).
     if (currentStep is ProfileStepFlow && newFlow > targetFlow) {
       newFlow = targetFlow;
+    }
+
+    // Physical pressure ceiling (real DE1 max ~10.5 bar, cap at 12).
+    const physicalMaxPressure = 12.0;
+    if (newPressure > physicalMaxPressure) {
+      newPressure = physicalMaxPressure;
+      newFlow = physicalMaxPressure / resistance;
     }
 
     _espressoTickCount++;
