@@ -27,7 +27,7 @@ extension UnifiedDe1Raw on UnifiedDe1 {
             );
           case De1RawOperationType.write:
             var payload = _hexToBytes(data.payload);
-            await _transport.write(endpoint, payload);
+            await _transport.writeWithResponse(endpoint, payload);
             _rawMessageController.add(
               packToRaw(
                 data.operation,
@@ -38,7 +38,7 @@ extension UnifiedDe1Raw on UnifiedDe1 {
           case De1RawOperationType.notify:
         }
       } catch (e, st) {
-        _log.severe("Failed to process raw: ", e, st);
+        _log.severe("Failed to process raw: $e", e, st);
       }
     });
   }
