@@ -194,9 +194,10 @@ class De1StateManager with WidgetsBindingObserver {
   void _handleSnapshot(MachineSnapshot snapshot) {
     final gatewayMode = _settingsController.gatewayMode;
     final currentState = snapshot.state.state;
+    final currentSubstate = snapshot.state.substate;
 
-    _logger.finest(
-      'Handling state: $currentState in mode: ${gatewayMode.name} (app foreground: $_appIsInForeground, platform: ${Platform.operatingSystem})',
+    _logger.fine(
+      'Handling state: $currentState, substate: $currentSubstate in mode: ${gatewayMode.name} (app foreground: $_appIsInForeground, platform: ${Platform.operatingSystem})',
     );
 
     // Handle scale power management based on state transitions
