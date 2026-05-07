@@ -6,6 +6,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 import 'package:reaprime/src/services/ble/linux_blue_plus_transport.dart';
 import 'package:reaprime/src/services/device_matcher.dart';
@@ -281,7 +282,8 @@ class LinuxBleDiscoveryService extends BleDiscoveryService {
   }
 
   @override
-  Future<void> scanForDevices() async {
+  @override
+  Future<void> scanForDevices({ScanFilter? filter}) async {
     if (_isScanning) {
       _log.warning('Scan already in progress, ignoring request');
       return;

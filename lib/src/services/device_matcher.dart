@@ -16,6 +16,33 @@ import 'package:reaprime/src/models/device/impl/varia/varia_aku_scale.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 
 class DeviceMatcher {
+  /// Service UUIDs advertised by devices of a given [type].
+  /// Used for filtered BLE scans to bypass Android background throttling.
+  ///
+  /// Returns 128-bit UUID strings. [BluePlusDiscoveryService] converts
+  /// them to platform-specific [Guid] objects at the BLE edge.
+  static List<String> serviceUuidsFor(DeviceType type) => switch (type) {
+    DeviceType.scale => [
+      DecentScale.serviceIdentifier.long,
+      Skale2Scale.serviceIdentifier.long,
+      FelicitaArc.serviceIdentifier.long,
+      BlackCoffeeScale.serviceIdentifier.long,
+      BookooScale.serviceIdentifier.long,
+      EurekaScale.serviceIdentifier.long,
+      SmartChefScale.serviceIdentifier.long,
+      VariaAkuScale.serviceIdentifier.long,
+      DifluidScale.serviceIdentifier.long,
+      HiroiaScale.serviceIdentifier.long,
+      AtomheartScale.serviceIdentifier.long,
+      ...AcaiaScale.advertisedServiceUuids,
+    ],
+    DeviceType.machine => [
+      UnifiedDe1.advertisingIdentifier.long,
+      // Bengle extends UnifiedDe1, inherits advertisingIdentifier.
+    ],
+    DeviceType.sensor => [], // No BLE sensors yet
+  };
+
   static Future<Device?> match({
     required BLETransport transport,
     required String advertisedName,

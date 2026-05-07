@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/scan_result.dart';
 import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
@@ -20,7 +21,7 @@ class _FailingDiscoveryService implements DeviceDiscoveryService {
   Future<void> initialize() async {}
 
   @override
-  Future<void> scanForDevices() async {
+  Future<void> scanForDevices({ScanFilter? filter}) async {
     throw error;
   }
 
@@ -44,7 +45,7 @@ class _QuietDiscoveryService implements DeviceDiscoveryService {
   }
 
   @override
-  Future<void> scanForDevices() async {
+  Future<void> scanForDevices({ScanFilter? filter}) async {
     // Re-emit on scan so the DeviceController populates its aggregated view.
     _controller.add([device]);
   }
@@ -64,7 +65,7 @@ class _ManualDiscoveryService implements DeviceDiscoveryService {
   Future<void> initialize() async {}
 
   @override
-  Future<void> scanForDevices() async {}
+  Future<void> scanForDevices({ScanFilter? filter}) async {}
 
   @override
   void stopScan() {}

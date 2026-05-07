@@ -1,5 +1,6 @@
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/scan_result.dart';
 
 export 'package:reaprime/src/models/device/scan_result.dart';
@@ -21,7 +22,7 @@ abstract class DeviceScanner {
   /// Per-service failures are reported via [ScanResult.failedServices];
   /// the Future rejects only on catastrophic, scan-wide errors (the
   /// scan could not even be attempted).
-  Future<ScanResult> scanForDevices();
+  Future<ScanResult> scanForDevices({ScanFilter? filter});
 
   void stopScan();
 

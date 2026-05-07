@@ -5,6 +5,7 @@ import 'package:reaprime/src/controllers/connection/connection_timings.dart';
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/device_scanner.dart';
+import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 import 'package:rxdart/rxdart.dart';
@@ -139,13 +140,14 @@ class DeviceController implements DeviceScanner {
   Future<ScanResult>? _inFlightScan;
 
   @override
-  Future<ScanResult> scanForDevices() {
-    return _inFlightScan ??= _runScan().whenComplete(() {
+  @override
+  Future<ScanResult> scanForDevices({ScanFilter? filter}) {
+    return _inFlightScan ??= _runScan(filter).whenComplete(() {
       _inFlightScan = null;
     });
   }
 
-  Future<ScanResult> _runScan() async {
+  Future<ScanResult> _runScan(ScanFilter? filter) async {
     _scanningStream.add(true);
     final start = DateTime.now();
     try {
@@ -195,7 +197,7 @@ class DeviceController implements DeviceScanner {
         _services.map((service) async {
           try {
             _log.fine("starting scan for $service");
-            await service.scanForDevices();
+            await service.scanForDevices(filter: filter);
           } catch (e, st) {
             _log.warning("Service $service failed to scan:", e, st);
             failures.add(

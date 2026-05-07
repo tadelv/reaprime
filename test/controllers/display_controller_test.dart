@@ -11,6 +11,7 @@ import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
@@ -29,7 +30,7 @@ class _FakeDiscoveryService implements DeviceDiscoveryService {
   @override
   Future<void> initialize() async {}
   @override
-  Future<void> scanForDevices() async {}
+  Future<void> scanForDevices({ScanFilter? filter}) async {}
   @override
   void stopScan() {}
 }

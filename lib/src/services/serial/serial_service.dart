@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/services/serial/serial_service_android.dart';
 import 'package:reaprime/src/services/serial/serial_service_desktop.dart';
 import 'package:rxdart/subjects.dart';
@@ -38,7 +39,8 @@ class NoOpSerialService implements DeviceDiscoveryService {
   Future<void> initialize() async {}
 
   @override
-  Future<void> scanForDevices() async {}
+  @override
+  Future<void> scanForDevices({ScanFilter? filter}) async {}
 
   @override
   void stopScan() {}

@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale_serial.dart';
@@ -92,7 +93,8 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
   void stopScan() {} // Serial enumeration is instant, nothing to stop.
 
   @override
-  Future<void> scanForDevices() async {
+  @override
+  Future<void> scanForDevices({ScanFilter? filter}) async {
     // If already scanning, wait for that scan to complete
     if (_isScanning) {
       _log.info("Scan already in progress, waiting for completion");

@@ -11,6 +11,7 @@ import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
@@ -33,7 +34,7 @@ class _FakeDiscoveryService extends DeviceDiscoveryService {
   Future<void> initialize() async {}
 
   @override
-  Future<void> scanForDevices() async {}
+  Future<void> scanForDevices({ScanFilter? filter}) async {}
 }
 
 /// De1Controller subclass whose `connectedDe1()` returns our TestDe1.
