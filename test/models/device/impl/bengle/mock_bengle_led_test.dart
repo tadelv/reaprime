@@ -7,24 +7,23 @@ void main() {
     test('initial state is all-off', () async {
       final bengle = MockBengle();
       final state = await bengle.getLedStripState();
-      expect(state.frontRed, 0);
-      expect(state.frontGreen, 0);
-      expect(state.frontBlue, 0);
-      expect(state.backRed, 0);
-      expect(state.backGreen, 0);
-      expect(state.backBlue, 0);
+      expect(state.frontStrip.sleeping, Color16.off);
+      expect(state.frontStrip.awake, Color16.off);
+      expect(state.backStrip.sleeping, Color16.off);
+      expect(state.backStrip.awake, Color16.off);
+      expect(state.frontSwitch.sleeping, Color16.off);
+      expect(state.frontSwitch.awake, Color16.off);
     });
 
     test('setLedStrip stores and getLedStripState returns the same state',
         () async {
       final bengle = MockBengle();
       final state = LedStripState(
-        frontRed: 255,
-        frontGreen: 128,
-        frontBlue: 0,
-        backRed: 10,
-        backGreen: 20,
-        backBlue: 30,
+        frontStrip: ZoneLedState(
+            sleeping: const Color16(65535, 32768, 0),
+            awake: const Color16(0, 65535, 32768)),
+        backStrip: ZoneLedState(
+            sleeping: const Color16(10, 20, 30), awake: Color16.off),
       );
       await bengle.setLedStrip(state);
       final read = await bengle.getLedStripState();
@@ -40,15 +39,52 @@ void main() {
       // Seeded initial value delivered on first microtask.
       await Future(() {}); // let seed propagate
       expect(emitted, hasLength(1));
-      expect(emitted[0].frontRed, 0);
+      expect(emitted[0].frontStrip.sleeping, Color16.off);
 
       await bengle.setLedStrip(const LedStripState(
-        frontRed: 128,
-        backGreen: 255,
+        frontStrip: ZoneLedState(
+            sleeping: Color16(128, 0, 0), awake: Color16.off),
+        backStrip: ZoneLedState(
+            sleeping: Color16.off, awake: Color16(0, 255, 0)),
       ));
       expect(emitted, hasLength(2));
-      expect(emitted[1].frontRed, 128);
-      expect(emitted[1].backGreen, 255);
+      expect(emitted[1].frontStrip.sleeping, const Color16(128, 0, 0));
+      expect(emitted[1].backStrip.awake, const Color16(0, 255, 0));
+    });
+
+    test('commitLedStrip snapshots cache, resetLedStrip restores it', () async {
+      final bengle = MockBengle();
+      expect(await bengle.getLedStripState(),
+          const LedStripState()); // all-off
+
+      // Write something and commit.
+      final state1 = LedStripState(
+        frontStrip: ZoneLedState(
+            sleeping: const Color16(65535, 0, 0), awake: Color16.off),
+      );
+      await bengle.setLedStrip(state1);
+      await bengle.commitLedStrip();
+
+      // Overwrite with something else.
+      await bengle.setLedStrip(const LedStripState());
+
+      // Reset — should be back to state1.
+      await bengle.resetLedStrip();
+      final after = await bengle.getLedStripState();
+      expect(after, state1);
+    });
+
+    test('resetLedStrip without commit is a no-op (restores all-off)', () async {
+      final bengle = MockBengle();
+      // Write without commit.
+      await bengle.setLedStrip(LedStripState(
+        frontStrip: ZoneLedState(
+            sleeping: const Color16(65535, 0, 0), awake: Color16.off),
+      ));
+      // Reset restores the empty committed state.
+      await bengle.resetLedStrip();
+      final after = await bengle.getLedStripState();
+      expect(after, const LedStripState());
     });
   });
 }

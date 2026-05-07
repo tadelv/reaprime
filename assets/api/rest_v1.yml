@@ -242,7 +242,7 @@ paths:
                 $ref: "#/components/schemas/CupWarmerState"
         "404":
           description: Machine connected but does not support cup warmer
-    post:
+    put:
       summary: Set cup-warmer setpoint
       description: |
         Set the cup-warmer mat target temperature in °C. Range
@@ -258,7 +258,7 @@ paths:
             schema:
               $ref: "#/components/schemas/CupWarmerState"
       responses:
-        "202":
+        "200":
           description: Setpoint accepted
         "400":
           description: Temperature missing or out of range 0.0–80.0
@@ -266,25 +266,27 @@ paths:
           description: Machine connected but does not support cup warmer
   /api/v1/machine/ledStrip:
     get:
-      summary: Get LED strip state
+      summary: Get LED strip configuration
       description: |
-        Read the current front/back RGB values of the Bengle LED strip.
-        Returns 404 when the connected machine is not a Bengle.
+        Read the current LED strip configuration (all 3 zones × 2 modes)
+        from the in-memory cache. Returns 404 when the connected
+        machine is not a Bengle.
       tags: [Machine]
       responses:
         "200":
-          description: Current LED strip state
+          description: Current LED strip configuration
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/LedStripState"
         "404":
           description: Machine connected but does not support LED strip
-    post:
-      summary: Set LED strip colour
+    put:
+      summary: Set LED strip configuration
       description: |
-        Set the front and back LED strip colour via hex RGB strings
-        (e.g. `'FF8000'`). No `#` prefix. Returns 404 when the
+        Write a full LED strip configuration (all 3 zones × 2 modes).
+        Updates cache and pushes to FW live registers. Does NOT persist
+        to NVM — call `/commit` separately. Returns 404 when the
         connected machine is not a Bengle.
       tags: [Machine]
       requestBody:
@@ -294,10 +296,57 @@ paths:
             schema:
               $ref: "#/components/schemas/LedStripState"
       responses:
-        "202":
-          description: Colour accepted
+        "200":
+          description: Configuration accepted
         "400":
           description: Invalid request body
+        "404":
+          description: Machine connected but does not support LED strip
+
+  /api/v1/machine/ledStrip/commit:
+    post:
+      summary: Commit LED strip config to NVM
+      description: |
+        Persist the current in-memory LED strip configuration to FW
+        non-volatile memory. The machine retains settings across power
+        cycles. Returns 404 when the connected machine is not a Bengle.
+      tags: [Machine]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              example: {}
+      responses:
+        "202":
+          description: Commit accepted
+        "404":
+          description: Machine connected but does not support LED strip
+
+  /api/v1/machine/ledStrip/reset:
+    post:
+      summary: Reset LED strip cache from NVM
+      description: |
+        Reload the LED strip cache from FW non-volatile memory,
+        dropping any uncommitted changes. Returns the refreshed
+        configuration. Returns 404 when the connected machine is not
+        a Bengle.
+      tags: [Machine]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              example: {}
+      responses:
+        "200":
+          description: Reset completed, returns refreshed state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LedStripState"
         "404":
           description: Machine connected but does not support LED strip
   /api/v1/machine/settings:
@@ -3559,22 +3608,38 @@ components:
     LedStripState:
       type: object
       properties:
-        front:
-          type: string
-          pattern: '^[0-9A-Fa-f]{6}$'
-          description: |
-            Front LED bank colour as hex RGB string (e.g. `FF8000`).
-            No `#` prefix. 6 hex digits, case-insensitive.
-            Missing/non-hex → treated as `000000`.
-          example: FF8000
-        back:
-          type: string
-          pattern: '^[0-9A-Fa-f]{6}$'
-          description: |
-            Back LED bank colour as hex RGB string (e.g. `0A141E`).
-            No `#` prefix. 6 hex digits, case-insensitive.
-            Missing/non-hex → treated as `000000`.
-          example: 0A141E
+        frontStrip:
+          $ref: "#/components/schemas/ZoneLedState"
+          description: Front LED strip (both sleeping and awake colours)
+        backStrip:
+          $ref: "#/components/schemas/ZoneLedState"
+          description: Back LED strip (both sleeping and awake colours)
+        frontSwitch:
+          $ref: "#/components/schemas/ZoneLedState"
+          description: Front switch LED (both sleeping and awake colours)
+
+    ZoneLedState:
+      type: object
+      properties:
+        sleeping:
+          $ref: "#/components/schemas/Color16"
+          description: Colour when the machine is in sleeping state
+        awake:
+          $ref: "#/components/schemas/Color16"
+          description: Colour when the machine is awake (any non-sleeping state)
+      example:
+        sleeping: "0000FFFF0000"
+        awake: "FFFF80000000"
+
+    Color16:
+      type: string
+      pattern: '^[0-9A-Fa-f]{12}$'
+      description: |
+        16-bit per-channel RGB colour as a 12-character hex string.
+        Format: `RRRRGGGGBBBB` (4 hex digits per channel, upper-case
+        preferred, case-insensitive). Missing / non-hex / wrong length
+        → treated as black (`000000000000`).
+      example: FFFF80000000
 
     ScaleSnapshot:
       type: object

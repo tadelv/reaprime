@@ -45,9 +45,9 @@ void main() {
   Future<Response> get(String path) async =>
       await handler(Request('GET', Uri.parse('http://localhost$path')));
 
-  Future<Response> post(String path, Object body) async =>
+  Future<Response> put(String path, Object body) async =>
       await handler(Request(
-        'POST',
+        'PUT',
         Uri.parse('http://localhost$path'),
         body: jsonEncode(body),
         headers: {HttpHeaders.contentTypeHeader: 'application/json'},
@@ -102,37 +102,37 @@ void main() {
     });
   });
 
-  group('POST /api/v1/machine/cupWarmer', () {
-    test('202 + writes setpoint into MockBengle', () async {
+  group('PUT /api/v1/machine/cupWarmer', () {
+    test('200 + writes setpoint into MockBengle', () async {
       final bengle = MockBengle();
       await wireWith(bengle);
 
-      final res = await post('/api/v1/machine/cupWarmer', {'temperature': 60});
-      expect(res.statusCode, 202);
+      final res = await put('/api/v1/machine/cupWarmer', {'temperature': 60});
+      expect(res.statusCode, 200);
       expect(await bengle.getCupWarmerTemperature(), 60.0);
     });
 
     test('400 on out-of-range temperature', () async {
       await wireWith(MockBengle());
-      final res = await post('/api/v1/machine/cupWarmer', {'temperature': 100});
+      final res = await put('/api/v1/machine/cupWarmer', {'temperature': 100});
       expect(res.statusCode, 400);
     });
 
     test('400 on negative temperature', () async {
       await wireWith(MockBengle());
-      final res = await post('/api/v1/machine/cupWarmer', {'temperature': -5});
+      final res = await put('/api/v1/machine/cupWarmer', {'temperature': -5});
       expect(res.statusCode, 400);
     });
 
     test('400 when temperature key is missing', () async {
       await wireWith(MockBengle());
-      final res = await post('/api/v1/machine/cupWarmer', {});
+      final res = await put('/api/v1/machine/cupWarmer', {});
       expect(res.statusCode, 400);
     });
 
     test('404 on plain DE1', () async {
       await wireWith(MockDe1());
-      final res = await post('/api/v1/machine/cupWarmer', {'temperature': 60});
+      final res = await put('/api/v1/machine/cupWarmer', {'temperature': 60});
       expect(res.statusCode, 404);
     });
   });
