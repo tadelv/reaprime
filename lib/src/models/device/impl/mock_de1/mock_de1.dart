@@ -48,6 +48,7 @@ class MockDe1 implements De1Interface {
   int _currentProfileStepIndex = 0;
   double _profileStepElapsedTime = 0.0; // in milliseconds
   double _profileTargetTemperature = 94.0; // Default if no profile
+  int _targetVolumeCountStart = 0;
 
   @override
   Stream<MachineSnapshot> get currentSnapshot => _snapshotStream.stream;
@@ -78,6 +79,8 @@ class MockDe1 implements De1Interface {
       // Reset profile tracking when starting espresso
       _currentProfileStepIndex = 0;
       _profileStepElapsedTime = 0.0;
+      _espressoTickCount = 0;
+      _pouringDoneTicks = 0;
     } else {
       _simulationType = _SimulationType.idle;
     }
@@ -168,6 +171,8 @@ class MockDe1 implements De1Interface {
   }
 
   double shotTime = 0.0;
+  int _espressoTickCount = 0;
+  int _pouringDoneTicks = 0;
 
   _simulateEspresso() {
     MachineSubstate substate = _lastSnapshot.state.substate;
@@ -213,17 +218,16 @@ class MockDe1 implements De1Interface {
 
     // Check if we should move to next step
     final stepDurationMs = currentStep.seconds * 1000;
-    if (_profileStepElapsedTime >= stepDurationMs) {
+    if (_profileStepElapsedTime >= stepDurationMs && _pouringDoneTicks == 0) {
       if (_currentProfileStepIndex < _currentProfile!.steps.length - 1) {
         // Move to next step
         _currentProfileStepIndex++;
         _profileStepElapsedTime = 0.0;
         _log.fine("Moving to profile step: $_currentProfileStepIndex");
       } else {
-        // Last step is done, go to idle
-        _simulationType = _SimulationType.idle;
-        _currentState = MachineState.idle;
-        _log.fine("Profile completed, returning to idle");
+        // Last step is done — trigger pouringDone transition (don't go to idle yet).
+        _pouringDoneTicks = 3;
+        _log.fine("Profile completed, pouringDone transition");
       }
     }
 
@@ -285,11 +289,25 @@ class MockDe1 implements De1Interface {
       newPressure = min(_lastSnapshot.pressure + pressureBuildRate, 9.0);
     }
 
-    // Update substate based on pressure
-    MachineSubstate substate = _lastSnapshot.state.substate;
-    if (newPressure < 0.5) {
+    _espressoTickCount++;
+
+    // Derive substate from profile position, not pressure thresholds.
+    // First 500ms (5 ticks): preparingForShot.
+    // Then: preinfusion (frame < targetVolumeCountStart) or pouring (frame >=).
+    MachineSubstate substate;
+    if (_pouringDoneTicks > 0) {
+      substate = MachineSubstate.pouringDone;
+      _pouringDoneTicks--;
+      if (_pouringDoneTicks == 0) {
+        _simulationType = _SimulationType.idle;
+        _currentState = MachineState.idle;
+      }
+    } else if (_espressoTickCount <= 5) {
+      // First ~500ms (5 ticks @ 100ms)
       substate = MachineSubstate.preparingForShot;
-    } else if (newPressure > 1.0) {
+    } else if (_currentProfileStepIndex < _targetVolumeCountStart) {
+      substate = MachineSubstate.preinfusion;
+    } else {
       substate = MachineSubstate.pouring;
     }
 
@@ -415,6 +433,7 @@ class MockDe1 implements De1Interface {
 
     // Store the profile and extract target temperature
     _currentProfile = profile;
+    _targetVolumeCountStart = profile.targetVolumeCountStart;
 
     if (profile.steps.isNotEmpty) {
       // Use first step's temperature as target
