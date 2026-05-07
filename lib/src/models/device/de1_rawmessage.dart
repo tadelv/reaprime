@@ -13,10 +13,10 @@ final class De1RawMessage {
 
   factory De1RawMessage.fromJson(Map<String, dynamic> json) {
     return De1RawMessage(
-        type: De1RawMessageType.values[json['type']],
-        operation: De1RawOperationType.values[json['operation']],
-        characteristicUUID: json['characteristicUUID'],
-        payload: json['payload']);
+        type: De1RawMessageType.values.byName(json['type'] as String),
+        operation: De1RawOperationType.values.byName(json['operation'] as String),
+        characteristicUUID: json['characteristicUUID'] as String,
+        payload: json['payload'] as String);
   }
 
   Map<String, dynamic> toJson() {
