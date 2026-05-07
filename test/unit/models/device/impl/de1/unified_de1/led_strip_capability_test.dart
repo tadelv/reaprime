@@ -34,18 +34,17 @@ void main() {
       expect(bengle.ledStripState, isA<Stream<LedStripState>>());
     });
 
-    test('initial state is all-off (0,0,0)', () async {
+    test('initial state is all-off', () async {
       final state = await bengle.getLedStripState();
-      expect(state.frontRed, 0);
-      expect(state.frontGreen, 0);
-      expect(state.frontBlue, 0);
-      expect(state.backRed, 0);
-      expect(state.backGreen, 0);
-      expect(state.backBlue, 0);
+      expect(state.frontStrip.sleeping, Color16.off);
+      expect(state.frontStrip.awake, Color16.off);
+      expect(state.backStrip.sleeping, Color16.off);
+      expect(state.backStrip.awake, Color16.off);
+      expect(state.frontSwitch.sleeping, Color16.off);
+      expect(state.frontSwitch.awake, Color16.off);
     });
 
     test('initLedStrip logs and no-ops when wires are unwired', () {
-      // initLedStrip was already called via onConnect in setUp.
       expect(
         logRecords.any((r) =>
             r.message.contains('LedStripCapability') &&
@@ -55,47 +54,47 @@ void main() {
       );
     });
 
-    test('setLedStrip logs and no-ops when wires are unwired', () async {
-      logRecords.clear();
+    test('setLedStrip updates cache when wires are unwired', () async {
       await bengle.setLedStrip(LedStripState(
-        frontRed: 255,
-        frontGreen: 128,
-        frontBlue: 0,
-        backRed: 0,
-        backGreen: 64,
-        backBlue: 128,
+        frontStrip: ZoneLedState(
+            sleeping: const Color16(65535, 32768, 0),
+            awake: Color16.off),
       ));
-      expect(
-        logRecords.any((r) =>
-            r.message.contains('LedStripCapability') &&
-            r.message.contains('setLedStrip')),
-        isTrue,
-        reason: 'expected log entry about unwired endpoint',
-      );
+      // Cache was updated regardless of stub.
+      final state = await bengle.getLedStripState();
+      expect(state.frontStrip.sleeping,
+          const Color16(65535, 32768, 0));
+    });
+
+    test('commitLedStrip is safe when wires are unwired', () async {
+      // No crash — already verified by the stub-warning log from init.
+      await bengle.commitLedStrip();
+    });
+
+    test('resetLedStrip is safe when wires are unwired', () async {
+      await bengle.resetLedStrip();
     });
 
     test('disposeLedStrip closes the subject', () async {
       await bengle.onDisconnect();
-      // Seeded BehaviorSubject replays the last value before done.
       await expectLater(
         bengle.ledStripState,
         emitsInOrder([isA<LedStripState>(), emitsDone]),
       );
     });
 
-    test('BengleLedEndpoint.front.uuid and representation are null', () {
-      expect(BengleLedEndpoint.front.uuid, isNull);
-      expect(BengleLedEndpoint.front.representation, isNull);
-    });
-
-    test('BengleLedEndpoint.back.uuid and representation are null', () {
-      expect(BengleLedEndpoint.back.uuid, isNull);
-      expect(BengleLedEndpoint.back.representation, isNull);
+    test('all BengleLedEndpoint entries have null uuid and representation',
+        () {
+      for (final ep in BengleLedEndpoint.values) {
+        expect(ep.uuid, isNull,
+            reason: '${ep.name}.uuid should be null (TBD with FW)');
+        expect(ep.representation, isNull,
+            reason: '${ep.name}.representation should be null (TBD with FW)');
+      }
     });
 
     test('connect → disconnect → connect lifecycle is leak-free', () async {
       await bengle.disconnect();
-      // Seeded BehaviorSubject replays the last value before done.
       await expectLater(
         bengle.ledStripState,
         emitsInOrder([isA<LedStripState>(), emitsDone]),
@@ -104,7 +103,6 @@ void main() {
       transport.queueOnConnectResponses();
       await bengle.onConnect();
 
-      // Stream should be alive (not done) after reconnect.
       var streamCompletedWithoutValue = false;
       try {
         await bengle.ledStripState

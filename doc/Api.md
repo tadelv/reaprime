@@ -52,9 +52,11 @@ For browser clients on a different origin, `ETag` is exposed via `Access-Control
 | POST | `/api/v1/machine/water-threshold` | Update water level threshold | |
 | GET | `/api/v1/machine/capabilities` | List capability identifiers (`cupWarmer`, `integratedScale`, `ledStrip`) supported by the connected machine | |
 | GET | `/api/v1/machine/cupWarmer` | Read cup-warmer setpoint °C — Bengle only, 404 elsewhere | |
-| POST | `/api/v1/machine/cupWarmer` | Set cup-warmer setpoint °C (range 0.0–80.0, `0.0` = off) — Bengle only | |
-| GET | `/api/v1/machine/ledStrip` | Read front/back LED RGB values — Bengle only, 404 elsewhere | |
-| POST | `/api/v1/machine/ledStrip` | Set front/back LED RGB values (0–255 per channel) — Bengle only | |
+| PUT | `/api/v1/machine/cupWarmer` | Set cup-warmer setpoint °C (range 0.0–80.0, `0.0` = off) — Bengle only | |
+| GET | `/api/v1/machine/ledStrip` | Read full LED strip config (3 zones × 2 modes, 16-bit RGB) — Bengle only | |
+| PUT | `/api/v1/machine/ledStrip` | Write full LED strip config (cache + FW live registers) — Bengle only | |
+| POST | `/api/v1/machine/ledStrip/commit` | Persist LED config to FW NVM — Bengle only | |
+| POST | `/api/v1/machine/ledStrip/reset` | Reload LED config from FW NVM, return refreshed state — Bengle only | |
 
 ### Scale
 
