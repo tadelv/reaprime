@@ -196,6 +196,11 @@ class De1StateManager with WidgetsBindingObserver {
     final currentState = snapshot.state.state;
     final currentSubstate = snapshot.state.substate;
 
+    // Skip if state hasn't changed
+    if (_previousMachineState == currentState) {
+      return;
+    }
+
     _logger.fine(
       'Handling state: $currentState, substate: $currentSubstate in mode: ${gatewayMode.name} (app foreground: $_appIsInForeground, platform: ${Platform.operatingSystem})',
     );
