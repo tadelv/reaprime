@@ -81,6 +81,21 @@ class MockDe1 implements De1Interface {
       _profileStepElapsedTime = 0.0;
       _espressoTickCount = 0;
       _pouringDoneTicks = 0;
+    } else if (_currentState == MachineState.skipStep &&
+        _simulationType == _SimulationType.espresso &&
+        _currentProfile != null) {
+      // skipStep: advance to next profile step immediately.
+      // ShotController owns the skip decision (weight-based); the mock
+      // just advances the step index and continues simulating.
+      if (_currentProfileStepIndex < _currentProfile!.steps.length - 1) {
+        _currentProfileStepIndex++;
+        _profileStepElapsedTime = 0.0;
+        _espressoTickCount = 0; // reset preparingForShot for new step
+        _log.fine("skipStep: advanced to step $_currentProfileStepIndex");
+      }
+      // If already on the last step, skipStep is a no-op — the step
+      // will complete naturally via its duration.
+      _currentState = MachineState.espresso; // stay in espresso
     } else {
       _simulationType = _SimulationType.idle;
     }
