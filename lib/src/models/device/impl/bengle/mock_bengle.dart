@@ -33,8 +33,12 @@ class MockBengle extends MockDe1 implements BengleInterface {
   Future<double> getCupWarmerTemperature() async => _cupWarmerTemp;
 
   // --- LED strip ---
+  /// Cache of the last-set config (not necessarily committed to NVM).
   final BehaviorSubject<LedStripState> _ledState =
       BehaviorSubject<LedStripState>.seeded(const LedStripState());
+
+  /// Simulated "FW NVM" — written by commit, read by reset.
+  LedStripState _committedLedState = const LedStripState();
 
   @override
   Stream<LedStripState> get ledStripState => _ledState.stream;
@@ -45,6 +49,17 @@ class MockBengle extends MockDe1 implements BengleInterface {
   @override
   Future<void> setLedStrip(LedStripState state) async {
     _ledState.add(state);
+  }
+
+  @override
+  Future<void> commitLedStrip() async {
+    _committedLedState = _ledState.value;
+    // In mock: no actual FW NVM write.
+  }
+
+  @override
+  Future<void> resetLedStrip() async {
+    _ledState.add(_committedLedState);
   }
 
   // --- integrated scale ---

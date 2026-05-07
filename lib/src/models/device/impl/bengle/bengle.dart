@@ -67,4 +67,10 @@ class Bengle extends UnifiedDe1
   @override
   Future<void> setLedStrip(LedStripState state) =>
       super.setLedStrip(state);
+
+  @override
+  Future<void> commitLedStrip() => super.commitLedStrip();
+
+  @override
+  Future<void> resetLedStrip() => super.resetLedStrip();
 }
