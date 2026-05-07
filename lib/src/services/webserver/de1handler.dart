@@ -48,7 +48,7 @@ class De1Handler {
       });
     });
 
-    app.post('/api/v1/machine/cupWarmer', (Request r) async {
+    app.put('/api/v1/machine/cupWarmer', (Request r) async {
       return withDe1((de1) async {
         if (de1 is! BengleInterface) {
           return jsonNotFound({'error': 'cupWarmer not supported'});
@@ -63,7 +63,7 @@ class De1Handler {
               {'error': 'temperature out of range 0.0-80.0'});
         }
         await de1.setCupWarmerTemperature(t);
-        return jsonAccepted();
+        return jsonOk({'status': 'accepted'});
       });
     });
 
@@ -89,7 +89,7 @@ class De1Handler {
       });
     });
 
-    app.post('/api/v1/machine/ledStrip', (Request r) async {
+    app.put('/api/v1/machine/ledStrip', (Request r) async {
       return withDe1((de1) async {
         if (de1 is! BengleInterface) {
           return jsonNotFound({'error': 'ledStrip not supported'});
@@ -100,7 +100,28 @@ class De1Handler {
         }
         final state = LedStripState.fromJson(json as Map<String, dynamic>);
         await de1.setLedStrip(state);
+        return jsonOk({'status': 'accepted'});
+      });
+    });
+
+    app.post('/api/v1/machine/ledStrip/commit', (Request _) async {
+      return withDe1((de1) async {
+        if (de1 is! BengleInterface) {
+          return jsonNotFound({'error': 'ledStrip not supported'});
+        }
+        await de1.commitLedStrip();
         return jsonAccepted();
+      });
+    });
+
+    app.post('/api/v1/machine/ledStrip/reset', (Request _) async {
+      return withDe1((de1) async {
+        if (de1 is! BengleInterface) {
+          return jsonNotFound({'error': 'ledStrip not supported'});
+        }
+        await de1.resetLedStrip();
+        final state = await de1.getLedStripState();
+        return jsonOk(state.toJson());
       });
     });
 
