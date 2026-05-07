@@ -38,6 +38,14 @@ abstract class BengleInterface extends De1Interface {
   /// One-shot read of the current LED strip state.
   Future<LedStripState> getLedStripState();
 
-  /// Set the front/back LED strip colour. All channels 0–255.
+  /// Write a full LED strip configuration (all zones, both modes).
+  /// Updates cache and pushes to FW live registers. Does NOT persist
+  /// to NVM — call [commitLedStrip] separately.
   Future<void> setLedStrip(LedStripState state);
+
+  /// Persist the current LED strip configuration to FW NVM.
+  Future<void> commitLedStrip();
+
+  /// Reload the LED strip configuration from FW NVM, dropping uncommitted changes.
+  Future<void> resetLedStrip();
 }
