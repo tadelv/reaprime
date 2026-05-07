@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/device_scanner.dart';
+import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:rxdart/rxdart.dart';
 
 /// A controllable [DeviceScanner] for testing [ConnectionManager].
@@ -75,7 +76,7 @@ class MockDeviceScanner implements DeviceScanner {
   }
 
   @override
-  Future<ScanResult> scanForDevices() async {
+  Future<ScanResult> scanForDevices({ScanFilter? filter}) async {
     if (failNextScanWith != null) {
       final e = failNextScanWith;
       failNextScanWith = null;

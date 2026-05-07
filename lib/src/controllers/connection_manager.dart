@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_blue_plus/flutter_blue_plus.dart'
@@ -17,8 +18,10 @@ import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle_virtual_scale.dart';
 import 'package:reaprime/src/models/adapter_state.dart';
+import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/device_scanner.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/scan_report.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:rxdart/rxdart.dart';
@@ -335,12 +338,23 @@ class ConnectionManager {
         !scaleOnly && preferredMachineId != null && preferredScaleId != null;
 
     final scanStartTime = DateTime.now();
+
+    // Build a filtered scan for Android scaleOnly path to bypass
+    // background throttling. Full connect stays unfiltered.
+    final scaleFilter = scaleOnly && Platform.isAndroid
+        ? ScanFilter(
+            preferredDeviceId: preferredScaleId,
+            deviceTypes: {DeviceType.scale},
+          )
+        : null;
+
     final scanRun = await _scanOrchestrator.runScan(
       preferredMachineId: preferredMachineId,
       preferredScaleId: preferredScaleId,
       earlyStopEnabled: earlyStopEnabled,
       onEarlyAttemptComplete: () => _checkEarlyStop(earlyStopEnabled),
       scanStartTime: scanStartTime,
+      scaleFilter: scaleFilter,
     );
     if (scanRun == null) {
       // Scan failed catastrophically; orchestrator already emitted

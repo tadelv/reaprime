@@ -6,6 +6,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/services/ble/android_blue_plus_transport.dart';
 import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 import 'package:reaprime/src/services/ble/blue_plus_transport.dart';
@@ -145,7 +146,8 @@ class BluePlusDiscoveryService extends BleDiscoveryService {
   }
 
   @override
-  Future<void> scanForDevices() async {
+  @override
+  Future<void> scanForDevices({ScanFilter? filter}) async {
     if (_isScanning) {
       _log.warning('Scan already in progress, ignoring request');
       return;
@@ -221,8 +223,35 @@ class BluePlusDiscoveryService extends BleDiscoveryService {
       }
       _log.info("Adapter ready, starting scan...");
 
-      // Unfiltered scan — no withServices parameter
-      await FlutterBluePlus.startScan(oneByOne: true);
+      // Build filtered scan if ScanFilter is provided. When filtered,
+      // use withServices + withRemoteIds to bypass Android background
+      // throttling. Otherwise, run unfiltered scan.
+      final useFilter = filter != null && filter.isFiltered;
+      if (useFilter) {
+        final guidList = <Guid>[];
+        if (filter!.deviceTypes != null) {
+          for (final type in filter.deviceTypes!) {
+            guidList.addAll(
+              DeviceMatcher.serviceUuidsFor(type).map((s) => Guid(s)),
+            );
+          }
+        }
+        final remoteIds = filter.preferredDeviceId != null
+            ? <String>[filter.preferredDeviceId!]
+            : <String>[];
+        _log.info(
+          'Starting filtered scan: ${guidList.length} service UUIDs, '
+          '${remoteIds.length} remote IDs',
+        );
+        await FlutterBluePlus.startScan(
+          withServices: guidList,
+          withRemoteIds: remoteIds,
+          oneByOne: true,
+        );
+      } else {
+        // Unfiltered scan
+        await FlutterBluePlus.startScan(oneByOne: true);
+      }
 
       // Scan for up to 15s. External stopScan() cancels the timer and
       // completes the completer early so the scanner can free

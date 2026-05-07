@@ -1,3 +1,5 @@
+import 'package:reaprime/src/models/device/scan_filter.dart';
+
 enum DeviceType { machine, scale, sensor }
 
 abstract class Device {
@@ -23,7 +25,7 @@ abstract class DeviceDiscoveryService {
     throw "Not implemented yet";
   }
 
-  Future<void> scanForDevices() async {
+  Future<void> scanForDevices({ScanFilter? filter}) async {
     throw "Not implemented yet";
   }
 

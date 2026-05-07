@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/impl/bengle/mock_bengle.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
 import 'package:reaprime/src/models/device/impl/mock_scale/mock_scale.dart';
@@ -31,7 +32,8 @@ class SimulatedDeviceService
   void stopScan() {} // Simulated scan completes instantly.
 
   @override
-  Future<void> scanForDevices() async {
+  @override
+  Future<void> scanForDevices({ScanFilter? filter}) async {
     if (enabledDevices.isEmpty) {
       return;
     }

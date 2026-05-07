@@ -1,5 +1,6 @@
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -36,7 +37,7 @@ class MockDeviceDiscoveryService implements DeviceDiscoveryService {
   Future<void> initialize() async {}
 
   @override
-  Future<void> scanForDevices() async {}
+  Future<void> scanForDevices({ScanFilter? filter}) async {}
 
   @override
   void stopScan() {}
@@ -82,7 +83,7 @@ class MockBleDiscoveryService extends BleDiscoveryService {
   Future<void> initialize() async {}
 
   @override
-  Future<void> scanForDevices() async {}
+  Future<void> scanForDevices({ScanFilter? filter}) async {}
 
   @override
   void stopScan() {}

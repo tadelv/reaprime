@@ -10,6 +10,7 @@ import 'package:reaprime/src/controllers/connection_manager.dart'
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device_scanner.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/errors.dart';
 
 /// Outcome of [ScanOrchestrator.runScan].
@@ -85,6 +86,7 @@ class ScanOrchestrator {
     required bool earlyStopEnabled,
     required void Function() onEarlyAttemptComplete,
     required DateTime scanStartTime,
+    ScanFilter? scaleFilter,
   }) async {
     final reportBuilder = ScanReportBuilder(scanStartTime: scanStartTime)
       ..recordAdapterStateAtStart(_scanner.currentAdapterState);
@@ -112,12 +114,12 @@ class ScanOrchestrator {
     );
     earlyConnect.start();
 
-    // Run full unfiltered scan. The scanner awaits every service's
-    // scan and returns a ScanResult carrying per-service failures;
-    // only a catastrophic, scan-wide error throws out of the Future.
+    // Run scan. If a scaleFilter is provided (Android scaleOnly path),
+    // discovery services that support filtering will use it to bypass
+    // background throttling; others ignore it.
     final ScanResult scanResult;
     try {
-      scanResult = await _scanner.scanForDevices();
+      scanResult = await _scanner.scanForDevices(filter: scaleFilter);
     } catch (e) {
       earlyConnect.stop();
       _emitScanStartError(e);

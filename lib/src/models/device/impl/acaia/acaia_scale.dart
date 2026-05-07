@@ -34,6 +34,15 @@ class AcaiaScale implements Scale {
   static final _pyxisCmdChar =
       BleServiceIdentifier.long('49535343-8841-43f4-a8d4-ecbe34729bb3');
 
+  /// Service UUIDs advertised by Acaia scales (all Pyxis protocol variants).
+  /// Used for filtered BLE scans. The IPS protocol service (1820) is excluded
+  /// because it overlaps with other BLE devices (heart rate monitors, etc.).
+  static const advertisedServiceUuids = [
+    '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+    '49535343-1e4d-4bd9-ba61-23c647249616',
+    '49535343-8841-43f4-a8d4-ecbe34729bb3',
+  ];
+
   static const int _maxInitRetries = 10;
 
   final Logger _log = Logger('AcaiaScale');
