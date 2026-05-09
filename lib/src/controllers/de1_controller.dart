@@ -81,9 +81,20 @@ class De1Controller {
         return;
       }
     _onDisconnect(); // just in case
-    _de1 = de1Interface;
     _log.fine("found de1, connecting");
-    await de1Interface.onConnect();
+    try {
+      await de1Interface.onConnect();
+    } catch (e, st) {
+      _log.warning(
+        'Failed to connect to ${de1Interface.name} '
+        '(${de1Interface.deviceId}): $e',
+        e,
+        st,
+      );
+      _onDisconnect();
+      rethrow;
+    }
+    _de1 = de1Interface;
     _de1Controller.add(_de1);
 
     _subscriptions.add(
