@@ -1,12 +1,12 @@
 # Skins.md
 
-## WebUI Development Guide for Streamline-Bridge
+## WebUI Development Guide for Decent.app
 
-This guide covers how to develop custom web-based user interfaces (skins) for the Streamline-Bridge gateway application. Skins connect to the Streamline-Bridge API to control espresso machines, read sensor data, and create custom user experiences.
+This guide covers how to develop custom web-based user interfaces (skins) for the Decent.app gateway. Skins connect to the Decent.app API to control espresso machines, read sensor data, and create custom user experiences.
 
 ### What is a Skin?
 
-A **skin** is a web application that communicates with the Streamline-Bridge gateway via REST and WebSocket APIs. Skins can:
+A **skin** is a web application that communicates with Decent.app via REST and WebSocket APIs. Skins can:
 - Display real-time machine state (temperatures, pressures, flow rates)
 - Control espresso shot execution and machine state
 - Manage profiles and workflows
@@ -735,7 +735,7 @@ Permanently deletes a shot record.
 
 ### Coffee Beans, Grinders & Workflows
 
-Streamline-Bridge manages coffee beans, bean batches, and grinders as first-class entities that can be linked to workflows and shot records.
+Decent.app manages coffee beans, bean batches, and grinders as first-class entities that can be linked to workflows and shot records.
 
 #### How It Fits Together
 
@@ -952,7 +952,7 @@ DELETE /api/v1/grinders/{id}
 
 ### Profiles API
 
-Streamline-Bridge uses content-based hashing for profile IDs. Profile IDs are calculated from execution-relevant fields, meaning identical profiles have the same ID across all devices.
+Decent.app uses content-based hashing for profile IDs. Profile IDs are calculated from execution-relevant fields, meaning identical profiles have the same ID across all devices.
 
 #### List All Profiles
 ```http
@@ -1118,7 +1118,7 @@ Restores a bundled default profile from assets by filename.
 
 ### Sensors API
 
-Streamline-Bridge supports extensible sensor devices that can provide custom data streams.
+Decent.app supports extensible sensor devices that can provide custom data streams.
 
 #### List Connected Sensors
 ```http
@@ -1182,7 +1182,7 @@ Content-Type: application/json
 
 ### REA Settings
 
-Configure Streamline-Bridge gateway behavior.
+Configure Decent.app gateway behavior.
 
 #### Get REA Settings
 ```http
@@ -1222,7 +1222,7 @@ GET /api/v1/settings
 - `displayOff`: Turn off scale display when machine sleeps
 - `disconnect`: Disconnect scale when machine sleeps
 
-#### Update Streamline-Bridge Settings
+#### Update Decent.app Settings
 ```http
 POST /api/v1/settings
 Content-Type: application/json
@@ -1240,7 +1240,7 @@ Only include fields you want to update. Changes take effect immediately.
 
 ### Key-Value Store
 
-Streamline-Bridge provides a simple key-value store for client applications to persist data.
+Decent.app provides a simple key-value store for client applications to persist data.
 
 #### List Keys in Namespace
 ```http
@@ -1556,7 +1556,7 @@ Returns 404 if the schedule ID doesn't exist.
 
 ### Build Info
 
-Retrieve build-time metadata about the running Streamline-Bridge instance. Useful for skins that want to display version information or check compatibility.
+Retrieve build-time metadata about the running Decent.app instance. Useful for skins that want to display version information or check compatibility.
 
 #### Get Build Info
 ```http
@@ -2536,7 +2536,7 @@ Here's a complete minimal skin implementation:
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Minimal Streamline-Bridge Skin</title>
+  <title>Minimal Decent.app Skin</title>
   <style>
     body {
       font-family: 'Segoe UI', system-ui, sans-serif;
@@ -2628,7 +2628,7 @@ Here's a complete minimal skin implementation:
 <body>
   <h1>
     <span class="connection-status disconnected" id="connection-indicator"></span>
-    Streamline-Bridge Control
+    Decent Control
   </h1>
   
   <div class="status">
@@ -2796,12 +2796,12 @@ Here's a complete minimal skin implementation:
 - Check browser console for WebSocket errors
 - Verify connection state: `ws.readyState` (1 = OPEN)
 - Implement reconnection logic (see Best Practices)
-- Check if machine is actually connected to Streamline-Bridge
+- Check if machine is actually connected to Decent.app
 
 ### Commands Don't Execute
 - Check HTTP response status codes
 - Verify machine is in correct state for the operation
-- Review Streamline-Bridge logs: Connect to `ws://<ip>:8080/ws/v1/logs`
+- Review Decent.app logs: Connect to `ws://<ip>:8080/ws/v1/logs`
 - Ensure machine is connected: `GET /api/v1/devices`
 
 ### Profile Upload Fails
@@ -2834,11 +2834,11 @@ This serves OpenAPI/Swagger documentation with:
 
 ## Skin Development & Deployment
 
-This section covers how to develop, build, and deploy custom WebUI skins for Streamline-Bridge, including support for modern web frameworks like Next.js, React, Vue, Svelte, and others.
+This section covers how to develop, build, and deploy custom WebUI skins for Decent.app, including support for modern web frameworks like Next.js, React, Vue, Svelte, and others.
 
 ### Understanding Skin Distribution
 
-Streamline-Bridge supports multiple skin installation methods:
+Decent.app supports multiple skin installation methods:
 
 1. **Bundled Asset Skins**: Skins packaged with the Flutter app (in `assets/web/`)
 2. **Remote Bundled Skins**: Skins auto-downloaded from hardcoded GitHub URLs on app startup
@@ -2885,7 +2885,7 @@ The endpoint only serves files from already-installed skins — install the asse
 
 ### Skin Metadata: manifest.json
 
-While optional, including a `manifest.json` helps Streamline-Bridge display better skin information:
+While optional, including a `manifest.json` helps Decent.app display better skin information:
 
 ```json
 {
@@ -2937,12 +2937,12 @@ npm run build
 
 This creates an `out/` directory with static HTML/CSS/JS files.
 
-### 2. Test Locally with Streamline-Bridge
+### 2. Test Locally with Decent.app
 
 **Option A: Live-Edit Mode** (recommended for development on desktop):
 
 1. Build your skin (`npm run build`)
-2. In Streamline-Bridge **Settings**, select **"Live-edit from folder..."**
+2. In Decent.app **Settings**, select **"Live-edit from folder..."**
 3. Point it at your build output directory (e.g., `out/` or `dist/`)
 4. Edit, rebuild, and refresh — no reinstallation needed
 
@@ -2968,12 +2968,12 @@ curl -X POST http://localhost:8080/api/v1/webui/skins/install/url \
 npm run dev
 
 # Access directly at http://localhost:3000
-# Connect to Streamline-Bridge API at http://<gateway-ip>:8080
+# Connect to Decent.app API at http://<gateway-ip>:8080
 ```
 
 ### 3. Connect to Gateway During Development
 
-When developing locally, your skin needs to connect to the Streamline-Bridge gateway:
+When developing locally, your skin needs to connect to the Decent.app gateway:
 
 ```javascript
 // Use environment variable or config
@@ -3148,7 +3148,7 @@ Then install from the `dist` branch:
 
 ---
 
-## Configuring Streamline-Bridge for Auto-Download
+## Configuring Decent.app for Auto-Download
 
 ### For Remote Bundled Skins (Auto-Download on Startup)
 
@@ -3178,7 +3178,7 @@ static const List<Map<String, dynamic>> _remoteWebUISources = [
 ];
 ```
 
-**Streamline-Bridge will:**
+**Decent.app will:**
 - Download skins on first app startup
 - Check for updates on subsequent startups
 - For GitHub releases: checks for new release tags
@@ -3199,7 +3199,7 @@ The Settings screen provides a skin selector dropdown with built-in management:
 **Live-Edit Mode (Development):**
 1. Select **"Live-edit from folder..."** in the skin dropdown
 2. Pick a folder containing your skin's build output
-3. Streamline-Bridge serves files directly from that folder — no copying
+3. Decent.app serves files directly from that folder — no copying
 4. Edit your skin files and refresh the browser to see changes instantly
 
 Live-edit validates that the selected folder contains an `index.html`.
@@ -3207,7 +3207,7 @@ Live-edit validates that the selected folder contains an `index.html`.
 **Deleting a Skin:**
 - Non-bundled skins show a delete button (trash icon) in the dropdown
 - Confirmation dialog prevents accidental deletion
-- If the deleted skin is currently active, Streamline-Bridge switches to the default skin
+- If the deleted skin is currently active, Decent.app switches to the default skin
 
 **Platform Support:**
 
@@ -3315,7 +3315,7 @@ The default skin preference:
 
 ## Version Management & Updates
 
-Streamline-Bridge tracks skin metadata in `.rea_metadata.json`:
+Decent.app tracks skin metadata in `.rea_metadata.json`:
 
 ```json
 {
@@ -3355,7 +3355,7 @@ NEXT_PUBLIC_GATEWAY_URL=http://localhost:8080
 NEXT_PUBLIC_WS_URL=ws://localhost:8080
 ```
 
-**Why localhost in production?** When served by Streamline-Bridge, the skin runs on the same device as the gateway.
+**Why localhost in production?** When served by Decent.app, the skin runs on the same device as the gateway.
 
 ### 2. Static Export Configuration
 
@@ -3517,12 +3517,12 @@ During development with skin on `localhost:3000` and gateway on `192.168.1.100:8
 - Use explicit gateway IP in `NEXT_PUBLIC_WS_URL`
 - Check browser console for connection errors
 
-### Skin Not Appearing in Streamline-Bridge
+### Skin Not Appearing in Decent.app
 
 - Verify directory name or `manifest.json` `id` field
 - Check `ApplicationDocuments/web-ui/` directory exists
 - Ensure `index.html` is at root of skin directory
-- Review Streamline-Bridge logs for installation errors
+- Review Decent.app logs for installation errors
 
 ### Updates Not Detected
 
@@ -3666,7 +3666,7 @@ Once your skin is ready for public use:
    - Provide setup instructions
 
 2. **Add to community list:**
-   - Submit PR to Streamline-Bridge documentation
+   - Submit PR to Decent.app documentation
    - Share on Decent Diaspora forums
 
 3. **Consider open-sourcing:**
@@ -3701,7 +3701,7 @@ Once your skin is ready for public use:
 
 **For Auto-Updates:**
 - Add your skin to `_remoteWebUISources` in `webui_storage.dart`
-- Streamline-Bridge will auto-download and check for updates
+- Decent.app will auto-download and check for updates
 - Uses HTTP headers for efficient version detection
 
-For questions or issues, open an issue on the [Streamline-Bridge GitHub repository](https://github.com/tadelv/reaprime).
+For questions or issues, open an issue on the [Decent.app GitHub repository](https://github.com/tadelv/reaprime).

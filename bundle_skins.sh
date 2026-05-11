@@ -42,12 +42,12 @@ for ((i=0; i<COUNT; i++)); do
       if [ "$PRERELEASE" = "true" ]; then
         RELEASE_JSON=$(curl -sfL "https://api.github.com/repos/$REPO/releases" \
           -H "Accept: application/vnd.github.v3+json" \
-          -H "User-Agent: Streamline-Bridge-Build" 2>/dev/null) || { echo "Warning: Failed to fetch releases for $REPO"; continue; }
+          -H "User-Agent: Decent-Build" 2>/dev/null) || { echo "Warning: Failed to fetch releases for $REPO"; continue; }
         RELEASE_JSON=$(echo "$RELEASE_JSON" | jq '.[0]')
       else
         RELEASE_JSON=$(curl -sfL "https://api.github.com/repos/$REPO/releases/latest" \
           -H "Accept: application/vnd.github.v3+json" \
-          -H "User-Agent: Streamline-Bridge-Build" 2>/dev/null) || { echo "Warning: Failed to fetch latest release for $REPO"; continue; }
+          -H "User-Agent: Decent-Build" 2>/dev/null) || { echo "Warning: Failed to fetch latest release for $REPO"; continue; }
       fi
 
       TAG=$(echo "$RELEASE_JSON" | jq -r '.tag_name')

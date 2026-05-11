@@ -13,7 +13,7 @@ This repo's domain language and architectural context live in existing files —
 - **`doc/DeviceManagement.md`** — Device discovery and connection management
 - **`doc/RELEASE.md`** — Release process and versioning
 - **`doc/plans/archive/`** — Archived design docs (the *why* behind shipped features, rejected alternatives, constraints)
-- **`.agents/skills/streamline-bridge/`** — Dev-loop skill: `sb-dev` lifecycle, REST/WebSocket recipes, simulated devices, verification scenarios
+- **`.agents/skills/decent-app/`** — Dev-loop skill: `sb-dev` lifecycle, REST/WebSocket recipes, simulated devices, verification scenarios
 
 If a topic isn't covered, check the `de1app` reference implementation (per `CLAUDE.md`).
 

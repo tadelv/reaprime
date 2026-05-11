@@ -4,7 +4,7 @@
  * DYE2 Plugin Dev Server
  *
  * Loads the built plugin.js in a Node.js VM, serves its pages via HTTP,
- * and proxies /api/v1/* requests to a running Streamline Bridge instance.
+ * and proxies /api/v1/* requests to a running Decent instance.
  *
  * Usage:
  *   npm run serve                          # defaults: port 3000, bridge at localhost:8080
@@ -97,7 +97,7 @@ function proxyRequest(req, res) {
   proxyReq.on("error", (err) => {
     console.error(`Proxy error: ${err.message}`);
     res.writeHead(502, { "Content-Type": "text/plain" });
-    res.end(`Proxy error: ${err.message}\nIs Streamline Bridge running at ${BRIDGE_URL}?`);
+    res.end(`Proxy error: ${err.message}\nIs Decent running at ${BRIDGE_URL}?`);
   });
 
   req.pipe(proxyReq, { end: true });
@@ -154,7 +154,7 @@ const server = createServer((req, res) => {
     }
   }
 
-  // Proxy API calls to Streamline Bridge
+  // Proxy API calls to Decent
   if (pathname.startsWith("/api/")) {
     proxyRequest(req, res);
     return;

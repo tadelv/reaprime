@@ -84,9 +84,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      //appBar: AppBar(
-      //  title: Text('ReaPrime'),
-      //),
       body: SafeArea(
         child: Semantics(
           explicitChildNodes: true,

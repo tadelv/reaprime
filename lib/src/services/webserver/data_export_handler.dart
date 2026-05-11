@@ -71,7 +71,7 @@ class DataExportHandler {
         headers: {
           'Content-Type': 'application/zip',
           'Content-Disposition':
-              'attachment; filename="streamline_bridge_export_$timestamp.zip"',
+              'attachment; filename="decent_export_$timestamp.zip"',
         },
       );
     } catch (e, st) {

@@ -1,10 +1,10 @@
 # DYE2 Plugin
 
-DYE2 (Describe Your Espresso 2) is a first-party plugin for [Streamline Bridge](../../README.md) that provides bean, grinder, and equipment management UI for Decent Espresso machines.
+DYE2 (Describe Your Espresso 2) is a first-party plugin for [Decent.app](../../README.md) that provides bean, grinder, and equipment management UI for Decent Espresso machines.
 
 ## Goal
 
-The core Streamline Bridge app stores beans, grinders, and batches in its database and exposes them via REST API — but provides no management UI for these entities. DYE2 fills that gap: it serves HTML pages with Web Components for full CRUD operations, plus lightweight pickers that skins can embed to select beans/grinders for the current workflow.
+The core Decent.app stores beans, grinders, and batches in its database and exposes them via REST API — but provides no management UI for these entities. DYE2 fills that gap: it serves HTML pages with Web Components for full CRUD operations, plus lightweight pickers that skins can embed to select beans/grinders for the current workflow.
 
 Long-term, DYE2 will expand to cover shot annotations (TDS, extraction yield, tasting notes), equipment tracking (baskets, portafilters), water chemistry, and commercial blend management.
 
@@ -13,12 +13,12 @@ Long-term, DYE2 will expand to cover shot annotations (TDS, extraction yield, ta
 DYE2 runs across two JavaScript runtimes:
 
 1. **flutter_js** (server-side) — executes `plugin.js`, handles the plugin lifecycle, and routes HTTP requests to page generators that return HTML strings.
-2. **Browser** (client-side) — renders the HTML pages served by the plugin. Web Components in the page call the core Streamline Bridge REST API directly via `fetch()`.
+2. **Browser** (client-side) — renders the HTML pages served by the plugin. Web Components in the page call the core Decent.app REST API directly via `fetch()`.
 
-The plugin itself is essentially an HTTP server: it receives requests from the Streamline Bridge plugin framework and returns HTML responses. All data persistence goes through the core REST API (`/api/v1/beans`, `/api/v1/grinders`, `/api/v1/workflow`), not through plugin-local storage.
+The plugin itself is essentially an HTTP server: it receives requests from the Decent.app plugin framework and returns HTML responses. All data persistence goes through the core REST API (`/api/v1/beans`, `/api/v1/grinders`, `/api/v1/workflow`), not through plugin-local storage.
 
 ```
-Browser                          Streamline Bridge                flutter_js
+Browser                          Decent.app            flutter_js
 ──────                          ─────────────────                ──────────
   │ GET /api/v1/plugins/                │                            │
   │   dye2.reaplugin/beans              │                            │
@@ -116,13 +116,13 @@ After building, the Flutter app picks up the plugin from `assets/plugins/dye2.re
 
 ## Local Development
 
-The normal workflow — build plugin, hot-restart Flutter app, navigate to the plugin page — is slow for UI iteration. The dev server shortcuts this: it loads the built `plugin.js` in a Node.js VM, serves pages directly in the browser, and proxies REST API calls to a running Streamline Bridge instance. Edit source, save, and the browser shows the result within seconds.
+The normal workflow — build plugin, hot-restart Flutter app, navigate to the plugin page — is slow for UI iteration. The dev server shortcuts this: it loads the built `plugin.js` in a Node.js VM, serves pages directly in the browser, and proxies REST API calls to a running Decent.app instance. Edit source, save, and the browser shows the result within seconds.
 
 ### Prerequisites
 
 - Node.js 20+
 - `npm install` (one time)
-- A running Streamline Bridge instance (for API data). Start one with:
+- A running Decent.app instance (for API data). Start one with:
   ```bash
   # From the repo root
   flutter run --dart-define=simulate=1 -d macos   # or linux, chrome, etc.
@@ -156,7 +156,7 @@ The pages served by the dev server are functionally identical to what the Flutte
 ### How it works
 
 ```
-Browser                    Dev Server (:4444)              Streamline Bridge (:8080)
+Browser                    Dev Server (:4444)              Decent.app (:8080)
 ──────                    ──────────────────              ─────────────────────────
   │ GET /beans                  │                                │
   │────────────────────────────>│                                │
@@ -172,7 +172,7 @@ Browser                    Dev Server (:4444)              Streamline Bridge (:8
 ```
 
 - Plugin pages (`/beans`, `/grinders`, `/bean-picker`, `/grinder-picker`) are served by running the plugin's `__httpRequestHandler` in a Node.js VM sandbox
-- API requests (`/api/v1/*`) are proxied to the Streamline Bridge instance
+- API requests (`/api/v1/*`) are proxied to the Decent.app instance
 - `plugin.js` is watched with `fs.watch()` and auto-reloaded on change (debounced)
 
 ### Configuration
@@ -180,7 +180,7 @@ Browser                    Dev Server (:4444)              Streamline Bridge (:8
 | Env var | Default | Description |
 |---------|---------|-------------|
 | `PORT` | `4444` | Dev server port |
-| `BRIDGE_URL` | `http://localhost:8080` | Streamline Bridge URL to proxy API calls to |
+| `BRIDGE_URL` | `http://localhost:8080` | Decent.app URL to proxy API calls to |
 
 ```bash
 PORT=5000 BRIDGE_URL=http://192.168.1.5:8080 npm run serve
@@ -251,7 +251,7 @@ customElements.define('dye2-example', Dye2Example);
 Key constraints:
 - Components are compiled to **string constants** and inlined into HTML `<script>` tags — they do not execute in flutter_js.
 - No framework dependencies — vanilla `HTMLElement`, `innerHTML`, `addEventListener`.
-- All data operations use `fetch()` against the core Streamline Bridge REST API.
+- All data operations use `fetch()` against the core Decent.app REST API.
 - Use `escapeHtml()` from `utils/html.ts` for any user-provided data rendered into HTML.
 
 ### Core REST API endpoints used by DYE2

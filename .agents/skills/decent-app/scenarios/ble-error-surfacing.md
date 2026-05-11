@@ -143,7 +143,7 @@ a subsequent scan succeeds.
      ```
      Expect `kind: "scanFailed"` (or `adapterOff` depending on timing).
    - **Permission denied:** on Android, revoke Bluetooth permission for the
-     app in Settings → Apps → Streamline Bridge → Permissions, then trigger a
+     app in Settings → Apps → Decent → Permissions, then trigger a
      scan. Expect `kind: "bluetoothPermissionDenied"`.
 3. Confirm the error remains in `connectionStatus.error` across a couple of
    WS updates (it is sticky — not cleared until a successful scan).

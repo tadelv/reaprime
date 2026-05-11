@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Rea Prime Rest API
+  title: Decent API
   version: 1.0.0
   description: |
     This API provides endpoints to retrieve a list of Bluetooth devices, trigger a scan for new devices, manage DE1 espresso machine state and settings, and interact with a connected scale.
@@ -454,7 +454,7 @@ paths:
         "200":
           description: Firmware update successful. Need to restart machine to load new firmware
         "500":
-          description: Something went wrong during the firmware upgrade process. Check the response and Rea logs
+          description: Something went wrong during the firmware upgrade process. Check the response and Decent logs
 
   # Scale API
   /api/v1/scale/tare:
@@ -504,8 +504,8 @@ paths:
   # Sensors API handling
   /api/v1/sensors:
     get:
-      summary: Get a list of sensor devices connected to Rea
-      description: Will show all the sensors and their ids, that are currently connected and available through Rea
+      summary: Get a list of sensor devices connected to Decent
+      description: Will show all the sensors and their ids, that are currently connected and available through Decent
       tags: [Sensors]
       responses:
         "200":
@@ -583,17 +583,17 @@ paths:
   # REA settings API
   /api/v1/settings:
     get:
-      summary: Get Rea settings
-      tags: [REA Settings]
+      summary: Get Decent settings
+      tags: [Decent Settings]
       responses:
         "200":
-          description: Rea settings
+          description: Decent settings
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReaSettings"
     post:
-      summary: Update Rea settings
+      summary: Update Decent settings
       tags: [REA Settings]
       requestBody:
         required: true
@@ -603,7 +603,7 @@ paths:
               $ref: "#/components/schemas/ReaSettingsRequest"
       responses:
         "200":
-          description: Rea settings updated successfully
+          description: Decent settings updated successfully
 
   # REA Workflow API
   /api/v1/workflow:
@@ -3283,7 +3283,7 @@ paths:
             Content-Disposition:
               schema:
                 type: string
-              description: 'attachment; filename="streamline_bridge_export_{timestamp}.zip"'
+              description: 'attachment; filename="decent_export_{timestamp}.zip"'
         "500":
           description: Internal server error
   /api/v1/data/import:
@@ -3957,7 +3957,7 @@ components:
       type: object
       properties:
         gatewayMode:
-          description: Control whether Rea acts as gateway. Disabled means gateway is disabled, full means full gateway mode. Tracking means rea will not show graphs, but will control the shot (stop at weight)
+          description: Control whether Decent acts as gateway. Disabled means gateway is disabled, full means full gateway mode. Tracking means decent will not show graphs, but will control the shot (stop at weight)
           type: string
           enum: ["disabled", "full", "tracking"]
           nullable: true
@@ -4044,7 +4044,7 @@ components:
       type: object
       properties:
         gatewayMode:
-          description: Control whether Rea acts as gateway. Disabled means gateway is disabled, full means full gateway mode. Tracking means rea will not show graphs, but will control the shot (stop at weight)
+          description: Control whether Decent acts as gateway. Disabled means gateway is disabled, full means full gateway mode. Tracking means decent will not show graphs, but will control the shot (stop at weight)
           type: string
           enum: ["disabled", "full", "tracking"]
         webUiPath:

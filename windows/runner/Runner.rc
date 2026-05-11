@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "net.tadel" "\0"
-            VALUE "FileDescription", "reaprime" "\0"
+            VALUE "FileDescription", "Decent" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "reaprime" "\0"
+            VALUE "InternalName", "Decent" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2025-2026 Decent Espresso. Licensed under GPL v3." "\0"
-            VALUE "OriginalFilename", "reaprime.exe" "\0"
-            VALUE "ProductName", "reaprime" "\0"
+            VALUE "OriginalFilename", "Decent.exe" "\0"
+            VALUE "ProductName", "Decent" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

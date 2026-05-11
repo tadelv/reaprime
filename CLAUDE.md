@@ -4,9 +4,23 @@
 
 ## Project Overview
 
-Streamline-Bridge (formerly REA/ReaPrime/R1) is a Flutter gateway app for Decent Espresso machines. Connects to DE1 machines and scales via BLE/USB, exposing REST (port 8080) and WebSocket APIs. Includes a JavaScript plugin system. Primary platform: Android (DE1 tablet), also macOS, Linux, Windows, iOS. Note: the rename is in progress — code, repo, and file references may still use the old names.
+Decent.app (display name) is a Flutter gateway app for Decent Espresso machines. Connects to DE1/Bengle machines and scales via BLE/USB, exposing REST (port 8080) and WebSocket APIs. Includes a JavaScript plugin system. Primary platform: Android (DE1 tablet), also macOS, Linux, Windows, iOS.
 
-**Reference implementation:** The original Decent Espresso app at `github.com/decentespresso/de1app` is the authoritative source for DE1 protocol behavior, BLE characteristics, and machine state logic. Consult it when implementation details are unclear. Note: Streamline-Bridge uses its own JSON profile format — the TCL-based profile format in de1app is not authoritative for profiles here.
+**Naming reference (authoritative):** Codebase, repo, package, and bundle ID all use legacy "reaprime"/"streamline-bridge" identifiers. See the table below before touching any naming.
+
+| Layer | Value |
+|-------|-------|
+| User-facing display name | **Decent.app** (short: "Decent") |
+| Dart package name | `reaprime` |
+| Plugin file extension | `.reaplugin` |
+| Bundle ID (iOS/macOS/Android) | `net.tadel.reaprime` |
+| Database name | `streamline_bridge` |
+| API schema names | `ReaSettings`, `WebUIReaMetadata` |
+| GitHub repo | `tadelv/reaprime` |
+| MethodChannel | `com.reaprime.updater/apk_installer` |
+| Telemetry salt | `reaprime-telemetry-v1` |
+
+**Reference implementation:** The original Decent Espresso app at `github.com/decentespresso/de1app` is the authoritative source for DE1 protocol behavior, BLE characteristics, and machine state logic. Consult it when implementation details are unclear. Note: Decent uses its own JSON profile format — the TCL-based profile format in de1app is not authoritative for profiles here.
 
 ## Commands
 
@@ -65,7 +79,7 @@ gh pr create --base main
 **For non-code changes** (docs, config, CI) where no test tiers apply, ask the user which verification approach to use:
 - **Analyze only** — `flutter analyze`. Minimum for any change.
 - **Run app** — run with `simulate=1` so user can visually verify. For GUI/UX changes.
-- **End-to-end smoke test** — use `scripts/sb-dev.sh` + `curl` / `websocat` to exercise affected endpoints. See `.agents/skills/streamline-bridge/verification.md`. For API spec or manifest changes.
+- **End-to-end smoke test** — use `scripts/sb-dev.sh` + `curl` / `websocat` to exercise affected endpoints. See `.agents/skills/decent-app/verification.md`. For API spec or manifest changes.
 - **Custom check** — user specifies (e.g., real hardware test, WebSocket stream check).
 
 After every meaningful code change:
@@ -133,7 +147,7 @@ Full endpoint reference in **[`doc/Api.md`](doc/Api.md)**. OpenAPI specs in `ass
 
 ### Dev-loop skill
 
-Driving a running Flutter app (start, stop, hot reload, curl, websocat) is documented in `.agents/skills/streamline-bridge/`. Entry point: `.agents/skills/streamline-bridge/README.md`. Lifecycle is managed by `scripts/sb-dev.sh` (POSIX shell, macOS/Linux only). Prefer `sb-dev reload` (preserves state) over `sb-dev hot-restart`. For end-to-end smoke-testing a change, see `.agents/skills/streamline-bridge/verification.md` and the regression recipes under `.agents/skills/streamline-bridge/scenarios/`.
+Driving a running Flutter app (start, stop, hot reload, curl, websocat) is documented in `.agents/skills/decent-app/`. Entry point: `.agents/skills/decent-app/README.md`. Lifecycle is managed by `scripts/sb-dev.sh` (POSIX shell, macOS/Linux only). Prefer `sb-dev reload` (preserves state) over `sb-dev hot-restart`. For end-to-end smoke-testing a change, see `.agents/skills/decent-app/verification.md` and the regression recipes under `.agents/skills/decent-app/scenarios/`.
 
 ### Data Flow (key paths)
 
@@ -173,7 +187,7 @@ Run with `flutter test`. Simulated devices available via `--dart-define=simulate
 | **Integration** | Multi-component flows (e.g., scan → connect → measure) | Only hardware/transport edge mocked |
 | **End-to-end** | API surface, WebSocket streams, full-stack through running app | App in simulate mode (MockDe1, MockScale) |
 
-All Dart tests (unit + integration) live in `test/` and run via `flutter test`. End-to-end regression recipes live under `.agents/skills/streamline-bridge/scenarios/` as markdown — run them via `scripts/sb-dev.sh` + `curl` / `websocat`. See `.claude/skills/tdd-workflow/` for the full process.
+All Dart tests (unit + integration) live in `test/` and run via `flutter test`. End-to-end regression recipes live under `.agents/skills/decent-app/scenarios/` as markdown — run them via `scripts/sb-dev.sh` + `curl` / `websocat`. See `.claude/skills/tdd-workflow/` for the full process.
 
 ### Test Helpers (`test/helpers/`)
 
@@ -205,7 +219,7 @@ All Dart tests (unit + integration) live in `test/` and run via `flutter test`. 
 2. Add route in handler's `addRoutes()`
 3. Register in `webserver_service.dart` `_init()`
 4. **Update `assets/api/rest_v1.yml` (or `websocket_v1.yml`) in the same commit** — the spec is authoritative, stale spec = stale agent knowledge
-5. Update `doc/Api.md` if user-facing. Smoke-test via `scripts/sb-dev.sh` + `curl` — see `.agents/skills/streamline-bridge/verification.md`
+5. Update `doc/Api.md` if user-facing. Smoke-test via `scripts/sb-dev.sh` + `curl` — see `.agents/skills/decent-app/verification.md`
 
 ## Documentation
 
@@ -216,7 +230,7 @@ Detailed docs in `doc/`:
 - **`doc/Profiles.md`** — Profile API (content-based hashing, version tracking, endpoints)
 - **`doc/DeviceManagement.md`** — Device discovery and connection management
 - **`doc/RELEASE.md`** — Release process and versioning
-- **`.agents/skills/streamline-bridge/`** — Dev-loop skill: `sb-dev` lifecycle, REST/WebSocket recipes, simulated devices, verification scenarios
+- **`.agents/skills/decent-app/`** — Dev-loop skill: `sb-dev` lifecycle, REST/WebSocket recipes, simulated devices, verification scenarios
 - **`packages/dye2-plugin/README.md`** — DYE2 bundled plugin (architecture, build, dev server, extension guide)
 
 ## Agent skills

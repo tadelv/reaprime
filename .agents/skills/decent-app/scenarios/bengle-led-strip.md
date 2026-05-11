@@ -4,7 +4,7 @@ Exercises the full LED strip v2 API on a `MockBengle`: PUT configuration, verify
 
 ## Preconditions
 
-- A running Streamline Bridge instance with `simulate=1,scale` (MockBengle auto-discovered)
+- A running Decent instance with `simulate=1,scale` (MockBengle auto-discovered)
 - `curl` and `jq` available
 
 ## Procedure

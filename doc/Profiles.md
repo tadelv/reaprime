@@ -157,7 +157,7 @@ Manifest structure:
 ```json
 {
   "version": "1.0.0",
-  "description": "Default espresso profiles bundled with REA Prime",
+  "description": "Default espresso profiles bundled with Decent.app",
   "profiles": [
     "best_practice.json",
     "cremina.json",

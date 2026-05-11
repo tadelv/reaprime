@@ -1,10 +1,10 @@
 # Release Guide
 
-This document describes how to create releases for ReaPrime.
+This document describes how to create releases for Decent.app.
 
 ## Creating a Release
 
-ReaPrime uses git tags to trigger automatic releases. When you push a tag, GitHub Actions will:
+Decent.app uses git tags to trigger automatic releases. When you push a tag, GitHub Actions will:
 1. Build the Android APK
 2. Create a GitHub release
 3. Attach the APK to the release
@@ -40,7 +40,7 @@ git push origin v1.0.0-alpha.1
 
 ## Version Numbering
 
-ReaPrime follows [Semantic Versioning](https://semver.org/):
+Decent.app follows [Semantic Versioning](https://semver.org/):
 
 - **MAJOR.MINOR.PATCH** (e.g., `v1.2.3`)
   - **MAJOR**: Breaking changes or major new features

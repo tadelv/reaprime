@@ -1,11 +1,11 @@
 {
-    "name": "Streamline-Bridge",
-    "short_name": "Bridge",
+    "name": "Decent",
+    "short_name": "Decent",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#hexcode",
     "theme_color": "#hexcode",
-    "description": "Streamline Bridge - Gateway for Decent Espresso Machines",
+    "description": "Decent - Gateway for Decent Espresso Machines",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

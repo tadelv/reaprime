@@ -138,7 +138,7 @@ function createPlugin(host) {
 
   function convertReaToVisualizerFormat(reaShot) {
     if (!reaShot || !reaShot.measurements || reaShot.measurements.length === 0) {
-      throw new Error("Invalid or empty REA shot data for conversion.");
+      throw new Error("Invalid or empty Decent shot data for conversion.");
     }
 
     const firstEspressoIndex = reaShot.measurements.findIndex((element) => {
@@ -386,8 +386,8 @@ function createPlugin(host) {
     const profileData = await profileResponse.json();
     log(`Fetched profile: ${JSON.stringify(profileData).slice(0, 200)}`);
 
-    // Step 3: POST profile to REA workflow endpoint
-    log(`Posting profile to REA workflow endpoint...`);
+    // Step 3: POST profile to Decent workflow endpoint
+    log(`Posting profile to Decent workflow endpoint...`);
     const workflowResponse = await fetch('http://localhost:8080/api/v1/profiles', {
       method: 'POST',
       headers: {
@@ -400,7 +400,7 @@ function createPlugin(host) {
     });
 
     if (!workflowResponse.ok) {
-      throw new Error(`Failed to import profile to REA: HTTP ${workflowResponse.status} ${workflowResponse.statusText}`);
+      throw new Error(`Failed to import profile to Decent: HTTP ${workflowResponse.status} ${workflowResponse.statusText}`);
     }
 
     const workflowResult = await workflowResponse.json();

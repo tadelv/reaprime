@@ -282,7 +282,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
             .replaceAll(':', '-')
             .split('.')
             .first;
-        final fileName = 'streamline_bridge_export_$timestamp.zip';
+        final fileName = 'decent_export_$timestamp.zip';
 
         final outputFile = await FilePicker.saveFile(
           fileName: fileName,
