@@ -5,9 +5,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/errors.dart';
 
 const _webUiStorageLoggerName = 'WebUIStorage';
-const _serialLoggerPrefix = 'Serial:';
 const _skinAlreadyExistsPrefix = 'Skin already exists';
-const _portAlreadyOpenMessage = 'port already open';
 const _benignNetworkErrorPrefixes = [
   'Exception: Failed to fetch GitHub release:',
   'Exception: Failed to download:',
@@ -41,13 +39,6 @@ bool shouldForwardToTelemetry(LogRecord record) {
 
   if (record.loggerName == _webUiStorageLoggerName &&
       record.message.startsWith(_skinAlreadyExistsPrefix)) {
-    return false;
-  }
-
-  // `Serial:...` port already-open is expected state on Android USB
-  // re-connect — not a crash signal.
-  if (record.loggerName.startsWith(_serialLoggerPrefix) &&
-      record.message == _portAlreadyOpenMessage) {
     return false;
   }
 
