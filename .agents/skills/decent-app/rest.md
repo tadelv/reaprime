@@ -1,6 +1,6 @@
 # REST recipes
 
-Hitting Streamline Bridge's REST API from a shell with `curl` and `jq`. The **authoritative** endpoint reference is `assets/api/rest_v1.yml` (OpenAPI 3.0) — never guess paths or payload shapes, read the spec. This file is only a pocket reference for the common moves.
+Hitting Decent's REST API from a shell with `curl` and `jq`. The **authoritative** endpoint reference is `assets/api/rest_v1.yml` (OpenAPI 3.0) — never guess paths or payload shapes, read the spec. This file is only a pocket reference for the common moves.
 
 ## Base URL
 

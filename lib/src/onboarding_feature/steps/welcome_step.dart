@@ -39,7 +39,7 @@ class _WelcomeStepView extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
-                  'Welcome to Streamline Bridge',
+                  'Welcome to Decent',
                   style: theme.textTheme.h3,
                   textAlign: TextAlign.center,
                 ),

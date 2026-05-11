@@ -42,18 +42,18 @@ The **Development Workflow** references a TDD skill in `.claude/skills/tdd-workf
 - **Self-review:** Review your own code before claiming done
 - **Full suite:** Run `flutter test` and `flutter analyze` before committing
 
-## Working with Streamline Bridge (all agents)
+## Working with Decent.app (all agents)
 
-The authoritative dev-loop skill lives under the [agentskills.io](https://agentskills.io) cross-client path `.agents/skills/streamline-bridge/`. Any compliant client auto-discovers it. Non-compliant clients can read it as plain markdown.
+The authoritative dev-loop skill lives under the [agentskills.io](https://agentskills.io) cross-client path `.agents/skills/decent-app/`. Any compliant client auto-discovers it. Non-compliant clients can read it as plain markdown.
 
-- **Entry point:** `.agents/skills/streamline-bridge/SKILL.md`
+- **Entry point:** `.agents/skills/decent-app/SKILL.md`
 - **Routing:** `SKILL.md` has a table pointing at sibling files for lifecycle, REST, WebSocket, simulated devices, verification, and the end-to-end scenarios under `scenarios/`.
 - **Lifecycle helper:** `scripts/sb-dev.sh` (POSIX shell) manages `flutter run` in simulate mode — start, stop, hot reload, logs, status.
 - **Authoritative specs:** `assets/api/rest_v1.yml` (OpenAPI 3.0) and `assets/api/websocket_v1.yml` (AsyncAPI 3.0). Always read the relevant spec before making calls — don't guess endpoint paths or payload shapes.
 
-Claude Code also loads the skill via a thin forwarder at `.claude/skills/streamline-bridge/SKILL.md` that points at the same canonical location.
+Claude Code also loads the skill via a thin forwarder at `.claude/skills/decent-app/SKILL.md` that points at the same canonical location.
 
-Prerequisites: `bash`, `curl`, `jq`, `websocat`, `flutter`, and POSIX `mkfifo` (macOS/Linux). Windows contributors run `flutter run` in a real terminal — see `.agents/skills/streamline-bridge/lifecycle.md` for the Windows caveat.
+Prerequisites: `bash`, `curl`, `jq`, `websocat`, `flutter`, and POSIX `mkfifo` (macOS/Linux). Windows contributors run `flutter run` in a real terminal — see `.agents/skills/decent-app/lifecycle.md` for the Windows caveat.
 
 ## File Locations
 

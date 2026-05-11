@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# sb-dev.sh — Streamline Bridge dev-session manager
+# sb-dev.sh — Decent dev-session manager
 #
 # Manages a `flutter run` process for simulate-mode development by default,
 # with opt-in flags for running against real hardware (including Android
 # devices via adb port forwarding). See
-# .agents/skills/streamline-bridge/lifecycle.md for the full reference.
+# .agents/skills/decent-app/lifecycle.md for the full reference.
 #
-# Runtime state lives under $SB_RUNTIME_DIR (default /tmp/streamline-bridge-$USER).
+# Runtime state lives under $SB_RUNTIME_DIR (default /tmp/decent-$USER).
 
 set -euo pipefail
 
-RUNTIME_DIR="${SB_RUNTIME_DIR:-/tmp/streamline-bridge-${USER:-default}}"
+RUNTIME_DIR="${SB_RUNTIME_DIR:-/tmp/decent-${USER:-default}}"
 PIDFILE="$RUNTIME_DIR/flutter.pid"
 HOLDER_PIDFILE="$RUNTIME_DIR/holder.pid"
 STDIN_FIFO="$RUNTIME_DIR/stdin"
@@ -31,7 +31,7 @@ shift || true
 
 usage() {
   cat <<'EOF'
-sb-dev.sh — Streamline Bridge dev-session manager
+sb-dev.sh — Decent dev-session manager
 
 Usage:
   sb-dev start [--platform <id>] [--connect-machine <name|id>] [--connect-scale <name|id>]
@@ -67,7 +67,7 @@ Flags:
   --dart-define k=v        Extra --dart-define passed to flutter (repeatable).
 
 Env:
-  SB_RUNTIME_DIR  runtime state directory (default: /tmp/streamline-bridge-$USER)
+  SB_RUNTIME_DIR  runtime state directory (default: /tmp/decent-$USER)
   SB_HOST         host for curl checks (default: localhost)
   SB_PORT         port for curl checks (default: 8080)
 EOF

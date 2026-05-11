@@ -157,7 +157,7 @@ jobs:
 
       - name: Codesign app (hardened runtime)
         run: |
-          APP="build/macos/Build/Products/Release/Streamline-Bridge.app"
+          APP="build/macos/Build/Products/Release/Decent.app"
           codesign --deep --force \
             --options runtime \
             --entitlements macos/Runner/Release.entitlements \
@@ -168,7 +168,7 @@ jobs:
       - name: Zip app for notarization
         run: |
           cd build/macos/Build/Products/Release
-          ditto -c -k --keepParent Streamline-Bridge.app Streamline-Bridge.zip
+          ditto -c -k --keepParent Decent.app Decent.zip
 
       - name: Notarize app
         env:
@@ -177,7 +177,7 @@ jobs:
           APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
         run: |
           xcrun notarytool submit \
-            build/macos/Build/Products/Release/Streamline-Bridge.zip \
+            build/macos/Build/Products/Release/Decent.zip \
             --apple-id "$APPLE_ID" \
             --team-id "$TEAM_ID" \
             --password "$APP_SPECIFIC_PASSWORD" \
@@ -196,7 +196,7 @@ jobs:
         run: |
           # Retry stapling — ticket propagation can lag behind notarytool --wait
           for i in 1 2 3 4 5; do
-            if xcrun stapler staple build/macos/Build/Products/Release/Streamline-Bridge.app; then
+            if xcrun stapler staple build/macos/Build/Products/Release/Decent.app; then
               exit 0
             fi
             echo "Staple attempt $i failed, waiting 15s..."
@@ -209,13 +209,13 @@ jobs:
       - name: Create development ZIP
         run: |
           cd build/macos/Build/Products/Release
-          ditto -c -k --keepParent Streamline-Bridge.app ../../../../../streamline-bridge-macos-develop.zip
+          ditto -c -k --keepParent Decent.app ../../../../../decent-macos-develop.zip
 
       - name: Upload macOS app
         uses: actions/upload-artifact@v4
         with:
           name: macos-app
-          path: streamline-bridge-macos-develop.zip
+          path: decent-macos-develop.zip
 
   build-linux:
     if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'linux'

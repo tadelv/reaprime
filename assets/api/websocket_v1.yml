@@ -1,9 +1,9 @@
 asyncapi: 3.0.0
 info:
-  title: Rea Prime AsyncAPI
+  title: Decent AsyncAPI
   version: 1.0.0
   description: >
-    AsyncAPI specification for Rea Prime WebSocket data streams.
+    AsyncAPI specification for Decent WebSocket data streams.
 
 
     Most channels are WebSocket-based and emit JSON messages to the client.
@@ -68,7 +68,7 @@ channels:
       sensorSnapshotMessage:
         $ref: '#/components/messages/SensorSnapshot'
   Plugins:
-    description: Outgoing messages from Rea plugins.
+    description: Outgoing messages from Decent plugins.
     address: ws/v1/plugins/{id}/{endpoint}
     parameters:
       id:
@@ -79,7 +79,7 @@ channels:
       pluginMessage:
         $ref: '#/components/messages/PluginMessage'
   Logs:
-    description: Subscribe to Rea logs
+    description: Subscribe to Decent logs
     address: ws/v1/logs
     messages:
       logMessage:
@@ -219,7 +219,7 @@ components:
         $ref: '#/components/schemas/PluginMessage'
     LogMessage:
       name: LogMessage
-      title: Log message from Rea
+      title: Log message from Decent
       payload:
         $ref: '#/components/schemas/LogMessage'
     DevicesState:

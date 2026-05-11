@@ -189,7 +189,7 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
       horizontalScrollBarEnabled: false,
 
       // displayZoomControls: false,
-      userAgent: "Streamline-Bridge",
+      userAgent: "Decent",
 
       // Memory management: let Android kill the renderer process (not the app)
       // when the WebView is not visible and memory is tight.

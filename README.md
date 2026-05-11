@@ -1,6 +1,6 @@
-# Streamline Bridge
+# Decent.app
 
-> **Streamline Bridge** connects your Decent Espresso machine to beautiful,
+> **Decent.app** connects your Decent Espresso machine to beautiful,
 modern user interfaces (called "skins").  
 Think of it as the bridge between your
 DE1 (or Bengle) and sleek touchscreen experiences like [Streamline.js](https://github.com/allofmeng/streamline_project).
@@ -13,7 +13,7 @@ DE1 (or Bengle) and sleek touchscreen experiences like [Streamline.js](https://g
 - Works with scales to automatically stop shots at your target weight
 - Runs on Android tablets, desktop computers, and more
 
-**For developers:** Streamline Bridge provides
+**For developers:** Decent.app provides
 a complete REST and WebSocket API, making it
 easy to build custom interfaces without dealing with the
 complexity of machine communication and device connectivity.
@@ -49,7 +49,7 @@ complexity of machine communication and device connectivity.
 
 To browse the complete API documentation:
 
-1. Start Streamline Bridge
+1. Start Decent.app
 2. Navigate to [http://localhost:4001](http://localhost:4001)
 
 Or:  
@@ -76,11 +76,11 @@ The API provides:
 
 ### Background Operation
 
-On Android, Streamline Bridge can run as a foreground service, maintaining stable connections to your machine and scale while tucked away in the background.
+On Android, Decent.app can run as a foreground service, maintaining stable connections to your machine and scale while tucked away in the background.
 
 ## WebUI / Skins
 
-Similar to the original DE1 app, Streamline Bridge supports loading and displaying different "skins" (web-based UIs).
+Similar to the original DE1 app, Decent.app supports loading and displaying different "skins" (web-based UIs).
 
 ### Accessing Skins
 
@@ -144,7 +144,7 @@ Similar to the original DE1 app, Streamline Bridge supports loading and displayi
 
 ## Plugins
 
-Streamline Bridge features a JavaScript plugin system for dynamic functionality expansion.
+Decent.app features a JavaScript plugin system for dynamic functionality expansion.
 
 **Capabilities:**
 - React to machine state changes
@@ -282,20 +282,14 @@ make dual-build
 
 ## About the Name
 
-**Streamline Bridge** (formerly known as REA/ReaPrime) represents a simplified approach to the project's terminology.
+**Decent.app** (formerly REA → ReaPrime → Streamline Bridge) is the companion app for Decent Espresso machines.
 
 ### The Evolution
 
-The original name **REA** stood for "Reasonable Espresso App" - a tongue-in-cheek reference to brewing something "reasonably decent" with a Decent Espresso machine. As the project evolved into **ReaPrime**, we realized the naming could be clearer for users.
+The original name **REA** stood for "Reasonable Espresso App" — a tongue-in-cheek reference to brewing something "reasonably decent" with a Decent Espresso machine. As the project evolved through **ReaPrime** and **Streamline Bridge**, users found the naming confusing. **Decent.app** is simple, direct, and says exactly what it is.
 
-### Why Streamline Bridge?
-
-The rename to **Streamline Bridge** better reflects the project's role in the ecosystem:
-
-- **[Streamline.js](https://github.com/allofmeng/streamline_project)**: Our modern, sleek WebUI skin being developed separately - the user-facing interface
-- **Streamline Bridge**: This application - the bridge that connects Streamline.js (and other skins) to your espresso machine
-
-The name emphasizes the app's purpose: **bridging the gap** between beautiful user interfaces and the complexity of machine communication, device connectivity, and state management.
+- **Codebase & repo** still use legacy identifiers (`reaprime`, `tadelv/reaprime`) to avoid breaking App Store / Firebase / Google Play bindings.
+- **Display name** is **Decent** on iOS / Android launchers; **Decent.app** on macOS Finder and in written reference.
 
 ## Credits
 

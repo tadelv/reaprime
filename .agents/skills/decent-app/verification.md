@@ -1,6 +1,6 @@
 # Verification
 
-Deciding how to smoke-test a change to Streamline Bridge, and the concrete recipes for each workflow. For the broader test-tier decision process (unit / integration / MCP) see `.claude/skills/tdd-workflow/SKILL.md` — this file is specifically about end-to-end verification against a running Streamline Bridge instance driven by `scripts/sb-dev.sh`.
+Deciding how to smoke-test a change to Decent, and the concrete recipes for each workflow. For the broader test-tier decision process (unit / integration / MCP) see `.claude/skills/tdd-workflow/SKILL.md` — this file is specifically about end-to-end verification against a running Decent instance driven by `scripts/sb-dev.sh`.
 
 ## When to verify via a running app
 

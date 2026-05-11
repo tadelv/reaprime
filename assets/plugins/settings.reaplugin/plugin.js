@@ -19,18 +19,18 @@ function createPlugin(host) {
   }
 
   /**
-   * Fetch REA application settings
+   * Fetch Decent application settings
    */
   async function fetchReaSettings() {
     try {
       const res = await fetch("http://localhost:8080/api/v1/settings");
       if (!res.ok) {
-        log(`Failed to fetch REA settings: ${res.status}`);
+        log(`Failed to fetch Decent settings: ${res.status}`);
         return null;
       }
       return await res.json();
     } catch (e) {
-      log(`Error fetching REA settings: ${e.message}`);
+      log(`Error fetching Decent settings: ${e.message}`);
       return null;
     }
   }
@@ -175,8 +175,8 @@ function createPlugin(host) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="REA Prime Settings Dashboard - Configure application and DE1 machine settings">
-    <title>REA Settings Dashboard</title>
+    <meta name="description" content="Decent Settings Dashboard - Configure application and DE1 machine settings">
+    <title>Decent Settings Dashboard</title>
     <style>
         * {
             margin: 0;
@@ -370,13 +370,13 @@ function createPlugin(host) {
 </head>
 <body>
     <nav style="position: sticky; top: 0; z-index: 100; background: #f5f5f5; padding: 12px 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
-      <h1 style="margin: 0; font-size: 1.2em; color: #333;">Streamline-Bridge Settings</h1>
+      <h1 style="margin: 0; font-size: 1.2em; color: #333;">Decent Settings</h1>
       <a id="back-link" href="#" onclick="window.location.href='http://'+window.location.hostname+':3000/?_='+Date.now(); return false;" style="color: #2980b9; text-decoration: none; padding: 8px 16px; border: 1px solid #2980b9; border-radius: 6px;">&#8592; Back to ${escapeHtml(backName || 'WebUI')}</a>
     </nav>
     <a href="#main-content" class="skip-link">Skip to main content</a>
     <div class="container">
         <header class="header">
-            <h1 id="page-title">Streamline-Bridge Settings</h1>
+            <h1 id="page-title">Decent Settings</h1>
             <button class="btn btn-refresh" onclick="location.reload()" aria-label="Refresh all settings from server">
                 Refresh
             </button>
@@ -389,11 +389,11 @@ function createPlugin(host) {
         </div>
 
         <main id="main-content">
-            <!-- REA Application Settings -->
-            <section class="section" aria-labelledby="rea-settings-heading">
-                <h2 id="rea-settings-heading">REA Application Settings</h2>
+            <!-- Decent Application Settings -->
+            <section class="section" aria-labelledby="decent-settings-heading">
+                <h2 id="decent-settings-heading">Decent Application Settings</h2>
             ${reaSettings ? `
-                <div class="settings-grid" role="group" aria-label="REA application settings controls">
+                <div class="settings-grid" role="group" aria-label="Decent application settings controls">
                     <div class="setting-item">
                         <label class="setting-label" for="gatewayMode">Gateway Mode</label>
                         <div class="setting-control">
@@ -485,7 +485,7 @@ function createPlugin(host) {
                         </div>
                     </div>
                 </div>
-            ` : '<div class="error" role="alert" aria-live="assertive">Failed to load REA settings</div>'}
+            ` : '<div class="error" role="alert" aria-live="assertive">Failed to load Decent settings</div>'}
             </section>
 
             <!-- Battery & Charging -->
@@ -1027,14 +1027,14 @@ function createPlugin(host) {
                 });
 
                 if (response.ok) {
-                    showToast('REA setting updated successfully');
+                    showToast('Decent setting updated successfully');
                     document.getElementById('timestamp').textContent = new Date().toLocaleString();
                 } else {
                     const error = await response.text();
-                    showToast('Failed to update REA setting: ' + error, true);
+                    showToast('Failed to update Decent setting: ' + error, true);
                 }
             } catch (e) {
-                showToast('Error updating REA setting: ' + e.message, true);
+                showToast('Error updating Decent setting: ' + e.message, true);
             }
         }
 
@@ -1462,7 +1462,7 @@ function createPlugin(host) {
   // Return the plugin object
   return {
     id: "settings.reaplugin",
-    version: "0.1.0",
+    version: "0.1.1",
 
     onLoad(settings) {
       state.refreshInterval = settings.RefreshInterval !== undefined ? settings.RefreshInterval : 5;

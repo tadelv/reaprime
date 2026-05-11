@@ -190,17 +190,17 @@ class _SettingsViewState extends State<SettingsView>
                 items: const [
                   DropdownMenuItem(
                     value: GatewayMode.full,
-                    child: Text('Full (Rea has no control)'),
+                    child: Text('Full (App has no control)'),
                   ),
                   DropdownMenuItem(
                     value: GatewayMode.tracking,
                     child: Text(
-                      'Tracking (Rea will stop shot if target weight is reached)',
+                      'Tracking (App will stop shot if target weight is reached)',
                     ),
                   ),
                   DropdownMenuItem(
                     value: GatewayMode.disabled,
-                    child: Text('Disabled (Rea has full control)'),
+                    child: Text('Disabled (App has full control)'),
                   ),
                 ],
               ),
@@ -760,11 +760,11 @@ class _SettingsViewState extends State<SettingsView>
           const Divider(height: 24),
           Semantics(
             button: true,
-            label: 'Exit Streamline-Bridge',
+            label: 'Exit Decent',
             child: ExcludeSemantics(
               child: ShadButton.destructive(
                 onPressed: () => _exitApp(),
-                child: const Text("Exit Streamline-Bridge"),
+                child: const Text("Exit Decent"),
               ),
             ),
           ),

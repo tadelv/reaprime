@@ -98,7 +98,7 @@ scripts/sb-dev.sh restart
 
 ## Runtime state
 
-Everything sb-dev owns lives under `$SB_RUNTIME_DIR` (default `/tmp/streamline-bridge-$USER/`):
+Everything sb-dev owns lives under `$SB_RUNTIME_DIR` (default `/tmp/decent-app-$USER/`):
 
 - `flutter.pid` — flutter process id
 - `holder.pid` — a `tail -f /dev/null` writer that keeps the stdin fifo open so flutter never sees EOF
@@ -115,7 +115,7 @@ Escape hatch when state on disk disagrees with what is actually running:
 
 ```bash
 scripts/sb-dev.sh stop || true
-rm -rf /tmp/streamline-bridge-$USER/
+rm -rf /tmp/decent-app-$USER/
 pgrep -af flutter_tools.snapshot   # should be empty
 ```
 

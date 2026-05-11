@@ -151,7 +151,7 @@ void main() async {
   final webViewLogService = WebViewLogService(logDirectoryPath: webViewLogDir);
   await webViewLogService.initialize();
 
-  Logger.root.info("==== REA PRIME starting ====");
+  Logger.root.info("==== Decent starting ====");
 
   Logger.root.info(
     "build: ${BuildInfo.commitShort}, branch: ${BuildInfo.branch}",

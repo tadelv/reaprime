@@ -74,13 +74,13 @@ jobs:
       - name: Rename APK with version
         run: |
           mv build/app/outputs/flutter-apk/app-release.apk \
-             build/app/outputs/flutter-apk/reaprime-android-${{ steps.version.outputs.version }}.apk
+             build/app/outputs/flutter-apk/decent-android-${{ steps.version.outputs.version }}.apk
 
       - name: Upload Android APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
-          path: build/app/outputs/flutter-apk/reaprime-android-${{ steps.version.outputs.version }}.apk
+          path: build/app/outputs/flutter-apk/decent-android-${{ steps.version.outputs.version }}.apk
 
   build-macos:
     runs-on: macos-latest
@@ -152,7 +152,7 @@ jobs:
 
       - name: Codesign app (hardened runtime)
         run: |
-          APP="build/macos/Build/Products/Release/Streamline-Bridge.app"
+          APP="build/macos/Build/Products/Release/Decent.app"
           codesign --deep --force \
             --options runtime \
             --entitlements macos/Runner/Release.entitlements \
@@ -163,7 +163,7 @@ jobs:
       - name: Zip app for notarization
         run: |
           cd build/macos/Build/Products/Release
-          ditto -c -k --keepParent Streamline-Bridge.app Streamline-Bridge.zip
+          ditto -c -k --keepParent Decent.app Decent.zip
 
       - name: Notarize app
         env:
@@ -172,7 +172,7 @@ jobs:
           APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
         run: |
           xcrun notarytool submit \
-            build/macos/Build/Products/Release/Streamline-Bridge.zip \
+            build/macos/Build/Products/Release/Decent.zip \
             --apple-id "$APPLE_ID" \
             --team-id "$TEAM_ID" \
             --password "$APP_SPECIFIC_PASSWORD" \
@@ -191,7 +191,7 @@ jobs:
         run: |
           # Retry stapling — ticket propagation can lag behind notarytool --wait
           for i in 1 2 3 4 5; do
-            if xcrun stapler staple build/macos/Build/Products/Release/Streamline-Bridge.app; then
+            if xcrun stapler staple build/macos/Build/Products/Release/Decent.app; then
               exit 0
             fi
             echo "Staple attempt $i failed, waiting 15s..."
@@ -210,12 +210,12 @@ jobs:
       - name: Create release ZIP
         run: |
           cd build/macos/Build/Products/Release
-          ditto -c -k --keepParent Streamline-Bridge.app ../../../../../streamline-bridge-macos-${{ steps.version.outputs.version }}.zip
+          ditto -c -k --keepParent Decent.app ../../../../../decent-macos-${{ steps.version.outputs.version }}.zip
 
       - uses: actions/upload-artifact@v4
         with:
           name: macos-app
-          path: streamline-bridge-macos-${{ steps.version.outputs.version }}.zip
+          path: decent-macos-${{ steps.version.outputs.version }}.zip
 
   build-linux:
     runs-on: ubuntu-latest
@@ -261,13 +261,13 @@ jobs:
       - name: Create Linux archive
         run: |
           cd build/linux/x64/release
-          tar -czf ../../../../reaprime-linux-x64-${{ steps.version.outputs.version }}.tar.gz bundle
+          tar -czf ../../../../decent-linux-x64-${{ steps.version.outputs.version }}.tar.gz bundle
 
       - name: Upload Linux app artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-app
-          path: reaprime-linux-x64-${{ steps.version.outputs.version }}.tar.gz
+          path: decent-linux-x64-${{ steps.version.outputs.version }}.tar.gz
 
   build-raspberrypi:
     name: Build for Raspberry Pi (ARM64 / Pi 4+)
@@ -318,13 +318,13 @@ jobs:
       - name: Create Raspberry Pi archive
         run: |
           cd build/linux/arm64/release
-          tar -czf ../../../../reaprime-linux-arm64-${{ steps.version.outputs.version }}.tar.gz bundle
+          tar -czf ../../../../decent-linux-arm64-${{ steps.version.outputs.version }}.tar.gz bundle
 
       - name: Upload Raspberry Pi build artifact
         uses: actions/upload-artifact@v4
         with:
           name: raspberrypi-linux-arm64-app
-          path: reaprime-linux-arm64-${{ steps.version.outputs.version }}.tar.gz
+          path: decent-linux-arm64-${{ steps.version.outputs.version }}.tar.gz
 
   build-windows:
     runs-on: windows-latest
@@ -374,13 +374,13 @@ jobs:
       - name: Create Windows archive
         shell: pwsh
         run: |
-          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath reaprime-windows-x64-${{ steps.version.outputs.version }}.zip
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath decent-windows-x64-${{ steps.version.outputs.version }}.zip
 
       - name: Upload Windows app artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-app
-          path: reaprime-windows-x64-${{ steps.version.outputs.version }}.zip
+          path: decent-windows-x64-${{ steps.version.outputs.version }}.zip
 
   build-ios:
     runs-on: macos-latest
@@ -602,20 +602,20 @@ jobs:
             release-artifacts/raspberrypi-linux-arm64-app/*
             release-artifacts/windows-app/*
           tag_name: ${{ steps.version.outputs.tag }}
-          name: ReaPrime ${{ steps.version.outputs.version }}
+          name: Decent ${{ steps.version.outputs.version }}
           draft: false
           prerelease: ${{ contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'rc') }}
           generate_release_notes: true
           body: |
-            ## ReaPrime ${{ steps.version.outputs.version }}
+            ## Decent ${{ steps.version.outputs.version }}
             
             ### Downloads
             
-            - **Android**: `reaprime-android-${{ steps.version.outputs.version }}.apk`
-            - **macOS**: `reaprime-macos-${{ steps.version.outputs.version }}.zip`
-            - **Linux x64**: `reaprime-linux-x64-${{ steps.version.outputs.version }}.tar.gz`
-            - **Linux ARM64 (Raspberry Pi)**: `reaprime-linux-arm64-${{ steps.version.outputs.version }}.tar.gz`
-            - **Windows x64**: `reaprime-windows-x64-${{ steps.version.outputs.version }}.zip`
+            - **Android**: `decent-android-${{ steps.version.outputs.version }}.apk`
+            - **macOS**: `decent-macos-${{ steps.version.outputs.version }}.zip`
+            - **Linux x64**: `decent-linux-x64-${{ steps.version.outputs.version }}.tar.gz`
+            - **Linux ARM64 (Raspberry Pi)**: `decent-linux-arm64-${{ steps.version.outputs.version }}.tar.gz`
+            - **Windows x64**: `decent-windows-x64-${{ steps.version.outputs.version }}.zip`
             
             ### Installation
             
@@ -627,7 +627,7 @@ jobs:
             
             **Windows**: Download the ZIP, extract it, and run the executable inside the extracted folder.
             
-            > **Windows users**: Streamline-Bridge requires the [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-supported-redistributable-version) to be installed. If the app doesn't start, please download and install the latest Visual C++ Redistributable from Microsoft.
+            > **Windows users**: Decent requires the [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-supported-redistributable-version) to be installed. If the app doesn't start, please download and install the latest Visual C++ Redistributable from Microsoft.
 
             **iOS**: Available via TestFlight. Check the project's TestFlight page for access.
             

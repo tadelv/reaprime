@@ -1,13 +1,13 @@
 ---
-name: streamline-bridge
-description: Use when touching the Flutter app, its REST/WebSocket API, profiles, shots, simulated devices, or real BLE/USB hardware via an Android tablet or desktop, or whenever exercising a code change against a running Streamline Bridge instance. Covers the dev loop (sb-dev start/reload/stop in simulate or real-hardware mode), REST calls via curl, WebSocket streams via websocat, and smoke-test verification.
+name: decent-app
+description: Use when touching the Flutter app, its REST/WebSocket API, profiles, shots, simulated devices, or real BLE/USB hardware via an Android tablet or desktop, or whenever exercising a code change against a running Decent instance. Covers the dev loop (sb-dev start/reload/stop in simulate or real-hardware mode), REST calls via curl, WebSocket streams via websocat, and smoke-test verification.
 ---
 
-# Streamline Bridge — agent skill
+# Decent — agent skill
 
-This skill covers driving a running Streamline Bridge Flutter app from the shell — simulate mode by default, real hardware via `--real` (+ `--adb-forward` for Android). It exposes REST via `curl`, WebSocket via `websocat`, and lifecycle (start, stop, reload, logs) via `scripts/sb-dev.sh`. Written for any agent that can read markdown and execute shell commands — Claude Code, Cursor, Codex, Windsurf, humans — and deliberately avoids agent-specific mechanisms like MCP tools or slash commands.
+This skill covers driving a running Decent Flutter app from the shell — simulate mode by default, real hardware via `--real` (+ `--adb-forward` for Android). It exposes REST via `curl`, WebSocket via `websocat`, and lifecycle (start, stop, reload, logs) via `scripts/sb-dev.sh`. Written for any agent that can read markdown and execute shell commands — Claude Code, Cursor, Codex, Windsurf, humans — and deliberately avoids agent-specific mechanisms like MCP tools or slash commands.
 
-The skill lives under `.agents/skills/streamline-bridge/` following the [agentskills.io](https://agentskills.io) cross-client convention. Any compliant client will auto-discover it. Claude Code also loads it via a forwarder at `.claude/skills/streamline-bridge/SKILL.md`.
+The skill lives under `.agents/skills/decent-app/` following the [agentskills.io](https://agentskills.io) cross-client convention. Any compliant client will auto-discover it. Claude Code also loads it via a forwarder at `.claude/skills/decent-app/SKILL.md`.
 
 ## Routing
 
@@ -20,7 +20,7 @@ The skill lives under `.agents/skills/streamline-bridge/` following the [agentsk
 | Smoke-test a code change | `verification.md` |
 | End-to-end regression recipes | `scenarios/` |
 
-All files above are siblings of this `SKILL.md` under `.agents/skills/streamline-bridge/`. Relative paths in the sub-files resolve against that directory.
+All files above are siblings of this `SKILL.md` under `.agents/skills/decent-app/`. Relative paths in the sub-files resolve against that directory.
 
 ## Authoritative sources
 

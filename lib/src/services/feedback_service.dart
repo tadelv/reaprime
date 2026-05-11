@@ -126,7 +126,7 @@ class FeedbackService {
             logContent =
                 '... (truncated, showing last ${maxLogSize ~/ 1024}KB) ...\n${logContent.substring(logContent.length - maxLogSize)}';
           }
-          gistFiles['reaprime_logs.txt'] = {'content': logContent};
+          gistFiles['decent_logs.txt'] = {'content': logContent};
         }
 
         // Add webview console logs if available
@@ -137,7 +137,7 @@ class FeedbackService {
             webViewLogContent =
                 '... (truncated, showing last ${maxWebViewLogSize ~/ 1024}KB) ...\n${webViewLogContent.substring(webViewLogContent.length - maxWebViewLogSize)}';
           }
-          gistFiles['reaprime_webview_logs.txt'] = {
+          gistFiles['decent_webview_logs.txt'] = {
             'content': webViewLogContent,
           };
         }
@@ -159,7 +159,7 @@ class FeedbackService {
         headers: _authHeaders,
         body: jsonEncode({
           'description':
-              'ReaPrime feedback - ${DateTime.now().toIso8601String()}',
+              'Decent feedback - ${DateTime.now().toIso8601String()}',
           'public': false,
           'files': gistFiles,
         }),

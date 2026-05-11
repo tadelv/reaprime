@@ -8,7 +8,7 @@ import 'package:reaprime/src/services/webserver/data_export_handler.dart';
 import 'package:reaprime/src/services/webserver/json_response.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
-/// Sync modes for data synchronization between two Streamline Bridge instances.
+/// Sync modes for data synchronization between two Decent instances.
 enum SyncMode { pull, push, twoWay }
 
 /// Exception thrown when the sync target returns an error.
@@ -23,7 +23,7 @@ class SyncTargetException implements Exception {
   String toString() => 'SyncTargetException: $message';
 }
 
-/// Handles data synchronization between two Streamline Bridge instances.
+/// Handles data synchronization between two Decent instances.
 ///
 /// Supports three modes:
 /// - **pull**: Fetch data from a remote instance and import it locally.

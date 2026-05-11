@@ -1,15 +1,17 @@
 
-# Rea Plugin Development Guide
+# Decent.app Plugin Development Guide
 
 ## Overview
 
-Rea plugins are JavaScript modules that extend the functionality of REA.
+> **Note on naming:** Plugin JS APIs use `Rea`-prefixed names (`fetchReaSettings`, `updateReaSetting`, `convertReaToVisualizerFormat`) for backwards compatibility with existing plugins. These were not renamed during the app rename from ReaPrime to Decent.app.
+
+Decent.app plugins are JavaScript modules that extend the functionality of Decent.app.
 Plugins run in a sandboxed JavaScript environment and can react to machine events,
-store data, make HTTP requests, and emit events through REA api.
+store data, make HTTP requests, and emit events through the Decent.app API.
 
 ## Plugin Structure
 
-A Rea plugin consists of two required files:
+A Decent.app plugin consists of two required files:
 
 ### 1. `manifest.json` - Plugin metadata and configuration
 
@@ -123,7 +125,7 @@ host.storage({
 });
 ```
 
-**Note:** namespace is not used by Rea internally, the plugin storage is namespaced to the plugins' identifier.
+**Note:** namespace is not used by Decent.app internally, the plugin storage is namespaced to the plugins' identifier.
 
 ## Events System
 
@@ -175,7 +177,7 @@ host.emit("timeToReady", {
 ```
 
 The event name is tied to the api endpoint, defined in the plugin manifest.
-When Rea matches an external request to an endpoint that is defined in the
+When Decent.app matches an external request to an endpoint that is defined in the
 plugins manifest,
 it will send over events emitted by the plugin.
 
@@ -185,7 +187,7 @@ Example:
 npx wscat -c ws://localhost:8080/ws/v1/plugins/time-to-ready.reaplugin/timeToReady
 
 ```
-Will open a websocket through wich Rea will forward all the `timeToReady` events
+Will open a websocket through which Decent.app will forward all the `timeToReady` events
 
 ## HTTP Requests
 
@@ -344,9 +346,9 @@ When receiving `stateUpdate` events, the payload contains:
 - Use `host.log()` extensively during development
 - Check Flutter app logs for JavaScript errors
 - Test with simple plugins first, then add complexity
-- When iterating, it helps to debug on a platform that can access Rea
+- When iterating, it helps to debug on a platform that can access Decent.app
 documents. This way, you can edit plugin source directly and simply reload
-it in Rea UI.
+it in Decent.app UI.
 
 ## API Reference
 
@@ -369,14 +371,14 @@ it in Rea UI.
 - HTTP requests are proxied through Flutter (respects system proxy settings)
 - Storage is isolated per plugin
 - No filesystem access beyond the plugin's own directory
-- No network access to localhost/private IPs (except for REA API)
+- No network access to localhost/private IPs (except for Decent.app API)
 
 ## Reference Implementation: DYE2 Plugin
 
 The DYE2 (Describe Your Espresso) plugin in `packages/dye2-plugin/` is a production bundled plugin that demonstrates advanced patterns:
 
 - **TypeScript + Vite build pipeline** — compiles to flutter_js-compatible IIFE bundle
-- **REST API client** — calls back into the Streamline-Bridge REST API for bean/grinder CRUD
+- **REST API client** — calls back into the Decent.app REST API for bean/grinder CRUD
 - **HTML template rendering** — server-side HTML generation with form handling
 - **Dev server** — Vite dev server for fast iteration without rebuilding the Flutter app
 

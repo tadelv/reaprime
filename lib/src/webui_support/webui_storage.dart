@@ -375,7 +375,7 @@ class WebUIStorage {
         Uri.parse(apiUrl),
         headers: {
           'Accept': 'application/vnd.github.v3+json',
-          'User-Agent': 'Streamline-Bridge-WebUI',
+          'User-Agent': 'Decent-WebUI',
         },
       );
       
@@ -534,7 +534,7 @@ class WebUIStorage {
         Uri.parse(apiUrl),
         headers: {
           'Accept': 'application/vnd.github.v3+json',
-          'User-Agent': 'Streamline-Bridge-WebUI',
+          'User-Agent': 'Decent-WebUI',
         },
       );
       

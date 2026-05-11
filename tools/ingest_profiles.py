@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ingest de1app TCL or v2 JSON profiles into Streamline-Bridge format.
+"""Ingest de1app TCL or v2 JSON profiles into Decent format.
 
 Supports:
   - de1app TCL profiles with advanced_shot steps (e.g. from de1app/de1plus/profiles/)
@@ -28,7 +28,7 @@ import os
 import re
 import sys
 
-# Valid beverage types in Streamline-Bridge
+# Valid beverage types in Decent
 VALID_BEVERAGE_TYPES = {"espresso", "calibrate", "cleaning", "manual", "pourover"}
 
 # Mapping from source beverage types to ours
@@ -300,7 +300,7 @@ def _tokenize_tcl(s):
 # ---------------------------------------------------------------------------
 
 def convert_step(step):
-    """Convert a parsed profile step to Streamline-Bridge format."""
+    """Convert a parsed profile step to Decent format."""
     converted = {
         "name": step["name"],
         "pump": step["pump"],
@@ -347,7 +347,7 @@ def convert_step(step):
 
 
 def convert_profile(source):
-    """Convert a parsed profile dict to Streamline-Bridge format."""
+    """Convert a parsed profile dict to Decent format."""
     # Resolve beverage type
     beverage_type = strip_tcl_braces(source.get("beverage_type", "espresso"))
     beverage_type = BEVERAGE_TYPE_MAP.get(beverage_type, beverage_type)
@@ -410,7 +410,7 @@ def update_manifest(output_dir, new_filenames):
     else:
         manifest = {
             "version": "1.0.0",
-            "description": "Default espresso profiles bundled with REA Prime",
+            "description": "Default espresso profiles bundled with Decent",
             "profiles": [],
         }
 
@@ -432,7 +432,7 @@ def update_manifest(output_dir, new_filenames):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Ingest de1app TCL or v2 JSON profiles into Streamline-Bridge format"
+        description="Ingest de1app TCL or v2 JSON profiles into Decent format"
     )
     parser.add_argument("profiles", nargs="+", help="Input profile files (.json or .tcl)")
     parser.add_argument("-o", "--output-dir", help="Output directory for converted profiles")

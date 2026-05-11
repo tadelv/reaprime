@@ -133,7 +133,7 @@ void main() {
         expect(response.headers['content-type'], 'application/zip');
         expect(
           response.headers['content-disposition'],
-          startsWith('attachment; filename="streamline_bridge_export_'),
+          startsWith('attachment; filename="decent_export_'),
         );
         expect(
           response.headers['content-disposition'],
