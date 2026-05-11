@@ -370,7 +370,7 @@ class AndroidSerialPort implements SerialTransport {
   @override
   Future<void> connect() async {
     if (await _open.first == ConnectionState.connected) {
-      _log.warning('port already open');
+      _log.fine('port already open');
       return;
     }
     if (await _port.open() == false) {
