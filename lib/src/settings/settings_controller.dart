@@ -199,12 +199,10 @@ class SettingsController with ChangeNotifier {
   /// on app restart.
   void enableSimulatedDevicesForSession(Set<SimulatedDevicesTypes> devices) {
     _simulatedDevices = devices;
-    if (devices.contains(SimulatedDevicesTypes.machine)) {
-      _preferredMachineId = 'MockDe1';
-    }
-    if (devices.contains(SimulatedDevicesTypes.scale)) {
-      _preferredScaleId = 'Mock Scale';
-    }
+    _preferredMachineId =
+        devices.contains(SimulatedDevicesTypes.machine) ? 'MockDe1' : null;
+    _preferredScaleId =
+        devices.contains(SimulatedDevicesTypes.scale) ? 'Mock Scale' : null;
     notifyListeners();
   }
 

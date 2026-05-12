@@ -90,6 +90,30 @@ class ScanStepViewState extends State<ScanStepView> {
     }
   }
 
+  void _clearAdapterErrorAndRetry() {
+    setState(() {
+      _adapterError = null;
+    });
+    widget.connectionManager.connect();
+  }
+
+  void _clearAdapterErrorAndTryDemo() {
+    setState(() {
+      _adapterError = null;
+    });
+    widget.settingsController.enableSimulatedDevicesForSession(
+      {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
+    );
+    widget.connectionManager.connect();
+  }
+
+  void _tryDemoModeFromNoDevices() {
+    widget.settingsController.enableSimulatedDevicesForSession(
+      {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
+    );
+    widget.connectionManager.connect();
+  }
+
   late StreamSubscription<ConnectionStatus> _statusSubscription;
   late StreamSubscription<ScanStateEvent> _guardianSubscription;
   late StreamSubscription<List<dev.Device>> _deviceSubscription;
@@ -580,19 +604,9 @@ class ScanStepViewState extends State<ScanStepView> {
           ),
           AccessibleButton(
             label: 'Try Again',
-            onTap: () {
-              setState(() {
-                _adapterError = null;
-              });
-              widget.connectionManager.connect();
-            },
+            onTap: _clearAdapterErrorAndRetry,
             child: ShadButton(
-              onPressed: () {
-                setState(() {
-                  _adapterError = null;
-                });
-                widget.connectionManager.connect();
-              },
+              onPressed: _clearAdapterErrorAndRetry,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 spacing: 8,
@@ -605,25 +619,9 @@ class ScanStepViewState extends State<ScanStepView> {
           ),
           AccessibleButton(
             label: 'Try Demo Mode',
-            onTap: () {
-              setState(() {
-                _adapterError = null;
-              });
-              widget.settingsController.enableSimulatedDevicesForSession(
-                {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
-              );
-              widget.connectionManager.connect();
-            },
+            onTap: _clearAdapterErrorAndTryDemo,
             child: ShadButton.outline(
-              onPressed: () {
-                setState(() {
-                  _adapterError = null;
-                });
-                widget.settingsController.enableSimulatedDevicesForSession(
-                  {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
-                );
-                widget.connectionManager.connect();
-              },
+              onPressed: _clearAdapterErrorAndTryDemo,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 spacing: 8,
@@ -659,12 +657,7 @@ class ScanStepViewState extends State<ScanStepView> {
       child: ScanResultsSummary(
         report: report,
         onScanAgain: () => widget.connectionManager.connect(),
-        onTryDemoMode: () {
-          widget.settingsController.enableSimulatedDevicesForSession(
-            {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
-          );
-          widget.connectionManager.connect();
-        },
+        onTryDemoMode: _tryDemoModeFromNoDevices,
         onTroubleshoot: () => showTroubleshootingWizard(
           context: context,
           adapterState: widget.scanStateGuardian.currentAdapterState,

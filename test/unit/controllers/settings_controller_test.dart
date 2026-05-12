@@ -121,5 +121,34 @@ void main() {
 
       expect(controller.preferredMachineId, isNull);
     });
+
+    test('clears preferred IDs when called with empty set', () {
+      final spy = _SpySettingsService();
+      final controller = SettingsController(spy);
+
+      controller.enableSimulatedDevicesForSession(
+        {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
+      );
+      expect(controller.preferredMachineId, 'MockDe1');
+      expect(controller.preferredScaleId, 'Mock Scale');
+
+      controller.enableSimulatedDevicesForSession({});
+
+      expect(controller.preferredMachineId, isNull);
+      expect(controller.preferredScaleId, isNull);
+    });
+
+    test('clears preferred scale ID when only machine re-enabled', () {
+      final spy = _SpySettingsService();
+      final controller = SettingsController(spy);
+
+      controller.enableSimulatedDevicesForSession(
+        {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
+      );
+      controller.enableSimulatedDevicesForSession({SimulatedDevicesTypes.machine});
+
+      expect(controller.preferredMachineId, 'MockDe1');
+      expect(controller.preferredScaleId, isNull);
+    });
   });
 }
