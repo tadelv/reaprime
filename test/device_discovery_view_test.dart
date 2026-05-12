@@ -9,6 +9,7 @@ import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/device_discovery_feature/device_discovery_view.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
+import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:reaprime/src/shared/connection_error_banner.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
@@ -101,6 +102,50 @@ void main() {
 
         expect(find.text('No Decent Machines Found'), findsOneWidget);
         expect(find.text('Scan Again'), findsOneWidget);
+        expect(find.text('Try Demo Mode'), findsOneWidget);
+      });
+    });
+
+    testWidgets('Try Demo Mode button enables simulated devices and rescans',
+        (tester) async {
+      final origOnError = FlutterError.onError;
+      FlutterError.onError = (details) {
+        if (details.toString().contains('overflowed') ||
+            details.toString().contains('deactivated')) return;
+        origOnError?.call(details);
+      };
+      addTearDown(() => FlutterError.onError = origOnError);
+
+      await tester.runAsync(() async {
+        await tester.pumpWidget(buildDiscoveryView());
+        await tester.pump();
+
+        // Let scan complete with no devices
+        await Future.delayed(Duration(milliseconds: 500));
+        await tester.pump();
+
+        // Verify no simulated devices before tap
+        expect(settingsController.simulatedDevices, isEmpty);
+
+        // Tap Try Demo Mode
+        final demoButton = find.text('Try Demo Mode');
+        expect(demoButton, findsOneWidget);
+        await tester.tap(demoButton);
+        await tester.pump();
+
+        // Simulated devices should now be enabled in memory
+        expect(
+          settingsController.simulatedDevices,
+          contains(SimulatedDevicesTypes.machine),
+        );
+        expect(
+          settingsController.simulatedDevices,
+          contains(SimulatedDevicesTypes.scale),
+        );
+
+        // Let ConnectionManager.connect() settle
+        await Future.delayed(Duration(milliseconds: 500));
+        await tester.pump();
       });
     });
 
