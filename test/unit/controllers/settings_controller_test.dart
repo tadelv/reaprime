@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
-import 'package:collection/collection.dart';
 
 /// Spy settings service that tracks calls to setSimulatedDevices.
 class _SpySettingsService implements SettingsService {

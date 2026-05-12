@@ -28,6 +28,7 @@ Widget _buildWidget(
   VoidCallback? onTroubleshoot,
   VoidCallback? onExportLogs,
   VoidCallback? onContinueToDashboard,
+  VoidCallback? onTryDemoMode,
 }) {
   return ShadApp(
     home: Scaffold(
@@ -38,6 +39,7 @@ Widget _buildWidget(
           onTroubleshoot: onTroubleshoot ?? () {},
           onExportLogs: onExportLogs ?? () {},
           onContinueToDashboard: onContinueToDashboard ?? () {},
+          onTryDemoMode: onTryDemoMode ?? () {},
         ),
       ),
     ),
@@ -108,15 +110,28 @@ void main() {
       );
     });
 
-    testWidgets('has all four action buttons', (tester) async {
+    testWidgets('has all five action buttons', (tester) async {
       final report = _makeReport();
       await tester.pumpWidget(_buildWidget(report));
       await tester.pump();
 
       expect(find.text('Scan Again'), findsOneWidget);
+      expect(find.text('Try Demo Mode'), findsOneWidget);
       expect(find.text('Troubleshoot'), findsOneWidget);
       expect(find.text('Export Logs'), findsOneWidget);
       expect(find.text('Continue to Dashboard'), findsOneWidget);
+    });
+
+    testWidgets('tapping Try Demo Mode calls callback', (tester) async {
+      var called = false;
+      final report = _makeReport();
+      await tester.pumpWidget(
+        _buildWidget(report, onTryDemoMode: () => called = true),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Try Demo Mode'));
+      expect(called, isTrue);
     });
 
     testWidgets('tapping Scan Again calls callback', (tester) async {
