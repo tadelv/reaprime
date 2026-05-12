@@ -17,6 +17,7 @@ import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
+import 'package:reaprime/src/settings/settings_service.dart';
 
 class DeviceDiscoveryView extends StatefulWidget {
   final ConnectionManager connectionManager;
@@ -420,6 +421,22 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                         ],
                       ),
                     ),
+                  ShadButton.outline(
+                    onPressed: () {
+                      widget.settingsController.enableSimulatedDevicesForSession(
+                        {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
+                      );
+                      widget.connectionManager.connect();
+                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 8,
+                      children: [
+                        Icon(LucideIcons.gamepad2, size: 16),
+                        Text('Try Demo Mode'),
+                      ],
+                    ),
+                  ),
                   Row(
                     spacing: 12,
                     children: [
