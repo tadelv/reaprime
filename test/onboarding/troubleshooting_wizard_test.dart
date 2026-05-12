@@ -115,15 +115,23 @@ void main() {
       await tester.tap(find.text("Yes, it's on"));
       await tester.pump();
 
-      // Step 2 (final on non-iOS): other apps
+      // Step 2: other apps
       expect(find.text('Is another app connected?'), findsOneWidget);
       await tester.tap(find.text("I've closed other apps"));
       await tester.pump();
+
+      // Step 3 (macOS only): system BT. Tap to dismiss.
+      if (find.text("I've checked").evaluate().isNotEmpty) {
+        await tester.tap(find.text("I've checked"));
+        await tester.pump();
+      }
+
       await tester.pump(const Duration(milliseconds: 300));
 
-      // Dialog should be dismissed
-      expect(find.text('Is another app connected?'), findsNothing);
+      // Dialog should be fully dismissed — no step content visible
       expect(find.text('Is your machine powered on?'), findsNothing);
+      expect(find.text('Is another app connected?'), findsNothing);
+      expect(find.text('Check System Bluetooth Settings'), findsNothing);
     });
 
     group('step shouldShow logic', () {
@@ -156,6 +164,44 @@ void main() {
         );
         final btStep = steps.firstWhere((s) => s.id == 'bluetooth');
         expect(btStep.shouldShow(), isFalse);
+      });
+
+      test('system_bt step shouldShow returns true on macOS', () {
+        final steps = troubleshootingSteps(
+          adapterState: AdapterState.poweredOn,
+          isMacOS: true,
+        );
+        final sysBtStep = steps.firstWhere((s) => s.id == 'system_bt');
+        expect(sysBtStep.shouldShow(), isTrue);
+      });
+
+      test('system_bt step shouldShow returns false on non-macOS', () {
+        final steps = troubleshootingSteps(
+          adapterState: AdapterState.poweredOn,
+          isMacOS: false,
+        );
+        final sysBtStep = steps.firstWhere((s) => s.id == 'system_bt');
+        expect(sysBtStep.shouldShow(), isFalse);
+      });
+
+      test('macOS flow skips bluetooth step, includes system_bt', () {
+        final steps = troubleshootingSteps(
+          adapterState: AdapterState.poweredOff,
+          isIOS: false,
+          isMacOS: true,
+        );
+        final visibleIds = steps.where((s) => s.shouldShow()).map((s) => s.id);
+        expect(visibleIds, ['machine_power', 'other_apps', 'system_bt']);
+      });
+
+      test('non-macOS/non-iOS flow excludes bluetooth and system_bt', () {
+        final steps = troubleshootingSteps(
+          adapterState: AdapterState.poweredOn,
+          isIOS: false,
+          isMacOS: false,
+        );
+        final visibleIds = steps.where((s) => s.shouldShow()).map((s) => s.id);
+        expect(visibleIds, ['machine_power', 'other_apps']);
       });
     });
 
