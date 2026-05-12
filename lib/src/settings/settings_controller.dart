@@ -189,12 +189,22 @@ class SettingsController with ChangeNotifier {
 
   /// Enable simulated devices for the current session only.
   ///
-  /// Sets [_simulatedDevices] in memory and notifies listeners so that
-  /// [SimulatedDeviceService] picks up the change (via the `main.dart`
-  /// listener). Does **not** persist to SharedPreferences — the setting
-  /// is lost on app restart.
+  /// Sets [_simulatedDevices] and preferred device IDs in memory,
+  /// then notifies listeners so that [SimulatedDeviceService] picks up
+  /// the change (via the `main.dart` listener) and
+  /// [ConnectionManager.connect] sees the preferred IDs for instant
+  /// early-connect.
+  ///
+  /// Does **not** persist to SharedPreferences — all state is lost
+  /// on app restart.
   void enableSimulatedDevicesForSession(Set<SimulatedDevicesTypes> devices) {
     _simulatedDevices = devices;
+    if (devices.contains(SimulatedDevicesTypes.machine)) {
+      _preferredMachineId = 'MockDe1';
+    }
+    if (devices.contains(SimulatedDevicesTypes.scale)) {
+      _preferredScaleId = 'Mock Scale';
+    }
     notifyListeners();
   }
 

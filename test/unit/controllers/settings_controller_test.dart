@@ -6,6 +6,8 @@ import 'package:reaprime/src/settings/settings_service.dart';
 class _SpySettingsService implements SettingsService {
   int setSimulatedDevicesCallCount = 0;
   Set<SimulatedDevicesTypes> _simulatedDevices = {};
+  String? _preferredMachineId;
+  String? _preferredScaleId;
 
   @override
   Future<Set<SimulatedDevicesTypes>> simulateDevices() async => _simulatedDevices;
@@ -14,10 +16,25 @@ class _SpySettingsService implements SettingsService {
     setSimulatedDevicesCallCount++;
     _simulatedDevices = value;
   }
-
-  // Unused stubs — only testing simulated devices path.
   @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+  Future<String?> preferredMachineId() async => _preferredMachineId;
+  @override
+  Future<void> setPreferredMachineId(String? machineId) async =>
+      _preferredMachineId = machineId;
+  @override
+  Future<String?> preferredScaleId() async => _preferredScaleId;
+  @override
+  Future<void> setPreferredScaleId(String? scaleId) async =>
+      _preferredScaleId = scaleId;
+
+  // Unimplemented stubs. These methods aren't exercised by simulate-device
+  // tests but are required by the SettingsService interface.
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    if (invocation.isMethod) return Future.value();
+    if (invocation.isGetter) return null;
+    return super.noSuchMethod(invocation);
+  }
 }
 
 void main() {
@@ -76,6 +93,33 @@ void main() {
       controller.enableSimulatedDevicesForSession({});
 
       expect(controller.simulatedDevices, isEmpty);
+    });
+
+    test('sets preferred machine ID to MockDe1 when machine enabled', () {
+      final spy = _SpySettingsService();
+      final controller = SettingsController(spy);
+
+      controller.enableSimulatedDevicesForSession({SimulatedDevicesTypes.machine});
+
+      expect(controller.preferredMachineId, 'MockDe1');
+    });
+
+    test('sets preferred scale ID to Mock Scale when scale enabled', () {
+      final spy = _SpySettingsService();
+      final controller = SettingsController(spy);
+
+      controller.enableSimulatedDevicesForSession({SimulatedDevicesTypes.scale});
+
+      expect(controller.preferredScaleId, 'Mock Scale');
+    });
+
+    test('does NOT set preferred machine ID when only scale enabled', () {
+      final spy = _SpySettingsService();
+      final controller = SettingsController(spy);
+
+      controller.enableSimulatedDevicesForSession({SimulatedDevicesTypes.scale});
+
+      expect(controller.preferredMachineId, isNull);
     });
   });
 }
