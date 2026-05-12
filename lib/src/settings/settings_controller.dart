@@ -187,6 +187,17 @@ class SettingsController with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Enable simulated devices for the current session only.
+  ///
+  /// Sets [_simulatedDevices] in memory and notifies listeners so that
+  /// [SimulatedDeviceService] picks up the change (via the `main.dart`
+  /// listener). Does **not** persist to SharedPreferences — the setting
+  /// is lost on app restart.
+  void enableSimulatedDevicesForSession(Set<SimulatedDevicesTypes> devices) {
+    _simulatedDevices = devices;
+    notifyListeners();
+  }
+
   Future<void> setWeightFlowMultiplier(double value) async {
     if (value == _weightFlowMultiplier) {
       return;
