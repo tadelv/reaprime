@@ -262,10 +262,18 @@ class BluePlusDiscoveryService extends BleDiscoveryService {
       // On macOS, CoreBluetooth may hide system-connected BLE devices from
       // scan results. Check for them explicitly so users who paired the DE1
       // via System Settings can still discover it (#126).
+      // Query with DE1 + scale service UUIDs to avoid pulling in unrelated
+      // peripherals (keyboards, mice, etc.).
       if (Platform.isMacOS) {
         try {
+          final serviceUuids = <Guid>{};
+          for (final type in [DeviceType.machine, DeviceType.scale]) {
+            for (final uuid in DeviceMatcher.serviceUuidsFor(type)) {
+              serviceUuids.add(Guid(uuid));
+            }
+          }
           final systemDevices =
-              await FlutterBluePlus.systemDevices([Guid('1800')]);
+              await FlutterBluePlus.systemDevices(serviceUuids.toList());
           _log.fine(
             'System-connected devices check: ${systemDevices.length} found',
           );
