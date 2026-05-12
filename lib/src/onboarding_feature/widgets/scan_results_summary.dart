@@ -12,6 +12,7 @@ class ScanResultsSummary extends StatelessWidget {
   final VoidCallback onTroubleshoot;
   final VoidCallback onExportLogs;
   final VoidCallback onContinueToDashboard;
+  final VoidCallback onTryDemoMode;
 
   const ScanResultsSummary({
     super.key,
@@ -20,6 +21,7 @@ class ScanResultsSummary extends StatelessWidget {
     required this.onTroubleshoot,
     required this.onExportLogs,
     required this.onContinueToDashboard,
+    required this.onTryDemoMode,
   });
 
   @override
@@ -74,6 +76,21 @@ class ScanResultsSummary extends StatelessWidget {
                         children: [
                           Icon(LucideIcons.refreshCw, size: 16),
                           Text('Scan Again'),
+                        ],
+                      ),
+                    ),
+                  ),
+                  AccessibleButton(
+                    label: 'Try Demo Mode',
+                    onTap: onTryDemoMode,
+                    child: ShadButton.outline(
+                      onPressed: onTryDemoMode,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        spacing: 8,
+                        children: [
+                          Icon(LucideIcons.gamepad2, size: 16),
+                          Text('Try Demo Mode'),
                         ],
                       ),
                     ),

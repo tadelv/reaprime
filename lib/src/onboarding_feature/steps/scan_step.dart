@@ -14,6 +14,7 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:reaprime/src/models/device/scale.dart' as device_scale;
 import 'package:reaprime/src/settings/settings_controller.dart';
+import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:reaprime/src/widgets/accessible_button.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -602,6 +603,37 @@ class ScanStepViewState extends State<ScanStepView> {
               ),
             ),
           ),
+          AccessibleButton(
+            label: 'Try Demo Mode',
+            onTap: () {
+              setState(() {
+                _adapterError = null;
+              });
+              widget.settingsController.enableSimulatedDevicesForSession(
+                {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
+              );
+              widget.connectionManager.connect();
+            },
+            child: ShadButton.outline(
+              onPressed: () {
+                setState(() {
+                  _adapterError = null;
+                });
+                widget.settingsController.enableSimulatedDevicesForSession(
+                  {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
+                );
+                widget.connectionManager.connect();
+              },
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: 8,
+                children: [
+                  const Icon(LucideIcons.gamepad2, size: 16),
+                  const Text('Try Demo Mode'),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -627,6 +659,12 @@ class ScanStepViewState extends State<ScanStepView> {
       child: ScanResultsSummary(
         report: report,
         onScanAgain: () => widget.connectionManager.connect(),
+        onTryDemoMode: () {
+          widget.settingsController.enableSimulatedDevicesForSession(
+            {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
+          );
+          widget.connectionManager.connect();
+        },
         onTroubleshoot: () => showTroubleshootingWizard(
           context: context,
           adapterState: widget.scanStateGuardian.currentAdapterState,
