@@ -259,6 +259,37 @@ class BluePlusDiscoveryService extends BleDiscoveryService {
       // (comms-harden #11).
       await _waitForScanDuration(const Duration(seconds: 15));
 
+      // On macOS, CoreBluetooth may hide system-connected BLE devices from
+      // scan results. Check for them explicitly so users who paired the DE1
+      // via System Settings can still discover it (#126).
+      if (Platform.isMacOS) {
+        try {
+          final systemDevices =
+              await FlutterBluePlus.systemDevices([Guid('1800')]);
+          _log.fine(
+            'System-connected devices check: ${systemDevices.length} found',
+          );
+          for (final device in systemDevices) {
+            final deviceId = device.remoteId.str;
+            final name = device.platformName;
+            if (_devices.any((d) => d.deviceId == deviceId)) {
+              _log.fine('System device $deviceId already discovered, skipping');
+              continue;
+            }
+            if (_devicesBeingCreated.contains(deviceId)) {
+              _log.fine(
+                'System device $deviceId already being created, skipping',
+              );
+              continue;
+            }
+            _devicesBeingCreated.add(deviceId);
+            _createDeviceFromName(deviceId, name);
+          }
+        } catch (e, st) {
+          _log.fine('System device check failed: $e', e, st);
+        }
+      }
+
       if (Platform.isLinux && _pendingDevices.isNotEmpty) {
         // On Linux/BlueZ, we must stop scanning before connecting to
         // devices. The 15s (or shorter, on early-stop) scan above has

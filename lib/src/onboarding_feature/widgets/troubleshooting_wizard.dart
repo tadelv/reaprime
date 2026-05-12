@@ -31,11 +31,14 @@ class TroubleshootingStep {
 ///
 /// Exposed for testing so that shouldShow logic can be unit-tested directly.
 /// [isIOS] defaults to `Platform.isIOS` but can be overridden in tests.
+/// [isMacOS] defaults to `Platform.isMacOS` but can be overridden in tests.
 List<TroubleshootingStep> troubleshootingSteps({
   required AdapterState adapterState,
   bool? isIOS,
+  bool? isMacOS,
 }) {
   final runningOnIOS = isIOS ?? Platform.isIOS;
+  final runningOnMacOS = isMacOS ?? Platform.isMacOS;
 
   return [
     TroubleshootingStep(
@@ -73,6 +76,14 @@ List<TroubleshootingStep> troubleshootingSteps({
           'Only one app can connect to your machine via Bluetooth at a time. Close any other Decent apps (e.g., the original Decent app) and try again.',
       buttonText: "I've closed other apps",
       shouldShow: () => true,
+    ),
+    TroubleshootingStep(
+      id: 'system_bt',
+      title: 'Check System Bluetooth Settings',
+      description:
+          'On macOS, if your DE1 appears as "Connected" in System Settings > Bluetooth, the system may hide it from app-level scans. Disconnect it there, then try scanning again.',
+      buttonText: "I've checked",
+      shouldShow: () => runningOnMacOS,
     ),
   ];
 }
