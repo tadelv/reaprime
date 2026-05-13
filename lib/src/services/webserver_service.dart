@@ -144,8 +144,11 @@ Future<void> startWebServer(
   );
 
   final profileHandler = ProfileHandler(controller: profileController);
-  
-  final webUIHandler = WebUIHandler(storage: webUIStorage, service: webUIService);
+
+  final webUIHandler = WebUIHandler(
+    storage: webUIStorage,
+    service: webUIService,
+  );
 
   final feedbackHandler = FeedbackHandler(
     service: FeedbackService(
@@ -317,12 +320,18 @@ Handler _init(
           },
         ),
       )
-      .addMiddleware(corsHeaders(headers: {
-        // Browsers gate cross-origin reads of non-safelisted response headers
-        // behind Access-Control-Expose-Headers. ETag isn't safelisted, so
-        // skin/web clients couldn't read it without this.
-        'Access-Control-Expose-Headers': 'ETag',
-      }))
+      .addMiddleware(
+        corsHeaders(
+          headers: {
+            // Browsers gate cross-origin reads of non-safelisted response headers
+            // behind Access-Control-Expose-Headers. ETag isn't safelisted, so
+            // skin/web clients couldn't read it without this.
+            'Access-Control-Expose-Headers': 'ETag',
+            'Access-Control-Allow-Headers':
+                'Accept, Accept-Encoding, Authorization, Content-Type, DNT, Origin, User-Agent, If-None-Match',
+          },
+        ),
+      )
       .addHandler(app.call);
 
   return handler;
