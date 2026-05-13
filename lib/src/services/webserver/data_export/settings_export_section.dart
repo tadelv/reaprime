@@ -23,6 +23,7 @@ class SettingsExportSection implements DataExportSection {
         'weightFlowMultiplier': _controller.weightFlowMultiplier,
         'volumeFlowMultiplier': _controller.volumeFlowMultiplier,
         'scalePowerMode': _controller.scalePowerMode.name,
+        'blockOnNoScale': _controller.blockOnNoScale,
         'defaultSkinId': _controller.defaultSkinId,
         'automaticUpdateCheck': _controller.automaticUpdateCheck,
         'chargingMode': _controller.chargingMode.name,
@@ -101,6 +102,12 @@ class SettingsExportSection implements DataExportSection {
             errors.add(
                 'Invalid scalePowerMode: ${settings['scalePowerMode']}');
           }
+        }
+
+        if (settings.containsKey('blockOnNoScale')) {
+          await _controller
+              .setBlockOnNoScale(settings['blockOnNoScale'] as bool);
+          imported++;
         }
 
         if (settings.containsKey('defaultSkinId')) {

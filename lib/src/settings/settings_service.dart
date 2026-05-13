@@ -26,6 +26,8 @@ abstract class SettingsService {
   Future<void> setVolumeFlowMultiplier(double value);
   Future<ScalePowerMode> scalePowerMode();
   Future<void> setScalePowerMode(ScalePowerMode mode);
+  Future<bool> blockOnNoScale();
+  Future<void> setBlockOnNoScale(bool value);
   Future<String?> preferredMachineId();
   Future<void> setPreferredMachineId(String? machineId);
   Future<String?> preferredScaleId();
@@ -165,6 +167,16 @@ class SharedPreferencesSettingsService extends SettingsService {
               ScalePowerMode.disconnect.name,
         ) ??
         ScalePowerMode.disconnect;
+  }
+  
+  @override
+  Future<bool> blockOnNoScale() async {
+    return await prefs.getBool(SettingsKeys.blockOnNoScale.name) ?? false;
+  }
+  
+  @override
+  Future<void> setBlockOnNoScale(bool value) async {
+    return await prefs.setBool(SettingsKeys.blockOnNoScale.name, value);
   }
 
   @override
@@ -397,6 +409,7 @@ enum SettingsKeys {
   weightFlowMultiplier,
   volumeFlowMultiplier,
   scalePowerMode,
+  blockOnNoScale,
   preferredMachineId,
   preferredScaleId,
   defaultSkinId,
