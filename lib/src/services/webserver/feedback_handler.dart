@@ -1,7 +1,15 @@
-part of '../webserver_service.dart';
+import 'dart:convert';
+
+import 'package:logging/logging.dart';
+import 'package:reaprime/src/models/feedback/feedback_request.dart';
+import 'package:reaprime/src/services/feedback_service.dart';
+import 'package:shelf_plus/shelf_plus.dart';
+
+import 'json_response.dart';
 
 /// REST API handler for submitting user feedback as GitHub issues
 class FeedbackHandler {
+  final Logger _log = Logger('FeedbackHandler');
   final FeedbackService _service;
 
   FeedbackHandler({required FeedbackService service}) : _service = service;
@@ -43,7 +51,7 @@ class FeedbackHandler {
         return jsonError(result.toJson());
       }
     } catch (e, st) {
-      log.severe('Error in _handleSubmitFeedback', e, st);
+      _log.severe('Error in _handleSubmitFeedback', e, st);
       return jsonError({'error': 'Internal server error', 'message': '$e'});
     }
   }
