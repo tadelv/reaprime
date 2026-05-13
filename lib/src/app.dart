@@ -414,6 +414,7 @@ class _MyAppState extends State<MyApp> {
                                   .currentWorkflow
                                   .context
                                   ?.targetYield ?? 0,
+                          settingsController: widget.settingsController,
                           bypassSAW: widget.settingsController.gatewayMode == GatewayMode.full,
                           weightFlowMultiplier: widget.settingsController.weightFlowMultiplier,
                           volumeFlowMultiplier: widget.settingsController.volumeFlowMultiplier,

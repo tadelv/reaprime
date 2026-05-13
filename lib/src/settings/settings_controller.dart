@@ -35,6 +35,8 @@ class SettingsController with ChangeNotifier {
 
   ScalePowerMode _scalePowerMode = ScalePowerMode.disconnect;
 
+  late bool _blockOnNoScale;
+
   String? _preferredMachineId;
 
   String? _preferredScaleId;
@@ -70,6 +72,7 @@ class SettingsController with ChangeNotifier {
   double get weightFlowMultiplier => _weightFlowMultiplier;
   double get volumeFlowMultiplier => _volumeFlowMultiplier;
   ScalePowerMode get scalePowerMode => _scalePowerMode;
+  bool get blockOnNoScale => _blockOnNoScale;
   String? get preferredMachineId => _preferredMachineId;
   String? get preferredScaleId => _preferredScaleId;
   String get defaultSkinId => _defaultSkinId;
@@ -100,6 +103,7 @@ class SettingsController with ChangeNotifier {
     _weightFlowMultiplier = await _settingsService.weightFlowMultiplier();
     _volumeFlowMultiplier = await _settingsService.volumeFlowMultiplier();
     _scalePowerMode = await _settingsService.scalePowerMode();
+    _blockOnNoScale = await _settingsService.blockOnNoScale();
     _preferredMachineId = await _settingsService.preferredMachineId();
     _preferredScaleId = await _settingsService.preferredScaleId();
     _defaultSkinId = await _settingsService.defaultSkinId();
@@ -230,6 +234,15 @@ class SettingsController with ChangeNotifier {
     }
     _scalePowerMode = mode;
     await _settingsService.setScalePowerMode(mode);
+    notifyListeners();
+  }
+  
+  Future<void> setBlockOnNoScale(bool value) async {
+    if (value == _blockOnNoScale) {
+      return;
+    }
+    _blockOnNoScale = value;
+    await _settingsService.setBlockOnNoScale(value);
     notifyListeners();
   }
 

@@ -4,6 +4,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
@@ -15,6 +16,7 @@ class ShotSequencer {
   final De1Controller de1controller;
   final ScaleController scaleController;
   final PersistenceController persistenceController;
+  final SettingsController settingsController;
   final Profile targetProfile;
 
   final Logger _log = Logger("ShotSequencer");
@@ -55,6 +57,7 @@ class ShotSequencer {
     required this.persistenceController,
     required this.targetProfile,
     required this.targetYield,
+    required this.settingsController,
     required bool bypassSAW,
     required double weightFlowMultiplier,
     required double volumeFlowMultiplier,
@@ -69,6 +72,15 @@ class ShotSequencer {
 
     final scaleConnected =
         scaleController.currentConnectionState == device.ConnectionState.connected;
+
+    final blockOnNoScale = settingsController.blockOnNoScale ?? false;
+
+    if (blockOnNoScale && !scaleConnected) {
+      _log.warning(
+        "No scale connected and blockOnNoScale is enabled. ShotController will not start.",
+      );
+      return;
+    }
 
     if (!scaleConnected) {
       _log.info("Continuing without scale");

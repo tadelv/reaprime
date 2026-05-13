@@ -25,6 +25,7 @@ class SettingsHandler {
       final weightFlowMultiplier = _controller.weightFlowMultiplier;
       final volumeFlowMultiplier = _controller.volumeFlowMultiplier;
       final scalePowerMode = _controller.scalePowerMode.name;
+      final blockOnNoScale = _controller.blockOnNoScale;
       final preferredMachineId = _controller.preferredMachineId;
       final preferredScaleId = _controller.preferredScaleId;
       final defaultSkinId = _controller.defaultSkinId;
@@ -36,6 +37,7 @@ class SettingsHandler {
         'weightFlowMultiplier': weightFlowMultiplier,
         'volumeFlowMultiplier': volumeFlowMultiplier,
         'scalePowerMode': scalePowerMode,
+        'blockOnNoScale': blockOnNoScale,
         'preferredMachineId': preferredMachineId,
         'preferredScaleId': preferredScaleId,
         'defaultSkinId': defaultSkinId,
@@ -107,6 +109,16 @@ class SettingsHandler {
           });
         }
         await _controller.setScalePowerMode(mode);
+      }
+      if (json.containsKey('blockOnNoScale')) {
+        final value = json['blockOnNoScale'];
+        if (value is bool) {
+          await _controller.setBlockOnNoScale(value);
+        } else {
+          return jsonBadRequest(
+            {'message': 'blockOnNoScale must be a boolean'},
+          );
+        }
       }
       if (json.containsKey('preferredMachineId')) {
         final value = json['preferredMachineId'];
