@@ -75,6 +75,8 @@ import 'package:reaprime/src/services/webserver/debug_handler.dart';
 import 'package:mime/mime.dart';
 import 'package:path/path.dart' as p;
 
+import 'webserver/feedback_handler.dart';
+
 part 'webserver/de1handler.dart';
 part 'webserver/scale_handler.dart';
 part 'webserver/devices_handler.dart';
@@ -84,7 +86,6 @@ part 'webserver/kv_store_handler.dart';
 part 'webserver/plugins_handler.dart';
 part 'webserver/profile_handler.dart';
 part 'webserver/webui_handler.dart';
-part 'webserver/feedback_handler.dart';
 part 'webserver/logs_handler.dart';
 part 'webserver/webview_logs_handler.dart';
 part 'webserver/presence_handler.dart';

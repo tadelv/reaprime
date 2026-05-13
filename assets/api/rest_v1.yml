@@ -3507,6 +3507,46 @@ paths:
         "404":
           description: Unknown command or endpoint not available (non-simulate build)
 
+  /api/v1/feedback:
+    post:
+      summary: Submit feedback
+      description: |
+        Submits user feedback as a GitHub issue. Logs and system info are
+        attached as a private Gist when requested. Requires the app to be
+        built with `--dart-define=GITHUB_FEEDBACK_TOKEN=<token>`.
+      tags: [System]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackRequest"
+      responses:
+        "201":
+          description: Feedback submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackResponse"
+        "400":
+          description: Missing or empty description
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Submission failed or internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Feedback service not configured (no GitHub token)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
 components:
   schemas:
     Error:
@@ -3516,6 +3556,43 @@ components:
           type: string
         st:
           type: string
+
+    FeedbackRequest:
+      type: object
+      required: [description, type]
+      properties:
+        description:
+          type: string
+          description: Description of the feedback
+        type:
+          type: string
+          enum: [bug, feature, question, other]
+          description: Type of feedback
+        includeLogs:
+          type: boolean
+          default: true
+          description: Whether to include application logs
+        includeSystemInfo:
+          type: boolean
+          default: true
+          description: Whether to include system information
+
+    FeedbackResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          description: Whether the submission was successful
+        issueUrl:
+          type: string
+          description: URL of the created GitHub issue (on success)
+        issueNumber:
+          type: integer
+          description: Issue number (on success)
+        errorMessage:
+          type: string
+          description: Error message (on failure)
 
     ConnectionError:
       type: object
