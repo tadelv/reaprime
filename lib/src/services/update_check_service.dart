@@ -95,10 +95,12 @@ class UpdateCheckService {
         if (skipped != null && skipped == updateInfo.version) {
           _log.info('Update ${updateInfo.version} skipped by user');
           _availableUpdate = null;
-          return null;
+          // Still return updateInfo — manual "Check for updates" button
+          // should show the dialog even if auto-banner is suppressed.
+        } else {
+          _log.info('Update available: ${updateInfo.version}');
+          _availableUpdate = updateInfo;
         }
-        _log.info('Update available: ${updateInfo.version}');
-        _availableUpdate = updateInfo;
       } else {
         _log.info('No update available');
         _availableUpdate = null;
