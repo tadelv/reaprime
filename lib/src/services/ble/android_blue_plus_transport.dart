@@ -51,6 +51,12 @@ class AndroidBluePlusTransport implements BLETransport {
   // spuriously on every connect().
   bool _everConnected = false;
 
+  /// Throttle window for duplicate disconnect events.
+  /// Android's BLE stack can fire onConnectionStateChange 2-4 times
+  /// for a single LINK_SUPERVISION_TIMEOUT. Deduplicate within this window.
+  static const Duration _disconnectThrottleWindow = Duration(milliseconds: 100);
+  DateTime? _lastDisconnectTime;
+
   AndroidBluePlusTransport({required String remoteId})
     : _device = BluetoothDevice(remoteId: DeviceIdentifier(remoteId)),
       _log = Logger("AndroidBPTransport-$remoteId");
@@ -64,20 +70,32 @@ class AndroidBluePlusTransport implements BLETransport {
     _nativeConnectionSub = _device.connectionState.listen((state) {
       if (state == BluetoothConnectionState.connected) {
         _everConnected = true;
-      } else if (state == BluetoothConnectionState.disconnected &&
-          _everConnected) {
-        final reason = _device.disconnectReason;
-        _log.warning(
-          'Native disconnect: platform=${reason?.platform} '
-          'code=${reason?.code} description=${reason?.description}',
-        );
-        _everConnected = false;
+        _connectionStateSubject.add(device.ConnectionState.connected);
+        return;
       }
-      _connectionStateSubject.add(
-        state == BluetoothConnectionState.connected
-            ? device.ConnectionState.connected
-            : device.ConnectionState.disconnected,
-      );
+
+      // Always emit disconnected state — but throttle duplicates.
+      // Android fires onConnectionStateChange 2-4 times for a single
+      // LINK_SUPERVISION_TIMEOUT. Throttle prevents downstream handlers
+      // (De1Controller, DisconnectSupervisor) from running N times.
+      if (state == BluetoothConnectionState.disconnected) {
+        final now = DateTime.now();
+        if (_lastDisconnectTime != null &&
+            now.difference(_lastDisconnectTime!) < _disconnectThrottleWindow) {
+          return; // duplicate event within throttle window
+        }
+        _lastDisconnectTime = now;
+
+        if (_everConnected) {
+          final reason = _device.disconnectReason;
+          _log.warning(
+            'Native disconnect: platform=${reason?.platform} '
+            'code=${reason?.code} description=${reason?.description}',
+          );
+          _everConnected = false;
+        }
+        _connectionStateSubject.add(device.ConnectionState.disconnected);
+      }
     });
 
     if (_device.isConnected) {
