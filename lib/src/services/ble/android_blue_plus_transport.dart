@@ -136,17 +136,6 @@ class AndroidBluePlusTransport implements BLETransport {
         "for BLE stack to settle");
     await Future.delayed(_postConnectDelay);
 
-    // Request high connection priority to speed up service discovery
-    // and GATT operations on slower BLE stacks.
-    try {
-      await _device.requestConnectionPriority(
-        connectionPriorityRequest: ConnectionPriority.high,
-      );
-      _log.fine("Requested high connection priority");
-    } catch (e) {
-      _log.fine("Connection priority request failed: $e");
-    }
-
     // Request higher MTU after connection is stable (best-effort).
     try {
       await _device.requestMtu(517);
