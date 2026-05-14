@@ -383,14 +383,14 @@ class De1Handler {
       var blockOnNoScale = _settingsController.blockOnNoScale;
       var _scaleConnected =
         _scaleController.currentConnectionState == device.ConnectionState.connected;
-      log.info("Scale connected: $_scaleConnected");
-      log.info("blockOnNoScale: $blockOnNoScale");
-      log.info("Received request to change state to $requestState");
+      log.debug("Scale connected: $_scaleConnected");
+      log.debug("blockOnNoScale: $blockOnNoScale");
+      log.debug("Received request to change state to $requestState");
       if (requestState == MachineState.espresso && _settingsController.blockOnNoScale && !_scaleConnected) {
         log.warning(
-          "Blocking espresso request because no scale detected, switching to flush",
+          "Blocking espresso request because no scale detected and blockOnNoScale is enabled",
         );
-        return jsonOk({'error': 'No scale detected, blocking espresso request'});
+        return jsonOk({'warning': 'No scale detected, blocking espresso request'});
 
       }
       await de1.requestState(requestState);
