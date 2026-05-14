@@ -49,6 +49,11 @@ class De1StateManager with WidgetsBindingObserver {
   // Track previous machine state for scale power management
   MachineState? _previousMachineState;
 
+  /// Cancellable timer for deferred scale reconnect after machine wake.
+  /// Prevents BLE radio starvation that causes LINK_SUPERVISION_TIMEOUT
+  /// on the DE1 when scale service discovery monopolizes the shared radio.
+  Timer? _deferredScaleScan;
+
   // Platform-specific background states
   final Set<AppLifecycleState> _backgroundStates;
 
@@ -298,9 +303,17 @@ class De1StateManager with WidgetsBindingObserver {
       }
 
       // Trigger device scan if no scale connected.
+      // Defer by 3s to let DE1 BLE connection stabilize after wake.
+      // Immediate scale connect/service-discovery starves the shared
+      // Android BLE radio and causes LINK_SUPERVISION_TIMEOUT on the DE1.
       if (!scaleConnected) {
-        _logger.info('Scale disconnected after sleep, triggering device scan');
-        _triggerScaleScan();
+        _logger.info('Scale disconnected after sleep, deferring scan 3s '
+            'to avoid BLE radio starvation');
+        _deferredScaleScan?.cancel();
+        _deferredScaleScan = Timer(const Duration(seconds: 3), () {
+          _deferredScaleScan = null;
+          _triggerScaleScan();
+        });
       }
     }
   }
@@ -566,6 +579,9 @@ class De1StateManager with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
 
     _cleanupShotController();
+
+    _deferredScaleScan?.cancel();
+    _deferredScaleScan = null;
 
     _snapshotSubscription?.cancel();
     _snapshotSubscription = null;
