@@ -1,10 +1,19 @@
 part of '../webserver_service.dart';
 
 class De1Handler {
+  final SettingsController _settingsController;
   final De1Controller _controller;
+  final ScaleController _scaleController;
   final log = Logger("De1WebHandler");
 
-  De1Handler({required De1Controller controller}) : _controller = controller;
+  De1Handler({
+    required De1Controller controller,
+    required SettingsController settingsController,
+    required ScaleController scaleController,
+  }) : _controller = controller,
+       _settingsController = settingsController,
+      _scaleController = scaleController;
+      
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/machine/info', _infoHandler);
@@ -371,6 +380,19 @@ class De1Handler {
   ) async {
     return withDe1((de1) async {
       var requestState = MachineState.values.byName(newState);
+      var blockOnNoScale = _settingsController.blockOnNoScale;
+      var _scaleConnected =
+        _scaleController.currentConnectionState == device.ConnectionState.connected;
+      log.info("Scale connected: $_scaleConnected");
+      log.info("blockOnNoScale: $blockOnNoScale");
+      log.info("Received request to change state to $requestState");
+      if (requestState == MachineState.espresso && _settingsController.blockOnNoScale && !_scaleConnected) {
+        log.warning(
+          "Blocking espresso request because no scale detected, switching to flush",
+        );
+        return jsonOk({'error': 'No scale detected, blocking espresso request'});
+
+      }
       await de1.requestState(requestState);
       return jsonOk(null);
     });

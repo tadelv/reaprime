@@ -73,6 +73,7 @@ import 'package:reaprime/src/services/webserver/info_handler.dart';
 import 'package:reaprime/src/services/webserver/debug_handler.dart';
 import 'package:mime/mime.dart';
 import 'package:path/path.dart' as p;
+import 'package:reaprime/src/models/device/device.dart' as device;
 
 import 'webserver/feedback_handler.dart';
 
@@ -114,7 +115,11 @@ Future<void> startWebServer(
   required ConnectionManager connectionManager,
 }) async {
   log.info("starting webserver");
-  final de1Handler = De1Handler(controller: de1Controller);
+  final de1Handler = De1Handler(
+    controller: de1Controller, 
+    settingsController: settingsController,
+    scaleController: scaleController,
+  );
   final scaleHandler = ScaleHandler(controller: scaleController);
   final deviceHandler = DevicesHandler(
     controller: deviceController,

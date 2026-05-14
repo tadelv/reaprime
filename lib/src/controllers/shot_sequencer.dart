@@ -73,14 +73,6 @@ class ShotSequencer {
     final scaleConnected =
         scaleController.currentConnectionState == device.ConnectionState.connected;
 
-    final blockOnNoScale = settingsController.blockOnNoScale ?? false;
-
-    if (blockOnNoScale && !scaleConnected) {
-      _log.warning(
-        "No scale connected and blockOnNoScale is enabled. ShotController will not start.",
-      );
-      return;
-    }
 
     if (!scaleConnected) {
       _log.info("Continuing without scale");
