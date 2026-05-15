@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
@@ -29,6 +30,8 @@ class RealtimeSteamFeature extends StatefulWidget {
 }
 
 class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
+  static final _log = Logger('RealtimeSteamFeature');
+
   late De1Controller _de1Controller;
   final List<ShotSnapshot> _steamSnapshots = [];
   late StreamSubscription<ShotSnapshot> _steamSubscription;
@@ -71,7 +74,7 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
 
               // Add snapshot only when actively steaming
               if (_steamActive) {
-                print("adding snap");
+                _log.finest("adding snap");
                 _steamSnapshots.add(snapshot);
               }
             });
@@ -100,7 +103,7 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
   }
 
   void _stopSteam() {
-    print("stop steam $_steamActive");
+    _log.fine("stop steam $_steamActive");
     if (_steamActive) {
       setState(() {
         _steamActive = false;

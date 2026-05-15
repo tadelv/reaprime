@@ -199,9 +199,6 @@ class PluginLoaderService {
 
     _log.info('Reloading plugin: $pluginId');
 
-    // Get current settings to preserve them
-    final settings = await pluginSettings(pluginId);
-
     // Unload the plugin
     await unloadPlugin(pluginId);
 

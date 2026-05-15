@@ -239,7 +239,9 @@ class _ImportResultViewState extends State<ImportResultView> {
       }
 
       if (Platform.isAndroid || Platform.isIOS) {
-        await Share.shareXFiles([XFile(reportFile.path)]);
+        await SharePlus.instance.share(
+          ShareParams(files: [XFile(reportFile.path)]),
+        );
       } else {
         final bytes = await reportFile.readAsBytes();
         await FilePicker.saveFile(

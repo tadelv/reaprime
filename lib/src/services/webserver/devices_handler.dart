@@ -375,9 +375,12 @@ class DevicesHandler {
           if (quick) {
             _controller.scanForDevices();
           } else {
-            _controller.scanForDevices().catchError((e) {
-              socket.sink.add(jsonEncode({'error': 'Scan failed: $e'}));
-            });
+            _controller.scanForDevices().then<void>(
+              (_) {},
+              onError: (e) {
+                socket.sink.add(jsonEncode({'error': 'Scan failed: $e'}));
+              },
+            );
           }
         }
 

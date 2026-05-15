@@ -241,14 +241,13 @@ class _ProfileState extends State<ProfileTile> {
     double seconds = 0;
     double previousTarget = 0.0;
     bool previousFlow = false;
-    for (final (index, step) in profile.steps.indexed) {
+    for (final (_, step) in profile.steps.indexed) {
       final isFlow = step is ProfileStepFlow;
       final isFast = step.transition == TransitionType.fast;
       final flow = isFlow ? step.getTarget() : 0.0;
       final pressure = isFlow ? 0.0 : step.getTarget();
       final flowLimit = isFlow ? 0.0 : step.limiter?.value ?? 0.0;
       final pressureLimit = isFlow ? step.limiter?.value ?? 0.0 : 0.0;
-      final isSwitched = (isFlow && !previousFlow) || (!isFlow && previousFlow);
       if (isFast) {
         previousTarget = isFlow ? flow : pressure;
       }

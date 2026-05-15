@@ -17,6 +17,8 @@ import 'usb_ids.dart';
 import 'utils.dart';
 import 'package:rxdart/subjects.dart';
 
+// usb_serial is pulled in transitively via flutter_libserialport's git source.
+// ignore: depend_on_referenced_packages
 import 'package:usb_serial/usb_serial.dart';
 
 class SerialServiceAndroid implements DeviceDiscoveryService {

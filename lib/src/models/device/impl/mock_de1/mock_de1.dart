@@ -462,7 +462,6 @@ class MockDe1 implements De1Interface {
     }
   }
 
-  @override
   Future<void> onDisconnect() async {
     _stateTimer?.cancel();
   }

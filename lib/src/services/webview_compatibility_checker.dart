@@ -23,11 +23,9 @@ class CompatibilityResult {
       issue = null;
 
   const CompatibilityResult.incompatible(
-    String reason,
-    CompatibilityIssue issue,
-  ) : isCompatible = false,
-      reason = reason,
-      issue = issue;
+    this.reason,
+    this.issue,
+  ) : isCompatible = false;
 }
 
 enum CompatibilityIssue {
