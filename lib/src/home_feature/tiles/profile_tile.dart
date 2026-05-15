@@ -953,16 +953,6 @@ class _ProfileState extends State<ProfileTile> {
     );
   }
 
-  // Keep for backward compatibility (used in tests)
-  Column _coffeeDataForm() {
-    final ctx = widget.workflowController.currentWorkflow.context ?? WorkflowContext();
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _coffeeFreeformFields(ctx, (fn) => fn()),
-      ],
-    );
-  }
 }
 
 /// Two-step bean → batch picker widget with its own state for batch loading.

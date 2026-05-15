@@ -259,26 +259,6 @@ class _LandingState extends State<LandingFeature> {
     );
   }
 
-  Widget _buildLoadingView() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Semantics(
-          label: 'Starting WebUI server',
-          child: CircularProgressIndicator(),
-        ),
-        const SizedBox(height: 16),
-        Semantics(
-          liveRegion: true,
-          child: Text(
-            'Starting WebUI server...',
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildSkinSelectionView() {
     final skins = widget.webUIStorage.installedSkins;
 
