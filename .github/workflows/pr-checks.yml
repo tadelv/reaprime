@@ -1,0 +1,82 @@
+name: PR checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: pr-checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  flutter:
+    name: Format / analyze / test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      # Format check is advisory until the codebase has been mass-reformatted
+      # for Dart 3.7+ "tall style". Once that lands, drop continue-on-error.
+      - name: Dart format check (advisory)
+        continue-on-error: true
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Flutter analyze
+        run: flutter analyze
+
+      - name: Flutter test
+        run: flutter test --reporter=expanded
+
+  build-smoke:
+    name: Linux build smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Linux dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: packages/dye2-plugin/package-lock.json
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build DYE2 plugin
+        working-directory: packages/dye2-plugin
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build Linux app (unsigned)
+        run: flutter build linux --release
