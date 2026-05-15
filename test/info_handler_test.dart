@@ -3,8 +3,6 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/services/webserver/info_handler.dart';
-import 'package:shelf/shelf.dart';
-import 'package:shelf_router/shelf_router.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
 void main() {
@@ -19,7 +17,7 @@ void main() {
   });
 
   Future<Response> sendGet(String path) async {
-    return await handler(Request('GET', Uri.parse('http://localhost' + path)));
+    return await handler(Request('GET', Uri.parse('http://localhost$path')));
   }
 
   group('InfoHandler', () {

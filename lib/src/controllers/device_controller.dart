@@ -22,6 +22,7 @@ class DeviceController implements DeviceScanner {
 
   final BehaviorSubject<bool> _scanningStream = BehaviorSubject.seeded(false);
 
+  @override
   Stream<bool> get scanningStream => _scanningStream.stream;
   bool get isScanning => _scanningStream.value;
 
@@ -81,6 +82,7 @@ class DeviceController implements DeviceScanner {
   /// telemetry + scan-cleanup were paying the fold cost per call).
   List<Device>? _flatDevicesCache;
 
+  @override
   List<Device> get devices {
     final cached = _flatDevicesCache;
     if (cached != null) return cached;
@@ -231,6 +233,7 @@ class DeviceController implements DeviceScanner {
   }
 
   /// Stop all in-progress scans across all discovery services.
+  @override
   void stopScan() {
     for (final service in _services) {
       service.stopScan();

@@ -14,7 +14,7 @@ void main() {
     await db.close();
   });
 
-  BeansCompanion _makeBean({
+  BeansCompanion makeBean({
     String id = 'bean-1',
     String roaster = 'Test Roaster',
     String name = 'Test Bean',
@@ -31,7 +31,7 @@ void main() {
     );
   }
 
-  BeanBatchesCompanion _makeBatch({
+  BeanBatchesCompanion makeBatch({
     String id = 'batch-1',
     String beanId = 'bean-1',
     double? weight,
@@ -52,7 +52,7 @@ void main() {
 
   group('BeanDao - Beans', () {
     test('inserts and retrieves a bean', () async {
-      await db.beanDao.insertBean(_makeBean());
+      await db.beanDao.insertBean(makeBean());
       final beans = await db.beanDao.getAllBeans();
       expect(beans, hasLength(1));
       expect(beans.first.roaster, 'Test Roaster');
@@ -60,8 +60,8 @@ void main() {
     });
 
     test('filters archived beans by default', () async {
-      await db.beanDao.insertBean(_makeBean(id: 'b1'));
-      await db.beanDao.insertBean(_makeBean(id: 'b2', archived: true));
+      await db.beanDao.insertBean(makeBean(id: 'b1'));
+      await db.beanDao.insertBean(makeBean(id: 'b2', archived: true));
 
       final active = await db.beanDao.getAllBeans();
       expect(active, hasLength(1));
@@ -72,7 +72,7 @@ void main() {
     });
 
     test('gets bean by ID', () async {
-      await db.beanDao.insertBean(_makeBean(id: 'b1', name: 'Special'));
+      await db.beanDao.insertBean(makeBean(id: 'b1', name: 'Special'));
       final bean = await db.beanDao.getBeanById('b1');
       expect(bean, isNotNull);
       expect(bean!.name, 'Special');
@@ -84,7 +84,7 @@ void main() {
     });
 
     test('updates a bean', () async {
-      await db.beanDao.insertBean(_makeBean(id: 'b1', name: 'Original'));
+      await db.beanDao.insertBean(makeBean(id: 'b1', name: 'Original'));
       await db.beanDao.updateBean(BeansCompanion(
         id: const Value('b1'),
         name: const Value('Updated'),
@@ -95,7 +95,7 @@ void main() {
     });
 
     test('deletes a bean', () async {
-      await db.beanDao.insertBean(_makeBean(id: 'b1'));
+      await db.beanDao.insertBean(makeBean(id: 'b1'));
       await db.beanDao.deleteBean('b1');
       final beans = await db.beanDao.getAllBeans(includeArchived: true);
       expect(beans, isEmpty);
@@ -104,8 +104,8 @@ void main() {
     test('watches bean changes', () async {
       final stream = db.beanDao.watchAllBeans();
 
-      await db.beanDao.insertBean(_makeBean(id: 'b1'));
-      await db.beanDao.insertBean(_makeBean(id: 'b2'));
+      await db.beanDao.insertBean(makeBean(id: 'b1'));
+      await db.beanDao.insertBean(makeBean(id: 'b2'));
 
       // First emission after both inserts should have 2 beans
       final beans = await stream.first;
@@ -115,20 +115,20 @@ void main() {
 
   group('BeanDao - BeanBatches', () {
     test('inserts and retrieves batches for a bean', () async {
-      await db.beanDao.insertBean(_makeBean(id: 'bean-1'));
-      await db.beanDao.insertBatch(_makeBatch(id: 'batch-1'));
+      await db.beanDao.insertBean(makeBean(id: 'bean-1'));
+      await db.beanDao.insertBatch(makeBatch(id: 'batch-1'));
       await db.beanDao.insertBatch(
-          _makeBatch(id: 'batch-2', beanId: 'bean-1'));
+          makeBatch(id: 'batch-2', beanId: 'bean-1'));
 
       final batches = await db.beanDao.getBatchesForBean('bean-1');
       expect(batches, hasLength(2));
     });
 
     test('filters archived batches by default', () async {
-      await db.beanDao.insertBean(_makeBean(id: 'bean-1'));
-      await db.beanDao.insertBatch(_makeBatch(id: 'b1'));
+      await db.beanDao.insertBean(makeBean(id: 'bean-1'));
+      await db.beanDao.insertBatch(makeBatch(id: 'b1'));
       await db.beanDao
-          .insertBatch(_makeBatch(id: 'b2', archived: true));
+          .insertBatch(makeBatch(id: 'b2', archived: true));
 
       final active = await db.beanDao.getBatchesForBean('bean-1');
       expect(active, hasLength(1));
@@ -139,9 +139,9 @@ void main() {
     });
 
     test('decrements batch weight', () async {
-      await db.beanDao.insertBean(_makeBean(id: 'bean-1'));
+      await db.beanDao.insertBean(makeBean(id: 'bean-1'));
       await db.beanDao.insertBatch(
-          _makeBatch(id: 'batch-1', weight: 250.0, weightRemaining: 250.0));
+          makeBatch(id: 'batch-1', weight: 250.0, weightRemaining: 250.0));
 
       await db.beanDao.decrementBatchWeight('batch-1', 18.0);
 
@@ -150,9 +150,9 @@ void main() {
     });
 
     test('weight does not go below zero', () async {
-      await db.beanDao.insertBean(_makeBean(id: 'bean-1'));
+      await db.beanDao.insertBean(makeBean(id: 'bean-1'));
       await db.beanDao.insertBatch(
-          _makeBatch(id: 'batch-1', weight: 10.0, weightRemaining: 5.0));
+          makeBatch(id: 'batch-1', weight: 10.0, weightRemaining: 5.0));
 
       await db.beanDao.decrementBatchWeight('batch-1', 20.0);
 
@@ -163,7 +163,7 @@ void main() {
     test('foreign key enforced - cannot insert batch for nonexistent bean',
         () async {
       expect(
-        () => db.beanDao.insertBatch(_makeBatch(beanId: 'no-such-bean')),
+        () => db.beanDao.insertBatch(makeBatch(beanId: 'no-such-bean')),
         throwsA(anything),
       );
     });

@@ -229,7 +229,7 @@ class BluePlusDiscoveryService extends BleDiscoveryService {
       final useFilter = filter != null && filter.isFiltered;
       if (useFilter) {
         final guidList = <Guid>[];
-        if (filter!.deviceTypes != null) {
+        if (filter.deviceTypes != null) {
           for (final type in filter.deviceTypes!) {
             guidList.addAll(
               DeviceMatcher.serviceUuidsFor(type).map((s) => Guid(s)),

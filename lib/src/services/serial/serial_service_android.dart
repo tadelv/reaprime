@@ -22,7 +22,7 @@ import 'package:usb_serial/usb_serial.dart';
 class SerialServiceAndroid implements DeviceDiscoveryService {
   final _log = Logger("Android Serial service");
 
-  List<Device> _devices = [];
+  final List<Device> _devices = [];
   
   // Guard against concurrent scans
   bool _isScanning = false;
@@ -37,7 +37,7 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
   @override
   Future<void> initialize() async {
     List<UsbDevice> devices = await UsbSerial.listDevices();
-    _log.info("found ${devices}");
+    _log.info("found $devices");
 
     UsbSerial.usbEventStream?.listen((data) async {
       switch (data.event) {
@@ -262,7 +262,7 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
       _log.info(
         "Collected serial data: ${combined.map((e) => e.toRadixString(16).padLeft(2, '0'))}",
       );
-      _log.info("parsed into strings: ${strings}");
+      _log.info("parsed into strings: $strings");
 
       // Heuristic checks for device type
       if (strings.any((s) => s.startsWith('R '))) {

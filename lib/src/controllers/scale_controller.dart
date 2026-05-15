@@ -98,7 +98,7 @@ class ScaleController {
     windowDuration: smoothingWindowDuration,
   );
 
-  _processSnapshot(ScaleSnapshot snapshot) {
+  void _processSnapshot(ScaleSnapshot snapshot) {
     final flow = _flowCalculator.addSample(snapshot.timestamp, snapshot.weight);
 
     weightFlowAverage.add(flow); // Use your existing average queue
@@ -114,7 +114,7 @@ class ScaleController {
     );
   }
 
-  _processConnection(ConnectionState d) {
+  void _processConnection(ConnectionState d) {
     log.info('scale connection update: ${d.name}');
     _connectionController.add(d);
     if (d == ConnectionState.disconnected) {

@@ -8,7 +8,7 @@ class ScaleHandler {
   ScaleHandler({required ScaleController controller})
       : _controller = controller;
 
-  addRoutes(RouterPlus app) {
+  void addRoutes(RouterPlus app) {
     app.put('/api/v1/scale/<command>', (request, command) async {
       switch (command) {
         case 'tare':

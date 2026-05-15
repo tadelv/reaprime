@@ -1,4 +1,5 @@
 /// Utility functions for JSON manipulation
+library;
 
 /// Deep merges two JSON objects.
 /// 

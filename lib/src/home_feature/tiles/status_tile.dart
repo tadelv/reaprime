@@ -467,7 +467,7 @@ class _StatusTileState extends State<StatusTile> {
                 children: [
                   SizedBox(
                     width: 100,
-                    child: Text("${_machineSnapshot!.state.state.name}"),
+                    child: Text(_machineSnapshot!.state.state.name),
                   ),
                   SizedBox(
                     width: boxWidth,

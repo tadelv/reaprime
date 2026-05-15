@@ -222,7 +222,7 @@ class WebUIStorage {
   WebUISkin? get defaultSkin {
     // Try to get skin from preference
     final preferredSkinId = _settingsController.defaultSkinId;
-    _log.info("selecting preferred skin: $preferredSkinId, in: ${_installedSkins}");
+    _log.info("selecting preferred skin: $preferredSkinId, in: $_installedSkins");
     if (_installedSkins.containsKey(preferredSkinId)) {
       return _installedSkins[preferredSkinId];
     }

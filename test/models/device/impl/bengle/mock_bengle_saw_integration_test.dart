@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/impl/bengle/mock_bengle.dart';
 import 'package:reaprime/src/models/device/machine.dart';
-import 'package:reaprime/src/models/device/scale.dart';
 
 /// SAW (stop-at-weight) profile: step0 preinfusion, step1 pours until weight hits exit.
 Profile _sawProfile() {

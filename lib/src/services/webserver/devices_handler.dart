@@ -210,7 +210,7 @@ class DevicesHandler {
     _aggregator.dispose();
   }
 
-  addRoutes(RouterPlus app) {
+  void addRoutes(RouterPlus app) {
     app.get('/api/v1/devices', () async {
       log.info("handling devices");
       try {

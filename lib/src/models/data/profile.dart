@@ -134,7 +134,7 @@ class StepLimiter extends Equatable {
   final double value;
   final double range;
 
-  StepLimiter({required this.value, required this.range});
+  const StepLimiter({required this.value, required this.range});
 
   factory StepLimiter.fromJson(Map<String, dynamic> json) {
     return StepLimiter(
@@ -165,7 +165,7 @@ abstract class ProfileStep extends Equatable {
   final TemperatureSensor sensor;
   final StepLimiter? limiter;
 
-  ProfileStep({
+  const ProfileStep({
     required this.name,
     required this.transition,
     this.exit,
@@ -199,7 +199,7 @@ abstract class ProfileStep extends Equatable {
 class ProfileStepPressure extends ProfileStep {
   final double pressure;
 
-  ProfileStepPressure({
+  const ProfileStepPressure({
     required super.name,
     required super.transition,
     super.exit,
@@ -286,7 +286,7 @@ class ProfileStepPressure extends ProfileStep {
 class ProfileStepFlow extends ProfileStep {
   final double flow;
 
-  ProfileStepFlow({
+  const ProfileStepFlow({
     required super.name,
     required super.transition,
     super.exit,
@@ -374,7 +374,7 @@ class StepExitCondition extends Equatable {
   final ExitCondition condition;
   final double value;
 
-  StepExitCondition({
+  const StepExitCondition({
     required this.type,
     required this.condition,
     required this.value,

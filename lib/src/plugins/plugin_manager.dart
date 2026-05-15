@@ -321,7 +321,7 @@ class PluginManager {
         };
         
         // Inject and evaluate the plugin code
-        ${jsCode}
+        $jsCode
         
         // The plugin must export a function named 'createPlugin'
         if (typeof createPlugin !== 'function') {

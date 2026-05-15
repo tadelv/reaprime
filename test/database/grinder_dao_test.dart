@@ -14,7 +14,7 @@ void main() {
     await db.close();
   });
 
-  GrindersCompanion _makeGrinder({
+  GrindersCompanion makeGrinder({
     String id = 'grinder-1',
     String model = 'Test Grinder',
     bool archived = false,
@@ -30,16 +30,16 @@ void main() {
   }
 
   test('inserts and retrieves a grinder', () async {
-    await db.grinderDao.insertGrinder(_makeGrinder());
+    await db.grinderDao.insertGrinder(makeGrinder());
     final grinders = await db.grinderDao.getAllGrinders();
     expect(grinders, hasLength(1));
     expect(grinders.first.model, 'Test Grinder');
   });
 
   test('filters archived grinders by default', () async {
-    await db.grinderDao.insertGrinder(_makeGrinder(id: 'g1'));
+    await db.grinderDao.insertGrinder(makeGrinder(id: 'g1'));
     await db.grinderDao
-        .insertGrinder(_makeGrinder(id: 'g2', archived: true));
+        .insertGrinder(makeGrinder(id: 'g2', archived: true));
 
     final active = await db.grinderDao.getAllGrinders();
     expect(active, hasLength(1));
@@ -50,7 +50,7 @@ void main() {
 
   test('gets grinder by ID', () async {
     await db.grinderDao
-        .insertGrinder(_makeGrinder(id: 'g1', model: 'Niche Zero'));
+        .insertGrinder(makeGrinder(id: 'g1', model: 'Niche Zero'));
     final grinder = await db.grinderDao.getGrinderById('g1');
     expect(grinder, isNotNull);
     expect(grinder!.model, 'Niche Zero');
@@ -58,7 +58,7 @@ void main() {
 
   test('updates a grinder', () async {
     await db.grinderDao
-        .insertGrinder(_makeGrinder(id: 'g1', model: 'Old'));
+        .insertGrinder(makeGrinder(id: 'g1', model: 'Old'));
     await db.grinderDao.updateGrinder(GrindersCompanion(
       id: const Value('g1'),
       model: const Value('New'),
@@ -69,7 +69,7 @@ void main() {
   });
 
   test('deletes a grinder', () async {
-    await db.grinderDao.insertGrinder(_makeGrinder(id: 'g1'));
+    await db.grinderDao.insertGrinder(makeGrinder(id: 'g1'));
     await db.grinderDao.deleteGrinder('g1');
     final grinders =
         await db.grinderDao.getAllGrinders(includeArchived: true);
@@ -78,7 +78,7 @@ void main() {
 
   test('watches grinder changes', () async {
     final stream = db.grinderDao.watchAllGrinders();
-    await db.grinderDao.insertGrinder(_makeGrinder(id: 'g1'));
+    await db.grinderDao.insertGrinder(makeGrinder(id: 'g1'));
     final grinders = await stream.first;
     expect(grinders, hasLength(1));
   });

@@ -55,7 +55,7 @@ class _ProfileState extends State<ProfileTile> {
     super.dispose();
   }
 
-  _workflowChange() {
+  void _workflowChange() {
     setState(() {
       if (loadedProfile != widget.workflowController.currentWorkflow.profile) {
         _log.info(
@@ -591,7 +591,7 @@ class _ProfileState extends State<ProfileTile> {
                             labelText: 'Select grinder',
                             isDense: true,
                           ),
-                          value: selectedGrinder?.id,
+                          initialValue: selectedGrinder?.id,
                           hint: const Text('Choose a grinder...'),
                           isExpanded: true,
                           items: grinders.map((g) {
@@ -1106,7 +1106,7 @@ class _BeanBatchPickerWidgetState extends State<_BeanBatchPickerWidget> {
                   labelText: 'Select coffee bean',
                   isDense: true,
                 ),
-                value: _selectedBeanId,
+                initialValue: _selectedBeanId,
                 hint: const Text('Choose a bean...'),
                 isExpanded: true,
                 items: widget.beans.map((b) {
@@ -1167,7 +1167,7 @@ class _BeanBatchPickerWidgetState extends State<_BeanBatchPickerWidget> {
                 labelText: 'Select batch',
                 isDense: true,
               ),
-              value: widget.currentBatchId != null &&
+              initialValue: widget.currentBatchId != null &&
                       _batches.any((b) => b.id == widget.currentBatchId)
                   ? widget.currentBatchId
                   : null,
