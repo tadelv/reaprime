@@ -19,6 +19,8 @@ import 'utils.dart';
 
 import 'package:rxdart/subjects.dart';
 
+// libserialport is supplied via dependency_overrides (git fork).
+// ignore: depend_on_referenced_packages
 import 'package:libserialport/libserialport.dart';
 
 class SerialServiceDesktop implements DeviceDiscoveryService {

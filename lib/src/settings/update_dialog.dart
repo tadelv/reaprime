@@ -48,7 +48,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
               SizedBox(height: 8),
               Chip(
                 label: Text('Pre-release'),
-                backgroundColor: Colors.orange.withOpacity(0.2),
+                backgroundColor: Colors.orange.withValues(alpha: 0.2),
               ),
             ],
             SizedBox(height: 16),
@@ -73,7 +73,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
               Container(
                 padding: EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
+                  color: Colors.red.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(

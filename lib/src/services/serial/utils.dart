@@ -1,9 +1,13 @@
 import 'dart:typed_data';
 
+import 'package:logging/logging.dart';
+
+final _log = Logger('SerialUtils');
+
 // ---- Device-specific detection helpers ----
 final _hdsRegex = RegExp(r'\d+ Weight: .*');
 bool isDecentScale(List<String> messages, List<Uint8List> captures) {
-  print("is HDS: checking ${messages.length}, $messages");
+  _log.finer("is HDS: checking ${messages.length}, $messages");
   return captures.any(
         (Uint8List bytes) =>
             bytes.length > 5 &&
@@ -24,7 +28,7 @@ bool isSensorBasket(List<String> messages) {
 }
 
 bool isDE1(List<String> data, List<int> bytes) {
-  print("figuring out $data");
+  _log.finer("figuring out $data");
   return data.any((e) => e.startsWith("[M]"));
 }
 

@@ -114,7 +114,7 @@ class DebugPort implements Sensor {
     Map<String, dynamic> values = {};
     values['timestamp'] = DateTime.now().toIso8601String();
 
-    values['output'] = AnsiParser(_buffer + split.first).removeAll();
+    values['output'] = Parser(_buffer + split.first).removeAll();
     _streamSubject.add(values);
 
     _buffer = split[1].replaceAll('\n', '');

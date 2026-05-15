@@ -89,6 +89,7 @@ dependencies:
   sqlite3_flutter_libs: ^0.6.0+eol
   pretty_qr_code: ^3.6.0
   mime: ^2.0.0
+  web_socket_channel: ^3.0.3
   # path: ../flutter_libserialport
   # git:
   #   url: https://github.com/tadelv/flutter_libserialport.git

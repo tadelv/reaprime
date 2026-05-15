@@ -62,7 +62,7 @@ class _PermissionsViewState extends State<PermissionsView> {
     );
   }
 
-  Widget _permissions(context) {
+  Widget _permissions(BuildContext context) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
