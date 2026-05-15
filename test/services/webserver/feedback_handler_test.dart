@@ -10,6 +10,7 @@ import 'package:shelf_plus/shelf_plus.dart';
 
 /// A stub FeedbackService for testing the handler in isolation.
 class _StubFeedbackService implements FeedbackService {
+  @override
   final bool isConfigured;
   final FeedbackSubmissionResult Function(FeedbackRequest)? onSubmitted;
 

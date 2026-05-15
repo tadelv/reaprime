@@ -297,7 +297,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
         _log.warning("failed to decode:", e);
       }
       _log.info("Collected serial data: ${combined.map((e) => e.toRadixString(16).padLeft(2,'0'))}");
-      _log.info("parsed into strings: ${strings}");
+      _log.info("parsed into strings: $strings");
       if (combined.isEmpty && strings.isEmpty) {
         throw ('no data collected');
       }
@@ -536,7 +536,7 @@ class _DesktopSerialPort implements SerialTransport {
           disconnect();
         },
       );
-      _log.fine("port subscribed: ${_portSubscription} ($readerTag)");
+      _log.fine("port subscribed: $_portSubscription ($readerTag)");
     });
     _open.add(ConnectionState.connected);
   }

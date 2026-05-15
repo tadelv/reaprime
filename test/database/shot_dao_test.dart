@@ -16,7 +16,7 @@ void main() {
     await db.close();
   });
 
-  ShotRecordsCompanion _makeShot({
+  ShotRecordsCompanion makeShot({
     String id = 'shot-1',
     DateTime? timestamp,
     String profileTitle = 'Test Profile',
@@ -60,7 +60,7 @@ void main() {
 
   group('ShotDao - CRUD', () {
     test('inserts and retrieves a shot', () async {
-      await db.shotDao.insertShot(_makeShot());
+      await db.shotDao.insertShot(makeShot());
       final shot = await db.shotDao.getShotById('shot-1');
       expect(shot, isNotNull);
       expect(shot!.id, 'shot-1');
@@ -68,19 +68,19 @@ void main() {
     });
 
     test('gets all shot IDs', () async {
-      await db.shotDao.insertShot(_makeShot(id: 's1'));
-      await db.shotDao.insertShot(_makeShot(id: 's2'));
+      await db.shotDao.insertShot(makeShot(id: 's1'));
+      await db.shotDao.insertShot(makeShot(id: 's2'));
       final ids = await db.shotDao.getAllShotIds();
       expect(ids, hasLength(2));
       expect(ids, containsAll(['s1', 's2']));
     });
 
     test('gets all shots ordered by timestamp desc', () async {
-      await db.shotDao.insertShot(_makeShot(
+      await db.shotDao.insertShot(makeShot(
         id: 's1',
         timestamp: DateTime.parse('2024-01-01T10:00:00Z'),
       ));
-      await db.shotDao.insertShot(_makeShot(
+      await db.shotDao.insertShot(makeShot(
         id: 's2',
         timestamp: DateTime.parse('2024-01-02T10:00:00Z'),
       ));
@@ -91,7 +91,7 @@ void main() {
     });
 
     test('updates a shot', () async {
-      await db.shotDao.insertShot(_makeShot(espressoNotes: 'original'));
+      await db.shotDao.insertShot(makeShot(espressoNotes: 'original'));
       await db.shotDao.updateShot(ShotRecordsCompanion(
         id: const Value('shot-1'),
         espressoNotes: const Value('updated'),
@@ -101,18 +101,18 @@ void main() {
     });
 
     test('deletes a shot', () async {
-      await db.shotDao.insertShot(_makeShot());
+      await db.shotDao.insertShot(makeShot());
       await db.shotDao.deleteShot('shot-1');
       final shot = await db.shotDao.getShotById('shot-1');
       expect(shot, isNull);
     });
 
     test('gets latest shot', () async {
-      await db.shotDao.insertShot(_makeShot(
+      await db.shotDao.insertShot(makeShot(
         id: 's1',
         timestamp: DateTime.parse('2024-01-01T10:00:00Z'),
       ));
-      await db.shotDao.insertShot(_makeShot(
+      await db.shotDao.insertShot(makeShot(
         id: 's2',
         timestamp: DateTime.parse('2024-01-02T10:00:00Z'),
       ));
@@ -123,9 +123,9 @@ void main() {
 
     test('upserts a shot', () async {
       await db.shotDao.upsertShot(
-          _makeShot(id: 's1', espressoNotes: 'first'));
+          makeShot(id: 's1', espressoNotes: 'first'));
       await db.shotDao.upsertShot(
-          _makeShot(id: 's1', espressoNotes: 'second'));
+          makeShot(id: 's1', espressoNotes: 'second'));
 
       final shots = await db.shotDao.getAllShots();
       expect(shots, hasLength(1));
@@ -136,7 +136,7 @@ void main() {
   group('ShotDao - Pagination & Filtering', () {
     test('paginates shots', () async {
       for (int i = 0; i < 10; i++) {
-        await db.shotDao.insertShot(_makeShot(
+        await db.shotDao.insertShot(makeShot(
           id: 'shot-$i',
           timestamp:
               DateTime.parse('2024-01-01T10:00:00Z').add(Duration(hours: i)),
@@ -155,10 +155,10 @@ void main() {
 
     test('filters by grinderModel', () async {
       await db.shotDao
-          .insertShot(_makeShot(id: 's1', grinderModel: 'Niche'));
+          .insertShot(makeShot(id: 's1', grinderModel: 'Niche'));
       await db.shotDao
-          .insertShot(_makeShot(id: 's2', grinderModel: 'DF64'));
-      await db.shotDao.insertShot(_makeShot(id: 's3'));
+          .insertShot(makeShot(id: 's2', grinderModel: 'DF64'));
+      await db.shotDao.insertShot(makeShot(id: 's3'));
 
       final filtered = await db.shotDao
           .getShotsPaginated(grinderModel: 'Niche');
@@ -168,9 +168,9 @@ void main() {
 
     test('filters by coffeeRoaster', () async {
       await db.shotDao
-          .insertShot(_makeShot(id: 's1', coffeeRoaster: 'Sey'));
+          .insertShot(makeShot(id: 's1', coffeeRoaster: 'Sey'));
       await db.shotDao
-          .insertShot(_makeShot(id: 's2', coffeeRoaster: 'Other'));
+          .insertShot(makeShot(id: 's2', coffeeRoaster: 'Other'));
 
       final filtered = await db.shotDao
           .getShotsPaginated(coffeeRoaster: 'Sey');
@@ -180,9 +180,9 @@ void main() {
 
     test('filters by profileTitle', () async {
       await db.shotDao.insertShot(
-          _makeShot(id: 's1', profileTitle: 'Blooming Espresso'));
+          makeShot(id: 's1', profileTitle: 'Blooming Espresso'));
       await db.shotDao
-          .insertShot(_makeShot(id: 's2', profileTitle: 'Rao'));
+          .insertShot(makeShot(id: 's2', profileTitle: 'Rao'));
 
       final filtered = await db.shotDao
           .getShotsPaginated(profileTitle: 'Blooming Espresso');
@@ -191,11 +191,11 @@ void main() {
 
     test('counts shots with filters', () async {
       await db.shotDao
-          .insertShot(_makeShot(id: 's1', coffeeRoaster: 'Sey'));
+          .insertShot(makeShot(id: 's1', coffeeRoaster: 'Sey'));
       await db.shotDao
-          .insertShot(_makeShot(id: 's2', coffeeRoaster: 'Sey'));
+          .insertShot(makeShot(id: 's2', coffeeRoaster: 'Sey'));
       await db.shotDao
-          .insertShot(_makeShot(id: 's3', coffeeRoaster: 'Other'));
+          .insertShot(makeShot(id: 's3', coffeeRoaster: 'Other'));
 
       final total = await db.shotDao.countShots();
       expect(total, 3);

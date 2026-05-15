@@ -87,7 +87,9 @@ void main() {
       final origOnError = FlutterError.onError;
       FlutterError.onError = (details) {
         if (details.toString().contains('overflowed') ||
-            details.toString().contains('deactivated')) return;
+            details.toString().contains('deactivated')) {
+          return;
+        }
         origOnError?.call(details);
       };
       addTearDown(() => FlutterError.onError = origOnError);
@@ -111,7 +113,9 @@ void main() {
       final origOnError = FlutterError.onError;
       FlutterError.onError = (details) {
         if (details.toString().contains('overflowed') ||
-            details.toString().contains('deactivated')) return;
+            details.toString().contains('deactivated')) {
+          return;
+        }
         origOnError?.call(details);
       };
       addTearDown(() => FlutterError.onError = origOnError);
@@ -153,7 +157,9 @@ void main() {
       final origOnError = FlutterError.onError;
       FlutterError.onError = (details) {
         if (details.toString().contains('overflowed') ||
-            details.toString().contains('deactivated')) return;
+            details.toString().contains('deactivated')) {
+          return;
+        }
         origOnError?.call(details);
       };
       addTearDown(() => FlutterError.onError = origOnError);
@@ -180,7 +186,9 @@ void main() {
       final origOnError = FlutterError.onError;
       FlutterError.onError = (details) {
         if (details.toString().contains('overflowed') ||
-            details.toString().contains('deactivated')) return;
+            details.toString().contains('deactivated')) {
+          return;
+        }
         origOnError?.call(details);
       };
       addTearDown(() => FlutterError.onError = origOnError);
@@ -209,7 +217,9 @@ void main() {
       final origOnError = FlutterError.onError;
       FlutterError.onError = (details) {
         if (details.toString().contains('overflowed') ||
-            details.toString().contains('deactivated')) return;
+            details.toString().contains('deactivated')) {
+          return;
+        }
         origOnError?.call(details);
       };
       addTearDown(() => FlutterError.onError = origOnError);

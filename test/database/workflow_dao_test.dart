@@ -14,7 +14,7 @@ void main() {
     await db.close();
   });
 
-  Map<String, dynamic> _makeWorkflowJson({String name = 'Test Workflow'}) {
+  Map<String, dynamic> makeWorkflowJson({String name = 'Test Workflow'}) {
     return {
       'id': 'wf-1',
       'name': name,
@@ -60,7 +60,7 @@ void main() {
 
   test('saves and loads current workflow', () async {
     await db.workflowDao.saveCurrentWorkflow(WorkflowsCompanion(
-      workflowJson: Value(_makeWorkflowJson(name: 'My Workflow')),
+      workflowJson: Value(makeWorkflowJson(name: 'My Workflow')),
       updatedAt: Value(DateTime.now()),
     ));
 
@@ -71,11 +71,11 @@ void main() {
 
   test('upserts workflow (replaces existing)', () async {
     await db.workflowDao.saveCurrentWorkflow(WorkflowsCompanion(
-      workflowJson: Value(_makeWorkflowJson(name: 'First')),
+      workflowJson: Value(makeWorkflowJson(name: 'First')),
       updatedAt: Value(DateTime.now()),
     ));
     await db.workflowDao.saveCurrentWorkflow(WorkflowsCompanion(
-      workflowJson: Value(_makeWorkflowJson(name: 'Second')),
+      workflowJson: Value(makeWorkflowJson(name: 'Second')),
       updatedAt: Value(DateTime.now()),
     ));
 

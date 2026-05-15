@@ -100,7 +100,7 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
   }
 
   void _stopSteam() {
-    print("stop steam ${_steamActive}");
+    print("stop steam $_steamActive");
     if (_steamActive) {
       setState(() {
         _steamActive = false;

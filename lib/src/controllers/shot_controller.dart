@@ -126,7 +126,7 @@ class ShotController {
   bool _scaleLost = false;
   StreamSubscription<device.ConnectionState>? _scaleConnectionSubscription;
 
-  _processSnapshot(ShotSnapshot snapshot) {
+  void _processSnapshot(ShotSnapshot snapshot) {
     _log.finest("Processing snapshot");
 
     // Update volume calculation

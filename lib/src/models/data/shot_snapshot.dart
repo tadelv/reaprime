@@ -8,7 +8,7 @@ class ShotSnapshot {
 
   ShotSnapshot({required this.machine, this.scale, this.volume});
 
-  copyWith({MachineSnapshot? machine, WeightSnapshot? scale, double? volume}) {
+  ShotSnapshot copyWith({MachineSnapshot? machine, WeightSnapshot? scale, double? volume}) {
     return ShotSnapshot(
       machine: machine ?? this.machine,
       scale: scale ?? this.scale,
@@ -16,7 +16,7 @@ class ShotSnapshot {
     );
   }
 
-  toJson() {
+  Map<String, Object?> toJson() {
     return {
       "machine": machine.toJson(),
       "scale": scale?.toJson(),

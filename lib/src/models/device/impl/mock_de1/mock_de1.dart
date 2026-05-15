@@ -15,7 +15,7 @@ enum _SimulationType { espresso, steam, hotWater, idle }
 class MockDe1 implements De1Interface {
   MockDe1({String deviceId = "MockDe1"}) : _deviceId = deviceId;
 
-  StreamController<MachineSnapshot> _snapshotStream =
+  final StreamController<MachineSnapshot> _snapshotStream =
       StreamController.broadcast();
 
   final _log = Logger("MockDe1");
@@ -56,7 +56,7 @@ class MockDe1 implements De1Interface {
   @override
   Stream<MachineSnapshot> get currentSnapshot => _snapshotStream.stream;
 
-  String _deviceId = "MockDe1";
+  final String _deviceId;
 
   @override
   String get deviceId => _deviceId;
@@ -127,7 +127,7 @@ class MockDe1 implements De1Interface {
   DeviceType get type => DeviceType.machine;
 
   DateTime lastIdleSnapshot = DateTime.now();
-  _simulateState() {
+  void _simulateState() {
     _snapshotStream.add(_lastSnapshot);
 
     _stateTimer = Timer.periodic(Duration(milliseconds: 100), (t) {
@@ -196,7 +196,7 @@ class MockDe1 implements De1Interface {
   int _espressoTickCount = 0;
   int _pouringDoneTicks = 0;
 
-  _simulateEspresso() {
+  MachineSnapshot _simulateEspresso() {
     MachineSubstate substate = _lastSnapshot.state.substate;
 
     // Determine substate based on pressure

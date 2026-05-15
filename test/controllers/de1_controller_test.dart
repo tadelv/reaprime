@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
@@ -48,7 +47,7 @@ void main() {
         expect(de1Controller.connectedDe1OrNull, same(testDe1));
 
         testDe1.dispose();
-      }, (_, __) {});
+      }, (_, _) {});
     });
 
     test('returns null again after disconnect', () async {
@@ -70,7 +69,7 @@ void main() {
         expect(de1Controller.connectedDe1OrNull, isNull);
 
         testDe1.dispose();
-      }, (_, __) {});
+      }, (_, _) {});
     });
   });
 
