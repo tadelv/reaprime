@@ -10,6 +10,8 @@ import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:rxdart/subjects.dart';
 
+// steam and hotWater are placeholders for future simulation modes.
+// ignore: unused_field
 enum _SimulationType { espresso, steam, hotWater, idle }
 
 class MockDe1 implements De1Interface {

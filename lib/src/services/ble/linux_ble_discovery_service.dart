@@ -256,14 +256,6 @@ class LinuxBleDiscoveryService extends BleDiscoveryService {
         "Scan complete. Found ${_pendingDevices.length} device(s) to process");
   }
 
-  bool _isBleDeviceId(String deviceId) {
-    final macPattern = RegExp(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$');
-    final uuidPattern = RegExp(
-      r'^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$',
-    );
-    return macPattern.hasMatch(deviceId) || uuidPattern.hasMatch(deviceId);
-  }
-
   @override
   void stopScan() {
     // Refresh scan runs post-main-scan to reset BlueZ's internal

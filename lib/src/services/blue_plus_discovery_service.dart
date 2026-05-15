@@ -98,16 +98,6 @@ class BluePlusDiscoveryService extends BleDiscoveryService {
     _log.info("initialized");
   }
 
-  bool _isBleDeviceId(String deviceId) {
-    // MAC address format: AA:BB:CC:DD:EE:FF
-    final macPattern = RegExp(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$');
-    // UUID format: 8-4-4-4-12 hex chars
-    final uuidPattern = RegExp(
-      r'^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$',
-    );
-    return macPattern.hasMatch(deviceId) || uuidPattern.hasMatch(deviceId);
-  }
-
   @override
   void stopScan() {
     _cancelScanDurationWait();

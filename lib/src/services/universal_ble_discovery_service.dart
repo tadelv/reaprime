@@ -65,14 +65,6 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
     }
   }
 
-  bool _isBleDeviceId(String deviceId) {
-    final macPattern = RegExp(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$');
-    final uuidPattern = RegExp(
-      r'^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$',
-    );
-    return macPattern.hasMatch(deviceId) || uuidPattern.hasMatch(deviceId);
-  }
-
   @override
   void stopScan() {
     UniversalBle.stopScan();
