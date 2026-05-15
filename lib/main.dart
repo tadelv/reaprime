@@ -156,6 +156,9 @@ void main() async {
   Logger.root.info(
     "build: ${BuildInfo.commitShort}, branch: ${BuildInfo.branch}",
   );
+  Logger.root.info(
+    "version: ${BuildInfo.version}, platform: ${Platform.operatingSystem}",
+  );
 
   // Initialize Firebase on supported platforms (not Linux/Windows, not debug, not simulate)
   final isDebugOrSimulate =
