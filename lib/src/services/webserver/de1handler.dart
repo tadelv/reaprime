@@ -388,9 +388,11 @@ class De1Handler {
         log.warning(
           "Blocking espresso request because no scale detected and blockOnNoScale is enabled",
         );
-        return jsonError({'error': 'No scale detected, blocking espresso request'});
-
-      }
+        return jsonError({
+          'error': 'No scale detected, blocking espresso request',
+          'type': 'block_no_scale'
+          });
+        }
       await de1.requestState(requestState);
       return jsonOk(null);
     });
