@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/impl/bengle/mock_bengle.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
@@ -29,6 +31,8 @@ class _FixedDe1Controller extends De1Controller {
 void main() {
   late Handler handler;
   late _FixedDe1Controller controller;
+  late SettingsController settingsController;
+  late ScaleController scaleController;
 
   Future<void> wireWith(De1Interface? device) async {
     final deviceController =
@@ -36,7 +40,7 @@ void main() {
     await deviceController.initialize();
     controller =
         _FixedDe1Controller(controller: deviceController, device: device);
-    final de1Handler = De1Handler(controller: controller);
+    final de1Handler = De1Handler(controller: controller, settingsController: settingsController, scaleController: scaleController);
     final app = Router().plus;
     de1Handler.addRoutes(app);
     handler = app.call;
