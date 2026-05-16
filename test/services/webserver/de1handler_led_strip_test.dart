@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
@@ -10,11 +11,63 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/impl/bengle/mock_bengle.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
 import 'package:reaprime/src/models/device/led_strip.dart';
+import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/errors.dart';
+import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
 import 'package:shelf_plus/shelf_plus.dart';
+import 'package:rxdart/rxdart.dart';
 
 import '../../helpers/mock_device_discovery_service.dart';
+import '../../helpers/mock_settings_service.dart';
+import '../../helpers/test_scale.dart';
+
+/// ScaleController subclass with controllable connection state and weight
+/// emission.
+class _TestScaleController extends ScaleController {
+  final TestScale testScale;
+  final BehaviorSubject<ConnectionState> _connectionState;
+  final BehaviorSubject<WeightSnapshot> _weight = BehaviorSubject();
+
+  _TestScaleController(this.testScale)
+      : _connectionState = BehaviorSubject.seeded(ConnectionState.connected);
+
+  @override
+  Stream<ConnectionState> get connectionState => _connectionState.stream;
+
+  @override
+  ConnectionState get currentConnectionState => _connectionState.value;
+
+  @override
+  Stream<WeightSnapshot> get weightSnapshot => _weight.stream;
+
+  @override
+  Scale connectedScale() {
+    if (_connectionState.value != ConnectionState.connected) {
+      throw 'No scale connected';
+    }
+    return testScale;
+  }
+
+  void emitWeight(double weight, {double weightFlow = 0.0}) {
+    _weight.add(WeightSnapshot(
+      timestamp: DateTime(2026, 1, 15, 8, 0),
+      weight: weight,
+      weightFlow: weightFlow,
+    ));
+  }
+
+  void simulateDisconnect() {
+    _connectionState.add(ConnectionState.disconnected);
+  }
+
+  @override
+  void dispose() {
+    _connectionState.close();
+    _weight.close();
+    super.dispose();
+  }
+}
 
 class _FixedDe1Controller extends De1Controller {
   _FixedDe1Controller({required super.controller, this.device});
@@ -33,7 +86,7 @@ void main() {
   late Handler handler;
   late _FixedDe1Controller controller;
   late SettingsController settingsController;
-  late ScaleController scaleController;
+  late _TestScaleController scaleController;
 
   Future<void> wireWith(De1Interface? device) async {
     final deviceController =
@@ -41,6 +94,14 @@ void main() {
     await deviceController.initialize();
     controller =
         _FixedDe1Controller(controller: deviceController, device: device);
+
+    final mockSettings = MockSettingsService();
+    settingsController = SettingsController(mockSettings);
+    await settingsController.loadSettings();
+
+    final testScale = TestScale();
+    scaleController = _TestScaleController(testScale);
+
     final de1Handler = De1Handler(controller: controller, settingsController: settingsController, scaleController: scaleController);
     final app = Router().plus;
     de1Handler.addRoutes(app);

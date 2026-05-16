@@ -54,10 +54,10 @@ class ShotSequencer {
   ShotSequencer({
     required this.scaleController,
     required this.de1controller,
-    required this.settingsController,
     required this.persistenceController,
     required this.targetProfile,
     required this.targetYield,
+    required this.settingsController,
     required bool bypassSAW,
     required double weightFlowMultiplier,
     required double volumeFlowMultiplier,

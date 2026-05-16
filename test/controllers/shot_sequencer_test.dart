@@ -22,6 +22,7 @@ import 'package:rxdart/rxdart.dart';
 
 import '../helpers/test_de1.dart';
 import '../helpers/test_scale.dart';
+import '../helpers/mock_settings_service.dart';
 
 // ---------------------------------------------------------------------------
 // Test-local helpers
@@ -204,7 +205,7 @@ void main() {
     late SettingsController settingsController;
     late Profile profile;
 
-    setUp(() {
+    setUp(() async {
       testDe1 = TestDe1();
       testScale = TestScale();
       de1Controller = _TestDe1Controller(testDe1);
@@ -212,6 +213,10 @@ void main() {
       persistenceController =
           PersistenceController(storageService: _NullStorageService());
       profile = _simpleProfile();
+      final mockSettings = MockSettingsService();
+      settingsController = SettingsController(mockSettings);
+      await settingsController.loadSettings();
+
     });
 
     tearDown(() {
