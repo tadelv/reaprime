@@ -164,6 +164,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MachineSnapshot"
+
   /api/v1/machine/state/{newState}:
     put:
       summary: Request Machine State Change
@@ -180,6 +181,11 @@ paths:
           description: State change successful
         "400":
           description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MachineStateError"
+
   /api/v1/machine/profile:
     post:
       summary: Set Machine Profile
@@ -3843,6 +3849,18 @@ components:
         → treated as black (`000000000000`).
       example: FFFF80000000
 
+    MachineStateError:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            [
+              block_no_scale
+            ]
+        details: 
+          type: string
+
     ScaleSnapshot:
       type: object
       properties:
@@ -4316,6 +4334,9 @@ components:
           enum: ["disabled", "displayOff", "disconnect"]
           nullable: true
           example: "disabled"
+        blockOnNoScale:
+          description: When true, shots will be blocked from starting if no scale is connected.
+          type: boolean
         preferredMachineId:
           description: Device ID of the preferred machine for auto-connect on startup. When set, REA will automatically connect to this machine when it's discovered during device scan. Set to null to clear the preference.
           type: string
@@ -4397,6 +4418,9 @@ components:
           type: string
           enum: ["disabled", "displayOff", "disconnect"]
           example: "disabled"
+        blockOnNoScale:
+          description: When true, shots will be blocked from starting if no scale is connected.
+          type: boolean
         preferredMachineId:
           description: Device ID of the preferred machine for auto-connect on startup. Returns null if no preferred device is set.
           type: string
