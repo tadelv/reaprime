@@ -15,7 +15,7 @@ class MockSettingsService extends SettingsService {
   double _weightFlowMultiplier = 1.0;
   double _volumeFlowMultiplier = 0.3;
   ScalePowerMode _scalePowerMode = ScalePowerMode.disabled;
-  BlockOnNoScale _blockOnNoScale = false;
+  bool _blockOnNoScale = false;
   String? _preferredMachineId;
   String? _preferredScaleId;
   String _defaultSkinId = 'streamline.js';
@@ -68,9 +68,9 @@ class MockSettingsService extends SettingsService {
   @override
   Future<void> setScalePowerMode(ScalePowerMode mode) async => _scalePowerMode = mode;
   @override
-  Future<BlockOnNoScale> blockOnNoScale() async => _blockOnNoScale;
+  Future<bool> blockOnNoScale() async => _blockOnNoScale;
   @override
-  Future<void> setBlockOnNoScale(BlockOnNoScale value) async => _blockOnNoScale = value;
+  Future<void> setBlockOnNoScale(bool value) async => _blockOnNoScale = value;
   @override
   Future<String?> preferredMachineId() async => _preferredMachineId;
   @override

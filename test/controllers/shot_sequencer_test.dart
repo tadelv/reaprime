@@ -7,6 +7,7 @@ import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/shot_sequencer.dart';
+import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/steam_record.dart';
@@ -200,6 +201,7 @@ void main() {
     late _TestDe1Controller de1Controller;
     late _TestScaleController scaleController;
     late PersistenceController persistenceController;
+    late SettingsController settingsController;
     late Profile profile;
 
     setUp(() {
@@ -245,6 +247,7 @@ void main() {
         final shotSequencer = ShotSequencer(
           scaleController: scaleController,
           de1controller: de1Controller,
+          settingsController: settingsController,
           persistenceController: persistenceController,
           targetProfile: profile,
           targetYield: 36.0,
@@ -297,6 +300,7 @@ void main() {
         final shotSequencer = ShotSequencer(
           scaleController: scaleController,
           de1controller: de1Controller,
+          settingsController: settingsController,
           persistenceController: persistenceController,
           targetProfile: profile,
           targetYield: 36.0,
@@ -349,6 +353,7 @@ void main() {
         final shotSequencer = ShotSequencer(
           scaleController: scaleController,
           de1controller: de1Controller,
+          settingsController: settingsController,
           persistenceController: persistenceController,
           targetProfile: profile,
           targetYield: 36.0,
