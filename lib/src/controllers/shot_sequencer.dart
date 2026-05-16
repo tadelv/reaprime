@@ -73,8 +73,13 @@ class ShotSequencer {
     final scaleConnected =
         scaleController.currentConnectionState == device.ConnectionState.connected;
 
+    final blockOnNoScale = settingsController.blockOnNoScale;
 
-    if (!scaleConnected) {
+    if (blockOnNoScale && !scaleConnected) {
+      _log.warning(
+        "No scale connected and blockOnNoScale is enabled. ShotController will not start.",
+      );
+    } else if (!scaleConnected) {
       _log.info("Continuing without scale");
       _snapshotSubscription = de1controller
           .connectedDe1()
@@ -85,35 +90,35 @@ class ShotSequencer {
             onError: (error) =>
                 _log.warning("Error processing DE1 snapshot: $error"),
           );
-    } else {
-      _log.info("Scale connected, combining streams");
-      final combinedStream = de1controller
-          .connectedDe1()
-          .currentSnapshot
-          .withLatestFrom(
-            scaleController.weightSnapshot,
-            (machine, weight) => ShotSnapshot(machine: machine, scale: weight),
-          );
-
-      _snapshotSubscription = combinedStream.listen(
-        _processSnapshot,
-        onError: (error) =>
-            _log.warning("Error processing combined snapshot: $error"),
-      );
-
-      // Monitor scale connection during shot
-      _scaleConnectionSubscription = scaleController.connectionState.listen((state) {
-        if (state == device.ConnectionState.disconnected && !_scaleLost) {
-          if (_state != ShotState.idle && _state != ShotState.finished) {
-            _scaleLost = true;
-            _log.warning(
-              'Scale disconnected during shot (state: ${_state.name}). '
-              'Stop-at-weight disabled for remainder of this shot.',
+      } else {
+        _log.info("Scale connected, combining streams");
+        final combinedStream = de1controller
+            .connectedDe1()
+            .currentSnapshot
+            .withLatestFrom(
+              scaleController.weightSnapshot,
+              (machine, weight) => ShotSnapshot(machine: machine, scale: weight),
             );
+
+        _snapshotSubscription = combinedStream.listen(
+          _processSnapshot,
+          onError: (error) =>
+              _log.warning("Error processing combined snapshot: $error"),
+        );
+
+        // Monitor scale connection during shot
+        _scaleConnectionSubscription = scaleController.connectionState.listen((state) {
+          if (state == device.ConnectionState.disconnected && !_scaleLost) {
+            if (_state != ShotState.idle && _state != ShotState.finished) {
+              _scaleLost = true;
+              _log.warning(
+                'Scale disconnected during shot (state: ${_state.name}). '
+                'Stop-at-weight disabled for remainder of this shot.',
+              );
+            }
           }
-        }
-      });
-    }
+        });
+      }
   }
 
   void dispose() {
