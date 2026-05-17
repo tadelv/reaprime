@@ -16,12 +16,8 @@ permissions:
 jobs:
   flutter:
     name: Format / analyze / test
-    # Runs on macOS to match the author's dev env. The test suite contains
-    # platform-coupled tests (display_controller_test brightness/battery-cap
-    # cases) that assume Platform.isMacOS; running them on Linux fails.
-    # The Linux build itself is still exercised by build-smoke below.
-    runs-on: macos-latest
-    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -65,8 +61,19 @@ jobs:
       - name: Flutter analyze
         run: flutter analyze
 
+      # flutter_js' QuickJS bridge ships a prebuilt .so inside its pub-cache
+      # checkout. macOS resolves it via @rpath automatically, but on Linux the
+      # test runner needs LD_LIBRARY_PATH pointed at it.
       - name: Flutter test
-        run: flutter test --reporter=expanded
+        run: |
+          QUICKJS_LIB_DIR=$(find "$HOME/.pub-cache/git" -path '*dart_js*/linux/shared' -type d | head -1)
+          if [ -z "$QUICKJS_LIB_DIR" ]; then
+            echo "Could not locate flutter_js native lib dir under ~/.pub-cache/git"
+            exit 1
+          fi
+          echo "Using QuickJS lib dir: $QUICKJS_LIB_DIR"
+          LD_LIBRARY_PATH="$QUICKJS_LIB_DIR:${LD_LIBRARY_PATH:-}" \
+            flutter test --reporter=expanded
 
   build-smoke:
     name: Linux build smoke

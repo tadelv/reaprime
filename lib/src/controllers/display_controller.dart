@@ -127,6 +127,7 @@ class DisplayController {
     Future<void> Function()? resetBrightness,
     Future<void> Function()? enableWakeLock,
     Future<void> Function()? disableWakeLock,
+    DisplayPlatformSupport? platformSupport,
   })  : _de1Controller = de1Controller,
         _settingsController = settingsController,
         _batteryStateStream = batteryStateStream,
@@ -136,11 +137,14 @@ class DisplayController {
             _defaultScreenBrightness.resetApplicationScreenBrightness,
         _enableWakeLock = enableWakeLock ?? WakelockPlus.enable,
         _disableWakeLock = disableWakeLock ?? WakelockPlus.disable {
-    _platformSupport = DisplayPlatformSupport(
-      brightness:
-          Platform.isAndroid || Platform.isIOS || Platform.isMacOS || Platform.isWindows,
-      wakeLock: true, // wakelock_plus supports all platforms
-    );
+    _platformSupport = platformSupport ??
+        DisplayPlatformSupport(
+          brightness: Platform.isAndroid ||
+              Platform.isIOS ||
+              Platform.isMacOS ||
+              Platform.isWindows,
+          wakeLock: true, // wakelock_plus supports all platforms
+        );
 
     _stateSubject = BehaviorSubject.seeded(DisplayState(
       wakeLockEnabled: false,
