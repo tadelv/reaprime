@@ -30,8 +30,6 @@ class BluePlusDiscoveryService extends BleDiscoveryService {
   // to avoid BlueZ le-connection-abort-by-local errors
   final List<_PendingDevice> _pendingDevices = [];
 
-  StreamSubscription<String>? _logSubscription;
-
   BluePlusDiscoveryService();
 
   @override
@@ -91,9 +89,6 @@ class BluePlusDiscoveryService extends BleDiscoveryService {
   @override
   Future<void> initialize() async {
     await FlutterBluePlus.setLogLevel(LogLevel.warning);
-    _logSubscription = FlutterBluePlus.logs.listen((logMessage) {
-      _log.fine("BP Native: $logMessage");
-    });
     await FlutterBluePlus.setOptions(showPowerAlert: true);
     _log.info("initialized");
   }

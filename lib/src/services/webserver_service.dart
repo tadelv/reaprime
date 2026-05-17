@@ -116,8 +116,6 @@ Future<void> startWebServer(
   final scaleHandler = ScaleHandler(controller: scaleController);
   final deviceHandler = DevicesHandler(
     controller: deviceController,
-    de1Controller: de1Controller,
-    scaleController: scaleController,
     batteryController: batteryController,
     connectionManager: connectionManager,
   );
