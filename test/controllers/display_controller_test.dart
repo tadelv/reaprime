@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:fake_async/fake_async.dart';
@@ -226,10 +227,16 @@ class _TestBatteryController {
 
 /// Creates a DisplayController with no-op platform operations for testing.
 /// This allows tests to verify actual state transitions without platform deps.
+///
+/// Defaults [platformSupport] to brightness+wakeLock enabled so tests focused
+/// on brightness/battery-cap behavior don't depend on the host CI platform
+/// (DisplayController's auto-detection treats Linux as brightness-unsupported,
+/// which would otherwise short-circuit those tests on a Linux runner).
 DisplayController _createController(
   _TestDe1Controller de1Controller, {
   required SettingsController settingsController,
   _TestBatteryController? batteryController,
+  DisplayPlatformSupport? platformSupport,
 }) {
   return DisplayController(
     de1Controller: de1Controller,
@@ -239,6 +246,8 @@ DisplayController _createController(
     resetBrightness: () async {},
     enableWakeLock: () async {},
     disableWakeLock: () async {},
+    platformSupport: platformSupport ??
+        const DisplayPlatformSupport(brightness: true, wakeLock: true),
   );
 }
 
@@ -279,16 +288,30 @@ void main() {
 
     test('platformSupported reports correct values', () {
       fakeAsync((async) {
-        final controller = _createController(de1Controller,
-            settingsController: settingsCtrl);
+        // Construct DisplayController directly so the auto-detected
+        // platformSupport is exercised (the _createController helper
+        // injects a brightness-enabled default for the brightness/cap
+        // tests, which would hide the auto-detection logic here).
+        final controller = DisplayController(
+          de1Controller: de1Controller,
+          settingsController: settingsCtrl,
+          setBrightness: (_) async {},
+          resetBrightness: () async {},
+          enableWakeLock: () async {},
+          disableWakeLock: () async {},
+        );
         controller.initialize();
         async.flushMicrotasks();
 
         final state = controller.currentState;
-        // wakeLock is always true (wakelock_plus supports all platforms)
+        // wakeLock is always true (wakelock_plus supports all platforms).
         expect(state.platformSupported.wakeLock, isTrue);
-        // brightness depends on platform — on macOS (test env) it should be true
-        expect(state.platformSupported.brightness, isTrue);
+        // brightness is gated to Android/iOS/macOS/Windows; Linux is excluded.
+        final expectedBrightness = Platform.isAndroid ||
+            Platform.isIOS ||
+            Platform.isMacOS ||
+            Platform.isWindows;
+        expect(state.platformSupported.brightness, expectedBrightness);
 
         controller.dispose();
       });
@@ -545,6 +568,8 @@ void main() {
           },
           enableWakeLock: () async {},
           disableWakeLock: () async {},
+          platformSupport:
+              const DisplayPlatformSupport(brightness: true, wakeLock: true),
         );
         controller.initialize();
         async.flushMicrotasks();
