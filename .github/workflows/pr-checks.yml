@@ -28,8 +28,29 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: packages/dye2-plugin/package-lock.json
+
       - name: Flutter pub get
         run: flutter pub get
+
+      # pubspec references assets/plugins/dye2.reaplugin/ and
+      # assets/bundled_skins/. Both are build outputs, not checked in,
+      # so populate them before any flutter command that touches assets
+      # (analyze emits asset_directory_does_not_exist; test loads the
+      # bundled_skins manifest at runtime).
+      - name: Build DYE2 plugin
+        working-directory: packages/dye2-plugin
+        run: |
+          npm ci
+          npm run build
+
+      - name: Bundle skins
+        run: bash bundle_skins.sh
 
       # Format check is advisory until the codebase has been mass-reformatted
       # for Dart 3.7+ "tall style". Once that lands, drop continue-on-error.
