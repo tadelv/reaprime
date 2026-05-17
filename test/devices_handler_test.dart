@@ -45,8 +45,6 @@ void main() {
 
     devicesHandler = DevicesHandler(
       controller: deviceController,
-      de1Controller: de1Controller,
-      scaleController: scaleController,
       connectionManager: connectionManager,
     );
 

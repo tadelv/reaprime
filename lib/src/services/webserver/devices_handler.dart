@@ -184,21 +184,15 @@ class DevicesStateAggregator {
 
 class DevicesHandler {
   final DeviceController _controller;
-  final De1Controller _de1Controller;
-  final ScaleController _scaleController;
   final ConnectionManager _connectionManager;
   final Logger _log = Logger("Devices handler");
   final DevicesStateAggregator _aggregator;
 
   DevicesHandler({
     required DeviceController controller,
-    required De1Controller de1Controller,
-    required ScaleController scaleController,
     BatteryController? batteryController,
     required ConnectionManager connectionManager,
   })  : _controller = controller,
-        _de1Controller = de1Controller,
-        _scaleController = scaleController,
         _connectionManager = connectionManager,
         _aggregator = DevicesStateAggregator(
           controller: controller,

@@ -448,22 +448,6 @@ class MockDe1 implements De1Interface {
     }
   }
 
-  double _calculateValueTowardTarget({
-    required double current,
-    required double target,
-    required double rate,
-    double maxValue = double.infinity,
-  }) {
-    if ((current - target).abs() < rate) {
-      return target;
-    }
-    if (current < target) {
-      return min(current + rate, min(target, maxValue));
-    } else {
-      return max(current - rate, target);
-    }
-  }
-
   Future<void> onDisconnect() async {
     _stateTimer?.cancel();
   }
