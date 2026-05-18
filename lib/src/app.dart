@@ -11,7 +11,7 @@ import 'package:reaprime/src/controllers/de1_state_manager.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/presence_controller.dart';
 import 'package:reaprime/src/controllers/presence_navigator_observer.dart';
-import 'package:reaprime/src/controllers/shot_controller.dart';
+import 'package:reaprime/src/controllers/shot_sequencer.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/history_feature/history_feature.dart';
 import 'package:reaprime/src/landing_feature/landing_feature.dart';
@@ -398,11 +398,11 @@ class _MyAppState extends State<MyApp> {
                       );
                     case RealtimeShotFeature.routeName:
                       final args = routeSettings.arguments;
-                      ShotController shotController;
-                      if (args is ShotController) {
-                        shotController = args;
+                      ShotSequencer shotSequencer;
+                      if (args is ShotSequencer) {
+                        shotSequencer = args;
                       } else {
-                        shotController = ShotController(
+                        shotSequencer = ShotSequencer(
                           scaleController: widget.scaleController,
                           de1controller: widget.de1Controller,
                           persistenceController: widget.persistenceController,
@@ -420,7 +420,7 @@ class _MyAppState extends State<MyApp> {
                         );
                       }
                       return RealtimeShotFeature(
-                        shotController: shotController,
+                        shotSequencer: shotSequencer,
                         workflowController: widget.workflowController,
                       );
                     case RealtimeSteamFeature.routeName:

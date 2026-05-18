@@ -6,7 +6,7 @@ import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
-import 'package:reaprime/src/controllers/shot_controller.dart';
+import 'package:reaprime/src/controllers/shot_sequencer.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
@@ -39,7 +39,7 @@ class De1StateManager with WidgetsBindingObserver {
 
   StreamSubscription<Machine?>? _de1Subscription;
   StreamSubscription<MachineSnapshot>? _snapshotSubscription;
-  ShotController? _currentShotController;
+  ShotSequencer? _currentShotSequencer;
   StreamSubscription<ShotState>? _shotStateSubscription;
   StreamSubscription<ShotSnapshot>? _shotSnapshotsSubscription;
 
@@ -190,7 +190,7 @@ class De1StateManager with WidgetsBindingObserver {
     } else {
       _logger.info('DE1 disconnected');
       // Clean up any active shot controller
-      _cleanupShotController();
+      _cleanupShotSequencer();
     }
   }
 
@@ -374,7 +374,7 @@ class De1StateManager with WidgetsBindingObserver {
 
   /// Handles espresso state when in tracking mode.
   void _handleTrackingModeForEspresso() {
-    if (_currentShotController != null) {
+    if (_currentShotSequencer != null) {
       // Already tracking a shot
       return;
     }
@@ -382,7 +382,7 @@ class De1StateManager with WidgetsBindingObserver {
     _logger.info(
       'Starting shot tracking in tracking mode (app foreground: $_appIsInForeground)',
     );
-    _startShotController();
+    _startShotSequencer();
   }
 
   /// Handles espresso state when in disabled mode.
@@ -393,13 +393,13 @@ class De1StateManager with WidgetsBindingObserver {
     }
 
     // If we're already tracking a shot (maybe from a previous fallback)
-    if (_currentShotController != null) {
+    if (_currentShotSequencer != null) {
       return;
     }
 
-    // Always create a single ShotController owned by De1StateManager.
+    // Always create a single ShotSequencer owned by De1StateManager.
     // This controller handles persistence; RealtimeShotFeature only displays.
-    _startShotController();
+    _startShotSequencer();
 
     // For mobile platforms, only attempt navigation if app is in foreground
     // For desktop platforms, we can attempt navigation more liberally
@@ -423,7 +423,7 @@ class De1StateManager with WidgetsBindingObserver {
         Navigator.pushNamed(
               context,
               RealtimeShotFeature.routeName,
-              arguments: _currentShotController,
+              arguments: _currentShotSequencer,
             )
             .then((_) {
               _isRealtimeFeatureActive = false;
@@ -503,11 +503,11 @@ class De1StateManager with WidgetsBindingObserver {
     }
   }
 
-  /// Starts a new ShotController for tracking a shot in tracking mode.
-  void _startShotController() {
-    _logger.fine('Creating new ShotController for tracking');
+  /// Starts a new ShotSequencer for tracking a shot in tracking mode.
+  void _startShotSequencer() {
+    _logger.fine('Creating new ShotSequencer for tracking');
 
-    _currentShotController = ShotController(
+    _currentShotSequencer = ShotSequencer(
       scaleController: _scaleController,
       de1controller: _de1Controller,
       persistenceController: _persistenceController,
@@ -521,18 +521,18 @@ class De1StateManager with WidgetsBindingObserver {
     _currentShotSnapshots.clear();
 
     // Listen to shot snapshots
-    _shotSnapshotsSubscription = _currentShotController!.shotData.listen((
+    _shotSnapshotsSubscription = _currentShotSequencer!.shotData.listen((
       snapshot,
     ) {
       _currentShotSnapshots.add(snapshot);
     });
 
     // Listen to shot state changes
-    _shotStateSubscription = _currentShotController!.state.listen((state) {
+    _shotStateSubscription = _currentShotSequencer!.state.listen((state) {
       if (state == ShotState.finished) {
-        _logger.fine('Shot finished, cleaning up ShotController');
+        _logger.fine('Shot finished, cleaning up ShotSequencer');
         _persistShotIfNeeded();
-        _cleanupShotController();
+        _cleanupShotSequencer();
       }
     });
   }
@@ -543,11 +543,11 @@ class De1StateManager with WidgetsBindingObserver {
         _workflowController.currentWorkflow.profile.beverageType;
     if (beverageType != BeverageType.cleaning &&
         beverageType != BeverageType.calibrate &&
-        _currentShotController != null) {
+        _currentShotSequencer != null) {
       _persistenceController.persistShot(
         ShotRecord(
           id: Uuid().v4(),
-          timestamp: _currentShotController!.shotStartTime,
+          timestamp: _currentShotSequencer!.shotStartTime,
           measurements: List.from(_currentShotSnapshots),
           workflow: _workflowController.currentWorkflow,
         ),
@@ -555,9 +555,9 @@ class De1StateManager with WidgetsBindingObserver {
     }
   }
 
-  /// Cleans up the current ShotController and all associated subscriptions.
-  void _cleanupShotController() {
-    _logger.fine('Cleaning up ShotController');
+  /// Cleans up the current ShotSequencer and all associated subscriptions.
+  void _cleanupShotSequencer() {
+    _logger.fine('Cleaning up ShotSequencer');
 
     _shotStateSubscription?.cancel();
     _shotStateSubscription = null;
@@ -565,8 +565,8 @@ class De1StateManager with WidgetsBindingObserver {
     _shotSnapshotsSubscription?.cancel();
     _shotSnapshotsSubscription = null;
 
-    _currentShotController?.dispose();
-    _currentShotController = null;
+    _currentShotSequencer?.dispose();
+    _currentShotSequencer = null;
 
     _currentShotSnapshots.clear();
   }
@@ -578,7 +578,7 @@ class De1StateManager with WidgetsBindingObserver {
     // Remove app lifecycle observer
     WidgetsBinding.instance.removeObserver(this);
 
-    _cleanupShotController();
+    _cleanupShotSequencer();
 
     _deferredScaleScan?.cancel();
     _deferredScaleScan = null;

@@ -6,7 +6,7 @@ import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
-import 'package:reaprime/src/controllers/shot_controller.dart';
+import 'package:reaprime/src/controllers/shot_sequencer.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
@@ -176,7 +176,7 @@ Profile _simpleProfile() {
 }
 
 void main() {
-  group('ShotController — scale disconnect during shot', () {
+  group('ShotSequencer — scale disconnect during shot', () {
     late TestDe1 testDe1;
     late TestScale testScale;
     late _TestDe1Controller de1Controller;
@@ -201,11 +201,11 @@ void main() {
       persistenceController.dispose();
     });
 
-    /// Drive the ShotController state machine from idle → pouring.
+    /// Drive the ShotSequencer state machine from idle → pouring.
     ///
     /// Emits: preparingForShot → preinfusion, which transitions through
     /// idle → preheating → pouring.
-    void driveToPouring(ShotController shotController) {
+    void driveToPouring(ShotSequencer shotSequencer) {
       // idle → preheating (preparingForShot)
       testDe1.emitStateAndSubstate(
         MachineState.espresso,
@@ -224,7 +224,7 @@ void main() {
         // Emit initial weight so withLatestFrom has a value to combine with
         scaleController.emitWeight(0.0);
 
-        final shotController = ShotController(
+        final shotSequencer = ShotSequencer(
           scaleController: scaleController,
           de1controller: de1Controller,
           persistenceController: persistenceController,
@@ -236,7 +236,7 @@ void main() {
         );
 
         async.elapse(Duration(milliseconds: 10));
-        driveToPouring(shotController);
+        driveToPouring(shotSequencer);
         async.elapse(Duration(milliseconds: 10));
 
         // Disconnect the scale mid-shot
@@ -266,7 +266,7 @@ void main() {
               'the controller is using stale weight data',
         );
 
-        shotController.dispose();
+        shotSequencer.dispose();
       });
     });
 
@@ -276,7 +276,7 @@ void main() {
         // Emit initial weight so withLatestFrom has a value
         scaleController.emitWeight(0.0);
 
-        final shotController = ShotController(
+        final shotSequencer = ShotSequencer(
           scaleController: scaleController,
           de1controller: de1Controller,
           persistenceController: persistenceController,
@@ -288,7 +288,7 @@ void main() {
         );
 
         async.elapse(Duration(milliseconds: 10));
-        driveToPouring(shotController);
+        driveToPouring(shotSequencer);
         async.elapse(Duration(milliseconds: 10));
 
         // Disconnect the scale
@@ -302,7 +302,7 @@ void main() {
         );
         async.elapse(Duration(milliseconds: 10));
 
-        // Now emit another snapshot. The ShotController is in the stopping
+        // Now emit another snapshot. The ShotSequencer is in the stopping
         // state, which calls scaleController.connectedScale().stopTimer().
         // With the bug, connectedScale() throws because scale is disconnected.
         expect(
@@ -319,7 +319,7 @@ void main() {
               'connectedScale() throws when scale is gone',
         );
 
-        shotController.dispose();
+        shotSequencer.dispose();
       });
     });
 
@@ -328,7 +328,7 @@ void main() {
         // Emit initial weight so withLatestFrom has a value
         scaleController.emitWeight(0.0);
 
-        final shotController = ShotController(
+        final shotSequencer = ShotSequencer(
           scaleController: scaleController,
           de1controller: de1Controller,
           persistenceController: persistenceController,
@@ -340,7 +340,7 @@ void main() {
         );
 
         async.elapse(Duration(milliseconds: 10));
-        driveToPouring(shotController);
+        driveToPouring(shotSequencer);
         async.elapse(Duration(milliseconds: 10));
 
         // Scale stays connected; emit weight above target
@@ -361,7 +361,7 @@ void main() {
               'SAW should fire when scale is connected and weight exceeds target',
         );
 
-        shotController.dispose();
+        shotSequencer.dispose();
       });
     });
   });

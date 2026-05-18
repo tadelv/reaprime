@@ -48,7 +48,7 @@ void main() {
       await Future.delayed(const Duration(milliseconds: 1700));
 
       // Collect snapshots. When weight passes 4g, call skipStep (simulating
-      // what ShotController does).
+      // what ShotSequencer does).
       final completer = Completer<void>();
       var skipped = false;
       final snapshots = <String>[];
