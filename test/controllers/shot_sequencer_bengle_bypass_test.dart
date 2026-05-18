@@ -6,6 +6,7 @@ import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/controllers/shot_sequencer.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
@@ -23,6 +24,7 @@ import 'package:rxdart/rxdart.dart';
 
 import '../helpers/test_de1.dart';
 import '../helpers/test_scale.dart';
+import '../helpers/mock_settings_service.dart';
 
 /// Bengle-flavoured TestDe1: reuses every DE1-side behavior but also
 /// implements [BengleInterface] so `machine is BengleInterface` returns
@@ -229,9 +231,10 @@ void main() {
     late TestScale testScale;
     late _TestScaleController scaleController;
     late PersistenceController persistence;
+    late SettingsController settingsController;
     late Profile profile;
 
-    setUp(() {
+    setUp(() async {
       bengle = _TestBengle();
       de1Controller = _BengleDe1Controller(bengle);
       testScale = TestScale();
@@ -239,6 +242,9 @@ void main() {
       persistence =
           PersistenceController(storageService: _NullStorageService());
       profile = _simpleProfile();
+      final mockSettings = MockSettingsService();
+      settingsController = SettingsController(mockSettings);
+      await settingsController.loadSettings();
     });
 
     tearDown(() {
@@ -256,6 +262,7 @@ void main() {
         final shot = ShotSequencer(
           scaleController: scaleController,
           de1controller: de1Controller,
+          settingsController: settingsController,
           persistenceController: persistence,
           targetProfile: profile,
           targetYield: 30.0,
