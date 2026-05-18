@@ -11,13 +11,13 @@ import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:rxdart/rxdart.dart';
 
-class ShotController {
+class ShotSequencer {
   final De1Controller de1controller;
   final ScaleController scaleController;
   final PersistenceController persistenceController;
   final Profile targetProfile;
 
-  final Logger _log = Logger("ShotController");
+  final Logger _log = Logger("ShotSequencer");
 
   final bool _bypassSAW;
   final double _weightFlowMultiplier;
@@ -36,7 +36,7 @@ class ShotController {
   DateTime? _lastVolumeUpdateTime;
   bool _volumeCountingActive = false;
 
-  ShotController({
+  ShotSequencer({
     required this.scaleController,
     required this.de1controller,
     required this.persistenceController,
@@ -51,7 +51,7 @@ class ShotController {
         _machineHasAutonomousSAW =
             de1controller.connectedDe1() is BengleInterface {
     _log.info(
-      "Initializing ShotController (weightFlowMultiplier: $_weightFlowMultiplier, volumeFlowMultiplier: $_volumeFlowMultiplier, machineHasAutonomousSAW: $_machineHasAutonomousSAW)",
+      "Initializing ShotSequencer (weightFlowMultiplier: $_weightFlowMultiplier, volumeFlowMultiplier: $_volumeFlowMultiplier, machineHasAutonomousSAW: $_machineHasAutonomousSAW)",
     );
 
     final scaleConnected =

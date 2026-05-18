@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
-import 'package:reaprime/src/controllers/shot_controller.dart';
+import 'package:reaprime/src/controllers/shot_sequencer.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
@@ -15,12 +15,12 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 class RealtimeShotFeature extends StatefulWidget {
   static const routeName = '/shot';
 
-  final ShotController shotController;
+  final ShotSequencer shotSequencer;
   final WorkflowController workflowController;
 
   const RealtimeShotFeature({
     super.key,
-    required this.shotController,
+    required this.shotSequencer,
     required this.workflowController,
   });
 
@@ -29,7 +29,7 @@ class RealtimeShotFeature extends StatefulWidget {
 }
 
 class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
-  late ShotController _shotController;
+  late ShotSequencer _shotSequencer;
   final List<ShotSnapshot> _shotSnapshots = [];
   late StreamSubscription<ShotSnapshot> _shotSubscription;
   late StreamSubscription<bool> _resetCommandSubscription;
@@ -40,18 +40,18 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
   initState() {
     super.initState();
     SharedPreferencesSettingsService().gatewayMode().then((b) => _gatewayMode = b == GatewayMode.full);
-    _shotController = widget.shotController;
-    _resetCommandSubscription = _shotController.resetCommand.listen((event) {
+    _shotSequencer = widget.shotSequencer;
+    _resetCommandSubscription = _shotSequencer.resetCommand.listen((event) {
       setState(() {
         _shotSnapshots.clear();
       });
     });
-    _shotSubscription = _shotController.shotData.listen((event) {
+    _shotSubscription = _shotSequencer.shotData.listen((event) {
       setState(() {
         _shotSnapshots.add(event);
       });
     });
-    _stateSubscription = _shotController.state.listen((state) {
+    _stateSubscription = _shotSequencer.state.listen((state) {
       setState(() {
         if (state == ShotState.pouring || state == ShotState.preheating) {
           backEnabled = false;
@@ -67,7 +67,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
     _shotSubscription.cancel();
     _resetCommandSubscription.cancel();
     _stateSubscription.cancel();
-    // ShotController is owned by De1StateManager — do not dispose here.
+    // ShotSequencer is owned by De1StateManager — do not dispose here.
     super.dispose();
   }
 
@@ -83,7 +83,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
               Flexible(
                 child: ShotChart(
                   shotSnapshots: _shotSnapshots,
-                  shotStartTime: _shotController.shotStartTime,
+                  shotStartTime: _shotSequencer.shotStartTime,
                 ),
               ),
               _buttons(context),
@@ -103,7 +103,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
           SizedBox(
             width: 200,
             child: Text(
-                "Time: ${_shotSnapshots.lastWhereOrNull((sn) => sn.machine.state.substate == MachineSubstate.pouring)?.machine.timestamp.difference(_shotController.shotStartTime).inSeconds}s"),
+                "Time: ${_shotSnapshots.lastWhereOrNull((sn) => sn.machine.state.substate == MachineSubstate.pouring)?.machine.timestamp.difference(_shotSequencer.shotStartTime).inSeconds}s"),
           ),
           Spacer(),
           SizedBox(
@@ -190,7 +190,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
         SizedBox(
           width: 100,
           child: StreamBuilder(
-            stream: _shotController.shotData,
+            stream: _shotSequencer.shotData,
             builder: (context, snapshot) {
               if (snapshot.hasData) {
                 var difference = lastSnapshot
@@ -205,15 +205,15 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
         ),
         Spacer(),
         ShotDataView(
-          firstLine: "Profile: ${_shotController.targetProfile.title}",
+          firstLine: "Profile: ${_shotSequencer.targetProfile.title}",
           secondLine:
-              "Target weight: ${_shotController.targetYield.toStringAsFixed(1)}g",
+              "Target weight: ${_shotSequencer.targetYield.toStringAsFixed(1)}g",
         ),
         Spacer(),
         ShadButton.destructive(
           enabled: !backEnabled,
           onPressed: () {
-            widget.shotController.de1controller
+            widget.shotSequencer.de1controller
                 .connectedDe1()
                 .requestState(MachineState.idle);
           },
@@ -222,7 +222,7 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
         ShadButton.secondary(
           enabled: !backEnabled,
           onPressed: () {
-            widget.shotController.de1controller
+            widget.shotSequencer.de1controller
                 .connectedDe1()
                 .requestState(MachineState.skipStep);
           },

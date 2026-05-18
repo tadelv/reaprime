@@ -6,7 +6,7 @@ import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
-import 'package:reaprime/src/controllers/shot_controller.dart';
+import 'package:reaprime/src/controllers/shot_sequencer.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
@@ -193,7 +193,7 @@ Profile _simpleProfile() => Profile(
     );
 
 void main() {
-  group('ShotController bypasses app-side SAW when machine is BengleInterface',
+  group('ShotSequencer bypasses app-side SAW when machine is BengleInterface',
       () {
     late _TestBengle bengle;
     late _BengleDe1Controller de1Controller;
@@ -224,7 +224,7 @@ void main() {
       fakeAsync((async) {
         scaleController.emitWeight(0.0);
 
-        final shot = ShotController(
+        final shot = ShotSequencer(
           scaleController: scaleController,
           de1controller: de1Controller,
           persistenceController: persistence,
@@ -261,7 +261,7 @@ void main() {
           bengle.requestedStates,
           isEmpty,
           reason:
-              'BengleInterface machine runs autonomous SAW; ShotController '
+              'BengleInterface machine runs autonomous SAW; ShotSequencer '
               'must not double-stop the shot',
         );
 

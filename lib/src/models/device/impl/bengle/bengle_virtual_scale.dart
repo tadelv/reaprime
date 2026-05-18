@@ -10,7 +10,7 @@ import 'package:reaprime/src/models/device/scale.dart';
 /// are no-ops; the adapter is connect-by-construction.
 ///
 /// Display and timer methods are no-ops: the integrated scale has no
-/// independent display, and shot timing is owned by `ShotController`.
+/// independent display, and shot timing is owned by `ShotSequencer`.
 class BengleVirtualScale extends Scale {
   final BengleInterface _machine;
 

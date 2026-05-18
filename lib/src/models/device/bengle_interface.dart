@@ -38,7 +38,7 @@ abstract class BengleInterface extends De1Interface {
   ///
   /// When set to a positive value the Bengle FW stops the shot when
   /// the integrated scale reads >= the target — the app's own
-  /// `ShotController` SAW path should bypass for `BengleInterface`
+  /// `ShotSequencer` SAW path should bypass for `BengleInterface`
   /// machines to avoid a double stop.
   Future<void> setStopAtWeightTarget(double grams);
 
