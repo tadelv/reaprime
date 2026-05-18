@@ -26,6 +26,19 @@ class ShotSequencer {
   /// `true` when the connected machine runs its own autonomous SAW
   /// (currently only Bengle). The app's SAW loop must defer to FW to
   /// avoid double-stop.
+  ///
+  /// Captured once at construction. A sequencer's lifetime is bound
+  /// to a single shot (owned + recreated per shot by [De1StateManager])
+  /// and machines can't be swapped mid-shot — if the connection dies
+  /// the shot is already over and a stale flag is the least of our
+  /// problems. Don't try to make this reactive.
+  ///
+  /// Only the FINAL target-yield stop is bypassed for autonomous-SAW
+  /// machines. Per-step weight exits (`ProfileStep.weight`) still run
+  /// app-side: FW only exposes one SAW target, not per-frame weight
+  /// transitions. Wiring per-step skips into FW would need a new
+  /// `ProfileStepFrame` data object and likely a separate endpoint —
+  /// out of scope until that exists.
   final bool _machineHasAutonomousSAW;
 
   // Skip step on weight specific

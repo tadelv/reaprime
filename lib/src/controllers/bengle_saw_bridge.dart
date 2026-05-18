@@ -4,6 +4,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
+import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/errors.dart';
 
 /// Reflects `WorkflowContext.targetYield` into the connected
@@ -13,8 +14,10 @@ import 'package:reaprime/src/models/errors.dart';
 ///
 /// Two listeners:
 /// 1. `WorkflowController.addListener` — debounced writes after the
-///    user (or REST) edits the target yield. Mirrors
-///    `WorkflowDeviceSync` for the profile push.
+///    user (or REST) edits the target yield. Same single-writer shape
+///    as `lib/src/controllers/workflow_device_sync.dart` (profile
+///    push), plus a debounce because target-yield edits can come from
+///    a slider drag.
 /// 2. `De1Controller.de1` stream — re-applies the current target the
 ///    moment a `BengleInterface` machine becomes connected (covers a
 ///    Bengle reboot or a late connect after the app has been editing
@@ -41,7 +44,7 @@ class BengleSawBridge {
   final Duration debounce;
   final Logger _log = Logger('BengleSawBridge');
 
-  StreamSubscription? _de1Sub;
+  StreamSubscription<De1Interface?>? _de1Sub;
   Timer? _debounceTimer;
   int _generation = 0;
   double? _lastPushed;
@@ -57,7 +60,7 @@ class BengleSawBridge {
     _debounceTimer = Timer(debounce, () => _push(next, generation));
   }
 
-  void _onDe1Change(dynamic device) {
+  void _onDe1Change(De1Interface? device) {
     if (device is! BengleInterface) return;
     // New Bengle connected — re-assert the current target so a Bengle
     // reboot or late connect doesn't leave FW at its default.
@@ -78,11 +81,27 @@ class BengleSawBridge {
     }
     try {
       await machine.setStopAtWeightTarget(grams);
-      _lastPushed = grams;
+      // Re-check the generation after the await: a workflow edit
+      // landing while the write was in flight bumped it and scheduled
+      // a newer debounce. Updating `_lastPushed` here would stamp the
+      // stale value and could short-circuit the next change-equality
+      // check in `_onWorkflowChange`.
+      if (generation == _generation) {
+        _lastPushed = grams;
+      }
       _log.info('SAW target written: ${grams}g');
     } on DeviceNotConnectedException {
+      // `_lastPushed` deliberately not updated — on Bengle reconnect
+      // `_onDe1Change` re-applies the current target, so the failed
+      // write self-recovers without needing an explicit retry.
       _log.fine('SAW write aborted — machine disconnected mid-call');
     } catch (e, st) {
+      // Same recovery story as DeviceNotConnectedException: leave
+      // `_lastPushed` alone so the next workflow edit (different
+      // value) or reconnect re-attempts. Identical-value retries
+      // after a transient failure are not handled — the bar for SAW
+      // is "FW eventually learns the target before the next shot",
+      // not "every write succeeds".
       _log.warning('SAW write failed', e, st);
     }
   }
