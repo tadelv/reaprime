@@ -27,10 +27,6 @@ enum MmrValueKind {
 
   /// null-terminated or length-prefixed string
   string,
-
-  /// raw IEEE-754 float32 (4 bytes, little-endian on the wire). Bounds
-  /// declared via [MmrAddress.minDouble] / [MmrAddress.maxDouble].
-  float32,
 }
 
 /// Wire-agnostic identifier for a single MMR slot.
@@ -68,12 +64,4 @@ abstract class MmrAddress {
 
   /// Optional maximum bound; null means no upper clamp.
   int? get max => null;
-
-  /// Optional minimum bound for [MmrValueKind.float32] addresses; null
-  /// means no lower clamp.
-  double? get minDouble => null;
-
-  /// Optional maximum bound for [MmrValueKind.float32] addresses; null
-  /// means no upper clamp.
-  double? get maxDouble => null;
 }
