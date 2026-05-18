@@ -20,26 +20,9 @@ class Bengle extends UnifiedDe1
   Future<double> getCupWarmerTemperature() =>
       readMmrScaled(BengleMmr.matSetPoint);
 
-  @override
-  Future<void> setStopAtWeightTarget(double grams) async {
-    final clamped = grams.clamp(0.0, 200.0).toDouble();
-    notifyStopAtWeightTarget(clamped);
-    if (BengleMmr.stopAtWeightTarget.address == 0x00000000) {
-      log.info('Bengle: SAW target ${clamped}g cached locally — FW slot TBD.');
-      return;
-    }
-    await writeMmrScaled(BengleMmr.stopAtWeightTarget, clamped);
-  }
-
-  @override
-  Future<double> getStopAtWeightTarget() async {
-    if (BengleMmr.stopAtWeightTarget.address == 0x00000000) {
-      return currentStopAtWeightTarget;
-    }
-    final value = await readMmrScaled(BengleMmr.stopAtWeightTarget);
-    notifyStopAtWeightTarget(value);
-    return value;
-  }
+  // --- SAW: lives entirely in IntegratedScaleCapability mixin, same
+  // shape as LedStripCapability (own MMR enum, log-once stub, cache
+  // is authoritative until FW publishes the address).
 
   /// Bengle FW requires entering state 0x22 (`MachineState.fwUpgrade`) between
   /// the `requestState(sleeping)` step and the start of `.dat` upload.

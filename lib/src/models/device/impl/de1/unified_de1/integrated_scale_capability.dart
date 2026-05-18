@@ -24,6 +24,59 @@ enum BengleScaleEndpoint implements LogicalEndpoint {
   String get name => (this as Enum).name;
 }
 
+/// MMR addresses for the integrated scale.
+///
+/// Co-located with [IntegratedScaleCapability] so the mixin owns its
+/// wire identifiers (mirrors how `LedStripCapability` owns
+/// [BengleLedEndpoint]). Address is stubbed `0x00000000` — FW slot
+/// TBD. While stubbed the capability is a logged no-op; once FW
+/// publishes the address, fill it in and the rest lights up.
+enum BengleScaleMmr implements MmrAddress {
+  /// Stop-at-weight target in grams. `0.0` disables autonomous SAW
+  /// (mirrors cup-warmer `0.0 = off`). Encoded as `scaledFloat` with
+  /// scale factor 10 — decigrams on the wire.
+  stopAtWeightTarget(
+    0x00000000, // TBD with FW
+    4,
+    MmrValueKind.scaledFloat,
+    'StopAtWeightTarget',
+    min: 0,
+    max: 5000, // 500.0 g
+    readScale: 0.1,
+    writeScale: 10.0,
+  );
+
+  const BengleScaleMmr(
+    this.address,
+    this.length,
+    this.kind,
+    this.description, {
+    this.readScale = 1.0,
+    this.writeScale = 1.0,
+    this.min,
+    this.max,
+  });
+
+  @override
+  final int address;
+  @override
+  final int length;
+  @override
+  final MmrValueKind kind;
+  final String description;
+  @override
+  final double readScale;
+  @override
+  final double writeScale;
+  @override
+  final int? min;
+  @override
+  final int? max;
+
+  @override
+  String get name => (this as Enum).name;
+}
+
 /// Stateful capability for Bengle's integrated scale.
 ///
 /// Owns the weight stream and tare endpoint. Lifecycle is managed by the
@@ -42,11 +95,13 @@ mixin IntegratedScaleCapability on UnifiedDe1 {
       BehaviorSubject<ScaleSnapshot>();
   StreamSubscription<ByteData>? _bengleWeightSub;
 
-  /// Latest stop-at-weight target in grams as seen from the app's
-  /// side. `0.0` means SAW is disabled (mirrors cup-warmer "0 = off").
-  /// Seeded `0.0` so late subscribers immediately get a value rather
-  /// than waiting for the first write.
+  /// App-side cache of the SAW target in grams. `0.0` = SAW off.
+  /// Seeded so late subscribers see the current value immediately.
   BehaviorSubject<double> _sawTarget = BehaviorSubject<double>.seeded(0.0);
+
+  /// Count of stub-related info logs emitted this session (avoids
+  /// spam — same pattern as `LedStripCapability._stubWarningsEmitted`).
+  int _sawStubWarningsEmitted = 0;
 
   /// Live weight stream from the integrated scale. Emits nothing while
   /// the wire identifiers in [BengleScaleEndpoint] are null (FW TBD).
@@ -106,20 +161,46 @@ mixin IntegratedScaleCapability on UnifiedDe1 {
     //     withResponse: false);
   }
 
-  /// Locally cached SAW target value (`0.0` = SAW off). Concrete
-  /// devices (`Bengle`, `MockBengle`) read/write this through
-  /// [notifyStopAtWeightTarget]; the MMR plumbing lives on the concrete
-  /// class so that this mixin doesn't pull `BengleMmr` upward into
-  /// `unified_de1` (matching the cup-warmer split).
-  double get currentStopAtWeightTarget => _sawTarget.value;
-
-  /// Pushes a SAW target value onto [stopAtWeightTarget] for UI / read
-  /// subscribers. Called by the concrete `Bengle` after a successful
-  /// MMR write and by `MockBengle` from its in-memory store.
-  @protected
-  void notifyStopAtWeightTarget(double grams) {
+  /// Write the autonomous SAW target (grams) to FW. `0.0` disables
+  /// SAW. Range `0.0..500.0`; out-of-range values are clamped.
+  ///
+  /// While [BengleScaleMmr.stopAtWeightTarget] is stubbed
+  /// (`address == 0x00000000`) this is a logged no-op on the wire —
+  /// the value is still cached so [stopAtWeightTarget] subscribers
+  /// see the intent. Mirrors `LedStripCapability.setLedStrip`'s
+  /// stub-friendly behaviour.
+  Future<void> setStopAtWeightTarget(double grams) async {
+    final clamped = grams.clamp(0.0, 500.0).toDouble();
     if (!_sawTarget.isClosed) {
-      _sawTarget.add(grams);
+      _sawTarget.add(clamped);
+    }
+    final addr = BengleScaleMmr.stopAtWeightTarget;
+    if (addr.address == 0x00000000) {
+      _logSawStubOnce('setStopAtWeightTarget($clamped) ignored. Awaiting FW.');
+      return;
+    }
+    await writeMmrScaled(addr, clamped);
+  }
+
+  /// Read the SAW target from cache. While the MMR slot is stubbed
+  /// the cache is authoritative; once FW publishes the address this
+  /// hydrates from the wire on first call.
+  Future<double> getStopAtWeightTarget() async {
+    final addr = BengleScaleMmr.stopAtWeightTarget;
+    if (addr.address == 0x00000000) {
+      return _sawTarget.value;
+    }
+    final value = await readMmrScaled(addr);
+    if (!_sawTarget.isClosed) {
+      _sawTarget.add(value);
+    }
+    return value;
+  }
+
+  void _logSawStubOnce(String msg) {
+    if (_sawStubWarningsEmitted < 1) {
+      this.log.info('IntegratedScaleCapability: SAW endpoint unwired; $msg');
+      _sawStubWarningsEmitted++;
     }
   }
 

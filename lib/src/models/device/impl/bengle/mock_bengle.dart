@@ -99,7 +99,7 @@ class MockBengle extends MockDe1 implements BengleInterface {
 
   @override
   Future<void> setStopAtWeightTarget(double grams) async {
-    _sawTarget = grams.clamp(0.0, 200.0).toDouble();
+    _sawTarget = grams.clamp(0.0, 500.0).toDouble();
     if (!_sawTargetSubject.isClosed) {
       _sawTargetSubject.add(_sawTarget);
     }
