@@ -11,10 +11,12 @@ enum BengleMmr implements MmrAddress {
   matSetPoint(
     0x00803874,
     4,
-    MmrValueKind.float32,
+    MmrValueKind.scaledFloat,
     'MatSetPoint',
-    minDouble: 0.0,
-    maxDouble: 80.0,
+    min: 0,
+    max: 800,
+    readScale: 0.1,
+    writeScale: 10.0,
   ),
 
   /// Integrated-scale tare trigger. Address and value semantics are
@@ -35,8 +37,10 @@ enum BengleMmr implements MmrAddress {
     this.length,
     this.kind,
     this.description, {
-    this.minDouble,
-    this.maxDouble,
+    this.readScale = 1.0,
+    this.writeScale = 1.0,
+    this.min,
+    this.max,
   });
 
   @override
@@ -47,20 +51,13 @@ enum BengleMmr implements MmrAddress {
   final MmrValueKind kind;
   final String description;
   @override
-  final double? minDouble;
+  final double readScale;
   @override
-  final double? maxDouble;
-
-  // float32 entries don't use the int-based scale/clamp fields.
-  // Concrete defaults satisfy the `implements MmrAddress` contract.
+  final double writeScale;
   @override
-  double get readScale => 1.0;
+  final int? min;
   @override
-  double get writeScale => 1.0;
-  @override
-  int? get min => null;
-  @override
-  int? get max => null;
+  final int? max;
 
   /// Dart enums auto-synthesize `name`, but the analyzer doesn't see it
   /// as satisfying `MmrAddress.name` through `implements` — the cast
