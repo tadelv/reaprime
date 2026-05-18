@@ -30,6 +30,26 @@ enum BengleMmr implements MmrAddress {
     4,
     MmrValueKind.int32, // TBD with FW
     'ScaleTare',
+  ),
+
+  /// Stop-at-weight target in grams. `0.0` disables autonomous SAW
+  /// (mirrors cup-warmer `0.0 = off` convention). Encoded as
+  /// `scaledFloat` with scale factor 10 — same convention as
+  /// [matSetPoint] (decigrams on the wire).
+  ///
+  /// Address is stubbed — FW slot TBD. While the address is
+  /// `0x00000000`, [IntegratedScaleCapability.setStopAtWeightTarget]
+  /// logs and no-ops on the real wire; `MockBengle` implements the
+  /// behaviour end-to-end so the orchestration is testable now.
+  stopAtWeightTarget(
+    0x00000000, // TBD with FW
+    4,
+    MmrValueKind.scaledFloat,
+    'StopAtWeightTarget',
+    min: 0,
+    max: 2000, // 200.0 g
+    readScale: 0.1,
+    writeScale: 10.0,
   );
 
   const BengleMmr(

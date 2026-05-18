@@ -34,6 +34,7 @@ class De1Handler {
         if (de1 is BengleInterface) caps.add('cupWarmer');
         if (de1 is BengleInterface) caps.add('integratedScale');
         if (de1 is BengleInterface) caps.add('ledStrip');
+        if (de1 is BengleInterface) caps.add('stopAtWeight');
         return jsonOk({'capabilities': caps});
       });
     });

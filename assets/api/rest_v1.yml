@@ -3660,13 +3660,16 @@ components:
           description: |
             Capability identifiers supported by the currently connected
             machine. Plain DE1 returns an empty array. Bengle returns
-            `cupWarmer` and `integratedScale`. Future Bengle peripherals
-            (LED strip, milk probe) will append their identifiers as
-            they ship.
+            `cupWarmer`, `integratedScale`, `ledStrip`, and
+            `stopAtWeight` (autonomous in-FW stop-at-weight driven by
+            the integrated scale; the app reflects
+            `WorkflowContext.targetYield` into the SAW MMR). Future
+            Bengle peripherals (milk probe) will append their
+            identifiers as they ship.
           items:
             type: string
-            enum: [cupWarmer, integratedScale, ledStrip]
-          example: [cupWarmer, integratedScale, ledStrip]
+            enum: [cupWarmer, integratedScale, ledStrip, stopAtWeight]
+          example: [cupWarmer, integratedScale, ledStrip, stopAtWeight]
 
     CupWarmerState:
       type: object
