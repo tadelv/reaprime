@@ -34,9 +34,6 @@ mixin _TestCapability on UnifiedDe1 {
   Future<double> capReadScaled(MmrAddress addr) => readMmrScaled(addr);
   Future<void> capWriteScaled(MmrAddress addr, double v) =>
       writeMmrScaled(addr, v);
-  Future<double> capReadFloat32(MmrAddress addr) => readMmrFloat32(addr);
-  Future<void> capWriteFloat32(MmrAddress addr, double v) =>
-      writeMmrFloat32(addr, v);
   Stream<ByteData> capNotifications(LogicalEndpoint ep) =>
       notificationsFor(ep);
   Future<void> capWriteEndpoint(LogicalEndpoint ep, Uint8List data,
@@ -63,10 +60,6 @@ class _CapabilityAddr implements MmrAddress {
   final int? min;
   @override
   final int? max;
-  @override
-  final double? minDouble;
-  @override
-  final double? maxDouble;
   const _CapabilityAddr({
     required this.address,
     required this.length,
@@ -76,8 +69,6 @@ class _CapabilityAddr implements MmrAddress {
     this.writeScale = 1.0,
     this.min,
     this.max,
-    this.minDouble,
-    this.maxDouble,
   });
 }
 
@@ -256,85 +247,6 @@ void main() {
           (e) => e.message,
           'message',
           contains('runtime subscription'),
-        )),
-      );
-    });
-
-    test('readMmrFloat32 round-trips an IEEE-754 float32 value', () async {
-      const addr = _CapabilityAddr(
-        address: 0x00803874,
-        length: 4,
-        name: 'matSetPoint',
-        kind: MmrValueKind.float32,
-        minDouble: 0.0,
-        maxDouble: 80.0,
-      );
-      // Pack 50.0 as little-endian float32 bytes.
-      final bytes = ByteData(4)..setFloat32(0, 50.0, Endian.little);
-      transport.queueMmrResponseRaw(addr,
-          List<int>.generate(4, (i) => bytes.getUint8(i)));
-      final result = await de1.capReadFloat32(addr);
-      expect(result, closeTo(50.0, 1e-6));
-    });
-
-    test('writeMmrFloat32 packs a float32 little-endian and clamps to bounds',
-        () async {
-      const addr = _CapabilityAddr(
-        address: 0x00803874,
-        length: 4,
-        name: 'matSetPoint',
-        kind: MmrValueKind.float32,
-        minDouble: 0.0,
-        maxDouble: 80.0,
-      );
-
-      transport.writes.clear();
-      // 90.0 over the max → clamped to 80.0.
-      await de1.capWriteFloat32(addr, 90.0);
-      var frame = transport.writes.firstWhere(
-        (w) => w.characteristicUUID == Endpoint.writeToMMR.uuid,
-      );
-      var payload = ByteData.sublistView(frame.data, 4, 8);
-      expect(payload.getFloat32(0, Endian.little), closeTo(80.0, 1e-6));
-
-      transport.writes.clear();
-      // -5.0 below min → clamped to 0.0.
-      await de1.capWriteFloat32(addr, -5.0);
-      frame = transport.writes.firstWhere(
-        (w) => w.characteristicUUID == Endpoint.writeToMMR.uuid,
-      );
-      payload = ByteData.sublistView(frame.data, 4, 8);
-      expect(payload.getFloat32(0, Endian.little), closeTo(0.0, 1e-6));
-
-      transport.writes.clear();
-      // In-range value passed through unchanged.
-      await de1.capWriteFloat32(addr, 60.0);
-      frame = transport.writes.firstWhere(
-        (w) => w.characteristicUUID == Endpoint.writeToMMR.uuid,
-      );
-      payload = ByteData.sublistView(frame.data, 4, 8);
-      expect(payload.getFloat32(0, Endian.little), closeTo(60.0, 1e-6));
-    });
-
-    test('readMmrFloat32 throws on a non-float32 address', () async {
-      // fanThreshold.kind == int32 — wrong helper.
-      await expectLater(
-        de1.capReadFloat32(MMRItem.fanThreshold),
-        throwsA(isA<StateError>().having(
-          (e) => e.message,
-          'message',
-          allOf(contains('readMmrFloat32'), contains('kind')),
-        )),
-      );
-    });
-
-    test('writeMmrFloat32 throws on a non-float32 address', () async {
-      await expectLater(
-        de1.capWriteFloat32(MMRItem.fanThreshold, 1.0),
-        throwsA(isA<StateError>().having(
-          (e) => e.message,
-          'message',
-          allOf(contains('writeMmrFloat32'), contains('kind')),
         )),
       );
     });
