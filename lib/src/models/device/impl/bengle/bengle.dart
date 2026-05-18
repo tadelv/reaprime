@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle_mmr.dart';
-import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 
@@ -57,6 +56,7 @@ class Bengle extends UnifiedDe1
   }
 
   // --- LED strip ---
+  // TODO: when LED api is available
 
 
 
