@@ -1,15 +1,16 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
-import 'package:reaprime/src/models/device/impl/bengle/bengle_mmr.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
+import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 
 import '../../helpers/fake_ble_transport.dart';
 
-/// Wires `Bengle.setStopAtWeightTarget` / `getStopAtWeightTarget`
-/// through `FakeBleTransport`. The FW slot for SAW is still stubbed
-/// (`BengleMmr.stopAtWeightTarget.address == 0x00000000`), so the
-/// write does NOT hit the MMR endpoint — instead the value is cached
-/// locally on the IntegratedScaleCapability subject. These tests pin
+/// Wires the `BengleInterface` SAW surface (implemented in
+/// `IntegratedScaleCapability`) through `FakeBleTransport`. The FW
+/// slot for SAW is still stubbed
+/// (`BengleScaleMmr.stopAtWeightTarget.address == 0x00000000`), so
+/// the write does NOT hit the MMR endpoint — instead the value is
+/// cached locally on the mixin's BehaviorSubject. These tests pin
 /// that contract so the day FW publishes the real slot, the test
 /// flips into the "MMR write asserted" branch and forces the
 /// reviewer to confirm the wire spec.
@@ -33,7 +34,7 @@ void main() {
       // Pin the precondition for the local-cache branch. When this
       // breaks, the production wire is real and the rest of this
       // group needs the assertions inverted.
-      expect(BengleMmr.stopAtWeightTarget.address, 0x00000000);
+      expect(BengleScaleMmr.stopAtWeightTarget.address, 0x00000000);
     });
 
     test('setStopAtWeightTarget caches locally and does not write MMR',
@@ -50,9 +51,9 @@ void main() {
       expect(await bengle.getStopAtWeightTarget(), closeTo(30.0, 1e-6));
     });
 
-    test('setStopAtWeightTarget clamps to 0..200', () async {
-      await bengle.setStopAtWeightTarget(500.0);
-      expect(await bengle.getStopAtWeightTarget(), 200.0);
+    test('setStopAtWeightTarget clamps to 0..500', () async {
+      await bengle.setStopAtWeightTarget(1000.0);
+      expect(await bengle.getStopAtWeightTarget(), 500.0);
 
       await bengle.setStopAtWeightTarget(-5.0);
       expect(await bengle.getStopAtWeightTarget(), 0.0);
