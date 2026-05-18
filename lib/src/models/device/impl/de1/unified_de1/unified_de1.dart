@@ -609,32 +609,6 @@ class UnifiedDe1 implements De1Interface {
     return _mmrWriteRaw(addr.address, _packMMRInt(clamped));
   }
 
-  /// Reads a [MmrValueKind.float32] address as an IEEE-754 little-endian
-  /// float. Capability mixins use this for FW MMR slots that store
-  /// floats raw (e.g. `BengleMmr.matSetPoint`).
-  @protected
-  Future<double> readMmrFloat32(MmrAddress addr) async {
-    _assertKind(addr, const {MmrValueKind.float32}, 'readMmrFloat32');
-    final raw = (addr is MMRItem)
-        ? await _mmrRead(addr)
-        : await _mmrReadRaw(addr.address);
-    return _unpackMMRFloat32(raw);
-  }
-
-  /// Writes [value] as an IEEE-754 little-endian float to [addr].
-  /// Clamps to `[addr.minDouble, addr.maxDouble]` when both are set
-  /// (avoids silent FW-side clamps surprising callers).
-  @protected
-  Future<void> writeMmrFloat32(MmrAddress addr, double value) async {
-    _assertKind(addr, const {MmrValueKind.float32}, 'writeMmrFloat32');
-    final clamped = (addr.minDouble != null && addr.maxDouble != null)
-        ? value.clamp(addr.minDouble!, addr.maxDouble!).toDouble()
-        : value;
-    final bytes = _packMMRFloat32(clamped);
-    if (addr is MMRItem) return _mmrWrite(addr, bytes);
-    return _mmrWriteRaw(addr.address, bytes);
-  }
-
   @protected
   Future<List<int>> readMmrRaw(MmrAddress addr) async {
     if (addr is MMRItem) return _mmrRead(addr);

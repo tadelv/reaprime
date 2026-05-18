@@ -51,14 +51,14 @@ void main() {
 
         // Payload bytes [4..7] = float32 little-endian 60.0.
         final payload = ByteData.sublistView(frame.data, 4, 8);
-        expect(payload.getFloat32(0, Endian.little), closeTo(60.0, 1e-6));
+        expect(payload.getUint32(0, Endian.little), closeTo(600, 1e-6));
       },
     );
 
     test('getCupWarmerTemperature reads a float32 back from the wire',
         () async {
       // Pre-queue a 50.0 °C float32 response at the matSetPoint address.
-      final bytes = ByteData(4)..setFloat32(0, 50.0, Endian.little);
+      final bytes = ByteData(4)..setUint32(0, 500, Endian.little);
       transport.queueMmrResponseRaw(BengleMmr.matSetPoint,
           List<int>.generate(4, (i) => bytes.getUint8(i)));
 
@@ -74,7 +74,7 @@ void main() {
         (w) => w.characteristicUUID == Endpoint.writeToMMR.uuid,
       );
       final payload = ByteData.sublistView(frame.data, 4, 8);
-      expect(payload.getFloat32(0, Endian.little), closeTo(80.0, 1e-6));
+      expect(payload.getUint32(0, Endian.little), closeTo(800, 1e-6));
     });
   });
 }
