@@ -32,6 +32,23 @@ abstract class BengleInterface extends De1Interface {
   /// to this zero.
   Future<void> tareIntegratedScale();
 
+  /// Set the autonomous stop-at-weight target in grams. `0.0` disables
+  /// SAW (mirrors cup-warmer `0.0 = off`). Range `0.0..200.0`.
+  /// Implementations clamp out-of-range values.
+  ///
+  /// When set to a positive value the Bengle FW stops the shot when
+  /// the integrated scale reads >= the target — the app's own
+  /// `ShotController` SAW path should bypass for `BengleInterface`
+  /// machines to avoid a double stop.
+  Future<void> setStopAtWeightTarget(double grams);
+
+  /// Read the current SAW target in grams.
+  Future<double> getStopAtWeightTarget();
+
+  /// Latest SAW target stream (`0.0` = SAW off). Late subscribers see
+  /// the cached current value immediately.
+  Stream<double> get stopAtWeightTarget;
+
   /// Current LED strip state stream.
   Stream<LedStripState> get ledStripState;
 

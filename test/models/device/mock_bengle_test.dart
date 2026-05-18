@@ -38,6 +38,37 @@ void main() {
     });
   });
 
+  group('MockBengle SAW', () {
+    test('initial target is 0.0 (off)', () async {
+      final m = MockBengle();
+      expect(await m.getStopAtWeightTarget(), 0.0);
+    });
+
+    test('setStopAtWeightTarget stores the value', () async {
+      final m = MockBengle();
+      await m.setStopAtWeightTarget(30.0);
+      expect(await m.getStopAtWeightTarget(), 30.0);
+    });
+
+    test('clamps over-range values to 200.0', () async {
+      final m = MockBengle();
+      await m.setStopAtWeightTarget(500.0);
+      expect(await m.getStopAtWeightTarget(), 200.0);
+    });
+
+    test('clamps negative values to 0.0', () async {
+      final m = MockBengle();
+      await m.setStopAtWeightTarget(-10.0);
+      expect(await m.getStopAtWeightTarget(), 0.0);
+    });
+
+    test('stopAtWeightTarget stream emits cached value', () async {
+      final m = MockBengle();
+      await m.setStopAtWeightTarget(36.0);
+      expect(await m.stopAtWeightTarget.first, 36.0);
+    });
+  });
+
   group('MockBengle cup warmer', () {
     test('initial setpoint is 0.0 (off)', () async {
       final m = MockBengle();

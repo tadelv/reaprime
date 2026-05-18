@@ -14,6 +14,7 @@ import 'package:logging/logging.dart';
 import 'package:logging_appenders/logging_appenders.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/battery_controller.dart';
+import 'package:reaprime/src/controllers/bengle_saw_bridge.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
@@ -303,6 +304,14 @@ void main() async {
   // loaded so its initial snapshot matches what was last pushed.
   // ignore: unused_local_variable
   final workflowDeviceSync = WorkflowDeviceSync(
+    workflowController: workflowController,
+    de1Controller: de1Controller,
+  );
+  // Reflects WorkflowContext.targetYield into Bengle's autonomous SAW
+  // MMR. Single writer for both REST and UI yield-edits; re-applies on
+  // every Bengle (re)connect.
+  // ignore: unused_local_variable
+  final bengleSawBridge = BengleSawBridge(
     workflowController: workflowController,
     de1Controller: de1Controller,
   );

@@ -85,8 +85,28 @@ class MockBengle extends MockDe1 implements BengleInterface {
   double _tareOffset = 0.0;
   DateTime? _lastSampleTime;
 
+  // --- SAW ---
+  /// `0.0` = SAW disabled.
+  double _sawTarget = 0.0;
+  final BehaviorSubject<double> _sawTargetSubject =
+      BehaviorSubject<double>.seeded(0.0);
+
   @override
   Stream<ScaleSnapshot> get weightSnapshot => _weight.stream;
+
+  @override
+  Stream<double> get stopAtWeightTarget => _sawTargetSubject.stream;
+
+  @override
+  Future<void> setStopAtWeightTarget(double grams) async {
+    _sawTarget = grams.clamp(0.0, 200.0).toDouble();
+    if (!_sawTargetSubject.isClosed) {
+      _sawTargetSubject.add(_sawTarget);
+    }
+  }
+
+  @override
+  Future<double> getStopAtWeightTarget() async => _sawTarget;
 
   @override
   Future<void> tareIntegratedScale() async {
@@ -128,6 +148,25 @@ class MockBengle extends MockDe1 implements BengleInterface {
       _accumulatedWeight += s.flow * dtSec * _extractionEfficiency;
     }
     _emit();
+    _maybeTriggerSaw(s);
+  }
+
+  /// Simulated autonomous SAW. Once the post-tare weight reaches the
+  /// active target and the machine is mid-shot (`espresso`/`pouring`),
+  /// requests `MachineState.idle` to halt the shot — same effect as the
+  /// real Bengle FW would have on its own integrated scale.
+  void _maybeTriggerSaw(MachineSnapshot s) {
+    if (_sawTarget <= 0.0) return;
+    if (s.state.state != MachineState.espresso) return;
+    if (s.state.substate != MachineSubstate.preinfusion &&
+        s.state.substate != MachineSubstate.pouring) {
+      return;
+    }
+    final taredWeight = _accumulatedWeight - _tareOffset;
+    if (taredWeight >= _sawTarget) {
+      // ignore: discarded_futures
+      requestState(MachineState.idle);
+    }
   }
 
   @override
@@ -139,6 +178,9 @@ class MockBengle extends MockDe1 implements BengleInterface {
     }
     if (!_weight.isClosed) {
       await _weight.close();
+    }
+    if (!_sawTargetSubject.isClosed) {
+      await _sawTargetSubject.close();
     }
     await super.onDisconnect();
   }

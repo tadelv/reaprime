@@ -42,9 +42,18 @@ mixin IntegratedScaleCapability on UnifiedDe1 {
       BehaviorSubject<ScaleSnapshot>();
   StreamSubscription<ByteData>? _bengleWeightSub;
 
+  /// Latest stop-at-weight target in grams as seen from the app's
+  /// side. `0.0` means SAW is disabled (mirrors cup-warmer "0 = off").
+  /// Seeded `0.0` so late subscribers immediately get a value rather
+  /// than waiting for the first write.
+  BehaviorSubject<double> _sawTarget = BehaviorSubject<double>.seeded(0.0);
+
   /// Live weight stream from the integrated scale. Emits nothing while
   /// the wire identifiers in [BengleScaleEndpoint] are null (FW TBD).
   Stream<ScaleSnapshot> get weightSnapshot => _bengleWeight.stream;
+
+  /// Current stop-at-weight target in grams (`0.0` = SAW off).
+  Stream<double> get stopAtWeightTarget => _sawTarget.stream;
 
   /// Subscribe to the integrated-scale weight notify endpoint. No-op
   /// (with a single info log) while the endpoint wires are null.
@@ -56,6 +65,9 @@ mixin IntegratedScaleCapability on UnifiedDe1 {
   Future<void> initIntegratedScale() async {
     if (_bengleWeight.isClosed) {
       _bengleWeight = BehaviorSubject<ScaleSnapshot>();
+    }
+    if (_sawTarget.isClosed) {
+      _sawTarget = BehaviorSubject<double>.seeded(0.0);
     }
     final endpoint = BengleScaleEndpoint.weight;
     if (endpoint.uuid == null && endpoint.representation == null) {
@@ -75,6 +87,9 @@ mixin IntegratedScaleCapability on UnifiedDe1 {
     if (!_bengleWeight.isClosed) {
       await _bengleWeight.close();
     }
+    if (!_sawTarget.isClosed) {
+      await _sawTarget.close();
+    }
   }
 
   /// Tare the integrated scale. No-op (with a single info log) while
@@ -89,6 +104,23 @@ mixin IntegratedScaleCapability on UnifiedDe1 {
     // When wired:
     // await writeEndpoint(ctl, Uint8List.fromList(_encodeTareCommand()),
     //     withResponse: false);
+  }
+
+  /// Locally cached SAW target value (`0.0` = SAW off). Concrete
+  /// devices (`Bengle`, `MockBengle`) read/write this through
+  /// [notifyStopAtWeightTarget]; the MMR plumbing lives on the concrete
+  /// class so that this mixin doesn't pull `BengleMmr` upward into
+  /// `unified_de1` (matching the cup-warmer split).
+  double get currentStopAtWeightTarget => _sawTarget.value;
+
+  /// Pushes a SAW target value onto [stopAtWeightTarget] for UI / read
+  /// subscribers. Called by the concrete `Bengle` after a successful
+  /// MMR write and by `MockBengle` from its in-memory store.
+  @protected
+  void notifyStopAtWeightTarget(double grams) {
+    if (!_sawTarget.isClosed) {
+      _sawTarget.add(grams);
+    }
   }
 
   // Frame parser placeholder — replaced once FW spec lands.

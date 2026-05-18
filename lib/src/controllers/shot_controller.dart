@@ -6,6 +6,7 @@ import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
+import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:rxdart/rxdart.dart';
@@ -21,6 +22,11 @@ class ShotController {
   final bool _bypassSAW;
   final double _weightFlowMultiplier;
   final double _volumeFlowMultiplier;
+
+  /// `true` when the connected machine runs its own autonomous SAW
+  /// (currently only Bengle). The app's SAW loop must defer to FW to
+  /// avoid double-stop.
+  final bool _machineHasAutonomousSAW;
 
   // Skip step on weight specific
   List<int> skippedSteps = [];
@@ -41,9 +47,11 @@ class ShotController {
     required double volumeFlowMultiplier,
   })  : _bypassSAW = bypassSAW,
         _weightFlowMultiplier = weightFlowMultiplier,
-        _volumeFlowMultiplier = volumeFlowMultiplier {
+        _volumeFlowMultiplier = volumeFlowMultiplier,
+        _machineHasAutonomousSAW =
+            de1controller.connectedDe1() is BengleInterface {
     _log.info(
-      "Initializing ShotController (weightFlowMultiplier: $_weightFlowMultiplier, volumeFlowMultiplier: $_volumeFlowMultiplier)",
+      "Initializing ShotController (weightFlowMultiplier: $_weightFlowMultiplier, volumeFlowMultiplier: $_volumeFlowMultiplier, machineHasAutonomousSAW: $_machineHasAutonomousSAW)",
     );
 
     final scaleConnected =
@@ -250,7 +258,9 @@ class ShotController {
               de1controller.connectedDe1().requestState(MachineState.skipStep);
             }
           }
-          if (targetYield > 0 && projectedWeight >= targetYield) {
+          if (!_machineHasAutonomousSAW &&
+              targetYield > 0 &&
+              projectedWeight >= targetYield) {
             _log.info(
               "Target weight ${targetYield}g reached (projected: $projectedWeight). Stopping shot.",
             );
@@ -263,6 +273,7 @@ class ShotController {
           }
         }
         if (!_bypassSAW &&
+            !_machineHasAutonomousSAW &&
             (scale == null || _scaleLost) &&
             (targetProfile.targetVolume ?? 0) > 0) {
           // Use volumeFlowMultiplier to project future volume and stop at the right time
