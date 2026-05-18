@@ -33,7 +33,7 @@ abstract class BengleInterface extends De1Interface {
   Future<void> tareIntegratedScale();
 
   /// Set the autonomous stop-at-weight target in grams. `0.0` disables
-  /// SAW (mirrors cup-warmer `0.0 = off`). Range `0.0..200.0`.
+  /// SAW (mirrors cup-warmer `0.0 = off`). Range `0.0..500.0`.
   /// Implementations clamp out-of-range values.
   ///
   /// When set to a positive value the Bengle FW stops the shot when

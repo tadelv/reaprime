@@ -20,10 +20,6 @@ class Bengle extends UnifiedDe1
   Future<double> getCupWarmerTemperature() =>
       readMmrScaled(BengleMmr.matSetPoint);
 
-  // --- SAW: lives entirely in IntegratedScaleCapability mixin, same
-  // shape as LedStripCapability (own MMR enum, log-once stub, cache
-  // is authoritative until FW publishes the address).
-
   /// Bengle FW requires entering state 0x22 (`MachineState.fwUpgrade`) between
   /// the `requestState(sleeping)` step and the start of `.dat` upload.
   /// DE1 doesn't need this — see [UnifiedDe1.beforeFirmwareUpload]
@@ -58,12 +54,4 @@ class Bengle extends UnifiedDe1
     await disposeIntegratedScale();
     await super.onDisconnect();
   }
-
-  // --- LED strip ---
-  // TODO: when LED api is available
-
-
-
-
-
 }

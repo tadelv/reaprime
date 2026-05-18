@@ -31,10 +31,9 @@ class De1Handler {
     app.get('/api/v1/machine/capabilities', (Request _) async {
       return withDe1((de1) async {
         final caps = <String>[];
-        if (de1 is BengleInterface) caps.add('cupWarmer');
-        if (de1 is BengleInterface) caps.add('integratedScale');
-        if (de1 is BengleInterface) caps.add('ledStrip');
-        if (de1 is BengleInterface) caps.add('stopAtWeight');
+        if (de1 is BengleInterface) {
+          caps.addAll(['cupWarmer', 'integratedScale', 'ledStrip', 'stopAtWeight']);
+        }
         return jsonOk({'capabilities': caps});
       });
     });
