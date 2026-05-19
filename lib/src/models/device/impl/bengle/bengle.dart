@@ -3,6 +3,7 @@ import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle_mmr.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:rxdart/rxdart.dart';
 
 class Bengle extends UnifiedDe1
     with IntegratedScaleCapability, LedStripCapability
@@ -39,6 +40,64 @@ class Bengle extends UnifiedDe1
   @protected
   Duration get firmwareUploadBatchPause => Duration.zero;
 
+  // --- Milk-probe steam stop (FW-stubbed scaffolding) -----------------------
+  //
+  // Mirrors `IntegratedScaleCapability`'s SAW stub: cache locally,
+  // log-once, no MMR write until FW publishes the slot. `probeAttached`
+  // stays `false` and `probeTemperature` never emits — probe discovery
+  // and data transport are TBD (may be a new BLE characteristic, not
+  // another MMR slot).
+  final BehaviorSubject<double> _stopAtTempTarget =
+      BehaviorSubject<double>.seeded(0.0);
+  final BehaviorSubject<bool> _probeAttached =
+      BehaviorSubject<bool>.seeded(false);
+  final PublishSubject<double> _probeTemperature = PublishSubject<double>();
+  int _stopAtTempStubWarningsEmitted = 0;
+
+  @override
+  Stream<double> get stopAtTemperatureTarget => _stopAtTempTarget.stream;
+
+  @override
+  Stream<bool> get probeAttached => _probeAttached.stream;
+
+  @override
+  Stream<double> get probeTemperature => _probeTemperature.stream;
+
+  @override
+  Future<void> setStopAtTemperatureTarget(double celsius) async {
+    final clamped = celsius.clamp(0.0, 80.0).toDouble();
+    if (!_stopAtTempTarget.isClosed) {
+      _stopAtTempTarget.add(clamped);
+    }
+    final addr = BengleSteamMmr.stopAtTemperatureTarget;
+    if (addr.address == 0x00000000) {
+      _logStopAtTempStubOnce(
+          'setStopAtTemperatureTarget($clamped) ignored. Awaiting FW.');
+      return;
+    }
+    await writeMmrScaled(addr, clamped);
+  }
+
+  @override
+  Future<double> getStopAtTemperatureTarget() async {
+    final addr = BengleSteamMmr.stopAtTemperatureTarget;
+    if (addr.address == 0x00000000) {
+      return _stopAtTempTarget.value;
+    }
+    final value = await readMmrScaled(addr);
+    if (!_stopAtTempTarget.isClosed) {
+      _stopAtTempTarget.add(value);
+    }
+    return value;
+  }
+
+  void _logStopAtTempStubOnce(String msg) {
+    if (_stopAtTempStubWarningsEmitted < 1) {
+      log.info('Bengle: stop-at-temperature endpoint unwired; $msg');
+      _stopAtTempStubWarningsEmitted++;
+    }
+  }
+
   // --- integrated scale lifecycle ---
 
   @override
@@ -52,6 +111,15 @@ class Bengle extends UnifiedDe1
   Future<void> onDisconnect() async {
     await disposeLedStrip();
     await disposeIntegratedScale();
+    if (!_stopAtTempTarget.isClosed) {
+      await _stopAtTempTarget.close();
+    }
+    if (!_probeAttached.isClosed) {
+      await _probeAttached.close();
+    }
+    if (!_probeTemperature.isClosed) {
+      await _probeTemperature.close();
+    }
     await super.onDisconnect();
   }
 }

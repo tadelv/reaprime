@@ -215,7 +215,7 @@ paths:
         Returns the optional capability surfaces the currently connected
         machine exposes. Plain DE1s return an empty list; Bengle returns
         `["cupWarmer", "integratedScale"]` plus any future capabilities
-        (LED strip, milk probe) as they ship. Skins should query this
+        as they ship. Skins should query this
         endpoint once after connect to decide which UI to render and
         which `/api/v1/machine/...` capability endpoints to call.
       tags: [Machine]
@@ -1015,6 +1015,113 @@ paths:
                 properties:
                   error:
                     type: string
+
+  # Steams API
+  #
+  # Recorded steaming sessions. Mirrors the /shots surface for milk
+  # steaming. Each record is opened on entry to MachineState.steam and
+  # finalized when the machine leaves steam.
+  #
+  /api/v1/steams:
+    get:
+      summary: List all steam records
+      tags: [Steams History]
+      responses:
+        "200":
+          description: List of steam records (without measurements)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SteamRecord"
+
+  /api/v1/steams/ids:
+    get:
+      summary: List steam record IDs
+      tags: [Steams History]
+      responses:
+        "200":
+          description: Array of steam record ids
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /api/v1/steams/latest:
+    get:
+      summary: Get the most recent steam record (metadata only)
+      tags: [Steams History]
+      responses:
+        "200":
+          description: Latest steam record metadata (no measurements)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SteamRecord"
+
+  /api/v1/steams/{id}:
+    get:
+      summary: Get a specific steam record by ID
+      tags: [Steams History]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Steam record found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SteamRecord"
+        "404":
+          description: Steam record not found
+
+    put:
+      summary: Update a steam record's annotations
+      description: |
+        Only annotations are updatable. Measurements and workflow are
+        immutable once persisted.
+      tags: [Steams History]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                annotations:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "200":
+          description: Steam record updated
+        "404":
+          description: Steam record not found
+
+    delete:
+      summary: Delete a steam record
+      tags: [Steams History]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Steam record deleted
 
   # Beans API
   #
@@ -3664,8 +3771,9 @@ components:
             `stopAtWeight` (autonomous in-FW stop-at-weight driven by
             the integrated scale; the app reflects
             `WorkflowContext.targetYield` into the SAW MMR). Future
-            Bengle peripherals (milk probe) will append their
-            identifiers as they ship.
+            Bengle peripherals will append their identifiers as they
+            ship. Note: the milk-probe scaffolding lives in `/sensors`,
+            not here.
           items:
             type: string
             enum: [cupWarmer, integratedScale, ledStrip, stopAtWeight]
@@ -4350,6 +4458,19 @@ components:
           format: double
           description: Steam flow rate
           example: 0.8
+        stopAtTemperature:
+          type: number
+          format: double
+          description: >
+            Stop steaming when the milk-probe reading reaches this
+            temperature (°C). `0` disables the stop. Range 0..80.
+            Scaffolding only today — no machine in production has an
+            integrated probe wired, so the field round-trips but does
+            not affect machine behaviour. On Bengle with a future probe
+            firmware the stop is FW-autonomous; on other machines or
+            third-party probes the app stops via `requestState(idle)`.
+          example: 65.0
+          default: 0.0
 
     HotWaterData:
       type: object
@@ -4496,6 +4617,44 @@ components:
           format: double
           nullable: true
           description: Accumulated volume in milliliters (ml) since shot start, calculated by integrating machine flow over time. Only counted from profile frame specified in targetVolumeCountStart.
+
+    SteamSnapshot:
+      type: object
+      properties:
+        machine:
+          $ref: "#/components/schemas/MachineSnapshot"
+        milkTemperature:
+          type: number
+          format: double
+          nullable: true
+          description: >
+            Milk-probe temperature in °C at this sample. `null` when
+            no probe is registered (today no probe is registered in
+            production — scaffolding only).
+
+    SteamRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        measurements:
+          type: array
+          items:
+            $ref: "#/components/schemas/SteamSnapshot"
+          description: >
+            Per-frame samples collected during the steaming session.
+            Omitted from list / latest responses; only returned by
+            GET /api/v1/steams/{id}.
+        workflow:
+          $ref: "#/components/schemas/WorkflowRequest"
+        annotations:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Optional annotations (tasting notes, ratings).
 
     WeightSnapshot:
       type: object

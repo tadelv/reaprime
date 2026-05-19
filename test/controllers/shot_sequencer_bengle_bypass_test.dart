@@ -9,6 +9,7 @@ import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/shot_sequencer.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
+import 'package:reaprime/src/models/data/steam_record.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
@@ -59,6 +60,17 @@ class _TestBengle extends TestDe1 implements BengleInterface {
   Future<void> commitLedStrip() async {}
   @override
   Future<void> resetLedStrip() async {}
+
+  @override
+  Future<void> setStopAtTemperatureTarget(double celsius) async {}
+  @override
+  Future<double> getStopAtTemperatureTarget() async => 0.0;
+  @override
+  Stream<double> get stopAtTemperatureTarget => const Stream.empty();
+  @override
+  Stream<bool> get probeAttached => const Stream.empty();
+  @override
+  Stream<double> get probeTemperature => const Stream.empty();
 }
 
 class _FakeDiscoveryService extends DeviceDiscoveryService {
@@ -168,6 +180,23 @@ class _NullStorageService implements StorageService {
   Future<ShotRecord?> getLatestShot() async => null;
   @override
   Future<ShotRecord?> getLatestShotMeta() async => null;
+
+  @override
+  Future<void> storeSteam(SteamRecord record) async {}
+  @override
+  Future<void> updateSteam(SteamRecord record) async {}
+  @override
+  Future<void> deleteSteam(String id) async {}
+  @override
+  Future<List<String>> getSteamIds() async => [];
+  @override
+  Future<List<SteamRecord>> getAllSteams() async => [];
+  @override
+  Future<SteamRecord?> getSteam(String id) async => null;
+  @override
+  Future<SteamRecord?> getLatestSteam() async => null;
+  @override
+  Future<SteamRecord?> getLatestSteamMeta() async => null;
 }
 
 Profile _simpleProfile() => Profile(

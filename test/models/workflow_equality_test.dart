@@ -34,6 +34,58 @@ void main() {
       final b = SteamSettings(targetTemperature: 150, duration: 50, flow: 1.5);
       expect(a, isNot(equals(b)));
     });
+
+    test('differ when stopAtTemperature differs', () {
+      final a = SteamSettings(
+          targetTemperature: 150,
+          duration: 50,
+          flow: 2.1,
+          stopAtTemperature: 65.0);
+      final b = SteamSettings(
+          targetTemperature: 150,
+          duration: 50,
+          flow: 2.1,
+          stopAtTemperature: 70.0);
+      expect(a, isNot(equals(b)));
+    });
+
+    test('stopAtTemperature defaults to 0.0 (off)', () {
+      final s = SteamSettings(targetTemperature: 150, duration: 50, flow: 2.1);
+      expect(s.stopAtTemperature, equals(0.0));
+      expect(SteamSettings.defaults().stopAtTemperature, equals(0.0));
+    });
+
+    test('stopAtTemperature survives fromJson round-trip', () {
+      final original = SteamSettings(
+          targetTemperature: 150,
+          duration: 50,
+          flow: 2.1,
+          stopAtTemperature: 65.0);
+      final roundTrip = SteamSettings.fromJson(original.toJson());
+      expect(roundTrip.stopAtTemperature, equals(65.0));
+      expect(original, equals(roundTrip));
+    });
+
+    test('fromJson tolerates missing stopAtTemperature (legacy clients)', () {
+      final json = <String, dynamic>{
+        'targetTemperature': 150,
+        'duration': 50,
+        'flow': 2.1,
+      };
+      final parsed = SteamSettings.fromJson(json);
+      expect(parsed.stopAtTemperature, equals(0.0));
+    });
+
+    test('copyWith preserves and overrides stopAtTemperature', () {
+      final base = SteamSettings(
+          targetTemperature: 150,
+          duration: 50,
+          flow: 2.1,
+          stopAtTemperature: 65.0);
+      expect(base.copyWith().stopAtTemperature, equals(65.0));
+      expect(base.copyWith(stopAtTemperature: 0.0).stopAtTemperature,
+          equals(0.0));
+    });
   });
 
   group('HotWaterData equality', () {

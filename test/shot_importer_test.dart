@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
+import 'package:reaprime/src/models/data/steam_record.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
 import 'package:reaprime/src/util/shot_importer.dart';
@@ -99,6 +100,23 @@ class MockStorageService implements StorageService {
 
   @override
   Future<ShotRecord?> getLatestShotMeta() => getLatestShot();
+
+  @override
+  Future<void> storeSteam(SteamRecord record) async {}
+  @override
+  Future<void> updateSteam(SteamRecord record) async {}
+  @override
+  Future<void> deleteSteam(String id) async {}
+  @override
+  Future<List<String>> getSteamIds() async => [];
+  @override
+  Future<List<SteamRecord>> getAllSteams() async => [];
+  @override
+  Future<SteamRecord?> getSteam(String id) async => null;
+  @override
+  Future<SteamRecord?> getLatestSteam() async => null;
+  @override
+  Future<SteamRecord?> getLatestSteamMeta() async => null;
 }
 
 void main() {

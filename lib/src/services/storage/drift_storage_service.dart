@@ -1,7 +1,9 @@
 import 'package:reaprime/src/models/data/shot_record.dart' as domain;
+import 'package:reaprime/src/models/data/steam_record.dart' as domain_steam;
 import 'package:reaprime/src/models/data/workflow.dart' as domain_wf;
 import 'package:reaprime/src/services/database/database.dart';
 import 'package:reaprime/src/services/database/mappers/shot_mapper.dart';
+import 'package:reaprime/src/services/database/mappers/steam_mapper.dart';
 import 'package:reaprime/src/services/database/mappers/workflow_mapper.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
 
@@ -114,5 +116,51 @@ class DriftStorageService implements StorageService {
   Future<domain.ShotRecord?> getLatestShotMeta() async {
     final row = await _db.shotDao.getLatestShotMeta();
     return row == null ? null : ShotMapper.fromRow(row);
+  }
+
+  // Steam records ------------------------------------------------------------
+
+  @override
+  Future<void> storeSteam(domain_steam.SteamRecord record) {
+    return _db.steamDao.insertSteam(SteamMapper.toCompanion(record));
+  }
+
+  @override
+  Future<void> updateSteam(domain_steam.SteamRecord record) {
+    return _db.steamDao.updateSteam(SteamMapper.toCompanion(record));
+  }
+
+  @override
+  Future<void> deleteSteam(String id) {
+    return _db.steamDao.deleteSteam(id);
+  }
+
+  @override
+  Future<List<String>> getSteamIds() {
+    return _db.steamDao.getAllSteamIds();
+  }
+
+  @override
+  Future<List<domain_steam.SteamRecord>> getAllSteams() async {
+    final rows = await _db.steamDao.getAllSteams();
+    return rows.map(SteamMapper.fromRow).toList();
+  }
+
+  @override
+  Future<domain_steam.SteamRecord?> getSteam(String id) async {
+    final row = await _db.steamDao.getSteamById(id);
+    return row == null ? null : SteamMapper.fromRow(row);
+  }
+
+  @override
+  Future<domain_steam.SteamRecord?> getLatestSteam() async {
+    final row = await _db.steamDao.getLatestSteam();
+    return row == null ? null : SteamMapper.fromRow(row);
+  }
+
+  @override
+  Future<domain_steam.SteamRecord?> getLatestSteamMeta() async {
+    final row = await _db.steamDao.getLatestSteamMeta();
+    return row == null ? null : SteamMapper.fromRow(row);
   }
 }

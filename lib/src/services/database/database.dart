@@ -5,11 +5,13 @@ import 'package:reaprime/src/services/database/daos/bean_dao.dart';
 import 'package:reaprime/src/services/database/daos/grinder_dao.dart';
 import 'package:reaprime/src/services/database/daos/profile_dao.dart';
 import 'package:reaprime/src/services/database/daos/shot_dao.dart';
+import 'package:reaprime/src/services/database/daos/steam_dao.dart';
 import 'package:reaprime/src/services/database/daos/workflow_dao.dart';
 import 'package:reaprime/src/services/database/tables/bean_tables.dart';
 import 'package:reaprime/src/services/database/tables/grinder_tables.dart';
 import 'package:reaprime/src/services/database/tables/profile_tables.dart';
 import 'package:reaprime/src/services/database/tables/shot_tables.dart';
+import 'package:reaprime/src/services/database/tables/steam_tables.dart';
 import 'package:reaprime/src/services/database/tables/workflow_tables.dart';
 
 part 'database.g.dart';
@@ -20,6 +22,7 @@ part 'database.g.dart';
     BeanBatches,
     Grinders,
     ShotRecords,
+    SteamRecords,
     Workflows,
     ProfileRecords,
   ],
@@ -27,6 +30,7 @@ part 'database.g.dart';
     BeanDao,
     GrinderDao,
     ShotDao,
+    SteamDao,
     WorkflowDao,
     ProfileDao,
   ],
@@ -40,7 +44,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration {
@@ -54,6 +58,10 @@ class AppDatabase extends _$AppDatabase {
         if (from < 2) {
           await _createIndices();
         }
+        if (from < 3) {
+          await m.createTable(steamRecords);
+          await _createSteamIndices();
+        }
       },
       beforeOpen: (details) async {
         await customStatement('PRAGMA foreign_keys = ON');
@@ -65,6 +73,14 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_shot_records_timestamp '
       'ON shot_records (timestamp DESC)',
+    );
+    await _createSteamIndices();
+  }
+
+  Future<void> _createSteamIndices() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_steam_records_timestamp '
+      'ON steam_records (timestamp DESC)',
     );
   }
 }
