@@ -26,6 +26,7 @@ import 'package:reaprime/src/services/webserver/data_export_handler.dart';
 import 'package:reaprime/src/services/webserver/data_sync_handler.dart';
 import 'package:reaprime/src/services/webserver/data_export/profile_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/shot_export_section.dart';
+import 'package:reaprime/src/services/webserver/data_export/steam_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/workflow_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/settings_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/kv_store_export_section.dart';
@@ -195,6 +196,7 @@ Future<void> startWebServer(
     sections: [
       ProfileExportSection(controller: profileController),
       ShotExportSection(controller: persistenceController),
+      SteamExportSection(controller: persistenceController),
       WorkflowExportSection(controller: workflowController),
       SettingsExportSection(controller: settingsController),
       KvStoreExportSection(store: kvStoreHandler.store),

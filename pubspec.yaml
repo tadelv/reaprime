@@ -31,7 +31,7 @@ dependencies:
   screen_brightness: ^2.1.7
   collection: ^1.19.0
   shelf_plus: ^1.11.0
-  shadcn_ui: ^0.53.5
+  shadcn_ui: ^0.54.0
   file_picker: ^11.0.2
   fl_chart: ^1.0.0
   flutter_launcher_icons: ^0.14.3
