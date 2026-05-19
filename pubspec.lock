@@ -1347,10 +1347,10 @@ packages:
     dependency: "direct main"
     description:
       name: shadcn_ui
-      sha256: "6c06f2bcebd8734b9ed0bf3f63ef5c71981573d5664923589b0302f8280e7eaf"
+      sha256: "132d69a43145a9ead0687935b48224a6565d164ab718796fa344a179a69bed70"
       url: "https://pub.dev"
     source: hosted
-    version: "0.53.6"
+    version: "0.54.0"
   share_plus:
     dependency: "direct main"
     description:
@@ -1886,5 +1886,5 @@ packages:
     source: hosted
     version: "2.1.0"
 sdks:
-  dart: ">=3.10.3 <4.0.0"
-  flutter: ">=3.38.4"
+  dart: ">=3.11.0 <4.0.0"
+  flutter: ">=3.41.0"
