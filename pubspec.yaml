@@ -31,7 +31,7 @@ dependencies:
   screen_brightness: ^2.1.7
   collection: ^1.19.0
   shelf_plus: ^1.11.0
-  shadcn_ui: ^0.54.0
+  shadcn_ui: ^0.53.5
   file_picker: ^11.0.2
   fl_chart: ^1.0.0
   flutter_launcher_icons: ^0.14.3
@@ -104,6 +104,12 @@ dependency_overrides:
     git:
       url: https://github.com/tadelv/libserialport.dart
       ref: fix/reader-isolate-uhandled-throw
+  # shadcn_ui 0.53.5 transitively pins lucide_icons_flutter 3.1.12, which
+  # extends `IconData` — that broke after Flutter's CI SDK made
+  # `IconData` final. Override to a newer lucide that compiles cleanly.
+  # Remove once shadcn_ui ships a release that pins lucide >= 3.1.13 and
+  # the ListTile/DecoratedBox regression introduced in 0.54.0 is fixed.
+  lucide_icons_flutter: ^3.1.14
 
 dev_dependencies:
   flutter_test:
