@@ -117,25 +117,35 @@ class _DeviceSelectionWidgetState extends State<DeviceSelectionWidget> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ListTile(
-                  dense: true,
-                  visualDensity: VisualDensity(horizontal: -4, vertical: -4),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 8),
-                  title: Text(device.name, style: Theme.of(context).textTheme.bodySmall),
-                  subtitle: Text(
-                    "ID: ${device.deviceId.length > 8 ? device.deviceId.substring(device.deviceId.length - 8) : device.deviceId}",
-                    style: Theme.of(context).textTheme.labelSmall,
+                // ShadCard wraps its children in a DecoratedBox with a
+                // background colour. Flutter's `ListTile` paints onto
+                // the nearest `Material` ancestor and asserts when a
+                // bg-coloured DecoratedBox sits between them. Wrap the
+                // ListTile in a transparent Material so the tile has
+                // its own paint surface; ShadCard's visuals are
+                // unaffected.
+                Material(
+                  type: MaterialType.transparency,
+                  child: ListTile(
+                    dense: true,
+                    visualDensity: VisualDensity(horizontal: -4, vertical: -4),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                    title: Text(device.name, style: Theme.of(context).textTheme.bodySmall),
+                    subtitle: Text(
+                      "ID: ${device.deviceId.length > 8 ? device.deviceId.substring(device.deviceId.length - 8) : device.deviceId}",
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                    leading: isPreferred
+                        ? Icon(LucideIcons.check, size: 16, color: Theme.of(context).colorScheme.primary)
+                        : SizedBox(width: 16),
+                    trailing: DeviceConnectingIndicator(
+                      isConnecting: isConnecting,
+                    ),
+                    enabled: !isAnyConnecting,
+                    onTap: isAnyConnecting
+                        ? null
+                        : () => widget.onDeviceTapped(device),
                   ),
-                  leading: isPreferred
-                      ? Icon(LucideIcons.check, size: 16, color: Theme.of(context).colorScheme.primary)
-                      : SizedBox(width: 16),
-                  trailing: DeviceConnectingIndicator(
-                    isConnecting: isConnecting,
-                  ),
-                  enabled: !isAnyConnecting,
-                  onTap: isAnyConnecting
-                      ? null
-                      : () => widget.onDeviceTapped(device),
                 ),
               ],
             ),
