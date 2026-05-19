@@ -31,6 +31,11 @@ dependencies:
   screen_brightness: ^2.1.7
   collection: ^1.19.0
   shelf_plus: ^1.11.0
+  # NOTE: Do not bump to 0.54.x — it wraps ListTile in a DecoratedBox
+  # with a background color, which trips Flutter's "ListTile background
+  # may be invisible" assertion and breaks ~7 widget tests on CI.
+  # Before any major bump, smoke-test the device-discovery + onboarding
+  # widget tests on Linux Flutter (CI image, not just local macOS).
   shadcn_ui: ^0.53.5
   file_picker: ^11.0.2
   fl_chart: ^1.0.0
