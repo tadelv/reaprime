@@ -119,22 +119,28 @@ class SteamSettings {
   int targetTemperature;
   int duration;
   double flow;
+  // 0.0 = off. Set/get target only; FW autonomous stop gated on a
+  // future MMR address (see [[bengle_steam_mmr]]).
+  double stopAtTemperature;
 
   SteamSettings({
     required this.targetTemperature,
     required this.duration,
     required this.flow,
+    this.stopAtTemperature = 0.0,
   });
 
   SteamSettings copyWith({
     int? targetTemperature,
     int? duration,
     double? flow,
+    double? stopAtTemperature,
   }) {
     return SteamSettings(
       targetTemperature: targetTemperature ?? this.targetTemperature,
       duration: duration ?? this.duration,
       flow: flow ?? this.flow,
+      stopAtTemperature: stopAtTemperature ?? this.stopAtTemperature,
     );
   }
 
@@ -143,6 +149,7 @@ class SteamSettings {
       'targetTemperature': targetTemperature,
       'duration': duration,
       'flow': flow,
+      'stopAtTemperature': stopAtTemperature,
     };
   }
 
@@ -151,11 +158,18 @@ class SteamSettings {
       targetTemperature: parseInt(json['targetTemperature']),
       duration: parseInt(json['duration']),
       flow: parseDouble(json['flow']),
+      stopAtTemperature: json.containsKey('stopAtTemperature')
+          ? parseDouble(json['stopAtTemperature'])
+          : 0.0,
     );
   }
 
   factory SteamSettings.defaults() {
-    return SteamSettings(targetTemperature: 150, duration: 50, flow: 0.8);
+    return SteamSettings(
+        targetTemperature: 150,
+        duration: 50,
+        flow: 0.8,
+        stopAtTemperature: 0.0);
   }
 
   @override
@@ -166,12 +180,16 @@ class SteamSettings {
 
     return other.targetTemperature == targetTemperature &&
         other.flow == flow &&
-        other.duration == duration;
+        other.duration == duration &&
+        other.stopAtTemperature == stopAtTemperature;
   }
 
   @override
   int get hashCode =>
-      targetTemperature.hashCode ^ flow.hashCode ^ duration.hashCode;
+      targetTemperature.hashCode ^
+      flow.hashCode ^
+      duration.hashCode ^
+      stopAtTemperature.hashCode;
 }
 
 class HotWaterData {

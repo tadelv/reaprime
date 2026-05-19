@@ -87,6 +87,25 @@ For browser clients on a different origin, `ETag` is exposed via `Access-Control
 | PUT | `/api/v1/shots/:id` | Update shot annotations | |
 | DELETE | `/api/v1/shots/:id` | Delete shot | |
 
+### Steams
+
+Recorded milk-steaming sessions. Each record is opened when the machine
+enters `steam` and finalized when it leaves. Today no probe is wired in
+production, so `SteamSnapshot.milkTemperature` is `null` on every frame —
+the API surface is scaffolding for skin developers and for future
+probe / FW support. `SteamSettings.stopAtTemperature` (in
+`/api/v1/workflow`) is the target the future FW-autonomous stop or
+in-app stop will trigger on.
+
+| Method | Path | Description | Handler |
+|--------|------|-------------|---------|
+| GET | `/api/v1/steams` | List all steam records (no measurements) | `steams_handler.dart` |
+| GET | `/api/v1/steams/ids` | All steam record IDs | |
+| GET | `/api/v1/steams/latest` | Most recent steam record (no measurements) | |
+| GET | `/api/v1/steams/:id` | Get steam record by ID (with measurements) | |
+| PUT | `/api/v1/steams/:id` | Update steam record annotations | |
+| DELETE | `/api/v1/steams/:id` | Delete steam record | |
+
 ### Profiles
 
 | Method | Path | Description | Handler |

@@ -2,11 +2,10 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/led_strip.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 
-/// Marker interface for Bengle-specific machine API. Currently empty —
-/// Bengle inherits the full DE1 surface unchanged.
+/// Marker interface for Bengle-specific machine API.
 ///
 /// **Future capability methods land here.** When a Bengle capability
-/// (cup warmer, integrated scale, LED strip, milk probe) needs a public
+/// (cup warmer, integrated scale, LED strip, etc.) needs a public
 /// API method, add it to this interface and implement it on `Bengle`.
 /// Capability-internal state and helpers belong in their own
 /// `Capability` mixins on `UnifiedDe1` (see the protected surface in
@@ -65,4 +64,36 @@ abstract class BengleInterface extends De1Interface {
 
   /// Reload the LED strip configuration from FW NVM, dropping uncommitted changes.
   Future<void> resetLedStrip();
+
+  // --- Milk-probe steam stop (scaffolding) -----------------------------------
+  //
+  // FW is not yet ready. The methods + streams below are the API surface
+  // skin developers can target now. On real `Bengle` the streams are inert
+  // (target replays cached value, probeAttached stays `false`,
+  // probeTemperature never emits) until FW publishes the wire spec. See
+  // [[bengle_steam_mmr]] for the MMR slot and [[bengle_milk_probe]] for
+  // the planned probe device wrapper.
+
+  /// Set the autonomous stop-at-temperature target in °C. `0.0` disables
+  /// the stop. Range `0..80`. Today: caches locally + log-once; no MMR
+  /// write until FW publishes the slot.
+  Future<void> setStopAtTemperatureTarget(double celsius);
+
+  /// Read the current stop-at-temperature target in °C.
+  Future<double> getStopAtTemperatureTarget();
+
+  /// Latest stop-at-temperature target stream (`0.0` = stop off).
+  /// `BehaviorSubject` — late subscribers see the cached current value.
+  Stream<double> get stopAtTemperatureTarget;
+
+  /// Whether the milk probe is physically attached to the machine.
+  /// `BehaviorSubject<bool>` seeded `false`. Real `Bengle` stays `false`
+  /// until FW publishes a presence signal; `MockBengle` defaults to
+  /// `true` for tests.
+  Stream<bool> get probeAttached;
+
+  /// Live milk-probe temperature stream (°C). `PublishSubject<double>` —
+  /// no replay, latest-only consumers should track themselves. Real
+  /// `Bengle` never emits today; `MockBengle` synthesises during steam.
+  Stream<double> get probeTemperature;
 }

@@ -3,6 +3,7 @@ import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_annotations.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
+import 'package:reaprime/src/models/data/steam_record.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/data/workflow_context.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
@@ -95,6 +96,23 @@ class MockStorageService implements StorageService {
 
   @override
   Future<ShotRecord?> getLatestShotMeta() => getLatestShot();
+
+  @override
+  Future<void> storeSteam(SteamRecord record) async {}
+  @override
+  Future<void> updateSteam(SteamRecord record) async {}
+  @override
+  Future<void> deleteSteam(String id) async {}
+  @override
+  Future<List<String>> getSteamIds() async => [];
+  @override
+  Future<List<SteamRecord>> getAllSteams() async => [];
+  @override
+  Future<SteamRecord?> getSteam(String id) async => null;
+  @override
+  Future<SteamRecord?> getLatestSteam() async => null;
+  @override
+  Future<SteamRecord?> getLatestSteamMeta() async => null;
 
   void reset() {
     _shots.clear();

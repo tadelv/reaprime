@@ -4105,6 +4105,405 @@ class ShotRecordsCompanion extends UpdateCompanion<ShotRecord> {
   }
 }
 
+class $SteamRecordsTable extends SteamRecords
+    with TableInfo<$SteamRecordsTable, SteamRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SteamRecordsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _timestampMeta = const VerificationMeta(
+    'timestamp',
+  );
+  @override
+  late final GeneratedColumn<DateTime> timestamp = GeneratedColumn<DateTime>(
+    'timestamp',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<Map<String, dynamic>, String>
+  workflowJson = GeneratedColumn<String>(
+    'workflow_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  ).withConverter<Map<String, dynamic>>(
+    $SteamRecordsTable.$converterworkflowJson,
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<Map<String, dynamic>?, String>
+  annotationsJson = GeneratedColumn<String>(
+    'annotations_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  ).withConverter<Map<String, dynamic>?>(
+    $SteamRecordsTable.$converterannotationsJson,
+  );
+  static const VerificationMeta _measurementsJsonMeta = const VerificationMeta(
+    'measurementsJson',
+  );
+  @override
+  late final GeneratedColumn<String> measurementsJson = GeneratedColumn<String>(
+    'measurements_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    timestamp,
+    workflowJson,
+    annotationsJson,
+    measurementsJson,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'steam_records';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SteamRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('timestamp')) {
+      context.handle(
+        _timestampMeta,
+        timestamp.isAcceptableOrUnknown(data['timestamp']!, _timestampMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_timestampMeta);
+    }
+    if (data.containsKey('measurements_json')) {
+      context.handle(
+        _measurementsJsonMeta,
+        measurementsJson.isAcceptableOrUnknown(
+          data['measurements_json']!,
+          _measurementsJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_measurementsJsonMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SteamRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SteamRecord(
+      id:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.string,
+            data['${effectivePrefix}id'],
+          )!,
+      timestamp:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.dateTime,
+            data['${effectivePrefix}timestamp'],
+          )!,
+      workflowJson: $SteamRecordsTable.$converterworkflowJson.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}workflow_json'],
+        )!,
+      ),
+      annotationsJson: $SteamRecordsTable.$converterannotationsJson.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}annotations_json'],
+        ),
+      ),
+      measurementsJson:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.string,
+            data['${effectivePrefix}measurements_json'],
+          )!,
+    );
+  }
+
+  @override
+  $SteamRecordsTable createAlias(String alias) {
+    return $SteamRecordsTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<Map<String, dynamic>, String> $converterworkflowJson =
+      const JsonMapConverter();
+  static TypeConverter<Map<String, dynamic>?, String?>
+  $converterannotationsJson = const NullableJsonMapConverter();
+}
+
+class SteamRecord extends DataClass implements Insertable<SteamRecord> {
+  final String id;
+  final DateTime timestamp;
+  final Map<String, dynamic> workflowJson;
+  final Map<String, dynamic>? annotationsJson;
+  final String measurementsJson;
+  const SteamRecord({
+    required this.id,
+    required this.timestamp,
+    required this.workflowJson,
+    this.annotationsJson,
+    required this.measurementsJson,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['timestamp'] = Variable<DateTime>(timestamp);
+    {
+      map['workflow_json'] = Variable<String>(
+        $SteamRecordsTable.$converterworkflowJson.toSql(workflowJson),
+      );
+    }
+    if (!nullToAbsent || annotationsJson != null) {
+      map['annotations_json'] = Variable<String>(
+        $SteamRecordsTable.$converterannotationsJson.toSql(annotationsJson),
+      );
+    }
+    map['measurements_json'] = Variable<String>(measurementsJson);
+    return map;
+  }
+
+  SteamRecordsCompanion toCompanion(bool nullToAbsent) {
+    return SteamRecordsCompanion(
+      id: Value(id),
+      timestamp: Value(timestamp),
+      workflowJson: Value(workflowJson),
+      annotationsJson:
+          annotationsJson == null && nullToAbsent
+              ? const Value.absent()
+              : Value(annotationsJson),
+      measurementsJson: Value(measurementsJson),
+    );
+  }
+
+  factory SteamRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SteamRecord(
+      id: serializer.fromJson<String>(json['id']),
+      timestamp: serializer.fromJson<DateTime>(json['timestamp']),
+      workflowJson: serializer.fromJson<Map<String, dynamic>>(
+        json['workflowJson'],
+      ),
+      annotationsJson: serializer.fromJson<Map<String, dynamic>?>(
+        json['annotationsJson'],
+      ),
+      measurementsJson: serializer.fromJson<String>(json['measurementsJson']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'timestamp': serializer.toJson<DateTime>(timestamp),
+      'workflowJson': serializer.toJson<Map<String, dynamic>>(workflowJson),
+      'annotationsJson': serializer.toJson<Map<String, dynamic>?>(
+        annotationsJson,
+      ),
+      'measurementsJson': serializer.toJson<String>(measurementsJson),
+    };
+  }
+
+  SteamRecord copyWith({
+    String? id,
+    DateTime? timestamp,
+    Map<String, dynamic>? workflowJson,
+    Value<Map<String, dynamic>?> annotationsJson = const Value.absent(),
+    String? measurementsJson,
+  }) => SteamRecord(
+    id: id ?? this.id,
+    timestamp: timestamp ?? this.timestamp,
+    workflowJson: workflowJson ?? this.workflowJson,
+    annotationsJson:
+        annotationsJson.present ? annotationsJson.value : this.annotationsJson,
+    measurementsJson: measurementsJson ?? this.measurementsJson,
+  );
+  SteamRecord copyWithCompanion(SteamRecordsCompanion data) {
+    return SteamRecord(
+      id: data.id.present ? data.id.value : this.id,
+      timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
+      workflowJson:
+          data.workflowJson.present
+              ? data.workflowJson.value
+              : this.workflowJson,
+      annotationsJson:
+          data.annotationsJson.present
+              ? data.annotationsJson.value
+              : this.annotationsJson,
+      measurementsJson:
+          data.measurementsJson.present
+              ? data.measurementsJson.value
+              : this.measurementsJson,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SteamRecord(')
+          ..write('id: $id, ')
+          ..write('timestamp: $timestamp, ')
+          ..write('workflowJson: $workflowJson, ')
+          ..write('annotationsJson: $annotationsJson, ')
+          ..write('measurementsJson: $measurementsJson')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    timestamp,
+    workflowJson,
+    annotationsJson,
+    measurementsJson,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SteamRecord &&
+          other.id == this.id &&
+          other.timestamp == this.timestamp &&
+          other.workflowJson == this.workflowJson &&
+          other.annotationsJson == this.annotationsJson &&
+          other.measurementsJson == this.measurementsJson);
+}
+
+class SteamRecordsCompanion extends UpdateCompanion<SteamRecord> {
+  final Value<String> id;
+  final Value<DateTime> timestamp;
+  final Value<Map<String, dynamic>> workflowJson;
+  final Value<Map<String, dynamic>?> annotationsJson;
+  final Value<String> measurementsJson;
+  final Value<int> rowid;
+  const SteamRecordsCompanion({
+    this.id = const Value.absent(),
+    this.timestamp = const Value.absent(),
+    this.workflowJson = const Value.absent(),
+    this.annotationsJson = const Value.absent(),
+    this.measurementsJson = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SteamRecordsCompanion.insert({
+    required String id,
+    required DateTime timestamp,
+    required Map<String, dynamic> workflowJson,
+    this.annotationsJson = const Value.absent(),
+    required String measurementsJson,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       timestamp = Value(timestamp),
+       workflowJson = Value(workflowJson),
+       measurementsJson = Value(measurementsJson);
+  static Insertable<SteamRecord> custom({
+    Expression<String>? id,
+    Expression<DateTime>? timestamp,
+    Expression<String>? workflowJson,
+    Expression<String>? annotationsJson,
+    Expression<String>? measurementsJson,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (timestamp != null) 'timestamp': timestamp,
+      if (workflowJson != null) 'workflow_json': workflowJson,
+      if (annotationsJson != null) 'annotations_json': annotationsJson,
+      if (measurementsJson != null) 'measurements_json': measurementsJson,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SteamRecordsCompanion copyWith({
+    Value<String>? id,
+    Value<DateTime>? timestamp,
+    Value<Map<String, dynamic>>? workflowJson,
+    Value<Map<String, dynamic>?>? annotationsJson,
+    Value<String>? measurementsJson,
+    Value<int>? rowid,
+  }) {
+    return SteamRecordsCompanion(
+      id: id ?? this.id,
+      timestamp: timestamp ?? this.timestamp,
+      workflowJson: workflowJson ?? this.workflowJson,
+      annotationsJson: annotationsJson ?? this.annotationsJson,
+      measurementsJson: measurementsJson ?? this.measurementsJson,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (timestamp.present) {
+      map['timestamp'] = Variable<DateTime>(timestamp.value);
+    }
+    if (workflowJson.present) {
+      map['workflow_json'] = Variable<String>(
+        $SteamRecordsTable.$converterworkflowJson.toSql(workflowJson.value),
+      );
+    }
+    if (annotationsJson.present) {
+      map['annotations_json'] = Variable<String>(
+        $SteamRecordsTable.$converterannotationsJson.toSql(
+          annotationsJson.value,
+        ),
+      );
+    }
+    if (measurementsJson.present) {
+      map['measurements_json'] = Variable<String>(measurementsJson.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SteamRecordsCompanion(')
+          ..write('id: $id, ')
+          ..write('timestamp: $timestamp, ')
+          ..write('workflowJson: $workflowJson, ')
+          ..write('annotationsJson: $annotationsJson, ')
+          ..write('measurementsJson: $measurementsJson, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $WorkflowsTable extends Workflows
     with TableInfo<$WorkflowsTable, Workflow> {
   @override
@@ -5023,11 +5422,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $BeanBatchesTable beanBatches = $BeanBatchesTable(this);
   late final $GrindersTable grinders = $GrindersTable(this);
   late final $ShotRecordsTable shotRecords = $ShotRecordsTable(this);
+  late final $SteamRecordsTable steamRecords = $SteamRecordsTable(this);
   late final $WorkflowsTable workflows = $WorkflowsTable(this);
   late final $ProfileRecordsTable profileRecords = $ProfileRecordsTable(this);
   late final BeanDao beanDao = BeanDao(this as AppDatabase);
   late final GrinderDao grinderDao = GrinderDao(this as AppDatabase);
   late final ShotDao shotDao = ShotDao(this as AppDatabase);
+  late final SteamDao steamDao = SteamDao(this as AppDatabase);
   late final WorkflowDao workflowDao = WorkflowDao(this as AppDatabase);
   late final ProfileDao profileDao = ProfileDao(this as AppDatabase);
   @override
@@ -5039,6 +5440,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     beanBatches,
     grinders,
     shotRecords,
+    steamRecords,
     workflows,
     profileRecords,
   ];
@@ -7114,6 +7516,234 @@ typedef $$ShotRecordsTableProcessedTableManager =
       ShotRecord,
       PrefetchHooks Function()
     >;
+typedef $$SteamRecordsTableCreateCompanionBuilder =
+    SteamRecordsCompanion Function({
+      required String id,
+      required DateTime timestamp,
+      required Map<String, dynamic> workflowJson,
+      Value<Map<String, dynamic>?> annotationsJson,
+      required String measurementsJson,
+      Value<int> rowid,
+    });
+typedef $$SteamRecordsTableUpdateCompanionBuilder =
+    SteamRecordsCompanion Function({
+      Value<String> id,
+      Value<DateTime> timestamp,
+      Value<Map<String, dynamic>> workflowJson,
+      Value<Map<String, dynamic>?> annotationsJson,
+      Value<String> measurementsJson,
+      Value<int> rowid,
+    });
+
+class $$SteamRecordsTableFilterComposer
+    extends Composer<_$AppDatabase, $SteamRecordsTable> {
+  $$SteamRecordsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get timestamp => $composableBuilder(
+    column: $table.timestamp,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<
+    Map<String, dynamic>,
+    Map<String, dynamic>,
+    String
+  >
+  get workflowJson => $composableBuilder(
+    column: $table.workflowJson,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<
+    Map<String, dynamic>?,
+    Map<String, dynamic>,
+    String
+  >
+  get annotationsJson => $composableBuilder(
+    column: $table.annotationsJson,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnFilters<String> get measurementsJson => $composableBuilder(
+    column: $table.measurementsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SteamRecordsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SteamRecordsTable> {
+  $$SteamRecordsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get timestamp => $composableBuilder(
+    column: $table.timestamp,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get workflowJson => $composableBuilder(
+    column: $table.workflowJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get annotationsJson => $composableBuilder(
+    column: $table.annotationsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get measurementsJson => $composableBuilder(
+    column: $table.measurementsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SteamRecordsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SteamRecordsTable> {
+  $$SteamRecordsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get timestamp =>
+      $composableBuilder(column: $table.timestamp, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<Map<String, dynamic>, String>
+  get workflowJson => $composableBuilder(
+    column: $table.workflowJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumnWithTypeConverter<Map<String, dynamic>?, String>
+  get annotationsJson => $composableBuilder(
+    column: $table.annotationsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get measurementsJson => $composableBuilder(
+    column: $table.measurementsJson,
+    builder: (column) => column,
+  );
+}
+
+class $$SteamRecordsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SteamRecordsTable,
+          SteamRecord,
+          $$SteamRecordsTableFilterComposer,
+          $$SteamRecordsTableOrderingComposer,
+          $$SteamRecordsTableAnnotationComposer,
+          $$SteamRecordsTableCreateCompanionBuilder,
+          $$SteamRecordsTableUpdateCompanionBuilder,
+          (
+            SteamRecord,
+            BaseReferences<_$AppDatabase, $SteamRecordsTable, SteamRecord>,
+          ),
+          SteamRecord,
+          PrefetchHooks Function()
+        > {
+  $$SteamRecordsTableTableManager(_$AppDatabase db, $SteamRecordsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer:
+              () => $$SteamRecordsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer:
+              () => $$SteamRecordsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer:
+              () =>
+                  $$SteamRecordsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> timestamp = const Value.absent(),
+                Value<Map<String, dynamic>> workflowJson = const Value.absent(),
+                Value<Map<String, dynamic>?> annotationsJson =
+                    const Value.absent(),
+                Value<String> measurementsJson = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SteamRecordsCompanion(
+                id: id,
+                timestamp: timestamp,
+                workflowJson: workflowJson,
+                annotationsJson: annotationsJson,
+                measurementsJson: measurementsJson,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required DateTime timestamp,
+                required Map<String, dynamic> workflowJson,
+                Value<Map<String, dynamic>?> annotationsJson =
+                    const Value.absent(),
+                required String measurementsJson,
+                Value<int> rowid = const Value.absent(),
+              }) => SteamRecordsCompanion.insert(
+                id: id,
+                timestamp: timestamp,
+                workflowJson: workflowJson,
+                annotationsJson: annotationsJson,
+                measurementsJson: measurementsJson,
+                rowid: rowid,
+              ),
+          withReferenceMapper:
+              (p0) =>
+                  p0
+                      .map(
+                        (e) => (
+                          e.readTable(table),
+                          BaseReferences(db, table, e),
+                        ),
+                      )
+                      .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SteamRecordsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SteamRecordsTable,
+      SteamRecord,
+      $$SteamRecordsTableFilterComposer,
+      $$SteamRecordsTableOrderingComposer,
+      $$SteamRecordsTableAnnotationComposer,
+      $$SteamRecordsTableCreateCompanionBuilder,
+      $$SteamRecordsTableUpdateCompanionBuilder,
+      (
+        SteamRecord,
+        BaseReferences<_$AppDatabase, $SteamRecordsTable, SteamRecord>,
+      ),
+      SteamRecord,
+      PrefetchHooks Function()
+    >;
 typedef $$WorkflowsTableCreateCompanionBuilder =
     WorkflowsCompanion Function({
       required String id,
@@ -7625,6 +8255,8 @@ class $AppDatabaseManager {
       $$GrindersTableTableManager(_db, _db.grinders);
   $$ShotRecordsTableTableManager get shotRecords =>
       $$ShotRecordsTableTableManager(_db, _db.shotRecords);
+  $$SteamRecordsTableTableManager get steamRecords =>
+      $$SteamRecordsTableTableManager(_db, _db.steamRecords);
   $$WorkflowsTableTableManager get workflows =>
       $$WorkflowsTableTableManager(_db, _db.workflows);
   $$ProfileRecordsTableTableManager get profileRecords =>

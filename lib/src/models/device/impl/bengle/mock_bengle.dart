@@ -14,10 +14,16 @@ import 'package:rxdart/rxdart.dart';
 /// at the public level rather than going through the `_updateFirmware`
 /// template that calls `beforeFirmwareUpload`).
 ///
-/// Capability surfaces (cup warmer, integrated scale, LED, milk probe)
-/// land in steps 4–7; mirror them on this mock as they're added.
+/// Capability surfaces (cup warmer, integrated scale, LED) are
+/// mirrored here.
 class MockBengle extends MockDe1 implements BengleInterface {
-  MockBengle({super.deviceId = 'MockBengle'});
+  MockBengle({
+    super.deviceId = 'MockBengle',
+    bool probeAttached = true,
+  }) {
+    _probeAttachedSubject =
+        BehaviorSubject<bool>.seeded(probeAttached);
+  }
 
   @override
   String get name => 'MockBengle';
@@ -91,6 +97,22 @@ class MockBengle extends MockDe1 implements BengleInterface {
   final BehaviorSubject<double> _sawTargetSubject =
       BehaviorSubject<double>.seeded(0.0);
 
+  // --- milk probe / stop-at-temperature ---
+  /// `0.0` = stop disabled.
+  double _stopAtTempTarget = 0.0;
+  final BehaviorSubject<double> _stopAtTempTargetSubject =
+      BehaviorSubject<double>.seeded(0.0);
+  late final BehaviorSubject<bool> _probeAttachedSubject;
+  final PublishSubject<double> _probeTemperatureSubject =
+      PublishSubject<double>();
+
+  /// Simulated probe temperature in °C. Rises during `MachineState.steam`
+  /// starting from [_probeStartTemp] at [_probeRiseRate] °C per second.
+  static const double _probeStartTemp = 4.0;
+  static const double _probeRiseRate = 5.0;
+  double _probeTemp = _probeStartTemp;
+  DateTime? _lastProbeTickAt;
+
   @override
   Stream<ScaleSnapshot> get weightSnapshot => _weight.stream;
 
@@ -107,6 +129,36 @@ class MockBengle extends MockDe1 implements BengleInterface {
 
   @override
   Future<double> getStopAtWeightTarget() async => _sawTarget;
+
+  // --- milk probe surface ---
+
+  @override
+  Stream<double> get stopAtTemperatureTarget =>
+      _stopAtTempTargetSubject.stream;
+
+  @override
+  Stream<bool> get probeAttached => _probeAttachedSubject.stream;
+
+  @override
+  Stream<double> get probeTemperature => _probeTemperatureSubject.stream;
+
+  @override
+  Future<void> setStopAtTemperatureTarget(double celsius) async {
+    _stopAtTempTarget = celsius.clamp(0.0, 80.0).toDouble();
+    if (!_stopAtTempTargetSubject.isClosed) {
+      _stopAtTempTargetSubject.add(_stopAtTempTarget);
+    }
+  }
+
+  @override
+  Future<double> getStopAtTemperatureTarget() async => _stopAtTempTarget;
+
+  /// Test hook: toggle the simulated probe-attached state.
+  void setProbeAttached(bool attached) {
+    if (!_probeAttachedSubject.isClosed) {
+      _probeAttachedSubject.add(attached);
+    }
+  }
 
   @override
   Future<void> tareIntegratedScale() async {
@@ -149,6 +201,38 @@ class MockBengle extends MockDe1 implements BengleInterface {
     }
     _emit();
     _maybeTriggerSaw(s);
+    _tickProbeTemperature(s, now);
+  }
+
+  /// Synthesises milk-probe temperature during `MachineState.steam`.
+  /// Rises linearly from [_probeStartTemp]; resets when steam exits.
+  /// If [_stopAtTempTarget] is set and reached, requests `idle` — the
+  /// FW-autonomous stop behaviour the real Bengle will perform once
+  /// the MMR slot is published.
+  void _tickProbeTemperature(MachineSnapshot s, DateTime now) {
+    if (!(_probeAttachedSubject.hasValue && _probeAttachedSubject.value)) {
+      _lastProbeTickAt = null;
+      _probeTemp = _probeStartTemp;
+      return;
+    }
+    if (s.state.state != MachineState.steam) {
+      _lastProbeTickAt = null;
+      _probeTemp = _probeStartTemp;
+      return;
+    }
+    final last = _lastProbeTickAt;
+    _lastProbeTickAt = now;
+    if (last == null) return;
+    final dtSec = now.difference(last).inMilliseconds / 1000.0;
+    if (dtSec <= 0) return;
+    _probeTemp += _probeRiseRate * dtSec;
+    if (!_probeTemperatureSubject.isClosed) {
+      _probeTemperatureSubject.add(_probeTemp);
+    }
+    if (_stopAtTempTarget > 0.0 && _probeTemp >= _stopAtTempTarget) {
+      // ignore: discarded_futures
+      requestState(MachineState.idle);
+    }
   }
 
   /// Simulated autonomous SAW. Once the post-tare weight reaches the
@@ -181,6 +265,15 @@ class MockBengle extends MockDe1 implements BengleInterface {
     }
     if (!_sawTargetSubject.isClosed) {
       await _sawTargetSubject.close();
+    }
+    if (!_stopAtTempTargetSubject.isClosed) {
+      await _stopAtTempTargetSubject.close();
+    }
+    if (!_probeAttachedSubject.isClosed) {
+      await _probeAttachedSubject.close();
+    }
+    if (!_probeTemperatureSubject.isClosed) {
+      await _probeTemperatureSubject.close();
     }
     await super.onDisconnect();
   }

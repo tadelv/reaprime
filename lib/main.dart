@@ -14,7 +14,10 @@ import 'package:logging/logging.dart';
 import 'package:logging_appenders/logging_appenders.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/battery_controller.dart';
+import 'package:reaprime/src/controllers/bengle_probe_bridge.dart';
 import 'package:reaprime/src/controllers/bengle_saw_bridge.dart';
+import 'package:reaprime/src/controllers/bengle_steam_stop_bridge.dart';
+import 'package:reaprime/src/controllers/steam_sequencer.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
@@ -314,6 +317,37 @@ void main() async {
   final bengleSawBridge = BengleSawBridge(
     workflowController: workflowController,
     de1Controller: de1Controller,
+  );
+
+  // Reflects SteamSettings.stopAtTemperature into Bengle's stop-at-
+  // temperature MMR (currently stubbed FW slot — bridge keeps the
+  // cache consistent so the day FW publishes, writes hit the wire
+  // automatically). See [[bengle_steam_stop_bridge]].
+  // ignore: unused_local_variable
+  final bengleSteamStopBridge = BengleSteamStopBridge(
+    workflowController: workflowController,
+    de1Controller: de1Controller,
+  );
+
+  // Registers a BengleMilkProbe sensor adapter with SensorController
+  // when a Bengle's probe-attached signal flips true. Inert today —
+  // real `Bengle.probeAttached` never emits true until FW publishes
+  // a presence signal.
+  // ignore: unused_local_variable
+  final bengleProbeBridge = BengleProbeBridge(
+    de1Controller: de1Controller,
+    sensorController: sensorController,
+  );
+
+  // Records steaming sessions + scaffolding for stop-at-temperature.
+  // See [[steam_sequencer]] for the predicate truth table and
+  // record lifecycle.
+  // ignore: unused_local_variable
+  final steamSequencer = SteamSequencer(
+    de1Controller: de1Controller,
+    sensorController: sensorController,
+    workflowController: workflowController,
+    persistenceController: persistenceController,
   );
   final PluginLoaderService pluginService = PluginLoaderService(
     kvStore: HiveStoreService(defaultNamespace: "plugins")..initialize(),

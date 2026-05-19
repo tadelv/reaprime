@@ -8,6 +8,7 @@ import 'package:reaprime/src/models/data/grinder.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/profile_record.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
+import 'package:reaprime/src/models/data/steam_record.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/wake_schedule.dart';
 import 'package:reaprime/src/services/storage/bean_storage_service.dart';
@@ -82,6 +83,23 @@ class FakeStorageService implements StorageService {
   Future<ShotRecord?> getLatestShot() => throw UnimplementedError();
   @override
   Future<ShotRecord?> getLatestShotMeta() => throw UnimplementedError();
+
+  @override
+  Future<void> storeSteam(SteamRecord record) async {}
+  @override
+  Future<void> updateSteam(SteamRecord record) async {}
+  @override
+  Future<void> deleteSteam(String id) async {}
+  @override
+  Future<List<String>> getSteamIds() async => [];
+  @override
+  Future<List<SteamRecord>> getAllSteams() async => [];
+  @override
+  Future<SteamRecord?> getSteam(String id) async => null;
+  @override
+  Future<SteamRecord?> getLatestSteam() async => null;
+  @override
+  Future<SteamRecord?> getLatestSteamMeta() async => null;
 }
 
 class FakeProfileStorageService implements ProfileStorageService {

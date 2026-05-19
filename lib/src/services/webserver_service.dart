@@ -34,6 +34,7 @@ import 'package:reaprime/src/services/webserver/data_export/grinder_export_secti
 import 'package:reaprime/src/services/webserver/beans_handler.dart';
 import 'package:reaprime/src/services/webserver/grinders_handler.dart';
 import 'package:reaprime/src/services/webserver/shots_handler.dart';
+import 'package:reaprime/src/services/webserver/steams_handler.dart';
 import 'package:reaprime/src/services/webserver/workflow_handler.dart';
 import 'package:reaprime/src/services/storage/bean_storage_service.dart';
 import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
@@ -133,6 +134,9 @@ Future<void> startWebServer(
   final ShotsHandler shotsHandler = ShotsHandler(
     controller: persistenceController,
   );
+  final SteamsHandler steamsHandler = SteamsHandler(
+    controller: persistenceController,
+  );
 
   final PluginsHandler pluginsHandler = PluginsHandler(
     pluginManager: pluginService.pluginManager,
@@ -222,6 +226,7 @@ Future<void> startWebServer(
       sensorsHandler,
       workflowHandler,
       shotsHandler,
+      steamsHandler,
       kvStoreHandler,
       pluginsHandler,
       profileHandler,
@@ -256,6 +261,7 @@ Handler _init(
   SensorsHandler sensorsHandler,
   WorkflowHandler workflowHandler,
   ShotsHandler shotsHandler,
+  SteamsHandler steamsHandler,
   KvStoreHandler kvStoreHandler,
   PluginsHandler pluginsHandler,
   ProfileHandler profileHandler,
@@ -282,6 +288,7 @@ Handler _init(
   sensorsHandler.addRoutes(app);
   workflowHandler.addRoutes(app);
   shotsHandler.addRoutes(app);
+  steamsHandler.addRoutes(app);
   kvStoreHandler.addRoutes(app);
   pluginsHandler.addRoutes(app);
   profileHandler.addRoutes(app);
