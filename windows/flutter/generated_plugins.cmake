@@ -5,7 +5,6 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   battery_plus
   firebase_core
-  flutter_blue_plus_winrt
   flutter_inappwebview_windows
   flutter_js
   flutter_libserialport
