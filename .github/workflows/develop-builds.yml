@@ -34,6 +34,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          flutter-version: '3.41.8'
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -101,6 +102,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          flutter-version: '3.41.8'
 
       - name: Install FlutterFire CLI
         run: dart pub global activate flutterfire_cli
@@ -233,6 +235,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          flutter-version: '3.41.8'
 
       - name: Install dependencies
         run: flutter pub get
@@ -276,6 +279,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          flutter-version: '3.41.8'
 
       - name: Run git safe dir
         run: git config --global --add safe.directory /opt/hostedtoolcache/flutter/${{ steps.flutter-action.outputs.CHANNEL }}-${{ steps.flutter-action.outputs.VERSION }}-${{ steps.flutter-action.outputs.ARCHITECTURE }}
@@ -321,6 +325,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          flutter-version: '3.41.8'
 
       - name: Install FlutterFire CLI
         run: dart pub global activate flutterfire_cli
@@ -452,6 +457,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          flutter-version: '3.41.8'
 
       - name: Install nuget
         uses: nuget/setup-nuget@v2
