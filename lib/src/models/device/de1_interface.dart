@@ -109,14 +109,20 @@ enum De1RefillKitSettings {
 }
 
 enum De1HeaterVoltage {
-  v110(110),
-  v220(220)
+  v110(120),
+  v220(230),
+  unset(-1)
   ;
 
   final int voltage;
   const De1HeaterVoltage(this.voltage);
   factory De1HeaterVoltage.fromInt(int voltage) {
-    return De1HeaterVoltage.values.firstWhere((e) => e.voltage == voltage);
+    // account for v + 1000 when voltage has been already set
+    voltage = voltage > 1000 ? voltage - 1000 : voltage;
+    return De1HeaterVoltage.values.firstWhere(
+      (e) => e.voltage == voltage,
+      orElse: () => .unset,
+    );
   }
 }
 
