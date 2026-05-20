@@ -401,6 +401,20 @@ paths:
         "202":
           description: Advanced settings update accepted
 
+  /api/v1/machine/settings/reset:
+    delete:
+      summary: Reset machine settings to defaults
+      description: |
+        Reapplies a baseline set of machine settings (fan threshold, heater idle temp,
+        heater phase 1/2 flows, heater phase 2 timeout, refill kit auto mode,
+        flow estimation multiplier, steam purge mode). Profile and workflow are not touched.
+      tags: [Machine]
+      responses:
+        "202":
+          description: Reset accepted
+        "500":
+          description: No DE1 connected
+
   /api/v1/machine/calibration:
     get:
       summary: Get machine calibration settings
@@ -4073,6 +4087,20 @@ components:
           description: Heater phase 2 timeout in seconds (how long should de1 try to stabilize temperature)
           type: integer
           nullable: true
+        heaterVoltage:
+          description: |
+            Mains heater voltage hint. Accepts `120` (110V region) or `230` (220V region).
+            Values above 1000 are treated as already-set markers (firmware adds 1000 once committed)
+            and are clamped back into the same set. Other values map to "unset" and are ignored.
+          type: integer
+          nullable: true
+          enum: [120, 230]
+        refillKitSetting:
+          description: |
+            Refill kit behavior. `2` = auto (default), `1` = force on, `0` = force off.
+          type: integer
+          nullable: true
+          enum: [0, 1, 2]
     De1AdvancedSettingsResponse:
       type: object
       properties:
@@ -4088,6 +4116,18 @@ components:
         heaterPh2Timeout:
           description: Heater phase 2 timeout in seconds (how long should de1 try to stabilize temperature)
           type: integer
+        heaterVoltage:
+          description: |
+            Mains heater voltage hint. `120` = 110V region, `230` = 220V region.
+            Firmware adds 1000 to indicate the value has been committed (e.g. `1230`);
+            on read this is normalized back to the bare value.
+          type: integer
+          enum: [120, 230, -1]
+        refillKitSetting:
+          description: |
+            Refill kit behavior. `2` = auto, `1` = force on, `0` = force off.
+          type: integer
+          enum: [0, 1, 2]
     De1CalibrationRequest:
       type: object
       properties:
