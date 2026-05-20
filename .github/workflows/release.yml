@@ -332,7 +332,10 @@ jobs:
           path: decent-linux-arm64-${{ steps.version.outputs.version }}.tar.gz
 
   build-windows:
-    runs-on: windows-latest
+    # Pinned: windows-latest rolled to VS 18 / MSVC 14.51, which hard-errors on
+    # <experimental/coroutine> still used by flutter_inappwebview_windows and
+    # permission_handler_windows. Revisit when plugins migrate to C++20 <coroutine>.
+    runs-on: windows-2022
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
