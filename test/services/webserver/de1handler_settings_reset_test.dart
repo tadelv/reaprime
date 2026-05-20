@@ -62,7 +62,7 @@ void main() {
       expect(res.statusCode, 200);
       final body = jsonDecode(await res.readAsString());
       expect(body['heaterVoltage'], isA<int>());
-      expect(body['refillKitSetting'], isA<String>());
+      expect(body['refillKitSetting'], isA<int>());
     });
 
     test('returns 500 when no DE1 connected', () async {
@@ -91,7 +91,7 @@ void main() {
       await wireWith(de1);
 
       final res = await post('/api/v1/machine/settings/advanced', {
-        'refillKitSetting': 'forceOn',
+        'refillKitSetting': 1,
       });
       expect(res.statusCode, 202);
 
@@ -105,14 +105,14 @@ void main() {
 
       await post('/api/v1/machine/settings/advanced', {
         'heaterVoltage': 230,
-        'refillKitSetting': 'forceOff',
+        'refillKitSetting': '2',
       });
 
       final res = await get('/api/v1/machine/settings/advanced');
       expect(res.statusCode, 200);
       final body = jsonDecode(await res.readAsString());
       expect(body['heaterVoltage'], 230);
-      expect(body['refillKitSetting'], 'forceOff');
+      expect(body['refillKitSetting'], 2);
     });
 
     test('returns 500 when no DE1 connected', () async {

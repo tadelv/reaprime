@@ -221,7 +221,7 @@ class De1Handler {
         if (json['refillKitSetting'] != null) {
           await de1.setRefillKitSettings(
             De1RefillKitSettings.values.firstWhere(
-              (e) => e.name == json['refillKitSetting'],
+              (e) => e.hex == parseInt(json['refillKitSetting']),
             ),
           );
         }
@@ -237,7 +237,7 @@ class De1Handler {
         json['heaterIdleTemp'] = await de1.getHeaterIdleTemp();
         json['heaterPh2Timeout'] = await de1.getHeaterPhase2Timeout();
         json['heaterVoltage'] = (await de1.getHeaterVoltage()).voltage;
-        json['refillKitSetting'] = (await de1.getRefillKitSettings()).name;
+        json['refillKitSetting'] = (await de1.getRefillKitSettings()).hex;
         return jsonOk(json);
       });
     });
