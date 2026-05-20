@@ -29,11 +29,24 @@ extension Defaults on De1Controller {
     RinseData rinseData = defaultWorkflow!.rinseData;
     await updateFlushSettings(rinseData);
 
-
     final defaultProfile = defaultWorkflow?.profile;
     if (defaultProfile == null) {
       return;
     }
     await _de1?.setProfile(defaultProfile);
+  }
+
+  Future<void> applySettingsDefaults() async {
+    await _de1?.setFanThreshhold(55);
+
+    await _de1?.setHeaterIdleTemp(95);
+    await _de1?.setHeaterPhase1Flow(2.0);
+    await _de1?.setHeaterPhase2Flow(4.0);
+    await _de1?.setHeaterPhase2Timeout(4.0);
+
+    await _de1?.setRefillKitSettings(.auto);
+
+    await _de1?.setFlowEstimation(1.0);
+    await _de1?.setSteamPurgeMode(0);
   }
 }

@@ -11,6 +11,7 @@ class De1Handler {
     app.get('/api/v1/machine/state', _stateHandler);
     app.put('/api/v1/machine/state/<newState>', _requestStateHandler);
     app.post('/api/v1/machine/profile', _profileHandler);
+    // TODO: is this still needed?
     app.options('/api/v1/machine/profile', (Request r) {
       return Response.ok(
         '',
@@ -255,6 +256,13 @@ class De1Handler {
         if (json['flowMultiplier'] != null) {
           await de1.setFlowEstimation(parseDouble(json['flowMultiplier']));
         }
+        return jsonAccepted();
+      });
+    });
+
+    app.delete('/api/v1/machine/settings/reset', (Request r) async {
+      return withDe1((de1) async {
+        await _controller.applySettingsDefaults();
         return jsonAccepted();
       });
     });
