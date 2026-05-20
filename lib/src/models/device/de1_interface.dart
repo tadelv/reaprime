@@ -16,6 +16,9 @@ abstract class De1Interface extends Machine {
   Stream<De1WaterLevels> get waterLevels;
   Future<void> setRefillLevel(int newRefillLevel);
 
+  Future<De1RefillKitSettings> getRefillKitSettings();
+  Future<void> setRefillKitSettings(De1RefillKitSettings settings);
+
   Future<void> setProfile(Profile profile);
   // TODO: also heater timeouts and others? (check mmr for options)
 
@@ -31,7 +34,7 @@ abstract class De1Interface extends Machine {
   Future<void> setHotWaterFlow(double newFlow);
   Future<double> getHotWaterFlow();
 
-// Flush/Rinse control
+  // Flush/Rinse control
   Future<void> setFlushFlow(double newFlow);
   Future<double> getFlushFlow();
   Future<void> setFlushTimeout(double newTimeout);
@@ -43,10 +46,14 @@ abstract class De1Interface extends Machine {
   Future<double> getFlowEstimation();
   Future<void> setFlowEstimation(double multiplier);
 
+  Future<De1HeaterVoltage> getHeaterVoltage();
+  // auto clamped to valid values
+  Future<void> setHeaterVoltage(De1HeaterVoltage voltage);
+
   //// USB and Charger Settings
   Future<bool> getUsbChargerMode();
   Future<void> setUsbChargerMode(bool t);
-  
+
   //// Steam Purge
   Future<void> setSteamPurgeMode(int mode);
   Future<int> getSteamPurgeMode();
@@ -54,7 +61,7 @@ abstract class De1Interface extends Machine {
   //// User Presence
   Future<void> enableUserPresenceFeature();
   Future<void> sendUserPresent();
-  
+
   //// Device Info
   //Future<int> getFirmwareBuild();
   //Future<int> getSerialNumber();
@@ -73,8 +80,10 @@ abstract class De1Interface extends Machine {
 
   // Firmware upgrade
   // TODO: should it be something different than Uint8List?
-  Future<void> updateFirmware(Uint8List fwImage,
-      {required void Function(double progress) onProgress});
+  Future<void> updateFirmware(
+    Uint8List fwImage, {
+    required void Function(double progress) onProgress,
+  });
 
   /// Cancel an in-progress firmware upload. Sets the machine to sleeping.
   /// No-op if no upload is in progress.
@@ -91,6 +100,23 @@ enum De1SteamSettingsValues {
 
   final int hex;
   const De1SteamSettingsValues(this.hex);
+}
+
+enum De1RefillKitSettings {
+  auto(0),
+  forceOn(1),
+  forceOff(2);
+
+  final int hex;
+  const De1RefillKitSettings(this.hex);
+}
+
+enum De1HeaterVoltage {
+  v110(110),
+  v220(220);
+
+  final int voltage;
+  const De1HeaterVoltage(this.voltage);
 }
 
 final class De1ShotSettings {
@@ -178,15 +204,15 @@ final class De1ShotSettings {
 
   @override
   int get hashCode => Object.hash(
-        steamSetting,
-        targetSteamTemp,
-        targetSteamDuration,
-        targetHotWaterTemp,
-        targetHotWaterVolume,
-        targetHotWaterDuration,
-        targetShotVolume,
-        groupTemp,
-      );
+    steamSetting,
+    targetSteamTemp,
+    targetSteamDuration,
+    targetHotWaterTemp,
+    targetHotWaterVolume,
+    targetHotWaterDuration,
+    targetShotVolume,
+    groupTemp,
+  );
 }
 
 final class De1WaterLevels {
@@ -205,5 +231,3 @@ final class De1WaterLevels {
     };
   }
 }
-
-
