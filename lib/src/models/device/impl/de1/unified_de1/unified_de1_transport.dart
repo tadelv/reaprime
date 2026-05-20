@@ -377,8 +377,9 @@ class UnifiedDe1Transport {
           // Defense-in-depth: `Endpoint.representation` is currently
           // declared non-null, but if a future variant relaxes that we
           // want a clear error rather than passing null downstream.
-          // ignore: unnecessary_null_comparison
+          // ignore: unnecessary_null_comparison, dead_code
           if (endpoint.representation == null) {
+            // ignore: dead_code
             throw StateError(
                 'UnifiedDe1Transport.read: endpoint ${endpoint.name} has no serial wire support');
           }
