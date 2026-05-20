@@ -32,7 +32,12 @@ class De1Handler {
       return withDe1((de1) async {
         final caps = <String>[];
         if (de1 is BengleInterface) {
-          caps.addAll(['cupWarmer', 'integratedScale', 'ledStrip', 'stopAtWeight']);
+          caps.addAll([
+            'cupWarmer',
+            'integratedScale',
+            'ledStrip',
+            'stopAtWeight',
+          ]);
         }
         return jsonOk({'capabilities': caps});
       });
@@ -59,8 +64,7 @@ class De1Handler {
         }
         final t = parseDouble(json['temperature']);
         if (t < 0.0 || t > 80.0) {
-          return jsonBadRequest(
-              {'error': 'temperature out of range 0.0-80.0'});
+          return jsonBadRequest({'error': 'temperature out of range 0.0-80.0'});
         }
         await de1.setCupWarmerTemperature(t);
         return jsonOk({'status': 'accepted'});
@@ -206,6 +210,20 @@ class De1Handler {
             parseDouble(json['heaterPh2Timeout']),
           );
         }
+        if (json['heaterVoltage'] != null) {
+          await de1.setHeaterVoltage(
+            De1HeaterVoltage.fromInt(
+              parseInt(json['heaterVoltage']),
+            ),
+          );
+        }
+        if (json['refillKitSetting'] != null) {
+          await de1.setRefillKitSettings(
+            De1RefillKitSettings.values.firstWhere(
+              (e) => e == json['refillKitSetting'],
+            ),
+          );
+        }
         return jsonAccepted();
       });
     });
@@ -217,6 +235,8 @@ class De1Handler {
         json['heaterPh2Flow'] = await de1.getHeaterPhase2Flow();
         json['heaterIdleTemp'] = await de1.getHeaterIdleTemp();
         json['heaterPh2Timeout'] = await de1.getHeaterPhase2Timeout();
+        json['heaterVoltage'] = (await de1.getHeaterVoltage()).voltage;
+        json['refillKitSetting'] = (await de1.getRefillKitSettings()).name;
         return jsonOk(json);
       });
     });
@@ -240,8 +260,10 @@ class De1Handler {
     });
 
     app.post('/api/v1/machine/firmware', (Request request) async {
-      final List<int> bodyBytes =
-          await request.read().expand((x) => x).toList();
+      final List<int> bodyBytes = await request
+          .read()
+          .expand((x) => x)
+          .toList();
       final Uint8List fwImage = Uint8List.fromList(bodyBytes);
 
       De1Interface de1;
@@ -368,7 +390,10 @@ class De1Handler {
     });
   }
 
-  Future<void> _handleSnapshot(WebSocketChannel socket, String? protocol) async {
+  Future<void> _handleSnapshot(
+    WebSocketChannel socket,
+    String? protocol,
+  ) async {
     log.fine("handling websocket connection");
     _withDe1Ws(socket, (de1) {
       var sub = de1.currentSnapshot.listen((snapshot) {
@@ -387,7 +412,10 @@ class De1Handler {
     });
   }
 
-  Future<void> _handleShotSettings(WebSocketChannel socket, String? protocol) async {
+  Future<void> _handleShotSettings(
+    WebSocketChannel socket,
+    String? protocol,
+  ) async {
     log.fine('handling shot settings connection');
     _withDe1Ws(socket, (de1) {
       var sub = de1.shotSettings.listen((data) {
@@ -406,7 +434,10 @@ class De1Handler {
     });
   }
 
-  Future<void> _handleWaterLevels(WebSocketChannel socket, String? protocol) async {
+  Future<void> _handleWaterLevels(
+    WebSocketChannel socket,
+    String? protocol,
+  ) async {
     log.fine('handling water levels connection');
     _withDe1Ws(socket, (de1) {
       var sub = de1.waterLevels.listen((data) {
@@ -425,7 +456,10 @@ class De1Handler {
     });
   }
 
-  Future<void> _handleRawSocket(WebSocketChannel socket, String? protocol) async {
+  Future<void> _handleRawSocket(
+    WebSocketChannel socket,
+    String? protocol,
+  ) async {
     _withDe1Ws(socket, (de1) {
       var sub = de1.rawOutStream.listen((data) {
         try {
@@ -447,4 +481,3 @@ class De1Handler {
     });
   }
 }
-

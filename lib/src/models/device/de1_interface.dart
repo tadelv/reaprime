@@ -88,7 +88,8 @@ enum De1SteamSettingsValues {
   fastStart(0x80),
   slowStart(0x00),
   highPower(0x40),
-  lowPower(0x00);
+  lowPower(0x00)
+  ;
 
   final int hex;
   const De1SteamSettingsValues(this.hex);
@@ -97,7 +98,8 @@ enum De1SteamSettingsValues {
 enum De1RefillKitSettings {
   auto(2),
   forceOn(1),
-  forceOff(0);
+  forceOff(0)
+  ;
 
   final int hex;
   const De1RefillKitSettings(this.hex);
@@ -108,10 +110,14 @@ enum De1RefillKitSettings {
 
 enum De1HeaterVoltage {
   v110(110),
-  v220(220);
+  v220(220)
+  ;
 
   final int voltage;
   const De1HeaterVoltage(this.voltage);
+  factory De1HeaterVoltage.fromInt(int voltage) {
+    return De1HeaterVoltage.values.firstWhere((e) => e.voltage == voltage);
+  }
 }
 
 final class De1ShotSettings {
