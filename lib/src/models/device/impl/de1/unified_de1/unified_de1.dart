@@ -165,8 +165,8 @@ class UnifiedDe1 implements De1Interface {
 
   @override
   String get name => "DE1";
-  late int _voltage;
-  late int _refillKit;
+  int _voltage = -1;
+  int _refillKit = -1;
 
   @override
   Future<void> onConnect() async {
@@ -221,10 +221,9 @@ class UnifiedDe1 implements De1Interface {
   Stream<De1RawMessage> get rawOutStream => _rawMessageController.stream;
 
   @override
-  Stream<bool> get ready =>
-      _transport.connectionState
-          .map((state) => state == ConnectionState.connected)
-          .asBroadcastStream();
+  Stream<bool> get ready => _transport.connectionState
+      .map((state) => state == ConnectionState.connected)
+      .asBroadcastStream();
 
   @override
   Future<void> requestState(MachineState newState) async {
@@ -364,14 +363,13 @@ class UnifiedDe1 implements De1Interface {
   }
 
   @override
-  Stream<De1ShotSettings> get shotSettings =>
-      _transport.shotSettings
-          .map((d) {
-            notifyFrom(Endpoint.shotSettings, d.buffer.asUint8List());
-            return d;
-          })
-          .map(_parseShotSettings)
-          .distinct();
+  Stream<De1ShotSettings> get shotSettings => _transport.shotSettings
+      .map((d) {
+        notifyFrom(Endpoint.shotSettings, d.buffer.asUint8List());
+        return d;
+      })
+      .map(_parseShotSettings)
+      .distinct();
 
   @override
   DeviceType get type => DeviceType.machine;
@@ -603,10 +601,9 @@ class UnifiedDe1 implements De1Interface {
       MmrValueKind.boolean,
     }, 'writeMmrInt');
     if (addr is MMRItem) return _writeMMRInt(addr, value);
-    final clamped =
-        (addr.min != null && addr.max != null)
-            ? value.clamp(addr.min!, addr.max!)
-            : value;
+    final clamped = (addr.min != null && addr.max != null)
+        ? value.clamp(addr.min!, addr.max!)
+        : value;
     return _mmrWriteRaw(addr.address, _packMMRInt(clamped));
   }
 
@@ -615,10 +612,9 @@ class UnifiedDe1 implements De1Interface {
     _assertKind(addr, const {MmrValueKind.scaledFloat}, 'writeMmrScaled');
     final scaled = (value * addr.writeScale).toInt();
     if (addr is MMRItem) return _writeMMRInt(addr, scaled);
-    final clamped =
-        (addr.min != null && addr.max != null)
-            ? scaled.clamp(addr.min!, addr.max!)
-            : scaled;
+    final clamped = (addr.min != null && addr.max != null)
+        ? scaled.clamp(addr.min!, addr.max!)
+        : scaled;
     return _mmrWriteRaw(addr.address, _packMMRInt(clamped));
   }
 
@@ -646,17 +642,16 @@ class UnifiedDe1 implements De1Interface {
   // Private getter for MMR stream with notifyFrom called once per event
   // Cached to ensure only one stream chain is created
   Stream<ByteData> get _mmr {
-    _cachedMmrStream ??=
-        _transport.mmr.map((d) {
-          notifyFrom(Endpoint.readFromMMR, d.buffer.asUint8List());
-          return d;
-        }).asBroadcastStream();
+    _cachedMmrStream ??= _transport.mmr.map((d) {
+      notifyFrom(Endpoint.readFromMMR, d.buffer.asUint8List());
+      return d;
+    }).asBroadcastStream();
     return _cachedMmrStream!;
   }
 
   @override
   Future<De1HeaterVoltage> getHeaterVoltage() async {
-    return _voltage > 110 ? De1HeaterVoltage.v110 : De1HeaterVoltage.v220;
+    return De1HeaterVoltage.fromInt(_voltage);
   }
 
   @override
