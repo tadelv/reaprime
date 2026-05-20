@@ -20,7 +20,6 @@ abstract class De1Interface extends Machine {
   Future<void> setRefillKitSettings(De1RefillKitSettings settings);
 
   Future<void> setProfile(Profile profile);
-  // TODO: also heater timeouts and others? (check mmr for options)
 
   //// Timeouts and Thresholds
   Future<void> setFanThreshhold(int temp);
@@ -62,12 +61,6 @@ abstract class De1Interface extends Machine {
   Future<void> enableUserPresenceFeature();
   Future<void> sendUserPresent();
 
-  //// Device Info
-  //Future<int> getFirmwareBuild();
-  //Future<int> getSerialNumber();
-  //Future<int> getGhcInfo();
-  //Future<int> getGhcMode();
-
   // Heater prefs
   Future<double> getHeaterPhase1Flow();
   Future<void> setHeaterPhase1Flow(double val);
@@ -79,7 +72,6 @@ abstract class De1Interface extends Machine {
   Future<void> setHeaterIdleTemp(double val);
 
   // Firmware upgrade
-  // TODO: should it be something different than Uint8List?
   Future<void> updateFirmware(
     Uint8List fwImage, {
     required void Function(double progress) onProgress,
@@ -103,12 +95,15 @@ enum De1SteamSettingsValues {
 }
 
 enum De1RefillKitSettings {
-  auto(0),
+  auto(2),
   forceOn(1),
-  forceOff(2);
+  forceOff(0);
 
   final int hex;
   const De1RefillKitSettings(this.hex);
+  factory De1RefillKitSettings.fromInt(int setting) {
+    return De1RefillKitSettings.values.firstWhere((e) => e.hex == setting);
+  }
 }
 
 enum De1HeaterVoltage {

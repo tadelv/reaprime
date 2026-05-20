@@ -293,7 +293,8 @@ class MockDe1 implements De1Interface {
     double targetFlow;
     double targetPressure;
     double stepTargetFlow; // what the profile step prescribes (for snapshot)
-    double stepTargetPressure; // what the profile step prescribes (for snapshot)
+    double
+    stepTargetPressure; // what the profile step prescribes (for snapshot)
     if (currentStep is ProfileStepPressure) {
       stepTargetPressure = currentStep.pressure;
       stepTargetFlow = 0; // unconstrained in this step
@@ -314,23 +315,27 @@ class MockDe1 implements De1Interface {
     // Apply transition shaping: smooth interpolates target over step duration;
     // fast uses step target immediately.
     if (currentStep.transition == TransitionType.smooth) {
-      targetFlow = _fromFlowTarget +
-          (targetFlow - _fromFlowTarget) * stepProgress;
-      targetPressure = _fromPressureTarget +
+      targetFlow =
+          _fromFlowTarget + (targetFlow - _fromFlowTarget) * stepProgress;
+      targetPressure =
+          _fromPressureTarget +
           (targetPressure - _fromPressureTarget) * stepProgress;
-      stepTargetFlow = _fromFlowTarget +
-          (stepTargetFlow - _fromFlowTarget) * stepProgress;
-      stepTargetPressure = _fromPressureTarget +
+      stepTargetFlow =
+          _fromFlowTarget + (stepTargetFlow - _fromFlowTarget) * stepProgress;
+      stepTargetPressure =
+          _fromPressureTarget +
           (stepTargetPressure - _fromPressureTarget) * stepProgress;
     }
 
     // Flow responds quickly (pump-driven).
-    double newFlow = _lastSnapshot.flow +
+    double newFlow =
+        _lastSnapshot.flow +
         (targetFlow - _lastSnapshot.flow) * flowResponseRate;
 
     // Pressure lags behind flow (puck-mediated).
     final unboundedPressure = newFlow * resistance;
-    double newPressure = _lastSnapshot.pressure +
+    double newPressure =
+        _lastSnapshot.pressure +
         (unboundedPressure - _lastSnapshot.pressure) * pressureDamping;
 
     // Pressure-step: clamp flow when pressure hits the step's ceiling.
@@ -703,5 +708,26 @@ class MockDe1 implements De1Interface {
 
   @override
   Future<void> sendUserPresent() async {}
-}
 
+  De1HeaterVoltage _voltage = De1HeaterVoltage.v110;
+  @override
+  Future<De1HeaterVoltage> getHeaterVoltage() async {
+    return _voltage;
+  }
+
+  De1RefillKitSettings _de1refillKitSettings = De1RefillKitSettings.auto;
+  @override
+  Future<De1RefillKitSettings> getRefillKitSettings() async {
+    return _de1refillKitSettings;
+  }
+
+  @override
+  Future<void> setHeaterVoltage(De1HeaterVoltage voltage) async {
+    _voltage = voltage;
+  }
+
+  @override
+  Future<void> setRefillKitSettings(De1RefillKitSettings settings) async {
+    _de1refillKitSettings = settings;
+  }
+}

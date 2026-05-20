@@ -20,28 +20,28 @@ class TestDe1 implements De1Interface {
   final String _name;
 
   TestDe1({String deviceId = 'test-de1', String name = 'TestDe1'})
-      : _deviceId = deviceId,
-        _name = name;
+    : _deviceId = deviceId,
+      _name = name;
   final BehaviorSubject<MachineSnapshot> snapshotSubject =
       BehaviorSubject.seeded(
-    MachineSnapshot(
-      timestamp: DateTime(2026, 1, 15, 8, 0),
-      state: const MachineStateSnapshot(
-        state: MachineState.idle,
-        substate: MachineSubstate.idle,
-      ),
-      flow: 0,
-      pressure: 0,
-      targetFlow: 0,
-      targetPressure: 0,
-      mixTemperature: 90,
-      groupTemperature: 90,
-      targetMixTemperature: 93,
-      targetGroupTemperature: 93,
-      profileFrame: 0,
-      steamTemperature: 0,
-    ),
-  );
+        MachineSnapshot(
+          timestamp: DateTime(2026, 1, 15, 8, 0),
+          state: const MachineStateSnapshot(
+            state: MachineState.idle,
+            substate: MachineSubstate.idle,
+          ),
+          flow: 0,
+          pressure: 0,
+          targetFlow: 0,
+          targetPressure: 0,
+          mixTemperature: 90,
+          groupTemperature: 90,
+          targetMixTemperature: 93,
+          targetGroupTemperature: 93,
+          profileFrame: 0,
+          steamTemperature: 0,
+        ),
+      );
 
   final BehaviorSubject<ConnectionState> _connectionState =
       BehaviorSubject.seeded(ConnectionState.connected);
@@ -69,9 +69,11 @@ class TestDe1 implements De1Interface {
   /// state and substate.
   void emitStateAndSubstate(MachineState state, MachineSubstate substate) {
     final current = snapshotSubject.value;
-    snapshotSubject.add(current.copyWith(
-      state: MachineStateSnapshot(state: state, substate: substate),
-    ));
+    snapshotSubject.add(
+      current.copyWith(
+        state: MachineStateSnapshot(state: state, substate: substate),
+      ),
+    );
   }
 
   /// Update the connection state. Listeners on [connectionState] will be
@@ -93,12 +95,12 @@ class TestDe1 implements De1Interface {
 
   @override
   MachineInfo get machineInfo => MachineInfo(
-        version: '1',
-        model: '1',
-        serialNumber: '1',
-        groupHeadControllerPresent: false,
-        extra: {},
-      );
+    version: '1',
+    model: '1',
+    serialNumber: '1',
+    groupHeadControllerPresent: false,
+    extra: {},
+  );
 
   @override
   Future<void> requestState(MachineState newState) async {
@@ -197,8 +199,18 @@ class TestDe1 implements De1Interface {
   @override
   Future<void> setHeaterIdleTemp(double val) async {}
   @override
-  Future<void> updateFirmware(Uint8List fwImage,
-      {required void Function(double progress) onProgress}) async {}
+  Future<void> updateFirmware(
+    Uint8List fwImage, {
+    required void Function(double progress) onProgress,
+  }) async {}
   @override
   Future<void> cancelFirmwareUpload() async {}
+  @override
+  Future<De1HeaterVoltage> getHeaterVoltage() async => .v110;
+  @override
+  Future<De1RefillKitSettings> getRefillKitSettings() async => .auto;
+  @override
+  Future<void> setHeaterVoltage(De1HeaterVoltage voltage) async {}
+  @override
+  Future<void> setRefillKitSettings(De1RefillKitSettings settings) async {}
 }
