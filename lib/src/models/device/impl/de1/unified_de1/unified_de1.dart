@@ -46,24 +46,23 @@ class UnifiedDe1 implements De1Interface {
   @override
   Stream<ConnectionState> get connectionState => _transport.connectionState;
 
-  late final Stream<MachineSnapshot> _currentSnapshot =
-      _transport.shotSample
-          .map((d) {
-            notifyFrom(Endpoint.shotSample, d.buffer.asUint8List());
-            return d;
-          })
-          .withLatestFrom(
-            _transport.state.map((d) {
-              notifyFrom(Endpoint.stateInfo, d.buffer.asUint8List());
-              return d;
-            }),
-            (snp, st) {
-              final snapshot = _parseStateAndShotSample(st, snp);
-              _log.finest("new state: ${snapshot.toJson()}");
-              return snapshot;
-            },
-          )
-          .shareReplay(maxSize: 1);
+  late final Stream<MachineSnapshot> _currentSnapshot = _transport.shotSample
+      .map((d) {
+        notifyFrom(Endpoint.shotSample, d.buffer.asUint8List());
+        return d;
+      })
+      .withLatestFrom(
+        _transport.state.map((d) {
+          notifyFrom(Endpoint.stateInfo, d.buffer.asUint8List());
+          return d;
+        }),
+        (snp, st) {
+          final snapshot = _parseStateAndShotSample(st, snp);
+          _log.finest("new state: ${snapshot.toJson()}");
+          return snapshot;
+        },
+      )
+      .shareReplay(maxSize: 1);
 
   @override
   Stream<MachineSnapshot> get currentSnapshot => _currentSnapshot;
@@ -166,6 +165,8 @@ class UnifiedDe1 implements De1Interface {
 
   @override
   String get name => "DE1";
+  late int _voltage;
+  late int _refillKit;
 
   @override
   Future<void> onConnect() async {
@@ -186,21 +187,19 @@ class UnifiedDe1 implements De1Interface {
     final ghcInfo = _unpackMMRInt(await _mmrRead(MMRItem.ghcInfo));
     final serial = _unpackMMRInt(await _mmrRead(MMRItem.serialN));
     final firmware = _unpackMMRInt(await _mmrRead(MMRItem.cpuFirmwareBuild));
-    final voltage = _unpackMMRInt(await _mmrRead(MMRItem.heaterV));
-    final refillKit = _unpackMMRInt(await _mmrRead(MMRItem.refillKitPresent));
+    _voltage = _unpackMMRInt(await _mmrRead(MMRItem.heaterV));
+    _refillKit = _unpackMMRInt(await _mmrRead(MMRItem.refillKitPresent));
 
     _info = MachineInfo(
       version: "$firmware",
       model: DecentMachineModel.fromInt(model).name,
       serialNumber: "$serial",
       groupHeadControllerPresent: (ghcInfo & 0x04) > 1,
-      extra: {'refillKit': (refillKit & 0x01) != 0, 'voltage': voltage},
+      extra: {'refillKit': (_refillKit & 0x01) != 0, 'voltage': _voltage},
     );
 
     _log.info("Info: ${_info!.toJson()}");
 
-    // TODO: User configurable setting
-    // Set refill kit to autodetect
     await _mmrWrite(MMRItem.refillKitPresent, [0x02]);
 
     await enableUserPresenceFeature();
@@ -222,9 +221,10 @@ class UnifiedDe1 implements De1Interface {
   Stream<De1RawMessage> get rawOutStream => _rawMessageController.stream;
 
   @override
-  Stream<bool> get ready => _transport.connectionState
-      .map((state) => state == ConnectionState.connected)
-      .asBroadcastStream();
+  Stream<bool> get ready =>
+      _transport.connectionState
+          .map((state) => state == ConnectionState.connected)
+          .asBroadcastStream();
 
   @override
   Future<void> requestState(MachineState newState) async {
@@ -364,13 +364,14 @@ class UnifiedDe1 implements De1Interface {
   }
 
   @override
-  Stream<De1ShotSettings> get shotSettings => _transport.shotSettings
-      .map((d) {
-        notifyFrom(Endpoint.shotSettings, d.buffer.asUint8List());
-        return d;
-      })
-      .map(_parseShotSettings)
-      .distinct();
+  Stream<De1ShotSettings> get shotSettings =>
+      _transport.shotSettings
+          .map((d) {
+            notifyFrom(Endpoint.shotSettings, d.buffer.asUint8List());
+            return d;
+          })
+          .map(_parseShotSettings)
+          .distinct();
 
   @override
   DeviceType get type => DeviceType.machine;
@@ -398,7 +399,9 @@ class UnifiedDe1 implements De1Interface {
     try {
       await requestState(MachineState.sleeping);
     } catch (e) {
-      _log.warning('cancelFirmwareUpload: failed to request sleeping state: $e');
+      _log.warning(
+        'cancelFirmwareUpload: failed to request sleeping state: $e',
+      );
     }
   }
 
@@ -498,8 +501,11 @@ class UnifiedDe1 implements De1Interface {
   /// dispatches to [UnifiedDe1Transport.writeWithResponse]; when `false`
   /// dispatches to [UnifiedDe1Transport.write] for fire-and-forget writes.
   @protected
-  Future<void> writeEndpoint(LogicalEndpoint endpoint, Uint8List data,
-      {bool withResponse = true}) async {
+  Future<void> writeEndpoint(
+    LogicalEndpoint endpoint,
+    Uint8List data, {
+    bool withResponse = true,
+  }) async {
     if (withResponse) {
       return _transport.writeWithResponse(endpoint, data);
     }
@@ -507,11 +513,14 @@ class UnifiedDe1 implements De1Interface {
   }
 
   @protected
-  Future<ByteData> readEndpoint(LogicalEndpoint endpoint,
-      {Duration? timeout}) async {
+  Future<ByteData> readEndpoint(
+    LogicalEndpoint endpoint, {
+    Duration? timeout,
+  }) async {
     if (endpoint.uuid == null) {
       throw StateError(
-          'UnifiedDe1.readEndpoint: endpoint ${endpoint.name} has no BLE read path');
+        'UnifiedDe1.readEndpoint: endpoint ${endpoint.name} has no BLE read path',
+      );
     }
     return _transport.read(endpoint, timeout: timeout);
   }
@@ -548,13 +557,15 @@ class UnifiedDe1 implements De1Interface {
           return _transport.fwMapRequest;
         default:
           throw UnimplementedError(
-              'UnifiedDe1.notificationsFor: Endpoint.${endpoint.name} is '
-              'not a notifying characteristic on UnifiedDe1');
+            'UnifiedDe1.notificationsFor: Endpoint.${endpoint.name} is '
+            'not a notifying characteristic on UnifiedDe1',
+          );
       }
     }
     throw UnimplementedError(
-        'UnifiedDe1.notificationsFor: runtime subscription for ${endpoint.name} '
-        'lands with capability impl');
+      'UnifiedDe1.notificationsFor: runtime subscription for ${endpoint.name} '
+      'lands with capability impl',
+    );
   }
 
   @protected
@@ -592,9 +603,10 @@ class UnifiedDe1 implements De1Interface {
       MmrValueKind.boolean,
     }, 'writeMmrInt');
     if (addr is MMRItem) return _writeMMRInt(addr, value);
-    final clamped = (addr.min != null && addr.max != null)
-        ? value.clamp(addr.min!, addr.max!)
-        : value;
+    final clamped =
+        (addr.min != null && addr.max != null)
+            ? value.clamp(addr.min!, addr.max!)
+            : value;
     return _mmrWriteRaw(addr.address, _packMMRInt(clamped));
   }
 
@@ -603,9 +615,10 @@ class UnifiedDe1 implements De1Interface {
     _assertKind(addr, const {MmrValueKind.scaledFloat}, 'writeMmrScaled');
     final scaled = (value * addr.writeScale).toInt();
     if (addr is MMRItem) return _writeMMRInt(addr, scaled);
-    final clamped = (addr.min != null && addr.max != null)
-        ? scaled.clamp(addr.min!, addr.max!)
-        : scaled;
+    final clamped =
+        (addr.min != null && addr.max != null)
+            ? scaled.clamp(addr.min!, addr.max!)
+            : scaled;
     return _mmrWriteRaw(addr.address, _packMMRInt(clamped));
   }
 
@@ -633,10 +646,33 @@ class UnifiedDe1 implements De1Interface {
   // Private getter for MMR stream with notifyFrom called once per event
   // Cached to ensure only one stream chain is created
   Stream<ByteData> get _mmr {
-    _cachedMmrStream ??= _transport.mmr.map((d) {
-      notifyFrom(Endpoint.readFromMMR, d.buffer.asUint8List());
-      return d;
-    }).asBroadcastStream();
+    _cachedMmrStream ??=
+        _transport.mmr.map((d) {
+          notifyFrom(Endpoint.readFromMMR, d.buffer.asUint8List());
+          return d;
+        }).asBroadcastStream();
     return _cachedMmrStream!;
+  }
+
+  @override
+  Future<De1HeaterVoltage> getHeaterVoltage() async {
+    return _voltage > 110 ? De1HeaterVoltage.v110 : De1HeaterVoltage.v220;
+  }
+
+  @override
+  Future<De1RefillKitSettings> getRefillKitSettings() async {
+    return De1RefillKitSettings.fromInt(_refillKit);
+  }
+
+  @override
+  Future<void> setHeaterVoltage(De1HeaterVoltage voltage) async {
+    await _writeMMRInt(MMRItem.heaterV, voltage.voltage);
+    _voltage = voltage.voltage;
+  }
+
+  @override
+  Future<void> setRefillKitSettings(De1RefillKitSettings settings) async {
+    await _writeMMRInt(MMRItem.refillKitPresent, settings.hex);
+    _refillKit = settings.hex;
   }
 }

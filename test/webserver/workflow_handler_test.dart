@@ -222,6 +222,14 @@ class SpyDe1 implements De1Interface {
       {required void Function(double progress) onProgress}) async {}
   @override
   Future<void> cancelFirmwareUpload() async {}
+  @override
+  Future<De1HeaterVoltage> getHeaterVoltage() async => .v110;
+  @override
+  Future<De1RefillKitSettings> getRefillKitSettings() async => .auto;
+  @override
+  Future<void> setHeaterVoltage(De1HeaterVoltage voltage) async {}
+  @override
+  Future<void> setRefillKitSettings(De1RefillKitSettings settings) async {}
 }
 
 Future<void> _settleHandler() async {
