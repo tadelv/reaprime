@@ -221,7 +221,7 @@ class De1Handler {
         if (json['refillKitSetting'] != null) {
           await de1.setRefillKitSettings(
             De1RefillKitSettings.values.firstWhere(
-              (e) => e == json['refillKitSetting'],
+              (e) => e.name == json['refillKitSetting'],
             ),
           );
         }
