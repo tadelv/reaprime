@@ -72,6 +72,12 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
 
   @override
   Future<void> scanForDevices({domain.ScanFilter? filter}) async {
+    final state = _adapterStateSubject.value;
+    if (state != AdapterState.poweredOn) {
+      log.warning("Cannot scan, adapter state is $state");
+      _deviceStreamController.add(_devices.values.toList());
+      return;
+    }
     if (_isScanning) {
       log.warning('Scan already in progress, ignoring request');
       return;
