@@ -187,8 +187,8 @@ class WebViewCompatibilityChecker {
         );
       }
 
-      // Check Android version (require Android 8.0 / API 26+)
-      if (sdkInt < 26) {
+      // Check Android version (require Android 10 / API 29+)
+      if (sdkInt < 29) {
         final reason =
             'Android version too old for stable WebView: $androidVersion (SDK $sdkInt)';
         _log.warning(reason);
