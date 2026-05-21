@@ -20,6 +20,12 @@ on:
           - ios
           - windows
 
+# bundle_skins.sh (invoked by flutter_with_commit.sh) hits api.github.com.
+# Without auth, all jobs share the runner IP's 60 req/hr limit and silently
+# get empty manifests. Expose GITHUB_TOKEN to every job so curl gets 5000/hr.
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 jobs:
   build-android:
     if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'android'

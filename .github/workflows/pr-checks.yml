@@ -49,8 +49,16 @@ jobs:
           npm ci
           npm run build
 
-      - name: Bundle skins
-        run: bash bundle_skins.sh
+      # Tests only assert manifest shape (non-empty list of string IDs) and
+      # `flutter analyze` only needs the asset dir to exist. Skip the real
+      # bundler here — it makes 4+ unauthenticated api.github.com calls per
+      # run and contributes nothing to test coverage. Develop/release
+      # workflows still run the real bundler via flutter_with_commit.sh.
+      - name: Stub bundled_skins (CI only)
+        run: |
+          mkdir -p assets/bundled_skins
+          printf '["stub-skin"]\n' > assets/bundled_skins/manifest.json
+          : > assets/bundled_skins/stub-skin.zip
 
       # Format check is advisory until the codebase has been mass-reformatted
       # for Dart 3.7+ "tall style". Once that lands, drop continue-on-error.

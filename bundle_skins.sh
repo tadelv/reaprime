@@ -25,6 +25,23 @@ mkdir -p "$CACHE_DIR" "$OUTPUT_DIR"
 # Cache dir is preserved to avoid re-downloading unchanged sources.
 rm -f "$OUTPUT_DIR"/*.zip "$OUTPUT_DIR"/manifest.json
 
+# Authenticate GitHub API requests when a token is available. Unauthenticated
+# api.github.com is rate-limited to 60 req/hr per IP, which is shared across
+# GitHub-hosted runners and routinely exhausted — leading to silent fetch
+# failures and empty manifests. GITHUB_TOKEN is auto-injected in Actions; locally
+# set GITHUB_TOKEN or GH_TOKEN if you hit rate limits.
+GH_AUTH_HEADER=()
+GH_TOKEN_VALUE="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+if [ -n "$GH_TOKEN_VALUE" ]; then
+  GH_AUTH_HEADER=(-H "Authorization: Bearer $GH_TOKEN_VALUE")
+fi
+
+# Track failures so we can exit non-zero if anything went wrong. Prior behavior
+# was to `continue` past every failure and emit an empty manifest, which
+# surfaced as a confusing test failure in `webui_storage_bundled_test.dart`
+# rather than a clear bundle-step failure.
+FAILED_SOURCES=()
+
 COUNT=$(jq length "$CONFIG")
 
 for ((i=0; i<COUNT; i++)); do
@@ -42,12 +59,14 @@ for ((i=0; i<COUNT; i++)); do
       if [ "$PRERELEASE" = "true" ]; then
         RELEASE_JSON=$(curl -sfL "https://api.github.com/repos/$REPO/releases" \
           -H "Accept: application/vnd.github.v3+json" \
-          -H "User-Agent: Decent-Build" 2>/dev/null) || { echo "Warning: Failed to fetch releases for $REPO"; continue; }
+          -H "User-Agent: Decent-Build" \
+          "${GH_AUTH_HEADER[@]}" 2>/dev/null) || { echo "Warning: Failed to fetch releases for $REPO"; FAILED_SOURCES+=("$REPO"); continue; }
         RELEASE_JSON=$(echo "$RELEASE_JSON" | jq '.[0]')
       else
         RELEASE_JSON=$(curl -sfL "https://api.github.com/repos/$REPO/releases/latest" \
           -H "Accept: application/vnd.github.v3+json" \
-          -H "User-Agent: Decent-Build" 2>/dev/null) || { echo "Warning: Failed to fetch latest release for $REPO"; continue; }
+          -H "User-Agent: Decent-Build" \
+          "${GH_AUTH_HEADER[@]}" 2>/dev/null) || { echo "Warning: Failed to fetch latest release for $REPO"; FAILED_SOURCES+=("$REPO"); continue; }
       fi
 
       TAG=$(echo "$RELEASE_JSON" | jq -r '.tag_name')
@@ -60,6 +79,7 @@ for ((i=0; i<COUNT; i++)); do
 
       if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ]; then
         echo "Warning: No download URL found for $REPO, skipping"
+        FAILED_SOURCES+=("$REPO")
         continue
       fi
 
@@ -71,7 +91,7 @@ for ((i=0; i<COUNT; i++)); do
         echo "Using cached: $CACHE_FILE"
       else
         echo "Downloading: $DOWNLOAD_URL"
-        curl -sfL -o "$CACHE_FILE" "$DOWNLOAD_URL" || { echo "Warning: Download failed for $REPO"; continue; }
+        curl -sfL -o "$CACHE_FILE" "$DOWNLOAD_URL" || { echo "Warning: Download failed for $REPO"; FAILED_SOURCES+=("$REPO"); continue; }
       fi
 
       cp "$CACHE_FILE" "$OUTPUT_DIR/$SKIN_ID.zip"
@@ -96,7 +116,7 @@ for ((i=0; i<COUNT; i++)); do
       fi
 
       echo "Downloading: $URL"
-      curl -sfL -o "$CACHE_FILE" "$URL" || { echo "Warning: Download failed for $REPO/$BRANCH"; continue; }
+      curl -sfL -o "$CACHE_FILE" "$URL" || { echo "Warning: Download failed for $REPO/$BRANCH"; FAILED_SOURCES+=("$REPO/$BRANCH"); continue; }
 
       cp "$CACHE_FILE" "$OUTPUT_DIR/$SKIN_ID.zip"
       echo "Bundled skin: $SKIN_ID"
@@ -104,6 +124,7 @@ for ((i=0; i<COUNT; i++)); do
 
     *)
       echo "Warning: Unknown source type '$TYPE', skipping"
+      FAILED_SOURCES+=("$REPO ($TYPE)")
       continue
       ;;
   esac
@@ -132,4 +153,16 @@ done
 echo "" >> "$OUTPUT_DIR/manifest.json"
 echo "]" >> "$OUTPUT_DIR/manifest.json"
 
-echo "--- Done: $(ls -1 "$OUTPUT_DIR"/*.zip 2>/dev/null | wc -l | tr -d ' ') skins bundled ---"
+BUNDLED_COUNT=$(ls -1 "$OUTPUT_DIR"/*.zip 2>/dev/null | wc -l | tr -d ' ')
+echo "--- Done: $BUNDLED_COUNT skins bundled ---"
+
+if [ "${#FAILED_SOURCES[@]}" -gt 0 ]; then
+  echo "ERROR: ${#FAILED_SOURCES[@]} of $COUNT skin source(s) failed:"
+  for SRC in "${FAILED_SOURCES[@]}"; do
+    echo "  - $SRC"
+  done
+  if [ -z "$GH_TOKEN_VALUE" ]; then
+    echo "Hint: set GITHUB_TOKEN or GH_TOKEN to avoid GitHub API rate limits."
+  fi
+  exit 1
+fi
