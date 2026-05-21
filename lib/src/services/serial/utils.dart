@@ -32,6 +32,31 @@ bool isDE1(List<String> data, List<int> bytes) {
   return data.any((e) => e.startsWith("[M]"));
 }
 
+/// Non-blocking replacement for the native `sp_drain`, which has no timeout
+/// and blocks the calling isolate forever when a USB-serial device never
+/// transmits the buffered bytes (observed when scan probes a non-Decent
+/// device, e.g. a Valve VR Radio on a Windows COM port — it froze startup).
+///
+/// Polls [bytesToWrite] until it reports an empty output buffer or [timeout]
+/// elapses, sleeping [pollInterval] between reads. Always returns; never
+/// waits longer than `ceil(timeout / pollInterval)` polls. [sleep] is
+/// injectable for tests.
+Future<void> drainWithTimeout({
+  required int Function() bytesToWrite,
+  Duration timeout = const Duration(milliseconds: 200),
+  Duration pollInterval = const Duration(milliseconds: 5),
+  Future<void> Function(Duration)? sleep,
+}) async {
+  final sleepFn = sleep ?? Future<void>.delayed;
+  final maxPolls = pollInterval.inMicroseconds <= 0
+      ? 0
+      : (timeout.inMicroseconds / pollInterval.inMicroseconds).ceil();
+  for (var i = 0; i < maxPolls; i++) {
+    if (bytesToWrite() <= 0) return;
+    await sleepFn(pollInterval);
+  }
+}
+
 /// Build a stable device ID for HDS from USB metadata.
 /// Returns null if vid or pid are missing (can't form a meaningful ID).
 String? computeUsbStableId({int? vid, int? pid, String? serial}) {

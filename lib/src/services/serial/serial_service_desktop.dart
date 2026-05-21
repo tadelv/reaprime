@@ -392,6 +392,10 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
   }
 }
 
+// Per-chunk blocking-write ceiling. Bounds how long a single native write
+// can wait for an unresponsive device to accept bytes.
+const int _serialWriteTimeoutMs = 500;
+
 class _DesktopSerialPort implements SerialTransport {
   final SerialPort _port;
   late Logger _log;
@@ -562,18 +566,28 @@ class _DesktopSerialPort implements SerialTransport {
   Future<void> _write(Uint8List command) async {
     try {
       // Write all bytes, handling short writes by looping.
-      // timeout: 0 = blocking write (waits until bytes are accepted by OS).
+      // Finite timeout (not 0 = block-forever): scan probes non-Decent
+      // USB-serial devices, and a device that never accepts the bytes must
+      // not be able to wedge the isolate. A zero-progress write means the
+      // device isn't draining — stop instead of spinning.
       int offset = 0;
       while (offset < command.length) {
         final chunk =
             offset == 0 ? command : Uint8List.sublistView(command, offset);
-        final written = await _port.write(chunk, timeout: 0);
+        final written =
+            await _port.write(chunk, timeout: _serialWriteTimeoutMs);
         if (written < 0) {
           throw StateError('Serial write failed: ${SerialPort.lastError}');
         }
+        if (written == 0) {
+          throw StateError(
+              'Serial write stalled (0 bytes in ${_serialWriteTimeoutMs}ms)');
+        }
         offset += written;
       }
-      _port.drain();
+      // Bounded stand-in for the native `_port.drain()`, which blocks the
+      // isolate forever on a device that never transmits the buffer.
+      await drainWithTimeout(bytesToWrite: () => _port.bytesToWrite);
       _log.fine("wrote: ${command.map((e) => e.toRadixString(16))}");
       if (Platform.isLinux || Platform.isMacOS) {
         await Future.delayed(Duration(milliseconds: 20), () {
