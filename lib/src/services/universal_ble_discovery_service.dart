@@ -139,15 +139,14 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
         _deviceStreamController.add(_devices.values.toList());
         log.fine("found new device: ${device.name}");
 
-        _connections[device.deviceId.toString()] = _devices[device.deviceId
-                .toString()]!
-            .connectionState
+        _connections[device.deviceId
+            .toString()] = _devices[device.deviceId.toString()]!.connectionState
             .listen((connectionState) {
-          if (connectionState == ConnectionState.disconnected) {
-            _devices.remove(device.deviceId.toString());
-            _deviceStreamController.add(_devices.values.toList());
-          }
-        });
+              if (connectionState == ConnectionState.disconnected) {
+                _devices.remove(device.deviceId.toString());
+                _deviceStreamController.add(_devices.values.toList());
+              }
+            });
       }
     } finally {
       _currentlyScanning.remove(device.deviceId);
