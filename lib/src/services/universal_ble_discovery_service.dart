@@ -47,8 +47,7 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
     });
 
     if (initialState != AvailabilityState.poweredOn) {
-      log.warning("Bluetooth not supported on this platform");
-      return;
+      log.warning("Bluetooth not supported on this platform, state: ${initialState.name}");
     }
   }
 
