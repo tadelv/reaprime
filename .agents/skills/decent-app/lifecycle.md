@@ -121,6 +121,38 @@ pgrep -af flutter_tools.snapshot   # should be empty
 
 Then `sb-dev start` cleanly.
 
+## Build environment gotchas
+
+### macOS/iOS: stale SPM clone breaks firebase resolution (Flutter ≥ 3.44)
+
+**Symptom:** `flutter run`/`build macos`/`build ios` fails during "Adding Swift Package Manager integration…" with:
+
+```
+xcodebuild: error: Could not resolve package dependencies:
+  Failed to resolve dependencies Dependencies could not be resolved because no
+  versions of 'firebase-ios-sdk' match the requirement 12.13.0..<13.0.0 and
+  'firebase_analytics-…' depends on 'firebase-ios-sdk' 12.13.0..<13.0.0.
+```
+
+**Cause — the error is misleading.** The pin is fine: firebase-ios-sdk 12.13.0/12.14.0 exist upstream and the requirement is satisfiable. The real problem is a **stale project-local SPM clone**. Flutter ≥ 3.44 enables Swift Package Manager by default and points xcodebuild at a per-project clone cache via `-clonedSourcePackagesDirPath build/<platform>/SourcePackages`. If `build/macos/SourcePackages/repositories/firebase-ios-sdk-*` is an old clone (e.g. last fetched months ago, max tag 12.3.0), it never refetched the newer tag and resolution fails. Do **not** disable SPM — keep riding the migration.
+
+**Confirm in 30s** — if the max tag is below the required version, it's a stale clone:
+
+```bash
+git --git-dir=build/macos/SourcePackages/repositories/firebase-ios-sdk-* tag | grep '^12\.' | tail
+```
+
+**Fix (keeps SPM on):**
+
+```bash
+rm -rf build/macos/SourcePackages build/ios/SourcePackages
+flutter build macos --debug    # or flutter run — xcodebuild re-clones with current tags
+```
+
+The global SPM cache (`~/Library/Caches/org.swift.swiftpm/repositories/firebase-ios-sdk-*`) can also go stale, but the per-project clone under `build/` is what the probe actually reads — clear that one. `build/` is gitignored, so this is a local-dev cleanup, nothing to commit.
+
+**CI:** `.github/workflows/develop-builds.yml` pins `build-macos`/`build-ios` to a specific `flutter-version` (currently `3.41.8`), predating the SPM default. `pr-checks.yml` floats `channel: stable` but `runs-on: ubuntu-latest` (no Apple build). A fresh CI runner clones fresh, so the stale-clone trap is essentially local-only. Android builds are never affected (SPM is Apple-only).
+
 ## Windows
 
 `sb-dev.sh` is POSIX-only — it relies on `mkfifo`, named pipes, and process substitution. Windows contributors should run `flutter run --dart-define=simulate=1` in a regular terminal and use the other skill files (`rest.md`, `websocket.md`, `simulated-devices.md`) as normal.
