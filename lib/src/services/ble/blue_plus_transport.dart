@@ -57,6 +57,14 @@ class BluePlusTransport implements BLETransport {
 
   @override
   Future<void> disconnect() async {
+    // Emit disconnected immediately — do NOT rely on the platform to
+    // fire a connectionState change. On some platforms / error paths
+    // (reconnect-after-timeout failure) the platform never signals the
+    // state transition, leaving consumers (DisconnectSupervisor,
+    // ConnectionManager) unaware the transport is dead. Duplicate
+    // emissions from the native sub are harmless (BehaviorSubject).
+    _connectionStateSubject.add(device.ConnectionState.disconnected);
+
     // Keep `_nativeConnectionSub` alive here — it's the channel that
     // forwards the eventual `disconnected` state from the platform
     // stream to `_connectionStateSubject`, which higher-level code
@@ -68,7 +76,6 @@ class BluePlusTransport implements BLETransport {
       await _device.disconnect(queue: false, timeout: 5);
     } catch (e) {
       _log.warning("Error during disconnect: $e");
-      _connectionStateSubject.add(device.ConnectionState.disconnected);
     }
   }
 
