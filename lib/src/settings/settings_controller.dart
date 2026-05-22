@@ -21,44 +21,44 @@ class SettingsController with ChangeNotifier {
 
   // Make ThemeMode a private variable so it is not updated directly without
   // also persisting the changes with the SettingsService.
-  late ThemeMode _themeMode;
+  ThemeMode _themeMode = ThemeMode.system;
 
-  late GatewayMode _gatewayMode;
+  GatewayMode _gatewayMode = GatewayMode.disabled;
 
-  late String _logLevel;
+  String _logLevel = 'INFO';
 
-  late Set<SimulatedDevicesTypes> _simulatedDevices;
+  Set<SimulatedDevicesTypes> _simulatedDevices = {};
 
-  late double _weightFlowMultiplier;
+  double _weightFlowMultiplier = 1.0;
 
-  late double _volumeFlowMultiplier;
+  double _volumeFlowMultiplier = 0.3;
 
-  late ScalePowerMode _scalePowerMode;
+  ScalePowerMode _scalePowerMode = ScalePowerMode.disconnect;
 
   String? _preferredMachineId;
 
   String? _preferredScaleId;
 
-  late String _defaultSkinId;
+  String _defaultSkinId = 'streamline.js';
 
-  late bool _automaticUpdateCheck;
+  bool _automaticUpdateCheck = true;
 
-  late bool _telemetryConsent;
+  bool _telemetryConsent = false;
 
-  late bool _telemetryPromptShown;
+  bool _telemetryPromptShown = false;
 
-  late bool _telemetryConsentDialogShown;
+  bool _telemetryConsentDialogShown = false;
 
-  late ChargingMode _chargingMode;
-  late bool _nightModeEnabled;
-  late int _nightModeSleepTime;
-  late int _nightModeMorningTime;
+  ChargingMode _chargingMode = ChargingMode.disabled;
+  bool _nightModeEnabled = false;
+  int _nightModeSleepTime = 1320;
+  int _nightModeMorningTime = 420;
 
-  late bool _userPresenceEnabled;
-  late int _sleepTimeoutMinutes;
-  late String _wakeSchedules;
-  late bool _lowBatteryBrightnessLimit;
-  late bool _onboardingCompleted;
+  bool _userPresenceEnabled = true;
+  int _sleepTimeoutMinutes = 30;
+  String _wakeSchedules = '[]';
+  bool _lowBatteryBrightnessLimit = false;
+  bool _onboardingCompleted = false;
 
   TelemetryService? _telemetryService;
 
