@@ -25,7 +25,19 @@ class UnifiedDe1Transport {
   // serial branch never runs.
   StreamSubscription<String>? _transportSubscription;
 
-  Stream<device.ConnectionState> get connectionState => _transport.connectionState;
+  // True while `_handleBleTimeout` is doing a deliberate disconnect→reconnect
+  // to recover from a BLE timeout. The disconnect it issues must stay
+  // invisible to upstream (De1Controller would otherwise null the machine on
+  // `disconnected` and tear down a connection that's about to come right
+  // back). Suppressing here — rather than at the transport — covers every
+  // platform: the desktop/iOS `BluePlusTransport` emits `disconnected`
+  // synchronously, and Android's native sub emits it async from the platform.
+  bool _recovering = false;
+
+  Stream<device.ConnectionState> get connectionState =>
+      _transport.connectionState.where(
+        (s) => !(_recovering && s == device.ConnectionState.disconnected),
+      );
 
   String get id => _transport.id;
 
@@ -543,6 +555,7 @@ class UnifiedDe1Transport {
   /// Returns true if reconnect succeeded, false if it failed.
   Future<bool> _handleBleTimeout(Object error, StackTrace st) async {
     _log.warning('BLE write timed out, attempting reconnect');
+    _recovering = true;
     try {
       await _transport.disconnect();
       await _transport.connect();
@@ -554,6 +567,9 @@ class UnifiedDe1Transport {
         'BLE reconnect failed, disconnecting',
         reconnectError,
       );
+      // Recovery failed — this is a genuine disconnect. Clear the guard
+      // before tearing down so the `disconnected` reaches upstream.
+      _recovering = false;
       try {
         // Don't await — BLE stack may be unresponsive
         _transport.disconnect();
@@ -561,6 +577,8 @@ class UnifiedDe1Transport {
         _log.fine('transport.disconnect() during BLE recovery failed', e, st);
       }
       return false;
+    } finally {
+      _recovering = false;
     }
   }
 
