@@ -41,6 +41,18 @@ class BatteryController {
 
   Future<void> _tick() async {
     try {
+      // Bail early if no machine connected — skip settings reads and
+      // charging decision computation.
+      if (_deviceController.isScanning) {
+        _log.fine('Skipping USB charger mode update during BLE scan');
+        return;
+      }
+      final de1 = _de1Controller.connectedDe1OrNull;
+      if (de1 == null) {
+        _log.fine('No machine connected, skipping USB charger mode update');
+        return;
+      }
+
       final batteryPercent = await _battery.batteryLevel;
       final now = DateTime.now();
 
@@ -72,23 +84,12 @@ class BatteryController {
         'reason: ${decision.reason}',
       );
 
-      // Apply to DE1 — skip during BLE scan to avoid congesting the adapter,
-      // and skip when no machine is connected. Pre-checking avoids throwing
-      // DeviceNotConnectedException on every tick when the user has no
-      // machine, which used to log at WARNING and reach Crashlytics.
-      if (_deviceController.isScanning) {
-        _log.fine('Skipping USB charger mode update during BLE scan');
-      } else {
-        final de1 = _de1Controller.connectedDe1OrNull;
-        if (de1 == null) {
-          _log.fine('No machine connected, skipping USB charger mode update');
-        } else {
-          try {
-            await de1.setUsbChargerMode(decision.shouldCharge);
-          } catch (e) {
-            _log.warning('Failed to set USB charger mode', e);
-          }
-        }
+      // Apply to DE1 — early bail at top of method already handled
+      // scan-during-scan and no-machine-connected cases.
+      try {
+        await de1.setUsbChargerMode(decision.shouldCharge);
+      } catch (e) {
+        _log.warning('Failed to set USB charger mode', e);
       }
 
       // Emit state
