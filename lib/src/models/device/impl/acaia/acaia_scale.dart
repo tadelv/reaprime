@@ -152,6 +152,7 @@ class AcaiaScale implements Scale {
   @override
   disconnect() async {
     _cancelTimers();
+    _connectionStateController.add(ConnectionState.disconnected);
     await _transport.disconnect();
   }
 
