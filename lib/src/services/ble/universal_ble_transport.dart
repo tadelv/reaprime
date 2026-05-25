@@ -97,11 +97,16 @@ class UniversalBleTransport implements BLETransport {
     void Function(Uint8List) callback,
   ) async {
     _log.fine("subscribe to: $serviceUUID, $characteristicUUID");
+    final key = "$serviceUUID--$characteristicUUID";
+    // Cancel any prior listener for this characteristic before replacing it.
+    // A re-subscribe without an intervening disconnect (no-op reconnect)
+    // would otherwise stack listeners and deliver every notification twice.
+    await _subscriptions.remove(key)?.cancel();
     final sub = UniversalBle.characteristicValueStream(
       _device.deviceId,
       characteristicUUID,
     ).listen(callback);
-    _subscriptions["$serviceUUID--$characteristicUUID"] = sub;
+    _subscriptions[key] = sub;
 
     await UniversalBle.subscribeNotifications(
       _device.deviceId,
