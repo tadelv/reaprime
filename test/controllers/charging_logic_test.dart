@@ -615,4 +615,97 @@ void main() {
       expect(json.length, 6);
     });
   });
+
+  group('shouldWriteChargerMode', () {
+    final now = DateTime(2026, 1, 15, 12, 0);
+    const reassert = Duration(minutes: 5);
+
+    test('charging and unchanged: skip (firmware default already on)', () {
+      expect(
+        shouldWriteChargerMode(
+          shouldCharge: true,
+          lastApplied: true,
+          now: now,
+          lastWrite: now.subtract(const Duration(hours: 1)),
+          reassertInterval: reassert,
+        ),
+        isFalse,
+      );
+    });
+
+    test('target changed: always write', () {
+      expect(
+        shouldWriteChargerMode(
+          shouldCharge: false,
+          lastApplied: true,
+          now: now,
+          lastWrite: now,
+          reassertInterval: reassert,
+        ),
+        isTrue,
+      );
+      expect(
+        shouldWriteChargerMode(
+          shouldCharge: true,
+          lastApplied: false,
+          now: now,
+          lastWrite: now,
+          reassertInterval: reassert,
+        ),
+        isTrue,
+      );
+    });
+
+    test('lastApplied null forces a write (first tick / after reconnect)', () {
+      expect(
+        shouldWriteChargerMode(
+          shouldCharge: true,
+          lastApplied: null,
+          now: now,
+          lastWrite: now,
+          reassertInterval: reassert,
+        ),
+        isTrue,
+      );
+    });
+
+    test('discharging re-asserts once the interval elapses', () {
+      // Within the interval: skip.
+      expect(
+        shouldWriteChargerMode(
+          shouldCharge: false,
+          lastApplied: false,
+          now: now,
+          lastWrite: now.subtract(const Duration(minutes: 4)),
+          reassertInterval: reassert,
+        ),
+        isFalse,
+      );
+      // Interval elapsed: re-assert OFF because the firmware re-enables the
+      // charger on its own.
+      expect(
+        shouldWriteChargerMode(
+          shouldCharge: false,
+          lastApplied: false,
+          now: now,
+          lastWrite: now.subtract(const Duration(minutes: 5)),
+          reassertInterval: reassert,
+        ),
+        isTrue,
+      );
+    });
+
+    test('discharging with no prior write re-asserts immediately', () {
+      expect(
+        shouldWriteChargerMode(
+          shouldCharge: false,
+          lastApplied: false,
+          now: now,
+          lastWrite: null,
+          reassertInterval: reassert,
+        ),
+        isTrue,
+      );
+    });
+  });
 }

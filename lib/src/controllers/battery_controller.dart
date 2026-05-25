@@ -18,6 +18,18 @@ class BatteryController {
   late Timer _checkTimer;
   bool _wasCharging = false;
 
+  /// Last `shouldCharge` value actually written to the DE1, and when.
+  /// Distinct from [_wasCharging] (which feeds the decision hysteresis):
+  /// these gate redundant `setUsbChargerMode` writes. Reset to null on
+  /// disconnect so the next connected tick re-asserts against a machine
+  /// that has reset to its charging-on default.
+  bool? _lastAppliedCharge;
+  DateTime? _lastChargeWrite;
+
+  /// While discharging, re-assert "off" at least this often — the DE1
+  /// firmware re-enables the charger on its own. See [shouldWriteChargerMode].
+  static const Duration _dischargeReassertInterval = Duration(minutes: 5);
+
   final BehaviorSubject<ChargingState> _stateSubject =
       BehaviorSubject<ChargingState>();
 
@@ -50,6 +62,9 @@ class BatteryController {
       final de1 = _de1Controller.connectedDe1OrNull;
       if (de1 == null) {
         _log.fine('No machine connected, skipping USB charger mode update');
+        // Force a re-assert on the next connected tick: a reconnected
+        // machine resets to its charging-on default.
+        _lastAppliedCharge = null;
         return;
       }
 
@@ -84,12 +99,23 @@ class BatteryController {
         'reason: ${decision.reason}',
       );
 
-      // Apply to DE1 — early bail at top of method already handled
-      // scan-during-scan and no-machine-connected cases.
-      try {
-        await de1.setUsbChargerMode(decision.shouldCharge);
-      } catch (e) {
-        _log.warning('Failed to set USB charger mode', e);
+      // Apply to DE1 — but skip redundant writes. The firmware re-enables
+      // the charger on its own, so we re-assert "off" periodically while
+      // discharging but avoid spamming an unchanged "on" every tick.
+      if (shouldWriteChargerMode(
+        shouldCharge: decision.shouldCharge,
+        lastApplied: _lastAppliedCharge,
+        now: now,
+        lastWrite: _lastChargeWrite,
+        reassertInterval: _dischargeReassertInterval,
+      )) {
+        try {
+          await de1.setUsbChargerMode(decision.shouldCharge);
+          _lastAppliedCharge = decision.shouldCharge;
+          _lastChargeWrite = now;
+        } catch (e) {
+          _log.warning('Failed to set USB charger mode', e);
+        }
       }
 
       // Emit state

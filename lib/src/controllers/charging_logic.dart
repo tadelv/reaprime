@@ -59,6 +59,34 @@ class ChargingState {
   }
 }
 
+/// Decides whether to push `setUsbChargerMode(shouldCharge)` to the DE1 on
+/// this tick.
+///
+/// The DE1 firmware re-enables the USB charger on its own, so keeping the
+/// tablet discharging requires periodically re-asserting "off". When we want
+/// to charge, the firmware default already matches, so re-writing every tick
+/// is pure BLE noise.
+///
+/// - Write whenever the target differs from [lastApplied] (`null` forces a
+///   write — first tick, or after a reconnect cleared it; a reconnected
+///   machine resets to its charging-on default).
+/// - While discharging (`shouldCharge == false`), re-assert once at least
+///   [reassertInterval] has elapsed since [lastWrite].
+/// - While charging and unchanged, skip.
+bool shouldWriteChargerMode({
+  required bool shouldCharge,
+  required bool? lastApplied,
+  required DateTime now,
+  required DateTime? lastWrite,
+  required Duration reassertInterval,
+}) {
+  if (lastApplied != shouldCharge) return true;
+  if (!shouldCharge) {
+    return lastWrite == null || now.difference(lastWrite) >= reassertInterval;
+  }
+  return false;
+}
+
 int _minutesSinceMidnight(DateTime dt) => dt.hour * 60 + dt.minute;
 
 /// Determines the night phase based on current time and night mode config.
