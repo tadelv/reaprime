@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/transport/ble_timeout_exception.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/services/ble/char_subscriptions.dart';
 import 'package:rxdart/rxdart.dart';
 
 /// Linux-specific BLE transport that wraps flutter_blue_plus with
@@ -53,6 +54,7 @@ class LinuxBluePlusTransport implements BLETransport {
   final BehaviorSubject<device.ConnectionState> _connectionStateSubject =
       BehaviorSubject<device.ConnectionState>.seeded(device.ConnectionState.discovered);
   StreamSubscription? _nativeConnectionSub;
+  final CharSubscriptions _charSubs = CharSubscriptions();
 
   LinuxBluePlusTransport({required String remoteId})
     : _device = BluetoothDevice(remoteId: DeviceIdentifier(remoteId)),
@@ -180,6 +182,7 @@ class LinuxBluePlusTransport implements BLETransport {
   void dispose() {
     _nativeConnectionSub?.cancel();
     _nativeConnectionSub = null;
+    _charSubs.cancelAll();
     if (!_connectionStateSubject.isClosed) {
       _connectionStateSubject.close();
     }
@@ -253,6 +256,12 @@ class LinuxBluePlusTransport implements BLETransport {
     final subscription = characteristic.onValueReceived.listen((data) {
       callback(Uint8List.fromList(data));
     });
+    // Replace any prior listener for this characteristic. On a no-op
+    // reconnect (`connect()` skipped because the device was still connected)
+    // no disconnect fired, so `cancelWhenDisconnected` never cancelled the
+    // old listener — without this the callbacks stack and notifications are
+    // delivered twice.
+    await _charSubs.add(characteristicUUID, subscription);
     _device.cancelWhenDisconnected(subscription);
 
     // On BlueZ, setting notify value can occasionally fail if the
