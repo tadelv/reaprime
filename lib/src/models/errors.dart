@@ -28,6 +28,28 @@ class DeviceNotConnectedException implements Exception {
       'DeviceNotConnectedException: ${kind.name} not connected';
 }
 
+/// Recorded as a non-fatal (never thrown) when `UnifiedDe1Transport.connect`
+/// re-runs BLE setup on a transport that already reports `connected` — the
+/// no-op reconnect that, before the per-characteristic subscription guard,
+/// stacked duplicate notification listeners and delivered every frame twice.
+/// The setup is now idempotent; this type exists purely so the condition
+/// surfaces in telemetry and we can measure how often it fires in the field.
+///
+/// This is logged as the `error` of a WARNING and forwarded to Crashlytics
+/// verbatim (the telemetry bridge does not scrub the error object), so
+/// [anonymizedDeviceId] MUST already be anonymized by the caller (e.g.
+/// `Anonymization.anonymizeMac`) — never pass a raw BLE MAC / device id.
+class DuplicateBleSubscription implements Exception {
+  final String anonymizedDeviceId;
+
+  const DuplicateBleSubscription(this.anonymizedDeviceId);
+
+  @override
+  String toString() =>
+      'DuplicateBleSubscription: BLE setup re-run on already-connected '
+      'transport ($anonymizedDeviceId)';
+}
+
 /// Thrown by `_mmrRead` in `UnifiedDe1` when a DE1 memory-mapped
 /// register read does not receive a matching notification within the
 /// bounded timeout. Prevents connect attempts from hanging forever on
