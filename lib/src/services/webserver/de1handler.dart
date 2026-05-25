@@ -12,8 +12,7 @@ class De1Handler {
     required ScaleController scaleController,
   }) : _controller = controller,
        _settingsController = settingsController,
-      _scaleController = scaleController;
-      
+       _scaleController = scaleController;
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/machine/info', _infoHandler);
@@ -380,19 +379,24 @@ class De1Handler {
   ) async {
     return withDe1((de1) async {
       var requestState = MachineState.values.byName(newState);
-      var blockOnNoScale = _settingsController.blockOnNoScale;
-      var _scaleConnected =
-        _scaleController.currentConnectionState == device.ConnectionState.connected;
-      log.fine("Received request to change state to $requestState while scale connected: $_scaleConnected and blockOnNoScale: $blockOnNoScale");
-      if (requestState == MachineState.espresso && _settingsController.blockOnNoScale && !_scaleConnected) {
+      final blockOnNoScale = _settingsController.blockOnNoScale;
+      final scaleConnected =
+          _scaleController.currentConnectionState ==
+              device.ConnectionState.connected;
+      log.fine(
+        "Received request to change state to $requestState while scale connected: $scaleConnected and blockOnNoScale: $blockOnNoScale",
+      );
+      if (requestState == MachineState.espresso &&
+          blockOnNoScale &&
+          !scaleConnected) {
         log.warning(
           "Blocking espresso request because no scale detected and blockOnNoScale is enabled",
         );
         return jsonBadRequest({
           'details': 'No scale detected, blocking espresso request',
-          'type': 'block_no_scale'
-          });
-        }
+          'type': 'block_no_scale',
+        });
+      }
       await de1.requestState(requestState);
       return jsonOk(null);
     });

@@ -4,7 +4,6 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
-import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
@@ -16,12 +15,12 @@ class ShotSequencer {
   final De1Controller de1controller;
   final ScaleController scaleController;
   final PersistenceController persistenceController;
-  final SettingsController settingsController;
   final Profile targetProfile;
 
   final Logger _log = Logger("ShotSequencer");
 
   final bool _bypassSAW;
+  final bool _blockOnNoScale;
   final double _weightFlowMultiplier;
   final double _volumeFlowMultiplier;
 
@@ -57,11 +56,12 @@ class ShotSequencer {
     required this.persistenceController,
     required this.targetProfile,
     required this.targetYield,
-    required this.settingsController,
     required bool bypassSAW,
+    required bool blockOnNoScale,
     required double weightFlowMultiplier,
     required double volumeFlowMultiplier,
   })  : _bypassSAW = bypassSAW,
+        _blockOnNoScale = blockOnNoScale,
         _weightFlowMultiplier = weightFlowMultiplier,
         _volumeFlowMultiplier = volumeFlowMultiplier,
         _machineHasAutonomousSAW =
@@ -73,13 +73,27 @@ class ShotSequencer {
     final scaleConnected =
         scaleController.currentConnectionState == device.ConnectionState.connected;
 
-    final blockOnNoScale = settingsController.blockOnNoScale;
-
-    if (blockOnNoScale && !scaleConnected) {
+    if (_blockOnNoScale && !scaleConnected) {
+      // The sequencer is created reactively, after the machine has already
+      // entered espresso (incl. GHC / physical starts), so "block" means abort
+      // the shot in progress and publish the reason rather than prevent it.
       _log.warning(
-        "No scale connected and blockOnNoScale is enabled. ShotController will not start.",
+        "blockOnNoScale enabled and no scale connected — aborting shot",
       );
-    } else if (!scaleConnected) {
+      _decisionStream.add(
+        const ShotDecision(
+          reason: ShotDecisionReason.noScale,
+          details: 'No scale connected, blocking shot',
+        ),
+      );
+      de1controller.connectedDe1().requestState(MachineState.idle).catchError(
+            (error) =>
+                _log.warning("Failed to abort shot for blockOnNoScale: $error"),
+          );
+      return;
+    }
+
+    if (!scaleConnected) {
       _log.info("Continuing without scale");
       _snapshotSubscription = de1controller
           .connectedDe1()
@@ -90,35 +104,35 @@ class ShotSequencer {
             onError: (error) =>
                 _log.warning("Error processing DE1 snapshot: $error"),
           );
-      } else {
-        _log.info("Scale connected, combining streams");
-        final combinedStream = de1controller
-            .connectedDe1()
-            .currentSnapshot
-            .withLatestFrom(
-              scaleController.weightSnapshot,
-              (machine, weight) => ShotSnapshot(machine: machine, scale: weight),
+    } else {
+      _log.info("Scale connected, combining streams");
+      final combinedStream = de1controller
+          .connectedDe1()
+          .currentSnapshot
+          .withLatestFrom(
+            scaleController.weightSnapshot,
+            (machine, weight) => ShotSnapshot(machine: machine, scale: weight),
+          );
+
+      _snapshotSubscription = combinedStream.listen(
+        _processSnapshot,
+        onError: (error) =>
+            _log.warning("Error processing combined snapshot: $error"),
+      );
+
+      // Monitor scale connection during shot
+      _scaleConnectionSubscription = scaleController.connectionState.listen((state) {
+        if (state == device.ConnectionState.disconnected && !_scaleLost) {
+          if (_state != ShotState.idle && _state != ShotState.finished) {
+            _scaleLost = true;
+            _log.warning(
+              'Scale disconnected during shot (state: ${_state.name}). '
+              'Stop-at-weight disabled for remainder of this shot.',
             );
-
-        _snapshotSubscription = combinedStream.listen(
-          _processSnapshot,
-          onError: (error) =>
-              _log.warning("Error processing combined snapshot: $error"),
-        );
-
-        // Monitor scale connection during shot
-        _scaleConnectionSubscription = scaleController.connectionState.listen((state) {
-          if (state == device.ConnectionState.disconnected && !_scaleLost) {
-            if (_state != ShotState.idle && _state != ShotState.finished) {
-              _scaleLost = true;
-              _log.warning(
-                'Scale disconnected during shot (state: ${_state.name}). '
-                'Stop-at-weight disabled for remainder of this shot.',
-              );
-            }
           }
-        });
-      }
+        }
+      });
+    }
   }
 
   void dispose() {
@@ -127,6 +141,7 @@ class ShotSequencer {
     _scaleConnectionSubscription?.cancel();
     _rawShotDataStream.close();
     _shotDataStream.close();
+    _decisionStream.close();
   }
 
   StreamSubscription<ShotSnapshot>? _snapshotSubscription;
@@ -147,6 +162,13 @@ class ShotSequencer {
     ShotState.idle,
   );
   Stream<ShotState> get state => _stateStream.stream;
+
+  /// Sequencer decisions (e.g. why a shot was stopped). Groundwork for a
+  /// future `/ws/v1/shotState` topic. BehaviorSubject so consumers that
+  /// subscribe after construction still receive a decision emitted in the
+  /// constructor (e.g. the blockOnNoScale abort).
+  final BehaviorSubject<ShotDecision> _decisionStream = BehaviorSubject();
+  Stream<ShotDecision> get decisions => _decisionStream.stream;
 
   DateTime _shotStartTime = DateTime.now();
   DateTime get shotStartTime => _shotStartTime;
@@ -352,3 +374,15 @@ class ShotSequencer {
 }
 
 enum ShotState { idle, preheating, pouring, stopping, finished }
+
+/// Why the sequencer made a decision (currently only shot-stop reasons).
+/// [noScale] corresponds to the REST `block_no_scale` error type; keep the two
+/// vocabularies aligned when this gains wire serialization for `/ws/v1/shotState`.
+enum ShotDecisionReason { noScale }
+
+class ShotDecision {
+  final ShotDecisionReason reason;
+  final String? details;
+
+  const ShotDecision({required this.reason, this.details});
+}

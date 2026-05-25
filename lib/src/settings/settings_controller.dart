@@ -35,7 +35,7 @@ class SettingsController with ChangeNotifier {
 
   ScalePowerMode _scalePowerMode = ScalePowerMode.disconnect;
 
-  late bool _blockOnNoScale;
+  bool _blockOnNoScale = false;
 
   String? _preferredMachineId;
 

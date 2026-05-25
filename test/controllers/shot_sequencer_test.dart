@@ -7,9 +7,9 @@ import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/shot_sequencer.dart';
-import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
+import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/data/steam_record.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/device.dart';
@@ -22,7 +22,6 @@ import 'package:rxdart/rxdart.dart';
 
 import '../helpers/test_de1.dart';
 import '../helpers/test_scale.dart';
-import '../helpers/mock_settings_service.dart';
 
 // ---------------------------------------------------------------------------
 // Test-local helpers
@@ -202,10 +201,9 @@ void main() {
     late _TestDe1Controller de1Controller;
     late _TestScaleController scaleController;
     late PersistenceController persistenceController;
-    late SettingsController settingsController;
     late Profile profile;
 
-    setUp(() async {
+    setUp(() {
       testDe1 = TestDe1();
       testScale = TestScale();
       de1Controller = _TestDe1Controller(testDe1);
@@ -213,10 +211,6 @@ void main() {
       persistenceController =
           PersistenceController(storageService: _NullStorageService());
       profile = _simpleProfile();
-      final mockSettings = MockSettingsService();
-      settingsController = SettingsController(mockSettings);
-      await settingsController.loadSettings();
-
     });
 
     tearDown(() {
@@ -252,11 +246,11 @@ void main() {
         final shotSequencer = ShotSequencer(
           scaleController: scaleController,
           de1controller: de1Controller,
-          settingsController: settingsController,
           persistenceController: persistenceController,
           targetProfile: profile,
           targetYield: 36.0,
           bypassSAW: false,
+          blockOnNoScale: false,
           weightFlowMultiplier: 0.0,
           volumeFlowMultiplier: 0.0,
         );
@@ -305,11 +299,11 @@ void main() {
         final shotSequencer = ShotSequencer(
           scaleController: scaleController,
           de1controller: de1Controller,
-          settingsController: settingsController,
           persistenceController: persistenceController,
           targetProfile: profile,
           targetYield: 36.0,
           bypassSAW: false,
+          blockOnNoScale: false,
           weightFlowMultiplier: 0.0,
           volumeFlowMultiplier: 0.0,
         );
@@ -358,11 +352,11 @@ void main() {
         final shotSequencer = ShotSequencer(
           scaleController: scaleController,
           de1controller: de1Controller,
-          settingsController: settingsController,
           persistenceController: persistenceController,
           targetProfile: profile,
           targetYield: 36.0,
           bypassSAW: false,
+          blockOnNoScale: false,
           weightFlowMultiplier: 0.0,
           volumeFlowMultiplier: 0.0,
         );
@@ -388,6 +382,112 @@ void main() {
           reason:
               'SAW should fire when scale is connected and weight exceeds target',
         );
+
+        shotSequencer.dispose();
+      });
+    });
+  });
+
+  group('ShotSequencer — blockOnNoScale', () {
+    late TestDe1 testDe1;
+    late TestScale testScale;
+    late _TestDe1Controller de1Controller;
+    late _TestScaleController scaleController;
+    late PersistenceController persistenceController;
+    late Profile profile;
+
+    setUp(() {
+      testDe1 = TestDe1();
+      testScale = TestScale();
+      de1Controller = _TestDe1Controller(testDe1);
+      scaleController = _TestScaleController(testScale);
+      persistenceController =
+          PersistenceController(storageService: _NullStorageService());
+      profile = _simpleProfile();
+    });
+
+    tearDown(() {
+      testDe1.dispose();
+      testScale.dispose();
+      scaleController.dispose();
+      persistenceController.dispose();
+    });
+
+    test(
+        'aborts shot and emits noScale decision when no scale connected at start',
+        () {
+      fakeAsync((async) {
+        // No scale at shot start.
+        scaleController.simulateDisconnect();
+
+        final shotSequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          targetYield: 36.0,
+          bypassSAW: false,
+          blockOnNoScale: true,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+        );
+
+        final decisions = <ShotDecision>[];
+        final snapshots = <ShotSnapshot>[];
+        shotSequencer.decisions.listen(decisions.add);
+        shotSequencer.shotData.listen(snapshots.add);
+
+        async.elapse(Duration(milliseconds: 10));
+
+        // Machine entered espresso (e.g. via GHC) — drive snapshots that would
+        // normally be tracked.
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouring,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(
+          testDe1.requestedStates,
+          contains(MachineState.idle),
+          reason: 'shot should be aborted back to idle',
+        );
+        expect(decisions, hasLength(1));
+        expect(decisions.single.reason, ShotDecisionReason.noScale);
+        expect(
+          snapshots,
+          isEmpty,
+          reason: 'no monitoring should be wired when the shot is blocked',
+        );
+
+        shotSequencer.dispose();
+      });
+    });
+
+    test('does not block when blockOnNoScale is false and no scale connected',
+        () {
+      fakeAsync((async) {
+        scaleController.simulateDisconnect();
+
+        final shotSequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          targetYield: 36.0,
+          bypassSAW: false,
+          blockOnNoScale: false,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+        );
+
+        final decisions = <ShotDecision>[];
+        shotSequencer.decisions.listen(decisions.add);
+
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(testDe1.requestedStates, isEmpty);
+        expect(decisions, isEmpty);
 
         shotSequencer.dispose();
       });
