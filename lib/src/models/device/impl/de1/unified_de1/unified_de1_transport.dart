@@ -9,6 +9,7 @@ import 'package:reaprime/src/models/device/transport/ble_timeout_exception.dart'
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/device/transport/logical_endpoint.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -368,7 +369,7 @@ class UnifiedDe1Transport {
 
   Future<ByteData> read(LogicalEndpoint endpoint, {Duration? timeout}) async {
     if (await _transport.connectionState.first != device.ConnectionState.connected) {
-      throw ("de1 not connected");
+      throw const DeviceNotConnectedException.machine();
     }
 
     try {
@@ -469,7 +470,7 @@ class UnifiedDe1Transport {
 
   Future<void> write(LogicalEndpoint endpoint, Uint8List data) async {
     if (await _transport.connectionState.first != device.ConnectionState.connected) {
-      throw ("de1 not connected");
+      throw const DeviceNotConnectedException.machine();
     }
     try {
       _log.fine('about to write to ${endpoint.name}');
@@ -509,7 +510,7 @@ class UnifiedDe1Transport {
 
   Future<void> writeWithResponse(LogicalEndpoint endpoint, Uint8List data) async {
     if (await _transport.connectionState.first != device.ConnectionState.connected) {
-      throw ("de1 not connected");
+      throw const DeviceNotConnectedException.machine();
     }
     try {
       _log.fine('about to write to ${endpoint.name}');
