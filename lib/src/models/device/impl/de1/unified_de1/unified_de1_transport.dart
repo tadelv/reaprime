@@ -10,6 +10,7 @@ import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/device/transport/logical_endpoint.dart';
 import 'package:reaprime/src/models/errors.dart';
+import 'package:reaprime/src/services/telemetry/anonymization.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -82,10 +83,27 @@ class UnifiedDe1Transport {
               : TransportType.unknown,
       _log = Logger("UnifiedDe1Transport-${transport.id}");
   Future<void> connect() async {
+    // A connect() while the transport already reports `connected` means BLE
+    // setup is about to re-subscribe to every characteristic without an
+    // intervening disconnect — the no-op reconnect that used to stack
+    // duplicate notification listeners (every frame delivered twice). The
+    // per-characteristic guard now replaces subscriptions idempotently, but
+    // we record the condition as a non-fatal to measure how often it fires.
+    final wasConnected = transportType == TransportType.ble &&
+        await _transport.connectionState.first ==
+            device.ConnectionState.connected;
+
     await _transport.connect();
 
     switch (transportType) {
       case TransportType.ble:
+        if (wasConnected) {
+          _log.warning(
+            're-running BLE setup on already-connected transport (no-op '
+            'reconnect); notify subscriptions replaced, not stacked',
+            DuplicateBleSubscription(Anonymization.anonymizeMac(_transport.id)),
+          );
+        }
         await _bleConnect();
         break;
       case TransportType.serial:
