@@ -164,7 +164,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MachineSnapshot"
-
   /api/v1/machine/state/{newState}:
     put:
       summary: Request Machine State Change
@@ -185,7 +184,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MachineStateError"
-
   /api/v1/machine/profile:
     post:
       summary: Set Machine Profile
@@ -614,7 +612,7 @@ paths:
                 $ref: "#/components/schemas/ReaSettings"
     post:
       summary: Update Decent settings
-      tags: [REA Settings]
+      tags: [Decent Settings]
       requestBody:
         required: true
         content:
@@ -3854,11 +3852,8 @@ components:
       properties:
         type:
           type: string
-          enum:
-            [
-              block_no_scale
-            ]
-        details: 
+          enum: [block_no_scale]
+        details:
           type: string
 
     ScaleSnapshot:

@@ -42,6 +42,7 @@ class De1StateManager with WidgetsBindingObserver {
   ShotSequencer? _currentShotSequencer;
   StreamSubscription<ShotState>? _shotStateSubscription;
   StreamSubscription<ShotSnapshot>? _shotSnapshotsSubscription;
+  StreamSubscription<ShotDecision>? _shotDecisionSubscription;
 
   bool _isRealtimeFeatureActive = false;
   final List<ShotSnapshot> _currentShotSnapshots = [];
@@ -513,8 +514,8 @@ class De1StateManager with WidgetsBindingObserver {
       persistenceController: _persistenceController,
       targetProfile: _workflowController.currentWorkflow.profile,
       targetYield: _workflowController.currentWorkflow.context?.targetYield ?? 0,
-      settingsController: _settingsController,
       bypassSAW: _settingsController.gatewayMode == GatewayMode.full,
+      blockOnNoScale: _settingsController.blockOnNoScale,
       weightFlowMultiplier: _settingsController.weightFlowMultiplier,
       volumeFlowMultiplier: _settingsController.volumeFlowMultiplier,
     );
@@ -533,6 +534,17 @@ class De1StateManager with WidgetsBindingObserver {
       if (state == ShotState.finished) {
         _logger.fine('Shot finished, cleaning up ShotSequencer');
         _persistShotIfNeeded();
+        _cleanupShotSequencer();
+      }
+    });
+
+    // A blocking decision (e.g. blockOnNoScale) means no shot ran — tear down
+    // without persisting so the next shot can start tracking.
+    _shotDecisionSubscription =
+        _currentShotSequencer!.decisions.listen((decision) {
+      if (decision.reason == ShotDecisionReason.noScale) {
+        _logger.info('Shot blocked (${decision.reason.name}), cleaning up '
+            'ShotSequencer without persisting');
         _cleanupShotSequencer();
       }
     });
@@ -565,6 +577,9 @@ class De1StateManager with WidgetsBindingObserver {
 
     _shotSnapshotsSubscription?.cancel();
     _shotSnapshotsSubscription = null;
+
+    _shotDecisionSubscription?.cancel();
+    _shotDecisionSubscription = null;
 
     _currentShotSequencer?.dispose();
     _currentShotSequencer = null;
