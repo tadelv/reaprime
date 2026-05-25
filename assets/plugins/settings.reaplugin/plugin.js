@@ -469,6 +469,17 @@ function createPlugin(host) {
                         </div>
                     </div>
                     <div class="setting-item">
+                        <label class="setting-label" for="blockOnNoScale">Block Shots Without Scale</label>
+                        <div class="setting-control">
+                            <select id="blockOnNoScale" aria-describedby="blockOnNoScale-desc">
+                                <option value="true" ${reaSettings.blockOnNoScale ? 'selected' : ''}>Enabled</option>
+                                <option value="false" ${!reaSettings.blockOnNoScale ? 'selected' : ''}>Disabled</option>
+                            </select>
+                            <span id="blockOnNoScale-desc" class="visually-hidden">When enabled, espresso shots are blocked (and aborted if started via the machine) when no scale is connected.</span>
+                            <button class="btn btn-primary" onclick="updateReaSetting('blockOnNoScale', document.getElementById('blockOnNoScale').value === 'true')" aria-label="Save block on no scale setting">Save</button>
+                        </div>
+                    </div>
+                    <div class="setting-item">
                         <label class="setting-label" for="preferredMachineId">Auto-Connect Device ID</label>
                         <div class="setting-control">
                             <input type="text" id="preferredMachineId" value="${escapeHtml(reaSettings.preferredMachineId)}" placeholder="None set" aria-describedby="preferredMachineId-desc" style="width: 200px;">
