@@ -95,6 +95,9 @@ class _RecordingTelemetry implements TelemetryService {
   Future<void> setConsentEnabled(bool enabled) async {}
 
   @override
+  Future<void> recordTrace(String name, Map<String, int> metrics) async {}
+
+  @override
   String getLogBuffer() => '';
 }
 

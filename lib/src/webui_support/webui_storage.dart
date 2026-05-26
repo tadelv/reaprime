@@ -172,7 +172,12 @@ class WebUIStorage {
   /// - Copies bundled skins from assets
   /// - Downloads remote bundled skins
   /// - Scans for installed skins
-  Future<void> initialize() async {
+  ///
+  /// When [downloadRemote] is false, the remote-skin network download is
+  /// skipped so the (local, bundled) default skin is ready fast — callers on
+  /// the cold-boot critical path pass false and run
+  /// [downloadRemoteSkinsAndRescan] in the background afterwards.
+  Future<void> initialize({bool downloadRemote = true}) async {
     if (_initialized) {
       _log.fine('WebUIStorage already initialized');
       return;
@@ -198,8 +203,10 @@ class WebUIStorage {
     await _copyBundledSkins();
 
     // Download and install remote bundled skins (includes version checking)
-    // Skip on App Store builds — bundled skins from assets are the only source
-    if (!_appStoreMode) {
+    // Skip on App Store builds — bundled skins from assets are the only source.
+    // Skip when downloadRemote is false (cold-boot critical path) — the caller
+    // runs downloadRemoteSkinsAndRescan() in the background instead.
+    if (downloadRemote && !_appStoreMode) {
       await downloadRemoteSkins();
     }
 
@@ -463,6 +470,16 @@ class WebUIStorage {
         // Continue with other sources even if one fails
       }
     }
+  }
+
+  /// Downloads remote bundled skins then rescans so newly installed skins
+  /// surface. Safe to run in the background after
+  /// `initialize(downloadRemote: false)` — [downloadRemoteSkins] does not
+  /// rescan on its own, so the explicit [_scanInstalledSkins] is required.
+  Future<void> downloadRemoteSkinsAndRescan() async {
+    if (_appStoreMode) return;
+    await downloadRemoteSkins();
+    await _scanInstalledSkins();
   }
 
   /// Update all skins: remote-bundled skins and user-installed skins with source URLs.

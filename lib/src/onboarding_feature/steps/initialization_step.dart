@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/services/foreground_service.dart';
+import 'package:reaprime/src/services/telemetry/boot_timing.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -71,16 +73,23 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
   }
 
   Future<void> _initializeServices() async {
-    // Initialize WebUI storage
+    BootTiming.mark('init_start');
+
+    // BLE adapter init is independent of skin storage — start it now and
+    // await it later so it overlaps the (local) storage + serve work.
+    final deviceInit = widget.deviceController.initialize();
+
+    // Fast, local-only: bundled-skin extraction + installed-skin scan. The
+    // remote-skin network download is deferred to the background below.
     _log.info('Initializing WebUI storage...');
     try {
-      await widget.webUIStorage.initialize();
+      await widget.webUIStorage.initialize(downloadRemote: false);
       _log.info('WebUI storage initialized successfully');
     } catch (e) {
       _log.severe('Failed to initialize WebUI storage', e);
     }
 
-    // Start WebUI service with default skin
+    // Serve the bundled default skin (local, fast) — needed before the webview.
     final defaultSkin = widget.webUIStorage.defaultSkin;
     if (defaultSkin != null) {
       _log.info('Starting WebUI service with skin: ${defaultSkin.name}');
@@ -94,17 +103,9 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
       _log.warning('No default skin available, WebUI service not started');
     }
 
-    // Initialize plugins
-    if (widget.pluginLoaderService != null) {
-      try {
-        await widget.pluginLoaderService!.initialize();
-      } catch (e) {
-        _log.warning('Failed to initialize plugins: $e');
-      }
-    }
-
-    // Initialize device controller
-    await widget.deviceController.initialize();
+    // BLE must be ready before the scan step calls connect().
+    await deviceInit;
+    BootTiming.mark('init_ready');
 
     // Start foreground service on Android (permissions already granted
     // by the preceding permissions step or a previous launch).
@@ -115,7 +116,24 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
       );
     }
 
+    BootTiming.mark('scan_start');
     widget.onboardingController.advance();
+
+    // Off the critical path — the user is already scanning while the JS
+    // plugin VM spins up and remote skins download in the background.
+    final plugins = widget.pluginLoaderService;
+    if (plugins != null) {
+      unawaited(
+        plugins.initialize().catchError(
+          (Object e) => _log.warning('Background plugin init failed: $e'),
+        ),
+      );
+    }
+    unawaited(
+      widget.webUIStorage.downloadRemoteSkinsAndRescan().catchError(
+        (Object e) => _log.warning('Background remote-skin download failed: $e'),
+      ),
+    );
   }
 
   @override

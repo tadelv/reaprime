@@ -13,6 +13,7 @@ import 'package:reaprime/src/home_feature/widgets/device_selection_widget.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:reaprime/src/models/device/scale.dart' as device_scale;
+import 'package:reaprime/src/services/telemetry/boot_timing.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:reaprime/src/widgets/accessible_button.dart';
@@ -137,9 +138,15 @@ class ScanStepViewState extends State<ScanStepView> {
     _statusSubscription = widget.connectionManager.status.listen((status) {
       if (!mounted) return;
 
+      // Boot-timing: record each phase transition once.
+      if (status.phase != _status.phase) {
+        BootTiming.mark('connect_${status.phase.name}');
+      }
+
       if (status.phase == ConnectionPhase.ready && !_hasNavigated) {
         _hasNavigated = true;
         _cancelTooLongTimer();
+        BootTiming.mark('scan_ready');
         widget.onboardingController.advance();
         return;
       }

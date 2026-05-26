@@ -39,6 +39,12 @@ abstract class TelemetryService {
   /// Useful for tracking app state, user configuration, or session info.
   Future<void> setCustomKey(String key, Object value);
 
+  /// Record a one-shot performance trace carrying named integer metrics (ms).
+  ///
+  /// Used for boot/startup timing. No-op when Performance Monitoring is
+  /// unavailable (consent off, non-Android/iOS, or NoOp backend).
+  Future<void> recordTrace(String name, Map<String, int> metrics);
+
   /// Enable or disable telemetry collection
   ///
   /// When disabled, no data should be sent to remote servers.

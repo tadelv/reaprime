@@ -65,6 +65,7 @@ import 'src/services/serial/serial_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
+import 'package:reaprime/src/services/telemetry/boot_timing.dart';
 import 'package:reaprime/src/services/telemetry/log_buffer.dart';
 import 'package:reaprime/src/services/telemetry/anonymization.dart';
 import 'package:reaprime/src/services/telemetry/error_report_throttle.dart';
@@ -154,6 +155,7 @@ void main() async {
   await webViewLogService.initialize();
 
   Logger.root.info("==== Decent starting ====");
+  BootTiming.start();
 
   Logger.root.info(
     "build: ${BuildInfo.commitShort}, branch: ${BuildInfo.branch}",
@@ -174,11 +176,13 @@ void main() async {
       log.warning('Firebase initialization failed', e, st);
     }
   }
+  BootTiming.mark('firebase_done');
 
   // Create log buffer, error report throttle, and telemetry service
   final logBuffer = LogBuffer();
   final errorReportThrottle = ErrorReportThrottle();
   final telemetryService = TelemetryService.create(logBuffer: logBuffer);
+  BootTiming.telemetry = telemetryService;
 
   // Initialize telemetry (disables collection by default, sets up error handlers)
   try {
@@ -400,6 +404,7 @@ void main() async {
   } catch (e, st) {
     log.severe('failed to start web server', e, st);
   }
+  BootTiming.mark('webserver_up');
   // Load the user's preferred theme while the splash screen is displayed.
   // This prevents a sudden theme change when the app is first displayed.
   settingsController.addListener(() {
@@ -451,6 +456,7 @@ void main() async {
     ForegroundTaskService.init();
   }
 
+  BootTiming.mark('runapp');
   runApp(
     WithForegroundTask(
       child: AppRoot(

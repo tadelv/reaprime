@@ -33,6 +33,11 @@ class NoOpTelemetryService implements TelemetryService {
   }
 
   @override
+  Future<void> recordTrace(String name, Map<String, int> metrics) async {
+    // No-op
+  }
+
+  @override
   Future<void> setConsentEnabled(bool enabled) async {
     // No-op
   }
