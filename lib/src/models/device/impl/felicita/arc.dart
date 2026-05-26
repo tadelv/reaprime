@@ -69,7 +69,7 @@ class FelicitaArc implements Scale {
           'Discovered services: $services',
         );
       }
-      _registerNotifications();
+      await _registerNotifications();
       _connectionStateController.add(ConnectionState.connected);
     } catch (e) {
       disconnectSub?.cancel();
@@ -115,7 +115,7 @@ class FelicitaArc implements Scale {
 
   late StreamSubscription<Uint8List>? _notificationsSubscription;
 
-  void _registerNotifications() async {
+  Future<void> _registerNotifications() async {
     await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
   }
 

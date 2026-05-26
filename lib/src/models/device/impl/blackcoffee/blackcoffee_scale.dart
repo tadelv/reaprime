@@ -69,7 +69,7 @@ class BlackCoffeeScale implements Scale {
           'Discovered services: $services',
         );
       }
-      _registerNotifications();
+      await _registerNotifications();
       _connectionStateController.add(ConnectionState.connected);
     } catch (e) {
       disconnectSub?.cancel();
@@ -110,7 +110,7 @@ class BlackCoffeeScale implements Scale {
 
   double _lastRawWeight = 0.0;
 
-  void _registerNotifications() async {
+  Future<void> _registerNotifications() async {
     await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
   }
 

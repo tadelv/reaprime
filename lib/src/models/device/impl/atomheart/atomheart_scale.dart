@@ -75,7 +75,7 @@ class AtomheartScale implements Scale {
           'Discovered services: $services',
         );
       }
-      _registerNotifications();
+      await _registerNotifications();
       _connectionStateController.add(ConnectionState.connected);
     } catch (e) {
       disconnectSub?.cancel();
@@ -140,7 +140,7 @@ class AtomheartScale implements Scale {
     await tare();
   }
 
-  void _registerNotifications() async {
+  Future<void> _registerNotifications() async {
     await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
   }
 

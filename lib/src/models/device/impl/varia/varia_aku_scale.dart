@@ -80,7 +80,7 @@ class VariaAkuScale implements Scale {
           'Discovered services: $services',
         );
       }
-      _registerNotifications();
+      await _registerNotifications();
       _connectionStateController.add(ConnectionState.connected);
     } catch (e) {
       disconnectSub?.cancel();
@@ -119,7 +119,7 @@ class VariaAkuScale implements Scale {
     // Varia AKU doesn't support display wake via BLE
   }
 
-  void _registerNotifications() async {
+  Future<void> _registerNotifications() async {
     await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
   }
 

@@ -68,7 +68,7 @@ class SmartChefScale implements Scale {
           'Discovered services: $services',
         );
       }
-      _registerNotifications();
+      await _registerNotifications();
       _connectionStateController.add(ConnectionState.connected);
     } catch (e) {
       disconnectSub?.cancel();
@@ -107,7 +107,7 @@ class SmartChefScale implements Scale {
     // This is a no-op
   }
 
-  void _registerNotifications() async {
+  Future<void> _registerNotifications() async {
     await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
   }
 
