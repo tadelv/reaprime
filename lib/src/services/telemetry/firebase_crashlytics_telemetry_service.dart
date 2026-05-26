@@ -95,6 +95,22 @@ class FirebaseCrashlyticsTelemetryService implements TelemetryService {
   }
 
   @override
+  Future<void> recordTrace(String name, Map<String, int> metrics) async {
+    // Firebase Performance has no macOS/Linux implementation — same guard as
+    // initialize(). Collection is consent-gated, so traces are dropped client
+    // side until the user consents.
+    if (kIsWeb ||
+        !(defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)) {
+      return;
+    }
+    final trace = FirebasePerformance.instance.newTrace(name);
+    await trace.start();
+    metrics.forEach(trace.setMetric);
+    await trace.stop();
+  }
+
+  @override
   Future<void> setConsentEnabled(bool enabled) async {
     await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(enabled);
     await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(enabled);

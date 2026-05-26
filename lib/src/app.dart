@@ -246,9 +246,9 @@ class _MyAppState extends State<MyApp> {
       }
     }
 
-    // Wait a brief moment for WebUI to be fully ready
-    await Future.delayed(const Duration(milliseconds: 500));
-
+    // No artificial delay needed: serveFolderAtPath awaits shelf_io.serve()
+    // (port bound before isServing flips true) and the REST server is already
+    // up from main(), so both are ready by the time we navigate.
     _log.info('Navigating to SkinView');
     // Push both routes to stack: HomeScreen first, then SkinView on top
     navigator.pushNamedAndRemoveUntil(

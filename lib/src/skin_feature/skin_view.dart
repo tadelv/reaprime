@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/home_feature/widgets/quick_settings_widget.dart';
+import 'package:reaprime/src/services/telemetry/boot_timing.dart';
 import 'package:reaprime/src/services/webview_compatibility_checker.dart';
 import 'package:reaprime/src/services/webview_log_service.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
@@ -548,6 +549,9 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
           },
           onLoadStart: (controller, url) {
             _log.info('Page started loading: $url');
+            // Webview is up — final cold-boot milestone (idempotent).
+            BootTiming.mark('webview');
+            BootTiming.complete();
             setState(() {
               _isLoading = true;
               _errorMessage = null;
