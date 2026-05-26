@@ -87,7 +87,7 @@ class DecentScale implements Scale {
           'Discovered services: $services',
         );
       }
-      _registerNotifications();
+      await _registerNotifications();
       _heartbeatTimer?.cancel();
       _ticksSinceLastNotification = 0;
       _watchdogRetryAttempted = false;
@@ -219,7 +219,7 @@ class DecentScale implements Scale {
     }
   }
 
-  void _registerNotifications() async {
+  Future<void> _registerNotifications() async {
     await _device.subscribe(
       serviceIdentifier.long,
       dataCharacteristic.long,
