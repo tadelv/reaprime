@@ -100,36 +100,44 @@ class DecentScale implements Scale {
           disconnect();
           return;
         }
-        _ticksSinceLastNotification++;
         _heartbeatTotalTicks++;
 
         // Periodic heartbeat log every 5 min (75 ticks at 4s)
         if (_heartbeatTotalTicks % 75 == 0) {
           final uptimeMin = (_heartbeatTotalTicks * 4) ~/ 60;
           _log.fine("heartbeat: ${uptimeMin}m uptime, $_totalNotifications notifications");
+          if (!_isSleeping) {
+            await _sendOledOn();
+          }
         }
 
-        if (_ticksSinceLastNotification >= _watchdogDisconnectTicks) {
-          _log.severe(
-            "No BLE notifications for ${_watchdogDisconnectTicks * 4}s "
-            "(total=$_totalNotifications, uptime=${_heartbeatTotalTicks * 4}s), disconnecting",
-          );
-          disconnect();
-          return;
-        } else if (_ticksSinceLastNotification >= _watchdogWarningTicks &&
-            !_watchdogRetryAttempted) {
-          _watchdogRetryAttempted = true;
-          _log.warning(
-            "No BLE notifications for ${_watchdogWarningTicks * 4}s "
-            "(total=$_totalNotifications), re-subscribing",
-          );
-          _registerNotifications();
+        // Watchdog: only active when scale is awake (weight notifications
+        // flowing). When sleeping, scale sends nothing — skip checks.
+        if (!_isSleeping) {
+          _ticksSinceLastNotification++;
+
+          if (_ticksSinceLastNotification >= _watchdogDisconnectTicks) {
+            _log.severe(
+              "No BLE notifications for ${_watchdogDisconnectTicks * 4}s "
+              "(total=$_totalNotifications, uptime=${_heartbeatTotalTicks * 4}s), disconnecting",
+            );
+            disconnect();
+            return;
+          } else if (_ticksSinceLastNotification >= _watchdogWarningTicks &&
+              !_watchdogRetryAttempted) {
+            _watchdogRetryAttempted = true;
+            _log.warning(
+              "No BLE notifications for ${_watchdogWarningTicks * 4}s "
+              "(total=$_totalNotifications), re-subscribing",
+            );
+            _registerNotifications();
+          }
         }
 
         await _sendHeartBeat();
       });
-      _sendOledOn();
-      _sendHeartBeat();
+      await _sendOledOn();
+      await _sendHeartBeat();
       _connectionStateController.add(ConnectionState.connected);
     } catch (e) {
       _log.warning('Failed to initialize scale: $e');
@@ -188,14 +196,17 @@ class DecentScale implements Scale {
   }
 
   Future<void> _sendHeartBeat() async {
-    _log.finest("send hb");
-    // List<int> payload = [0x03, 0x0A, 0x03, 0xFF, 0xFF, 0x00, 0x0A];
-    // Send OLed off command (will return battery %)
-    List<int> payload = [0x03, 0x0A, 0x03, 0xFF, 0xFF, 0x00, 0x0A];
-    if (!_isSleeping) {
-      // Send OLed on command (will return battery %)
-      payload = [0x03, 0x0A, 0x03, 0xFF, 0xFF, 0x00, 0x0A];
+    if (_isSleeping) {
+      // Scale display is off — no heartbeat needed (scale won't auto-sleep
+      // when we already told it to sleep, and it won't send notifications
+      // for the watchdog to observe).
+      return;
     }
+    _log.finest("send hb");
+    // Heartbeat ping: tells the scale the app is still alive so it won't
+    // auto-sleep. Does NOT produce a BLE notification response — watchdog
+    // is fed by weight notifications (0xCE/0xCA) while scale is awake.
+    List<int> payload = [0x03, 0x0A, 0x03, 0xFF, 0xFF, 0x00, 0x0A];
     try {
       await _device.write(
         serviceIdentifier.long,
@@ -309,6 +320,9 @@ class DecentScale implements Scale {
   @override
   Future<void> wakeDisplay() async {
     _isSleeping = false;
+    // Reset watchdog so scale has time to resume sending weight notifications
+    _ticksSinceLastNotification = 0;
+    _watchdogRetryAttempted = false;
     _log.info('Waking Decent Scale display');
     await _sendOledOn();
   }
