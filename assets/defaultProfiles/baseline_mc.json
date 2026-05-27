@@ -1,0 +1,77 @@
+{
+  "title": "Baseline • Medium Contact • 6 Bar",
+  "author": "longpvo",
+  "notes": "Baseline • Medium Contact • 6 Bar\n4–6 bar range, bloom exit is 2 bar pressure-drop or 4 seconds max, 4 mlps flow max, 20g:40g–45g (1:2–2.25)\nalmost identical to ExDos\n\nRecommended temperature targets for different roast and solubility level:\nExtremely Light–Light: 86°C→66°C to 82°C→62°C\nMedium Light–Medium Dark: 82°C→62°C to 78°C→58°C\nDark–Extremely Dark: 78°C→58°C to 74°C→54°C\nonly make changes to global temperature (the initial shot temperature) in your DE1 skin, it should apply the declining delta automatically, there's no need to manually change the temperature in each of the profile step\nthe profiles are defaulted to 83.5ºC just to be generous, increase/decrease it by 1 or 2ºC until you find it not over-extracts the aftertaste\n\nDialing-in tips:\nif there isn't enough resistance, flow will oscillate (or pressure in HC)\nhone in your resistance so flow does not oscillate by the end of step #3, from here adjust ratio to taste or if desired you can explore increasing resistance with artificial resistance aid such as resistive bottom paper filter or grinding finer to increase concentration\nif there is excessive resistance, it will sustain peak pressure until resistance falls\nin the event you have way too much resistance (the tell-tale sign is upon step #3, pressure pulses lightly), just anticipate to cut the shot a little shorter using the GHC than what you set weight-out to (as the puck would have already been dwelling and extracted for quite a bit already, successfully hitting the set weight-out would probably taste overly extracted)\nif you're at the ideal resistance and concentration to liking and you desire more or less perceivable brightness/acidity, decrease or increase the time-out in step #2 by 2s, this shortens or extends the bloom contact time\nstep #2 has both pressure-drop exit and time-out exit, whichever comes first depends on your overall resistance and grind characteristics, I would suggest leave pressure-exit value alone and only make adjustment to time-out\nfor LC you can only decrease the time-out to 1s\ntemperature and dose:output ratio are defaulted to my setup, it's recommended you revert to what you comfortable with previously.\nit's not necessary but the fill in step #1 of the profile leverages how the DE1 circulates its water loop to thermal stability, to have the profile consistently behaves as designed, head to Machine > Calibrate > page 2 and set:\nHeater test time-out = 30s\nHeater test flow rate = 8 mlps",
+  "beverage_type": "espresso",
+  "steps": [
+    {
+      "exit": {
+        "type": "pressure",
+        "value": "4.0",
+        "condition": "over"
+      },
+      "flow": "12.0",
+      "name": "Fill (fast)",
+      "pump": "flow",
+      "sensor": "water",
+      "volume": "0",
+      "weight": "0.0",
+      "limiter": {
+        "range": "0",
+        "value": "0"
+      },
+      "seconds": "15.0",
+      "pressure": "0",
+      "transition": "fast",
+      "temperature": "83.5"
+    },
+    {
+      "exit": {
+        "type": "pressure",
+        "value": "2.0",
+        "condition": "under"
+      },
+      "flow": "0",
+      "name": "Soak (zero flow)",
+      "pump": "flow",
+      "sensor": "coffee",
+      "volume": "0",
+      "weight": "20.0",
+      "limiter": {
+        "range": "0",
+        "value": "0"
+      },
+      "seconds": "4.0",
+      "pressure": "0",
+      "transition": "fast",
+      "temperature": "63.5"
+    },
+    {
+      "flow": "0.0",
+      "name": "Percolation (flat)",
+      "pump": "pressure",
+      "sensor": "coffee",
+      "volume": "0",
+      "weight": "0.0",
+      "limiter": {
+        "range": "2.5",
+        "value": "1.5"
+      },
+      "seconds": "90.0",
+      "pressure": "6.0",
+      "transition": "fast",
+      "temperature": "63.5"
+    }
+  ],
+  "tank_temperature": "0",
+  "target_weight": "40",
+  "target_volume": "0",
+  "target_volume_count_start": "2",
+  "legacy_profile_type": "settings_2c",
+  "type": "advanced",
+  "lang": "en",
+  "hidden": "0",
+  "reference_file": "Baseline_MC",
+  "changes_since_last_espresso": "",
+  "version": "2"
+}

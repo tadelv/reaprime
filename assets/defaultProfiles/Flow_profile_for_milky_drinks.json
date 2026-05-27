@@ -1,56 +1,85 @@
 {
-  "version": "2",
   "title": "Flow profile for milky drinks",
   "author": "Decent",
   "notes": "John Buckman, the founder of Decent Espresso, finds that this flow profile produces the best espresso shots for milky drinks in the widest variety of circumstances. It is especially tolerant of not-yet-very-good barista technique.",
   "beverage_type": "espresso",
   "steps": [
     {
-      "name": "preinfusion",
+      "name": "preinfusion boost",
+      "temperature": "88.0",
+      "sensor": "coffee",
       "pump": "flow",
       "transition": "fast",
-      "temperature": "84.0",
-      "sensor": "coffee",
-      "seconds": "10.0",
-      "volume": "100.0",
-      "weight": "0.0",
-      "flow": "6.0",
-      "pressure": "1.0",
+      "pressure": "1",
+      "flow": "8.0",
+      "seconds": "2",
+      "volume": "0",
+      "weight": "0",
       "exit": {
         "type": "pressure",
         "condition": "over",
-        "value": "3.0"
+        "value": "5.0"
       }
     },
     {
-      "name": "rise and hold",
-      "pump": "pressure",
-      "transition": "fast",
-      "temperature": "81.0",
+      "name": "preinfusion",
+      "temperature": "88.0",
       "sensor": "coffee",
-      "seconds": "8.0",
-      "volume": "100.0",
-      "weight": "0.0",
-      "pressure": "7.5",
-      "flow": "0.0"
+      "pump": "flow",
+      "transition": "fast",
+      "pressure": "1",
+      "flow": "8.0",
+      "seconds": "18",
+      "volume": "0",
+      "weight": "0",
+      "exit": {
+        "type": "pressure",
+        "condition": "over",
+        "value": "5.0"
+      }
+    },
+    {
+      "name": "hold",
+      "temperature": "88.0",
+      "sensor": "coffee",
+      "pump": "flow",
+      "transition": "fast",
+      "pressure": "",
+      "flow": "1.2",
+      "seconds": "30",
+      "volume": "0",
+      "weight": "0",
+      "limiter": {
+        "value": "8.6",
+        "range": "0.9"
+      }
     },
     {
       "name": "decline",
-      "pump": "pressure",
-      "transition": "smooth",
-      "temperature": "78.0",
+      "temperature": "88.0",
       "sensor": "coffee",
-      "seconds": "30.0",
-      "volume": "100.0",
-      "weight": "0.0",
-      "pressure": "3.0",
-      "flow": "0.0"
+      "pump": "flow",
+      "transition": "smooth",
+      "pressure": "",
+      "flow": "1",
+      "seconds": "0",
+      "volume": "0",
+      "weight": "0",
+      "limiter": {
+        "value": "8.6",
+        "range": "0.9"
+      }
     }
   ],
-  "tank_temperature": "0.0",
-  "target_weight": "42.0",
-  "target_volume": "0.0",
-  "target_volume_count_start": "0",
-  "type": "advanced",
-  "hidden": "0"
+  "tank_temperature": "0",
+  "target_weight": "36",
+  "target_volume": "36",
+  "target_volume_count_start": "2",
+  "legacy_profile_type": "settings_2b",
+  "type": "flow",
+  "lang": "en",
+  "hidden": "0",
+  "reference_file": "Flow profile for milky drinks",
+  "changes_since_last_espresso": "",
+  "version": "2"
 }
