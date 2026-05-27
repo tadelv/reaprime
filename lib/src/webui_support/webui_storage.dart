@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
@@ -141,6 +142,18 @@ class WebUIStorage {
   WebUIStorage(this._settingsController, {bool? appStoreMode})
       : _appStoreMode = appStoreMode ?? BuildInfo.appStore;
 
+  /// Test seam: point storage at a specific web-ui directory and mark it
+  /// initialized, bypassing the asset/network [initialize] flow so install
+  /// behavior can be exercised against a temp directory.
+  @visibleForTesting
+  void debugInitWithWebUIDir(Directory dir) {
+    _webUIDir = dir;
+    if (!_webUIDir.existsSync()) {
+      _webUIDir.createSync(recursive: true);
+    }
+    _initialized = true;
+  }
+
   /// Hardcoded list of bundled asset paths
   /// These are Flutter assets that ship with the app
   static const List<String> _bundledAssetPaths = [
@@ -271,17 +284,22 @@ class WebUIStorage {
   /// Install a WebUI skin from a local filesystem path
   /// The path can be either a directory or a zip file
   /// Returns the installed skin ID
-  Future<String> installFromPath(String sourcePath) async {
+  Future<String> installFromPath(
+    String sourcePath, {
+    bool overwriteIfExists = true,
+  }) async {
     final source = File(sourcePath);
     final sourceDir = Directory(sourcePath);
 
     String skinId;
     if (source.existsSync() && sourcePath.endsWith('.zip')) {
       // It's a zip file - extract it
-      skinId = await _installFromZip(sourcePath);
+      skinId = await _installFromZip(sourcePath,
+          overwriteIfExists: overwriteIfExists);
     } else if (sourceDir.existsSync()) {
       // It's a directory - copy it
-      skinId = await _installFromDirectory(sourceDir);
+      skinId = await _installFromDirectory(sourceDir,
+          overwriteIfExists: overwriteIfExists);
     } else {
       throw Exception('Source does not exist: $sourcePath');
     }
@@ -954,7 +972,7 @@ class WebUIStorage {
         await tempFile.writeAsBytes(zipData.buffer.asUint8List());
 
         try {
-          await _installFromZip(tempFile.path);
+          await _installFromZip(tempFile.path, overwriteIfExists: false);
           _log.info('Installed bundled skin from asset: $skinId');
         } finally {
           if (tempFile.existsSync()) await tempFile.delete();
@@ -1077,7 +1095,10 @@ class WebUIStorage {
 
   /// Install a WebUI skin from a zip file
   /// Returns the installed skin ID
-  Future<String> _installFromZip(String zipPath) async {
+  Future<String> _installFromZip(
+    String zipPath, {
+    bool overwriteIfExists = true,
+  }) async {
     _log.info('Installing WebUI from zip: $zipPath');
 
     // Create temp extraction directory
@@ -1122,7 +1143,10 @@ class WebUIStorage {
       }
 
       // Install from the extracted directory
-      return await _installFromDirectory(contentDir);
+      return await _installFromDirectory(
+        contentDir,
+        overwriteIfExists: overwriteIfExists,
+      );
     } finally {
       // Clean up temp directory
       if (tempDir.existsSync()) {
@@ -1132,8 +1156,18 @@ class WebUIStorage {
   }
 
   /// Install a WebUI skin from a directory
-  /// Returns the installed skin ID
-  Future<String> _installFromDirectory(Directory sourceDir) async {
+  /// Returns the installed skin ID.
+  ///
+  /// When [overwriteIfExists] is false, an existing non-empty skin directory is
+  /// left untouched and its id returned. Bundled-asset installs use this so they
+  /// never clobber a newer copy installed from a GitHub release (issue #250):
+  /// the skin's install dir is keyed by its manifest `id` (e.g. `streamline.js`),
+  /// not the bundled asset basename (e.g. `streamline_project`), so the caller's
+  /// own existence check cannot see it.
+  Future<String> _installFromDirectory(
+    Directory sourceDir, {
+    bool overwriteIfExists = true,
+  }) async {
     // Try to load skin ID from skin-manifest.json first, then manifest.json,
     // otherwise fall back to directory name
     String skinId;
@@ -1152,6 +1186,14 @@ class WebUIStorage {
 
     // Check if skin already exists
     final destDir = Directory('${_webUIDir.path}/$skinId');
+    if (destDir.existsSync() &&
+        destDir.listSync().isNotEmpty &&
+        !overwriteIfExists) {
+      _log.info(
+        'Skin "$skinId" already installed; skipping to avoid clobbering existing copy',
+      );
+      return skinId;
+    }
     if (destDir.existsSync()) {
       _log.warning('Skin already exists: $skinId, overwriting...');
       await destDir.delete(recursive: true);
