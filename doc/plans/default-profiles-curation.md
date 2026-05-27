@@ -181,10 +181,14 @@ operates at raw-SQL level and would duplicate hash logic.
   fresh simulate DB); check `doc/Profiles.md`; archive this plan + audit.
 
 ## Deferred (accepted, not actioned)
-- Suspected dups left in place pending per-item decision: `Rao Allongé 3` vs
-  `Rao Allongé`, `Default1`, `Gentle_and_sweet1` (titles already clean; filenames
-  cosmetic).
+- `Default1.json` / `Gentle_and_sweet1.json`: no action — titles are already
+  clean ("Default", "Gentle and sweet"); the `1` is only in the filename (not
+  user-visible) and neither has a duplicate.
 - Soup 58 / PSPH correct notes — stubbed; need a real source.
+
+## Resolved after initial pass
+- Rao Allongé consolidated: dropped the stale 1-step `Rao_Allongé_3.json`, kept
+  the canonical 2-step `rao_allonge.json`. Manifest → 70 profiles.
 
 ## Decisions (user-confirmed)
 
