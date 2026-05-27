@@ -1,0 +1,134 @@
+import 'dart:convert';
+
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:reaprime/src/controllers/profile_controller.dart';
+import 'package:reaprime/src/models/data/profile.dart';
+import 'package:reaprime/src/models/data/profile_record.dart';
+import 'package:reaprime/src/services/storage/profile_storage_service.dart';
+
+class InMemoryProfileStorage implements ProfileStorageService {
+  final Map<String, ProfileRecord> records = {};
+  @override
+  Future<void> initialize() async {}
+  @override
+  Future<void> store(ProfileRecord record) async =>
+      records[record.id] = record;
+  @override
+  Future<ProfileRecord?> get(String id) async => records[id];
+  @override
+  Future<List<ProfileRecord>> getAll({Visibility? visibility}) async => records
+      .values
+      .where((r) => visibility == null || r.visibility == visibility)
+      .toList();
+  @override
+  Future<void> update(ProfileRecord record) async =>
+      records[record.id] = record;
+  @override
+  Future<void> delete(String id) async => records.remove(id);
+  @override
+  Future<bool> exists(String id) async => records.containsKey(id);
+  @override
+  Future<List<String>> getAllIds() async => records.keys.toList();
+  @override
+  Future<List<ProfileRecord>> getByParentId(String parentId) async =>
+      records.values.where((r) => r.parentId == parentId).toList();
+  @override
+  Future<void> storeAll(List<ProfileRecord> recs) async {
+    for (final r in recs) {
+      records[r.id] = r;
+    }
+  }
+
+  @override
+  Future<void> clear() async => records.clear();
+  @override
+  Future<int> count({Visibility? visibility}) async =>
+      (await getAll(visibility: visibility)).length;
+}
+
+Future<Map<String, dynamic>> _bundledJson(String filename) async =>
+    jsonDecode(await rootBundle.loadString('assets/defaultProfiles/$filename'))
+        as Map<String, dynamic>;
+
+const _milkyFile = 'Flow_profile_for_milky_drinks.json';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('M2: a default whose file was removed from the manifest is hidden',
+      () async {
+    final storage = InMemoryProfileStorage();
+    final base = Profile.fromJson(await _bundledJson(_milkyFile));
+    final removed = ProfileRecord.create(
+      profile: base,
+      isDefault: true,
+      metadata: {'source': 'bundled', 'filename': 'deleted_profile.json'},
+    );
+    await storage.store(removed);
+
+    await ProfileController(storage: storage).initialize();
+
+    expect(storage.records[removed.id]!.visibility, Visibility.hidden,
+        reason: 'removed-from-manifest default should be hidden');
+  });
+
+  test('M2: a stale prior version of a changed default is hidden, current stays visible',
+      () async {
+    final storage = InMemoryProfileStorage();
+    // Simulate the pre-curation milky: same filename, different content (bump a
+    // step) so it gets a different content-hash id.
+    final json = await _bundledJson(_milkyFile);
+    (json['steps'] as List).first['seconds'] = '999';
+    final stale = ProfileRecord.create(
+      profile: Profile.fromJson(json),
+      isDefault: true,
+      metadata: {'source': 'bundled', 'filename': _milkyFile},
+    );
+    await storage.store(stale);
+
+    await ProfileController(storage: storage).initialize();
+
+    final current = Profile.fromJson(await _bundledJson(_milkyFile));
+    final currentId = ProfileRecord.create(profile: current).id;
+    expect(stale.id == currentId, isFalse, reason: 'precondition: ids differ');
+    expect(storage.records[currentId]?.visibility, Visibility.visible);
+    expect(storage.records[stale.id]!.visibility, Visibility.hidden);
+  });
+
+  test('M1: an existing default with stale metadata gets its title refreshed',
+      () async {
+    final storage = InMemoryProfileStorage();
+    // Same content as current milky (same id) but a stale title.
+    final json = await _bundledJson(_milkyFile);
+    json['title'] = 'OLD STALE TITLE';
+    final staleMeta = ProfileRecord.create(
+      profile: Profile.fromJson(json),
+      isDefault: true,
+      metadata: {'source': 'bundled', 'filename': _milkyFile},
+    );
+    await storage.store(staleMeta);
+
+    await ProfileController(storage: storage).initialize();
+
+    final refreshed = storage.records[staleMeta.id]!;
+    expect(refreshed.profile.title, 'Flow profile for milky drinks');
+    expect(refreshed.visibility, Visibility.visible);
+  });
+
+  test('user profiles (not default) are never touched by retirement', () async {
+    final storage = InMemoryProfileStorage();
+    final json = await _bundledJson(_milkyFile);
+    (json['steps'] as List).first['seconds'] = '777';
+    final userProfile = ProfileRecord.create(
+      profile: Profile.fromJson(json),
+      isDefault: false,
+    );
+    await storage.store(userProfile);
+
+    await ProfileController(storage: storage).initialize();
+
+    expect(storage.records[userProfile.id]!.visibility, Visibility.visible);
+    expect(storage.records[userProfile.id]!.isDefault, isFalse);
+  });
+}

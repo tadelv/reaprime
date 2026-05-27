@@ -43,7 +43,13 @@ class ProfileController {
 
       int loaded = 0;
       int skipped = 0;
-      
+      int refreshed = 0;
+
+      // Maps each bundled filename to the id (content hash) of its *current*
+      // version, so stale prior copies can be retired afterwards (issue #242).
+      final currentFilenames = profileFiles.cast<String>().toSet();
+      final currentIdByFilename = <String, String>{};
+
       for (final filename in profileFiles) {
         try {
           final profileData = await rootBundle.loadString(
@@ -58,21 +64,32 @@ class ProfileController {
             isDefault: true,
             metadata: {'source': 'bundled', 'filename': filename},
           );
+          currentIdByFilename[filename] = record.id;
 
           // Check if this profile already exists (by hash)
           final existing = await _storage.get(record.id);
           if (existing != null) {
-            // Ensure isDefault is set and profile is visible — a user may have
-            // imported this profile before it became a bundled default.
-            if (!existing.isDefault || existing.visibility != Visibility.visible) {
-              final updated = existing.copyWith(
+            // Same execution content. Refresh presentation fields
+            // (title/author/notes) when the bundled metadata changed, and
+            // (re)assert default+visible — a user may have imported this
+            // profile before it became a bundled default. Refreshing metadata
+            // is what lets curation edits (issue #242) reach existing installs,
+            // since metadata-only changes leave the content hash (id) unchanged.
+            final needsMetadataRefresh =
+                existing.metadataHash != record.metadataHash;
+            if (!existing.isDefault ||
+                existing.visibility != Visibility.visible ||
+                needsMetadataRefresh) {
+              await _storage.update(existing.copyWith(
+                profile: profile,
                 isDefault: true,
                 visibility: Visibility.visible,
-              );
-              await _storage.update(updated);
-              _log.fine('Promoted existing profile to default: ${record.id} (${profile.title})');
-            } else {
-              _log.fine('Skipped existing default profile: ${record.id} (${profile.title})');
+                metadata: {'source': 'bundled', 'filename': filename},
+              ));
+              if (needsMetadataRefresh) {
+                refreshed++;
+                _log.fine('Refreshed default profile metadata: ${record.id} (${profile.title})');
+              }
             }
             skipped++;
             continue;
@@ -86,17 +103,52 @@ class ProfileController {
         }
       }
 
-      if (loaded > 0) {
-        _log.info('Loaded $loaded new default profiles (skipped $skipped existing)');
-      } else {
-        _log.info('All default profiles already loaded (${profileFiles.length} total)');
-      }
+      await _retireStaleDefaults(currentFilenames, currentIdByFilename);
+
+      _log.info(
+        'Default profiles: $loaded new, $refreshed refreshed, '
+        '$skipped existing (${profileFiles.length} total)',
+      );
     } catch (e) {
       _log.warning(
         'Failed to load default profiles (this is okay if manifest doesn\'t exist yet)',
         e,
       );
     }
+  }
+
+  /// Hide bundled defaults that no longer match the current manifest, so curation
+  /// (issue #242) doesn't leave duplicate/stale defaults on existing installs.
+  ///
+  /// A stored default is retired when either its source `filename` was dropped
+  /// from the manifest (profile removed), or its content changed so the stored
+  /// copy's id no longer equals the current bundled id for that filename.
+  /// Records are *hidden*, never deleted, so the change stays recoverable.
+  /// Identified via the seeded `metadata.filename`; idempotent across launches.
+  Future<void> _retireStaleDefaults(
+    Set<String> currentFilenames,
+    Map<String, String> currentIdByFilename,
+  ) async {
+    int retired = 0;
+    for (final record in await _storage.getAll()) {
+      if (!record.isDefault || record.visibility != Visibility.visible) {
+        continue;
+      }
+      final filename = record.metadata?['filename'];
+      if (filename is! String) continue; // unclassifiable — leave untouched
+      final removed = !currentFilenames.contains(filename);
+      final staleVersion =
+          !removed && currentIdByFilename[filename] != record.id;
+      if (removed || staleVersion) {
+        await _storage.update(record.copyWith(visibility: Visibility.hidden));
+        retired++;
+        _log.info(
+          'Retired stale default: ${record.id} '
+          '($filename / ${record.profile.title})',
+        );
+      }
+    }
+    if (retired > 0) _log.info('Retired $retired stale default profile(s)');
   }
 
   /// List bundled default profiles from the manifest
