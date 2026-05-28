@@ -43,7 +43,7 @@ import 'package:reaprime/src/services/storage/drift_storage_service.dart';
 import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:reaprime/src/services/account/decent_account_service.dart';
-import 'package:reaprime/src/services/account/credential_store.dart';
+import 'package:reaprime/src/services/account/credential_store_factory.dart';
 import 'package:http/http.dart' as http;
 import 'package:reaprime/src/services/storage/hive_store_service.dart';
 import 'package:reaprime/src/services/universal_ble_discovery_service.dart';
@@ -368,7 +368,7 @@ void main() async {
 
   final decentAccountService = DecentAccountService(
     httpClient: http.Client(),
-    credentialStore: SecureCredentialStore(),
+    credentialStore: createCredentialStore(),
   );
 
   BatteryController? batteryController;
