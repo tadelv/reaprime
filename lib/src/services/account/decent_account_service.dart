@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:http/http.dart';
+import 'package:http/http.dart' as http;
 
 abstract class CredentialStore {
   Future<String?> read({required String key});
@@ -10,11 +10,11 @@ abstract class CredentialStore {
 }
 
 class DecentAccountService {
-  final BaseClient _httpClient;
+  final http.Client _httpClient;
   final CredentialStore _store;
   final String baseUrl;
   DecentAccountService({
-    required BaseClient httpClient,
+    required http.Client httpClient,
     required CredentialStore credentialStore,
     this.baseUrl = "https://decentespresso.com",
   }) : _httpClient = httpClient,
@@ -56,14 +56,14 @@ class DecentAccountService {
     if (email == null || password == null) {
       throw StateError('not logged in');
     }
-      final response = await _authedGet(email, password, '/support/api/sn');
-      if (response.statusCode != 200) {
-        throw response.body;
-      }
-      if (response.body == '') {
-        return [];
-      }
-      return response.body.trim().split('\n');
+    final response = await _authedGet(email, password, '/support/api/sn');
+    if (response.statusCode != 200) {
+      throw response.body;
+    }
+    if (response.body == '') {
+      return [];
+    }
+    return response.body.trim().split('\n');
   }
 
   Future<bool> verifyMachineSerial(String serial) async {
@@ -71,7 +71,7 @@ class DecentAccountService {
     return list.contains(serial);
   }
 
-  Future<Response> _authedGet(
+  Future<http.Response> _authedGet(
     String email,
     String password,
     String path,
