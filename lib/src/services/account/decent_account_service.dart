@@ -47,6 +47,9 @@ class DecentAccountService {
 
   Future<bool> isLoggedIn() async => await _store.read(key: 'email') != null;
 
+  /// Returns the stored email address, or null if not logged in.
+  Future<String?> getEmail() async => _store.read(key: 'email');
+
   Future<List<String>> fetchSerialNumbers() async {
     final email = await _store.read(key: 'email');
     final password = await _store.read(key: 'password');
