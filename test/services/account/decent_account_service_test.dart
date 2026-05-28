@@ -1,0 +1,347 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart' as http_testing;
+import 'package:reaprime/src/services/account/decent_account_service.dart';
+
+/// In-memory fake for testing — no flutter_secure_storage dependency.
+class FakeCredentialStore implements CredentialStore {
+  final Map<String, String> _store = {};
+
+  @override
+  Future<String?> read({required String key}) async => _store[key];
+
+  @override
+  Future<void> write({required String key, required String value}) async {
+    _store[key] = value;
+  }
+
+  @override
+  Future<void> delete({required String key}) async {
+    _store.remove(key);
+  }
+
+  // Exposed for test assertions.
+  bool get hasCredentials =>
+      _store.containsKey('email') && _store.containsKey('password');
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const _baseUrl = 'https://decentespresso.com';
+
+http_testing.MockClient _mockClient({
+  required int statusCode,
+  required String body,
+}) {
+  return http_testing.MockClient((request) async {
+    return http.Response(body, statusCode);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+void main() {
+  group('DecentAccountService', () {
+    late FakeCredentialStore store;
+    late http_testing.MockClient httpClient;
+    late DecentAccountService service;
+
+    setUp(() {
+      store = FakeCredentialStore();
+      httpClient = _mockClient(statusCode: 200, body: '1');
+      service = DecentAccountService(
+        httpClient: httpClient,
+        credentialStore: store,
+        baseUrl: _baseUrl,
+      );
+    });
+
+    group('login', () {
+      late http.BaseRequest capturedRequest;
+
+      /// Helper that builds a service whose MockClient captures the request
+      /// and returns [statusCode]/[body], then asserts on [capturedRequest]
+      /// after the async call completes.
+      DecentAccountService _serviceWithCapture({
+        required int statusCode,
+        required String body,
+      }) {
+        final client = http_testing.MockClient((request) async {
+          capturedRequest = request;
+          return http.Response(body, statusCode);
+        });
+        return DecentAccountService(
+          httpClient: client,
+          credentialStore: store,
+          baseUrl: _baseUrl,
+        );
+      }
+
+      setUp(() {
+        capturedRequest = http.Request('GET', Uri.parse('about:blank'));
+      });
+      test('returns true when API responds with "1"', () async {
+        final result = await service.login('test@example.com', 'hunter2');
+        expect(result, isTrue);
+      });
+
+      test('returns false when API responds with "0"', () async {
+        httpClient = _mockClient(statusCode: 200, body: '0');
+        service = DecentAccountService(
+          httpClient: httpClient,
+          credentialStore: store,
+          baseUrl: _baseUrl,
+        );
+
+        final result = await service.login('test@example.com', 'wrong');
+        expect(result, isFalse);
+      });
+
+      test('returns false when API returns non-200 status', () async {
+        httpClient = _mockClient(statusCode: 500, body: '');
+        service = DecentAccountService(
+          httpClient: httpClient,
+          credentialStore: store,
+          baseUrl: _baseUrl,
+        );
+
+        final result = await service.login('test@example.com', 'hunter2');
+        expect(result, isFalse);
+      });
+
+      test('returns false when network error occurs', () async {
+        httpClient = http_testing.MockClient(
+          (_) async => throw Exception('SocketException'),
+        );
+        service = DecentAccountService(
+          httpClient: httpClient,
+          credentialStore: store,
+          baseUrl: _baseUrl,
+        );
+
+        expect(
+          () async => await service.login('test@example.com', 'hunter2'),
+          throwsA(isA<Exception>()),
+        );
+      });
+
+      test('persists credentials on successful login', () async {
+        await service.login('test@example.com', 'hunter2');
+        expect(await store.read(key: 'email'), 'test@example.com');
+        expect(await store.read(key: 'password'), 'hunter2');
+      });
+
+      test('does NOT persist credentials on failed login', () async {
+        httpClient = _mockClient(statusCode: 200, body: '0');
+        service = DecentAccountService(
+          httpClient: httpClient,
+          credentialStore: store,
+          baseUrl: _baseUrl,
+        );
+
+        await service.login('test@example.com', 'wrong');
+        expect(store.hasCredentials, isFalse);
+      });
+
+      test('sends correctly-encoded Basic Auth header', () async {
+        // base64("test@example.com:hunter2") = "dGVzdEBleGFtcGxlLmNvbTpodW50ZXIy"
+        const expectedAuth = 'Basic dGVzdEBleGFtcGxlLmNvbTpodW50ZXIy';
+        final s = _serviceWithCapture(statusCode: 200, body: '1');
+
+        await s.login('test@example.com', 'hunter2');
+
+        expect(capturedRequest.headers['authorization'], expectedAuth);
+      });
+
+      test('sends Basic Auth header to /support/api/login_test', () async {
+        final s = _serviceWithCapture(statusCode: 200, body: '1');
+
+        await s.login('test@example.com', 'hunter2');
+
+        expect(
+          capturedRequest.url.toString(),
+          '$_baseUrl/support/api/login_test',
+        );
+        expect(capturedRequest.headers['authorization'], isNotNull);
+        expect(capturedRequest.headers['authorization']!, startsWith('Basic '));
+        expect(capturedRequest.method, 'GET');
+      });
+    });
+
+    group('logout', () {
+      test('clears persisted credentials', () async {
+        await service.login('test@example.com', 'hunter2');
+        expect(store.hasCredentials, isTrue);
+
+        await service.logout();
+        expect(store.hasCredentials, isFalse);
+      });
+
+      test('isLoggedIn returns false after logout', () async {
+        await service.login('test@example.com', 'hunter2');
+        await service.logout();
+        expect(await service.isLoggedIn(), isFalse);
+      });
+    });
+
+    group('isLoggedIn', () {
+      test('returns false when no credentials stored', () async {
+        expect(await service.isLoggedIn(), isFalse);
+      });
+
+      test('returns true after successful login', () async {
+        await service.login('test@example.com', 'hunter2');
+        expect(await service.isLoggedIn(), isTrue);
+      });
+
+      test('returns true when credentials are already stored from a '
+          'previous session', () async {
+        // Simulate credentials from a previous session.
+        await store.write(key: 'email', value: 'returning@example.com');
+        await store.write(key: 'password', value: 'oldpassword');
+        // Recreate service — it should pick up stored creds.
+        service = DecentAccountService(
+          httpClient: httpClient,
+          credentialStore: store,
+          baseUrl: _baseUrl,
+        );
+
+        expect(await service.isLoggedIn(), isTrue);
+      });
+    });
+
+    group('fetchSerialNumbers', () {
+      late http.BaseRequest capturedRequest;
+
+      DecentAccountService _serviceWithCapture({
+        required int statusCode,
+        required String body,
+      }) {
+        final client = http_testing.MockClient((request) async {
+          capturedRequest = request;
+          return http.Response(body, statusCode);
+        });
+        return DecentAccountService(
+          httpClient: client,
+          credentialStore: store,
+          baseUrl: _baseUrl,
+        );
+      }
+
+      setUp(() {
+        capturedRequest = http.Request('GET', Uri.parse('about:blank'));
+      });
+
+      test(
+        'calls /support/api/sn with Basic Auth from stored credentials',
+        () async {
+          // base64("test@example.com:hunter2") = "dGVzdEBleGFtcGxlLmNvbTpodW50ZXIy"
+          const expectedAuth = 'Basic dGVzdEBleGFtcGxlLmNvbTpodW50ZXIy';
+          final s = _serviceWithCapture(statusCode: 200, body: 'DE1-0001');
+          await store.write(key: 'email', value: 'test@example.com');
+          await store.write(key: 'password', value: 'hunter2');
+
+          await s.fetchSerialNumbers();
+
+          expect(capturedRequest.url.toString(), '$_baseUrl/support/api/sn');
+          expect(capturedRequest.headers['authorization'], expectedAuth);
+          expect(capturedRequest.method, 'GET');
+        },
+      );
+
+      test('returns parsed list of serials', () async {
+        httpClient = _mockClient(statusCode: 200, body: 'DE1-0001\nDE1-0042');
+        service = DecentAccountService(
+          httpClient: httpClient,
+          credentialStore: store,
+          baseUrl: _baseUrl,
+        );
+        await store.write(key: 'email', value: 'test@example.com');
+        await store.write(key: 'password', value: 'hunter2');
+
+        final serials = await service.fetchSerialNumbers();
+        expect(serials, ['DE1-0001', 'DE1-0042']);
+      });
+
+      test('returns empty list when API responds with empty body', () async {
+        httpClient = _mockClient(statusCode: 200, body: '');
+        service = DecentAccountService(
+          httpClient: httpClient,
+          credentialStore: store,
+          baseUrl: _baseUrl,
+        );
+        await store.write(key: 'email', value: 'test@example.com');
+        await store.write(key: 'password', value: 'hunter2');
+
+        final serials = await service.fetchSerialNumbers();
+        expect(serials, isEmpty);
+      });
+
+      test('throws on network error', () async {
+        httpClient = http_testing.MockClient(
+          (_) async => throw Exception('timeout'),
+        );
+        service = DecentAccountService(
+          httpClient: httpClient,
+          credentialStore: store,
+          baseUrl: _baseUrl,
+        );
+        await store.write(key: 'email', value: 'test@example.com');
+        await store.write(key: 'password', value: 'hunter2');
+
+        expect(
+          () => service.fetchSerialNumbers(),
+          throwsA(isA<Exception>()),
+        );
+      });
+
+      test('throws when not logged in', () async {
+        expect(
+          () => service.fetchSerialNumbers(),
+          throwsA(isA<StateError>()),
+        );
+      });
+    });
+
+    group('verifyMachineSerial', () {
+      test('returns true when serial is in account serials', () async {
+        httpClient = _mockClient(statusCode: 200, body: 'DE1-0001\nDE1-0042');
+        service = DecentAccountService(
+          httpClient: httpClient,
+          credentialStore: store,
+          baseUrl: _baseUrl,
+        );
+        await store.write(key: 'email', value: 'test@example.com');
+        await store.write(key: 'password', value: 'hunter2');
+
+        final result = await service.verifyMachineSerial('DE1-0042');
+        expect(result, isTrue);
+      });
+
+      test('returns false when serial is not in account serials', () async {
+        httpClient = _mockClient(statusCode: 200, body: 'DE1-0001');
+        service = DecentAccountService(
+          httpClient: httpClient,
+          credentialStore: store,
+          baseUrl: _baseUrl,
+        );
+        await store.write(key: 'email', value: 'test@example.com');
+        await store.write(key: 'password', value: 'hunter2');
+
+        final result = await service.verifyMachineSerial('DE1-9999');
+        expect(result, isFalse);
+      });
+
+      test('throws when not logged in', () async {
+        expect(
+          () => service.verifyMachineSerial('DE1-0001'),
+          throwsA(isA<StateError>()),
+        );
+      });
+    });
+  });
+}
