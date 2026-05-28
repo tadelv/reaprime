@@ -78,6 +78,7 @@ dependencies:
   firebase_performance: ^0.11.1+3
   firebase_analytics: ^12.1.0
   http: ^1.2.2
+  flutter_secure_storage: ^9.2.4
   network_info_plus: ^7.0.0
   window_manager: ^0.5.1
   flutter_inappwebview: ^6.2.0-beta
@@ -100,6 +101,20 @@ dependency_overrides:
   # Ubuntu/Debian, so the real flutter_inappwebview_linux plugin cannot build.
   flutter_inappwebview_linux:
     path: packages/flutter_inappwebview_linux_noop
+  # TEMP: Xcode 26.4 / Swift 6.3 hard-errors on the WebAuthenticationSession
+  # protocol-witness availability mismatch. Pin iOS+macOS plugins to the open
+  # upstream fix (pichillilorenzo/flutter_inappwebview#2809) until it merges and
+  # a release ships. Remove then.
+  flutter_inappwebview_ios:
+    git:
+      url: https://github.com/wangqiang1588/flutter_inappwebview.git
+      ref: fc33a449b9290b127a471808e22eb7b0edebad92
+      path: flutter_inappwebview_ios
+  flutter_inappwebview_macos:
+    git:
+      url: https://github.com/wangqiang1588/flutter_inappwebview.git
+      ref: fc33a449b9290b127a471808e22eb7b0edebad92
+      path: flutter_inappwebview_macos
   libserialport:
     git:
       url: https://github.com/tadelv/libserialport.dart

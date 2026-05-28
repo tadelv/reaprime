@@ -42,6 +42,9 @@ import 'package:reaprime/src/services/storage/bean_storage_service.dart';
 import 'package:reaprime/src/services/storage/drift_storage_service.dart';
 import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/services/storage/profile_storage_service.dart';
+import 'package:reaprime/src/services/account/decent_account_service.dart';
+import 'package:reaprime/src/services/account/credential_store.dart';
+import 'package:http/http.dart' as http;
 import 'package:reaprime/src/services/storage/hive_store_service.dart';
 import 'package:reaprime/src/services/universal_ble_discovery_service.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
@@ -363,6 +366,11 @@ void main() async {
   final WebUIService webUIService = WebUIService();
   final WebUIStorage webUIStorage = WebUIStorage(settingsController);
 
+  final decentAccountService = DecentAccountService(
+    httpClient: http.Client(),
+    credentialStore: SecureCredentialStore(),
+  );
+
   BatteryController? batteryController;
   if (Platform.isAndroid || Platform.isIOS) {
     batteryController = BatteryController(
@@ -477,6 +485,7 @@ void main() async {
         profileStorageService: profileStorage,
         connectionManager: connectionManager,
         scanStateGuardian: scanStateGuardian,
+        decentAccountService: decentAccountService,
       ),
     ),
   );
@@ -628,6 +637,7 @@ class AppRoot extends StatefulWidget {
   final ProfileStorageService? profileStorageService;
   final ConnectionManager connectionManager;
   final ScanStateGuardian scanStateGuardian;
+  final DecentAccountService? decentAccountService;
 
   const AppRoot({
     super.key,
@@ -648,6 +658,7 @@ class AppRoot extends StatefulWidget {
     this.beanStorage,
     this.grinderStorage,
     this.profileStorageService,
+    this.decentAccountService,
   });
 
   static void restart(BuildContext context) {
@@ -704,6 +715,7 @@ class _AppRootState extends State<AppRoot> {
         profileStorageService: widget.profileStorageService,
         connectionManager: widget.connectionManager,
         scanStateGuardian: widget.scanStateGuardian,
+        decentAccountService: widget.decentAccountService,
       ),
     );
 

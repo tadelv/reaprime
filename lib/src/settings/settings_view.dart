@@ -24,6 +24,7 @@ import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:reaprime/src/settings/update_dialog.dart';
 import 'package:reaprime/src/services/android_updater.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
+import 'package:reaprime/src/services/account/decent_account_service.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -47,6 +48,7 @@ class SettingsView extends StatefulWidget {
     this.beanStorageService,
     this.grinderStorageService,
     this.workflowController,
+    this.decentAccountService,
   });
 
   static const routeName = '/settings';
@@ -62,6 +64,7 @@ class SettingsView extends StatefulWidget {
   final BeanStorageService? beanStorageService;
   final GrinderStorageService? grinderStorageService;
   final WorkflowController? workflowController;
+  final DecentAccountService? decentAccountService;
 
   @override
   State<SettingsView> createState() => _SettingsViewState();
@@ -120,6 +123,8 @@ class _SettingsViewState extends State<SettingsView>
             _buildPresenceSection(),
             _buildDeviceManagementSection(),
             _buildDataManagementSection(),
+            if (widget.decentAccountService != null)
+              _buildDecentAccountSection(),
             _buildWebUISection(),
             _buildAdvancedSection(),
             _buildAboutSection(),
@@ -546,6 +551,197 @@ class _SettingsViewState extends State<SettingsView>
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildDecentAccountSection() {
+    final accountService = widget.decentAccountService!;
+
+    return Semantics(
+      explicitChildNodes: true,
+      child: ShadCard(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.account_circle_outlined, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Decent Account',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Link your Decent Espresso account',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+            ),
+            const SizedBox(height: 16),
+            FutureBuilder<bool>(
+              future: accountService.isLoggedIn(),
+              builder: (context, snapshot) {
+                final loggedIn = snapshot.data ?? false;
+
+                if (loggedIn) {
+                  return FutureBuilder<String?>(
+                    future: accountService.getEmail(),
+                    builder: (context, emailSnap) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Logged in as: ${emailSnap.data ?? ''}',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          const SizedBox(height: 12),
+                          Semantics(
+                            button: true,
+                            label: 'Unlink Decent account',
+                            child: ExcludeSemantics(
+                              child: ShadButton.destructive(
+                                onPressed: () async {
+                                  await accountService.logout();
+                                  setState(() {});
+                                },
+                                child: const Text('Unlink Account'),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                }
+
+                return Semantics(
+                  button: true,
+                  label: 'Link your Decent Espresso account',
+                  child: ExcludeSemantics(
+                    child: ShadButton.outline(
+                      onPressed: () => _showLoginDialog(context, accountService),
+                      child: const Text('Link Account'),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showLoginDialog(
+      BuildContext context, DecentAccountService accountService) {
+    final emailController = TextEditingController();
+    final passwordController = TextEditingController();
+    var loading = false;
+    String? error;
+
+    showShadDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return ShadDialog(
+              title: const Text('Link Decent Account'),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: emailController,
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      hintText: 'you@example.com',
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: passwordController,
+                    decoration: const InputDecoration(labelText: 'Password'),
+                    obscureText: true,
+                  ),
+                  if (error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      ShadButton.outline(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 8),
+                      ShadButton(
+                        onPressed: loading
+                            ? null
+                            : () async {
+                                setDialogState(() {
+                                  loading = true;
+                                  error = null;
+                                });
+                                try {
+                                  final ok = await accountService.login(
+                                    emailController.text.trim(),
+                                    passwordController.text,
+                                  );
+                                  if (!dialogContext.mounted) return;
+                                  if (ok) {
+                                    Navigator.of(dialogContext).pop();
+                                    setState(() {});
+                                  } else {
+                                    setDialogState(() {
+                                      error = 'Login failed. Check your email and password.';
+                                      loading = false;
+                                    });
+                                  }
+                                } catch (e) {
+                                  if (!dialogContext.mounted) return;
+                                  setDialogState(() {
+                                    error = 'Network error: $e';
+                                    loading = false;
+                                  });
+                                }
+                              },
+                        child: loading
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Login'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

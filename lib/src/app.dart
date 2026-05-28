@@ -24,6 +24,7 @@ import 'package:reaprime/src/onboarding_feature/steps/initialization_step.dart';
 import 'package:reaprime/src/onboarding_feature/steps/permissions_step.dart';
 import 'package:reaprime/src/onboarding_feature/steps/scan_step.dart';
 import 'package:reaprime/src/onboarding_feature/steps/welcome_step.dart';
+import 'package:reaprime/src/onboarding_feature/steps/login_step.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
 import 'package:reaprime/src/realtime_steam_feature/realtime_steam_feature.dart';
 import 'package:reaprime/src/skin_feature/skin_view.dart';
@@ -50,6 +51,7 @@ import 'sample_feature/sample_item_list_view.dart';
 import 'settings/gateway_mode.dart';
 import 'settings/settings_controller.dart';
 import 'settings/settings_view.dart';
+import 'package:reaprime/src/services/account/decent_account_service.dart';
 
 class NavigationService {
   static final GlobalKey<NavigatorState> navigatorKey =
@@ -80,6 +82,7 @@ class MyApp extends StatefulWidget {
     this.beanStorage,
     this.grinderStorage,
     this.profileStorageService,
+    this.decentAccountService,
   });
 
   final SettingsController settingsController;
@@ -99,6 +102,7 @@ class MyApp extends StatefulWidget {
   final BeanStorageService? beanStorage;
   final GrinderStorageService? grinderStorage;
   final ProfileStorageService? profileStorageService;
+  final DecentAccountService? decentAccountService;
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -121,6 +125,10 @@ class _MyAppState extends State<MyApp> {
             !widget.settingsController.onboardingCompleted,
         builder: createWelcomeStep().builder,
       ),
+      if (widget.decentAccountService != null)
+        createLoginStep(
+          accountService: widget.decentAccountService!,
+        ),
       createPermissionsStep(
         de1Controller: widget.de1Controller,
       ),
@@ -353,6 +361,7 @@ class _MyAppState extends State<MyApp> {
                         beanStorageService: widget.beanStorage,
                         grinderStorageService: widget.grinderStorage,
                         workflowController: widget.workflowController,
+                        decentAccountService: widget.decentAccountService,
                       );
                     case De1DebugView.routeName:
                       final args = routeSettings.arguments;

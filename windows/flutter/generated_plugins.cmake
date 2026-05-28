@@ -8,6 +8,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   flutter_inappwebview_windows
   flutter_js
   flutter_libserialport
+  flutter_secure_storage_windows
   permission_handler_windows
   screen_brightness_windows
   screen_retriever_windows
