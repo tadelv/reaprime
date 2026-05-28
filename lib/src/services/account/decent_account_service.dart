@@ -31,9 +31,9 @@ class DecentAccountService {
       '/support/api/login_test',
     );
 
-    if (response.statusCode == 200 && response.body == '1') {
+    if (response.statusCode == 200 && response.body != '0') {
       await _store.write(key: 'email', value: email);
-      await _store.write(key: 'password', value: password);
+      await _store.write(key: 'password', value: response.body);
       _loggedIn = true;
     }
     return _loggedIn;

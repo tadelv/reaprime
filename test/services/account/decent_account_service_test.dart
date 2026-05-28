@@ -52,7 +52,7 @@ void main() {
 
     setUp(() {
       store = FakeCredentialStore();
-      httpClient = _mockClient(statusCode: 200, body: '1');
+      httpClient = _mockClient(statusCode: 200, body: 'cryptpw_abc123');
       service = DecentAccountService(
         httpClient: httpClient,
         credentialStore: store,
@@ -84,7 +84,7 @@ void main() {
       setUp(() {
         capturedRequest = http.Request('GET', Uri.parse('about:blank'));
       });
-      test('returns true when API responds with "1"', () async {
+      test('returns true when API responds with encrypted password', () async {
         final result = await service.login('test@example.com', 'hunter2');
         expect(result, isTrue);
       });
@@ -129,10 +129,11 @@ void main() {
         );
       });
 
-      test('persists credentials on successful login', () async {
+      test('persists encrypted password on successful login', () async {
         await service.login('test@example.com', 'hunter2');
         expect(await store.read(key: 'email'), 'test@example.com');
-        expect(await store.read(key: 'password'), 'hunter2');
+        // Stores the encrypted password returned by the API, not the plaintext.
+        expect(await store.read(key: 'password'), 'cryptpw_abc123');
       });
 
       test('does NOT persist credentials on failed login', () async {
@@ -150,7 +151,7 @@ void main() {
       test('sends correctly-encoded Basic Auth header', () async {
         // base64("test@example.com:hunter2") = "dGVzdEBleGFtcGxlLmNvbTpodW50ZXIy"
         const expectedAuth = 'Basic dGVzdEBleGFtcGxlLmNvbTpodW50ZXIy';
-        final s = _serviceWithCapture(statusCode: 200, body: '1');
+        final s = _serviceWithCapture(statusCode: 200, body: 'cryptpw_abc123');
 
         await s.login('test@example.com', 'hunter2');
 
@@ -158,7 +159,7 @@ void main() {
       });
 
       test('sends Basic Auth header to /support/api/login_test', () async {
-        final s = _serviceWithCapture(statusCode: 200, body: '1');
+        final s = _serviceWithCapture(statusCode: 200, body: 'cryptpw_abc123');
 
         await s.login('test@example.com', 'hunter2');
 
@@ -239,11 +240,12 @@ void main() {
       test(
         'calls /support/api/sn with Basic Auth from stored credentials',
         () async {
-          // base64("test@example.com:hunter2") = "dGVzdEBleGFtcGxlLmNvbTpodW50ZXIy"
-          const expectedAuth = 'Basic dGVzdEBleGFtcGxlLmNvbTpodW50ZXIy';
+          // base64("test@example.com:cryptpw_abc123")
+          const expectedAuth =
+              'Basic dGVzdEBleGFtcGxlLmNvbTpjcnlwdHB3X2FiYzEyMw==';
           final s = _serviceWithCapture(statusCode: 200, body: 'DE1-0001');
           await store.write(key: 'email', value: 'test@example.com');
-          await store.write(key: 'password', value: 'hunter2');
+          await store.write(key: 'password', value: 'cryptpw_abc123');
 
           await s.fetchSerialNumbers();
 
@@ -261,7 +263,7 @@ void main() {
           baseUrl: _baseUrl,
         );
         await store.write(key: 'email', value: 'test@example.com');
-        await store.write(key: 'password', value: 'hunter2');
+        await store.write(key: 'password', value: 'cryptpw_abc123');
 
         final serials = await service.fetchSerialNumbers();
         expect(serials, ['DE1-0001', 'DE1-0042']);
@@ -275,7 +277,7 @@ void main() {
           baseUrl: _baseUrl,
         );
         await store.write(key: 'email', value: 'test@example.com');
-        await store.write(key: 'password', value: 'hunter2');
+        await store.write(key: 'password', value: 'cryptpw_abc123');
 
         final serials = await service.fetchSerialNumbers();
         expect(serials, isEmpty);
@@ -291,7 +293,7 @@ void main() {
           baseUrl: _baseUrl,
         );
         await store.write(key: 'email', value: 'test@example.com');
-        await store.write(key: 'password', value: 'hunter2');
+        await store.write(key: 'password', value: 'cryptpw_abc123');
 
         expect(
           () => service.fetchSerialNumbers(),
@@ -316,7 +318,7 @@ void main() {
           baseUrl: _baseUrl,
         );
         await store.write(key: 'email', value: 'test@example.com');
-        await store.write(key: 'password', value: 'hunter2');
+        await store.write(key: 'password', value: 'cryptpw_abc123');
 
         final result = await service.verifyMachineSerial('DE1-0042');
         expect(result, isTrue);
@@ -330,7 +332,7 @@ void main() {
           baseUrl: _baseUrl,
         );
         await store.write(key: 'email', value: 'test@example.com');
-        await store.write(key: 'password', value: 'hunter2');
+        await store.write(key: 'password', value: 'cryptpw_abc123');
 
         final result = await service.verifyMachineSerial('DE1-9999');
         expect(result, isFalse);
