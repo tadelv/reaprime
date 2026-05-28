@@ -1,0 +1,116 @@
+{
+  "id": "decent-profile.reaplugin",
+  "author": "Stephane Ribes and Alwaysdialingin",
+  "name": "Decent Profile Generator",
+  "description": "Generates optimized espresso profiles based on bean and grind characteristics. Configure settings to match your current beans, then connect to the profileGenerated WebSocket event to receive the computed profile. http://localhost:8080/api/v1/plugins/decent-profile.reaplugin/ui",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "permissions": [
+    "log",
+    "emit",
+    "pluginStorage"
+  ],
+  "settings": {
+    "roastDegree": {
+      "type": "string",
+      "secure": false,
+      "description": "Roast degree. Options: Light Roast, Medium-Light Roast, Medium Roast, Medium-Dark Roast, Dark Roast"
+    },
+    "roastQuality": {
+      "type": "string",
+      "secure": false,
+      "description": "Roast quality. Options: Underdevelopped, Smoky or overroasted, Outstanding, I have no idea"
+    },
+    "origin": {
+      "type": "string",
+      "secure": false,
+      "description": "Bean origin. Options: Kenya, Ethiopia, Other Africa, Colombia, Other America, Other"
+    },
+    "highlight": {
+      "type": "string",
+      "secure": false,
+      "description": "What to highlight. Options: Body / Mouthfeel, Sweetness and acidity, Floral and fruity flavors, Chocolate and nuts flavors, I'm not sure"
+    },
+    "avoid": {
+      "type": "string",
+      "secure": false,
+      "description": "What to avoid. Options: Sourness or high acidity, Bitterness or astringency, Nothing in particular"
+    },
+    "strength": {
+      "type": "string",
+      "secure": false,
+      "description": "Desired strength. Options: Allongé (4.5 - 5.5% TDS), Low intensity (7.0 - 7.5% TDS), 7.5 - 8.0% TDS, 8.0 - 8.5% TDS, 8.5 - 9.0% TDS, Average intensity (9.0 - 9.5% TDS), 9.5 - 10% TDS, 10.5 - 11.5% TDS, High intensity (11.5 - 12.5% TDS)"
+    },
+    "basket": {
+      "type": "string",
+      "secure": false,
+      "description": "Basket type. Options: High precision double (Decent, VST), Single (Decent 7g, LM Strada 7g), High precision + paper filter below the puck, Reneka Micro-Sieve or IMS Super Fine"
+    },
+    "dose": {
+      "type": "string",
+      "secure": false,
+      "description": "Dose. Options: 9 g, 9,5 g, 10 g, 11 g, 12 g, 13 g, 14 g, 15 g, 16 g, 17 g, 18 g, 19 g, 20 g, 21 g, 22 g, 23 g, 24 g"
+    },
+    "puckPrep": {
+      "type": "string",
+      "secure": false,
+      "description": "Puck prep quality. Options: Can be improved, OK, I am not sure"
+    },
+    "profileTitle": {
+      "type": "string",
+      "secure": false,
+      "description": "Profile title used in the output file (default: DEPG)"
+    },
+    "profileFormat": {
+      "type": "string",
+      "secure": false,
+      "description": "Output format: legacy-tcl or json-v2 (default: legacy-tcl)"
+    },
+    "layout": {
+      "type": "string",
+      "secure": false,
+      "description": "UI layout. Options: baseline (two-column workspace, Inter font, orange accent) or decent (single-column stacked, green accent). Default: decent"
+    }
+  },
+  "api": [
+    {
+      "id": "ui",
+      "type": "http",
+      "data": {}
+    },
+    {
+      "id": "profileGenerated",
+      "type": "websocket",
+      "data": {
+        "title": {
+          "type": "string",
+          "description": "Profile title"
+        },
+        "format": {
+          "type": "string",
+          "description": "Profile format (legacy-tcl or json-v2)"
+        },
+        "profile": {
+          "type": "string",
+          "description": "Full generated profile text ready to load on the machine"
+        },
+        "brewRatio": {
+          "type": "number",
+          "description": "Computed brew ratio (e.g. 2.19)"
+        },
+        "shotTime": {
+          "type": "number",
+          "description": "Estimated shot time in seconds"
+        },
+        "temperature": {
+          "type": "number",
+          "description": "Group head temperature in °C"
+        },
+        "stopWeight": {
+          "type": "number",
+          "description": "Stop weight in grams"
+        }
+      }
+    }
+  ]
+}
