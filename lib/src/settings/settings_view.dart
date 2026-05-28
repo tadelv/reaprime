@@ -661,18 +661,15 @@ class _SettingsViewState extends State<SettingsView>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 8),
-                  TextField(
+                  ShadInput(
                     controller: emailController,
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      hintText: 'you@example.com',
-                    ),
+                    placeholder: const Text('Email'),
                     keyboardType: TextInputType.emailAddress,
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  ShadInput(
                     controller: passwordController,
-                    decoration: const InputDecoration(labelText: 'Password'),
+                    placeholder: const Text('Password'),
                     obscureText: true,
                   ),
                   if (error != null) ...[

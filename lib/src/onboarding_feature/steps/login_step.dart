@@ -77,19 +77,16 @@ class _LoginStepWidgetState extends State<LoginStepWidget> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
-            TextField(
+            ShadInput(
               controller: _emailController,
-              decoration: const InputDecoration(
-                labelText: 'Email',
-                hintText: 'you@example.com',
-              ),
+              placeholder: const Text('Email'),
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
             ),
             const SizedBox(height: 16),
-            TextField(
+            ShadInput(
               controller: _passwordController,
-              decoration: const InputDecoration(labelText: 'Password'),
+              placeholder: const Text('Password'),
               obscureText: true,
               textInputAction: TextInputAction.done,
               onSubmitted: (_) => _login(),
