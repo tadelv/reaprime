@@ -128,6 +128,7 @@ class _MyAppState extends State<MyApp> {
       if (widget.decentAccountService != null)
         createLoginStep(
           accountService: widget.decentAccountService!,
+          settingsController: widget.settingsController,
         ),
       createPermissionsStep(
         de1Controller: widget.de1Controller,
