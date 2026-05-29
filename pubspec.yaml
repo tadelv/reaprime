@@ -85,6 +85,7 @@ dependencies:
   device_info_plus: ^12.3.0
   circular_buffer: ^0.13.0
   crypto: ^3.0.3
+  cryptography: ^2.7.0
   drift: ^2.24.0
   drift_flutter: ^0.3.0
   sqlite3_flutter_libs: ^0.6.0+eol

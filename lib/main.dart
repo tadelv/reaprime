@@ -368,7 +368,7 @@ void main() async {
 
   final decentAccountService = DecentAccountService(
     httpClient: http.Client(),
-    credentialStore: createCredentialStore(),
+    credentialStore: await createCredentialStore(),
   );
 
   BatteryController? batteryController;

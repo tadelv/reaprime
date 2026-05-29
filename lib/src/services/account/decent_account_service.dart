@@ -20,11 +20,7 @@ class DecentAccountService {
   }) : _httpClient = httpClient,
        _store = credentialStore;
 
-  bool _loggedIn = false;
   Future<bool> login(String email, String password) async {
-    if (_loggedIn) {
-      return _loggedIn;
-    }
     final response = await _authedGet(
       email,
       password,
@@ -34,13 +30,12 @@ class DecentAccountService {
     if (response.statusCode == 200 && response.body != '0') {
       await _store.write(key: 'email', value: email);
       await _store.write(key: 'password', value: response.body);
-      _loggedIn = true;
+      return true;
     }
-    return _loggedIn;
+    return false;
   }
 
   Future<void> logout() async {
-    _loggedIn = false;
     await _store.delete(key: 'email');
     await _store.delete(key: 'password');
   }
@@ -58,7 +53,9 @@ class DecentAccountService {
     }
     final response = await _authedGet(email, password, '/support/api/sn');
     if (response.statusCode != 200) {
-      throw response.body;
+      throw Exception(
+        'serial fetch failed (${response.statusCode}): ${response.body}',
+      );
     }
     if (response.body == '') {
       return [];
@@ -76,7 +73,7 @@ class DecentAccountService {
     String password,
     String path,
   ) async {
-    final basic = base64Encode("$email:$password".codeUnits);
+    final basic = base64Encode(utf8.encode("$email:$password"));
     return await _httpClient.get(
       Uri.parse('$baseUrl$path'),
       headers: {
