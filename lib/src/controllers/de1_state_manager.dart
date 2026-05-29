@@ -213,6 +213,7 @@ class De1StateManager with WidgetsBindingObserver {
   /// If not, emails tech support - matching the
   /// de1app behavior in `fetch_decent_de1_serial_numbers_for_current_login`.
   Future<void> _checkSerialOwnership(String serial) async {
+    if (!DecentAccountService.kEnableSerialVerification) return;
     final account = _accountService;
     if (account == null) return;
 
