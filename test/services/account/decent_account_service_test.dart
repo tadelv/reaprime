@@ -218,7 +218,7 @@ void main() {
     group('fetchSerialNumbers', () {
       late http.BaseRequest capturedRequest;
 
-      DecentAccountService _serviceWithCapture({
+      DecentAccountService serviceWithCapture({
         required int statusCode,
         required String body,
       }) {
@@ -243,7 +243,7 @@ void main() {
           // base64("test@example.com:cryptpw_abc123")
           const expectedAuth =
               'Basic dGVzdEBleGFtcGxlLmNvbTpjcnlwdHB3X2FiYzEyMw==';
-          final s = _serviceWithCapture(statusCode: 200, body: 'DE1-0001');
+          final s = serviceWithCapture(statusCode: 200, body: 'DE1-0001');
           await store.write(key: 'email', value: 'test@example.com');
           await store.write(key: 'password', value: 'cryptpw_abc123');
 
