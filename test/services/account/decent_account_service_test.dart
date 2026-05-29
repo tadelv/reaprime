@@ -66,7 +66,7 @@ void main() {
       /// Helper that builds a service whose MockClient captures the request
       /// and returns [statusCode]/[body], then asserts on [capturedRequest]
       /// after the async call completes.
-      DecentAccountService _serviceWithCapture({
+      DecentAccountService serviceWithCapture({
         required int statusCode,
         required String body,
       }) {
@@ -151,7 +151,7 @@ void main() {
       test('sends correctly-encoded Basic Auth header', () async {
         // base64("test@example.com:hunter2") = "dGVzdEBleGFtcGxlLmNvbTpodW50ZXIy"
         const expectedAuth = 'Basic dGVzdEBleGFtcGxlLmNvbTpodW50ZXIy';
-        final s = _serviceWithCapture(statusCode: 200, body: 'cryptpw_abc123');
+        final s = serviceWithCapture(statusCode: 200, body: 'cryptpw_abc123');
 
         await s.login('test@example.com', 'hunter2');
 
@@ -159,7 +159,7 @@ void main() {
       });
 
       test('sends Basic Auth header to /support/api/login_test', () async {
-        final s = _serviceWithCapture(statusCode: 200, body: 'cryptpw_abc123');
+        final s = serviceWithCapture(statusCode: 200, body: 'cryptpw_abc123');
 
         await s.login('test@example.com', 'hunter2');
 
