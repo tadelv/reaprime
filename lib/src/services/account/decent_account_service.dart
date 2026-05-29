@@ -57,7 +57,7 @@ class DecentAccountService {
     final response = await _authedGet(email, password, '/support/api/sn');
     if (response.statusCode != 200) {
       throw Exception(
-        'serial fetch failed (${response.statusCode}): ${response.body}',
+        'serial fetch failed (${response.statusCode}): ${response.body.trim()}',
       );
     }
     if (response.body.trim() == '0') {
@@ -111,15 +111,11 @@ class DecentAccountService {
     final basic = base64Encode(
       utf8.encode("${email.trim()}:${password.trim()}"),
     );
-    final url = '$baseUrl$path';
-    print('curl -H "Authorization: Basic $basic" "$url"');
-    final response = await _httpClient.get(
-      Uri.parse(url),
+    return _httpClient.get(
+      Uri.parse('$baseUrl$path'),
       headers: {
         'authorization': "Basic $basic",
       },
     );
-    print('_authedGet $path → ${response.statusCode}: ${response.body}');
-    return response;
   }
 }
