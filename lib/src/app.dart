@@ -197,6 +197,7 @@ class _MyAppState extends State<MyApp> {
       persistenceController: widget.persistenceController,
       settingsController: widget.settingsController,
       connectionManager: widget.connectionManager,
+      accountService: widget.decentAccountService,
       navigatorKey: NavigationService.navigatorKey,
     );
   }

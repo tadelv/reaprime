@@ -29,7 +29,7 @@ class DecentAccountService {
 
     if (response.statusCode == 200 && response.body != '0') {
       await _store.write(key: 'email', value: email);
-      await _store.write(key: 'password', value: response.body);
+      await _store.write(key: 'password', value: response.body.trim());
       return true;
     }
     return false;
@@ -57,7 +57,10 @@ class DecentAccountService {
         'serial fetch failed (${response.statusCode}): ${response.body}',
       );
     }
-    if (response.body == '') {
+    if (response.body.trim() == '0') {
+      throw StateError("Unexpected response: ${response.body.trim()}");
+    }
+    if (response.body.isEmpty) {
       return [];
     }
     return response.body.trim().split('\n');
@@ -68,17 +71,52 @@ class DecentAccountService {
     return list.contains(serial);
   }
 
+  /// Emails Decent tech support about a serial number not being associated
+  /// with the current user's account. Mirrors de1app's
+  /// `fetch_decent_api "email?subject=...&body=..."`.
+  Future<void> emailSerialMismatch(String serial) async {
+    final email = await _store.read(key: 'email');
+    final password = await _store.read(key: 'password');
+    if (email == null || password == null) {
+      throw StateError('not logged in');
+    }
+    final subject = Uri.encodeComponent(
+      'My machine serial number #$serial is not associated with my login',
+    );
+    final body = Uri.encodeComponent(
+      'I linked my de1app to my Decent account, and found that this '
+      'account does not list the machine #$serial I am connected to.',
+    );
+    final response = await _authedGet(
+      email,
+      password,
+      '/support/api/email?subject=$subject&body=$body',
+    );
+    final responseBody = response.body.trim();
+    if (response.statusCode != 200 || responseBody == '0') {
+      throw Exception(
+        'email serial mismatch failed (${response.statusCode}): ${response.body}',
+      );
+    }
+  }
+
   Future<http.Response> _authedGet(
     String email,
     String password,
     String path,
   ) async {
-    final basic = base64Encode(utf8.encode("$email:$password"));
-    return await _httpClient.get(
-      Uri.parse('$baseUrl$path'),
+    final basic = base64Encode(
+      utf8.encode("${email.trim()}:${password.trim()}"),
+    );
+    final url = '$baseUrl$path';
+    print('curl -H "Authorization: Basic $basic" "$url"');
+    final response = await _httpClient.get(
+      Uri.parse(url),
       headers: {
         'authorization': "Basic $basic",
       },
     );
+    print('_authedGet $path → ${response.statusCode}: ${response.body}');
+    return response;
   }
 }

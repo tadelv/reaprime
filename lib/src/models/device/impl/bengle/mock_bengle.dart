@@ -282,7 +282,7 @@ class MockBengle extends MockDe1 implements BengleInterface {
   MachineInfo get machineInfo => MachineInfo(
         version: '1.0',
         model: 'Bengle',
-        serialNumber: '110010101',
+        serialNumber: 'mock-bengle',
         groupHeadControllerPresent: true,
         extra: {'voltage': 220, 'refillKit': false},
       );
