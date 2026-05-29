@@ -65,3 +65,8 @@ assets/bundled_skins/
 .bundle/
 vendor/bundle/
 pubspec_overrides.yaml
+
+# Local-only agent skill: google-analytics-cli (kept out of the repo)
+/skills-lock.json
+/.agents/skills/google-analytics-cli/
+/.claude/skills/google-analytics-cli
