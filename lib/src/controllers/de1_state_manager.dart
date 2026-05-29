@@ -15,6 +15,7 @@ import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
 import 'package:reaprime/src/realtime_steam_feature/realtime_steam_feature.dart';
 import 'package:reaprime/src/home_feature/home_feature.dart';
+import 'package:reaprime/src/services/account/decent_account_service.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
@@ -35,6 +36,7 @@ class De1StateManager with WidgetsBindingObserver {
   final PersistenceController _persistenceController;
   final SettingsController _settingsController;
   final ConnectionManager _connectionManager;
+  final DecentAccountService? _accountService;
   final GlobalKey<NavigatorState> _navigatorKey;
 
   StreamSubscription<Machine?>? _de1Subscription;
@@ -72,6 +74,7 @@ class De1StateManager with WidgetsBindingObserver {
     required PersistenceController persistenceController,
     required SettingsController settingsController,
     required ConnectionManager connectionManager,
+    DecentAccountService? accountService,
     required GlobalKey<NavigatorState> navigatorKey,
   }) : _de1Controller = de1Controller,
        _scaleController = scaleController,
@@ -79,6 +82,7 @@ class De1StateManager with WidgetsBindingObserver {
        _persistenceController = persistenceController,
        _settingsController = settingsController,
        _connectionManager = connectionManager,
+       _accountService = accountService,
        _navigatorKey = navigatorKey,
        _backgroundStates = _getPlatformBackgroundStates() {
     _initialize();
@@ -188,10 +192,49 @@ class De1StateManager with WidgetsBindingObserver {
     if (machine != null) {
       _logger.info('DE1 connected, starting to listen for state changes');
       _snapshotSubscription = machine.currentSnapshot.listen(_handleSnapshot);
+
+      // Trigger serial-number ownership check against the Decent account.
+      // Mirrors de1app's fetch_decent_de1_serial_numbers_for_current_login
+      // triggered after connecting to a machine.
+      final sn = machine.machineInfo.serialNumber;
+      if (sn != '0' &&
+          sn.isNotEmpty &&
+          !['mock-bengle', 'mock-de1'].contains(sn)) {
+        unawaited(_checkSerialOwnership(sn));
+      }
     } else {
       _logger.info('DE1 disconnected');
       // Clean up any active shot controller
       _cleanupShotSequencer();
+    }
+  }
+
+  /// Verifies that [serial] belongs to the logged-in Decent account.
+  /// If not, emails tech support - matching the
+  /// de1app behavior in `fetch_decent_de1_serial_numbers_for_current_login`.
+  Future<void> _checkSerialOwnership(String serial) async {
+    final account = _accountService;
+    if (account == null) return;
+
+    try {
+      final isLoggedIn = await account.isLoggedIn();
+      if (!isLoggedIn) return;
+
+      final owns = await account.verifyMachineSerial(serial);
+      if (owns) return;
+
+      // Serial not associated with this account — email support.
+      _logger.warning(
+        'Machine serial $serial not in account — emailing support',
+      );
+      try {
+        await account.emailSerialMismatch(serial);
+      } catch (e) {
+        _logger.warning('Failed to email serial mismatch: $e');
+        // Don't block the dialog — user should still see the message.
+      }
+    } catch (e) {
+      _logger.warning('Serial ownership check failed: $e');
     }
   }
 
@@ -308,8 +351,10 @@ class De1StateManager with WidgetsBindingObserver {
       // Immediate scale connect/service-discovery starves the shared
       // Android BLE radio and causes LINK_SUPERVISION_TIMEOUT on the DE1.
       if (!scaleConnected) {
-        _logger.info('Scale disconnected after sleep, deferring scan 3s '
-            'to avoid BLE radio starvation');
+        _logger.info(
+          'Scale disconnected after sleep, deferring scan 3s '
+          'to avoid BLE radio starvation',
+        );
         _deferredScaleScan?.cancel();
         _deferredScaleScan = Timer(const Duration(seconds: 3), () {
           _deferredScaleScan = null;
@@ -513,7 +558,8 @@ class De1StateManager with WidgetsBindingObserver {
       de1controller: _de1Controller,
       persistenceController: _persistenceController,
       targetProfile: _workflowController.currentWorkflow.profile,
-      targetYield: _workflowController.currentWorkflow.context?.targetYield ?? 0,
+      targetYield:
+          _workflowController.currentWorkflow.context?.targetYield ?? 0,
       bypassSAW: _settingsController.gatewayMode == GatewayMode.full,
       blockOnNoScale: _settingsController.blockOnNoScale,
       weightFlowMultiplier: _settingsController.weightFlowMultiplier,
@@ -540,11 +586,14 @@ class De1StateManager with WidgetsBindingObserver {
 
     // A blocking decision (e.g. blockOnNoScale) means no shot ran — tear down
     // without persisting so the next shot can start tracking.
-    _shotDecisionSubscription =
-        _currentShotSequencer!.decisions.listen((decision) {
+    _shotDecisionSubscription = _currentShotSequencer!.decisions.listen((
+      decision,
+    ) {
       if (decision.reason == ShotDecisionReason.noScale) {
-        _logger.info('Shot blocked (${decision.reason.name}), cleaning up '
-            'ShotSequencer without persisting');
+        _logger.info(
+          'Shot blocked (${decision.reason.name}), cleaning up '
+          'ShotSequencer without persisting',
+        );
         _cleanupShotSequencer();
       }
     });

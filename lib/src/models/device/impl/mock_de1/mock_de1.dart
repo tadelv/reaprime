@@ -70,7 +70,7 @@ class MockDe1 implements De1Interface {
   MachineInfo get machineInfo => MachineInfo(
     version: "1337",
     model: "3",
-    serialNumber: "0001",
+    serialNumber: "mock-de1",
     groupHeadControllerPresent: false,
     extra: {},
   );
