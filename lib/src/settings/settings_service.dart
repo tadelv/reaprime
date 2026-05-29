@@ -64,6 +64,8 @@ abstract class SettingsService {
   Future<void> setLowBatteryBrightnessLimit(bool value);
   Future<bool> onboardingCompleted();
   Future<void> setOnboardingCompleted(bool value);
+  Future<bool> accountStepSeen();
+  Future<void> setAccountStepSeen(bool value);
 }
 
 /// SharedPreferences-backed implementation of [SettingsService].
@@ -398,6 +400,16 @@ class SharedPreferencesSettingsService extends SettingsService {
   Future<void> setOnboardingCompleted(bool value) async {
     await prefs.setBool(SettingsKeys.onboardingCompleted.name, value);
   }
+
+  @override
+  Future<bool> accountStepSeen() async {
+    return await prefs.getBool(SettingsKeys.accountStepSeen.name) ?? false;
+  }
+
+  @override
+  Future<void> setAccountStepSeen(bool value) async {
+    await prefs.setBool(SettingsKeys.accountStepSeen.name, value);
+  }
 }
 
 enum SettingsKeys {
@@ -428,6 +440,7 @@ enum SettingsKeys {
   wakeSchedules,
   lowBatteryBrightnessLimit,
   onboardingCompleted,
+  accountStepSeen,
 }
 
 enum SimulatedDevicesTypes { machine, scale, sensor, bengle }

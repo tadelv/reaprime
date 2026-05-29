@@ -1,22 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/account/decent_login_form.dart';
 import 'package:reaprime/src/onboarding_feature/onboarding_controller.dart';
 import 'package:reaprime/src/services/account/decent_account_service.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:reaprime/src/settings/settings_controller.dart';
 
 OnboardingStep createLoginStep({
   required DecentAccountService accountService,
+  required SettingsController settingsController,
 }) {
   return OnboardingStep(
     id: 'login',
-    shouldShow: () async => !(await accountService.isLoggedIn()),
+    // Only show while the user hasn't seen the step and isn't already linked.
+    // Skipping marks the step seen so it doesn't reappear on every launch —
+    // the account can always be linked later from Settings.
+    shouldShow: () async =>
+        !settingsController.accountStepSeen &&
+        !(await accountService.isLoggedIn()),
     builder: (controller) => LoginStepWidget(
       accountService: accountService,
-      onComplete: controller.advance,
+      onComplete: () async {
+        await settingsController.setAccountStepSeen(true);
+        controller.advance();
+      },
     ),
   );
 }
 
-class LoginStepWidget extends StatefulWidget {
+class LoginStepWidget extends StatelessWidget {
   final DecentAccountService accountService;
   final VoidCallback onComplete;
 
@@ -25,23 +35,6 @@ class LoginStepWidget extends StatefulWidget {
     required this.accountService,
     required this.onComplete,
   });
-
-  @override
-  State<LoginStepWidget> createState() => _LoginStepWidgetState();
-}
-
-class _LoginStepWidgetState extends State<LoginStepWidget> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _loading = false;
-  String? _error;
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,80 +70,15 @@ class _LoginStepWidgetState extends State<LoginStepWidget> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
-            ShadInput(
-              controller: _emailController,
-              placeholder: const Text('Email'),
-              keyboardType: TextInputType.emailAddress,
-              textInputAction: TextInputAction.next,
-            ),
-            const SizedBox(height: 16),
-            ShadInput(
-              controller: _passwordController,
-              placeholder: const Text('Password'),
-              obscureText: true,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _login(),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                _error!,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.error,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-            const SizedBox(height: 24),
-            ShadButton(
-              onPressed: _loading ? null : _login,
-              child: _loading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Login'),
-            ),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: _loading ? null : widget.onComplete,
-              child: const Text('Skip for now'),
+            DecentLoginForm(
+              accountService: accountService,
+              onSuccess: onComplete,
+              secondaryLabel: 'Skip for now',
+              onSecondary: onComplete,
             ),
           ],
         ),
       ),
     );
-  }
-
-  Future<void> _login() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
-    try {
-      final ok = await widget.accountService.login(
-        _emailController.text.trim(),
-        _passwordController.text,
-      );
-
-      if (!mounted) return;
-
-      if (ok) {
-        widget.onComplete();
-      } else {
-        setState(() {
-          _error = 'Login failed. Check your email and password.';
-          _loading = false;
-        });
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = 'Network error. Check your connection and try again.';
-        _loading = false;
-      });
-    }
   }
 }

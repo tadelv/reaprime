@@ -24,6 +24,7 @@ import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:reaprime/src/settings/update_dialog.dart';
 import 'package:reaprime/src/services/android_updater.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
+import 'package:reaprime/src/account/decent_login_form.dart';
 import 'package:reaprime/src/services/account/decent_account_service.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
@@ -644,99 +645,23 @@ class _SettingsViewState extends State<SettingsView>
 
   void _showLoginDialog(
       BuildContext context, DecentAccountService accountService) {
-    final emailController = TextEditingController();
-    final passwordController = TextEditingController();
-    var loading = false;
-    String? error;
-
     showShadDialog(
       context: context,
       builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
-            return ShadDialog(
-              title: const Text('Link Decent Account'),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 8),
-                  ShadInput(
-                    controller: emailController,
-                    placeholder: const Text('Email'),
-                    keyboardType: TextInputType.emailAddress,
-                  ),
-                  const SizedBox(height: 12),
-                  ShadInput(
-                    controller: passwordController,
-                    placeholder: const Text('Password'),
-                    obscureText: true,
-                  ),
-                  if (error != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      error!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      ShadButton.outline(
-                        onPressed: () => Navigator.of(dialogContext).pop(),
-                        child: const Text('Cancel'),
-                      ),
-                      const SizedBox(width: 8),
-                      ShadButton(
-                        onPressed: loading
-                            ? null
-                            : () async {
-                                setDialogState(() {
-                                  loading = true;
-                                  error = null;
-                                });
-                                try {
-                                  final ok = await accountService.login(
-                                    emailController.text.trim(),
-                                    passwordController.text,
-                                  );
-                                  if (!dialogContext.mounted) return;
-                                  if (ok) {
-                                    Navigator.of(dialogContext).pop();
-                                    setState(() {});
-                                  } else {
-                                    setDialogState(() {
-                                      error = 'Login failed. Check your email and password.';
-                                      loading = false;
-                                    });
-                                  }
-                                } catch (e) {
-                                  if (!dialogContext.mounted) return;
-                                  setDialogState(() {
-                                    error = 'Network error: $e';
-                                    loading = false;
-                                  });
-                                }
-                              },
-                        child: loading
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text('Login'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          },
+        return ShadDialog(
+          title: const Text('Link Decent Account'),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: DecentLoginForm(
+              accountService: accountService,
+              onSuccess: () {
+                Navigator.of(dialogContext).pop();
+                setState(() {});
+              },
+              secondaryLabel: 'Cancel',
+              onSecondary: () => Navigator.of(dialogContext).pop(),
+            ),
+          ),
         );
       },
     );

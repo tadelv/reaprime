@@ -61,6 +61,7 @@ class SettingsController with ChangeNotifier {
   String _wakeSchedules = '[]';
   bool _lowBatteryBrightnessLimit = false;
   bool _onboardingCompleted = false;
+  bool _accountStepSeen = false;
 
   TelemetryService? _telemetryService;
 
@@ -89,6 +90,7 @@ class SettingsController with ChangeNotifier {
   String get wakeSchedules => _wakeSchedules;
   bool get lowBatteryBrightnessLimit => _lowBatteryBrightnessLimit;
   bool get onboardingCompleted => _onboardingCompleted;
+  bool get accountStepSeen => _accountStepSeen;
 
   set telemetryService(TelemetryService service) => _telemetryService = service;
 
@@ -120,6 +122,7 @@ class SettingsController with ChangeNotifier {
     _wakeSchedules = await _settingsService.wakeSchedules();
     _lowBatteryBrightnessLimit = await _settingsService.lowBatteryBrightnessLimit();
     _onboardingCompleted = await _settingsService.onboardingCompleted();
+    _accountStepSeen = await _settingsService.accountStepSeen();
 
     // Sync telemetry consent to TelemetryService if it exists
     if (_telemetryService != null) {
@@ -372,6 +375,13 @@ class SettingsController with ChangeNotifier {
     if (value == _onboardingCompleted) return;
     _onboardingCompleted = value;
     await _settingsService.setOnboardingCompleted(value);
+    notifyListeners();
+  }
+
+  Future<void> setAccountStepSeen(bool value) async {
+    if (value == _accountStepSeen) return;
+    _accountStepSeen = value;
+    await _settingsService.setAccountStepSeen(value);
     notifyListeners();
   }
 }
