@@ -40,6 +40,7 @@ class De1StateManager with WidgetsBindingObserver {
   final GlobalKey<NavigatorState> _navigatorKey;
 
   StreamSubscription<Machine?>? _de1Subscription;
+  final _emailedSerials = <String>{};
   StreamSubscription<MachineSnapshot>? _snapshotSubscription;
   ShotSequencer? _currentShotSequencer;
   StreamSubscription<ShotState>? _shotStateSubscription;
@@ -228,9 +229,13 @@ class De1StateManager with WidgetsBindingObserver {
       _logger.warning(
         'Machine serial $serial not in account — emailing support',
       );
+      if (_emailedSerials.contains(serial)) return;
+      _emailedSerials.add(serial);
       try {
         await account.emailSerialMismatch(serial);
+        _logger.info('Emailed support about unassociated serial $serial');
       } catch (e) {
+        _emailedSerials.remove(serial);
         _logger.warning('Failed to email serial mismatch: $e');
         // Don't block the dialog — user should still see the message.
       }
