@@ -136,8 +136,8 @@ class DecentScale implements Scale {
 
         await _sendHeartBeat();
       });
-      await _sendOledOn();
       await _sendHeartBeat();
+      await _sendOledOn();
       _connectionStateController.add(ConnectionState.connected);
     } catch (e) {
       _log.warning('Failed to initialize scale: $e');
