@@ -6,6 +6,7 @@ import 'package:reaprime/src/models/device/impl/blackcoffee/blackcoffee_scale.da
 import 'package:reaprime/src/models/device/impl/bookoo/miniscale.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
+import 'package:reaprime/src/models/device/impl/decent_temp/temperature.dart';
 import 'package:reaprime/src/models/device/impl/difluid/difluid_scale.dart';
 import 'package:reaprime/src/models/device/impl/eureka/eureka_scale.dart';
 import 'package:reaprime/src/models/device/impl/felicita/arc.dart';
@@ -40,7 +41,9 @@ class DeviceMatcher {
       UnifiedDe1.advertisingIdentifier.long,
       // Bengle extends UnifiedDe1, inherits advertisingIdentifier.
     ],
-    DeviceType.sensor => [], // No BLE sensors yet
+    DeviceType.sensor => [
+      DecentTemp.serviceIdentifier.long,
+    ],
   };
 
   static Future<Device?> match({
@@ -52,13 +55,17 @@ class DeviceMatcher {
 
     // Exact matches
     if (name == 'Decent Scale') return DecentScale(transport: transport);
-    if (name == 'Skale2' || nameLower.startsWith("skale")) return Skale2Scale(transport: transport);
+    if (name == 'Skale2' || nameLower.startsWith("skale")) {
+      return Skale2Scale(transport: transport);
+    }
 
     // DE1 family — check before generic prefix matches
     if (name == 'DE1' || nameLower == 'nrf5x' || nameLower.startsWith('de1')) {
       return UnifiedDe1(transport: transport);
     }
-    if (name == 'Bengle' || nameLower.startsWith("bengle")) return Bengle(transport: transport);
+    if (name == 'Bengle' || nameLower.startsWith("bengle")) {
+      return Bengle(transport: transport);
+    }
 
     // Prefix matches
     if (nameLower.startsWith('felicita')) {
@@ -77,7 +84,8 @@ class DeviceMatcher {
       return AcaiaScale(transport: transport);
     }
 
-    if (nameLower.contains('eureka') || nameLower.contains('precisa') ||
+    if (nameLower.contains('eureka') ||
+        nameLower.contains('precisa') ||
         nameLower.contains('cfs-9002')) {
       return EurekaScale(transport: transport);
     }
@@ -102,6 +110,9 @@ class DeviceMatcher {
     }
     if (nameLower.contains('bookoo')) {
       return BookooScale(transport: transport);
+    }
+    if (nameLower.contains('decent temp')) {
+      return DecentTemp(transport: transport);
     }
 
     return null;
