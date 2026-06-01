@@ -673,6 +673,12 @@ class _AppRootState extends State<AppRoot> {
   final Logger _log = Logger("AppRoot");
   Key _key = UniqueKey();
 
+  @override
+  void dispose() {
+    unawaited(widget.connectionManager.dispose());
+    super.dispose();
+  }
+
   Future<void> restart() async {
     _log.info("recreating App Root");
     // TODO: need better app base logic for recreate activity

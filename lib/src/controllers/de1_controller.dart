@@ -350,5 +350,14 @@ class De1Controller {
       ));
     }
   }
+
+  Future<void> dispose() async {
+    await _de1?.dispose();
+    _de1 = null;
+    if (!_de1Controller.isClosed) _de1Controller.close();
+    if (!_steamDataController.isClosed) _steamDataController.close();
+    if (!_hotWaterDataController.isClosed) _hotWaterDataController.close();
+    if (!_rinseStream.isClosed) _rinseStream.close();
+  }
 }
 

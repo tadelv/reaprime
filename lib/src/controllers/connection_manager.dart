@@ -776,7 +776,9 @@ class ConnectionManager {
     // emission and update it.
   }
 
-  void dispose() {
+  Future<void> dispose() async {
+    await de1Controller.dispose();
+    scaleController.dispose();
     _disconnectSupervisor.dispose();
     _adapterSub?.cancel();
     _disconnectExpectations.dispose();
