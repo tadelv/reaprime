@@ -85,7 +85,8 @@ class BluePlusTransport implements BLETransport {
   /// downstream listeners see `onDone`. Also cancels any lingering
   /// native subscription. Safe to call more than once; re-using this
   /// transport after dispose is not supported.
-  void dispose() {
+  @override
+  Future<void> dispose() async {
     _nativeConnectionSub?.cancel();
     _nativeConnectionSub = null;
     _charSubs.cancelAll();

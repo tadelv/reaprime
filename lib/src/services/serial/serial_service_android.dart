@@ -441,6 +441,15 @@ class AndroidSerialPort implements SerialTransport {
     await _port.write(command);
     _log.fine("wrote request: ${command.map((e) => e.toRadixString(16))}");
   }
+
+  @override
+  Future<void> dispose() async {
+    await _portSubscription?.cancel();
+    _portSubscription = null;
+    if (!_open.isClosed) _open.close();
+    if (!_rawController.isClosed) _rawController.close();
+    if (!_outputController.isClosed) _outputController.close();
+  }
 }
 
 

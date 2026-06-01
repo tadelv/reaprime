@@ -418,6 +418,7 @@ class _DesktopSerialPort implements SerialTransport {
   /// End-of-life cleanup. Calls `disconnect()` to stop the reader isolate +
   /// close the tty, then frees the libserialport `sp_port` FFI handle and
   /// closes the exposed stream controllers. Safe to call more than once.
+  @override
   Future<void> dispose() async {
     try {
       await disconnect();

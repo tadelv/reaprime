@@ -14,5 +14,10 @@ abstract class DataTransport {
 
   /// Disconnect from the transport
   Future<void> disconnect();
+
+  /// End-of-life cleanup. Release native resources, close subjects,
+  /// cancel subscriptions. Safe to call more than once. Re-using this
+  /// transport after dispose is not supported.
+  Future<void> dispose();
 }
 
