@@ -195,6 +195,9 @@ class _TestDe1 implements De1Interface {
   Future<void> setHeaterVoltage(De1HeaterVoltage voltage) async {}
   @override
   Future<void> setRefillKitSettings(De1RefillKitSettings settings) async {}
+
+  @override
+  Future<void> dispose() async {}
 }
 
 /// A De1Controller subclass that exposes a settable de1 subject.

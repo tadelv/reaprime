@@ -59,7 +59,8 @@ class _ControllableSerialTransport extends SerialTransport {
     _readCtl.add(chunk);
   }
 
-  void dispose() {
+  @override
+  Future<void> dispose() async {
     _connState.close();
     _readCtl.close();
   }

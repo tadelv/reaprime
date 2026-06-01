@@ -224,5 +224,6 @@ class FakeBleTransport extends BLETransport {
     queueMmrResponseInt(MMRItem.refillKitPresent, refillKitPresent);
   }
 
-  void dispose() => _connState.close();
+  @override
+  Future<void> dispose() async => _connState.close();
 }

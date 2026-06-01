@@ -13,11 +13,6 @@ abstract class Device {
   // tear down any connections
   Future<void> disconnect();
 
-  /// End-of-life cleanup. Release native resources, close subjects,
-  /// cancel subscriptions. Safe to call more than once. Re-using this
-  /// device after dispose is not supported. Default is a no-op.
-  Future<void> dispose() async {}
-
   Stream<ConnectionState> get connectionState;
 }
 

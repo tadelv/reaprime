@@ -82,7 +82,8 @@ class TestDe1 implements De1Interface {
     _connectionState.add(state);
   }
 
-  void dispose() {
+  @override
+  Future<void> dispose() async {
     snapshotSubject.close();
     _connectionState.close();
     _shotSettingsSubject.close();

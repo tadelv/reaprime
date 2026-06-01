@@ -57,7 +57,8 @@ class _QuietSerialTransport extends SerialTransport {
   @override
   Future<void> writeCommand(String command) async {}
 
-  void dispose() {
+  @override
+  Future<void> dispose() async {
     _connState.close();
   }
 }

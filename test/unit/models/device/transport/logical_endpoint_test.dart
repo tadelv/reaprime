@@ -58,7 +58,8 @@ class _StubSerialTransport extends SerialTransport {
   @override
   Future<void> writeHexCommand(Uint8List command) async {}
 
-  void dispose() => _connState.close();
+  @override
+  Future<void> dispose() async => _connState.close();
 }
 
 void main() {

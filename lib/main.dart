@@ -673,11 +673,12 @@ class _AppRootState extends State<AppRoot> {
   final Logger _log = Logger("AppRoot");
   Key _key = UniqueKey();
 
-  @override
-  void dispose() {
-    unawaited(widget.connectionManager.dispose());
-    super.dispose();
-  }
+  // NOTE: No dispose() override here — _AppRootState is torn down and
+  // recreated on every app restart (WebView crash, reinit), which must
+  // NOT tear down the DE1/scale connection. ConnectionManager.dispose()
+  // is wired but intentionally not called from here. The OS reclaims
+  // BLE handles and serial ports on process death; the subjects are
+  // harmless at exit.
 
   Future<void> restart() async {
     _log.info("recreating App Root");

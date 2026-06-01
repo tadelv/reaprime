@@ -59,7 +59,8 @@ class MockSerialTransport implements SerialTransport {
     _rawController.add(data);
   }
 
-  void dispose() {
+  @override
+  Future<void> dispose() async {
     _connectionSubject.close();
     _rawController.close();
     _readController.close();

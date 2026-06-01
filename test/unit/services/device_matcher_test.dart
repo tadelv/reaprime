@@ -55,6 +55,9 @@ class _MockBLETransport extends BLETransport {
 
   @override
   Future<void> setTransportPriority(bool prioritized) async {}
+
+  @override
+  Future<void> dispose() async {}
 }
 
 void main() {

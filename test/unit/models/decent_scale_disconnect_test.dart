@@ -87,7 +87,8 @@ class _DisconnectedBleTransport extends BLETransport {
     );
   }
 
-  void dispose() {
+  @override
+  Future<void> dispose() async {
     _connectionState.close();
   }
 }

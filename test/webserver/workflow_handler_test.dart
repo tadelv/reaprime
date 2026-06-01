@@ -122,7 +122,8 @@ class SpyDe1 implements De1Interface {
     ),
   );
 
-  void dispose() {
+  @override
+  Future<void> dispose() async {
     _shotSettings.close();
     _connectionState.close();
     _snapshot.close();
