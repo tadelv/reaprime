@@ -183,6 +183,25 @@ class UnifiedDe1Transport {
     await _transport.writeCommand("<B>02");
   }
 
+  /// End-of-life cleanup. Closes all subjects, cancels the serial
+  /// subscription, and disposes the underlying transport. Safe to call
+  /// more than once. Re-use after dispose is not supported.
+  Future<void> dispose() async {
+    // Cancel serial subscription if active
+    await _transportSubscription?.cancel();
+    _transportSubscription = null;
+
+    // Close all BehaviorSubjects so downstream listeners see onDone
+    if (!_stateSubject.isClosed) _stateSubject.close();
+    if (!_shotSampleSubject.isClosed) _shotSampleSubject.close();
+    if (!shotSettingsSubject.isClosed) shotSettingsSubject.close();
+    if (!_waterLevelsSubject.isClosed) _waterLevelsSubject.close();
+    if (!_mmrSubject.isClosed) _mmrSubject.close();
+    if (!_fwMapRequestSubject.isClosed) _fwMapRequestSubject.close();
+
+    await _transport.dispose();
+  }
+
   Future<void> disconnect() async {
     _log.warning(
       'disconnect() called by app code',
