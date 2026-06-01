@@ -92,6 +92,25 @@ class UnifiedDe1 implements De1Interface {
     await _transport.disconnect();
   }
 
+  /// End-of-life cleanup. Disconnects if still connected, closes the
+  /// raw message controller, and disposes the transport (closing all
+  /// subjects and releasing native resources). Safe to call more than
+  /// once.
+  @override
+  Future<void> dispose() async {
+    // Guard: disconnect first so capability mixin onDisconnect() fires
+    // before subjects close.
+    try {
+      await disconnect();
+    } catch (_) {
+      // Transport may already be dead
+    }
+    if (!_rawMessageController.isClosed) {
+      _rawMessageController.close();
+    }
+    await _transport.dispose();
+  }
+
   @override
   Future<int> getFanThreshhold() async {
     return await _readMMRInt(MMRItem.fanThreshold);

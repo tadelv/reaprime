@@ -126,6 +126,11 @@ class MockDe1 implements De1Interface {
   }
 
   @override
+  Future<void> dispose() async {
+    // No-op: MockDe1 holds no native resources.
+  }
+
+  @override
   DeviceType get type => DeviceType.machine;
 
   DateTime lastIdleSnapshot = DateTime.now();
