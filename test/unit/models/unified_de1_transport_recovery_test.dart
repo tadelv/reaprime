@@ -75,7 +75,8 @@ class _RecoveryFakeTransport extends BLETransport {
     }
   }
 
-  void dispose() => _connState.close();
+  @override
+  Future<void> dispose() async => _connState.close();
 }
 
 void main() {

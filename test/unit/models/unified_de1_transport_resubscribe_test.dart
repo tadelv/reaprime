@@ -43,6 +43,8 @@ class _Fake extends BLETransport {
   @override
   Future<void> write(String s, String c, Uint8List data,
       {bool withResponse = true, Duration? timeout}) async {}
+  @override
+  Future<void> dispose() async {}
 }
 
 void main() {

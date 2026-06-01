@@ -89,9 +89,9 @@ class MockConnectionManager extends ConnectionManager {
   Future<void> connectScale(device_scale.Scale scale) async {}
 
   @override
-  void dispose() {
+  Future<void> dispose() async {
     _statusOverride.close();
-    super.dispose();
+    await super.dispose();
   }
 }
 

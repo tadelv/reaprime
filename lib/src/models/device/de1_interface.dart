@@ -5,6 +5,10 @@ import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/data/utils.dart';
 
 abstract class De1Interface extends Machine {
+  /// End-of-life cleanup. Release resources held by this machine
+  /// implementation. Default is a no-op.
+  Future<void> dispose() async {}
+
   Stream<bool> get ready;
 
   Stream<De1RawMessage> get rawOutStream;

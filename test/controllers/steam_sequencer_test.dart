@@ -67,7 +67,9 @@ class _TestMachine implements De1Interface {
   }
 
   void emit(MachineSnapshot s) => _snap.add(s);
-  void dispose() => _snap.close();
+
+  @override
+  Future<void> dispose() async => _snap.close();
 
   @override
   Stream<ConnectionState> get connectionState =>

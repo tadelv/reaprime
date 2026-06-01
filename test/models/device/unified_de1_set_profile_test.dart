@@ -69,7 +69,8 @@ class _RecordingSerialTransport extends SerialTransport {
     }
   }
 
-  void dispose() {
+  @override
+  Future<void> dispose() async {
     _connState.close();
   }
 }

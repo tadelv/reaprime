@@ -76,8 +76,8 @@ class FakeConnectionManager extends ConnectionManager {
   }
 
   @override
-  void dispose() {
+  Future<void> dispose() async {
     _statusOverride.close();
-    super.dispose();
+    await super.dispose();
   }
 }

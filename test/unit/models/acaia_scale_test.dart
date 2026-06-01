@@ -67,6 +67,9 @@ class MockAcaiaBleTransport extends BLETransport {
   void simulateNotification(List<int> data) {
     _notificationCallback?.call(Uint8List.fromList(data));
   }
+
+  @override
+  Future<void> dispose() async {}
 }
 
 void main() {
