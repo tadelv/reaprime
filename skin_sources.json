@@ -16,5 +16,9 @@
   {
     "type": "github_release",
     "repo": "tadelv/passione"
+  },
+  {
+    "type": "github_release",
+    "repo": "rotium/OverDose"
   }
 ]
