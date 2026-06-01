@@ -175,7 +175,8 @@ class AndroidBluePlusTransport implements BLETransport {
   /// End-of-life cleanup — close the connection-state subject + any
   /// lingering native subscription. Re-use after dispose is not
   /// supported.
-  void dispose() {
+  @override
+  Future<void> dispose() async {
     _nativeConnectionSub?.cancel();
     _nativeConnectionSub = null;
     _charSubs.cancelAll();

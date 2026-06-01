@@ -137,4 +137,17 @@ class UniversalBleTransport implements BLETransport {
   Future<void> setTransportPriority(bool prioritized) async {
     // no implementation (for now)
   }
+
+  @override
+  Future<void> dispose() async {
+    _connectionStateSubscription?.cancel();
+    _connectionStateSubscription = null;
+    for (final sub in _subscriptions.values) {
+      await sub.cancel();
+    }
+    _subscriptions.clear();
+    if (!_connectionStateSubject.isClosed) {
+      _connectionStateSubject.close();
+    }
+  }
 }
