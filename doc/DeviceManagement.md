@@ -275,6 +275,17 @@ When `connect()` is called:
    - No preferred, multiple → show picker (`machinePicker`)
 4. **Scale phase** — apply preferred scale policy (same logic as machine)
 
+**Early stop.** With a preferred machine set, the scan stops as soon as
+its targets connect rather than running the full timeout: when a preferred
+scale is also configured, only once *both* connect; when no preferred scale
+is configured, as soon as the machine connects. In the no-preferred-scale
+case a scale that advertises just after that stop would be missed, so a
+deferred (fire-and-forget) scale-only rescan is armed ~3s later — the
+machine is already usable and the scale connects in the background if one
+shows up. The delay mirrors the post-wake reconnect (lets the DE1 BLE link
+stabilise). The rescan is armed only when the scan was actually cut short,
+so a full scan that ran to completion never triggers one.
+
 ### Key Methods
 
 - `connect()` — Full scan + connect flow (machine + scale)
