@@ -426,10 +426,10 @@ void main() {
         });
 
         test(
-            'only preferred machine set → does not call stopScan',
+            'only preferred machine set → calls stopScan on machine connect',
             () async {
           await settingsController.setPreferredMachineId('pref-de1');
-          // No preferred scale
+          // No preferred scale — scan should stop as soon as machine connects.
 
           mockScanner.scanCompleter = Completer<void>();
 
@@ -445,7 +445,7 @@ void main() {
           mockScanner.completeScan();
           await connectFuture;
 
-          expect(mockScanner.stopScanCallCount, 0);
+          expect(mockScanner.stopScanCallCount, 1);
         });
 
         test(

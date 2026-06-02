@@ -335,7 +335,7 @@ class ConnectionManager {
         scaleOnly ? null : settingsController.preferredMachineId;
     final preferredScaleId = settingsController.preferredScaleId;
     final earlyStopEnabled =
-        !scaleOnly && preferredMachineId != null && preferredScaleId != null;
+        !scaleOnly && preferredMachineId != null;
 
     final scanStartTime = DateTime.now();
 
@@ -434,11 +434,30 @@ class ConnectionManager {
     );
   }
 
-  /// Stop scan early when both preferred devices are connected.
+  /// Stop scan early based on connection state and scale preference.
+  ///
+  /// When no preferred scale is configured, stop as soon as the preferred
+  /// machine connects — the post-scan scale phase handles any discovered
+  /// scales, and an immediate stop avoids wasting 10+ seconds of scan
+  /// timeout. When a preferred scale IS configured, keep the original
+  /// behaviour: stop only when both preferred devices are connected.
   void _checkEarlyStop(bool earlyStopEnabled) {
-    if (earlyStopEnabled && _machineConnected && _scaleConnected) {
-      _log.fine('Both preferred devices connected, stopping scan early');
-      deviceScanner.stopScan();
+    if (!earlyStopEnabled) return;
+    final preferredScaleId = settingsController.preferredScaleId;
+    if (preferredScaleId == null) {
+      // No preferred scale — stop as soon as the machine connects.
+      // Scales discovered so far are still in scanResult.matchedDevices
+      // and will be handled by the post-scan scale phase.
+      if (_machineConnected) {
+        _log.fine('Machine connected (no preferred scale), stopping scan early');
+        deviceScanner.stopScan();
+      }
+    } else {
+      // Preferred scale exists — stop only when both are connected.
+      if (_machineConnected && _scaleConnected) {
+        _log.fine('Both preferred devices connected, stopping scan early');
+        deviceScanner.stopScan();
+      }
     }
   }
 
