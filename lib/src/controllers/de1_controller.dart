@@ -352,6 +352,16 @@ class De1Controller {
   }
 
   Future<void> dispose() async {
+    // Cancel listeners + pending debounce before tearing down the
+    // machine. _onDisconnect() (which normally does this) is not
+    // guaranteed to fire: _de1.dispose() closes the transport subjects,
+    // which delivers onDone rather than a `disconnected` event.
+    _shotSettingsDebounce?.cancel();
+    _shotSettingsDebounce = null;
+    for (final sub in _subscriptions) {
+      await sub.cancel();
+    }
+    _subscriptions.clear();
     await _de1?.dispose();
     _de1 = null;
     if (!_de1Controller.isClosed) _de1Controller.close();
