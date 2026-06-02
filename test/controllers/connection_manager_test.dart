@@ -449,6 +449,88 @@ void main() {
         });
 
         test(
+            'only preferred machine, scale advertises after early-stop → '
+            'deferred rescan connects it',
+            () async {
+          await settingsController.setPreferredMachineId('pref-de1');
+          // No preferred scale. Fire the deferred rescan immediately.
+          connectionManager.deferredScaleScanDelay = Duration.zero;
+
+          mockScanner.scanCompleter = Completer<void>();
+
+          final fakeDe1 = _FakeDe1(deviceId: 'pref-de1');
+
+          final connectFuture = connectionManager.connect();
+          await mockScanner.scanningStream.firstWhere((s) => s);
+
+          // Machine early-connects; scan stops before any scale appears.
+          mockScanner.addDevice(fakeDe1);
+          await Future.delayed(Duration.zero);
+          await Future.delayed(Duration.zero);
+
+          mockScanner.completeScan();
+          await connectFuture;
+
+          // First pass: machine connected (ready), no scale connected,
+          // scan stopped early. Rescan is armed in the background.
+          expect(mockScanner.stopScanCallCount, 1);
+          expect(mockScaleController.connectCalls, isEmpty);
+          expect(
+              connectionManager.currentStatus.phase, ConnectionPhase.ready);
+
+          // Scale shows up only now — after the early stop.
+          mockScanner.addDevice(TestScale(deviceId: 'late-scale'));
+
+          // Let the deferred rescan fire (zero delay) and its scan run.
+          await Future.delayed(const Duration(milliseconds: 1));
+          await Future.delayed(Duration.zero);
+          await Future.delayed(Duration.zero);
+          await Future.delayed(Duration.zero);
+
+          expect(mockScaleController.connectCalls, hasLength(1),
+              reason: 'deferred rescan must connect the late scale');
+          expect(
+              mockScaleController.connectCalls.first.deviceId, 'late-scale');
+          expect(
+              connectionManager.currentStatus.phase, ConnectionPhase.ready);
+        });
+
+        test(
+            'only preferred machine, no scale ever → deferred rescan is a '
+            'no-op, machine stays ready',
+            () async {
+          await settingsController.setPreferredMachineId('pref-de1');
+          connectionManager.deferredScaleScanDelay = Duration.zero;
+
+          mockScanner.scanCompleter = Completer<void>();
+
+          final fakeDe1 = _FakeDe1(deviceId: 'pref-de1');
+
+          final connectFuture = connectionManager.connect();
+          await mockScanner.scanningStream.firstWhere((s) => s);
+
+          mockScanner.addDevice(fakeDe1);
+          await Future.delayed(Duration.zero);
+          await Future.delayed(Duration.zero);
+
+          mockScanner.completeScan();
+          await connectFuture;
+
+          expect(
+              connectionManager.currentStatus.phase, ConnectionPhase.ready);
+
+          // Deferred rescan fires, finds no scale, leaves machine ready.
+          await Future.delayed(const Duration(milliseconds: 1));
+          await Future.delayed(Duration.zero);
+          await Future.delayed(Duration.zero);
+          await Future.delayed(Duration.zero);
+
+          expect(mockScaleController.connectCalls, isEmpty);
+          expect(
+              connectionManager.currentStatus.phase, ConnectionPhase.ready);
+        });
+
+        test(
             'only preferred scale set → does not call stopScan',
             () async {
           await settingsController.setPreferredScaleId('pref-scale');
@@ -490,6 +572,42 @@ void main() {
           await connectFuture;
 
           expect(mockScanner.stopScanCallCount, 0);
+        });
+
+        test(
+            'full scan completed (no early stop) → no deferred rescan armed',
+            () async {
+          // No preferences → no early-stop. A single machine auto-connects
+          // via post-scan policy; the full scan already saw every scale, so
+          // a scale appearing afterwards must NOT be auto-connected by a
+          // rescan that should never have been armed.
+          connectionManager.deferredScaleScanDelay = Duration.zero;
+
+          mockScanner.scanCompleter = Completer<void>();
+
+          final fakeDe1 = _FakeDe1(deviceId: 'de1');
+
+          final connectFuture = connectionManager.connect();
+          await mockScanner.scanningStream.firstWhere((s) => s);
+
+          mockScanner.addDevice(fakeDe1);
+          await Future.delayed(Duration.zero);
+
+          mockScanner.completeScan();
+          await connectFuture;
+
+          expect(mockScanner.stopScanCallCount, 0);
+          expect(mockScaleController.connectCalls, isEmpty);
+
+          // A scale shows up after the (completed) scan. With no early stop
+          // there is no armed rescan, so it stays unconnected.
+          mockScanner.addDevice(TestScale(deviceId: 'late-scale'));
+          await Future.delayed(const Duration(milliseconds: 1));
+          await Future.delayed(Duration.zero);
+          await Future.delayed(Duration.zero);
+
+          expect(mockScaleController.connectCalls, isEmpty,
+              reason: 'a completed full scan must not arm a deferred rescan');
         });
 
         test(
