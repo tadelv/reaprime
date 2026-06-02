@@ -130,6 +130,27 @@ class ConnectionManager {
   /// outer connect()'s finally block (comms-harden #9).
   Completer<void>? _queuedScaleOnly;
 
+  /// Deferred scale-only rescan armed when the preferred machine
+  /// connects but no preferred scale is configured. The initial scan
+  /// stops the instant the machine connects (see [_checkEarlyStop]), so
+  /// a scale that advertises a beat later is missed; this recovers it.
+  Timer? _deferredScaleScan;
+
+  /// Set true by [_checkEarlyStop] when it actually cut the scan short on
+  /// machine-connect with no preferred scale. Distinguishes that case
+  /// from a full scan that simply completed without a scale — only the
+  /// former warrants a deferred rescan. Reset at the start of each full
+  /// connect.
+  bool _earlyStopFired = false;
+
+  /// Delay before the deferred scale rescan fires. Mirrors the post-wake
+  /// reconnect in `De1StateManager`: starting another scan immediately
+  /// after the DE1 connect starves the shared Android BLE radio and
+  /// risks LINK_SUPERVISION_TIMEOUT on the DE1, so we let the link
+  /// stabilise first. Overridable in tests to avoid a real wait.
+  @visibleForTesting
+  Duration deferredScaleScanDelay = const Duration(seconds: 3);
+
   ConnectionManager({
     required this.deviceScanner,
     required this.de1Controller,
@@ -280,9 +301,14 @@ class ConnectionManager {
   /// Skips machine policy entirely — use when the machine is already
   /// connected and only a scale reconnect is needed (e.g., after wake).
   ///
-  /// Early-stop: if both preferred machine and preferred scale are set,
-  /// the scan stops early once both are connected. If only one (or neither)
-  /// preference is set, the full scan runs to discover all available devices.
+  /// Early-stop: if a preferred machine is set, the scan stops early once
+  /// the machine connects (when no preferred scale is configured) or once
+  /// both preferred devices connect (when a preferred scale is set). With
+  /// no preferred machine, the full scan runs to discover all devices.
+  /// When the scan stops on machine-connect with no preferred scale, a
+  /// deferred (fire-and-forget) scale-only rescan is armed to pick up a
+  /// scale that advertised after the early stop — see
+  /// [_maybeArmDeferredScaleScan].
   ///
   /// Concurrency: a `scaleOnly` call that arrives while another `connect`
   /// is already running is queued and replayed after the in-flight call
@@ -331,6 +357,12 @@ class ConnectionManager {
   }
 
   Future<void> _connectImpl({required bool scaleOnly}) async {
+    if (!scaleOnly) {
+      // A fresh full connect supersedes any pending deferred rescan.
+      _deferredScaleScan?.cancel();
+      _deferredScaleScan = null;
+      _earlyStopFired = false;
+    }
     final preferredMachineId =
         scaleOnly ? null : settingsController.preferredMachineId;
     final preferredScaleId = settingsController.preferredScaleId;
@@ -374,6 +406,16 @@ class ConnectionManager {
         preferredScaleId,
         scanReport,
       );
+      // runScan published `scanning`. `connectScale` resolves the phase
+      // to `ready` when a scale connects; when the scale phase was a
+      // no-op (no scale found) settle it from machine state so the UI
+      // doesn't stay stuck on `scanning`.
+      if (currentStatus.phase == ConnectionPhase.scanning) {
+        _publishStatus(currentStatus.copyWith(
+          phase:
+              _machineConnected ? ConnectionPhase.ready : ConnectionPhase.idle,
+        ));
+      }
       _emitScanReport(
         scanReport: scanReport,
         preferredMachineId: null,
@@ -397,6 +439,7 @@ class ConnectionManager {
         preferredScaleId,
         scanReport,
       );
+      _maybeArmDeferredScaleScan();
       _emitScanReport(
         scanReport: scanReport,
         preferredMachineId: preferredMachineId,
@@ -417,6 +460,7 @@ class ConnectionManager {
       case ConnectMachineAction(machine: final m):
         await _connectMachineTracked(m, scanReport);
         await _runScalePhase(m, scales, preferredScaleId, scanReport);
+        _maybeArmDeferredScaleScan();
       case MachinePickerAction():
         _publishStatus(currentStatus.copyWith(
           phase: ConnectionPhase.idle,
@@ -446,10 +490,12 @@ class ConnectionManager {
     final preferredScaleId = settingsController.preferredScaleId;
     if (preferredScaleId == null) {
       // No preferred scale — stop as soon as the machine connects.
-      // Scales discovered so far are still in scanResult.matchedDevices
-      // and will be handled by the post-scan scale phase.
+      // Scales discovered so far are still in scanRun.scales and will be
+      // handled by the post-scan scale phase; a scale that advertises
+      // after this stop is recovered by _maybeArmDeferredScaleScan.
       if (_machineConnected) {
         _log.fine('Machine connected (no preferred scale), stopping scan early');
+        _earlyStopFired = true;
         deviceScanner.stopScan();
       }
     } else {
@@ -459,6 +505,34 @@ class ConnectionManager {
         deviceScanner.stopScan();
       }
     }
+  }
+
+  /// Compensate for [_checkEarlyStop] cutting the scan short. When a
+  /// preferred machine is configured but no preferred scale is, the scan
+  /// stops the instant the machine connects — a scale that advertises a
+  /// beat later would never reach the scale phase. If we land here with
+  /// the machine connected but no scale, arm a deferred scale-only rescan
+  /// to pick it up. Fire-and-forget, mirroring the post-wake reconnect in
+  /// `De1StateManager` — the machine is already `ready` and usable; the
+  /// scale connects in the background if one shows up.
+  ///
+  /// Gated on [_earlyStopFired] — the scan was *actually* cut short on
+  /// machine-connect. A full scan that ran to completion already saw
+  /// every scale that advertised, so it never arms a (pointless) rescan,
+  /// even when a preferred machine is set but resolved post-scan.
+  void _maybeArmDeferredScaleScan() {
+    if (!_earlyStopFired) return;
+    if (!_machineConnected || _scaleConnected) return;
+    _log.fine(
+      'Machine connected without a scale after an early stop; '
+      'arming deferred scale rescan in ${deferredScaleScanDelay.inSeconds}s',
+    );
+    _deferredScaleScan?.cancel();
+    _deferredScaleScan = Timer(deferredScaleScanDelay, () {
+      _deferredScaleScan = null;
+      if (_scaleConnected) return; // a scale arrived in the meantime
+      connect(scaleOnly: true); // fire-and-forget
+    });
   }
 
   /// Gate the scale phase on machine type. When the connected machine
@@ -796,6 +870,7 @@ class ConnectionManager {
   }
 
   Future<void> dispose() async {
+    _deferredScaleScan?.cancel();
     await de1Controller.dispose();
     scaleController.dispose();
     _disconnectSupervisor.dispose();
