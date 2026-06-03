@@ -137,7 +137,9 @@ class DecentScale implements Scale {
         await _sendHeartBeat();
       });
       await _sendHeartBeat();
-      await _sendOledOn();
+      if (!_isSleeping) {
+        await _sendOledOn();
+      }
       _connectionStateController.add(ConnectionState.connected);
     } catch (e) {
       _log.warning('Failed to initialize scale: $e');
@@ -196,15 +198,11 @@ class DecentScale implements Scale {
   }
 
   Future<void> _sendHeartBeat() async {
-    if (_isSleeping) {
-      // Scale display is off — no heartbeat needed (scale won't auto-sleep
-      // when we already told it to sleep, and it won't send notifications
-      // for the watchdog to observe).
-      return;
-    }
     _log.finest("send hb");
     // Heartbeat ping: tells the scale the app is still alive so it won't
-    // auto-sleep. Does NOT produce a BLE notification response — watchdog
+    // auto-sleep or disconnect. Send even when _isSleeping — without it
+    // HDS firmware times out and disconnects BLE, which wakes the display.
+    // Does NOT produce a BLE notification response — watchdog
     // is fed by weight notifications (0xCE/0xCA) while scale is awake.
     List<int> payload = [0x03, 0x0A, 0x03, 0xFF, 0xFF, 0x00, 0x0A];
     try {
