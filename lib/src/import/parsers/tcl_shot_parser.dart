@@ -100,7 +100,7 @@ class TclShotParser {
     );
 
     // --- Time-series snapshots ---
-    final measurements = _parseSnapshots(map, baseTimestamp);
+    final measurements = _parseSnapshots(map, baseTimestamp, profile);
 
     // --- ShotRecord ---
     final shot = ShotRecord(
@@ -130,6 +130,7 @@ class TclShotParser {
   static List<ShotSnapshot> _parseSnapshots(
     Map<String, dynamic> map,
     DateTime baseTimestamp,
+    Profile profile,
   ) {
     final elapsed = _parseDoubleList(map['espresso_elapsed']);
     final pressure = _parseDoubleList(map['espresso_pressure']);
@@ -155,11 +156,15 @@ class TclShotParser {
       flowGoal,
     ].map((l) => l.length).reduce(min);
 
+    final boundaries = _stepBoundaries(profile);
+
     final snapshots = <ShotSnapshot>[];
     for (var i = 0; i < count; i++) {
       final ts = baseTimestamp.add(
         Duration(milliseconds: (elapsed[i] * 1000).round()),
       );
+
+      final frame = _frameForElapsed(elapsed[i], boundaries);
 
       final machineSnap = MachineSnapshot(
         timestamp: ts,
@@ -175,7 +180,7 @@ class TclShotParser {
         groupTemperature: tempBasket[i],
         targetMixTemperature: tempGoal[i],
         targetGroupTemperature: tempGoal[i],
-        profileFrame: 0,
+        profileFrame: frame,
         steamTemperature: 0,
       );
 
@@ -189,6 +194,25 @@ class TclShotParser {
     }
 
     return snapshots;
+  }
+
+  /// Pre-computes cumulative step end-times from profile step durations.
+  static List<double> _stepBoundaries(Profile profile) {
+    final boundaries = <double>[];
+    var cumulative = 0.0;
+    for (final step in profile.steps) {
+      cumulative += step.seconds;
+      boundaries.add(cumulative);
+    }
+    return boundaries;
+  }
+
+  /// Returns the profile step index for [elapsedSeconds] given step [boundaries].
+  static int _frameForElapsed(double elapsedSeconds, List<double> boundaries) {
+    for (var i = 0; i < boundaries.length; i++) {
+      if (elapsedSeconds < boundaries[i]) return i;
+    }
+    return boundaries.isEmpty ? 0 : boundaries.length - 1;
   }
 
   /// Parses a TCL list value ([List] of strings from [TclParser]) into a list of doubles.

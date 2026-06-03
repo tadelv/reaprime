@@ -317,5 +317,59 @@ void main() {
         expect(parsed.shot.measurements.first.scale, isNull);
       });
     });
+
+    group('frame reconstruction', () {
+      // Fixture profile: Best Practice — 2 steps (preinfusion 10s, hold 30s)
+      // Elapsed range: 0..2 seconds → all within frame 0
+      test('all snapshots in frame 0 for short shot', () {
+        for (final snap in result.shot.measurements) {
+          expect(snap.machine.profileFrame, equals(0));
+        }
+      });
+
+      test('crosses frame boundary with multi-step profile', () {
+        // Build a shot with a longer elapsed array
+        final shot = Map<String, dynamic>.from(fixtureJson);
+        shot['elapsed'] = [0.0, 5.0, 10.5, 15.0, 30.0, 50.0];
+        shot['profile'] = {
+          'version': '2',
+          'title': 'Test',
+          'notes': '',
+          'author': '',
+          'beverage_type': 'espresso',
+          'steps': [
+            {'name': 'preinfusion', 'seconds': '10', 'pump': 'pressure', 'temperature': '93', 'sensor': 'coffee', 'transition': 'fast', 'volume': '0', 'weight': '0', 'pressure': '1'},
+            {'name': 'hold',        'seconds': '30', 'pump': 'pressure', 'temperature': '93', 'sensor': 'coffee', 'transition': 'smooth', 'volume': '0', 'weight': '0', 'pressure': '9'},
+            {'name': 'decline',     'seconds': '20', 'pump': 'pressure', 'temperature': '93', 'sensor': 'coffee', 'transition': 'smooth', 'volume': '0', 'weight': '0', 'pressure': '4'},
+          ],
+          'target_volume': 0,
+          'target_weight': 36,
+          'target_volume_count_start': '1',
+          'tank_temperature': 0,
+        };
+        // Also need matching array lengths
+        shot['pressure'] = {'pressure': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0], 'goal': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]};
+        shot['flow'] = {'flow': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0], 'by_weight': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0], 'goal': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]};
+        shot['temperature'] = {'basket': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0], 'mix': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0], 'goal': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]};
+        shot['totals'] = {'weight': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0], 'water_dispensed': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]};
+
+        final parsed = ShotV2JsonParser.parse(shot);
+        final frames = parsed.shot.measurements.map((s) => s.machine.profileFrame).toList();
+
+        // Step 0 (preinfusion): 0–10s → frames at t=0, 5 are in step 0
+        // Step 1 (hold): 10–40s → frames at t=10.5, 15, 30 are in step 1
+        // Step 2 (decline): 40+s → frame at t=50 is in step 2
+        expect(frames, equals([0, 0, 1, 1, 1, 2]));
+      });
+
+      test('profile with no steps returns frame 0 for all snapshots', () {
+        final noSteps = Map<String, dynamic>.from(fixtureJson)..remove('profile');
+        final parsed = ShotV2JsonParser.parse(noSteps);
+        for (final snap in parsed.shot.measurements) {
+          expect(snap.machine.profileFrame, equals(0));
+        }
+      });
+    });
   });
 }
+
