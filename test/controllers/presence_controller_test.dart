@@ -40,36 +40,38 @@ class _FakeDiscoveryService implements DeviceDiscoveryService {
 class _TestDe1 implements De1Interface {
   final BehaviorSubject<MachineSnapshot> _snapshotSubject =
       BehaviorSubject.seeded(
-    MachineSnapshot(
-      timestamp: DateTime(2026, 1, 15, 8, 0),
-      state: const MachineStateSnapshot(
-        state: MachineState.idle,
-        substate: MachineSubstate.idle,
-      ),
-      flow: 0,
-      pressure: 0,
-      targetFlow: 0,
-      targetPressure: 0,
-      mixTemperature: 90,
-      groupTemperature: 90,
-      targetMixTemperature: 93,
-      targetGroupTemperature: 93,
-      profileFrame: 0,
-      steamTemperature: 0,
-    ),
-  );
+        MachineSnapshot(
+          timestamp: DateTime(2026, 1, 15, 8, 0),
+          state: const MachineStateSnapshot(
+            state: MachineState.idle,
+            substate: MachineSubstate.idle,
+          ),
+          flow: 0,
+          pressure: 0,
+          targetFlow: 0,
+          targetPressure: 0,
+          mixTemperature: 90,
+          groupTemperature: 90,
+          targetMixTemperature: 93,
+          targetGroupTemperature: 93,
+          profileFrame: 0,
+          steamTemperature: 0,
+        ),
+      );
 
   int sendUserPresentCount = 0;
   final List<MachineState> requestedStates = [];
 
   void emitState(MachineState state) {
     final current = _snapshotSubject.value;
-    _snapshotSubject.add(current.copyWith(
-      state: MachineStateSnapshot(
-        state: state,
-        substate: MachineSubstate.idle,
+    _snapshotSubject.add(
+      current.copyWith(
+        state: MachineStateSnapshot(
+          state: state,
+          substate: MachineSubstate.idle,
+        ),
       ),
-    ));
+    );
   }
 
   @override
@@ -104,12 +106,12 @@ class _TestDe1 implements De1Interface {
   Stream<bool> get ready => Stream.value(true);
   @override
   MachineInfo get machineInfo => MachineInfo(
-        version: '1',
-        model: '1',
-        serialNumber: '1',
-        groupHeadControllerPresent: false,
-        extra: {},
-      );
+    version: '1',
+    model: '1',
+    serialNumber: '1',
+    groupHeadControllerPresent: false,
+    extra: {},
+  );
   @override
   Stream<De1ShotSettings> get shotSettings => const Stream.empty();
   @override
@@ -183,8 +185,10 @@ class _TestDe1 implements De1Interface {
   @override
   Future<void> setHeaterIdleTemp(double val) async {}
   @override
-  Future<void> updateFirmware(Uint8List fwImage,
-      {required void Function(double progress) onProgress}) async {}
+  Future<void> updateFirmware(
+    Uint8List fwImage, {
+    required void Function(double progress) onProgress,
+  }) async {}
   @override
   Future<void> cancelFirmwareUpload() async {}
   @override
@@ -202,8 +206,9 @@ class _TestDe1 implements De1Interface {
 
 /// A De1Controller subclass that exposes a settable de1 subject.
 class _TestDe1Controller extends De1Controller {
-  final BehaviorSubject<De1Interface?> _de1Subject =
-      BehaviorSubject.seeded(null);
+  final BehaviorSubject<De1Interface?> _de1Subject = BehaviorSubject.seeded(
+    null,
+  );
 
   _TestDe1Controller({required super.controller});
 
@@ -233,7 +238,7 @@ void main() {
   });
 
   group('heartbeat() throttling', () {
-    test('two calls within 30s = only 1 sendUserPresent() call', () {
+    test('two calls within 5s = only 1 sendUserPresent() call', () {
       fakeAsync((async) {
         final controller = PresenceController(
           de1Controller: de1Controller,
@@ -247,7 +252,7 @@ void main() {
         async.flushMicrotasks();
 
         controller.heartbeat();
-        async.elapse(const Duration(seconds: 10));
+        async.elapse(const Duration(seconds: 3));
         controller.heartbeat();
         async.elapse(const Duration(seconds: 5));
 
@@ -257,7 +262,7 @@ void main() {
       });
     });
 
-    test('second call after 30s is allowed, total = 2 sendUserPresent()', () {
+    test('second call after 5s is allowed, total = 2 sendUserPresent()', () {
       fakeAsync((async) {
         final controller = PresenceController(
           de1Controller: de1Controller,
@@ -281,70 +286,74 @@ void main() {
   });
 
   group('sleep timeout', () {
-    test('heartbeat resets sleep timer - no sleep if heartbeat before timeout',
-        () {
-      fakeAsync((async) {
-        // Set 5-minute timeout for faster test
-        settingsController.setSleepTimeoutMinutes(5);
-        async.flushMicrotasks();
+    test(
+      'heartbeat resets sleep timer - no sleep if heartbeat before timeout',
+      () {
+        fakeAsync((async) {
+          // Set 5-minute timeout for faster test
+          settingsController.setSleepTimeoutMinutes(5);
+          async.flushMicrotasks();
 
-        final controller = PresenceController(
-          de1Controller: de1Controller,
-          settingsController: settingsController,
-          clock: () => clock.now(),
-        );
-        controller.initialize();
-        de1Controller.setDe1(testDe1);
-        async.flushMicrotasks();
+          final controller = PresenceController(
+            de1Controller: de1Controller,
+            settingsController: settingsController,
+            clock: () => clock.now(),
+          );
+          controller.initialize();
+          de1Controller.setDe1(testDe1);
+          async.flushMicrotasks();
 
-        controller.heartbeat();
-        async.flushMicrotasks();
+          controller.heartbeat();
+          async.flushMicrotasks();
 
-        // Advance to just before timeout (4 min 50 sec)
-        async.elapse(const Duration(minutes: 4, seconds: 50));
-        expect(testDe1.requestedStates, isEmpty);
+          // Advance to just before timeout (4 min 50 sec)
+          async.elapse(const Duration(minutes: 4, seconds: 50));
+          expect(testDe1.requestedStates, isEmpty);
 
-        // Heartbeat resets the timer
-        controller.heartbeat();
-        async.flushMicrotasks();
+          // Heartbeat resets the timer
+          controller.heartbeat();
+          async.flushMicrotasks();
 
-        // Advance past original timeout (another 20 sec — total 5 min 10 sec from start)
-        async.elapse(const Duration(seconds: 20));
-        expect(
-          testDe1.requestedStates.contains(MachineState.sleeping),
-          isFalse,
-          reason: 'heartbeat should have reset the timer',
-        );
+          // Advance past original timeout (another 20 sec — total 5 min 10 sec from start)
+          async.elapse(const Duration(seconds: 20));
+          expect(
+            testDe1.requestedStates.contains(MachineState.sleeping),
+            isFalse,
+            reason: 'heartbeat should have reset the timer',
+          );
 
-        controller.dispose();
-      });
-    });
+          controller.dispose();
+        });
+      },
+    );
 
-    test('no heartbeat for configured minutes sends requestState(sleeping)',
-        () {
-      fakeAsync((async) {
-        settingsController.setSleepTimeoutMinutes(5);
-        async.flushMicrotasks();
+    test(
+      'no heartbeat for configured minutes sends requestState(sleeping)',
+      () {
+        fakeAsync((async) {
+          settingsController.setSleepTimeoutMinutes(5);
+          async.flushMicrotasks();
 
-        final controller = PresenceController(
-          de1Controller: de1Controller,
-          settingsController: settingsController,
-          clock: () => clock.now(),
-        );
-        controller.initialize();
-        de1Controller.setDe1(testDe1);
-        async.flushMicrotasks();
+          final controller = PresenceController(
+            de1Controller: de1Controller,
+            settingsController: settingsController,
+            clock: () => clock.now(),
+          );
+          controller.initialize();
+          de1Controller.setDe1(testDe1);
+          async.flushMicrotasks();
 
-        controller.heartbeat();
-        async.flushMicrotasks();
+          controller.heartbeat();
+          async.flushMicrotasks();
 
-        async.elapse(const Duration(minutes: 5, seconds: 1));
+          async.elapse(const Duration(minutes: 5, seconds: 1));
 
-        expect(testDe1.requestedStates, contains(MachineState.sleeping));
+          expect(testDe1.requestedStates, contains(MachineState.sleeping));
 
-        controller.dispose();
-      });
-    });
+          controller.dispose();
+        });
+      },
+    );
 
     test('timeout = 0 means disabled — no sleep even after long time', () {
       fakeAsync((async) {
@@ -427,8 +436,9 @@ void main() {
           daysOfWeek: {},
           enabled: true,
         );
-        settingsController
-            .setWakeSchedules(WakeSchedule.serializeList([schedule]));
+        settingsController.setWakeSchedules(
+          WakeSchedule.serializeList([schedule]),
+        );
         async.flushMicrotasks();
 
         final controller = PresenceController(
@@ -463,8 +473,9 @@ void main() {
           daysOfWeek: {},
           enabled: true,
         );
-        settingsController
-            .setWakeSchedules(WakeSchedule.serializeList([schedule]));
+        settingsController.setWakeSchedules(
+          WakeSchedule.serializeList([schedule]),
+        );
         async.flushMicrotasks();
 
         final controller = PresenceController(
@@ -593,8 +604,9 @@ void main() {
           enabled: true,
           keepAwakeFor: 60,
         );
-        settingsController
-            .setWakeSchedules(WakeSchedule.serializeList([schedule]));
+        settingsController.setWakeSchedules(
+          WakeSchedule.serializeList([schedule]),
+        );
         async.flushMicrotasks();
 
         final controller = PresenceController(
@@ -643,8 +655,9 @@ void main() {
           enabled: true,
           keepAwakeFor: 10,
         );
-        settingsController
-            .setWakeSchedules(WakeSchedule.serializeList([schedule]));
+        settingsController.setWakeSchedules(
+          WakeSchedule.serializeList([schedule]),
+        );
         async.flushMicrotasks();
 
         final controller = PresenceController(
@@ -688,8 +701,9 @@ void main() {
           enabled: true,
           keepAwakeFor: 60,
         );
-        settingsController
-            .setWakeSchedules(WakeSchedule.serializeList([schedule]));
+        settingsController.setWakeSchedules(
+          WakeSchedule.serializeList([schedule]),
+        );
         async.flushMicrotasks();
 
         final controller = PresenceController(
@@ -731,8 +745,9 @@ void main() {
           daysOfWeek: {},
           enabled: true,
         );
-        settingsController
-            .setWakeSchedules(WakeSchedule.serializeList([schedule]));
+        settingsController.setWakeSchedules(
+          WakeSchedule.serializeList([schedule]),
+        );
         async.flushMicrotasks();
 
         final controller = PresenceController(
@@ -779,8 +794,9 @@ void main() {
             keepAwakeFor: 120,
           ),
         ];
-        settingsController
-            .setWakeSchedules(WakeSchedule.serializeList(schedules));
+        settingsController.setWakeSchedules(
+          WakeSchedule.serializeList(schedules),
+        );
         async.flushMicrotasks();
 
         final controller = PresenceController(

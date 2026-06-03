@@ -11,7 +11,9 @@ import 'package:reaprime/src/settings/settings_controller.dart';
 ///
 /// Three concerns:
 /// 1. **Heartbeat** — event-driven user presence signal, forwarded to DE1 with
-///    30-second throttling.
+///    5-second throttling. Calls during sleep are deferred and flushed
+///    immediately on wake transition, ensuring the DE1 sees a fresh
+///    `userPresent` before the refill-kit decision is made.
 /// 2. **Sleep timeout** — auto-sleep after configurable timeout with no
 ///    heartbeat.
 /// 3. **Scheduled wake** — periodically checks schedules and wakes sleeping
@@ -34,8 +36,18 @@ class PresenceController {
   StreamSubscription<MachineSnapshot>? _snapshotSubscription;
 
   /// Throttle: minimum interval between sendUserPresent() calls.
-  static const Duration _presenceThrottle = Duration(seconds: 30);
+  /// Reduced from 30s to 5s to avoid a cold `userPresent` write blocking
+  /// the wake-time signal. Further safety: calls during sleep are deferred
+  /// and flushed on wake (see [_pendingUserPresent]).
+  static const Duration _presenceThrottle = Duration(seconds: 5);
   DateTime? _lastPresenceSent;
+
+  /// True when a heartbeat arrived while the machine was asleep, meaning a
+  /// `sendUserPresent()` was skipped. Flushed on the next wake transition.
+  /// Cleared after 60s of no wake to avoid a stale flag triggering a write
+  /// on a much-later wake that doesn't need it.
+  bool _pendingUserPresent = false;
+  Timer? _pendingUserPresentTimer;
 
   /// Sleep timeout timer.
   Timer? _sleepTimer;
@@ -58,9 +70,9 @@ class PresenceController {
     required De1Controller de1Controller,
     required SettingsController settingsController,
     DateTime Function()? clock,
-  })  : _de1Controller = de1Controller,
-        _settingsController = settingsController,
-        _clock = clock ?? (() => DateTime.now());
+  }) : _de1Controller = de1Controller,
+       _settingsController = settingsController,
+       _clock = clock ?? (() => DateTime.now());
 
   /// Subscribe to DE1 connection stream, start schedule checker timer,
   /// listen to settings changes.
@@ -80,6 +92,9 @@ class PresenceController {
     _sleepTimer = null;
     _scheduleTimer?.cancel();
     _scheduleTimer = null;
+    _pendingUserPresent = false;
+    _pendingUserPresentTimer?.cancel();
+    _pendingUserPresentTimer = null;
     _keepAwakeUntil = null;
     _settingsController.removeListener(_onSettingsChanged);
   }
@@ -117,6 +132,9 @@ class PresenceController {
     _currentMachineState = null;
     _lastPresenceSent = null;
 
+    _pendingUserPresent = false;
+    _pendingUserPresentTimer?.cancel();
+    _pendingUserPresentTimer = null;
     _keepAwakeUntil = null;
     _de1 = de1;
 
@@ -130,6 +148,22 @@ class PresenceController {
 
   void _onSnapshot(MachineSnapshot snapshot) {
     final newState = snapshot.state.state;
+
+    // Detect wake-from-sleep: send deferred userPresent immediately.
+    if (_currentMachineState == MachineState.sleeping &&
+        (newState == MachineState.idle || newState == MachineState.schedIdle)) {
+      if (_pendingUserPresent) {
+        _pendingUserPresent = false;
+        _pendingUserPresentTimer?.cancel();
+        _pendingUserPresentTimer = null;
+        _lastPresenceSent = null; // clear throttle so the flush fires
+        _de1?.sendUserPresent().catchError((Object e) {
+          _log.warning('Failed to send deferred user present on wake', e);
+        });
+        _lastPresenceSent = _clock();
+      }
+    }
+
     if (newState == MachineState.sleeping &&
         _currentMachineState != MachineState.sleeping &&
         _keepAwakeUntil != null) {
@@ -168,6 +202,24 @@ class PresenceController {
     }
 
     _lastPresenceSent = now;
+
+    // If the machine is asleep, defer the write — the BLE transport may not
+    // deliver it. The deferred flag is flushed in [_onSnapshot] when the
+    // machine transitions back to idle/schedIdle.
+    if (_currentMachineState == MachineState.sleeping) {
+      _pendingUserPresent = true;
+      _pendingUserPresentTimer?.cancel();
+      _pendingUserPresentTimer = Timer(
+        const Duration(seconds: 60),
+        () {
+          _pendingUserPresent = false;
+          _log.fine('Stale deferred userPresent cleared (60s timeout)');
+        },
+      );
+      _log.fine('Deferred sendUserPresent (machine asleep)');
+      return;
+    }
+
     _de1?.sendUserPresent().catchError((Object e) {
       _log.warning('Failed to send user present', e);
     });
@@ -196,7 +248,9 @@ class PresenceController {
     if (_de1 == null) return;
 
     if (_keepAwakeUntil != null && _clock().isBefore(_keepAwakeUntil!)) {
-      _log.info('Sleep timeout suppressed by keep-awake (until $_keepAwakeUntil)');
+      _log.info(
+        'Sleep timeout suppressed by keep-awake (until $_keepAwakeUntil)',
+      );
       _resetSleepTimer();
       return;
     }
@@ -209,7 +263,8 @@ class PresenceController {
     // If machine is in an active state, restart the timer instead of sleeping
     if (_isActiveState(_currentMachineState)) {
       _log.info(
-          'Sleep timeout fired but machine is in active state ($_currentMachineState), restarting timer');
+        'Sleep timeout fired but machine is in active state ($_currentMachineState), restarting timer',
+      );
       _resetSleepTimer();
       return;
     }
@@ -289,14 +344,18 @@ class PresenceController {
 
         if (schedule.matchesTime(now)) {
           _log.info(
-              'Schedule ${schedule.id} matched at ${now.hour}:${now.minute}, waking machine');
+            'Schedule ${schedule.id} matched at ${now.hour}:${now.minute}, waking machine',
+          );
           _firedScheduleIds.add(schedule.id);
           _de1!.requestState(MachineState.schedIdle).catchError((Object e) {
             _log.warning('Failed to request schedIdle', e);
           });
           if (schedule.keepAwakeFor != null) {
-            final newExpiry = now.add(Duration(minutes: schedule.keepAwakeFor!));
-            if (_keepAwakeUntil == null || newExpiry.isAfter(_keepAwakeUntil!)) {
+            final newExpiry = now.add(
+              Duration(minutes: schedule.keepAwakeFor!),
+            );
+            if (_keepAwakeUntil == null ||
+                newExpiry.isAfter(_keepAwakeUntil!)) {
               _keepAwakeUntil = newExpiry;
               _log.info('Keep-awake window set until $_keepAwakeUntil');
             }
