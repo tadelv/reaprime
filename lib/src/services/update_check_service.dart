@@ -142,6 +142,19 @@ class UpdateCheckService {
     _availableUpdate = null;
   }
 
+  /// Force an update to appear for testing. Only use in debug builds.
+  void debugForceUpdate() {
+    _log.info('DEBUG: forcing fake update notification');
+    _availableUpdate = UpdateInfo(
+      version: '99.0.0',
+      downloadUrl:
+          'https://github.com/tadelv/reaprime/releases/latest',
+      releaseNotes: 'Fake update for testing the download banner.',
+      isPrerelease: false,
+      tagName: 'v99.0.0',
+    );
+  }
+
   /// Skip the current update version permanently
   Future<void> skipCurrentUpdate() async {
     final version = _availableUpdate?.version;

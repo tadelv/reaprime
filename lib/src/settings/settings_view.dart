@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/services/foreground_service.dart';
@@ -269,10 +270,9 @@ class _SettingsViewState extends State<SettingsView>
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder:
-                            (_) => BatteryChargingSettingsPage(
-                              controller: widget.controller,
-                            ),
+                        builder: (_) => BatteryChargingSettingsPage(
+                          controller: widget.controller,
+                        ),
                       ),
                     );
                   },
@@ -353,12 +353,11 @@ class _SettingsViewState extends State<SettingsView>
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder:
-                            (_) => PresenceSettingsPage(
-                              controller: widget.controller,
-                              keepAwakeUntil:
-                                  widget.presenceController.keepAwakeUntil,
-                            ),
+                        builder: (_) => PresenceSettingsPage(
+                          controller: widget.controller,
+                          keepAwakeUntil:
+                              widget.presenceController.keepAwakeUntil,
+                        ),
                       ),
                     );
                   },
@@ -429,11 +428,10 @@ class _SettingsViewState extends State<SettingsView>
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder:
-                            (_) => DeviceManagementPage(
-                              settingsController: widget.controller,
-                              deviceController: widget.deviceController,
-                            ),
+                        builder: (_) => DeviceManagementPage(
+                          settingsController: widget.controller,
+                          deviceController: widget.deviceController,
+                        ),
                       ),
                     );
                   },
@@ -530,18 +528,14 @@ class _SettingsViewState extends State<SettingsView>
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder:
-                            (_) => DataManagementPage(
-                              controller: widget.controller,
-                              persistenceController:
-                                  widget.persistenceController,
-                              profileStorageService:
-                                  widget.profileStorageService,
-                              beanStorageService: widget.beanStorageService,
-                              grinderStorageService:
-                                  widget.grinderStorageService,
-                              workflowController: widget.workflowController,
-                            ),
+                        builder: (_) => DataManagementPage(
+                          controller: widget.controller,
+                          persistenceController: widget.persistenceController,
+                          profileStorageService: widget.profileStorageService,
+                          beanStorageService: widget.beanStorageService,
+                          grinderStorageService: widget.grinderStorageService,
+                          workflowController: widget.workflowController,
+                        ),
                       ),
                     );
                   },
@@ -630,7 +624,8 @@ class _SettingsViewState extends State<SettingsView>
                   label: 'Link your Decent Espresso account',
                   child: ExcludeSemantics(
                     child: ShadButton.outline(
-                      onPressed: () => _showLoginDialog(context, accountService),
+                      onPressed: () =>
+                          _showLoginDialog(context, accountService),
                       child: const Text('Link Account'),
                     ),
                   ),
@@ -644,7 +639,9 @@ class _SettingsViewState extends State<SettingsView>
   }
 
   void _showLoginDialog(
-      BuildContext context, DecentAccountService accountService) {
+    BuildContext context,
+    DecentAccountService accountService,
+  ) {
     showShadDialog(
       context: context,
       builder: (dialogContext) {
@@ -701,8 +698,8 @@ class _SettingsViewState extends State<SettingsView>
             child: ExcludeSemantics(
               child: ShadButton.outline(
                 onPressed: () async {
-                  final result =
-                      await Permission.manageExternalStorage.request();
+                  final result = await Permission.manageExternalStorage
+                      .request();
                   if (result.isPermanentlyDenied) {
                     await openAppSettings();
                   }
@@ -829,7 +826,14 @@ class _SettingsViewState extends State<SettingsView>
             label: "Update available",
             child: ExcludeSemantics(
               child: ShadButton(
-                onPressed: () => _checkForUpdates(context),
+                onPressed: () {
+                  if (Platform.isAndroid) {
+                    _checkForUpdates(context);
+                  } else {
+                    final url = widget.updateCheckService?.getReleaseUrl();
+                    if (url != null) launchUrl(Uri.parse(url));
+                  }
+                },
                 leading: Icon(
                   Icons.system_update,
                   color: Theme.of(context).colorScheme.onPrimaryContainer,
@@ -854,10 +858,9 @@ class _SettingsViewState extends State<SettingsView>
               label: 'Open plugins settings',
               child: ExcludeSemantics(
                 child: ShadButton.outline(
-                  onPressed:
-                      () => Navigator.of(
-                        context,
-                      ).pushNamed(PluginsSettingsView.routeName),
+                  onPressed: () => Navigator.of(
+                    context,
+                  ).pushNamed(PluginsSettingsView.routeName),
                   child: const Text("Plugins"),
                 ),
               ),
@@ -897,7 +900,16 @@ class _SettingsViewState extends State<SettingsView>
       icon: Icons.info_outline,
       description: 'Version and build information',
       children: [
-        _InfoRow('Version', BuildInfo.version),
+        GestureDetector(
+          onLongPress: () {
+            if (!kDebugMode) {
+              return;
+            }
+            widget.updateCheckService?.debugForceUpdate();
+            setState(() {});
+          },
+          child: _InfoRow('Version', BuildInfo.version),
+        ),
         _InfoRow('Build', BuildInfo.buildNumber),
         _InfoRow('Commit', BuildInfo.commitShort),
         _InfoRow('Branch', BuildInfo.branch),
@@ -989,29 +1001,26 @@ class _SettingsViewState extends State<SettingsView>
 
                         final confirmed = await showDialog<bool>(
                           context: context,
-                          builder:
-                              (dialogContext) => AlertDialog(
-                                title: const Text('Remove skin?'),
-                                content: Text(
-                                  'Remove "${skin.name}"? This cannot be undone.',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed:
-                                        () => Navigator.of(
-                                          dialogContext,
-                                        ).pop(false),
-                                    child: const Text('Cancel'),
-                                  ),
-                                  TextButton(
-                                    onPressed:
-                                        () => Navigator.of(
-                                          dialogContext,
-                                        ).pop(true),
-                                    child: const Text('Remove'),
-                                  ),
-                                ],
+                          builder: (dialogContext) => AlertDialog(
+                            title: const Text('Remove skin?'),
+                            content: Text(
+                              'Remove "${skin.name}"? This cannot be undone.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(
+                                  dialogContext,
+                                ).pop(false),
+                                child: const Text('Cancel'),
                               ),
+                              TextButton(
+                                onPressed: () => Navigator.of(
+                                  dialogContext,
+                                ).pop(true),
+                                child: const Text('Remove'),
+                              ),
+                            ],
+                          ),
                         );
                         if (confirmed != true) return;
 
@@ -1321,61 +1330,59 @@ class _SettingsViewState extends State<SettingsView>
           final updater = AndroidUpdater(owner: 'tadelv', repo: 'reaprime');
           showDialog(
             context: context,
-            builder:
-                (context) => UpdateDialog(
-                  updateInfo: updateInfo,
-                  currentVersion: BuildInfo.version,
-                  onDownload: (info) => updater.downloadUpdate(info),
-                  onInstall: (path) => updater.installUpdate(path),
-                ),
+            builder: (context) => UpdateDialog(
+              updateInfo: updateInfo,
+              currentVersion: BuildInfo.version,
+              onDownload: (info) => updater.downloadUpdate(info),
+              onInstall: (path) => updater.installUpdate(path),
+            ),
           );
         } else {
           // On other platforms, show dialog and open browser
           final releaseUrl = widget.updateCheckService?.getReleaseUrl();
           showDialog(
             context: context,
-            builder:
-                (context) => AlertDialog(
-                  title: const Text('Update Available'),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Version ${updateInfo.version} is available'),
-                      const SizedBox(height: 8),
-                      Text('Current version: ${BuildInfo.version}'),
-                      if (updateInfo.releaseNotes.isNotEmpty) ...[
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Release Notes:',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          constraints: const BoxConstraints(maxHeight: 200),
-                          child: SingleChildScrollView(
-                            child: Text(updateInfo.releaseNotes),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Later'),
+            builder: (context) => AlertDialog(
+              title: const Text('Update Available'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Version ${updateInfo.version} is available'),
+                  const SizedBox(height: 8),
+                  Text('Current version: ${BuildInfo.version}'),
+                  if (updateInfo.releaseNotes.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Release Notes:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    ElevatedButton(
-                      onPressed: () async {
-                        Navigator.of(context).pop();
-                        if (releaseUrl != null) {
-                          await launchUrl(Uri.parse(releaseUrl));
-                        }
-                      },
-                      child: const Text('Download'),
+                    const SizedBox(height: 8),
+                    Container(
+                      constraints: const BoxConstraints(maxHeight: 200),
+                      child: SingleChildScrollView(
+                        child: Text(updateInfo.releaseNotes),
+                      ),
                     ),
                   ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Later'),
                 ),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.of(context).pop();
+                    if (releaseUrl != null) {
+                      await launchUrl(Uri.parse(releaseUrl));
+                    }
+                  },
+                  child: const Text('Download'),
+                ),
+              ],
+            ),
           );
         }
       } else {
