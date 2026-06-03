@@ -326,9 +326,11 @@ class De1StateManager with WidgetsBindingObserver {
       }
     }
 
-    // Transition from sleeping to idle -> wake scale or trigger reconnect scan
+    // Transition out of sleeping -> wake scale or trigger reconnect scan.
+    // Catches sleeping → idle, sleeping → schedIdle, sleeping → heating,
+    // and any other transitional state the DE1 firmware may emit during wake.
     if (_previousMachineState == MachineState.sleeping &&
-        currentState == MachineState.idle) {
+        currentState != MachineState.sleeping) {
       _logger.info('Machine waking up from sleep');
 
       // Check if scale is connected
