@@ -112,7 +112,7 @@
   "tank_temperature": "0.0",
   "target_weight": "42.0",
   "target_volume": "0.0",
-  "target_volume_count_start": "0",
+  "target_volume_count_start": "2",
   "type": "advanced",
   "hidden": "0"
 }
