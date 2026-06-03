@@ -32,6 +32,7 @@ import 'package:reaprime/src/controllers/workflow_device_sync.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
+import 'package:reaprime/src/services/android_updater.dart';
 import 'package:reaprime/src/services/blue_plus_discovery_service.dart';
 import 'package:reaprime/src/services/ble/linux_ble_discovery_service.dart';
 import 'package:reaprime/src/services/database/database.dart' hide Workflow;
@@ -574,15 +575,35 @@ class AppLifecycleObserver with WidgetsBindingObserver {
 
     final controller = messenger.showSnackBar(
       SnackBar(
-        content: Text('Update available: ${updateInfo.version}'),
-        action: SnackBarAction(
-          label: 'View',
-          onPressed: () {
-            _showUpdateDialog(context, updateInfo);
-          },
+        content: Row(
+          children: [
+            Expanded(
+              child: Text('Update: ${updateInfo.version}'),
+            ),
+            SnackBarAction(
+              label: 'View',
+              onPressed: () {
+                _showUpdateDialog(context, updateInfo);
+              },
+            ),
+            SnackBarAction(
+              label: 'Download',
+              onPressed: () {
+                if (Platform.isAndroid) {
+                  _showAndroidDownloadDialog(context, updateInfo);
+                } else {
+                  final releaseUrl =
+                      updateCheckService?.getReleaseUrl();
+                  if (releaseUrl != null) {
+                    launchUrl(Uri.parse(releaseUrl));
+                  }
+                }
+              },
+            ),
+          ],
         ),
         showCloseIcon: true,
-        duration: const Duration(days: 1), // Persistent snackbar
+        duration: const Duration(days: 1),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -597,19 +618,74 @@ class AppLifecycleObserver with WidgetsBindingObserver {
 
   void _showUpdateDialog(BuildContext context, dynamic updateInfo) async {
     if (Platform.isAndroid) {
-      // On Android, navigate to settings where user can download and install
-      Navigator.of(context).pushNamed('/settings');
+      _showAndroidDownloadDialog(context, updateInfo as UpdateInfo);
     } else {
-      // On other platforms, open the release page in browser
+      final info = updateInfo as UpdateInfo;
       final releaseUrl = updateCheckService?.getReleaseUrl();
-      if (releaseUrl != null) {
-        try {
-          await launchUrl(Uri.parse(releaseUrl));
-        } catch (e) {
-          _log.warning('Failed to open release URL', e);
-        }
-      }
+      showDialog(
+        context: context,
+        builder:
+            (ctx) => AlertDialog(
+              title: Text('Update ${info.version}'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Version ${info.version} is available'),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Current version: ${BuildInfo.version}',
+                  ),
+                  if (info.releaseNotes.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Release Notes:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      constraints:
+                          const BoxConstraints(maxHeight: 200),
+                      child: SingleChildScrollView(
+                        child: Text(info.releaseNotes),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Later'),
+                ),
+                if (releaseUrl != null)
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      launchUrl(Uri.parse(releaseUrl));
+                    },
+                    child: const Text('Download'),
+                  ),
+              ],
+            ),
+      );
     }
+  }
+
+  /// Show a download+install dialog that starts downloading immediately.
+  void _showAndroidDownloadDialog(
+    BuildContext context,
+    UpdateInfo updateInfo,
+  ) {
+    final updater = AndroidUpdater(owner: 'tadelv', repo: 'reaprime');
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _AndroidQuickUpdateDialog(
+        updateInfo: updateInfo,
+        updater: updater,
+      ),
+    );
   }
 
   void dispose() {
@@ -789,5 +865,119 @@ class _AppRootState extends State<AppRoot> {
         ],
       ),
     ];
+  }
+}
+
+/// Minimal update dialog that starts downloading immediately.
+/// Used from the persistent SnackBar "Download" action on Android.
+class _AndroidQuickUpdateDialog extends StatefulWidget {
+  final UpdateInfo updateInfo;
+  final AndroidUpdater updater;
+
+  const _AndroidQuickUpdateDialog({
+    required this.updateInfo,
+    required this.updater,
+  });
+
+  @override
+  State<_AndroidQuickUpdateDialog> createState() =>
+      _AndroidQuickUpdateDialogState();
+}
+
+class _AndroidQuickUpdateDialogState
+    extends State<_AndroidQuickUpdateDialog> {
+  bool _isDownloading = true;
+  bool _isInstalling = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _startDownload();
+  }
+
+  Future<void> _startDownload() async {
+    try {
+      final path = await widget.updater.downloadUpdate(widget.updateInfo);
+      if (!mounted) return;
+      setState(() {
+        _isDownloading = false;
+        _isInstalling = true;
+      });
+      final success = await widget.updater.installUpdate(path);
+      if (!mounted) return;
+      if (success) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Update installation started. Follow the on-screen prompts.',
+            ),
+          ),
+        );
+      } else {
+        setState(() {
+          _isInstalling = false;
+          _error =
+              'Install permission required. Grant permission and try again.';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Failed: $e';
+        _isDownloading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Update ${widget.updateInfo.version}'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_isDownloading) ...[
+            const LinearProgressIndicator(),
+            const SizedBox(height: 12),
+            const Text('Downloading update…'),
+          ],
+          if (_isInstalling) ...[
+            const LinearProgressIndicator(),
+            const SizedBox(height: 12),
+            const Text('Installing update…'),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(_error!, style: const TextStyle(color: Colors.red)),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isDownloading ? null : () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+        if (_error != null)
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _error = null;
+                _isDownloading = true;
+              });
+              _startDownload();
+            },
+            child: const Text('Retry'),
+          ),
+      ],
+    );
   }
 }
