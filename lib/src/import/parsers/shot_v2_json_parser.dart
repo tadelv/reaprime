@@ -149,7 +149,7 @@ class ShotV2JsonParser {
     );
 
     // --- Time-series snapshots ---
-    final measurements = _parseSnapshots(json, baseTimestamp);
+    final measurements = _parseSnapshots(json, baseTimestamp, profile);
 
     // --- ShotRecord ---
     final shot = ShotRecord(
@@ -182,9 +182,31 @@ class ShotV2JsonParser {
     return (data?['settings'] as Map<String, dynamic>?) ?? {};
   }
 
+  /// Pre-computes cumulative step end-times from profile step durations.
+  /// Used to reconstruct frame numbers for history snapshots.
+  static List<double> _stepBoundaries(Profile profile) {
+    final boundaries = <double>[];
+    var cumulative = 0.0;
+    for (final step in profile.steps) {
+      cumulative += step.seconds;
+      boundaries.add(cumulative);
+    }
+    return boundaries;
+  }
+
+  /// Returns the profile step index for [elapsedSeconds] given step [boundaries].
+  static int _frameForElapsed(double elapsedSeconds, List<double> boundaries) {
+    for (var i = 0; i < boundaries.length; i++) {
+      if (elapsedSeconds < boundaries[i]) return i;
+    }
+    // Past all boundaries — last step.
+    return boundaries.isEmpty ? 0 : boundaries.length - 1;
+  }
+
   static List<ShotSnapshot> _parseSnapshots(
     Map<String, dynamic> json,
     DateTime baseTimestamp,
+    Profile profile,
   ) {
     final elapsed = _numList(json['elapsed']);
     if (elapsed.isEmpty) return [];
@@ -216,11 +238,15 @@ class ShotV2JsonParser {
         .map((l) => l.length)
         .reduce(min);
 
+    final boundaries = _stepBoundaries(profile);
+
     final snapshots = <ShotSnapshot>[];
     for (var i = 0; i < count; i++) {
       final ts = baseTimestamp.add(
         Duration(milliseconds: (elapsed[i] * 1000).round()),
       );
+
+      final frame = _frameForElapsed(elapsed[i], boundaries);
 
       final machineSnap = MachineSnapshot(
         timestamp: ts,
@@ -236,7 +262,7 @@ class ShotV2JsonParser {
         groupTemperature: _at(tempBasket, i),
         targetMixTemperature: _at(tempGoal, i),
         targetGroupTemperature: _at(tempGoal, i),
-        profileFrame: 0,
+        profileFrame: frame,
         steamTemperature: 0,
       );
 
