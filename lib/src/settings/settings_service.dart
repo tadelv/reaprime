@@ -383,7 +383,7 @@ class SharedPreferencesSettingsService extends SettingsService {
   @override
   Future<bool> lowBatteryBrightnessLimit() async {
     return await prefs.getBool(SettingsKeys.lowBatteryBrightnessLimit.name) ??
-        false;
+        true;
   }
 
   @override
