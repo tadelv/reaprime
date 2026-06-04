@@ -123,10 +123,9 @@ enum De1HeaterVoltage {
   factory De1HeaterVoltage.fromInt(int voltage) {
     // account for v + 1000 when voltage has been already set
     voltage = voltage > 1000 ? voltage - 1000 : voltage;
-    return De1HeaterVoltage.values.firstWhere(
-      (e) => e.voltage == voltage,
-      orElse: () => .unset,
-    );
+    if (voltage >= 90 && voltage <= 150) return .v110;
+    if (voltage >= 180 && voltage <= 260) return .v220;
+    return .unset;
   }
 }
 
