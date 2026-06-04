@@ -541,19 +541,17 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
 
   Widget _buildWebViewStack() {
     return Stack(
-      // Device-pixel-ratio rounding lays an Android WebView out ~1px short on
-      // the right and bottom on some devices/resolutions, revealing the
-      // background behind it as a hairline (flutter_webview_plugin#356/#654,
-      // flutter_inappwebview#1542 — reproduces with the plain Android WebView
-      // too). Size the webview 1px past the right/bottom edges (below) so it
-      // covers every on-screen pixel with its own content; the OS clips the
-      // off-screen bleed. Clip.none is required — a hard-edge clip would trim
-      // that 1px back and the hairline would return.
-      clipBehavior: Clip.none,
+      // Android-only: device-pixel-ratio rounding lays the Android WebView out
+      // ~1px short on the right/bottom on some devices, revealing the background
+      // as a hairline (flutter_webview_plugin#356/#654, flutter_inappwebview#1542).
+      // On Android, size the webview 1px past those edges inside a Clip.none
+      // Stack so it covers every pixel; the OS clips the off-screen bleed.
+      // Other platforms don't have this compositing quirk.
+      clipBehavior: Platform.isAndroid ? Clip.none : Clip.hardEdge,
       children: [
         Positioned.fill(
-          right: -1,
-          bottom: -1,
+          right: Platform.isAndroid ? -1 : 0,
+          bottom: Platform.isAndroid ? -1 : 0,
           child: InAppWebView(
             // Cache-busting param bypasses stale service workers: a SW
             // caches responses by exact URL, so /?_=<ts> won't match
