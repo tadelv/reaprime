@@ -59,7 +59,7 @@ class SettingsController with ChangeNotifier {
   bool _userPresenceEnabled = true;
   int _sleepTimeoutMinutes = 30;
   String _wakeSchedules = '[]';
-  bool _lowBatteryBrightnessLimit = false;
+  bool _lowBatteryBrightnessLimit = true;
   bool _onboardingCompleted = false;
   bool _accountStepSeen = false;
 
