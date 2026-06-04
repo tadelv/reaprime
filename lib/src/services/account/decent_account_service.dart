@@ -10,8 +10,8 @@ abstract class CredentialStore {
 }
 
 class DecentAccountService {
-  /// Flip to true when /api/sn is live on the server.
-  static const bool kEnableSerialVerification = false;
+  /// Flip to true for enabled serial verification.
+  static const bool kEnableSerialVerification = true;
 
   final http.Client _httpClient;
   final CredentialStore _store;
