@@ -243,9 +243,14 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
     return Scaffold(
       // No AppBar for fullscreen appearance
       body: SafeArea(
-        // Allow content to extend into system UI areas for true fullscreen
+        // Edge-to-edge: the skin webview owns the entire screen on every side.
+        // left/right default to true, which insets the webview and lets the
+        // scaffold background bleed through as a 1px line on the right (most
+        // visible on dark skins). Disable all four for true fullscreen.
         top: false,
         bottom: false,
+        left: false,
+        right: false,
         child: _buildBody(),
       ),
     );
@@ -536,119 +541,132 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
 
   Widget _buildWebViewStack() {
     return Stack(
+      // Device-pixel-ratio rounding lays an Android WebView out ~1px short on
+      // the right and bottom on some devices/resolutions, revealing the
+      // background behind it as a hairline (flutter_webview_plugin#356/#654,
+      // flutter_inappwebview#1542 — reproduces with the plain Android WebView
+      // too). Size the webview 1px past the right/bottom edges (below) so it
+      // covers every on-screen pixel with its own content; the OS clips the
+      // off-screen bleed. Clip.none is required — a hard-edge clip would trim
+      // that 1px back and the hairline would return.
+      clipBehavior: Clip.none,
       children: [
-        InAppWebView(
-          // Cache-busting param bypasses stale service workers: a SW
-          // caches responses by exact URL, so /?_=<ts> won't match
-          // its cached '/' and falls through to the network.
-          initialUrlRequest: URLRequest(url: WebUri(_skinUrl)),
-          initialSettings: _settings,
-          onWebViewCreated: (controller) {
-            _log.info('InAppWebView created');
-            _webViewController = controller;
-          },
-          onLoadStart: (controller, url) {
-            _log.info('Page started loading: $url');
-            // Webview is up — final cold-boot milestone (idempotent).
-            BootTiming.mark('webview');
-            BootTiming.complete();
-            setState(() {
-              _isLoading = true;
-              _errorMessage = null;
-            });
-          },
-          onLoadStop: (controller, url) async {
-            _log.info('Page finished loading: $url');
-            setState(() {
-              _isLoading = false;
-            });
+        Positioned.fill(
+          right: -1,
+          bottom: -1,
+          child: InAppWebView(
+            // Cache-busting param bypasses stale service workers: a SW
+            // caches responses by exact URL, so /?_=<ts> won't match
+            // its cached '/' and falls through to the network.
+            initialUrlRequest: URLRequest(url: WebUri(_skinUrl)),
+            initialSettings: _settings,
+            onWebViewCreated: (controller) {
+              _log.info('InAppWebView created');
+              _webViewController = controller;
+            },
+            onLoadStart: (controller, url) {
+              _log.info('Page started loading: $url');
+              // Webview is up — final cold-boot milestone (idempotent).
+              BootTiming.mark('webview');
+              BootTiming.complete();
+              setState(() {
+                _isLoading = true;
+                _errorMessage = null;
+              });
+            },
+            onLoadStop: (controller, url) async {
+              _log.info('Page finished loading: $url');
+              setState(() {
+                _isLoading = false;
+              });
 
-            // Inject CSS to hide scrollbars in web content
-            // await controller.evaluateJavascript(source: '''
-            //   (function() {
-            //     var style = document.createElement('style');
-            //     style.textContent = `
-            //       ::-webkit-scrollbar {
-            //         display: none !important;
-            //         width: 0 !important;
-            //         height: 0 !important;
-            //       }
-            //       * {
-            //         scrollbar-width: none !important;
-            //         -ms-overflow-style: none !important;
-            //       }
-            //       html, body {
-            //         overflow: overlay !important;
-            //       }
-            //     `;
-            //     document.head.appendChild(style);
-            //   })();
-            // ''');
+              // Inject CSS to hide scrollbars in web content
+              // await controller.evaluateJavascript(source: '''
+              //   (function() {
+              //     var style = document.createElement('style');
+              //     style.textContent = `
+              //       ::-webkit-scrollbar {
+              //         display: none !important;
+              //         width: 0 !important;
+              //         height: 0 !important;
+              //       }
+              //       * {
+              //         scrollbar-width: none !important;
+              //         -ms-overflow-style: none !important;
+              //       }
+              //       html, body {
+              //         overflow: overlay !important;
+              //       }
+              //     `;
+              //     document.head.appendChild(style);
+              //   })();
+              // ''');
 
-            // Show exit instructions snackbar
-            if (mounted && _didShowExit == false) {
-              _didShowExit = true;
-              _showExitInstructions();
-            }
-          },
-          onReceivedError: (controller, request, error) {
-            _log.severe(
-              'WebView error - Code: ${error.type}, Description: ${error.description}',
-            );
-            setState(() {
-              _isLoading = false;
-              _errorMessage = 'Failed to load skin: ${error.description}';
-            });
-          },
-          onReceivedHttpError: (controller, request, errorResponse) {
-            _log.warning('HTTP error - Status: ${errorResponse.statusCode}');
-          },
-          shouldOverrideUrlLoading: (controller, navigationAction) async {
-            final url = navigationAction.request.url.toString();
-
-            // Allow all navigation within localhost:3000
-            if (url.startsWith('http://localhost:3000') ||
-                url.contains('/api/v1/plugins/settings.reaplugin')) {
-              _log.fine('Allowing navigation to: $url');
-              return NavigationActionPolicy.ALLOW;
-            }
-
-            // Block external navigation
-            _log.info('Blocking navigation to: $url');
-            return NavigationActionPolicy.CANCEL;
-          },
-          onConsoleMessage: (controller, consoleMessage) {
-            // Route to dedicated webview log service (file + stream)
-            final skinId = widget.settingsController.defaultSkinId;
-            widget.webViewLogService.log(
-              skinId,
-              consoleMessage.messageLevel.toString(),
-              consoleMessage.message,
-            );
-            // Also log at FINEST for app-level debug visibility
-            _log.finest(
-              'WebView Console [$skinId] [${consoleMessage.messageLevel}]: ${consoleMessage.message}',
-            );
-          },
-          onRenderProcessGone: (controller, detail) {
-            _log.warning(
-              'WebView renderer process gone — '
-              'didCrash: ${detail.didCrash}, '
-              'rendererPriorityAtExit: ${detail.rendererPriorityAtExit}',
-            );
-            _webViewController = null;
-            // Show reload UI, then rebuild the WebView after a brief delay
-            setState(() {
-              _rendererCrashed = true;
-            });
-            Future.delayed(const Duration(milliseconds: 500), () {
-              if (mounted) {
-                setState(() {
-                  _rendererCrashed = false;
-                });
+              // Show exit instructions snackbar
+              if (mounted && _didShowExit == false) {
+                _didShowExit = true;
+                _showExitInstructions();
               }
-            });
-          },
+            },
+            onReceivedError: (controller, request, error) {
+              _log.severe(
+                'WebView error - Code: ${error.type}, Description: ${error.description}',
+              );
+              setState(() {
+                _isLoading = false;
+                _errorMessage = 'Failed to load skin: ${error.description}';
+              });
+            },
+            onReceivedHttpError: (controller, request, errorResponse) {
+              _log.warning('HTTP error - Status: ${errorResponse.statusCode}');
+            },
+            shouldOverrideUrlLoading: (controller, navigationAction) async {
+              final url = navigationAction.request.url.toString();
+
+              // Allow all navigation within localhost:3000
+              if (url.startsWith('http://localhost:3000') ||
+                  url.contains('/api/v1/plugins/settings.reaplugin')) {
+                _log.fine('Allowing navigation to: $url');
+                return NavigationActionPolicy.ALLOW;
+              }
+
+              // Block external navigation
+              _log.info('Blocking navigation to: $url');
+              return NavigationActionPolicy.CANCEL;
+            },
+            onConsoleMessage: (controller, consoleMessage) {
+              // Route to dedicated webview log service (file + stream)
+              final skinId = widget.settingsController.defaultSkinId;
+              widget.webViewLogService.log(
+                skinId,
+                consoleMessage.messageLevel.toString(),
+                consoleMessage.message,
+              );
+              // Also log at FINEST for app-level debug visibility
+              _log.finest(
+                'WebView Console [$skinId] [${consoleMessage.messageLevel}]: ${consoleMessage.message}',
+              );
+            },
+            onRenderProcessGone: (controller, detail) {
+              _log.warning(
+                'WebView renderer process gone — '
+                'didCrash: ${detail.didCrash}, '
+                'rendererPriorityAtExit: ${detail.rendererPriorityAtExit}',
+              );
+              _webViewController = null;
+              // Show reload UI, then rebuild the WebView after a brief delay
+              setState(() {
+                _rendererCrashed = true;
+              });
+              Future.delayed(const Duration(milliseconds: 500), () {
+                if (mounted) {
+                  setState(() {
+                    _rendererCrashed = false;
+                  });
+                }
+              });
+            },
+          ),
         ),
         if (_isLoading) const Center(child: CircularProgressIndicator()),
       ],
