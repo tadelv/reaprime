@@ -4189,8 +4189,9 @@ components:
         heaterVoltage:
           description: |
             Mains heater voltage hint. Accepts `120` (110V region) or `230` (220V region).
-            Values above 1000 are treated as already-set markers (firmware adds 1000 once committed)
-            and are clamped back into the same set. Other values map to "unset" and are ignored.
+            Measured regional readings such as `110` or `220` and values above 1000
+            (firmware committed markers) are normalized to the matching canonical region.
+            Other values map to "unset" and are ignored.
           type: integer
           nullable: true
           enum: [120, 230]
@@ -4218,8 +4219,8 @@ components:
         heaterVoltage:
           description: |
             Mains heater voltage hint. `120` = 110V region, `230` = 220V region.
-            Firmware adds 1000 to indicate the value has been committed (e.g. `1230`);
-            on read this is normalized back to the bare value.
+            Measured regional readings such as `110` or `220`, and firmware committed
+            markers such as `1120` or `1230`, are normalized to the canonical region.
           type: integer
           enum: [120, 230, -1]
         refillKitSetting:
@@ -5521,4 +5522,3 @@ components:
           type: integer
           description: Offset used
           example: 0
-
