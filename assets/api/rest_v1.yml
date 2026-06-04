@@ -4356,7 +4356,7 @@ components:
         lowBatteryBrightnessLimit:
           type: boolean
           nullable: true
-          description: When enabled and battery drops below 30%, screen brightness is capped at 20. Only effective on platforms with battery monitoring.
+          description: When enabled and battery drops below 30%, screen brightness is capped at 20. Only effective on platforms with battery monitoring. Default value is true.
         simulatedDevices:
           description: List of simulated device types to enable in scan results
           type: array
