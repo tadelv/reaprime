@@ -174,8 +174,13 @@ class UnifiedDe1 implements De1Interface {
 
   @override
   Future<double> getFlowEstimation() async {
-    return await _readMMRScaled(MMRItem.calFlowEst);
+    final value = await _readMMRScaled(MMRItem.calFlowEst);
+    _cachedFlowEstimation = value;
+    return value;
   }
+
+  @override
+  double? get cachedFlowEstimation => _cachedFlowEstimation;
 
   @override
   Future<int> getSteamPurgeMode() async {
@@ -186,6 +191,7 @@ class UnifiedDe1 implements De1Interface {
   String get name => "DE1";
   int _voltage = -1;
   int _refillKit = -1;
+  double? _cachedFlowEstimation;
 
   @override
   Future<void> onConnect() async {
@@ -208,6 +214,13 @@ class UnifiedDe1 implements De1Interface {
     final firmware = _unpackMMRInt(await _mmrRead(MMRItem.cpuFirmwareBuild));
     _voltage = _unpackMMRInt(await _mmrRead(MMRItem.heaterV));
     _refillKit = _unpackMMRInt(await _mmrRead(MMRItem.refillKitPresent));
+    // Warm the flow-calibration cache so shot persistence can read it without a
+    // BLE round-trip. Non-fatal: a dropped read just leaves it null.
+    try {
+      _cachedFlowEstimation = await getFlowEstimation();
+    } catch (e) {
+      _log.warning('Could not read flow calibration on connect: $e');
+    }
 
     _info = MachineInfo(
       version: "$firmware",
@@ -348,6 +361,7 @@ class UnifiedDe1 implements De1Interface {
   @override
   Future<void> setFlowEstimation(double multiplier) async {
     await _writeMMRScaled(MMRItem.calFlowEst, multiplier);
+    _cachedFlowEstimation = multiplier;
   }
 
   @override

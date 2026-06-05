@@ -148,6 +148,8 @@ class _TestDe1 implements De1Interface {
   @override
   Future<double> getFlowEstimation() async => 1.0;
   @override
+  double? get cachedFlowEstimation => 1.0;
+  @override
   Future<void> setFlowEstimation(double multiplier) async {}
   @override
   Future<bool> getUsbChargerMode() async => false;

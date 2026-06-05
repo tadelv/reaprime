@@ -49,6 +49,12 @@ abstract class De1Interface extends Machine {
   Future<double> getFlowEstimation();
   Future<void> setFlowEstimation(double multiplier);
 
+  /// The flow-estimation calibration as last read/written this session, without
+  /// a BLE round-trip. Warmed on connect and updated on [setFlowEstimation];
+  /// null until first read. (The DE1 doesn't advertise to other apps while we're
+  /// connected, so nothing changes it behind our back.)
+  double? get cachedFlowEstimation;
+
   Future<De1HeaterVoltage> getHeaterVoltage();
   // auto clamped to valid values
   Future<void> setHeaterVoltage(De1HeaterVoltage voltage);
