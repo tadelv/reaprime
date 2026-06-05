@@ -409,6 +409,7 @@ void main() async {
       beanStorage: beanStorage,
       grinderStorage: grinderStorage,
       connectionManager: connectionManager,
+      decentAccountService: decentAccountService,
     );
   } catch (e, st) {
     log.severe('failed to start web server', e, st);
