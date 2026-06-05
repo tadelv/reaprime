@@ -27,16 +27,14 @@ class FakeCredentialStore implements CredentialStore {
 void main() {
   late FakeCredentialStore store;
   late Handler handler;
-  late int loginStatus;
-  late String loginBody;
 
   setUp(() {
     store = FakeCredentialStore();
-    loginStatus = 200;
-    loginBody = 'cryptpw_abc123';
     final service = DecentAccountService(
+      // No request should ever reach the network: status is store-only and
+      // credential ops are not exposed over HTTP.
       httpClient: http_testing.MockClient((request) async {
-        return http.Response(loginBody, loginStatus);
+        fail('AccountHandler must not make network requests: ${request.url}');
       }),
       credentialStore: store,
     );
@@ -69,44 +67,35 @@ void main() {
     expect(response.statusCode, 200);
     final body = jsonDecode(await response.readAsString());
     expect(body['loggedIn'], false);
-    expect(body['email'], isNull);
   });
 
-  test('login links the account and returns linked status', () async {
-    final response = await sendPost('/api/v1/account/decent/login', {
-      'email': 'user@example.com',
-      'password': 'secret',
-    });
+  test('status reports a linked account without leaking the email', () async {
+    await store.write(key: 'email', value: 'user@example.com');
+    await store.write(key: 'password', value: 'cryptpw_abc123');
+
+    final response = await sendGet('/api/v1/account/decent');
     expect(response.statusCode, 200);
-    final body = jsonDecode(await response.readAsString());
+    final body = jsonDecode(await response.readAsString()) as Map;
     expect(body['loggedIn'], true);
-    expect(body['email'], 'user@example.com');
+    // Email is PII and the endpoint is unauthenticated — never include it.
+    expect(body.containsKey('email'), isFalse);
   });
 
-  test('login failure returns 401 and does not store credentials', () async {
-    loginBody = '0';
+  test('login is not exposed over HTTP', () async {
     final response = await sendPost('/api/v1/account/decent/login', {
-      'email': 'user@example.com',
-      'password': 'wrong',
-    });
-    expect(response.statusCode, 401);
-    final body = jsonDecode(await response.readAsString());
-    expect(body['error'], contains('Invalid Decent account'));
-
-    final status = await sendGet('/api/v1/account/decent');
-    final statusBody = jsonDecode(await status.readAsString());
-    expect(statusBody['loggedIn'], false);
-  });
-
-  test('logout removes the linked account', () async {
-    await sendPost('/api/v1/account/decent/login', {
       'email': 'user@example.com',
       'password': 'secret',
     });
+    expect(response.statusCode, 404);
+    expect(await store.read(key: 'email'), isNull);
+  });
+
+  test('logout is not exposed over HTTP', () async {
+    await store.write(key: 'email', value: 'user@example.com');
+
     final response = await sendDelete('/api/v1/account/decent');
-    expect(response.statusCode, 200);
-    final body = jsonDecode(await response.readAsString());
-    expect(body['loggedIn'], false);
-    expect(body['email'], isNull);
+    expect(response.statusCode, 404);
+    // Account remains linked — unlinking is native-only.
+    expect(await store.read(key: 'email'), 'user@example.com');
   });
 }
