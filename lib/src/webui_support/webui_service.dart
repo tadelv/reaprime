@@ -1,10 +1,27 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:logging/logging.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
-import 'package:shelf_cors_headers/shelf_cors_headers.dart';
+
+/// Injects the account-proxy skin token into served HTML so skin JS can read it
+/// from `window.__REA_PROXY_TOKEN__` and send it as `Authorization: Bearer` to
+/// the proxy on :8080. Inserted before `</head>`, else `</body>`, else
+/// prepended. Returns [html] unchanged if [token] is null/empty.
+String injectProxyTokenScript(String html, String? token) {
+  if (token == null || token.isEmpty) return html;
+  final script =
+      '<script>window.__REA_PROXY_TOKEN__=${jsonEncode(token)};</script>';
+  for (final marker in const ['</head>', '</body>']) {
+    final i = html.indexOf(marker);
+    if (i != -1) {
+      return '${html.substring(0, i)}$script${html.substring(i)}';
+    }
+  }
+  return '$script$html';
+}
 
 class WebUIService {
   final _log = Logger("WebUIService");
@@ -12,6 +29,10 @@ class WebUIService {
   int port = 3000;
   String _path = "";
   String? _localIP;
+
+  /// Current account-proxy skin token, set from `ProxyTokenService.skinToken`.
+  /// Injected into served HTML so skins can call the proxy. Null = no injection.
+  String? skinProxyToken;
 
 
   // WebUI server methods
@@ -80,14 +101,37 @@ class WebUIService {
       };
     }
 
+    Future<Response> Function(Request request) proxyTokenInjector(
+      Handler innerHandler,
+    ) {
+      return (Request request) async {
+        final response = await innerHandler(request);
+        final contentType = response.headers['content-type'] ?? '';
+        if (!contentType.contains('text/html')) {
+          return response;
+        }
+        final body = await response.readAsString();
+        final injected = injectProxyTokenScript(body, skinProxyToken);
+        // Drop content-length: the body length changed and shelf recomputes it.
+        final headers = Map<String, String>.from(response.headers)
+          ..remove('content-length');
+        return response.change(body: injected, headers: headers);
+      };
+    }
+
     //   final handler = (Request request) async {
     //   return Response.ok('<html><body><h1>Hello WebView</h1></body></html>',
     //     headers: {'Content-Type': 'text/html'});
     // };
+    // NOTE: no CORS middleware here on purpose. The skin token is injected into
+    // served HTML, so the :3000 host must NOT send Access-Control-Allow-Origin:
+    // * — otherwise a malicious site could fetch the skin cross-origin and
+    // scrape the token. Skins read their own assets same-origin (no CORS needed)
+    // and call the :8080 API cross-origin (governed by :8080's CORS).
     final handler = const Pipeline()
         .addMiddleware(logRequests())
-        .addMiddleware(corsHeaders())
         .addMiddleware(expirationModifier)
+        .addMiddleware(proxyTokenInjector)
         .addHandler(webUI.call);
 
     try {
