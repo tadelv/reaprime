@@ -28,12 +28,9 @@ extension UnifiedDe1MMR on UnifiedDe1 {
       'sending read req ${buffer.map((e) => e.toRadixString(16)).toList()}',
     );
 
-    await _transport.writeWithResponse(
-      Endpoint.readFromMMR,
-      Uint8List.fromList(buffer),
-    );
-
-    var result = await _mmr
+    // Subscribe BEFORE writing to avoid race where the response arrives
+    // between writeWithResponse completing and firstWhere subscribing.
+    final responseFuture = _mmr
         .map((d) => d.buffer.asUint8List().toList())
         .firstWhere((element) {
           if (buffer[1] == element[1] &&
@@ -49,6 +46,13 @@ extension UnifiedDe1MMR on UnifiedDe1 {
           onTimeout: () =>
               throw MmrTimeoutException(logLabel, _mmrReadTimeout),
         );
+
+    await _transport.writeWithResponse(
+      Endpoint.readFromMMR,
+      Uint8List.fromList(buffer),
+    );
+
+    var result = await responseFuture;
     _log.info(
       "listen event Result:  ${result.map((e) => e.toRadixString(16)).toList()}",
     );
