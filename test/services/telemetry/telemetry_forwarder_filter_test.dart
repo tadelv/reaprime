@@ -18,10 +18,46 @@ LogRecord _record(
 
 void main() {
   group('shouldForwardToTelemetry', () {
-    group('drops noise from WebUIStorage', () {
-      test('"Skin already exists: ..." WARNING is dropped', () {
+    group('SEVERE floor', () {
+      test('WARNING with no noise pattern is dropped', () {
         final record = _record(
           Level.WARNING,
+          'SomeController',
+          'something unusual happened',
+        );
+        expect(shouldForwardToTelemetry(record), isFalse);
+      });
+
+      test('WARNING with a real error is dropped', () {
+        final record = _record(
+          Level.WARNING,
+          'SomeController',
+          'invariant violated',
+          StateError('bad state'),
+        );
+        expect(shouldForwardToTelemetry(record), isFalse);
+      });
+
+      test('INFO is dropped', () {
+        final record = _record(Level.INFO, 'SomeController', 'just fyi');
+        expect(shouldForwardToTelemetry(record), isFalse);
+      });
+
+      test('SEVERE is forwarded', () {
+        final record = _record(Level.SEVERE, 'SomeController', 'boom');
+        expect(shouldForwardToTelemetry(record), isTrue);
+      });
+
+      test('SHOUT is forwarded', () {
+        final record = _record(Level.SHOUT, 'SomeController', 'really boom');
+        expect(shouldForwardToTelemetry(record), isTrue);
+      });
+    });
+
+    group('drops noise from WebUIStorage', () {
+      test('"Skin already exists: ..." is dropped', () {
+        final record = _record(
+          Level.SEVERE,
           'WebUIStorage',
           'Skin already exists: streamline_project-main, overwriting…',
         );
@@ -90,9 +126,9 @@ void main() {
         expect(shouldForwardToTelemetry(record), isTrue);
       });
 
-      test('Unrelated WARNING message is kept', () {
+      test('Unrelated SEVERE message is kept', () {
         final record = _record(
-          Level.WARNING,
+          Level.SEVERE,
           'WebUIStorage',
           'Manifest parse failed: missing required field',
         );
@@ -115,7 +151,7 @@ void main() {
         '"Skin already exists" emitted by a different logger is kept',
         () {
           final record = _record(
-            Level.WARNING,
+            Level.SEVERE,
             'SomeOtherLogger',
             'Skin already exists: foo',
           );
@@ -127,7 +163,7 @@ void main() {
     group('drops typed transient exceptions regardless of logger', () {
       test('DeviceNotConnectedException.machine from any logger is dropped', () {
         final record = _record(
-          Level.WARNING,
+          Level.SEVERE,
           'BatteryController',
           'Failed to set USB charger mode',
           const DeviceNotConnectedException.machine(),
@@ -137,7 +173,7 @@ void main() {
 
       test('DeviceNotConnectedException.scale from any logger is dropped', () {
         final record = _record(
-          Level.WARNING,
+          Level.SEVERE,
           'PresenceController',
           'Failed to send user present',
           const DeviceNotConnectedException.scale(),
@@ -169,7 +205,7 @@ void main() {
     group('extends transient-network-error skip to AndroidUpdater', () {
       test('SocketException from AndroidUpdater is dropped', () {
         final record = _record(
-          Level.WARNING,
+          Level.SEVERE,
           'AndroidUpdater',
           'checkForUpdate failed',
           const SocketException(
@@ -181,7 +217,7 @@ void main() {
 
       test('TimeoutException from AndroidUpdater is dropped', () {
         final record = _record(
-          Level.WARNING,
+          Level.SEVERE,
           'AndroidUpdater',
           'checkForUpdate timed out',
           TimeoutException('http get'),
@@ -207,15 +243,6 @@ void main() {
           'SomeController',
           'invariant violated',
           StateError('bad state'),
-        );
-        expect(shouldForwardToTelemetry(record), isTrue);
-      });
-
-      test('plain WARNING with no error is kept', () {
-        final record = _record(
-          Level.WARNING,
-          'SomeController',
-          'something unusual happened',
         );
         expect(shouldForwardToTelemetry(record), isTrue);
       });
