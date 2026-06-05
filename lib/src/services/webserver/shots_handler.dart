@@ -2,16 +2,21 @@ import 'dart:convert';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
+import 'package:reaprime/src/plugins/plugin_manager.dart';
 import 'package:reaprime/src/services/webserver/json_response.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
 class ShotsHandler {
   final PersistenceController _controller;
+  final PluginManager? _pluginManager;
 
   final Logger _log = Logger("ShotsHandler");
 
-  ShotsHandler({required PersistenceController controller})
-    : _controller = controller;
+  ShotsHandler({
+    required PersistenceController controller,
+    PluginManager? pluginManager,
+  }) : _controller = controller,
+       _pluginManager = pluginManager;
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/shots', _getShots);
@@ -42,8 +47,12 @@ class ShotsHandler {
 
     // Legacy: support filtering by ids (handles both ?ids=a&ids=b and ?ids=a,b,c)
     final rawIds = req.url.queryParametersAll['ids'];
-    final ids = rawIds?.expand((id) => id.split(',')).where((id) => id.isNotEmpty).toList();
-    final hasFilters = grinderId != null ||
+    final ids = rawIds
+        ?.expand((id) => id.split(','))
+        .where((id) => id.isNotEmpty)
+        .toList();
+    final hasFilters =
+        grinderId != null ||
         grinderModel != null ||
         beanBatchId != null ||
         coffeeName != null ||
@@ -61,12 +70,15 @@ class ShotsHandler {
 
       final order = params['order'] ?? 'desc';
       if (order != 'asc' && order != 'desc') {
-        return jsonBadRequest(
-            {"error": "Invalid order value. Supported: asc, desc"});
+        return jsonBadRequest({
+          "error": "Invalid order value. Supported: asc, desc",
+        });
       }
-      shots.sort((a, b) => order == 'asc'
-          ? a.timestamp.compareTo(b.timestamp)
-          : b.timestamp.compareTo(a.timestamp));
+      shots.sort(
+        (a, b) => order == 'asc'
+            ? a.timestamp.compareTo(b.timestamp)
+            : b.timestamp.compareTo(a.timestamp),
+      );
 
       return jsonOk(shots.map((e) => e.toJson()).toList());
     }
@@ -159,7 +171,9 @@ class ShotsHandler {
 
       // Validate that the ID in the path matches the ID in the body (if provided)
       if (json['id'] != null && json['id'] != id) {
-        return jsonBadRequest({"error": "ID in path does not match ID in body"});
+        return jsonBadRequest({
+          "error": "ID in path does not match ID in body",
+        });
       }
 
       // Fetch existing shot for partial update support
@@ -174,6 +188,12 @@ class ShotsHandler {
 
       final updatedShot = ShotRecord.fromJson(merged);
       await _controller.updateShot(updatedShot);
+      _log.info("Broadcasting shotUpdated for ${updatedShot.id}");
+      _pluginManager?.broadcastEvent('shotUpdated', {
+        'id': updatedShot.id,
+        'shot': updatedShot.toJsonWithoutMeasurements(),
+        'patch': json,
+      });
 
       return jsonOk(updatedShot.toJson());
     } catch (e, st) {
