@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -65,12 +66,17 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
   @override
   void dispose() {
     _log.fine("disposing");
+    _blankPageTimer?.cancel();
+    _blankPageTimer = null;
     WidgetsBinding.instance.removeObserver(this);
     if (Platform.isAndroid) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     }
     super.dispose();
   }
+
+  Timer? _blankPageTimer;
+  bool _didBlank = false;
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -83,41 +89,58 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
     if (state == AppLifecycleState.paused) {
       _log.info('App backgrounded — pausing WebView and loading blank page');
       try {
-        _webViewController?.pause();
+        if (InAppWebViewController.isMethodSupported(.pause)) {
+          _webViewController?.pause();
+        }
       } on UnimplementedError catch (e) {
         _log.warning("Unimplemented: ", e);
       } catch (e, st) {
         _log.severe("Unexpected: ", e, st);
       }
       try {
-        _webViewController?.pauseTimers();
+        if (InAppWebViewController.isMethodSupported(.pauseTimers)) {
+          _webViewController?.pauseTimers();
+        }
       } on UnimplementedError catch (e) {
         _log.warning("Unimplemented: ", e);
       } catch (e, st) {
         _log.severe("Unexpected: ", e, st);
       }
-      _webViewController?.loadUrl(
-        urlRequest: URLRequest(url: WebUri('about:blank')),
-      );
+      _didBlank = false;
+      _blankPageTimer?.cancel();
+      _blankPageTimer = Timer(Duration(minutes: 10), () {
+        _webViewController?.loadUrl(
+          urlRequest: URLRequest(url: WebUri('about:blank')),
+        );
+        _didBlank = true;
+      });
     } else if (state == AppLifecycleState.resumed) {
       _log.info('App foregrounded — resuming WebView and reloading skin');
       try {
-        _webViewController?.resumeTimers();
+        if (InAppWebViewController.isMethodSupported(.resumeTimers)) {
+          _webViewController?.resumeTimers();
+        }
       } on UnimplementedError catch (e) {
         _log.warning("Unimplemented: ", e);
       } catch (e, st) {
         _log.severe("Unexpected: ", e, st);
       }
       try {
-        _webViewController?.resume();
+        if (InAppWebViewController.isMethodSupported(.resume)) {
+          _webViewController?.resume();
+        }
       } on UnimplementedError catch (e) {
         _log.warning("Unimplemented: ", e);
       } catch (e, st) {
         _log.severe("Unexpected: ", e, st);
       }
-      _webViewController?.loadUrl(
-        urlRequest: URLRequest(url: WebUri(_skinUrl)),
-      );
+      _blankPageTimer?.cancel();
+      _blankPageTimer = null;
+      if (_didBlank) {
+        _webViewController?.loadUrl(
+          urlRequest: URLRequest(url: WebUri(_skinUrl)),
+        );
+      }
     }
   }
 
@@ -196,7 +219,7 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
       // when the WebView is not visible and memory is tight.
       rendererPriorityPolicy: RendererPriorityPolicy(
         rendererRequestedPriority: RendererPriority.RENDERER_PRIORITY_BOUND,
-        waivedWhenNotVisible: true,
+        waivedWhenNotVisible: false,
       ),
       useOnRenderProcessGone: true,
     );
@@ -370,13 +393,12 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
                   ElevatedButton.icon(
                     icon: const Icon(Icons.download),
                     label: const Text('Install WebView2'),
-                    onPressed:
-                        () => launchUrl(
-                          Uri.parse(
-                            'https://go.microsoft.com/fwlink/p/?LinkId=2124703',
-                          ),
-                          mode: LaunchMode.externalApplication,
-                        ),
+                    onPressed: () => launchUrl(
+                      Uri.parse(
+                        'https://go.microsoft.com/fwlink/p/?LinkId=2124703',
+                      ),
+                      mode: LaunchMode.externalApplication,
+                    ),
                   ),
               ],
             ),
