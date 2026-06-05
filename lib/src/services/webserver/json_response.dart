@@ -61,6 +61,12 @@ Response jsonForbidden(Object? data) => Response(
       headers: _jsonHeaders,
     );
 
+Response jsonUnauthorized(Object? data) => Response(
+      401,
+      body: jsonEncode(data),
+      headers: _jsonHeaders,
+    );
+
 Response jsonNotFound(Object? data) => Response.notFound(
       jsonEncode(data),
       headers: _jsonHeaders,
@@ -94,4 +100,3 @@ Response jsonServiceUnavailable(Object? data) => Response(
       body: jsonEncode(data),
       headers: _jsonHeaders,
     );
-

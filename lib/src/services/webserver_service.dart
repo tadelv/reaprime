@@ -61,6 +61,7 @@ import 'package:shelf_cors_headers/shelf_cors_headers.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/plugins/plugin_manager.dart';
 import 'package:reaprime/src/services/feedback_service.dart';
+import 'package:reaprime/src/services/account/decent_account_service.dart';
 import 'package:reaprime/src/controllers/battery_controller.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/display_controller.dart';
@@ -90,6 +91,7 @@ part 'webserver/logs_handler.dart';
 part 'webserver/webview_logs_handler.dart';
 part 'webserver/presence_handler.dart';
 part 'webserver/display_handler.dart';
+part 'webserver/account_handler.dart';
 
 final log = Logger("Webservice");
 
@@ -113,10 +115,11 @@ Future<void> startWebServer(
   BeanStorageService? beanStorage,
   GrinderStorageService? grinderStorage,
   required ConnectionManager connectionManager,
+  DecentAccountService? decentAccountService,
 }) async {
   log.info("starting webserver");
   final de1Handler = De1Handler(
-    controller: de1Controller, 
+    controller: de1Controller,
     settingsController: settingsController,
     scaleController: scaleController,
   );
@@ -166,6 +169,9 @@ Future<void> startWebServer(
   );
 
   final logsHandler = LogsHandler(logFilePath: logFilePath);
+  final accountHandler = decentAccountService == null
+      ? null
+      : AccountHandler(accountService: decentAccountService);
 
   final webViewLogsHandler = WebViewLogsHandler(
     webViewLogService: webViewLogService,
@@ -243,6 +249,7 @@ Future<void> startWebServer(
       webViewLogsHandler,
       presenceHandler,
       displayHandler,
+      accountHandler,
       dataExportHandler,
       dataSyncHandler,
       beansHandler,
@@ -278,6 +285,7 @@ Handler _init(
   WebViewLogsHandler webViewLogsHandler,
   PresenceHandler? presenceHandler,
   DisplayHandler? displayHandler,
+  AccountHandler? accountHandler,
   DataExportHandler dataExportHandler,
   DataSyncHandler dataSyncHandler,
   BeansHandler? beansHandler,
@@ -308,6 +316,9 @@ Handler _init(
   }
   if (displayHandler != null) {
     displayHandler.addRoutes(app);
+  }
+  if (accountHandler != null) {
+    accountHandler.addRoutes(app);
   }
   dataExportHandler.addRoutes(app);
   dataSyncHandler.addRoutes(app);
