@@ -3,7 +3,7 @@ part of 'unified_de1.dart';
 /// Bounded wait for an MMR notification matching the read request.
 /// Without this, a single dropped notify during `onConnect` hangs the
 /// entire connect call chain forever. See comms-harden #2.
-const _mmrReadTimeout = Duration(seconds: 2);
+const _mmrReadTimeout = Duration(seconds: 4);
 
 extension UnifiedDe1MMR on UnifiedDe1 {
   Future<List<int>> _mmrRead(MMRItem item, {int length = 0}) =>
