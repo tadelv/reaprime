@@ -37,6 +37,9 @@ function createPlugin(host) {
     shotMap: {}, // visualizerId -> localShotId, for our own uploads only
     backSyncState: {}, // visualizerId -> { remoteUpdatedAt }
     backSyncRunning: false,
+    localSyncRunning: {},
+    localSyncSuppressUntil: {},
+    localSyncStatus: { lastCheck: null, lastResult: null, lastError: null, lastShotId: null, lastVisualizerId: null },
     backSyncStatus: { lastCheck: null, lastResult: null, lastError: null, lastApplied: 0 },
   };
 
@@ -160,6 +163,8 @@ function createPlugin(host) {
     const firstTimestamp = new Date(reaShot.measurements[firstEspressoIndex].machine.timestamp).getTime();
     const lastMeasurement = reaShot.measurements[reaShot.measurements.length - 1];
     const lastTimestamp = new Date(lastMeasurement.machine.timestamp).getTime();
+    const annotations = reaShot.annotations || {};
+    const context = reaShot.workflow?.context || {};
     let totalWaterDispensed = 0;
 
     const visualizerShot = {
@@ -176,13 +181,17 @@ function createPlugin(host) {
       app: {
         data: {
           settings: {
-            bean_weight: String(reaShot.workflow.context?.targetDoseWeight ?? reaShot.workflow.doseData?.doseIn ?? 0),
-            drink_weight: String(lastMeasurement.scale?.weight ?? 0),
-            target_weight: String(reaShot.workflow.profile.target_weight),
-            grinder_model: reaShot.workflow.context?.grinderModel ?? reaShot.workflow.grinderData?.model,
-            grinder_setting: reaShot.workflow.context?.grinderSetting ?? reaShot.workflow.grinderData?.setting,
-            bean_brand: reaShot.workflow.context?.coffeeRoaster ?? reaShot.workflow.coffeeData?.roaster,
-            bean_type: reaShot.workflow.context?.coffeeName ?? reaShot.workflow.coffeeData?.name,
+            bean_weight: String(annotations.actualDoseWeight ?? context.targetDoseWeight ?? reaShot.workflow.doseData?.doseIn ?? 0),
+            drink_weight: String(annotations.actualYield ?? lastMeasurement.scale?.weight ?? 0),
+            target_weight: String(context.targetYield ?? reaShot.workflow.profile.target_weight),
+            grinder_model: context.grinderModel ?? reaShot.workflow.grinderData?.model,
+            grinder_setting: context.grinderSetting ?? reaShot.workflow.grinderData?.setting,
+            bean_brand: context.coffeeRoaster ?? reaShot.workflow.coffeeData?.roaster,
+            bean_type: context.coffeeName ?? reaShot.workflow.coffeeData?.name,
+            drink_tds: annotations.drinkTds != null ? String(annotations.drinkTds) : undefined,
+            drink_ey: annotations.drinkEy != null ? String(annotations.drinkEy) : undefined,
+            espresso_enjoyment: annotations.enjoyment != null ? String(Math.round(Number(annotations.enjoyment))) : undefined,
+            espresso_notes: annotations.espressoNotes,
           }
         }
       },
@@ -262,14 +271,14 @@ function createPlugin(host) {
       host.storage({
         type: "write",
         key: "lastUploadedShot",
-        namespace: "visualizer.reaplugin",
+        namespace: NS,
         data: fullShot.id
       });
 
       host.storage({
         type: "write",
         key: "lastVisualizerId",
-        namespace: "visualizer.reaplugin",
+        namespace: NS,
         data: result.id
       });
 
@@ -503,6 +512,7 @@ function createPlugin(host) {
     state.shotMap[String(visualizerId)] = localId;
     persistBackSyncState();
     try {
+      suppressLocalSync(localId);
       await fetch(`${LOCAL_API_URL}/shots/${localId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -520,6 +530,176 @@ function createPlugin(host) {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
     return await res.json();
+  }
+
+  async function visualizerPatch(path, body) {
+    const res = await fetch(`${VISUALIZER_API_URL}${path}`, {
+      method: "PATCH",
+      headers: {
+        "Authorization": getAuthHeader(),
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+    }
+    return await res.json();
+  }
+
+  function suppressLocalSync(localId) {
+    if (!localId) return;
+    state.localSyncSuppressUntil[localId] = Date.now() + 10000;
+  }
+
+  function consumeLocalSyncSuppression(localId) {
+    const until = state.localSyncSuppressUntil[localId];
+    if (!until) return false;
+    if (Date.now() <= until) return true;
+    delete state.localSyncSuppressUntil[localId];
+    return false;
+  }
+
+  function visualizerIdForLocalShot(shot) {
+    const localId = shot?.id;
+    if (!localId) return null;
+    const extras = shot.annotations?.extras || {};
+    if (extras.visualizerId != null) return String(extras.visualizerId);
+    if (extras.visualizer?.shot_id != null) return String(extras.visualizer.shot_id);
+    if (state.lastUploadedShot === localId && state.lastVisualizerId != null) {
+      return String(state.lastVisualizerId);
+    }
+    for (const [visualizerId, mappedLocalId] of Object.entries(state.shotMap)) {
+      if (mappedLocalId === localId) return String(visualizerId);
+    }
+    return null;
+  }
+
+  function localShotToVisualizerUpdate(shot, patch) {
+    const annotations = shot.annotations || {};
+    const context = shot.workflow?.context || {};
+    const patchAnnotations = patch?.annotations || {};
+    const patchContext = patch?.workflow?.context || {};
+    const payload = {};
+    const has = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+    const setNumber = (key, value, transform) => {
+      if (value == null || value === "") return;
+      const number = Number(value);
+      if (!Number.isFinite(number)) return;
+      payload[key] = transform ? transform(number) : String(number);
+    };
+    const setMaybeNumber = (key, value, source, sourceKey, transform) => {
+      if (has(source, sourceKey) && (value == null || value === "")) {
+        payload[key] = null;
+        return;
+      }
+      setNumber(key, value, transform);
+    };
+    const setString = (key, value) => {
+      if (typeof value === "string" && value.trim() !== "") payload[key] = value;
+    };
+    const setMaybeString = (key, value, source, sourceKey) => {
+      if (has(source, sourceKey) && (value == null || value === "")) {
+        payload[key] = null;
+        return;
+      }
+      setString(key, value);
+    };
+
+    setMaybeNumber("espresso_enjoyment", annotations.enjoyment, patchAnnotations, "enjoyment", (n) => Math.round(n));
+    setMaybeNumber("drink_tds", annotations.drinkTds, patchAnnotations, "drinkTds");
+    setMaybeNumber("drink_ey", annotations.drinkEy, patchAnnotations, "drinkEy");
+    setMaybeNumber("bean_weight", annotations.actualDoseWeight ?? context.targetDoseWeight, patchAnnotations, "actualDoseWeight");
+    setMaybeNumber("drink_weight", annotations.actualYield ?? context.targetYield, patchAnnotations, "actualYield");
+    setMaybeString("espresso_notes", annotations.espressoNotes, patchAnnotations, "espressoNotes");
+    setString("profile_title", shot.workflow?.profile?.title || shot.workflow?.name);
+    setMaybeString("barista", context.baristaName, patchContext, "baristaName");
+    setMaybeString("grinder_setting", context.grinderSetting, patchContext, "grinderSetting");
+    setMaybeString("bean_brand", context.coffeeRoaster, patchContext, "coffeeRoaster");
+    setMaybeString("bean_type", context.coffeeName, patchContext, "coffeeName");
+
+    return payload;
+  }
+
+  function recordLocalSyncStatus(shotId, visualizerId, result, error) {
+    state.localSyncStatus = {
+      lastCheck: Date.now(),
+      lastResult: result || null,
+      lastError: error || null,
+      lastShotId: shotId || null,
+      lastVisualizerId: visualizerId || null,
+    };
+  }
+
+  async function pushLocalShotUpdate(shot, patch, opts) {
+    opts = opts || {};
+    if (!shot || !shot.id) {
+      recordLocalSyncStatus(null, null, "skipped: missing shot", null);
+      return { skipped: "missing shot" };
+    }
+    if (!opts.force && consumeLocalSyncSuppression(shot.id)) {
+      recordLocalSyncStatus(shot.id, null, "skipped: suppressed", null);
+      return { skipped: "suppressed" };
+    }
+    if (state.localSyncRunning[shot.id]) {
+      recordLocalSyncStatus(shot.id, null, "skipped: already running", null);
+      return { skipped: "already running" };
+    }
+    if (!state.username || !state.password) {
+      recordLocalSyncStatus(shot.id, null, "skipped: no credentials", null);
+      return { skipped: "no credentials" };
+    }
+
+    const visualizerId = visualizerIdForLocalShot(shot);
+    if (!visualizerId) {
+      log(`Local sync: ${shot.id} has no visualizer mapping`);
+      recordLocalSyncStatus(shot.id, null, "skipped: no mapping", null);
+      return { skipped: "no mapping" };
+    }
+
+    const update = localShotToVisualizerUpdate(shot, patch || {});
+    if (Object.keys(update).length === 0) {
+      recordLocalSyncStatus(shot.id, visualizerId, "skipped: empty update", null);
+      return { skipped: "empty update" };
+    }
+
+    state.localSyncRunning[shot.id] = true;
+    try {
+      const detail = await visualizerPatch(`/shots/${visualizerId}`, { shot: update });
+      const updatedAt = Number(detail?.updated_at) || Number(detail?.meta?.visualizer?.updated_at) || 0;
+      if (updatedAt > 0) {
+        state.backSyncState[visualizerId] = { remoteUpdatedAt: updatedAt };
+        state.backSyncCursor = Math.max(Number(state.backSyncCursor) || 0, updatedAt);
+        persistBackSyncState();
+      }
+      host.emit("shotForwardSynced", { shotId: shot.id, visualizerId, timestamp: Date.now() });
+      log(`Local sync: updated ${shot.id} → ${visualizerId}`);
+      recordLocalSyncStatus(shot.id, visualizerId, "updated", null);
+      return { ok: true, visualizerId };
+    } catch (e) {
+      log(`Local sync failed for ${shot.id}: ${e.message}`);
+      host.emit("shotForwardSyncError", { shotId: shot.id, visualizerId, error: e.message, timestamp: Date.now() });
+      recordLocalSyncStatus(shot.id, visualizerId, "error", e.message);
+      return { error: e.message };
+    } finally {
+      delete state.localSyncRunning[shot.id];
+    }
+  }
+
+  async function syncLocalShotNow(shotId) {
+    const id = shotId || state.lastUploadedShot;
+    if (!id) {
+      recordLocalSyncStatus(null, null, "skipped: no shot id", null);
+      return { skipped: "no shot id" };
+    }
+    const shot = await fetchShot(id);
+    if (!shot) {
+      recordLocalSyncStatus(id, null, "error", "shot not found");
+      return { error: "shot not found" };
+    }
+    return await pushLocalShotUpdate(shot, {}, { force: true });
   }
 
   // /api/me returns 401 on bad creds, 200 when valid. Gate back-sync on it so we
@@ -699,6 +879,7 @@ function createPlugin(host) {
         const update = mapRemoteToLocal(detail);
         let processed = Object.keys(update).length === 0;
         if (Object.keys(update).length > 0) {
+          suppressLocalSync(localId);
           const res = await fetch(`${LOCAL_API_URL}/shots/${localId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -966,6 +1147,29 @@ function createPlugin(host) {
         }));
       }
 
+      if (request.endpoint === 'forwardSyncStatus') {
+        return {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lastCheck: state.localSyncStatus.lastCheck,
+            lastResult: state.localSyncStatus.lastResult,
+            lastError: state.localSyncStatus.lastError,
+            lastShotId: state.localSyncStatus.lastShotId,
+            lastVisualizerId: state.localSyncStatus.lastVisualizerId,
+            running: Object.keys(state.localSyncRunning),
+          })
+        };
+      }
+
+      if (request.endpoint === 'forwardSyncNow') {
+        return syncLocalShotNow(request.body?.shotId).then((result) => ({
+          status: result && result.error ? 400 : 200,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ok: !(result && result.error), result, status: state.localSyncStatus })
+        }));
+      }
+
       // Default 404 response
       return {
         status: 404,
@@ -1034,6 +1238,14 @@ function createPlugin(host) {
             // off shortly after enabling.
             armBackSync(2000);
           }
+          break;
+
+        case "shotUpdated":
+          pushLocalShotUpdate(event.payload?.shot || { id: event.payload?.id }, event.payload?.patch || {})
+            .catch((e) => {
+              log(`Local sync unexpected failure: ${e.message}`);
+              recordLocalSyncStatus(event.payload?.id, null, "error", e.message);
+            });
           break;
       }
     },

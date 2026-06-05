@@ -107,6 +107,23 @@
       "data": {
         "description": "Last back-sync result, applied count, cursor and any error"
       }
+    },
+    {
+      "id": "forwardSyncStatus",
+      "type": "http",
+      "data": {
+        "description": "Last forward-sync result and any error"
+      }
+    },
+    {
+      "id": "forwardSyncNow",
+      "type": "http",
+      "data": {
+        "shotId": {
+          "type": "string",
+          "description": "Local shot id to sync to Visualizer"
+        }
+      }
     }
   ]
 }
