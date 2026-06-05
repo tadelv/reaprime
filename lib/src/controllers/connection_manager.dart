@@ -17,12 +17,14 @@ import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle_virtual_scale.dart';
+import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/device_scanner.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/scan_report.dart';
+import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -101,6 +103,7 @@ class ConnectionManager {
   bool _isConnecting = false;
   bool _isConnectingMachine = false;
   bool _isConnectingScale = false;
+  bool _activeScaleOnlyScan = false;
 
   /// End-to-end timeout for a single `connectMachine` / `connectScale`
   /// call. Phase 1 bounded the MMR-read hang at 2s; this is the
@@ -116,6 +119,9 @@ class ConnectionManager {
   // of the source streams (no parallel flags).
   bool get _machineConnected => _disconnectSupervisor.isMachineConnected;
   bool get _scaleConnected => _disconnectSupervisor.isScaleConnected;
+  bool get _scaleReconnectBlockedByPowerMode =>
+      settingsController.scalePowerMode == ScalePowerMode.disconnect &&
+      _latestMachineState == MachineState.sleeping;
 
   late final DisconnectSupervisor _disconnectSupervisor;
   late final ScanOrchestrator _scanOrchestrator;
@@ -136,6 +142,15 @@ class ConnectionManager {
   /// a scale that advertises a beat later is missed; this recovers it.
   Timer? _deferredScaleScan;
 
+  /// Preferred-scale reconnect retry while a machine is connected but the
+  /// configured scale is missing. BLE advertisements are only observed during
+  /// scans, so this gives a powered-on scale a chance to appear without user
+  /// interaction.
+  Timer? _preferredScaleReconnect;
+
+  MachineState? _latestMachineState;
+  StreamSubscription<MachineSnapshot>? _machineSnapshotSub;
+
   /// Set true by [_checkEarlyStop] when it actually cut the scan short on
   /// machine-connect with no preferred scale. Distinguishes that case
   /// from a full scan that simply completed without a scale — only the
@@ -150,6 +165,9 @@ class ConnectionManager {
   /// stabilise first. Overridable in tests to avoid a real wait.
   @visibleForTesting
   Duration deferredScaleScanDelay = const Duration(seconds: 3);
+
+  @visibleForTesting
+  Duration preferredScaleReconnectDelay = const Duration(seconds: 5);
 
   ConnectionManager({
     required this.deviceScanner,
@@ -166,6 +184,10 @@ class ConnectionManager {
       isConnectingScale: () => _isConnectingScale,
       scaleLastConnectedId: () => scaleController.lastConnectedDeviceId,
       preferredScaleId: () => settingsController.preferredScaleId,
+      onMachineConnected: _handleMachineConnected,
+      onMachineDisconnected: _handleMachineDisconnected,
+      onScaleConnected: _cancelPreferredScaleReconnect,
+      onScaleDisconnected: _maybeSchedulePreferredScaleReconnect,
     );
     _scanOrchestrator = ScanOrchestrator(
       scanner: deviceScanner,
@@ -349,14 +371,28 @@ class ConnectionManager {
   /// the concurrency guard in [connect] sees the in-flight state.
   Future<void> _executeConnect(bool scaleOnly) async {
     _isConnecting = true;
+    if (scaleOnly) {
+      _activeScaleOnlyScan = true;
+    }
     try {
       await _connectImpl(scaleOnly: scaleOnly);
     } finally {
+      if (scaleOnly) {
+        _activeScaleOnlyScan = false;
+      }
       _isConnecting = false;
     }
   }
 
   Future<void> _connectImpl({required bool scaleOnly}) async {
+    _cancelPreferredScaleReconnect();
+    if (scaleOnly && _scaleReconnectBlockedByPowerMode) {
+      _log.fine(
+        'Skipping scale-only scan while machine is sleeping and scale '
+        'power mode is disconnect',
+      );
+      return;
+    }
     if (!scaleOnly) {
       // A fresh full connect supersedes any pending deferred rescan.
       _deferredScaleScan?.cancel();
@@ -422,6 +458,7 @@ class ConnectionManager {
         preferredScaleId: preferredScaleId,
         terminationReason: ScanTerminationReason.completed,
       );
+      _maybeSchedulePreferredScaleReconnect();
       return;
     }
 
@@ -440,6 +477,7 @@ class ConnectionManager {
         scanReport,
       );
       _maybeArmDeferredScaleScan();
+      _maybeSchedulePreferredScaleReconnect();
       _emitScanReport(
         scanReport: scanReport,
         preferredMachineId: preferredMachineId,
@@ -461,6 +499,7 @@ class ConnectionManager {
         await _connectMachineTracked(m, scanReport);
         await _runScalePhase(m, scales, preferredScaleId, scanReport);
         _maybeArmDeferredScaleScan();
+        _maybeSchedulePreferredScaleReconnect();
       case MachinePickerAction():
         _publishStatus(currentStatus.copyWith(
           phase: ConnectionPhase.idle,
@@ -523,6 +562,7 @@ class ConnectionManager {
   void _maybeArmDeferredScaleScan() {
     if (!_earlyStopFired) return;
     if (!_machineConnected || _scaleConnected) return;
+    if (_scaleReconnectBlockedByPowerMode) return;
     _log.fine(
       'Machine connected without a scale after an early stop; '
       'arming deferred scale rescan in ${deferredScaleScanDelay.inSeconds}s',
@@ -531,8 +571,94 @@ class ConnectionManager {
     _deferredScaleScan = Timer(deferredScaleScanDelay, () {
       _deferredScaleScan = null;
       if (_scaleConnected) return; // a scale arrived in the meantime
+      if (!_machineConnected || _scaleReconnectBlockedByPowerMode) return;
       connect(scaleOnly: true); // fire-and-forget
     });
+  }
+
+  void _maybeSchedulePreferredScaleReconnect() {
+    if (_preferredScaleReconnect != null) return;
+    if (!_shouldRetryPreferredScale()) return;
+    _log.fine(
+      'Preferred scale is missing; retrying scale scan in '
+      '${preferredScaleReconnectDelay.inSeconds}s',
+    );
+    _preferredScaleReconnect = Timer(preferredScaleReconnectDelay, () {
+      _preferredScaleReconnect = null;
+      if (!_shouldRetryPreferredScale()) return;
+      connect(scaleOnly: true); // fire-and-forget
+    });
+  }
+
+  bool _shouldRetryPreferredScale() {
+    return _machineConnected &&
+        !_scaleConnected &&
+        settingsController.preferredScaleId != null &&
+        !_scaleReconnectBlockedByPowerMode;
+  }
+
+  void _cancelPreferredScaleReconnect() {
+    _preferredScaleReconnect?.cancel();
+    _preferredScaleReconnect = null;
+  }
+
+  void _handleMachineConnected() {
+    _watchConnectedMachineState();
+    _maybeSchedulePreferredScaleReconnect();
+  }
+
+  void _handleMachineDisconnected() {
+    _stopWatchingConnectedMachineState();
+    _deferredScaleScan?.cancel();
+    _deferredScaleScan = null;
+    _cancelPreferredScaleReconnect();
+    if (_activeScaleOnlyScan) {
+      deviceScanner.stopScan();
+    }
+  }
+
+  void _watchConnectedMachineState() {
+    _stopWatchingConnectedMachineState();
+    final machine = _disconnectSupervisor.latestMachine;
+    if (machine == null) return;
+    final Stream<MachineSnapshot> snapshots;
+    try {
+      snapshots = machine.currentSnapshot;
+    } catch (e, st) {
+      _log.fine('Machine snapshot stream unavailable', e, st);
+      return;
+    }
+    _machineSnapshotSub = snapshots.listen((snapshot) {
+      final state = snapshot.state.state;
+      if (_latestMachineState == state) return;
+      _latestMachineState = state;
+      if (_scaleReconnectBlockedByPowerMode) {
+        _log.fine(
+          'Machine is sleeping and scale power mode is disconnect; '
+          'pausing preferred scale reconnect',
+        );
+        _pauseScaleReconnectForPowerMode();
+      } else {
+        _maybeSchedulePreferredScaleReconnect();
+      }
+    }, onError: (Object e, StackTrace st) {
+      _log.fine('Machine snapshot stream error', e, st);
+    });
+  }
+
+  void _pauseScaleReconnectForPowerMode() {
+    _deferredScaleScan?.cancel();
+    _deferredScaleScan = null;
+    _cancelPreferredScaleReconnect();
+    if (_activeScaleOnlyScan) {
+      deviceScanner.stopScan();
+    }
+  }
+
+  void _stopWatchingConnectedMachineState() {
+    _machineSnapshotSub?.cancel();
+    _machineSnapshotSub = null;
+    _latestMachineState = null;
   }
 
   /// Gate the scale phase on machine type. When the connected machine
@@ -582,6 +708,13 @@ class ConnectionManager {
     String? preferredScaleId,
     ScanReportBuilder scanReport,
   ) async {
+    if (_scaleReconnectBlockedByPowerMode) {
+      _log.fine(
+        'Skipping scale phase while machine is sleeping and scale power '
+        'mode is disconnect',
+      );
+      return;
+    }
     if (_scaleConnected) {
       _log.fine('Scale already connected, skipping scale phase');
       return;
@@ -659,6 +792,13 @@ class ConnectionManager {
   }
 
   Future<void> connectScale(Scale scale) async {
+    if (_scaleReconnectBlockedByPowerMode) {
+      _log.fine(
+        'connectScale: blocked while machine is sleeping and scale power '
+        'mode is disconnect',
+      );
+      return;
+    }
     if (_isConnectingScale) {
       _log.fine('connectScale: already connecting, skipping');
       return;
@@ -678,6 +818,17 @@ class ConnectionManager {
       await scaleController
           .connectToScale(scale)
           .timeout(_connectTimeout);
+      if (_scaleReconnectBlockedByPowerMode) {
+        markExpectingDisconnect(scale.deviceId);
+        _publishStatus(
+          currentStatus.copyWith(
+            phase:
+                _machineConnected ? ConnectionPhase.ready : ConnectionPhase.idle,
+          ),
+        );
+        await scale.disconnect();
+        return;
+      }
       await settingsController.setPreferredScaleId(scale.deviceId);
       // `_latestScaleState` is populated by the scaleController
       // listener; `_scaleConnected` reads from it.
@@ -745,6 +896,13 @@ class ConnectionManager {
     Scale scale,
     ScanReportBuilder scanReport,
   ) async {
+    if (_scaleReconnectBlockedByPowerMode) {
+      _log.fine(
+        'Skipping external scale early-connect while machine is sleeping '
+        'and scale power mode is disconnect',
+      );
+      return;
+    }
     if (_shouldDeferEarlyScaleConnect()) {
       _log.fine(
         'Deferring external scale early-connect until machine resolves',
@@ -843,6 +1001,7 @@ class ConnectionManager {
   }
 
   Future<void> disconnectMachine() async {
+    _handleMachineDisconnected();
     // Pre-null the supervisor's tracked de1 view so its stream listener's
     // `hadMachine` check sees "no machine was connected" by the time
     // it fires on the upcoming null emission — otherwise the supervisor
@@ -857,6 +1016,7 @@ class ConnectionManager {
   }
 
   Future<void> disconnectScale() async {
+    _cancelPreferredScaleReconnect();
     try {
       final scale = scaleController.connectedScale();
       markExpectingDisconnect(scale.deviceId);
@@ -871,6 +1031,8 @@ class ConnectionManager {
 
   Future<void> dispose() async {
     _deferredScaleScan?.cancel();
+    _cancelPreferredScaleReconnect();
+    _stopWatchingConnectedMachineState();
     await de1Controller.dispose();
     scaleController.dispose();
     _disconnectSupervisor.dispose();
@@ -880,4 +1042,3 @@ class ConnectionManager {
     _scanReportSubject.close();
   }
 }
-
