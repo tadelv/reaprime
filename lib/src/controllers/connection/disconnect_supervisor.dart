@@ -31,6 +31,10 @@ class DisconnectSupervisor {
   final bool Function() _isConnectingScale;
   final String? Function() _scaleLastConnectedId;
   final String? Function() _preferredScaleId;
+  final void Function()? _onMachineConnected;
+  final void Function()? _onMachineDisconnected;
+  final void Function()? _onScaleConnected;
+  final void Function()? _onScaleDisconnected;
 
   De1Interface? _latestDe1;
   device.ConnectionState _latestScaleState =
@@ -49,6 +53,10 @@ class DisconnectSupervisor {
     required bool Function() isConnectingScale,
     required String? Function() scaleLastConnectedId,
     required String? Function() preferredScaleId,
+    void Function()? onMachineConnected,
+    void Function()? onMachineDisconnected,
+    void Function()? onScaleConnected,
+    void Function()? onScaleDisconnected,
   })  : _machineStream = machineStream,
         _scaleStream = scaleStream,
         _statusPublisher = statusPublisher,
@@ -56,7 +64,11 @@ class DisconnectSupervisor {
         _isConnectingMachine = isConnectingMachine,
         _isConnectingScale = isConnectingScale,
         _scaleLastConnectedId = scaleLastConnectedId,
-        _preferredScaleId = preferredScaleId {
+        _preferredScaleId = preferredScaleId,
+        _onMachineConnected = onMachineConnected,
+        _onMachineDisconnected = onMachineDisconnected,
+        _onScaleConnected = onScaleConnected,
+        _onScaleDisconnected = onScaleDisconnected {
     _start();
   }
 
@@ -89,10 +101,12 @@ class DisconnectSupervisor {
       _latestDe1 = de1;
       if (de1 != null) {
         _lastKnownMachineId = de1.deviceId;
+        _onMachineConnected?.call();
         return;
       }
       if (hadMachine && !_isConnectingMachine()) {
         _log.fine('Machine disconnected');
+        _onMachineDisconnected?.call();
         _statusPublisher.publish(
           _statusPublisher.current.copyWith(phase: ConnectionPhase.idle),
         );
@@ -108,12 +122,20 @@ class DisconnectSupervisor {
           _latestScaleState == device.ConnectionState.connected;
       _latestScaleState = state;
       _log.fine('scale connection update: ${state.name}');
+      if (!wasConnected && state == device.ConnectionState.connected) {
+        _onScaleConnected?.call();
+      }
       if (wasConnected &&
           state == device.ConnectionState.disconnected &&
           !_isConnectingScale()) {
         final id = _scaleLastConnectedId() ?? _preferredScaleId();
         if (id != null) {
-          _handleScaleDisconnect(id);
+          final unexpected = _handleScaleDisconnect(id);
+          if (unexpected) {
+            _onScaleDisconnected?.call();
+          }
+        } else {
+          _onScaleDisconnected?.call();
         }
       }
     });
@@ -135,10 +157,10 @@ class DisconnectSupervisor {
     ));
   }
 
-  void _handleScaleDisconnect(String deviceId) {
+  bool _handleScaleDisconnect(String deviceId) {
     if (_expectations.consume(deviceId)) {
       _log.fine('Scale $deviceId: expected disconnect, suppressing error');
-      return;
+      return false;
     }
     _statusPublisher.emitError(ConnectionError(
       kind: ConnectionErrorKind.scaleDisconnected,
@@ -150,6 +172,7 @@ class DisconnectSupervisor {
           'The scale may have powered off or moved out of range. '
           'Wake the scale and reconnect.',
     ));
+    return true;
   }
 
   /// Drive the same error-emission path the stream listener would
