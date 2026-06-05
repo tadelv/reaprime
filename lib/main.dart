@@ -381,6 +381,8 @@ void main() async {
     credentialStore: decentCredentialStore,
   );
   final proxyTokenService = ProxyTokenService();
+  // Serve the skin token into :3000 HTML so skins can call the account proxy.
+  webUIService.skinProxyToken = proxyTokenService.skinToken;
 
   BatteryController? batteryController;
   if (Platform.isAndroid || Platform.isIOS) {
