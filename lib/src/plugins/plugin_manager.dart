@@ -373,7 +373,13 @@ class PluginManager {
       js.evaluate('''
       delete globalThis.__plugins__["$id"];
     ''');
-      _log.severe("Failed to load plugin $id", e, st);
+      // WARNING, not SEVERE: a plugin failing to load is almost always a
+      // user-installed third-party plugin with a bad manifest id or a JS
+      // syntax error, not an app defect. The caller (e.g. PluginsSettingsView)
+      // surfaces the failure to the user. Keeping this at SEVERE escalated
+      // every broken user plugin into Crashlytics crash signal (issue
+      // e396ab1d — a catch-all cluster of unrelated plugin-load failures).
+      _log.warning("Failed to load plugin $id", e, st);
       rethrow;
     }
   }
