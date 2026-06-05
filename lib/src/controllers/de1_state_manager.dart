@@ -9,6 +9,7 @@ import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/shot_sequencer.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
+import 'package:reaprime/src/models/data/shot_annotations.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/device/machine.dart';
@@ -614,12 +615,20 @@ class De1StateManager with WidgetsBindingObserver {
     if (beverageType != BeverageType.cleaning &&
         beverageType != BeverageType.calibrate &&
         _currentShotSequencer != null) {
+      final measurements = List<ShotSnapshot>.from(_currentShotSnapshots);
       _persistenceController.persistShot(
         ShotRecord(
           id: Uuid().v4(),
           timestamp: _currentShotSequencer!.shotStartTime,
-          measurements: List.from(_currentShotSnapshots),
+          measurements: measurements,
           workflow: _workflowController.currentWorkflow,
+          // Pre-fill what a fresh shot can know: actual yield from the scale
+          // trace, actual dose defaulted to the planned dose (de1app parity).
+          annotations: ShotAnnotations.deriveForFinishedShot(
+            measurements: measurements,
+            targetDoseWeight:
+                _workflowController.currentWorkflow.context?.targetDoseWeight,
+          ),
         ),
       );
     }
