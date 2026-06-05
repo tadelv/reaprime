@@ -482,6 +482,9 @@ class MockDe1 implements De1Interface {
   }
 
   @override
+  double? get cachedFlowEstimation => _flowEstimation;
+
+  @override
   Future<void> setFlowEstimation(double multiplier) async {
     _flowEstimation = multiplier;
   }

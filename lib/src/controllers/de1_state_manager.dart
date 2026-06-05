@@ -12,6 +12,7 @@ import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_annotations.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
+import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
 import 'package:reaprime/src/realtime_steam_feature/realtime_steam_feature.dart';
@@ -612,26 +613,47 @@ class De1StateManager with WidgetsBindingObserver {
   void _persistShotIfNeeded() {
     final beverageType =
         _workflowController.currentWorkflow.profile.beverageType;
-    if (beverageType != BeverageType.cleaning &&
-        beverageType != BeverageType.calibrate &&
-        _currentShotSequencer != null) {
-      final measurements = List<ShotSnapshot>.from(_currentShotSnapshots);
-      _persistenceController.persistShot(
-        ShotRecord(
-          id: Uuid().v4(),
-          timestamp: _currentShotSequencer!.shotStartTime,
-          measurements: measurements,
-          workflow: _workflowController.currentWorkflow,
-          // Pre-fill what a fresh shot can know: actual yield from the scale
-          // trace, actual dose defaulted to the planned dose (de1app parity).
-          annotations: ShotAnnotations.deriveForFinishedShot(
-            measurements: measurements,
-            targetDoseWeight:
-                _workflowController.currentWorkflow.context?.targetDoseWeight,
-          ),
-        ),
-      );
+    if (beverageType == BeverageType.cleaning ||
+        beverageType == BeverageType.calibrate ||
+        _currentShotSequencer == null) {
+      return;
     }
+
+    final measurements = List<ShotSnapshot>.from(_currentShotSnapshots);
+    final baseWorkflow = _workflowController.currentWorkflow;
+    final startTime = _currentShotSequencer!.shotStartTime;
+
+    // The flow calibration active for this shot, snapshotted onto the workflow's
+    // machine settings (it describes the machine-side of the setup, like the
+    // profile/grind describe the rest). Read from the device cache (warmed on
+    // connect, updated on write) so there's no BLE round-trip on the save path.
+    double? flowCalibration;
+    try {
+      flowCalibration = _de1Controller.connectedDe1().cachedFlowEstimation;
+    } catch (e) {
+      _logger.warning('Could not read flow calibration for shot: $e');
+    }
+    final workflow = flowCalibration != null
+        ? baseWorkflow.copyWith(
+            id: baseWorkflow.id,
+            machine: WorkflowMachine(flowCalibration: flowCalibration),
+          )
+        : baseWorkflow;
+
+    _persistenceController.persistShot(
+      ShotRecord(
+        id: Uuid().v4(),
+        timestamp: startTime,
+        measurements: measurements,
+        workflow: workflow,
+        // Pre-fill what a fresh shot can know: actual yield from the scale
+        // trace and actual dose defaulted to the planned dose (de1app parity).
+        annotations: ShotAnnotations.deriveForFinishedShot(
+          measurements: measurements,
+          targetDoseWeight: baseWorkflow.context?.targetDoseWeight,
+        ),
+      ),
+    );
   }
 
   /// Cleans up the current ShotSequencer and all associated subscriptions.

@@ -113,7 +113,10 @@ class ShotAnnotations {
         ? targetDoseWeight
         : null;
     if (yield_ == null && dose == null) return null;
-    return ShotAnnotations(actualDoseWeight: dose, actualYield: yield_);
+    return ShotAnnotations(
+      actualDoseWeight: dose,
+      actualYield: yield_,
+    );
   }
 
   /// The final beverage weight: the last positive scale reading recorded

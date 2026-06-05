@@ -274,4 +274,66 @@ void main() {
       expect(workflow.context!.coffeeName, isNull);
     });
   });
+
+  group('Workflow.machine snapshot', () {
+    test('WorkflowMachine round-trips and omits null flowCalibration', () {
+      final m = WorkflowMachine(flowCalibration: 1.05);
+      expect(m.toJson(), {'flowCalibration': 1.05});
+      expect(WorkflowMachine.fromJson(m.toJson()).flowCalibration, 1.05);
+      expect(const WorkflowMachine().toJson().containsKey('flowCalibration'),
+          false);
+    });
+
+    test('Workflow round-trips the machine snapshot', () {
+      final wf = Workflow.fromJson(_workflowJson(machine: {
+        'flowCalibration': 0.92,
+      }));
+      expect(wf.machine?.flowCalibration, 0.92);
+      // Survives a serialize → parse cycle.
+      final reparsed = Workflow.fromJson(wf.toJson());
+      expect(reparsed.machine?.flowCalibration, 0.92);
+    });
+
+    test('Workflow without a machine field stays null and omits it', () {
+      final wf = Workflow.fromJson(_workflowJson());
+      expect(wf.machine, isNull);
+      expect(wf.toJson().containsKey('machine'), false);
+    });
+  });
+}
+
+Map<String, dynamic> _workflowJson({Map<String, dynamic>? machine}) {
+  return {
+    'id': 'wf-machine',
+    'name': 'Machine WF',
+    'description': '',
+    'profile': {
+      'title': 'Test',
+      'author': 'Test',
+      'notes': '',
+      'beverage_type': 'espresso',
+      'steps': [],
+      'tank_temperature': 0.0,
+      'target_weight': 36.0,
+      'target_volume': 0,
+      'target_volume_count_start': 0,
+      'legacy_profile_type': '',
+      'type': 'advanced',
+      'lang': 'en',
+      'hidden': false,
+      'reference_file': '',
+      'changes_since_last_espresso': '',
+      'version': '2',
+    },
+    'context': {'targetDoseWeight': 18.0, 'targetYield': 36.0},
+    'steamSettings': {'targetTemperature': 150, 'duration': 50, 'flow': 0.8},
+    'hotWaterData': {
+      'targetTemperature': 75,
+      'duration': 30,
+      'volume': 50,
+      'flow': 10.0,
+    },
+    'rinseData': {'targetTemperature': 90, 'duration': 10, 'flow': 6.0},
+    'machine': ?machine,
+  };
 }

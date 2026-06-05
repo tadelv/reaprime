@@ -4650,6 +4650,25 @@ components:
           $ref: "#/components/schemas/HotWaterData"
         rinseData:
           $ref: "#/components/schemas/RinseData"
+        machine:
+          $ref: "#/components/schemas/WorkflowMachine"
+          description: |
+            Machine settings active when the shot was pulled — recorded onto the
+            shot, ignored on apply.
+
+    WorkflowMachine:
+      type: object
+      description: >
+        Machine-side settings snapshotted onto a shot (the part of the setup that
+        lives on the machine, not the recipe). Extensible; currently just the
+        flow-estimation calibration.
+      properties:
+        flowCalibration:
+          type: number
+          nullable: true
+          description: >
+            The DE1's flow-estimation calibration (calibration_flow_multiplier)
+            active when the shot was pulled.
 
     SteamSettings:
       type: object

@@ -13,6 +13,11 @@ class Workflow {
   final HotWaterData hotWaterData;
   final RinseData rinseData;
 
+  /// Snapshot of the machine settings active when this shot/steam was pulled —
+  /// the part of "your setup" that lives on the machine, not in the recipe.
+  /// Recorded onto the shot; not part of the apply contract.
+  final WorkflowMachine? machine;
+
   Workflow({
     required this.id,
     required this.name,
@@ -22,6 +27,7 @@ class Workflow {
     required this.steamSettings,
     required this.hotWaterData,
     required this.rinseData,
+    this.machine,
   });
 
   factory Workflow.fromJson(Map<String, dynamic> json) {
@@ -77,6 +83,9 @@ class Workflow {
           json['rinseData'] != null
               ? RinseData.fromJson(json['rinseData'])
               : RinseData.defaults(),
+      machine: json['machine'] != null
+          ? WorkflowMachine.fromJson(json['machine'] as Map<String, dynamic>)
+          : null,
     );
   }
 
@@ -90,10 +99,12 @@ class Workflow {
       'steamSettings': steamSettings.toJson(),
       'hotWaterData': hotWaterData.toJson(),
       'rinseData': rinseData.toJson(),
+      if (machine != null) 'machine': machine!.toJson(),
     };
   }
 
   Workflow copyWith({
+    String? id,
     String? name,
     String? description,
     Profile? profile,
@@ -101,9 +112,12 @@ class Workflow {
     SteamSettings? steamSettings,
     HotWaterData? hotWaterData,
     RinseData? rinseData,
+    WorkflowMachine? machine,
   }) {
     return Workflow(
-      id: Uuid().v4(),
+      // copyWith mints a fresh id by default (applying a workflow makes a new
+      // one); pass `id` to preserve it, e.g. when snapshotting onto a shot.
+      id: id ?? Uuid().v4(),
       name: name ?? this.name,
       description: description ?? this.description,
       profile: profile ?? this.profile,
@@ -111,8 +125,40 @@ class Workflow {
       steamSettings: steamSettings ?? this.steamSettings,
       hotWaterData: hotWaterData ?? this.hotWaterData,
       rinseData: rinseData ?? this.rinseData,
+      machine: machine ?? this.machine,
     );
   }
+}
+
+/// Machine-side settings snapshotted onto a shot/steam record. Starts with the
+/// flow-estimation calibration (`calibration_flow_multiplier`); other machine
+/// settings (e.g. heater phase-2 timeout) can be added here as needed. All
+/// fields optional — `toJson` omits the empty ones.
+class WorkflowMachine {
+  /// The DE1's flow-estimation calibration active when the shot was pulled.
+  /// The recorded flow is already calibrated by this; storing the value lets
+  /// clients show "pulled at 1.05×" and reproduce the scaling.
+  final double? flowCalibration;
+
+  const WorkflowMachine({this.flowCalibration});
+
+  WorkflowMachine copyWith({double? flowCalibration}) =>
+      WorkflowMachine(flowCalibration: flowCalibration ?? this.flowCalibration);
+
+  Map<String, dynamic> toJson() => {
+        if (flowCalibration != null) 'flowCalibration': flowCalibration,
+      };
+
+  factory WorkflowMachine.fromJson(Map<String, dynamic> json) => WorkflowMachine(
+        flowCalibration: parseOptionalDouble(json['flowCalibration']),
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is WorkflowMachine && other.flowCalibration == flowCalibration;
+
+  @override
+  int get hashCode => flowCalibration.hashCode;
 }
 
 class SteamSettings {
