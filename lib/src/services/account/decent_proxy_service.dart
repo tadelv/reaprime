@@ -56,6 +56,10 @@ class DecentProxyService {
   final Logger _log = Logger('DecentProxy');
 
   /// Response headers never relayed to callers (auth/session/transport).
+  ///
+  /// `content-length`/`content-encoding` are dropped because the http client
+  /// already decoded the body into [DecentProxyResponse.body]; relaying the
+  /// upstream values would describe the encoded bytes and corrupt the response.
   static const _strippedResponseHeaders = {
     'set-cookie',
     'www-authenticate',
@@ -64,6 +68,8 @@ class DecentProxyService {
     'transfer-encoding',
     'keep-alive',
     'proxy-authenticate',
+    'content-length',
+    'content-encoding',
   };
 
   DecentProxyService({

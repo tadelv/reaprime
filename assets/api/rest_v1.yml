@@ -3699,6 +3699,46 @@ paths:
                     type: boolean
                     description: True if a Decent account is linked
 
+  /api/v1/account/proxy/{path}:
+    get:
+      summary: Auth-enriching proxy to the Decent backend
+      description: >
+        Forwards a GET to `https://decentespresso.com/{path}` with the linked
+        account's credentials attached server-side as Basic auth, and relays the
+        upstream status code and body verbatim. Clients never see the
+        credentials. Phase 1 is read-only and restricted to the `support/api/`
+        path prefix.
+
+
+        Requires `Authorization: Bearer <token>` scoped `account:proxy` — a skin
+        token (injected into served skin pages) or a user-managed API-client
+        token. Unauthenticated/unknown tokens get 401; known but unscoped get
+        403; a path outside the allowed prefix gets 403; no linked account gets
+        401.
+      tags: [Account]
+      parameters:
+        - name: path
+          in: path
+          required: true
+          description: Decent backend path (e.g. `support/api/sn`)
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Upstream response relayed verbatim (status and body as-is)
+        "401":
+          description: Missing/invalid token, or no Decent account linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Token not scoped for account:proxy, or path not allowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
 components:
   schemas:
     Error:
