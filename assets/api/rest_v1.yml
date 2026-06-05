@@ -3676,6 +3676,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/v1/account/decent:
+    get:
+      summary: Decent account link status
+      description: >
+        Reports whether a Decent Espresso account is currently linked.
+        Linking and unlinking are performed only through the app's native UI,
+        not over the network, so no login/logout routes are exposed here. The
+        linked email is deliberately omitted — it is PII and this endpoint is
+        unauthenticated.
+      tags: [Account]
+      responses:
+        "200":
+          description: Current link status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [loggedIn]
+                properties:
+                  loggedIn:
+                    type: boolean
+                    description: True if a Decent account is linked
+
 components:
   schemas:
     Error:

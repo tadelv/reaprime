@@ -244,6 +244,14 @@ Settings fields include: `gatewayMode`, `themeMode`, `logLevel`, `weightFlowMult
 
 Sync accepts: `target` (URL), `mode` (pull/push/two_way), `onConflict` (skip/overwrite), `sections` (array: profiles, shots, workflow, settings, store, beans, grinders).
 
+### Account
+
+| Method | Path | Description | Handler |
+|--------|------|-------------|---------|
+| GET | `/api/v1/account/decent` | Decent account link status: `{loggedIn}` | `account_handler.dart` |
+
+Linking/unlinking a Decent account is **native-only** — there are no network login/logout routes. The webserver is unauthenticated with `Access-Control-Allow-Origin: *`, so exposing credential operations would let any LAN client or browser origin store attacker credentials or unlink the account. The status response omits the linked email (PII). Clients that need to *use* the account will go through the planned auth-enriching proxy (`/api/v1/account/proxy/...`), which never exposes raw credentials — see `doc/plans/account-proxy-design.md`.
+
 ### Other
 
 | Method | Path | Description | Handler |
