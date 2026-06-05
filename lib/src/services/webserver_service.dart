@@ -62,6 +62,9 @@ import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/plugins/plugin_manager.dart';
 import 'package:reaprime/src/services/feedback_service.dart';
 import 'package:reaprime/src/services/account/decent_account_service.dart';
+import 'package:reaprime/src/services/account/decent_proxy_service.dart';
+import 'package:reaprime/src/services/account/proxy_token_service.dart';
+import 'package:reaprime/src/services/webserver/proxy_auth_middleware.dart';
 import 'package:reaprime/src/controllers/battery_controller.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/display_controller.dart';
@@ -92,6 +95,7 @@ part 'webserver/webview_logs_handler.dart';
 part 'webserver/presence_handler.dart';
 part 'webserver/display_handler.dart';
 part 'webserver/account_handler.dart';
+part 'webserver/account_proxy_handler.dart';
 
 final log = Logger("Webservice");
 
@@ -116,6 +120,8 @@ Future<void> startWebServer(
   GrinderStorageService? grinderStorage,
   required ConnectionManager connectionManager,
   DecentAccountService? decentAccountService,
+  DecentProxyService? decentProxyService,
+  ProxyTokenService? proxyTokenService,
 }) async {
   log.info("starting webserver");
   final de1Handler = De1Handler(
@@ -172,6 +178,10 @@ Future<void> startWebServer(
   final accountHandler = decentAccountService == null
       ? null
       : AccountHandler(accountService: decentAccountService);
+
+  final accountProxyHandler = decentProxyService == null
+      ? null
+      : AccountProxyHandler(proxy: decentProxyService);
 
   final webViewLogsHandler = WebViewLogsHandler(
     webViewLogService: webViewLogService,
@@ -250,6 +260,8 @@ Future<void> startWebServer(
       presenceHandler,
       displayHandler,
       accountHandler,
+      accountProxyHandler,
+      proxyTokenService,
       dataExportHandler,
       dataSyncHandler,
       beansHandler,
@@ -286,6 +298,8 @@ Handler _init(
   PresenceHandler? presenceHandler,
   DisplayHandler? displayHandler,
   AccountHandler? accountHandler,
+  AccountProxyHandler? accountProxyHandler,
+  ProxyTokenService? proxyTokenService,
   DataExportHandler dataExportHandler,
   DataSyncHandler dataSyncHandler,
   BeansHandler? beansHandler,
@@ -320,6 +334,9 @@ Handler _init(
   if (accountHandler != null) {
     accountHandler.addRoutes(app);
   }
+  if (accountProxyHandler != null) {
+    accountProxyHandler.addRoutes(app);
+  }
   dataExportHandler.addRoutes(app);
   dataSyncHandler.addRoutes(app);
   if (beansHandler != null) {
@@ -352,6 +369,14 @@ Handler _init(
                 'Accept, Accept-Encoding, Authorization, Content-Type, DNT, Origin, User-Agent, If-None-Match',
           },
         ),
+      )
+      .addMiddleware(
+        // Scoped bearer auth — enforced only under /api/v1/account/proxy/*,
+        // the rest of the API keeps its LAN-trust model. No-op when the proxy
+        // is not configured.
+        proxyTokenService == null
+            ? (Handler h) => h
+            : proxyAuthMiddleware(proxyTokenService),
       )
       .addHandler(app.call);
 

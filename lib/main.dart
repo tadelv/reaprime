@@ -44,6 +44,8 @@ import 'package:reaprime/src/services/storage/drift_storage_service.dart';
 import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:reaprime/src/services/account/decent_account_service.dart';
+import 'package:reaprime/src/services/account/decent_proxy_service.dart';
+import 'package:reaprime/src/services/account/proxy_token_service.dart';
 import 'package:reaprime/src/services/account/credential_store_factory.dart';
 import 'package:http/http.dart' as http;
 import 'package:reaprime/src/services/storage/hive_store_service.dart';
@@ -367,10 +369,18 @@ void main() async {
   final WebUIService webUIService = WebUIService();
   final WebUIStorage webUIStorage = WebUIStorage(settingsController);
 
+  final decentCredentialStore = await createCredentialStore();
   final decentAccountService = DecentAccountService(
     httpClient: http.Client(),
-    credentialStore: await createCredentialStore(),
+    credentialStore: decentCredentialStore,
   );
+  // Same credential store as the account service: the proxy reads the
+  // credentials that account login wrote, and never exposes them to callers.
+  final decentProxyService = DecentProxyService(
+    httpClient: http.Client(),
+    credentialStore: decentCredentialStore,
+  );
+  final proxyTokenService = ProxyTokenService();
 
   BatteryController? batteryController;
   if (Platform.isAndroid || Platform.isIOS) {
@@ -410,6 +420,8 @@ void main() async {
       grinderStorage: grinderStorage,
       connectionManager: connectionManager,
       decentAccountService: decentAccountService,
+      decentProxyService: decentProxyService,
+      proxyTokenService: proxyTokenService,
     );
   } catch (e, st) {
     log.severe('failed to start web server', e, st);
