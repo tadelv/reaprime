@@ -150,18 +150,34 @@ function createPlugin(host) {
     }
   }
 
+  function isEspressoUploadFrame(measurement) {
+    const substate = measurement?.machine?.state?.substate;
+    return substate === 'preinfusion' || substate === 'pouring';
+  }
+
+  function visualizerUploadMeasurements(measurements) {
+    const firstEspressoIndex = measurements.findIndex(isEspressoUploadFrame);
+    if (firstEspressoIndex < 0) {
+      throw new Error("Shot has no espresso frames for Visualizer upload.");
+    }
+
+    let lastEspressoIndex = firstEspressoIndex;
+    for (let i = firstEspressoIndex + 1; i < measurements.length; i++) {
+      if (!isEspressoUploadFrame(measurements[i])) break;
+      lastEspressoIndex = i;
+    }
+
+    return measurements.slice(firstEspressoIndex, lastEspressoIndex + 1);
+  }
+
   function convertReaToVisualizerFormat(reaShot) {
     if (!reaShot || !reaShot.measurements || reaShot.measurements.length === 0) {
       throw new Error("Invalid or empty Decent shot data for conversion.");
     }
 
-    const firstEspressoIndex = reaShot.measurements.findIndex((element) => {
-      return element.machine.state.substate == 'preinfusion' ||
-        element.machine.state.substate == 'pouring';
-    });
-
-    const firstTimestamp = new Date(reaShot.measurements[firstEspressoIndex].machine.timestamp).getTime();
-    const lastMeasurement = reaShot.measurements[reaShot.measurements.length - 1];
+    const uploadMeasurements = visualizerUploadMeasurements(reaShot.measurements);
+    const firstTimestamp = new Date(uploadMeasurements[0].machine.timestamp).getTime();
+    const lastMeasurement = uploadMeasurements[uploadMeasurements.length - 1];
     const lastTimestamp = new Date(lastMeasurement.machine.timestamp).getTime();
     const annotations = reaShot.annotations || {};
     const context = reaShot.workflow?.context || {};
@@ -197,8 +213,8 @@ function createPlugin(host) {
       },
     };
 
-    for (let i = firstEspressoIndex; i < reaShot.measurements.length; i++) {
-      const m = reaShot.measurements[i];
+    for (let i = 0; i < uploadMeasurements.length; i++) {
+      const m = uploadMeasurements[i];
       const machine = m.machine;
       const scale = m.scale;
 
@@ -217,7 +233,7 @@ function createPlugin(host) {
       visualizerShot.state_change.push(machine.state.substate);
 
       if (i > 0) {
-        const prevMachine = reaShot.measurements[i - 1].machine;
+        const prevMachine = uploadMeasurements[i - 1].machine;
         const timeDelta = elapsed - visualizerShot.elapsed[i - 1];
         totalWaterDispensed += prevMachine.flow * timeDelta;
       }
