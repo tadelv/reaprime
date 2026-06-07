@@ -11,11 +11,14 @@ function createPlugin(host) {
   "use strict";
 
   const SHOT_FETCH_DELAY_MS = 5000;
+  const NS = "visualizer.reaplugin";
+  const LOCAL_API_URL = "http://localhost:8080/api/v1";
   const VISUALIZER_API_URL = "https://visualizer.coffee/api";
   const VISUALIZER_SHARED_API = "https://visualizer.coffee/api/shots/shared?code=";
   const VISUALIZER_PROFILE_API = "https://visualizer.coffee/api/shots/%1/profile?format=json";
 
   let shotFetchTimeoutId = null;
+  let backSyncTimeoutId = null;
   let isUploading = false;
 
   const state = {
@@ -27,6 +30,14 @@ function createPlugin(host) {
     autoUpload: true,
     lengthThreshold: 5,
     lastMachineState: null,
+    // Back-sync: pull metadata edited on Visualizer back onto local shots.
+    backSyncEnabled: false,
+    backSyncIntervalSeconds: 300,
+    backSyncCursor: 0, // newest remote updated_at we've processed
+    shotMap: {}, // visualizerId -> localShotId, for our own uploads only
+    backSyncState: {}, // visualizerId -> { remoteUpdatedAt }
+    backSyncRunning: false,
+    backSyncStatus: { lastCheck: null, lastResult: null, lastError: null, lastApplied: 0 },
   };
 
   function log(msg) {
@@ -262,6 +273,10 @@ function createPlugin(host) {
         data: result.id
       });
 
+      // Record the local↔visualizer mapping so back-sync can later find this
+      // shot, and only ever touches shots we uploaded ourselves.
+      await rememberUpload(fullShot.id, result.id);
+
       log(`Uploaded ${fullShot.id} → ${result.id}`);
 
       host.emit("shotUploaded", {
@@ -287,6 +302,13 @@ function createPlugin(host) {
     } else if (payload.key === "lastVisualizerId") {
       state.lastVisualizerId = payload.value;
       log(`Loaded lastVisualizerId from storage: ${payload.value}`);
+    } else if (payload.key === "shotMap") {
+      state.shotMap = safeParseObject(payload.value) || {};
+      log(`Loaded shot map (${Object.keys(state.shotMap).length} entries)`);
+    } else if (payload.key === "backSyncCursor") {
+      state.backSyncCursor = Number(payload.value) || 0;
+    } else if (payload.key === "backSyncState") {
+      state.backSyncState = safeParseObject(payload.value) || {};
     }
   }
 
@@ -415,6 +437,321 @@ function createPlugin(host) {
     };
   }
 
+  // ---- Back-sync: pull metadata edited on Visualizer back onto local shots ----
+
+  function safeParseObject(value) {
+    if (value == null) return null;
+    if (typeof value === "object") return value;
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function persistBackSyncState() {
+    host.storage({ type: "write", key: "shotMap", namespace: NS, data: JSON.stringify(state.shotMap) });
+    host.storage({ type: "write", key: "backSyncCursor", namespace: NS, data: String(state.backSyncCursor) });
+    host.storage({ type: "write", key: "backSyncState", namespace: NS, data: JSON.stringify(state.backSyncState) });
+  }
+
+  function localShotVisualizerId(shot) {
+    const extras = shot?.annotations?.extras || {};
+    if (extras.visualizerId != null) return String(extras.visualizerId);
+    if (extras.visualizer?.shot_id != null) return String(extras.visualizer.shot_id);
+    return null;
+  }
+
+  async function refreshLocalShotMap() {
+    let offset = 0;
+    const limit = 100;
+    let total = null;
+    let added = 0;
+
+    do {
+      const res = await fetch(`${LOCAL_API_URL}/shots?limit=${limit}&offset=${offset}&order=desc`);
+      if (!res.ok) throw new Error(`Local shots lookup failed: HTTP ${res.status}`);
+      const page = await res.json();
+      const items = Array.isArray(page) ? page : (page.items || []);
+      if (total == null) total = Number(page.total) || items.length;
+
+      for (const shot of items) {
+        const visualizerId = localShotVisualizerId(shot);
+        if (!visualizerId || !shot.id) continue;
+        if (state.shotMap[visualizerId] !== shot.id) {
+          state.shotMap[visualizerId] = shot.id;
+          added++;
+        }
+      }
+
+      offset += items.length;
+      if (items.length === 0) break;
+    } while (offset < total);
+
+    if (added > 0) {
+      persistBackSyncState();
+      log(`Back-sync: discovered ${added} local Visualizer mapping(s)`);
+    }
+    return { total: Object.keys(state.shotMap).length, added };
+  }
+
+  // Remember a successful upload: map visualizerId → localShotId, and stamp the
+  // visualizer id onto the local shot so it's durable and visible to clients.
+  async function rememberUpload(localId, visualizerId) {
+    if (!localId || visualizerId == null) return;
+    state.shotMap[String(visualizerId)] = localId;
+    persistBackSyncState();
+    try {
+      await fetch(`${LOCAL_API_URL}/shots/${localId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ annotations: { extras: { visualizerId: String(visualizerId) } } }),
+      });
+    } catch (e) {
+      log(`Could not stamp visualizerId on ${localId}: ${e.message}`);
+    }
+  }
+
+  async function visualizerGet(path) {
+    const res = await fetch(`${VISUALIZER_API_URL}${path}`, {
+      method: "GET",
+      headers: { "Authorization": getAuthHeader(), "Content-Type": "application/json" },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    return await res.json();
+  }
+
+  // /api/me returns 401 on bad creds, 200 when valid. Gate back-sync on it so we
+  // never hit /api/shots unauthenticated (which would return the public feed).
+  async function verifyCredentials() {
+    try {
+      const res = await fetch(`${VISUALIZER_API_URL}/me`, {
+        method: "GET",
+        headers: { "Authorization": getAuthHeader() },
+      });
+      if (!res.ok) return null;
+      try { return await res.json(); } catch (e) { return {}; }
+    } catch (e) {
+      log(`Back-sync: /me check failed: ${e.message}`);
+      return null;
+    }
+  }
+
+  // The shot index echoes the authenticated user's id at the top level. If it's
+  // present and isn't us, we are not looking at our own shots — bail rather than
+  // risk writing someone else's edits onto local shots. (Absent => older server
+  // without the field; the own-uploads map downstream is the real backstop, so
+  // don't hard-fail on absence.)
+  function assertOwnShotIndex(resp, myUserId) {
+    if (!resp || Array.isArray(resp)) return;
+    if (resp.user_id != null && myUserId != null && String(resp.user_id) !== String(myUserId)) {
+      throw new Error("shot index user_id mismatch");
+    }
+  }
+
+  // Authenticated → server returns only Current.user.shots, and `updated_after`
+  // (Unix seconds) makes it return only shots changed since our cursor. So we
+  // just page newest-first until a short page; no client-side cursor comparison.
+  // Older servers ignore the unknown param and return everything, but the
+  // per-shot sync state below still prevents re-applying unchanged shots.
+  async function listChangedShots(cursor, myUserId) {
+    const items = [];
+    const maxPages = 20;
+    const after = cursor > 0 ? `&updated_after=${cursor}` : "";
+    for (let page = 1; page <= maxPages; page++) {
+      const resp = await visualizerGet(`/shots?sort=updated_at&items=50&page=${page}${after}`);
+      assertOwnShotIndex(resp, myUserId);
+      const data = Array.isArray(resp) ? resp : (resp && resp.data) || [];
+      if (data.length === 0) break;
+      for (const shot of data) {
+        items.push({ id: String(shot.id), updatedAt: Number(shot.updated_at) || 0 });
+      }
+      if (data.length < 50) break;
+    }
+    return items;
+  }
+
+  // Newest remote updated_at, for the first-run baseline — one item, so enabling
+  // back-sync records a starting point without paging the whole library.
+  async function newestRemoteUpdatedAt(myUserId) {
+    const resp = await visualizerGet(`/shots?sort=updated_at&items=1`);
+    assertOwnShotIndex(resp, myUserId);
+    const data = Array.isArray(resp) ? resp : (resp && resp.data) || [];
+    return data.reduce((max, shot) => Math.max(max, Number(shot.updated_at) || 0), 0);
+  }
+
+  // Build a partial reaprime shot update from a visualizer shot detail. PUT
+  // /api/v1/shots/<id> deep-merges it, so only the changed fields are sent.
+  function mapRemoteToLocal(remote) {
+    const annotations = {};
+    const context = {};
+    const extras = {};
+    const has = (key) => Object.prototype.hasOwnProperty.call(remote || {}, key);
+    const numberField = (key) => {
+      const value = has(key) ? remote[key] : null;
+      if (value == null || value === "") return null;
+      const number = Number(value);
+      return Number.isFinite(number) ? number : undefined;
+    };
+    const stringField = (key) => {
+      const value = has(key) ? remote[key] : null;
+      if (value == null) return null;
+      if (typeof value !== "string") return undefined;
+      return value.trim() === "" ? null : value;
+    };
+    const set = (obj, key, value) => {
+      if (value !== undefined) obj[key] = value;
+    };
+
+    set(annotations, "drinkTds", numberField("drink_tds"));
+    set(annotations, "drinkEy", numberField("drink_ey"));
+    set(annotations, "enjoyment", numberField("espresso_enjoyment"));
+    set(annotations, "espressoNotes", stringField("espresso_notes"));
+    set(annotations, "actualDoseWeight", numberField("bean_weight"));
+    set(annotations, "actualYield", numberField("drink_weight"));
+    set(context, "coffeeRoaster", stringField("bean_brand"));
+    set(context, "coffeeName", stringField("bean_type"));
+    set(context, "grinderModel", stringField("grinder_model"));
+    set(context, "grinderSetting", stringField("grinder_setting"));
+
+    for (const key of ["roast_level", "roast_date", "bean_notes", "private_notes",
+      "tags", "fragrance", "aroma", "flavor", "aftertaste", "acidity",
+      "bitterness", "sweetness", "mouthfeel"]) {
+      set(extras, key, has(key) ? (remote[key] == null || remote[key] === "" ? null : remote[key]) : null);
+    }
+
+    const update = {};
+    if (Object.keys(annotations).length || Object.keys(extras).length) {
+      update.annotations = annotations;
+      if (Object.keys(extras).length) update.annotations.extras = { visualizer: extras };
+    }
+    if (Object.keys(context).length) update.workflow = { context };
+    return update;
+  }
+
+  async function runBackSync(opts) {
+    opts = opts || {};
+    if (state.backSyncRunning) return { skipped: "already running" };
+    if (!state.backSyncEnabled && !opts.force) return { skipped: "disabled" };
+    if (!state.username || !state.password) return { skipped: "no credentials" };
+
+    state.backSyncRunning = true;
+    state.backSyncStatus.lastCheck = Date.now();
+    let applied = 0;
+    try {
+      // 1) Never query shots unless we're a verified, authenticated user.
+      const me = await verifyCredentials();
+      if (me == null) {
+        state.backSyncStatus.lastError = "invalid credentials";
+        log("Back-sync: credentials not valid — not querying shots");
+        return { error: "invalid credentials" };
+      }
+      const myUserId = me.id != null ? me.id : (me.user_id != null ? me.user_id : (me.user && me.user.id));
+
+      const localMap = await refreshLocalShotMap();
+      const forceAll = opts.force === true;
+
+      // 2) First run: set a baseline and apply nothing, so enabling back-sync
+      // doesn't rewrite the entire history. Record the newest remote updated_at
+      // (one item) rather than paging the whole library.
+      if (!forceAll && state.backSyncCursor === 0) {
+        state.backSyncCursor = await newestRemoteUpdatedAt(myUserId);
+        persistBackSyncState();
+        state.backSyncStatus.lastResult = "baseline set";
+        state.backSyncStatus.lastError = null;
+        log(`Back-sync baseline set at ${state.backSyncCursor}`);
+        return { baseline: true };
+      }
+
+      const items = forceAll
+        ? Object.keys(state.shotMap).map((id) => ({ id, updatedAt: 0, force: true }))
+        : await listChangedShots(state.backSyncCursor, myUserId);
+
+      // Process oldest-first so the cursor advances monotonically.
+      const ordered = items.slice().sort((a, b) => a.updatedAt - b.updatedAt);
+      let maxProcessed = state.backSyncCursor;
+      let cursorBlocked = false;
+      for (const item of ordered) {
+        // 3) Only ever touch shots we uploaded ourselves.
+        const localId = state.shotMap[item.id];
+        if (!localId) {
+          if (!cursorBlocked) maxProcessed = Math.max(maxProcessed, item.updatedAt);
+          continue;
+        }
+
+        const prev = state.backSyncState[item.id];
+        if (!item.force && prev && Number(prev.remoteUpdatedAt) >= item.updatedAt) {
+          if (!cursorBlocked) maxProcessed = Math.max(maxProcessed, item.updatedAt);
+          continue;
+        }
+
+        let detail;
+        try {
+          detail = await visualizerGet(`/shots/${item.id}?essentials=1`);
+        } catch (e) {
+          log(`Back-sync: failed to fetch ${item.id}: ${e.message}`);
+          cursorBlocked = true;
+          continue;
+        }
+        const itemUpdatedAt = Number(detail?.updated_at) || item.updatedAt || 0;
+
+        const update = mapRemoteToLocal(detail);
+        let processed = Object.keys(update).length === 0;
+        if (Object.keys(update).length > 0) {
+          const res = await fetch(`${LOCAL_API_URL}/shots/${localId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(update),
+          });
+          if (res.ok) {
+            applied++;
+            processed = true;
+            host.emit("shotBackSynced", { shotId: localId, visualizerId: item.id, timestamp: Date.now() });
+          } else {
+            log(`Back-sync: PUT ${localId} failed ${res.status}`);
+          }
+        }
+
+        if (processed) {
+          state.backSyncState[item.id] = { remoteUpdatedAt: itemUpdatedAt };
+          if (!cursorBlocked) maxProcessed = Math.max(maxProcessed, itemUpdatedAt);
+        } else {
+          cursorBlocked = true;
+        }
+      }
+
+      state.backSyncCursor = maxProcessed;
+      persistBackSyncState();
+      state.backSyncStatus.lastResult = `applied ${applied}${forceAll ? ` (checked ${items.length}, mapped ${localMap.total})` : ''}`;
+      state.backSyncStatus.lastApplied = applied;
+      state.backSyncStatus.lastError = null;
+      log(`Back-sync applied ${applied} change(s)`);
+      return { applied };
+    } catch (e) {
+      state.backSyncStatus.lastError = e.message;
+      log(`Back-sync error: ${e.message}`);
+      return { error: e.message };
+    } finally {
+      state.backSyncRunning = false;
+    }
+  }
+
+  // Arm a single back-sync run after delayMs, then re-arm at the configured
+  // interval. A no-op (and cancels any pending run) when back-sync is disabled.
+  function armBackSync(delayMs) {
+    if (backSyncTimeoutId !== null) {
+      clearTimeout(backSyncTimeoutId);
+      backSyncTimeoutId = null;
+    }
+    if (!state.backSyncEnabled) return;
+    backSyncTimeoutId = setTimeout(async () => {
+      backSyncTimeoutId = null;
+      try { await runBackSync(); } catch (e) { log(`Back-sync tick error: ${e.message}`); }
+      armBackSync(Math.max(60, Number(state.backSyncIntervalSeconds) || 300) * 1000);
+    }, delayMs);
+  }
+
   // Return the plugin object
   return {
     id: "visualizer.reaplugin",
@@ -425,21 +762,20 @@ function createPlugin(host) {
       state.password = settings.Password;
       state.autoUpload = settings.AutoUpload != undefined ? settings.AutoUpload : true;
       state.lengthThreshold = settings.LengthThreshold != undefined ? settings.LengthThreshold : 5;
+      state.backSyncEnabled = settings.BackSync === true;
+      state.backSyncIntervalSeconds = settings.BackSyncIntervalSeconds != undefined ? settings.BackSyncIntervalSeconds : 300;
 
-      log(`Loaded with username: ${state.username ? 'configured' : 'not configured'}`);
+      log(`Loaded with username: ${state.username ? 'configured' : 'not configured'}, back-sync ${state.backSyncEnabled ? 'on' : 'off'}`);
 
       // Load saved state from storage
-      host.storage({
-        type: "read",
-        key: "lastUploadedShot",
-        namespace: "visualizer.reaplugin"
-      });
+      host.storage({ type: "read", key: "lastUploadedShot", namespace: NS });
+      host.storage({ type: "read", key: "lastVisualizerId", namespace: NS });
+      host.storage({ type: "read", key: "shotMap", namespace: NS });
+      host.storage({ type: "read", key: "backSyncCursor", namespace: NS });
+      host.storage({ type: "read", key: "backSyncState", namespace: NS });
 
-      host.storage({
-        type: "read",
-        key: "lastVisualizerId",
-        namespace: "visualizer.reaplugin"
-      });
+      // First run ~30s after load so storage reads have settled.
+      if (state.backSyncEnabled) armBackSync(30000);
     },
 
     onUnload() {
@@ -448,6 +784,11 @@ function createPlugin(host) {
         clearTimeout(shotFetchTimeoutId);
         shotFetchTimeoutId = null;
       }
+      if (backSyncTimeoutId !== null) {
+        clearTimeout(backSyncTimeoutId);
+        backSyncTimeoutId = null;
+      }
+      persistBackSyncState();
 
       // Save current state to storage
       if (state.lastUploadedShot) {
@@ -507,6 +848,7 @@ function createPlugin(host) {
           }).then((json) => {
             return uploadShot(convertReaToVisualizerFormat(json), null);
           }).then((shotResponse) => {
+            rememberUpload(shotId, shotResponse.id);
             return {
               status: 200,
               headers: { 'Content-Type': 'application/json' },
@@ -599,6 +941,31 @@ function createPlugin(host) {
           });
       }
 
+      if (request.endpoint === 'backSyncStatus') {
+        return {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            enabled: state.backSyncEnabled,
+            intervalSeconds: state.backSyncIntervalSeconds,
+            cursor: state.backSyncCursor,
+            mappedShots: Object.keys(state.shotMap).length,
+            lastCheck: state.backSyncStatus.lastCheck,
+            lastResult: state.backSyncStatus.lastResult,
+            lastError: state.backSyncStatus.lastError,
+            lastApplied: state.backSyncStatus.lastApplied,
+          })
+        };
+      }
+
+      if (request.endpoint === 'backSyncNow') {
+        return runBackSync({ force: true }).then((result) => ({
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ok: true, result })
+        }));
+      }
+
       // Default 404 response
       return {
         status: 404,
@@ -655,6 +1022,17 @@ function createPlugin(host) {
           }
           if (event.payload?.LengthThreshold !== undefined) {
             state.lengthThreshold = event.payload.LengthThreshold;
+          }
+          if (event.payload?.BackSyncIntervalSeconds !== undefined) {
+            state.backSyncIntervalSeconds = event.payload.BackSyncIntervalSeconds;
+            if (state.backSyncEnabled) armBackSync(2000);
+          }
+          if (event.payload?.BackSync !== undefined) {
+            state.backSyncEnabled = event.payload.BackSync === true;
+            log(`BackSync updated: ${state.backSyncEnabled}`);
+            // armBackSync cancels the pending run when disabled, or kicks one
+            // off shortly after enabling.
+            armBackSync(2000);
           }
           break;
       }
