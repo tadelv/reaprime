@@ -38,6 +38,7 @@ void main() {
       expect(body['buildNumber'], BuildInfo.buildNumber);
       expect(body['appStore'], BuildInfo.appStore);
       expect(body['fullVersion'], BuildInfo.fullVersion);
+      expect(body['localIp'], isA<String>());
 
       // Verify no unexpected keys
       final expectedKeys = {
@@ -49,6 +50,7 @@ void main() {
         'buildNumber',
         'appStore',
         'fullVersion',
+        'localIp',
       };
       expect((body as Map).keys.toSet(), expectedKeys);
     });

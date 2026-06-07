@@ -248,7 +248,7 @@ Sync accepts: `target` (URL), `mode` (pull/push/two_way), `onConflict` (skip/ove
 
 | Method | Path | Description | Handler |
 |--------|------|-------------|---------|
-| GET | `/api/v1/info` | Build metadata (version, commit, branch) | `info_handler.dart` |
+| GET | `/api/v1/info` | Build metadata (version, commit, branch) + gateway LAN IP (`localIp`) | `info_handler.dart` |
 | POST | `/api/v1/feedback` | Submit feedback (creates GitHub issue) | `feedback_handler.dart` |
 | GET | `/api/v1/logs` | Recent log entries | `logs_handler.dart` |
 | GET | `/api/v1/webview-logs` | WebView console log forwarding | `webview_logs_handler.dart` |
