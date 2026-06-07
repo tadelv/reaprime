@@ -2,8 +2,8 @@
   "id": "visualizer.reaplugin",
   "author": "Decent Espresso",
   "name": "Visualizer upload",
-  "description": "Uploads the latest shot to Visualizer",
-  "version": "1.2.1",
+  "description": "Uploads shots to Visualizer and syncs your edited shot metadata back",
+  "version": "1.3.4",
   "apiVersion": 1,
   "permissions": [
     "log",
@@ -30,6 +30,16 @@
       "type": "number",
       "description": "Only upload shots that are longer than the threshold (in seconds)",
       "default": 5
+    },
+    "BackSync": {
+      "type": "boolean",
+      "description": "Sync metadata you edit on Visualizer (notes, TDS, EY, enjoyment, bean/grinder) back onto your local shots. Only your own uploaded shots are touched.",
+      "default": false
+    },
+    "BackSyncIntervalSeconds": {
+      "type": "number",
+      "description": "How often to check Visualizer for back-sync changes (in seconds, minimum 60)",
+      "default": 300
     }
   },
   "api": [
@@ -82,6 +92,20 @@
           "type": "string",
           "description": "4-digit share code from visualizer.coffee"
         }
+      }
+    },
+    {
+      "id": "backSyncNow",
+      "type": "http",
+      "data": {
+        "description": "POST to run a Visualizer back-sync immediately"
+      }
+    },
+    {
+      "id": "backSyncStatus",
+      "type": "http",
+      "data": {
+        "description": "Last back-sync result, applied count, cursor and any error"
       }
     }
   ]
