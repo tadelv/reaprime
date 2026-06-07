@@ -3581,6 +3581,9 @@ paths:
                     type: boolean
                   fullVersion:
                     type: string
+                  localIp:
+                    type: string
+                    description: Gateway Wi-Fi/LAN IP (empty if unavailable), for building phone hand-off URLs.
                 required:
                   - commit
                   - commitShort
@@ -3590,6 +3593,7 @@ paths:
                   - buildNumber
                   - appStore
                   - fullVersion
+                  - localIp
   /api/v1/debug/scale/{command}:
     post:
       summary: Control mock scale (simulate mode only)

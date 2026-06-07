@@ -1,4 +1,5 @@
 import 'package:logging/logging.dart';
+import 'package:network_info_plus/network_info_plus.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/services/webserver/json_response.dart';
 import 'package:shelf_plus/shelf_plus.dart';
@@ -21,7 +22,20 @@ class InfoHandler {
       'buildNumber': BuildInfo.buildNumber,
       'appStore': BuildInfo.appStore,
       'fullVersion': BuildInfo.fullVersion,
+      'localIp': await _localIp(),
     };
     return jsonOk(info);
+  }
+
+  /// The gateway's Wi-Fi/LAN IP, for WebUI skins building phone hand-off URLs
+  /// (a skin webview runs on localhost and can't discover the LAN IP itself).
+  /// Empty string when unavailable (e.g. on Ethernet, or in tests).
+  Future<String> _localIp() async {
+    try {
+      return await NetworkInfo().getWifiIP() ?? '';
+    } catch (e, st) {
+      _log.fine('Could not read local IP', e, st);
+      return '';
+    }
   }
 }
