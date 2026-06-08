@@ -16,8 +16,6 @@ abstract class SettingsService {
   Future<void> updateGatewayMode(GatewayMode mode);
   Future<String> logLevel();
   Future<void> updateLogLevel(String newLogLevel);
-  Future<bool> recordShotPreheat();
-  Future<void> setRecordShotPreheat(bool value);
   Future<Set<SimulatedDevicesTypes>> simulateDevices();
   Future<void> setSimulatedDevices(Set<SimulatedDevicesTypes> value);
   Future<double> weightFlowMultiplier();
@@ -107,16 +105,6 @@ class SharedPreferencesSettingsService extends SettingsService {
   @override
   Future<void> updateLogLevel(String newLogLevel) async {
     await prefs.setString(SettingsKeys.logLevel.name, newLogLevel);
-  }
-
-  @override
-  Future<bool> recordShotPreheat() async {
-    return await prefs.getBool(SettingsKeys.recordShotPreheat.name) ?? false;
-  }
-
-  @override
-  Future<void> setRecordShotPreheat(bool value) async {
-    return await prefs.setBool(SettingsKeys.recordShotPreheat.name, value);
   }
 
   @override
@@ -416,7 +404,6 @@ enum SettingsKeys {
   themeMode,
   gatewayMode,
   logLevel,
-  recordShotPreheat,
   simulateDevices,
   weightFlowMultiplier,
   volumeFlowMultiplier,
