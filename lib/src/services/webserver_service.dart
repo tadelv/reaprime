@@ -148,6 +148,7 @@ Future<void> startWebServer(
   );
   final ShotsHandler shotsHandler = ShotsHandler(
     controller: persistenceController,
+    beanStorage: beanStorage,
     pluginManager: pluginService.pluginManager,
   );
   final SteamsHandler steamsHandler = SteamsHandler(

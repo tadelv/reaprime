@@ -21,6 +21,7 @@ void main() {
     DateTime? timestamp,
     String profileTitle = 'Test Profile',
     String? grinderModel,
+    String? beanBatchId,
     String? coffeeName,
     String? coffeeRoaster,
     double? enjoyment,
@@ -31,6 +32,7 @@ void main() {
       timestamp: Value(timestamp ?? DateTime.parse('2024-01-15T10:30:00Z')),
       profileTitle: Value(profileTitle),
       grinderModel: Value(grinderModel),
+      beanBatchId: Value(beanBatchId),
       coffeeName: Value(coffeeName),
       coffeeRoaster: Value(coffeeRoaster),
       enjoyment: Value(enjoyment),
@@ -176,6 +178,45 @@ void main() {
           .getShotsPaginated(coffeeRoaster: 'Sey');
       expect(filtered, hasLength(1));
       expect(filtered.first.id, 's1');
+    });
+
+    test('filters by multiple beanBatchIds', () async {
+      await db.shotDao.insertShot(makeShot(
+        id: 's1',
+        beanBatchId: 'batch-a',
+        timestamp: DateTime.parse('2024-01-01T10:00:00Z'),
+      ));
+      await db.shotDao.insertShot(makeShot(
+        id: 's2',
+        beanBatchId: 'batch-b',
+        timestamp: DateTime.parse('2024-01-02T10:00:00Z'),
+      ));
+      await db.shotDao.insertShot(makeShot(
+        id: 's3',
+        beanBatchId: 'batch-c',
+        timestamp: DateTime.parse('2024-01-03T10:00:00Z'),
+      ));
+      await db.shotDao.insertShot(makeShot(id: 's4'));
+
+      final filtered = await db.shotDao.getShotsPaginated(
+        beanBatchIds: ['batch-a', 'batch-b'],
+      );
+      expect(filtered.map((shot) => shot.id), ['s2', 's1']);
+
+      final total = await db.shotDao.countShots(
+        beanBatchIds: ['batch-a', 'batch-b'],
+      );
+      expect(total, 2);
+    });
+
+    test('empty beanBatchIds match no shots', () async {
+      await db.shotDao.insertShot(makeShot(id: 's1', beanBatchId: 'batch-a'));
+
+      final filtered = await db.shotDao.getShotsPaginated(beanBatchIds: []);
+      expect(filtered, isEmpty);
+
+      final total = await db.shotDao.countShots(beanBatchIds: []);
+      expect(total, 0);
     });
 
     test('filters by profileTitle', () async {

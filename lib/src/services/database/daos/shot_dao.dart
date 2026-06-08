@@ -36,6 +36,7 @@ class ShotDao extends DatabaseAccessor<AppDatabase> with _$ShotDaoMixin {
     String? grinderId,
     String? grinderModel,
     String? beanBatchId,
+    List<String>? beanBatchIds,
     String? coffeeName,
     String? coffeeRoaster,
     String? profileTitle,
@@ -52,6 +53,10 @@ class ShotDao extends DatabaseAccessor<AppDatabase> with _$ShotDaoMixin {
     }
     if (beanBatchId != null) {
       query.where((s) => s.beanBatchId.equals(beanBatchId));
+    }
+    if (beanBatchIds != null) {
+      if (beanBatchIds.isEmpty) return Future.value([]);
+      query.where((s) => s.beanBatchId.isIn(beanBatchIds));
     }
     if (coffeeName != null) {
       query.where((s) => s.coffeeName.equals(coffeeName));
@@ -86,6 +91,7 @@ class ShotDao extends DatabaseAccessor<AppDatabase> with _$ShotDaoMixin {
     String? grinderId,
     String? grinderModel,
     String? beanBatchId,
+    List<String>? beanBatchIds,
     String? coffeeName,
     String? coffeeRoaster,
     String? profileTitle,
@@ -102,6 +108,10 @@ class ShotDao extends DatabaseAccessor<AppDatabase> with _$ShotDaoMixin {
     }
     if (beanBatchId != null) {
       query.where(shotRecords.beanBatchId.equals(beanBatchId));
+    }
+    if (beanBatchIds != null) {
+      if (beanBatchIds.isEmpty) return 0;
+      query.where(shotRecords.beanBatchId.isIn(beanBatchIds));
     }
     if (coffeeName != null) {
       query.where(shotRecords.coffeeName.equals(coffeeName));
