@@ -505,7 +505,7 @@ class _DesktopSerialPort implements SerialTransport {
   @override
   String get id {
     // USB descriptor getters can throw on Linux when sysfs attrs are missing
-    // (some drivers / permission issues). Fall back to port address.
+    // (some drivers / permission issues).
     int? vid;
     int? pid;
     String? serial;
@@ -513,7 +513,17 @@ class _DesktopSerialPort implements SerialTransport {
     try { pid = _port.productId; } catch (_) {}
     try { serial = _port.serialNumber; } catch (_) {}
     final stable = computeUsbStableId(vid: vid, pid: pid, serial: serial);
-    return stable ?? "${_port.address}";
+    if (stable != null) return stable;
+    // No real USB stable id (e.g. macOS reports null vid/pid for the CH34x
+    // serial chip via libserialport's DriverKit path). Fall back to the port
+    // PATH, not `_port.address`: the address is a libserialport handle that
+    // changes on every `SerialPort()` construction, so using it churns the
+    // deviceId for one physical device (which breaks identity-keyed features
+    // like preferred-device and remembered-devices). The path
+    // (/dev/cu.wchusbserial110, COMx) is stable per physical port.
+    String? path;
+    try { path = _port.name; } catch (_) {}
+    return path ?? "${_port.address}";
   }
 
   @override
