@@ -593,48 +593,54 @@ function createPlugin(host) {
     return null;
   }
 
-  function localShotToVisualizerUpdate(shot, patch) {
+  // Build a Visualizer update from a local shot. In edit mode (force=false) a
+  // field is pushed ONLY when the incoming patch touched it, so editing one
+  // field (e.g. enjoyment) never re-sends — and clobbers — Visualizer-side
+  // edits to other fields that haven't been back-synced yet. In force mode
+  // (manual full sync) every mapped field is pushed: local-wins.
+  function localShotToVisualizerUpdate(shot, patch, force) {
     const annotations = shot.annotations || {};
     const context = shot.workflow?.context || {};
     const patchAnnotations = patch?.annotations || {};
     const patchContext = patch?.workflow?.context || {};
     const payload = {};
     const has = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
-    const setNumber = (key, value, transform) => {
+    const touched = (source, sourceKey) => force === true || has(source, sourceKey);
+    const setNumber = (key, value, source, sourceKey, transform) => {
+      if (!touched(source, sourceKey)) return;
+      if (has(source, sourceKey) && (value == null || value === "")) {
+        payload[key] = null;
+        return;
+      }
       if (value == null || value === "") return;
       const number = Number(value);
       if (!Number.isFinite(number)) return;
       payload[key] = transform ? transform(number) : String(number);
     };
-    const setMaybeNumber = (key, value, source, sourceKey, transform) => {
+    const setString = (key, value, source, sourceKey) => {
+      if (!touched(source, sourceKey)) return;
       if (has(source, sourceKey) && (value == null || value === "")) {
         payload[key] = null;
         return;
       }
-      setNumber(key, value, transform);
-    };
-    const setString = (key, value) => {
       if (typeof value === "string" && value.trim() !== "") payload[key] = value;
     };
-    const setMaybeString = (key, value, source, sourceKey) => {
-      if (has(source, sourceKey) && (value == null || value === "")) {
-        payload[key] = null;
-        return;
-      }
-      setString(key, value);
-    };
 
-    setMaybeNumber("espresso_enjoyment", annotations.enjoyment, patchAnnotations, "enjoyment", (n) => Math.round(n));
-    setMaybeNumber("drink_tds", annotations.drinkTds, patchAnnotations, "drinkTds");
-    setMaybeNumber("drink_ey", annotations.drinkEy, patchAnnotations, "drinkEy");
-    setMaybeNumber("bean_weight", annotations.actualDoseWeight ?? context.targetDoseWeight, patchAnnotations, "actualDoseWeight");
-    setMaybeNumber("drink_weight", annotations.actualYield ?? context.targetYield, patchAnnotations, "actualYield");
-    setMaybeString("espresso_notes", annotations.espressoNotes, patchAnnotations, "espressoNotes");
-    setString("profile_title", shot.workflow?.profile?.title || shot.workflow?.name);
-    setMaybeString("barista", context.baristaName, patchContext, "baristaName");
-    setMaybeString("grinder_setting", context.grinderSetting, patchContext, "grinderSetting");
-    setMaybeString("bean_brand", context.coffeeRoaster, patchContext, "coffeeRoaster");
-    setMaybeString("bean_type", context.coffeeName, patchContext, "coffeeName");
+    setNumber("espresso_enjoyment", annotations.enjoyment, patchAnnotations, "enjoyment", (n) => Math.round(n));
+    setNumber("drink_tds", annotations.drinkTds, patchAnnotations, "drinkTds");
+    setNumber("drink_ey", annotations.drinkEy, patchAnnotations, "drinkEy");
+    setNumber("bean_weight", annotations.actualDoseWeight ?? context.targetDoseWeight, patchAnnotations, "actualDoseWeight");
+    setNumber("drink_weight", annotations.actualYield ?? context.targetYield, patchAnnotations, "actualYield");
+    setString("espresso_notes", annotations.espressoNotes, patchAnnotations, "espressoNotes");
+    setString("barista", context.baristaName, patchContext, "baristaName");
+    setString("grinder_setting", context.grinderSetting, patchContext, "grinderSetting");
+    setString("bean_brand", context.coffeeRoaster, patchContext, "coffeeRoaster");
+    setString("bean_type", context.coffeeName, patchContext, "coffeeName");
+    // profile_title has no patch key; only send it in a full (force) sync.
+    if (force === true) {
+      const title = shot.workflow?.profile?.title || shot.workflow?.name;
+      if (typeof title === "string" && title.trim() !== "") payload.profile_title = title;
+    }
 
     return payload;
   }
@@ -675,7 +681,7 @@ function createPlugin(host) {
       return { skipped: "no mapping" };
     }
 
-    const update = localShotToVisualizerUpdate(shot, patch || {});
+    const update = localShotToVisualizerUpdate(shot, patch || {}, opts.force === true);
     if (Object.keys(update).length === 0) {
       recordLocalSyncStatus(shot.id, visualizerId, "skipped: empty update", null);
       return { skipped: "empty update" };
@@ -764,6 +770,9 @@ function createPlugin(host) {
         items.push({ id: String(shot.id), updatedAt: Number(shot.updated_at) || 0 });
       }
       if (data.length < 50) break;
+      if (page === maxPages) {
+        log(`Back-sync: hit ${maxPages}-page cap (${items.length} changed shots); remaining advance next tick`);
+      }
     }
     return items;
   }
@@ -845,8 +854,13 @@ function createPlugin(host) {
       }
       const myUserId = me.id != null ? me.id : (me.user_id != null ? me.user_id : (me.user && me.user.id));
 
-      const localMap = await refreshLocalShotMap();
+      // The map is persisted and kept current on upload via rememberUpload, so
+      // routine ticks rely on it; only a forced run re-pages the whole library
+      // (heavy on large libraries) to rediscover mappings stamped out-of-band.
       const forceAll = opts.force === true;
+      const localMap = forceAll
+        ? await refreshLocalShotMap()
+        : { total: Object.keys(state.shotMap).length, added: 0 };
 
       // 2) First run: set a baseline and apply nothing, so enabling back-sync
       // doesn't rewrite the entire history. Record the newest remote updated_at
@@ -945,14 +959,19 @@ function createPlugin(host) {
     backSyncTimeoutId = setTimeout(async () => {
       backSyncTimeoutId = null;
       try { await runBackSync(); } catch (e) { log(`Back-sync tick error: ${e.message}`); }
-      armBackSync(Math.max(60, Number(state.backSyncIntervalSeconds) || 300) * 1000);
+      const configured = Number(state.backSyncIntervalSeconds) || 300;
+      const intervalSeconds = Math.max(60, configured);
+      if (configured < 60) {
+        log(`Back-sync interval ${configured}s is below the 60s minimum, clamped to 60s`);
+      }
+      armBackSync(intervalSeconds * 1000);
     }, delayMs);
   }
 
   // Return the plugin object
   return {
     id: "visualizer.reaplugin",
-    version: "1.2.0",
+    version: "1.3.0",
 
     onLoad(settings) {
       state.username = settings.Username;
@@ -1156,6 +1175,13 @@ function createPlugin(host) {
       }
 
       if (request.endpoint === 'backSyncNow') {
+        if (request.method !== 'POST') {
+          return {
+            status: 405,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ error: 'Method not allowed' })
+          };
+        }
         return runBackSync({ force: true }).then((result) => ({
           status: 200,
           headers: { 'Content-Type': 'application/json' },
@@ -1179,6 +1205,13 @@ function createPlugin(host) {
       }
 
       if (request.endpoint === 'forwardSyncNow') {
+        if (request.method !== 'POST') {
+          return {
+            status: 405,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ error: 'Method not allowed' })
+          };
+        }
         return syncLocalShotNow(request.body?.shotId).then((result) => ({
           status: result && result.error ? 400 : 200,
           headers: { 'Content-Type': 'application/json' },

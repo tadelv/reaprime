@@ -162,6 +162,18 @@ Plugins receive events in the `onEvent` method:
   ```
 
 - **`storageWrite`**: Confirmation of storage write
+- **`shotUpdated`**: A stored shot was edited via `PUT /api/v1/shots/<id>` (e.g. metadata changes — notes, enjoyment, bean/grinder). Broadcast to every plugin so they can react to edits (the Visualizer plugin uses it to forward-sync edited metadata).
+
+  ```javascript
+  {
+    name: "shotUpdated",
+    payload: {
+      id: "shot-12345",       // local shot id
+      shot: { /* full shot without measurements */ },
+      patch: { /* the partial update body that was PUT */ }
+    }
+  }
+  ```
 
 ### Events from Plugin → Flutter
 
