@@ -65,7 +65,7 @@ The user wants devices they've used to persist as **unavailable** entries when o
 
 ## Risks / Trade-offs
 
-- **Unstable deviceId (macOS USB HDS)** → libserialport reports null vid/pid on macOS for the CH34x, so that scale's id is a churny port-address. A remembered USB-HDS may not re-match on reappearance (stale unavailable entry + fresh available entry). Mitigation: documented; BLE/WiFi/DE1 ids are stable so the vast majority of cases are fine; the user can Forget a stale entry. Long-term fixed by the libserialport macOS work (separate).
+- **deviceId stability** → matching is by `deviceId`. This is stable per transport: BLE MAC, WiFi `wifi:<host>`, and serial (real USB stable id, or — where the OS exposes no vid/pid, e.g. macOS CH34x — the port *path*, which is stable per physical port; this is the serial path-as-id fix, not the churny libserialport handle). Residual: moving a USB device to a different physical port yields a new id and a new remembered entry. Minor and arguably correct; the user can Forget the stale one.
 - **Registry growth** → only connected/preferred devices are remembered, and Forget prunes. Bounded in practice (a user has a handful of machines/scales). No auto-expiry (keeps it predictable); revisit if it becomes noisy.
 - **Skin must handle `available`** → an un-updated skin would render an unavailable device as if available. Mitigation: the field is additive; the skin change (grey + Forget) ships alongside. Until then, unavailable devices appear as normal disconnected entries — degraded but not broken.
 - **Connecting to an unavailable entry** → it has no transport. The UI should drive a rescan/reconnect when tapped, not attempt a direct connect. Documented in the API/skin behavior.
