@@ -3,19 +3,23 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/plugins/plugin_manager.dart';
+import 'package:reaprime/src/services/storage/bean_storage_service.dart';
 import 'package:reaprime/src/services/webserver/json_response.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
 class ShotsHandler {
   final PersistenceController _controller;
+  final BeanStorageService? _beanStorage;
   final PluginManager? _pluginManager;
 
   final Logger _log = Logger("ShotsHandler");
 
   ShotsHandler({
     required PersistenceController controller,
+    BeanStorageService? beanStorage,
     PluginManager? pluginManager,
   }) : _controller = controller,
+       _beanStorage = beanStorage,
        _pluginManager = pluginManager;
 
   void addRoutes(RouterPlus app) {
@@ -39,6 +43,7 @@ class ShotsHandler {
     // Filter params
     final grinderId = params['grinderId'];
     final grinderModel = params['grinderModel'];
+    final beanId = params['beanId'];
     final beanBatchId = params['beanBatchId'];
     final coffeeName = params['coffeeName'];
     final coffeeRoaster = params['coffeeRoaster'];
@@ -54,6 +59,7 @@ class ShotsHandler {
     final hasFilters =
         grinderId != null ||
         grinderModel != null ||
+        beanId != null ||
         beanBatchId != null ||
         coffeeName != null ||
         coffeeRoaster != null ||
@@ -87,6 +93,20 @@ class ShotsHandler {
     try {
       final order = params['order'];
       final ascending = order == 'asc';
+      final beanBatchIds = await _beanBatchIdsForBeanFilter(beanId);
+      if (beanId != null && beanBatchIds == null) {
+        return jsonBadRequest({
+          "error": "beanId filtering requires bean storage",
+        });
+      }
+      if (beanBatchIds != null && beanBatchIds.isEmpty) {
+        return jsonOkConditional(req, {
+          'items': <Map<String, dynamic>>[],
+          'total': 0,
+          'limit': limit,
+          'offset': offset,
+        });
+      }
 
       final shots = await _controller.storageService.getShotsPaginated(
         limit: limit.clamp(1, 100),
@@ -94,6 +114,7 @@ class ShotsHandler {
         grinderId: grinderId,
         grinderModel: grinderModel,
         beanBatchId: beanBatchId,
+        beanBatchIds: beanBatchIds,
         coffeeName: coffeeName,
         coffeeRoaster: coffeeRoaster,
         profileTitle: profileTitle,
@@ -105,6 +126,7 @@ class ShotsHandler {
         grinderId: grinderId,
         grinderModel: grinderModel,
         beanBatchId: beanBatchId,
+        beanBatchIds: beanBatchIds,
         coffeeName: coffeeName,
         coffeeRoaster: coffeeRoaster,
         profileTitle: profileTitle,
@@ -124,6 +146,17 @@ class ShotsHandler {
       _log.severe('Error getting paginated shots', e, st);
       return jsonError({"error": e.toString()});
     }
+  }
+
+  Future<List<String>?> _beanBatchIdsForBeanFilter(String? beanId) async {
+    if (beanId == null) return null;
+    final storage = _beanStorage;
+    if (storage == null) return null;
+    final batches = await storage.getBatchesForBean(
+      Uri.decodeComponent(beanId),
+      includeArchived: true,
+    );
+    return batches.map((batch) => batch.id).toList();
   }
 
   Future<Response> _getIds(Request req) async {
