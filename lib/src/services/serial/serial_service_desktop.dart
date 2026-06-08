@@ -39,9 +39,47 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
   // underlying OS port vanishes.
   final Map<String, _DesktopSerialPort> _portPathToTransport = {};
 
+  // Path -> the Device bound to that path. Liveness is checked through this
+  // (the device's own connectionState), NOT through deviceId. On macOS the
+  // CH34x serial chip reports null vid/pid/serial via libserialport, so a
+  // serial device's id falls back to `_DesktopSerialPort`'s port-address
+  // handle, which changes on every `SerialPort()` construction. Keying
+  // liveness by deviceId therefore churned — a present device failed the id
+  // check, got reaped, and was re-probed; each re-probe re-opened the port,
+  // which (for the Half Decent Scale, with limited client slots) contended
+  // with a WiFi connection to the same physical scale. Holding the Device by
+  // stable port path is immune to that.
+  final Map<String, Device> _portPathToDevice = {};
+
+  // deviceId set of the most recent emission, so steady-state timer reconciles
+  // (no change) stay silent instead of re-emitting the same list every tick.
+  Set<String> _lastEmittedIds = {};
+
+  // Force the next reconcile to emit even if the device set is unchanged.
+  // Set by an explicit `scanForDevices()`: DeviceController clears `discovered`
+  // devices from its own map at scan start and relies on each service
+  // RE-EMITTING its current devices during the scan to repopulate. Without
+  // this, a discovered (but unchanged) serial device gets cleared by
+  // DeviceController and never handed back — it vanishes from the device list
+  // while still tracked here. The timer-driven reconcile does not set this, so
+  // steady-state ticks stay silent.
+  bool _forceEmitOnNextScan = false;
+
   // Guard against concurrent scans
   bool _isScanning = false;
   Future<void>? _currentScan;
+
+  // Periodic reconcile so a plug/unplug is noticed without an explicit scan.
+  // libserialport has no hotplug events and there is no maintained
+  // cross-platform USB-hotplug package, so this poll-the-port-set-and-diff
+  // approach is the pragmatic substitute: cheap (path-keyed, probes only new
+  // ports, emits only on change) and fully cross-platform.
+  final Duration _reconcileInterval;
+  Timer? _reconcileTimer;
+
+  SerialServiceDesktop({
+    Duration reconcileInterval = const Duration(seconds: 8),
+  }) : _reconcileInterval = reconcileInterval;
 
   final BehaviorSubject<List<Device>> _machineSubject = BehaviorSubject.seeded(
     <Device>[],
@@ -54,24 +92,48 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     final list = SerialPort.availablePorts;
     _log.info("Initializing");
     _log.info("found ports: $list");
+    _reconcileTimer ??= Timer.periodic(
+      _reconcileInterval,
+      (_) => _runScan(),
+    );
+  }
+
+  /// Stop the reconcile timer and release tracked transports. Safe to call
+  /// more than once.
+  Future<void> dispose() async {
+    _reconcileTimer?.cancel();
+    _reconcileTimer = null;
+    for (final transport in _portPathToTransport.values) {
+      try {
+        await transport.dispose();
+      } catch (_) {}
+    }
+    _portPathToTransport.clear();
+    _portPathToDevice.clear();
+    _portPathToDeviceId.clear();
+    if (!_machineSubject.isClosed) await _machineSubject.close();
   }
 
   @override
   void stopScan() {} // Serial enumeration is instant, nothing to stop.
 
   @override
-  @override
-  Future<void> scanForDevices({ScanFilter? filter}) async {
-    // If already scanning, wait for that scan to complete
+  Future<void> scanForDevices({ScanFilter? filter}) => _runScan(forceEmit: true);
+
+  /// Run a reconcile, coalescing with any in-flight one. Called both by an
+  /// explicit `scanForDevices()` ([forceEmit] true — always re-emit, honoring
+  /// DeviceController's clear-and-repopulate contract) and by the periodic
+  /// reconcile timer ([forceEmit] false — emit only on change). Both do the
+  /// same path-keyed reconcile (reap vanished/disconnected, probe untracked
+  /// candidates).
+  Future<void> _runScan({bool forceEmit = false}) async {
+    if (forceEmit) _forceEmitOnNextScan = true;
     if (_isScanning) {
-      _log.info("Scan already in progress, waiting for completion");
       await _currentScan;
       return;
     }
-
     _isScanning = true;
     _currentScan = _performScan();
-    
     try {
       await _currentScan;
     } finally {
@@ -81,49 +143,28 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
   }
 
   Future<void> _performScan() async {
-    final ports = await SerialPort.availablePorts;
-    _log.info("Found ports: $ports");
+    final ports = (await SerialPort.availablePorts).toSet();
+    _log.fine("Found ports: $ports");
 
-    // Classify each currently-known device by liveness. Anything not yet
-    // `disconnected` is still owning its port — we must NOT re-detect it in
-    // this scan (that would create a duplicate `_DesktopSerialPort` with a
-    // second reader isolate on the same tty; previously observed as two
-    // `SensorBasket` instances after wake-from-sleep and two HDS instances
-    // on macOS after scale-picker pending).
-    final devicesCopy = List<Device>.from(_devices);
-    final live = <Device>[];
-    for (var d in devicesCopy) {
-      final state = await d.connectionState.first;
-      if (state != ConnectionState.disconnected) {
-        live.add(d);
-      }
-    }
-
-    // Reconcile dedup + transport maps with reality. A tracked path is
-    // stale if EITHER:
+    // --- Reap. A tracked path is stale if EITHER:
     //   (a) the OS port no longer exists (physical unplug / OS rename), OR
     //   (b) the device bound to that path has self-disconnected (watchdog,
     //       serial error, explicit disconnect) even if the tty is still
-    //       present. Freeing the slot lets the next scan re-detect the
-    //       port with a fresh transport.
-    // In either case we dispose the transport (stops the reader isolate
-    // and frees the libserialport handle) and drop the entry.
-    final availablePorts = ports.toSet();
-    final liveDeviceIds = live.map((d) => d.deviceId).toSet();
-    final stalePaths = _portPathToDeviceId.entries
-        .where((e) =>
-            !availablePorts.contains(e.key) ||
-            !liveDeviceIds.contains(e.value))
-        .map((e) => e.key)
-        .toList();
-    for (final path in stalePaths) {
-      final deviceId = _portPathToDeviceId.remove(path);
+    //       present — freeing the slot lets a later scan re-detect it.
+    // Liveness is read from the Device bound to the PATH (not via deviceId),
+    // so the macOS port-address-id churn can't reap a present device. Disposing
+    // the transport stops the reader isolate and frees the libserialport handle.
+    for (final path in _portPathToDevice.keys.toList()) {
+      final device = _portPathToDevice[path]!;
+      final portGone = !ports.contains(path);
+      final state = await device.connectionState.first;
+      final selfDisconnected = state == ConnectionState.disconnected;
+      if (!portGone && !selfDisconnected) continue;
+      _portPathToDevice.remove(path);
+      _portPathToDeviceId.remove(path);
       final transport = _portPathToTransport.remove(path);
-      final reason = !availablePorts.contains(path)
-          ? "port vanished"
-          : "device disconnected";
-      _log.warning("Reaping transport for $path (deviceId=$deviceId, "
-          "reason=$reason) — disposing");
+      _log.warning("Reaping $path (device=${device.name}, reason="
+          "${portGone ? 'port vanished' : 'device disconnected'}) — disposing");
       if (transport != null) {
         try {
           await transport.dispose();
@@ -131,23 +172,28 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
           _log.warning("dispose failed for $path", e, st);
         }
       }
-      if (deviceId != null) {
-        live.removeWhere((d) => d.deviceId == deviceId);
-      }
     }
 
-    // Collect stable IDs of live devices for the cross-path dedup below.
-    // (Recomputed after the stale-reap above in case it dropped anything.)
-    final liveStableIds = live.map((d) => d.deviceId).toSet();
+    // Stable IDs of tracked devices, for cross-path dedup (a device that
+    // re-enumerates on a different path, e.g. OS rename). Only meaningful for
+    // devices that expose a real USB stable id (DE1/Bengle); HDS-on-macOS has
+    // none and is deduped by path instead.
+    final trackedStableIds =
+        _portPathToDevice.values.map((d) => d.deviceId).toSet();
 
-    // Pre-filter ports: skip already-connected, Bluetooth, and non-USB ports
+    // Filter to candidate ports worth probing.
     final scanPorts = ports.where((p) {
-      if (_portPathToDeviceId.containsKey(p)) return false;
+      // Already tracked → never re-probe. THIS is what stops the contention:
+      // an identified device (e.g. the HDS, which releases its port after
+      // discovery) is never re-opened, so it can't fight a WiFi connection to
+      // the same physical scale. Untracked candidate ports are still probed
+      // every reconcile, so a transient open failure self-heals on the next
+      // tick and a newly-plugged device is picked up.
+      if (_portPathToDevice.containsKey(p)) return false;
       final port = SerialPort(p);
       final meta = _readPortMetadata(p, port);
       port.dispose();
-      if (meta.stableId != null &&
-          liveStableIds.contains(meta.stableId)) {
+      if (meta.stableId != null && trackedStableIds.contains(meta.stableId)) {
         return false;
       }
       if (meta.transport == "Bluetooth") return false;
@@ -170,29 +216,37 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       return false;
     }).toList();
 
-    _log.info("Scanning ${scanPorts.length} USB serial ports: $scanPorts");
+    if (scanPorts.isNotEmpty) {
+      _log.info("Probing ${scanPorts.length} USB serial ports: $scanPorts");
+    }
 
-    // Scan ports in parallel instead of sequentially
-    final rawResults = await Future.wait(
+    // Probe candidate ports in parallel; register each detected device by path.
+    await Future.wait(
       scanPorts.map((portId) async {
         try {
-          return await _detectDevice(portId);
+          final device = await _detectDevice(portId);
+          if (device != null) {
+            _portPathToDevice[portId] = device;
+          }
         } catch (e, st) {
           _log.warning("Error detecting device on $portId", e, st);
-          return null;
         }
       }),
     );
-    // Merge the still-live devices (any state except disconnected) with
-    // newly-detected ones. Previously the merge used only `connected`,
-    // which dropped devices sitting in `discovered` or `connecting` — the
-    // next scan would then re-detect them from scratch and spawn a second
-    // `_DesktopSerialPort` on the same tty.
-    final results = <Device?>[...rawResults, ...live];
 
-    _devices = results.whereType<Device>().toList();
-    _machineSubject.add(_devices);
-    _log.info("Added devices: $_devices");
+    // Emit when the tracked device set changed, OR when an explicit scan
+    // requested it (DeviceController cleared its map and needs a re-emit).
+    // Steady-state timer reconciles with no change stay silent.
+    _devices = _portPathToDevice.values.toList();
+    final ids = _devices.map((d) => d.deviceId).toSet();
+    final changed = ids.length != _lastEmittedIds.length ||
+        !ids.containsAll(_lastEmittedIds);
+    if (_forceEmitOnNextScan || changed) {
+      _forceEmitOnNextScan = false;
+      _lastEmittedIds = ids;
+      _machineSubject.add(_devices);
+      _log.info("Devices: $_devices");
+    }
   }
 
   _PortMetadata _readPortMetadata(String path, SerialPort port) {
