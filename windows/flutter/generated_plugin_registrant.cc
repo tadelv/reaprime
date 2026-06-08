@@ -7,6 +7,7 @@
 #include "generated_plugin_registrant.h"
 
 #include <battery_plus/battery_plus_windows_plugin.h>
+#include <bonsoir_windows/bonsoir_windows_plugin_c_api.h>
 #include <firebase_core/firebase_core_plugin_c_api.h>
 #include <flutter_inappwebview_windows/flutter_inappwebview_windows_plugin_c_api.h>
 #include <flutter_js/flutter_js_plugin.h>
@@ -23,6 +24,8 @@
 void RegisterPlugins(flutter::PluginRegistry* registry) {
   BatteryPlusWindowsPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("BatteryPlusWindowsPlugin"));
+  BonsoirWindowsPluginCApiRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("BonsoirWindowsPluginCApi"));
   FirebaseCorePluginCApiRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("FirebaseCorePluginCApi"));
   FlutterInappwebviewWindowsPluginCApiRegisterWithRegistrar(

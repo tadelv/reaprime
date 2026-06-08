@@ -29,6 +29,12 @@
 	</dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Use BT to connect to DE1</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Needed to discover the WiFi scale on your local network</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_decentscale._tcp</string>
+	</array>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2025-2026 Decent Espresso. Licensed under GPL v3.</string>
 	<key>NSMainNibFile</key>

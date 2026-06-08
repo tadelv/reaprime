@@ -308,9 +308,16 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
         _portPathToDeviceId[id] = device.deviceId;
         return device;
       } else if (isDecentScale(strings, rawData)) {
-        _log.info("Detected: Decent Scale");
+        _log.info("Detected: Decent Scale — releasing port until user connects");
         final device = HDSSerial(transport: transport);
         _portPathToDeviceId[id] = device.deviceId;
+        // Don't hold the USB serial port open just because we discovered the
+        // scale. The Half Decent Scale has limited client slots — an open USB
+        // port is an active client that contends with a WiFi connection to the
+        // same physical scale (firmware logs "Client N disconnected"). The
+        // device stays "discovered"/Available with the port closed; the port
+        // reopens only when the user connects (HDSSerial.onConnect → connect()).
+        await transport.disconnect();
         return device;
       } else if (isSensorBasket(strings)) {
         _log.info("Detected: Sensor Basket");

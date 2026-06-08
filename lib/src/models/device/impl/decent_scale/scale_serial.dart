@@ -58,7 +58,7 @@ class HDSSerial implements Scale {
   }
 
   @override
-  String get name => "Half Decent Scale";
+  String get name => "Half Decent Scale (USB)";
 
   StreamSubscription<Uint8List>? _transportSubscription;
   int _totalFrames = 0;
