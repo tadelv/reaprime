@@ -35,6 +35,7 @@ import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/services/android_updater.dart';
 import 'package:reaprime/src/services/blue_plus_discovery_service.dart';
 import 'package:reaprime/src/services/ble/linux_ble_discovery_service.dart';
+import 'package:reaprime/src/services/wifi/wifi_scale_discovery_service.dart';
 import 'package:reaprime/src/services/database/database.dart' hide Workflow;
 import 'package:reaprime/src/services/storage/drift_bean_storage.dart';
 import 'package:reaprime/src/services/storage/drift_grinder_storage.dart';
@@ -242,6 +243,13 @@ void main() async {
   await Hive.initFlutter('store');
 
   services.add(createSerialService());
+
+  // WiFi Half Decent Scale discovery (DNS-SD + manual-IP fallback). Native
+  // mDNS on every platform via bonsoir; discovered scales flow into the same
+  // device stream as BLE/USB. DeviceController.initialize() calls its
+  // initialize() and wires its device stream like any other service.
+  final wifiScaleDiscoveryService = WifiScaleDiscoveryService();
+  services.add(wifiScaleDiscoveryService);
 
   final simulatedDevicesService = SimulatedDeviceService();
   services.add(simulatedDevicesService);

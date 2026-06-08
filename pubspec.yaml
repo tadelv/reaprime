@@ -92,6 +92,10 @@ dependencies:
   pretty_qr_code: ^3.6.0
   mime: ^2.0.0
   web_socket_channel: ^3.0.3
+  # DNS-SD (mDNS) discovery for the WiFi Half Decent Scale. Native-backed on
+  # every platform: NsdManager (Android), Bonjour (Apple), Avahi (Linux),
+  # dns_sd (Windows) — so no app-managed MulticastLock is needed on Android.
+  bonsoir: ^7.1.1
   # path: ../flutter_libserialport
   # git:
   #   url: https://github.com/tadelv/flutter_libserialport.git
