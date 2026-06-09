@@ -28,6 +28,7 @@ import 'package:reaprime/src/onboarding_feature/steps/login_step.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
 import 'package:reaprime/src/realtime_steam_feature/realtime_steam_feature.dart';
 import 'package:reaprime/src/skin_feature/skin_view.dart';
+import 'package:reaprime/src/theme/theme.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:shadcn_ui/shadcn_ui.dart' hide Scale;
@@ -291,8 +292,6 @@ class _MyAppState extends State<MyApp> {
     });
     // Foreground service is now started in main.dart for Android
 
-    final themeColor = 'neutral';
-
     final body = ScaffoldMessenger(
         child: ListenableBuilder(
           listenable: widget.settingsController,
@@ -321,23 +320,16 @@ class _MyAppState extends State<MyApp> {
             //
             // The appTitle is defined in .arb files found in the localization
             // directory.
-            onGenerateTitle: (BuildContext context) => "Streamline",
-
+          onGenerateTitle: (BuildContext context) => "Decent.app",
             // Define a light and dark color theme. Then, read the user's
             // preferred ThemeMode (light, dark, or system default) from the
             // SettingsController to display the correct theme.
             theme: ShadThemeData(
-              colorScheme: ShadColorScheme.fromName(
-                themeColor,
-                brightness: Brightness.light,
-              ),
+              colorScheme: DecentColorScheme.light(),
               brightness: Brightness.light,
             ),
             darkTheme: ShadThemeData(
-              colorScheme: ShadColorScheme.fromName(
-                themeColor,
-                brightness: Brightness.dark,
-              ),
+              colorScheme: DecentColorScheme.dark(),
               brightness: Brightness.dark,
             ),
             themeMode: widget.settingsController.themeMode,

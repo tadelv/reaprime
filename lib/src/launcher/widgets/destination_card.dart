@@ -27,6 +27,7 @@ class DestinationCard extends StatelessWidget {
         rowMainAxisAlignment: .center,
         columnMainAxisAlignment: .spaceBetween,
         padding: EdgeInsets.zero,
+        backgroundColor: theme.colorScheme.secondary,
         child: InkWell(
           borderRadius: BorderRadius.circular(8),
           onTap: onTap,
@@ -71,7 +72,7 @@ class DestinationCard extends StatelessWidget {
                 ),
                 Text(
                   label,
-                  style: theme.textTheme.small.copyWith(
+                  style: theme.textTheme.table.copyWith(
                     color: theme.colorScheme.foreground,
                   ),
                   textAlign: TextAlign.center,
