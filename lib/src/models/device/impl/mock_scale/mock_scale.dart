@@ -3,9 +3,10 @@ import 'dart:math';
 
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/device/simulated_device.dart';
 import 'package:rxdart/subjects.dart';
 
-class MockScale implements Scale {
+class MockScale implements Scale, SimulatedDevice {
   // Seed `discovered`, not `connected`: a simulated scale is only "connected"
   // once it is actually connected through the controller (onConnect), like a
   // real scale. Seeding `connected` made Mock Scale self-report connected even

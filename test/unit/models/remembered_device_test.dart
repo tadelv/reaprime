@@ -1,8 +1,48 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/remembered_device.dart';
+import 'package:reaprime/src/models/device/simulated_device.dart';
+
+class _RealDevice implements Device {
+  @override
+  final String deviceId;
+  @override
+  final String name;
+  @override
+  final DeviceType type;
+  _RealDevice(this.deviceId, this.name, this.type);
+  @override
+  Stream<ConnectionState> get connectionState => const Stream.empty();
+  @override
+  Future<void> onConnect() async {}
+  @override
+  Future<void> disconnect() async {}
+}
+
+class _MockDevice extends _RealDevice implements SimulatedDevice {
+  _MockDevice(super.id, super.name, super.type);
+}
 
 void main() {
+  group('RememberedDevice.fromDevice', () {
+    test('builds a record from a real device', () {
+      final r = RememberedDevice.fromDevice(
+          _RealDevice('wifi:hds.local', 'HDS', DeviceType.scale));
+      expect(r, isNotNull);
+      expect(r!.id, 'wifi:hds.local');
+      expect(r.type, DeviceType.scale);
+    });
+
+    test('returns null for a simulated device (never remembered)', () {
+      expect(
+          RememberedDevice.fromDevice(
+              _MockDevice('MockScale', 'Mock Scale', DeviceType.scale)),
+          isNull);
+    });
+  });
+
   group('RememberedDevice', () {
     test('toJson/fromJson round-trips', () {
       const d = RememberedDevice(

@@ -8,13 +8,14 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/device/simulated_device.dart';
 import 'package:rxdart/subjects.dart';
 
 // steam and hotWater are placeholders for future simulation modes.
 // ignore: unused_field
 enum _SimulationType { espresso, steam, hotWater, idle }
 
-class MockDe1 implements De1Interface {
+class MockDe1 implements De1Interface, SimulatedDevice {
   MockDe1({String deviceId = "MockDe1"}) : _deviceId = deviceId;
 
   final StreamController<MachineSnapshot> _snapshotStream =

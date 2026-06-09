@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:collection/collection.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/simulated_device.dart';
 
 /// Lightweight, persistable record of a device the user has connected to or
 /// preferred. Metadata only — it is NOT a live [Device] (no transport, no
@@ -23,6 +24,16 @@ class RememberedDevice {
         'name': name,
         'type': type.name,
       };
+
+  /// Build a record from a live [Device], or null if the device is simulated
+  /// (a [SimulatedDevice] is governed by the simulate setting, not real
+  /// discovery, so it is never remembered). This is the point that keeps mocks
+  /// out of the remembered registry.
+  static RememberedDevice? fromDevice(Device device) {
+    if (device is SimulatedDevice) return null;
+    return RememberedDevice(
+        id: device.deviceId, name: device.name, type: device.type);
+  }
 
   /// Parse one record. Returns null for malformed input or an unknown type.
   static RememberedDevice? fromJson(Map<String, dynamic> json) {
