@@ -511,6 +511,7 @@ void main() async {
         connectionManager: connectionManager,
         scanStateGuardian: scanStateGuardian,
         decentAccountService: decentAccountService,
+        batteryController: batteryController,
       ),
     ),
   );
@@ -738,6 +739,7 @@ class AppRoot extends StatefulWidget {
   final ConnectionManager connectionManager;
   final ScanStateGuardian scanStateGuardian;
   final DecentAccountService? decentAccountService;
+  final BatteryController? batteryController;
 
   const AppRoot({
     super.key,
@@ -759,6 +761,7 @@ class AppRoot extends StatefulWidget {
     this.grinderStorage,
     this.profileStorageService,
     this.decentAccountService,
+    this.batteryController,
   });
 
   static void restart(BuildContext context) {
@@ -823,6 +826,7 @@ class _AppRootState extends State<AppRoot> {
         connectionManager: widget.connectionManager,
         scanStateGuardian: widget.scanStateGuardian,
         decentAccountService: widget.decentAccountService,
+        batteryController: widget.batteryController,
       ),
     );
 
