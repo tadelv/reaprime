@@ -14,6 +14,7 @@ import 'package:reaprime/src/models/device/impl/sensor/debug_port.dart';
 import 'package:reaprime/src/models/device/impl/sensor/sensor_basket.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
 import 'mmr_codec.dart';
+import 'serial_reconcile.dart';
 import 'usb_ids.dart';
 import 'utils.dart';
 
@@ -183,71 +184,46 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     final ports = (await SerialPort.availablePorts).toSet();
     _log.fine("Found ports: $ports");
 
-    // --- Liveness re-verification (every Nth reconcile, and on explicit scan).
-    // A discovered (not-connected) HDS released its port and is otherwise never
-    // re-read, so it would linger as "available" after the scale is switched
-    // off. Release it here so this pass re-probes it (re-detect → still on;
-    // silent → dropped), and lift suppression on known HDS ports so a scale
-    // that came back is re-detected. A CONNECTED HDS is left untouched.
-    final livenessPass =
-        explicitScan || (++_livenessTick % _livenessEveryNReconciles == 0);
-    if (livenessPass) {
-      for (final path in _portPathToDevice.keys.toList()) {
-        final d = _portPathToDevice[path];
-        if (d is! HDSSerial) continue;
-        if ((await d.connectionState.first) == ConnectionState.connected) {
-          continue;
-        }
-        _portPathToDevice.remove(path);
-        _portPathToDeviceId.remove(path);
-        final t = _portPathToTransport.remove(path);
-        try {
-          await t?.dispose();
-        } catch (e, st) {
-          // Non-actionable: disposing a transport for a scale being released.
-          _log.fine("liveness release: dispose failed for $path", e, st);
-        }
-      }
-      _selfDisconnectedPaths.removeAll(_hdsPaths);
-    }
-
-    // --- Reap. A tracked path is stale if EITHER:
-    //   (a) the OS port no longer exists (physical unplug / OS rename), OR
-    //   (b) the device bound to that path has self-disconnected (watchdog,
-    //       serial error, explicit disconnect) even if the tty is still
-    //       present — freeing the slot lets a later scan re-detect it.
-    // Liveness is read from the Device bound to the PATH (not via deviceId),
-    // so the macOS port-address-id churn can't reap a present device. Disposing
-    // the transport stops the reader isolate and frees the libserialport handle.
+    // Snapshot every tracked port (one connectionState read each) for the pure
+    // reconcile planner. Liveness is read from the Device bound to the PATH
+    // (not via deviceId), so the macOS port-address-id churn can't reap a
+    // present device.
+    final tracked = <TrackedPortSnapshot>[];
     for (final path in _portPathToDevice.keys.toList()) {
       final device = _portPathToDevice[path]!;
-      final portGone = !ports.contains(path);
-      final state = await device.connectionState.first;
-      final selfDisconnected = state == ConnectionState.disconnected;
-      if (!portGone && !selfDisconnected) continue;
-      _portPathToDevice.remove(path);
-      _portPathToDeviceId.remove(path);
-      final transport = _portPathToTransport.remove(path);
-      // Track/clear suppression: a self-disconnect with the port still present
-      // must not be auto-re-probed (churn loop); a physical unplug clears it so
-      // a replug re-detects fresh, and forgets the HDS-path mark (a replug
-      // re-detects and re-adds it) so `_hdsPaths` can't grow unbounded.
-      if (portGone) {
-        _selfDisconnectedPaths.remove(path);
-        _hdsPaths.remove(path);
-      } else {
-        _selfDisconnectedPaths.add(path);
-      }
-      _log.warning("Reaping $path (device=${device.name}, reason="
-          "${portGone ? 'port vanished' : 'device disconnected'}) — disposing");
-      if (transport != null) {
-        try {
-          await transport.dispose();
-        } catch (e, st) {
-          _log.warning("dispose failed for $path", e, st);
-        }
-      }
+      tracked.add(TrackedPortSnapshot(
+        path: path,
+        isHdsSerial: device is HDSSerial,
+        present: ports.contains(path),
+        state: await device.connectionState.first,
+      ));
     }
+
+    // Decide the pre-probe transition (liveness releases, reaps, suppression).
+    // The `++_livenessTick` only advances on a timer reconcile (an explicit
+    // scan is always a liveness pass and must not shift the timer's phase).
+    final plan = planSerialReconcile(
+      explicitScan: explicitScan,
+      livenessTick: explicitScan ? _livenessTick : ++_livenessTick,
+      livenessEveryN: _livenessEveryNReconciles,
+      tracked: tracked,
+      hdsPaths: _hdsPaths,
+    );
+
+    // Apply releases (liveness re-verify) and reaps. Disposing the transport
+    // stops the reader isolate and frees the libserialport handle.
+    for (final path in plan.release) {
+      await _dropAndDispose(path, reap: false);
+    }
+    for (final path in plan.reap) {
+      _log.warning("Reaping $path (reason="
+          "${ports.contains(path) ? 'device disconnected' : 'port vanished'})"
+          " — disposing");
+      await _dropAndDispose(path, reap: true);
+    }
+    _selfDisconnectedPaths.removeAll(plan.suppressRemove);
+    _selfDisconnectedPaths.addAll(plan.suppressAdd);
+    _hdsPaths.removeAll(plan.hdsForget);
 
     // Stable IDs of tracked devices, for cross-path dedup (a device that
     // re-enumerates on a different path, e.g. OS rename). Only meaningful for
@@ -275,24 +251,11 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       if (meta.stableId != null && trackedStableIds.contains(meta.stableId)) {
         return false;
       }
-      if (meta.transport == "Bluetooth") return false;
-      // Known device productNames — always scan regardless of port name
-      if (meta.productName == 'DE1' ||
-          meta.productName == 'Half Decent Scale') {
-        return true;
-      }
-      // Unix-style USB serial port names
-      if (meta.name.contains('serial') ||
-          meta.name.contains('usbmodem') ||
-          meta.name.contains('ttyACM') ||
-          meta.name.contains('ttyUSB')) {
-        return true;
-      }
-      // Windows COM ports with USB transport
-      if (meta.transport == "USB" && meta.name.startsWith('COM')) {
-        return true;
-      }
-      return false;
+      return serialPortMatchesCandidate(
+        name: meta.name,
+        transport: meta.transport,
+        productName: meta.productName,
+      );
     }).toList();
 
     if (scanPorts.isNotEmpty) {
@@ -317,12 +280,12 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     // the scale is off. Suppress its port so it isn't re-probed every reconcile
     // (the next liveness pass lifts this and re-probes, so it auto-recovers when
     // the scale powers back on).
-    if (livenessPass) {
-      for (final p in _hdsPaths) {
-        if (ports.contains(p) && !_portPathToDevice.containsKey(p)) {
-          _selfDisconnectedPaths.add(p);
-        }
-      }
+    if (plan.livenessPass) {
+      _selfDisconnectedPaths.addAll(hdsResuppressionPaths(
+        hdsPaths: _hdsPaths,
+        presentPorts: ports,
+        trackedPaths: _portPathToDevice.keys.toSet(),
+      ));
     }
 
     // Emit when the tracked device set changed, OR when an explicit scan
@@ -330,13 +293,30 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     // Steady-state timer reconciles with no change stay silent.
     _devices = _portPathToDevice.values.toList();
     final ids = _devices.map((d) => d.deviceId).toSet();
-    final changed = ids.length != _lastEmittedIds.length ||
-        !ids.containsAll(_lastEmittedIds);
-    if (_forceEmitOnNextScan || changed) {
+    if (_forceEmitOnNextScan || serialDevicesChanged(ids, _lastEmittedIds)) {
       _forceEmitOnNextScan = false;
       _lastEmittedIds = ids;
       _machineSubject.add(_devices);
       _log.info("Devices: $_devices");
+    }
+  }
+
+  /// Drop a tracked path from all maps and dispose its transport. [reap]
+  /// distinguishes the log level for a stale-port reap (warning) from a
+  /// liveness re-verify release (fine) — both are non-actionable on failure.
+  Future<void> _dropAndDispose(String path, {required bool reap}) async {
+    _portPathToDevice.remove(path);
+    _portPathToDeviceId.remove(path);
+    final transport = _portPathToTransport.remove(path);
+    if (transport == null) return;
+    try {
+      await transport.dispose();
+    } catch (e, st) {
+      if (reap) {
+        _log.warning("dispose failed for $path", e, st);
+      } else {
+        _log.fine("liveness release: dispose failed for $path", e, st);
+      }
     }
   }
 
