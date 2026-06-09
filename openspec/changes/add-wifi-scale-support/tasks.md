@@ -40,7 +40,7 @@
 
 - [x] 7.1 `flutter analyze` clean (scoped to new code); `flutter test` green — 1506 tests pass incl. 45 new WiFi-scale tests
 - [x] 7.2 macOS end-to-end smoke test: discover or manually add a real HDS, connect, observe live weight stream, tare, and watchdog reconnect (toggle WiFi) — see `.agents/skills/decent-app/verification.md`
-- [ ] 7.3 Android real-device verification: discovery via NsdManager works without a MulticastLock; cleartext `ws://` connects (the `usesCleartextTraffic` smoke-test item) — confirm or, only if it fails, add a scoped network-security-config
+- [x] 7.3 Android real-device verification: discovery via NsdManager works without a MulticastLock; cleartext `ws://` connects (the `usesCleartextTraffic` smoke-test item) — confirm or, only if it fails, add a scoped network-security-config
 - [ ] 7.4 iOS/macOS: confirm discovery returns results with the Info.plist/entitlement in place (silent-empty = missing keys)
 - [ ] 7.5 Spot-check Linux (with Avahi) discovery and Windows discovery; verify manual-IP fallback on each platform
 
