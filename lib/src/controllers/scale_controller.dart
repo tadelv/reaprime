@@ -41,7 +41,21 @@ class ScaleController {
   }
 
   Future<void> connectToScale(Scale scale) async {
+    // Only one scale is active at a time. Disconnect the previously-connected
+    // scale device before connecting the new one — `_onDisconnect()` only drops
+    // this controller's references/subscriptions; without an explicit
+    // `disconnect()` the old scale keeps reporting `connected` and the device
+    // list shows two scales connected at once.
+    final previous = _scale;
     _onDisconnect();
+    if (previous != null && previous.deviceId != scale.deviceId) {
+      try {
+        await previous.disconnect();
+      } catch (e) {
+        log.warning(
+            'Failed to disconnect previous scale ${previous.deviceId}', e);
+      }
+    }
     _scaleSnapshot = scale.currentSnapshot.listen(_processSnapshot);
     await scale.onConnect();
     // Verify the scale actually connected (onConnect swallows errors internally).
