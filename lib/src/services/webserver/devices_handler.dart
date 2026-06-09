@@ -9,6 +9,7 @@ class DevicesStateAggregator {
   final BatteryController? _batteryController;
   final ConnectionManager _connectionManager;
   final RememberedDevicesController? _rememberedController;
+  final String? Function()? _preferredScaleId;
   final Logger _log = Logger("DevicesStateAggregator");
 
   final List<StreamSubscription> _subscriptions = [];
@@ -34,10 +35,12 @@ class DevicesStateAggregator {
     BatteryController? batteryController,
     required ConnectionManager connectionManager,
     RememberedDevicesController? rememberedController,
+    String? Function()? preferredScaleId,
   })  : _controller = controller,
         _batteryController = batteryController,
         _connectionManager = connectionManager,
-        _rememberedController = rememberedController {
+        _rememberedController = rememberedController,
+        _preferredScaleId = preferredScaleId {
     _start();
   }
 
@@ -137,6 +140,7 @@ class DevicesStateAggregator {
     final devList = await buildAvailabilityDeviceList(
       _controller.devices,
       _rememberedController?.remembered ?? const [],
+      preferredScaleId: _preferredScaleId?.call(),
     );
 
     final snapshot = <String, dynamic>{
@@ -191,6 +195,7 @@ class DevicesHandler {
   final DeviceController _controller;
   final ConnectionManager _connectionManager;
   final RememberedDevicesController? _rememberedController;
+  final String? Function()? _preferredScaleId;
   final Logger _log = Logger("Devices handler");
   final DevicesStateAggregator _aggregator;
 
@@ -199,14 +204,17 @@ class DevicesHandler {
     BatteryController? batteryController,
     required ConnectionManager connectionManager,
     RememberedDevicesController? rememberedController,
+    String? Function()? preferredScaleId,
   })  : _controller = controller,
         _connectionManager = connectionManager,
         _rememberedController = rememberedController,
+        _preferredScaleId = preferredScaleId,
         _aggregator = DevicesStateAggregator(
           controller: controller,
           batteryController: batteryController,
           connectionManager: connectionManager,
           rememberedController: rememberedController,
+          preferredScaleId: preferredScaleId,
         );
 
   void dispose() {
@@ -266,6 +274,7 @@ class DevicesHandler {
     return buildAvailabilityDeviceList(
       _controller.devices,
       _rememberedController?.remembered ?? const [],
+      preferredScaleId: _preferredScaleId?.call(),
     );
   }
 
@@ -456,8 +465,9 @@ class DevicesHandler {
 /// `_buildSnapshot` so both surfaces agree.
 Future<List<Map<String, dynamic>>> buildAvailabilityDeviceList(
   List<Device> liveDevices,
-  List<RememberedDevice> remembered,
-) async {
+  List<RememberedDevice> remembered, {
+  String? preferredScaleId,
+}) async {
   final list = <Map<String, dynamic>>[];
   final liveIds = <String>{};
   for (final device in liveDevices) {
@@ -481,6 +491,18 @@ Future<List<Map<String, dynamic>>> buildAvailabilityDeviceList(
       'available': false,
     });
   }
+  // Stable order: the preferred scale first, then a deterministic order that
+  // does NOT depend on connection state — so entries don't shift around as
+  // devices connect/disconnect (the underlying live list reorders on every
+  // scan/state change). Key by (type, id); both are stable per device.
+  list.sort((a, b) {
+    final aPref = (preferredScaleId != null && a['id'] == preferredScaleId);
+    final bPref = (preferredScaleId != null && b['id'] == preferredScaleId);
+    if (aPref != bPref) return aPref ? -1 : 1;
+    final byType = (a['type'] as String).compareTo(b['type'] as String);
+    if (byType != 0) return byType;
+    return (a['id'] as String).compareTo(b['id'] as String);
+  });
   return list;
 }
 
