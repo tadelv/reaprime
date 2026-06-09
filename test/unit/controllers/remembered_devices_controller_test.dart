@@ -112,6 +112,74 @@ void main() {
     expect(controller.remembered.single.name, 'New');
   });
 
+  test('reconnecting with identical metadata does not re-persist or re-emit',
+      () async {
+    controller = build();
+    await controller.initialize();
+    final emissions = <int>[];
+    final sub = controller.changes.listen((l) => emissions.add(l.length));
+
+    const device =
+        RememberedDevice(id: 's', name: 'S', type: DeviceType.scale);
+    scale.add(device);
+    await Future.delayed(Duration.zero);
+    final writesAfterFirst = settings.rememberedDevicesWriteCount;
+
+    // Identical reconnect (BLE drop/reconnect storm) must be a no-op.
+    scale.add(device);
+    await Future.delayed(Duration.zero);
+
+    expect(settings.rememberedDevicesWriteCount, writesAfterFirst,
+        reason: 'an identical reconnect must not persist again');
+    // seeded [] (0) + one emission for the first remember (1); no second.
+    expect(emissions, [0, 1]);
+    await sub.cancel();
+  });
+
+  test('the same physical scale on two transports yields two entries', () async {
+    // The WiFi/USB/BLE views of one physical HDS have distinct deviceIds and
+    // are intentionally NOT merged — each transport is its own remembered entry.
+    controller = build();
+    await controller.initialize();
+
+    scale.add(const RememberedDevice(
+        id: 'wifi:hds.local', name: 'HDS', type: DeviceType.scale));
+    scale.add(const RememberedDevice(
+        id: 'AA:BB:CC:DD:EE:FF', name: 'HDS', type: DeviceType.scale));
+    await Future.delayed(Duration.zero);
+
+    expect(controller.remembered.map((d) => d.id).toSet(),
+        {'wifi:hds.local', 'AA:BB:CC:DD:EE:FF'},
+        reason: 'same name, distinct ids → distinct entries');
+  });
+
+  test('a failed persist on the connect path is contained, not an unhandled '
+      'error', () async {
+    controller = build();
+    await controller.initialize();
+    settings.failRememberedDevicesWrite = true;
+
+    // A throwing persist on the un-awaited stream path must be caught (logged in
+    // _persist) — if it leaked as an unhandled async error the test zone would
+    // fail. The device is still tracked in memory.
+    scale.add(const RememberedDevice(id: 's', name: 'S', type: DeviceType.scale));
+    await Future.delayed(Duration.zero);
+
+    expect(controller.remembered.map((d) => d.id), ['s']);
+  });
+
+  test('forget surfaces a persist failure to its caller', () async {
+    await settings.setRememberedDevices(RememberedDevice.encodeList([
+      const RememberedDevice(id: 'a', name: 'A', type: DeviceType.scale),
+    ]));
+    controller = build();
+    await controller.initialize();
+    settings.failRememberedDevicesWrite = true;
+
+    await expectLater(controller.forget('a'), throwsA(isA<StateError>()),
+        reason: 'the awaitable forget path must not swallow a persist failure');
+  });
+
   test('changes stream emits on remember and forget', () async {
     controller = build();
     await controller.initialize();

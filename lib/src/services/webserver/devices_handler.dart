@@ -297,7 +297,10 @@ class DevicesHandler {
   Future<Response> _handleForget(Request req) async {
     final remembered = _rememberedController;
     if (remembered == null) {
-      return jsonError({'error': 'remembered devices not available'});
+      // The feature is wired in normal operation; a null controller means it's
+      // unavailable, not that the server broke — 503, not 500, so it doesn't
+      // pollute error monitoring.
+      return jsonServiceUnavailable({'error': 'remembered devices not available'});
     }
     final deviceId = await _extractDeviceId(req);
     if (deviceId == null) {
@@ -458,6 +461,57 @@ class DevicesHandler {
   }
 }
 
+/// One entry in the API device list. `available` (is the device currently
+/// present) is a SEPARATE axis from `state` (a live device can be
+/// discovered-but-disconnected while still available), so it gets its own field.
+/// The two factories make the illegal pairings unrepresentable: a remembered
+/// entry is always unavailable + `disconnected`; a live entry carries its real
+/// state. Both REST and WebSocket surfaces serialize via [toJson], so the wire
+/// shape can't drift between them.
+class DeviceListEntry {
+  final String id;
+  final String name;
+  final DeviceType type;
+  final ConnectionState state;
+  final bool available;
+
+  const DeviceListEntry._({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.state,
+    required this.available,
+  });
+
+  /// A currently-present device, with its real connection state.
+  DeviceListEntry.live(Device device, ConnectionState state)
+      : this._(
+          id: device.deviceId,
+          name: device.name,
+          type: device.type,
+          state: state,
+          available: true,
+        );
+
+  /// A remembered device that isn't currently present.
+  DeviceListEntry.remembered(RememberedDevice r)
+      : this._(
+          id: r.id,
+          name: r.name,
+          type: r.type,
+          state: ConnectionState.disconnected,
+          available: false,
+        );
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'id': id,
+        'state': state.name,
+        'type': type.name,
+        'available': available,
+      };
+}
+
 /// Builds the API device list: currently-present devices (`available: true`)
 /// merged with remembered devices that aren't present (`available: false`,
 /// reported as `disconnected`). A remembered device that IS present is listed
@@ -468,41 +522,29 @@ Future<List<Map<String, dynamic>>> buildAvailabilityDeviceList(
   List<RememberedDevice> remembered, {
   String? preferredScaleId,
 }) async {
-  final list = <Map<String, dynamic>>[];
+  final entries = <DeviceListEntry>[];
   final liveIds = <String>{};
   for (final device in liveDevices) {
     final state = await device.connectionState.first;
     liveIds.add(device.deviceId);
-    list.add({
-      'name': device.name,
-      'id': device.deviceId,
-      'state': state.name,
-      'type': device.type.name,
-      'available': true,
-    });
+    entries.add(DeviceListEntry.live(device, state));
   }
   for (final r in remembered) {
     if (liveIds.contains(r.id)) continue;
-    list.add({
-      'name': r.name,
-      'id': r.id,
-      'state': ConnectionState.disconnected.name,
-      'type': r.type.name,
-      'available': false,
-    });
+    entries.add(DeviceListEntry.remembered(r));
   }
   // Stable order: the preferred scale first, then a deterministic order that
   // does NOT depend on connection state — so entries don't shift around as
   // devices connect/disconnect (the underlying live list reorders on every
   // scan/state change). Key by (type, id); both are stable per device.
-  list.sort((a, b) {
-    final aPref = (preferredScaleId != null && a['id'] == preferredScaleId);
-    final bPref = (preferredScaleId != null && b['id'] == preferredScaleId);
+  entries.sort((a, b) {
+    final aPref = preferredScaleId != null && a.id == preferredScaleId;
+    final bPref = preferredScaleId != null && b.id == preferredScaleId;
     if (aPref != bPref) return aPref ? -1 : 1;
-    final byType = (a['type'] as String).compareTo(b['type'] as String);
+    final byType = a.type.name.compareTo(b.type.name);
     if (byType != 0) return byType;
-    return (a['id'] as String).compareTo(b['id'] as String);
+    return a.id.compareTo(b.id);
   });
-  return list;
+  return entries.map((e) => e.toJson()).toList();
 }
 

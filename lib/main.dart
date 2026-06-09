@@ -33,6 +33,7 @@ import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/controllers/workflow_device_sync.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/services/android_updater.dart';
 import 'package:reaprime/src/services/blue_plus_discovery_service.dart';
@@ -323,7 +324,10 @@ void main() async {
       if (state.name != 'connected') return null;
       try {
         return RememberedDevice.fromDevice(scaleController.connectedScale());
-      } catch (_) {
+      } on DeviceNotConnectedException {
+        // Benign race: the stream said `connected` but a disconnect already
+        // nulled the scale. Other exceptions are real defects — let them
+        // surface rather than silently skipping the remember.
         return null;
       }
     }),

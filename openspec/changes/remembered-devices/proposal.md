@@ -6,17 +6,17 @@ This is cross-cutting: it applies to every transport (BLE machine + scale, USB s
 
 ## What Changes
 
-- **Remember devices** the user has connected to (or set as preferred), persisted across app restarts. The registry holds lightweight metadata: `{id, name, type}`.
+- **Remember devices** the user has connected to, persisted across app restarts. The registry holds lightweight metadata: `{id, name, type}`.
 - **Show remembered devices as `unavailable`** in the device list/API when they are not currently present, instead of dropping them. When the device reappears in discovery, it flips back to available.
 - Add an **`available` flag** to each entry in the device API (REST + WebSocket): `true` for a currently-present device, `false` for a remembered device that isn't present.
-- Add a **forget** action — `PUT /api/v1/devices/{id}/forget` (REST) plus a button in the GUI skin — to remove a device from the remembered registry.
-- Scope: only **connected/preferred** devices are remembered (not every device ever scanned), avoiding clutter from nearby devices the user doesn't own.
+- Add a **forget** action — `PUT /api/v1/devices/forget` (REST; `deviceId` in the JSON body or `?deviceId=` query, since serial/WiFi ids aren't URL-path-safe) plus a button in the GUI skin — to remove a device from the remembered registry.
+- Scope: only **connected** devices are remembered (not every device ever scanned), avoiding clutter from nearby devices the user doesn't own.
 - **BREAKING:** none. `available` is an added field (absent-field-tolerant clients are unaffected). Existing device entries keep all current fields.
 
 ## Capabilities
 
 ### New Capabilities
-- `remembered-devices`: Persisting devices the user connects to (or prefers), surfacing remembered-but-absent devices in the device list/API as `unavailable`, computing the available/unavailable flag against live discovery, and forgetting a remembered device via the API and GUI. Covers the persistent registry, the connection-observation that adds to it, the availability computation, and the forget action.
+- `remembered-devices`: Persisting devices the user connects to, surfacing remembered-but-absent devices in the device list/API as `unavailable`, computing the available/unavailable flag against live discovery, and forgetting a remembered device via the API and GUI. Covers the persistent registry, the connection-observation that adds to it, the availability computation, and the forget action.
 
 ### Modified Capabilities
 <!-- None as OpenSpec specs (no existing specs dir). The device REST/WS contract is
@@ -26,12 +26,12 @@ This is cross-cutting: it applies to every transport (BLE machine + scale, USB s
 ## Impact
 
 - **New code:**
-  - `RememberedDevicesController` (`lib/src/controllers/`) — owns the registry, observes machine/scale connections (via `De1Controller.de1` and `ScaleController.connectionState` / `lastConnectedDeviceId`), adds `{id, name, type}` on connect, exposes the registry + a `forget(id)` method, persists via the settings layer.
+  - `RememberedDevicesController` (`lib/src/controllers/`) — owns the registry, observes machine/scale connections (via `De1Controller.de1` and `ScaleController.connectionState` + `connectedScale()`), adds `{id, name, type}` on connect, exposes the registry + a `forget(id)` method, persists via the settings layer.
   - `RememberedDevice` value type `{id, name, type}` (metadata only — not a live `Device`).
 - **Persistence:** extend `SettingsService` / `SettingsController` with a `rememberedDevices` key (JSON list), mirroring the `preferredScaleId` pattern.
 - **API layer:**
   - `DevicesStateAggregator` / `devices_handler.dart` — merge live devices with remembered-absent ones, add `available: bool` per entry.
-  - New `PUT /api/v1/devices/{id}/forget` route in `DevicesHandler`.
+  - New `PUT /api/v1/devices/forget` route in `DevicesHandler` (`deviceId` in body/query, not the path).
   - Update `assets/api/rest_v1.yml` + `assets/api/websocket_v1.yml` (`DeviceInfo` gains `available`; add the forget endpoint) and `doc/Api.md`.
 - **Wiring:** construct `RememberedDevicesController` in `main.dart`, give it `De1Controller`/`ScaleController`/settings, pass it to the webserver.
 - **Skin (streamline.js, separate repo):** render `available: false` entries greyed/"unavailable" with a Forget button calling the new endpoint.

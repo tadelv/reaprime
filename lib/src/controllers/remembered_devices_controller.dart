@@ -26,6 +26,7 @@ class RememberedDevicesController {
   final BehaviorSubject<List<RememberedDevice>> _changes =
       BehaviorSubject.seeded(const []);
   final List<StreamSubscription> _subs = [];
+  bool _initialized = false;
 
   RememberedDevicesController({
     required Stream<RememberedDevice?> machineConnections,
@@ -42,26 +43,51 @@ class RememberedDevicesController {
   /// Emits the remembered list whenever it changes.
   Stream<List<RememberedDevice>> get changes => _changes.stream;
 
-  /// Load the persisted registry and start observing connections.
+  /// Load the persisted registry and start observing connections. Idempotent —
+  /// a second call is a no-op (avoids double-subscribing / double-loading).
   Future<void> initialize() async {
-    for (final d in RememberedDevice.decodeList(await _settings.rememberedDevices())) {
+    if (_initialized) return;
+    _initialized = true;
+    final raw = await _settings.rememberedDevices();
+    final loaded = RememberedDevice.decodeList(raw);
+    for (final d in loaded) {
       _registry[d.id] = d;
+    }
+    // Surface dropped records (malformed, or an unknown type written by a newer
+    // build) instead of letting a remembered device silently vanish.
+    final stored = RememberedDevice.storedCount(raw);
+    if (stored > loaded.length) {
+      _log.warning(
+          'dropped ${stored - loaded.length} unreadable remembered record(s)');
     }
     _log.info('loaded ${_registry.length} remembered device(s)');
     _emit();
-    _subs.add(_machineConnections.listen((d) {
-      if (d != null) _remember(d);
-    }));
-    _subs.add(_scaleConnections.listen((d) {
-      if (d != null) _remember(d);
-    }));
+    _subs.add(_machineConnections.listen(
+      (d) { if (d != null) unawaited(_rememberFromStream(d)); },
+      onError: (e, st) =>
+          _log.warning('machine connection stream error', e, st),
+    ));
+    _subs.add(_scaleConnections.listen(
+      (d) { if (d != null) unawaited(_rememberFromStream(d)); },
+      onError: (e, st) => _log.warning('scale connection stream error', e, st),
+    ));
+  }
+
+  /// `_remember` for the un-awaited stream path. A persist failure is already
+  /// logged loudly in [_persist]; swallow the rejected future here so it doesn't
+  /// surface as an unhandled async error — the registry self-heals on the next
+  /// connect.
+  Future<void> _rememberFromStream(RememberedDevice device) async {
+    try {
+      await _remember(device);
+    } catch (_) {
+      // Already logged at SEVERE in _persist.
+    }
   }
 
   Future<void> _remember(RememberedDevice device) async {
     final existing = _registry[device.id];
-    if (existing != null &&
-        existing.name == device.name &&
-        existing.type == device.type) {
+    if (existing != null && existing.sameMetadata(device)) {
       return; // already remembered with the same metadata
     }
     _registry[device.id] = device;
@@ -79,8 +105,17 @@ class RememberedDevicesController {
   }
 
   Future<void> _persist() async {
-    await _settings.setRememberedDevices(
-        RememberedDevice.encodeList(_registry.values));
+    try {
+      await _settings.setRememberedDevices(
+          RememberedDevice.encodeList(_registry.values));
+    } catch (e, st) {
+      // A persist failure means the in-memory registry changed but the change
+      // won't survive a restart. Surface it loudly rather than dropping it
+      // silently: the caller that can react (the forget handler) rethrows to a
+      // 5xx; the connect-driven path logs and continues.
+      _log.severe('failed to persist remembered devices', e, st);
+      rethrow;
+    }
   }
 
   void _emit() {
