@@ -70,9 +70,11 @@ class SerialReconcilePlan {
 ///
 /// Mirrors the sequencing of the live scan exactly:
 /// 1. A liveness pass (explicit scan, or every Nth timer reconcile) releases
-///    each tracked HDS that is NOT connected — a discovered HDS released its
-///    port and would otherwise linger as "available" after the scale powers
-///    off — and lifts suppression on every known HDS path so they get re-probed.
+///    each tracked HDS that is neither connected NOR connecting — a discovered
+///    HDS released its port and would otherwise linger as "available" after the
+///    scale powers off — and lifts suppression on every known HDS path so they
+///    get re-probed. (A connecting HDS is left alone: disposing its transport
+///    mid-connect frees the native port the connect is using.)
 /// 2. Reap any remaining tracked path whose port vanished OR whose device
 ///    self-disconnected: a vanished port also clears suppression + forgets the
 ///    HDS mark (a replug re-detects fresh); a still-present self-disconnect is
@@ -94,7 +96,12 @@ SerialReconcilePlan planSerialReconcile({
   final release = <String>{};
   if (livenessPass) {
     for (final t in tracked) {
-      if (t.isHdsSerial && t.state != ConnectionState.connected) {
+      // Release a discovered HDS for re-probing, but NOT one that is connected
+      // OR connecting — disposing the transport mid-connect frees the native
+      // port the connect is using (a libserialport double-free abort).
+      if (t.isHdsSerial &&
+          t.state != ConnectionState.connected &&
+          t.state != ConnectionState.connecting) {
         release.add(t.path);
       }
     }

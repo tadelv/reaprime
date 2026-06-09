@@ -74,6 +74,9 @@ class HDSSerial implements Scale, TransportHandoffScale {
   Future<void> onConnect() async {
     _log.info("on connect (id=$deviceId, transport=${_transport.name})");
     _totalFrames = 0;
+    // Announce `connecting` BEFORE opening the port so the serial reconcile's
+    // liveness pass won't release (dispose) this transport mid-connect.
+    _connectionSubject.add(ConnectionState.connecting);
     await _transport.connect();
     _transportSubscription = _transport.rawStream.listen(
       onData,

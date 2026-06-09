@@ -55,6 +55,20 @@ void main() {
       expect(p.reap, isEmpty, reason: 'a released path is not also reaped');
     });
 
+    test('does NOT release a CONNECTING HDS (would dispose mid-connect)', () {
+      final p = planSerialReconcile(
+        explicitScan: true, // liveness pass
+        livenessTick: 1,
+        livenessEveryN: 3,
+        tracked: [
+          _port('/connecting', hds: true, state: ConnectionState.connecting),
+        ],
+        hdsPaths: {'/connecting'},
+      );
+      expect(p.release, isEmpty);
+      expect(p.reap, isEmpty);
+    });
+
     test('a non-liveness pass releases nothing', () {
       final p = planSerialReconcile(
         explicitScan: false,
