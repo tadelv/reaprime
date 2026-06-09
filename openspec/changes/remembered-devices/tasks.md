@@ -31,10 +31,15 @@
 - [x] 6.2 Update `assets/api/websocket_v1.yml`: add `available` to `DeviceInfo`
 - [x] 6.3 Update `doc/Api.md` (device list + forget endpoint) and `doc/DeviceManagement.md` (remembered-devices concept, availability, the macOS-USB-id limitation)
 
-## 7. GUI (streamline.js skin — separate repo)
+## 7. GUI — SEPARATE skin PR (streamline.js / allofmeng/streamline_project)
+
+This is its **own PR in the skin repo**, dependent on this change's reaprime API
+(the `available` field + `PUT /api/v1/devices/forget`). It can only be merged
+once this reaprime change ships the API. Tracked here for completeness; the work
+lands on a dedicated `streamline_project` branch, not in reaprime.
 
 - [ ] 7.1 Render `available: false` device entries greyed/"unavailable" in the device list
-- [ ] 7.2 Add a Forget button on remembered entries that calls `PUT /api/v1/devices/{id}/forget`
+- [ ] 7.2 Add a Forget button on remembered entries that calls `PUT /api/v1/devices/forget` (deviceId in body)
 - [ ] 7.3 Tapping an unavailable entry triggers a rescan (to reconnect when it reappears) rather than a direct connect
 
 ## 8. Verification
