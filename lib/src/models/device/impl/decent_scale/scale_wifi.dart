@@ -167,26 +167,34 @@ class HDSWifi implements Scale, TransportHandoffScale {
 
   void _onFrame(int gen, String raw) {
     if (gen != _generation) return;
-    final frame = HdsWifiFrame.parse(raw);
-    if (frame == null) return;
-    _ticksSinceFrame = 0;
+    // Defense-in-depth: this is the single chokepoint for every inbound frame.
+    // A handling exception must be logged and swallowed, never escape into the
+    // transport's stream listener as an unhandled async (zone) error — a stray
+    // frame can't be allowed to drop the connection.
+    try {
+      final frame = HdsWifiFrame.parse(raw);
+      if (frame == null) return;
+      _ticksSinceFrame = 0;
 
-    if (!_recognized && frame.confirmsHds) {
-      _markRecognized(gen);
-    }
-    if (frame.batteryPercent != null) {
-      _batteryLevel = frame.batteryPercent!;
-    }
-    if (frame.hasWeight) {
-      _snapshot.add(ScaleSnapshot(
-        timestamp: DateTime.now(),
-        weight: frame.grams!,
-        batteryLevel: _batteryLevel,
-      ));
-    }
-    if (frame.isPowerOff) {
-      _log.info('scale reported power_off');
-      _reportLost(gen, 'power_off');
+      if (!_recognized && frame.confirmsHds) {
+        _markRecognized(gen);
+      }
+      if (frame.batteryPercent != null) {
+        _batteryLevel = frame.batteryPercent!;
+      }
+      if (frame.hasWeight) {
+        _snapshot.add(ScaleSnapshot(
+          timestamp: DateTime.now(),
+          weight: frame.grams!,
+          batteryLevel: _batteryLevel,
+        ));
+      }
+      if (frame.isPowerOff) {
+        _log.info('scale reported power_off');
+        _reportLost(gen, 'power_off');
+      }
+    } catch (e, st) {
+      _log.warning('error handling frame (ignored)', e, st);
     }
   }
 

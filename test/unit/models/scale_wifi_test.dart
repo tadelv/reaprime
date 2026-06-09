@@ -149,6 +149,25 @@ void main() {
       await sub.cancel();
     });
 
+    test('a power_off frame reports disconnected', () async {
+      final fake = FakeWebSocketTransport();
+      final scale = HDSWifi(host: 'hds.local', transportFactory: () => fake);
+      final states = <ConnectionState>[];
+      final sub = scale.connectionState.listen(states.add);
+
+      final f = scale.onConnect();
+      await Future.delayed(const Duration(milliseconds: 10));
+      fake.emit('{"grams":1.0}');
+      await f;
+      expect(states.last, ConnectionState.connected);
+
+      // The scale's power button → a `power` frame → disconnect.
+      fake.emit('{"type":"power","event":"power_off"}');
+      await Future.delayed(const Duration(milliseconds: 10));
+      expect(states.last, ConnectionState.disconnected);
+      await sub.cancel();
+    });
+
     test('dispose emits disconnected before closing so listeners tear down',
         () async {
       final fake = FakeWebSocketTransport();

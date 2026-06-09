@@ -38,7 +38,8 @@ class HdsWifiFrame {
   final int? batteryPercent;
 
   /// Charging state (`status` frames). Parsed from the wire but not yet
-  /// surfaced to the app (`ScaleSnapshot` carries only weight + battery).
+  /// surfaced to the app — `HDSWifi` builds `ScaleSnapshot` from weight +
+  /// battery only (and leaves `ScaleSnapshot.timerValue` null).
   final bool? charging;
 
   /// Whether the scale's timer is running (`status` frames). Parsed from the
@@ -82,12 +83,18 @@ class HdsWifiFrame {
       return null;
     }
     if (decoded is! Map<String, dynamic>) return null;
+    // Type-checked reads (NOT `as` casts): a field of the wrong JSON type
+    // (e.g. `{"charging":1}` or `{"type":5}`) must yield null, not throw — the
+    // parser's contract is that a stray frame can't drop the connection.
+    final type = decoded['type'];
+    final charging = decoded['charging'];
+    final timerRunning = decoded['timer_running'];
     return HdsWifiFrame(
-      type: decoded['type'] as String?,
+      type: type is String ? type : null,
       grams: _toDouble(decoded['grams']),
       batteryPercent: _toInt(decoded['battery_percent']),
-      charging: decoded['charging'] as bool?,
-      timerRunning: decoded['timer_running'] as bool?,
+      charging: charging is bool ? charging : null,
+      timerRunning: timerRunning is bool ? timerRunning : null,
       raw: decoded,
     );
   }

@@ -41,11 +41,23 @@ class BonsoirWifiScaleBrowser implements WifiScaleBrowser {
   Future<void> start() async {
     if (_discovery != null) return;
     final discovery = BonsoirDiscovery(type: serviceType);
+    try {
+      await discovery.initialize();
+      // Listen before starting so no early events are missed.
+      _sub = discovery.eventStream!.listen(_onEvent);
+      await discovery.start();
+    } catch (_) {
+      // A transient init/start failure must NOT stick: leave `_discovery` null
+      // (and tear down the half-open discovery) so the next `start()` retries
+      // instead of early-returning forever.
+      await _sub?.cancel();
+      _sub = null;
+      try {
+        await discovery.stop();
+      } catch (_) {}
+      rethrow;
+    }
     _discovery = discovery;
-    await discovery.initialize();
-    // Listen before starting so no early events are missed.
-    _sub = discovery.eventStream!.listen(_onEvent);
-    await discovery.start();
     _log.info('browsing $serviceType');
   }
 
