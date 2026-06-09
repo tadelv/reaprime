@@ -14,6 +14,8 @@ class DeviceManagementPage extends StatefulWidget {
     required this.deviceController,
   });
 
+  static const routeName = '/devices';
+
   final SettingsController settingsController;
   final DeviceController deviceController;
 

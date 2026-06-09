@@ -46,7 +46,12 @@ import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
 import 'package:reaprime/src/services/webview_log_service.dart';
+import 'package:reaprime/src/account/account_page.dart';
+import 'package:reaprime/src/settings/data_management_page.dart';
+import 'package:reaprime/src/settings/device_management_page.dart';
+import 'package:reaprime/src/settings/advanced_page.dart';
 import 'package:reaprime/src/settings/plugins_settings_view.dart';
+import 'package:reaprime/src/skin_selector/skin_selector_page.dart';
 import 'sample_feature/sample_item_details_view.dart';
 
 import 'sample_feature/sample_item_list_view.dart';
@@ -348,17 +353,9 @@ class _MyAppState extends State<MyApp> {
                     case SettingsView.routeName:
                       return SettingsView(
                         controller: widget.settingsController,
-                        persistenceController: widget.persistenceController,
-                        deviceController: widget.deviceController,
-                        presenceController: widget.presenceController,
-                        webUIService: widget.webUIService,
-                        webUIStorage: widget.webUIStorage,
                         updateCheckService: widget.updateCheckService,
-                        profileStorageService: widget.profileStorageService,
-                        beanStorageService: widget.beanStorage,
-                        grinderStorageService: widget.grinderStorage,
-                        workflowController: widget.workflowController,
-                        decentAccountService: widget.decentAccountService,
+                        presenceController: widget.presenceController,
+                        webUIStorage: widget.webUIStorage,
                       );
                     case De1DebugView.routeName:
                       final args = routeSettings.arguments;
@@ -464,6 +461,39 @@ class _MyAppState extends State<MyApp> {
                       return LandingFeature(
                         webUIStorage: widget.webUIStorage,
                         webUIService: widget.webUIService,
+                      );
+                    case DeviceManagementPage.routeName:
+                      return DeviceManagementPage(
+                        settingsController: widget.settingsController,
+                        deviceController: widget.deviceController,
+                      );
+                    case DataManagementPage.routeName:
+                      return DataManagementPage(
+                        controller: widget.settingsController,
+                        persistenceController: widget.persistenceController,
+                        profileStorageService: widget.profileStorageService,
+                        beanStorageService: widget.beanStorage,
+                        grinderStorageService: widget.grinderStorage,
+                        workflowController: widget.workflowController,
+                      );
+                    case SkinSelectorPage.routeName:
+                      return SkinSelectorPage(
+                        settingsController: widget.settingsController,
+                        webUIService: widget.webUIService,
+                        webUIStorage: widget.webUIStorage,
+                      );
+                    case AdvancedPage.routeName:
+                      return AdvancedPage(
+                        controller: widget.settingsController,
+                      );
+                    case AccountPage.routeName:
+                      if (widget.decentAccountService == null) {
+                        return Scaffold(
+                          body: Center(child: Text('Account service not available')),
+                        );
+                      }
+                      return AccountPage(
+                        accountService: widget.decentAccountService!,
                       );
                     case SkinView.routeName:
                       return SkinView(

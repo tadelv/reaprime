@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/account/account_page.dart';
 import 'package:reaprime/src/controllers/battery_controller.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
@@ -10,8 +11,12 @@ import 'package:reaprime/src/launcher/widgets/skin_unavailable_card.dart';
 import 'package:reaprime/src/launcher/widgets/status_bar.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/services/account/decent_account_service.dart';
+import 'package:reaprime/src/settings/advanced_page.dart';
+import 'package:reaprime/src/settings/data_management_page.dart';
+import 'package:reaprime/src/settings/device_management_page.dart';
 import 'package:reaprime/src/settings/settings_view.dart';
 import 'package:reaprime/src/skin_feature/skin_view.dart';
+import 'package:reaprime/src/skin_selector/skin_selector_page.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -109,11 +114,9 @@ class LauncherView extends StatelessWidget {
     return SkinUnavailableCard(
       reason: reason,
       onPickSkin: () {
-        // Navigate to settings for now; will be standalone skin selector in PR2
-        Navigator.of(context).pushNamed(SettingsView.routeName);
+        Navigator.of(context).pushNamed(SkinSelectorPage.routeName);
       },
       onSendFeedback: () {
-        // Navigate to settings where feedback is accessible
         Navigator.of(context).pushNamed(SettingsView.routeName);
       },
     );
@@ -129,26 +132,23 @@ class LauncherView extends StatelessWidget {
       _Destination(
         icon: LucideIcons.bluetooth,
         label: 'Devices',
-        // Device management is inside settings for now; standalone in PR2
-        route: SettingsView.routeName,
+        route: DeviceManagementPage.routeName,
       ),
       _Destination(
         icon: LucideIcons.database,
         label: 'Data',
-        // Data management is inside settings for now; standalone in PR2
-        route: SettingsView.routeName,
+        route: DataManagementPage.routeName,
       ),
       _Destination(
         icon: LucideIcons.palette,
         label: 'Skins',
-        // Skin selector is inside settings for now; standalone in PR2
-        route: SettingsView.routeName,
+        route: SkinSelectorPage.routeName,
       ),
       if (decentAccountService != null)
         _Destination(
           icon: LucideIcons.user,
           label: 'Account',
-          route: SettingsView.routeName,
+          route: AccountPage.routeName,
         ),
       if (pluginLoaderService.availablePlugins.isNotEmpty)
         _Destination(
@@ -159,7 +159,7 @@ class LauncherView extends StatelessWidget {
       _Destination(
         icon: LucideIcons.wrench,
         label: 'Advanced',
-        route: SettingsView.routeName,
+        route: AdvancedPage.routeName,
       ),
     ];
 
