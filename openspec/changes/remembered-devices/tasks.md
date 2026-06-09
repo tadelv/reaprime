@@ -6,7 +6,7 @@
 
 ## 2. RememberedDevicesController
 
-- [x] 2.1 Write unit tests (fake controllers/streams): connecting a machine remembers it; connecting a scale remembers it; merely-discovered device is NOT remembered; `forget(id)` removes + persists; registry restores from settings on init; preferred ids fold into the registry
+- [x] 2.1 Write unit tests (fake controllers/streams): connecting a machine remembers it; connecting a scale remembers it; merely-discovered device is NOT remembered; reconnecting the same device with identical metadata does not re-persist/re-emit; `forget(id)` removes + persists; registry restores from settings on init
 - [x] 2.2 Implement `RememberedDevicesController` in `lib/src/controllers/`: load registry from settings on `initialize()`; subscribe to `De1Controller.de1` (machine connect → remember) and `ScaleController.connectionState` (connected → remember via `connectedScale()`); expose `remembered` (list + change stream) and `Future<void> forget(String id)`; persist on every change
 
 ## 3. Availability in the device API
@@ -17,8 +17,8 @@
 
 ## 4. Forget endpoint
 
-- [x] 4.1 Write a handler test: `PUT /api/v1/devices/{id}/forget` removes the device from the registry; an absent device then drops from the list; a present device stays (as available) but is no longer remembered
-- [x] 4.2 Add the `PUT /api/v1/devices/<id>/forget` route in `DevicesHandler` calling `RememberedDevicesController.forget(id)`
+- [x] 4.1 Write a handler test: `PUT /api/v1/devices/forget` (deviceId in body/query) removes the device from the registry; an absent device then drops from the list; a present device stays (as available) but is no longer remembered
+- [x] 4.2 Add the `PUT /api/v1/devices/forget` route in `DevicesHandler` (deviceId from body/query — ids aren't URL-path-safe) calling `RememberedDevicesController.forget(id)`
 
 ## 5. Wiring
 
@@ -27,7 +27,7 @@
 
 ## 6. API spec & docs
 
-- [x] 6.1 Update `assets/api/rest_v1.yml`: add `available` to the device list item schema; add the `PUT /api/v1/devices/{id}/forget` path
+- [x] 6.1 Update `assets/api/rest_v1.yml`: add `available` to the device list item schema; add the `PUT /api/v1/devices/forget` path (deviceId in body/query)
 - [x] 6.2 Update `assets/api/websocket_v1.yml`: add `available` to `DeviceInfo`
 - [x] 6.3 Update `doc/Api.md` (device list + forget endpoint) and `doc/DeviceManagement.md` (remembered-devices concept, availability, the macOS-USB-id limitation)
 

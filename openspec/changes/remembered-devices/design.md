@@ -15,7 +15,7 @@ The user wants devices they've used to persist as **unavailable** entries when o
 
 **Non-Goals:**
 - Connecting *to* an unavailable device directly (it has no live transport). Reconnect happens the normal way once it reappears in discovery.
-- Remembering every discovered device (only connected/preferred — avoids clutter).
+- Remembering every discovered device (only connected — avoids clutter).
 - Remembering sensors (scope is the user-connectable machine + scale, matching the preferred-device model). Extensible later.
 - Fixing the macOS USB unstable-id issue (documented limitation; tracked separately).
 
@@ -40,16 +40,16 @@ The user wants devices they've used to persist as **unavailable** entries when o
 **Choice:** Add a `rememberedDevices` key to `SettingsService` storing a JSON array of `{id, name, type}`; load into `RememberedDevicesController` at init, save on every change. Mirrors the `preferredScaleId` persistence pattern (shared_preferences).
 **Why:** Small, structured, consistent with existing settings persistence. No new storage dependency. (Drift is available if the registry ever needs querying, but a JSON list is right-sized here.)
 
-### Decision: Forget = `PUT /api/v1/devices/{id}/forget`
-**Choice:** A new route in `DevicesHandler` calls `RememberedDevicesController.forget(id)`. The next device snapshot omits the (absent) device.
-**Why:** Fits the existing `/api/v1/devices/...` handler grouping and the verb style there (`connect`/`disconnect` are `PUT`). REST + a skin button.
+### Decision: Forget = `PUT /api/v1/devices/forget` (deviceId in body/query)
+**Choice:** A new route in `DevicesHandler` reads `deviceId` from the JSON body (or a `?deviceId=` query fallback) and calls `RememberedDevicesController.forget(id)`. The next device snapshot omits the (absent) device.
+**Why:** Fits the existing `/api/v1/devices/...` handler grouping and the verb style there (`connect`/`disconnect` are `PUT`). The id is **not** in the path because serial ids are paths (`/dev/cu.*`) and WiFi ids contain `:` — neither is URL-path-safe.
 
 ## Data flow
 
 ```
-  connect machine ── De1Controller.de1 ───────┐
-  connect scale ──── ScaleController.connected ┤→ RememberedDevicesController
-  preferred ids ──── SettingsController ───────┘     remember {id,name,type}
+  connect machine ── De1Controller.de1 ──────────────┐
+  connect scale ──── ScaleController.connected +     ┤→ RememberedDevicesController
+                     connectedScale() ───────────────┘     remember {id,name,type}
                                                        persist (settings JSON)
                                                             │ registry
    DeviceController.devices (live) ──────────┐             ▼
@@ -58,7 +58,7 @@ The user wants devices they've used to persist as **unavailable** entries when o
                                                             available:false (remembered-absent)
                                                        ▼
                                          GET /api/v1/devices  +  ws/v1/devices snapshot
-                                         PUT /api/v1/devices/{id}/forget → registry.remove
+                                         PUT /api/v1/devices/forget {deviceId} → registry.remove
                                                        ▼
                                                  skin: greyed "unavailable" + Forget button
 ```
@@ -66,7 +66,7 @@ The user wants devices they've used to persist as **unavailable** entries when o
 ## Risks / Trade-offs
 
 - **deviceId stability** → matching is by `deviceId`. This is stable per transport: BLE MAC, WiFi `wifi:<host>`, and serial (real USB stable id, or — where the OS exposes no vid/pid, e.g. macOS CH34x — the port *path*, which is stable per physical port; this is the serial path-as-id fix, not the churny libserialport handle). Residual: moving a USB device to a different physical port yields a new id and a new remembered entry. Minor and arguably correct; the user can Forget the stale one.
-- **Registry growth** → only connected/preferred devices are remembered, and Forget prunes. Bounded in practice (a user has a handful of machines/scales). No auto-expiry (keeps it predictable); revisit if it becomes noisy.
+- **Registry growth** → only connected devices are remembered, and Forget prunes. Bounded in practice (a user has a handful of machines/scales). No auto-expiry (keeps it predictable); revisit if it becomes noisy.
 - **Skin must handle `available`** → an un-updated skin would render an unavailable device as if available. Mitigation: the field is additive; the skin change (grey + Forget) ships alongside. Until then, unavailable devices appear as normal disconnected entries — degraded but not broken.
 - **Connecting to an unavailable entry** → it has no transport. The UI should drive a rescan/reconnect when tapped, not attempt a direct connect. Documented in the API/skin behavior.
 - **Sensors excluded** → matches preferred-device scope; if users want remembered sensors later it's an additive extension.

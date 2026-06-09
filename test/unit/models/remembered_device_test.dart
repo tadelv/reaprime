@@ -54,7 +54,7 @@ void main() {
       expect(back.type, DeviceType.scale);
     });
 
-    test('fromJson rejects malformed / unknown type', () {
+    test('fromJson rejects malformed / unknown type / empty id', () {
       expect(RememberedDevice.fromJson({'id': 'x'}), isNull);
       expect(
           RememberedDevice.fromJson(
@@ -62,6 +62,28 @@ void main() {
           isNull);
       expect(RememberedDevice.fromJson({'id': 1, 'name': 'n', 'type': 'scale'}),
           isNull);
+      // Empty id is rejected so decodeList never trips the constructor assert.
+      expect(RememberedDevice.fromJson({'id': '', 'name': 'n', 'type': 'scale'}),
+          isNull);
+    });
+
+    test('sameMetadata compares name + type, not id', () {
+      const a = RememberedDevice(id: 'a', name: 'N', type: DeviceType.scale);
+      const aRenamed =
+          RememberedDevice(id: 'a', name: 'Other', type: DeviceType.scale);
+      const bSameMeta =
+          RememberedDevice(id: 'b', name: 'N', type: DeviceType.scale);
+      expect(a.sameMetadata(bSameMeta), isTrue);
+      expect(a.sameMetadata(aRenamed), isFalse);
+    });
+
+    test('storedCount counts stored records before validity filtering', () {
+      // Two stored, one valid → decodeList drops one; storedCount sees both.
+      const json = '[{"id":"a","name":"A","type":"scale"},{"id":"b"}]';
+      expect(RememberedDevice.storedCount(json), 2);
+      expect(RememberedDevice.decodeList(json), hasLength(1));
+      expect(RememberedDevice.storedCount('not json'), 0);
+      expect(RememberedDevice.storedCount('{}'), 0);
     });
 
     test('encodeList/decodeList round-trips a list', () {

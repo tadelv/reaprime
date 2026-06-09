@@ -80,6 +80,10 @@ paths:
           description: Forgotten (or already absent)
         "400":
           description: Missing deviceId
+        "503":
+          description: >
+            Remembered-devices feature unavailable (the registry controller is
+            not wired). Not returned in normal operation.
   /api/v1/devices/scan:
     get:
       summary: Scan for Devices

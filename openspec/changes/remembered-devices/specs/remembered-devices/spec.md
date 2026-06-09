@@ -1,8 +1,8 @@
 ## ADDED Requirements
 
-### Requirement: Remember connected and preferred devices
+### Requirement: Remember connected devices
 
-The system SHALL persist, across app restarts, a registry of devices the user has connected to or set as preferred. Each entry SHALL store the device's identity, display name, and type. A device that has only been discovered (never connected, not preferred) SHALL NOT be remembered.
+The system SHALL persist, across app restarts, a registry of devices the user has connected to. Each entry SHALL store the device's identity, display name, and type. A device that has only been discovered (never connected) SHALL NOT be remembered.
 
 #### Scenario: Connecting a device remembers it
 
@@ -16,7 +16,7 @@ The system SHALL persist, across app restarts, a registry of devices the user ha
 
 #### Scenario: A merely-discovered device is not remembered
 
-- **WHEN** a device appears in discovery but the user never connects to it and it is not preferred
+- **WHEN** a device appears in discovery but the user never connects to it
 - **THEN** it is not added to the remembered registry
 
 ### Requirement: Surface remembered-but-absent devices as unavailable
