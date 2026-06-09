@@ -106,6 +106,15 @@ class HDSWifi implements Scale, TransportHandoffScale {
   /// own.
   @override
   Future<void> onConnect() {
+    // Fail any still-pending prior attempt before replacing its completer:
+    // `_attempt()` bumps the generation so the old attempt's timers/callbacks
+    // all bail, which means nothing else would ever complete the old future —
+    // a re-entrant onConnect() would otherwise orphan it (a silent hang for an
+    // awaiting caller).
+    final prev = _connectCompleter;
+    if (prev != null && !prev.isCompleted) {
+      prev.completeError(StateError('superseded by a new connect attempt'));
+    }
     _log.info('onConnect (deviceId=$deviceId)');
     final completer = Completer<void>();
     _connectCompleter = completer;
@@ -252,6 +261,11 @@ class HDSWifi implements Scale, TransportHandoffScale {
   Future<void> dispose() async {
     _generation++;
     _teardownTransport();
+    // Emit `disconnected` BEFORE closing the subject so a listener (e.g.
+    // ScaleController, which has no onDone handler) sees the transition and
+    // tears down — otherwise disposing the active scale strands the controller
+    // reporting `connected` for a dead device.
+    _emit(ConnectionState.disconnected);
     if (!_connectionSubject.isClosed) await _connectionSubject.close();
     if (!_snapshot.isClosed) await _snapshot.close();
     final c = _connectCompleter;

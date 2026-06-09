@@ -242,6 +242,30 @@ void main() {
         expect(await _latest(svc), isEmpty);
       });
 
+      test('liveness probes the cached IP, not the hostname, once mDNS resolves',
+          () async {
+        final probedHosts = <String>[];
+        final browser = FakeWifiScaleBrowser();
+        final svc = makeSvc(
+          browser: browser,
+          probe: (host, _) async {
+            probedHosts.add(host);
+            return true;
+          },
+        );
+        await svc.initialize();
+        browser.emit([
+          const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5'),
+        ]);
+
+        probedHosts.clear();
+        await svc.scanForDevices();
+        expect(probedHosts, contains('10.0.0.5'),
+            reason: 'the probe must target the resolved/cached IP (resolve-once '
+                'firmware guidance), not the flaky mDNS hostname');
+        expect(probedHosts, isNot(contains('hds.local')));
+      });
+
       test('mDNS losing a service does NOT hide a still-reachable scale',
           () async {
         final browser = FakeWifiScaleBrowser();

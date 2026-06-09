@@ -53,14 +53,17 @@ class SerialReconcilePlan {
   /// Paths to forget from the "ever an HDS" set (the port physically vanished).
   final Set<String> hdsForget;
 
-  const SerialReconcilePlan({
+  SerialReconcilePlan({
     required this.livenessPass,
     required this.release,
     required this.reap,
     required this.suppressAdd,
     required this.suppressRemove,
     required this.hdsForget,
-  });
+  })  : assert(release.intersection(reap).isEmpty,
+            'a released path must not also be reaped'),
+        assert(suppressAdd.intersection(suppressRemove).isEmpty,
+            'suppressAdd and suppressRemove must be disjoint (add wins)');
 }
 
 /// Decide the pre-probe reconcile transition.

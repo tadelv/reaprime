@@ -149,6 +149,50 @@ void main() {
       await sub.cancel();
     });
 
+    test('dispose emits disconnected before closing so listeners tear down',
+        () async {
+      final fake = FakeWebSocketTransport();
+      final scale = HDSWifi(host: 'hds.local', transportFactory: () => fake);
+      final states = <ConnectionState>[];
+      final sub = scale.connectionState.listen(states.add);
+
+      final f = scale.onConnect();
+      await Future.delayed(const Duration(milliseconds: 10));
+      fake.emit('{"grams":1.0}');
+      await f;
+      expect(states.last, ConnectionState.connected);
+
+      await scale.dispose();
+      expect(states.last, ConnectionState.disconnected,
+          reason: 'dispose must emit disconnected before closing the subject, '
+              'so a listener with no onDone handler still tears down');
+      await sub.cancel();
+    });
+
+    test('a re-entrant onConnect fails the prior pending future (no orphan)',
+        () async {
+      final first = FakeWebSocketTransport();
+      final second = FakeWebSocketTransport();
+      final scale = HDSWifi(
+        host: 'hds.local',
+        transportFactory: _seqFactory([first, second]),
+      );
+
+      // Start a connect but never recognize it → its future stays pending.
+      final f1 = scale.onConnect();
+      // Re-enter before f1 resolves (e.g. a racing reconnect).
+      final f2 = scale.onConnect();
+
+      // The superseded attempt must complete with an error, not hang forever.
+      await expectLater(f1, throwsA(isA<StateError>()));
+
+      // The new attempt still connects normally.
+      await Future.delayed(const Duration(milliseconds: 10));
+      second.emit('{"grams":1.0}');
+      await f2;
+      expect(await scale.connectionState.first, ConnectionState.connected);
+    });
+
     test('onConnect reconnects the same instance after a drop', () async {
       final first = FakeWebSocketTransport();
       final second = FakeWebSocketTransport();

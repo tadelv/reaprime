@@ -101,7 +101,7 @@ Notes:
 The BLE/USB preferred-scale flow is scan → match preferred `deviceId` → connect. A WiFi scale is a *stored endpoint*, not something a passive scan surfaces the same way. Resolution:
 
 - `WifiScaleDiscoveryService` holds a set of **known endpoints** = discovered services ∪ persisted manual endpoints. When `ConnectionManager` runs a scan, the service emits a scale device for each known endpoint (discovered or persisted) so the existing "match preferred `deviceId`" logic works unchanged.
-- For a persisted WiFi scale whose mDNS service isn't currently visible, the service still emits a device built from the stored `wifi:<host>` address; the connect attempt then drives the RESOLVING→CONNECTING path (cached IP first). This keeps all the network/resolve logic inside the scale/transport/discovery layer and leaves `ConnectionManager` untouched.
+- For a persisted WiFi scale whose mDNS service isn't currently visible, the service still emits a device built from the stored `wifi:<host>` address; the connect attempt then drives the connect path, preferring the cached IP (via `WifiIpCache`) and re-resolving only on failure. Resolution lives in the IP cache / transport factory, not as a scale state. This keeps all the network/resolve logic inside the scale/transport/discovery layer and leaves `ConnectionManager` untouched.
 - Net effect: `ConnectionManager` treats a WiFi preferred scale exactly like any other preferred scale — it sees a candidate device with the matching `deviceId` and calls `connectToScale`.
 
 ## Risks / Trade-offs

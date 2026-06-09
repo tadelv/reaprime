@@ -37,10 +37,12 @@ class HdsWifiFrame {
   /// Battery level percent (`status` frames).
   final int? batteryPercent;
 
-  /// Charging state (`status` frames).
+  /// Charging state (`status` frames). Parsed from the wire but not yet
+  /// surfaced to the app (`ScaleSnapshot` carries only weight + battery).
   final bool? charging;
 
-  /// Whether the scale's timer is running (`status` frames).
+  /// Whether the scale's timer is running (`status` frames). Parsed from the
+  /// wire but not yet surfaced to the app.
   final bool? timerRunning;
 
   /// The raw decoded object, for fields not surfaced as typed getters.

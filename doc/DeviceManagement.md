@@ -959,7 +959,7 @@ _log.info('Found serial ports: $ports');
 
 ### Device Implementations
 - `lib/src/models/device/impl/de1/` - DE1 machines (BLE + Serial, unified interface in `unified_de1/`)
-- `lib/src/models/device/impl/decent_scale/` - Decent Scale (BLE + Serial)
+- `lib/src/models/device/impl/decent_scale/` - Decent Scale (BLE + Serial + WiFi)
 - `lib/src/models/device/impl/acaia/` - Acaia scales (unified: IPS protocol for older ACAIA/PROCH, Pyxis protocol for Lunar/Pearl/Pyxis, auto-detected at connect time)
 - `lib/src/models/device/impl/felicita/` - Felicita Arc scale
 - `lib/src/models/device/impl/bookoo/` - Bookoo Miniscale

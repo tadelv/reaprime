@@ -30,7 +30,7 @@ The system SHALL NOT report the scale as connected until it receives a valid Hal
 
 ### Requirement: Parse the JSON wire protocol into scale snapshots
 
-The system SHALL parse the scale's UTF-8 JSON WebSocket frames into the domain `Scale` snapshot model. An untyped frame containing `grams` (no `type` field) SHALL be treated as a weight sample. A `status` frame SHALL update battery level and charging state. The parser SHALL ignore unknown frame types without error.
+The system SHALL parse the scale's UTF-8 JSON WebSocket frames into the domain `Scale` snapshot model. An untyped frame containing `grams` (no `type` field) SHALL be treated as a weight sample. A `status` frame SHALL update the reported battery level. The parser SHALL ignore unknown frame types without error. (Charging and timer-running are decoded from `status` frames but are not currently surfaced in the snapshot.)
 
 #### Scenario: Weight frame
 
@@ -40,7 +40,7 @@ The system SHALL parse the scale's UTF-8 JSON WebSocket frames into the domain `
 #### Scenario: Status frame
 
 - **WHEN** the system receives a `status` frame containing `battery_percent` and `charging`
-- **THEN** it updates the scale's reported battery level and charging state
+- **THEN** it updates the scale's reported battery level
 
 #### Scenario: Unknown frame type
 
