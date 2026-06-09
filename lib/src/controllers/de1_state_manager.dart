@@ -16,7 +16,7 @@ import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
 import 'package:reaprime/src/realtime_steam_feature/realtime_steam_feature.dart';
-import 'package:reaprime/src/home_feature/home_feature.dart';
+import 'package:reaprime/src/launcher/launcher_view.dart';
 import 'package:reaprime/src/services/account/decent_account_service.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
@@ -148,7 +148,7 @@ class De1StateManager with WidgetsBindingObserver {
     });
     final route = result; //ModalRoute.of(context);
 
-    return route?.settings.name == HomeScreen.routeName && route!.isCurrent;
+    return route?.settings.name == LauncherView.routeName && route!.isCurrent;
   }
 
   /// Returns true if the current app state is considered "background" for the platform.

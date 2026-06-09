@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
-import 'package:reaprime/src/home_feature/home_feature.dart';
+import 'package:reaprime/src/launcher/launcher_view.dart';
 import 'package:reaprime/src/home_feature/widgets/device_selection_widget.dart';
 import 'package:reaprime/src/landing_feature/landing_feature.dart';
 import 'package:reaprime/src/shared/connection_error_banner.dart';
@@ -157,7 +157,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
 
     if (route == SkinView.routeName) {
       // Push both routes to stack: HomeScreen first, then SkinView on top
-      Navigator.popAndPushNamed(context, HomeScreen.routeName);
+      Navigator.popAndPushNamed(context, LauncherView.routeName);
       Navigator.of(context).pushNamed(SkinView.routeName);
     } else {
       // For LandingFeature or any other route, navigate directly
@@ -345,7 +345,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
               ShadButton.secondary(
                 size: ShadButtonSize.sm,
                 onPressed: () {
-                  Navigator.popAndPushNamed(context, HomeScreen.routeName);
+                  Navigator.popAndPushNamed(context, LauncherView.routeName);
                 },
                 child: Text('Dashboard'),
               ),
@@ -458,7 +458,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
                           onPressed: () {
                             Navigator.popAndPushNamed(
                               context,
-                              HomeScreen.routeName,
+                              LauncherView.routeName,
                             );
                           },
                           child: Text('Continue to Dashboard'),

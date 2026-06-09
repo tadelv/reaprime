@@ -27,7 +27,7 @@ class DebugPort implements Sensor {
       BehaviorSubject();
 
   @override
-  Stream<Map<String, dynamic>> get data => _streamSubject.asBroadcastStream();
+  Stream<Map<String, dynamic>> get data => _streamSubject.stream;
 
   @override
   String get deviceId => _transport.id;

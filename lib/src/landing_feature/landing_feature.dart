@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
-import 'package:reaprime/src/home_feature/home_feature.dart';
+import 'package:reaprime/src/launcher/launcher_view.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:reaprime/src/widgets/accessible_button.dart';
@@ -140,7 +140,7 @@ class _LandingState extends State<LandingFeature> {
 
   void _navigateToHome() {
     if (mounted) {
-      Navigator.pushReplacementNamed(context, HomeScreen.routeName);
+      Navigator.pushReplacementNamed(context, LauncherView.routeName);
     }
   }
 
@@ -409,4 +409,6 @@ class _LandingState extends State<LandingFeature> {
     return url;
   }
 }
+
+
 

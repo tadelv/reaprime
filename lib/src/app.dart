@@ -34,7 +34,8 @@ import 'package:shadcn_ui/shadcn_ui.dart' hide Scale;
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
-import 'package:reaprime/src/home_feature/home_feature.dart';
+import 'package:reaprime/src/controllers/battery_controller.dart';
+import 'package:reaprime/src/launcher/launcher_view.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
@@ -83,6 +84,7 @@ class MyApp extends StatefulWidget {
     this.grinderStorage,
     this.profileStorageService,
     this.decentAccountService,
+    this.batteryController,
   });
 
   final SettingsController settingsController;
@@ -103,6 +105,7 @@ class MyApp extends StatefulWidget {
   final GrinderStorageService? grinderStorage;
   final ProfileStorageService? profileStorageService;
   final DecentAccountService? decentAccountService;
+  final BatteryController? batteryController;
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -164,7 +167,7 @@ class _MyAppState extends State<MyApp> {
         scanStateGuardian: widget.scanStateGuardian,
         onSkipToDashboard: () {
           NavigationService.navigatorKey.currentState?.pushNamedAndRemoveUntil(
-            HomeScreen.routeName,
+            LauncherView.routeName,
             (_) => false,
           );
         },
@@ -260,9 +263,9 @@ class _MyAppState extends State<MyApp> {
     // (port bound before isServing flips true) and the REST server is already
     // up from main(), so both are ready by the time we navigate.
     _log.info('Navigating to SkinView');
-    // Push both routes to stack: HomeScreen first, then SkinView on top
+    // Push both routes to stack: Launcher first, then SkinView on top
     navigator.pushNamedAndRemoveUntil(
-      HomeScreen.routeName,
+      LauncherView.routeName,
       (_) => false,
     );
     navigator.pushNamed(SkinView.routeName);
@@ -288,7 +291,7 @@ class _MyAppState extends State<MyApp> {
     });
     // Foreground service is now started in main.dart for Android
 
-    final themeColor = 'green';
+    final themeColor = 'neutral';
 
     final body = ScaffoldMessenger(
         child: ListenableBuilder(
@@ -445,19 +448,14 @@ class _MyAppState extends State<MyApp> {
                         initialSteamSettings: steamSettings,
                         gatewayMode: widget.settingsController.gatewayMode,
                       );
-                    case HomeScreen.routeName:
-                      return HomeScreen(
-                        de1controller: widget.de1Controller,
-                        workflowController: widget.workflowController,
+                    case LauncherView.routeName:
+                      return LauncherView(
+                        de1Controller: widget.de1Controller,
                         scaleController: widget.scaleController,
-                        deviceController: widget.deviceController,
-                        persistenceController: widget.persistenceController,
-                        settingsController: widget.settingsController,
                         webUIService: widget.webUIService,
-                        webUIStorage: widget.webUIStorage,
-                        beanStorage: widget.beanStorage,
-                        grinderStorage: widget.grinderStorage,
-                        connectionManager: widget.connectionManager,
+                        pluginLoaderService: widget.pluginLoaderService,
+                        batteryController: widget.batteryController,
+                        decentAccountService: widget.decentAccountService,
                       );
                     case HistoryFeature.routeName:
                       final possibleShot = routeSettings.arguments as String;
@@ -498,4 +496,11 @@ class _MyAppState extends State<MyApp> {
     return body;
   }
 }
+
+
+
+
+
+
+
 
