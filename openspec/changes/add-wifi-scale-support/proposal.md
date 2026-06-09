@@ -29,7 +29,8 @@ No breaking changes. The `Scale` interface, `ScaleController`, and `ConnectionMa
   - `lib/src/services/` — `WifiScaleDiscoveryService` (extends `DeviceDiscoveryService`; bonsoir browse + manual endpoints; constructs the WiFi scale directly, like the serial HDS path).
   - `lib/src/models/device/transport/` — `WebSocketTransport` (extends `DataTransport`; wraps `web_socket_channel`, keeping the library type behind the transport boundary).
   - `lib/src/models/device/impl/decent_scale/` — new `HDSWifi` scale (sibling of `scale.dart` / `scale_serial.dart`) implementing the `Scale` interface and the JSON protocol.
-- **Wiring:** register `WifiScaleDiscoveryService` in `DeviceController._services` (and `main.dart` init). Settings/UI surface for entering a manual IP and for the discovered WiFi entry.
+- **Wiring:** register `WifiScaleDiscoveryService` in `DeviceController._services` (and `main.dart` init).
+- **Manual-entry REST API:** `WifiScaleDiscoveryService` is also threaded into `startWebServer` so a new `/api/v1/devices/wifi` handler (`POST`/`DELETE`/`GET`) can drive `addManualEndpoint`/`removeManualEndpoint` — the skin can't call the Dart methods directly. The skin's "Add WiFi Scale" UI calls this endpoint.
 - **Dependencies:** add `bonsoir` to `pubspec.yaml`. `web_socket_channel ^3.0.3` already present.
 - **Platform config:**
   - iOS/macOS `Info.plist`: `NSBonjourServices` = `_decentscale._tcp`, `NSLocalNetworkUsageDescription` string; sandboxed macOS also needs `com.apple.security.network.client`.
