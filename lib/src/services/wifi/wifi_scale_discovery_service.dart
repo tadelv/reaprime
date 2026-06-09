@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale_wifi.dart';
+import 'package:reaprime/src/models/device/impl/decent_scale/wifi_scale_id.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/transport/web_socket_transport.dart';
 import 'package:reaprime/src/services/wifi/bonsoir_wifi_scale_browser.dart';
@@ -97,6 +98,11 @@ class WifiScaleDiscoveryService implements DeviceDiscoveryService {
   final Set<String> _unreachable = {}; // deviceIds currently hidden (IP down)
   final Map<String, int> _failures = {}; // consecutive failed probes per id
   Timer? _livenessTimer;
+  // Guards against overlapping liveness passes: the periodic timer fires
+  // un-awaited while `scanForDevices()` also awaits a pass, and each probe can
+  // take up to the socket timeout — so a slow pass can outlast the interval.
+  // Two concurrent passes would race on `_failures`/`_unreachable`.
+  bool _probing = false;
 
   final WifiReachabilityProbe _probe;
   final Duration _livenessInterval;
@@ -171,7 +177,7 @@ class WifiScaleDiscoveryService implements DeviceDiscoveryService {
     if (h.isEmpty || _manualHosts.contains(h)) return;
     _manualHosts = [..._manualHosts, h];
     await _manualStore.save(_manualHosts);
-    _scales.putIfAbsent('wifi:$h', () => _buildScale(h));
+    _scales.putIfAbsent(WifiScaleId.forHost(h), () => _buildScale(h));
     _emit();
   }
 
@@ -180,11 +186,11 @@ class WifiScaleDiscoveryService implements DeviceDiscoveryService {
     if (!_manualHosts.contains(host)) return;
     _manualHosts = _manualHosts.where((h) => h != host).toList();
     await _manualStore.save(_manualHosts);
-    final id = 'wifi:$host';
+    final id = WifiScaleId.forHost(host);
     final removed = _scales.remove(id);
     _unreachable.remove(id);
     _failures.remove(id);
-    await removed?.disconnect();
+    await removed?.dispose();
     _cache.invalidate(host);
     _emit();
   }
@@ -196,7 +202,7 @@ class WifiScaleDiscoveryService implements DeviceDiscoveryService {
   void _onEndpoints(List<WifiScaleEndpoint> eps) {
     for (final ep in eps) {
       if (ep.ip != null) _cache.record(ep.host, ep.ip!);
-      final id = 'wifi:${ep.host}';
+      final id = WifiScaleId.forHost(ep.host);
       _scales.putIfAbsent(id, () => _buildScale(ep.host));
       _unreachable.remove(id);
       _failures.remove(id);
@@ -206,44 +212,51 @@ class WifiScaleDiscoveryService implements DeviceDiscoveryService {
 
   void _ensureManualScales() {
     for (final host in _manualHosts) {
-      _scales.putIfAbsent('wifi:$host', () => _buildScale(host));
+      _scales.putIfAbsent(WifiScaleId.forHost(host), () => _buildScale(host));
     }
   }
 
   /// Probe each known scale's cached IP. Only an actively CONNECTED scale is
   /// skipped — its live socket already proves reachability, and a second probe
-  /// socket could disturb the single-client HDS. A CONNECTING scale is still
-  /// probed: when a scale powers off the controller keeps retrying it with
-  /// backoff, so it sits in `connecting` against a dead IP — if we skipped that
-  /// too, it would never be hidden. Others are hidden after [_failureThreshold]
-  /// consecutive failures and re-surfaced on the next success.
+  /// socket could occupy one of the HDS's few client slots. A CONNECTING scale
+  /// is still probed: when a scale powers off the controller keeps retrying it
+  /// (a flat reconnect retry), so it sits in `connecting` against a dead IP — if
+  /// we skipped that too, it would never be hidden. Others are hidden after
+  /// [_failureThreshold] consecutive failures and re-surfaced on the next
+  /// success.
   Future<void> _checkLiveness() async {
-    if (_scales.isEmpty) return;
+    if (_scales.isEmpty || _probing) return;
+    _probing = true;
     var changed = false;
-    for (final entry in _scales.entries.toList()) {
-      final id = entry.key;
-      final state = entry.value.currentState;
-      if (state == ConnectionState.connected) {
-        _failures.remove(id);
-        if (_unreachable.remove(id)) changed = true;
-        continue;
-      }
-      final host = id.substring('wifi:'.length);
-      final reachable = await _probe(_cache.connectHostFor(host), _wifiScalePort);
-      if (reachable) {
-        _failures.remove(id);
-        if (_unreachable.remove(id)) changed = true;
-      } else {
-        final n = (_failures[id] ?? 0) + 1;
-        _failures[id] = n;
-        if (n >= _failureThreshold && _unreachable.add(id)) {
-          // Cached IP stopped answering — hide it and drop the cache so the next
-          // mDNS resolve can pick up a possibly-new IP.
-          _cache.invalidate(host);
-          _log.info('WiFi scale $host unreachable (${n}x) — hiding');
-          changed = true;
+    try {
+      for (final entry in _scales.entries.toList()) {
+        final id = entry.key;
+        final state = entry.value.currentState;
+        if (state == ConnectionState.connected) {
+          _failures.remove(id);
+          if (_unreachable.remove(id)) changed = true;
+          continue;
+        }
+        final host = WifiScaleId.hostOf(id);
+        final reachable =
+            await _probe(_cache.connectHostFor(host), _wifiScalePort);
+        if (reachable) {
+          _failures.remove(id);
+          if (_unreachable.remove(id)) changed = true;
+        } else {
+          final n = (_failures[id] ?? 0) + 1;
+          _failures[id] = n;
+          if (n >= _failureThreshold && _unreachable.add(id)) {
+            // Cached IP stopped answering — hide it and drop the cache so the
+            // next mDNS resolve can pick up a possibly-new IP.
+            _cache.invalidate(host);
+            _log.info('WiFi scale $host unreachable (${n}x) — hiding');
+            changed = true;
+          }
         }
       }
+    } finally {
+      _probing = false;
     }
     if (changed) _emit();
   }
@@ -269,6 +282,10 @@ class WifiScaleDiscoveryService implements DeviceDiscoveryService {
     _livenessTimer = null;
     await _browserSub?.cancel();
     await _browser.stop();
+    for (final scale in _scales.values) {
+      await scale.dispose();
+    }
+    _scales.clear();
     if (!_devices.isClosed) await _devices.close();
   }
 }

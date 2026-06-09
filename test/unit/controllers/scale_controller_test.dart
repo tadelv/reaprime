@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/subjects.dart';
 
 /// Minimal Scale that connects on [onConnect] and records [disconnect] calls.
@@ -62,7 +63,50 @@ class _HandoffTrackingScale extends _TrackingScale
   }
 }
 
+/// A scale whose [onConnect] completes with an error — the WiFi HDS's expected
+/// failure mode (bad manual IP / recognition timeout).
+class _FailingScale extends _TrackingScale {
+  _FailingScale(super.deviceId);
+
+  @override
+  Future<void> onConnect() async => throw StateError('connect failed');
+
+  void emitSnapshot() => _snap.add(ScaleSnapshot(
+        timestamp: DateTime.now(),
+        weight: 1.0,
+        batteryLevel: 100,
+      ));
+}
+
 void main() {
+  test(
+      'a scale whose onConnect throws surfaces as disconnected and leaks no '
+      'snapshot subscription', () async {
+    final controller = ScaleController();
+    final scale = _FailingScale('W');
+
+    await expectLater(
+        controller.connectToScale(scale), throwsA(isA<StateError>()));
+
+    // The controller did not retain the scale and reports disconnected.
+    expect(() => controller.connectedScale(),
+        throwsA(isA<DeviceNotConnectedException>()));
+    expect(controller.currentConnectionState, ConnectionState.disconnected);
+
+    // The snapshot subscription opened before onConnect must have been
+    // cancelled — a late frame must not reach the weight stream.
+    final frames = <WeightSnapshot>[];
+    final sub = controller.weightSnapshot.listen(frames.add);
+    scale.emitSnapshot();
+    await Future.delayed(Duration.zero);
+    expect(frames, isEmpty,
+        reason: 'a failed connect must not leave the snapshot subscription '
+            'live');
+
+    await sub.cancel();
+    controller.dispose();
+  });
+
   test(
       'switching away from a handoff-capable scale releases it WITHOUT '
       'power-off (uses disconnectForHandoff)', () async {

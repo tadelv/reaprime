@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/hds_wifi_protocol.dart';
+import 'package:reaprime/src/models/device/impl/decent_scale/wifi_scale_id.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/transport/web_socket_transport.dart';
 import 'package:rxdart/subjects.dart';
@@ -27,7 +28,13 @@ typedef WebSocketTransportFactory = WebSocketTransport Function();
 /// preferred-scale reconnect owns re-connection — one reconnect policy for all
 /// transports. A generation token guards every timer/callback so a teardown
 /// can't be undone by a stale closure.
-class HDSWifi implements Scale {
+///
+/// Implements [TransportHandoffScale]: a WiFi disconnect only closes the socket
+/// (it sends no power-off/sleep command), so the handoff path is identical to a
+/// normal disconnect — but declaring the capability makes "switching away from
+/// this scale won't power off the shared physical HDS" a compile-checked
+/// property rather than an accident of the current implementation.
+class HDSWifi implements Scale, TransportHandoffScale {
   /// Logical host (hostname or IP) — the stable identity, independent of the
   /// IP a given connect attempt resolves to.
   final String host;
@@ -55,7 +62,7 @@ class HDSWifi implements Scale {
   }
 
   @override
-  String get deviceId => 'wifi:$host';
+  String get deviceId => WifiScaleId.forHost(host);
 
   @override
   String get name => 'Half Decent Scale (WiFi)';
@@ -232,6 +239,24 @@ class HDSWifi implements Scale {
     final c = _connectCompleter;
     if (c != null && !c.isCompleted) {
       c.completeError(StateError('disconnected'));
+    }
+  }
+
+  @override
+  Future<void> disconnectForHandoff() => disconnect();
+
+  /// End-of-life cleanup. Tears down any live connection and closes the exposed
+  /// subjects so listeners see `onDone`. Used when an instance is permanently
+  /// discarded (e.g. a manually-added endpoint is removed). Safe to call more
+  /// than once.
+  Future<void> dispose() async {
+    _generation++;
+    _teardownTransport();
+    if (!_connectionSubject.isClosed) await _connectionSubject.close();
+    if (!_snapshot.isClosed) await _snapshot.close();
+    final c = _connectCompleter;
+    if (c != null && !c.isCompleted) {
+      c.completeError(StateError('disposed'));
     }
   }
 

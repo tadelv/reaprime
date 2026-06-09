@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/impl/decent_scale/wifi_scale_id.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:rxdart/subjects.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -92,7 +93,7 @@ class WsTransport implements WebSocketTransport {
 
   /// Transport-scoped, stable identity used as the scale's `deviceId`.
   @override
-  String get id => 'wifi:$host';
+  String get id => WifiScaleId.forHost(host);
 
   @override
   String get name => host;

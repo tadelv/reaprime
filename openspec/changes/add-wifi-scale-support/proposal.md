@@ -18,7 +18,7 @@ No breaking changes. The `Scale` interface, `ScaleController`, and `ConnectionMa
 
 ### New Capabilities
 - `wifi-scale-discovery`: Discovering a Half Decent Scale over the local network via DNS-SD (mDNS), plus adding one manually by IP, and surfacing it into the device stream with a stable WiFi-scoped identity. Covers resolve-once/IP-cache behavior and the manual-entry fallback.
-- `wifi-scale-connection`: Connecting to and streaming from the HDS over a WebSocket — the JSON wire protocol (weight, status, events), the connect handshake, the HDS-recognition gate, taring/timer/display commands, and the snapshot-watchdog + backoff reconnect loop that makes the link reliable.
+- `wifi-scale-connection`: Connecting to and streaming from the HDS over a WebSocket — the JSON wire protocol (weight, status, events), the connect handshake, the HDS-recognition gate, taring/timer/display commands, and the snapshot watchdog that surrenders a stalled link (reconnect is owned by `ConnectionManager`, one policy shared with the BLE/USB scales) to make the link reliable.
 
 ### Modified Capabilities
 <!-- None. No existing OpenSpec specs; Scale interface / ScaleController / ConnectionManager behavior is unchanged. -->

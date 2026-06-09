@@ -67,8 +67,21 @@ class ScaleController {
       }
     }
     _scaleSnapshot = scale.currentSnapshot.listen(_processSnapshot);
-    await scale.onConnect();
-    // Verify the scale actually connected (onConnect swallows errors internally).
+    try {
+      await scale.onConnect();
+    } catch (e) {
+      // `onConnect()` may complete with an error rather than swallow it — the
+      // WiFi scale surfaces its expected failure modes this way (bad manual IP,
+      // recognition timeout). Cancel the snapshot subscription we opened above
+      // and surface `disconnected` before rethrowing, so a failed connect can't
+      // leak a subscription or leave this controller in a half-connected state.
+      log.warning('Scale failed to connect (onConnect threw)', e);
+      _scaleSnapshot?.cancel();
+      _scaleSnapshot = null;
+      _connectionController.add(ConnectionState.disconnected);
+      rethrow;
+    }
+    // `onConnect()` may also return without error but in a non-connected state.
     final state = await scale.connectionState.first;
     if (state != ConnectionState.connected) {
       log.warning('Scale failed to connect (state: ${state.name})');

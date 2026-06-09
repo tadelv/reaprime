@@ -2,7 +2,7 @@
 
 The Half Decent Scale (HDS) is one physical scale reachable over three transports at once: BLE, USB, and WiFi. The app already implements two — `DecentScale` (BLE) and `HDSSerial` (USB), both under `lib/src/models/device/impl/decent_scale/`. This change adds the third.
 
-The driver is radio contention: on a DE1 tablet, machine and scale are both BLE GATT connections sharing one radio. Moving the scale to WiFi frees the radio for the machine. The win is reliability, so the connection's reliability machinery (recognition, watchdog, backoff reconnect, IP caching) is the substance of the work, not an add-on.
+The driver is radio contention: on a DE1 tablet, machine and scale are both BLE GATT connections sharing one radio. Moving the scale to WiFi frees the radio for the machine. The win is reliability, so the connection's reliability machinery (recognition gate, snapshot watchdog, reachability-driven presence, IP caching — with reconnect owned by `ConnectionManager`, not the scale) is the substance of the work, not an add-on.
 
 The codebase has a clean transport-injection seam: a `Scale` depends on an injected `DataTransport`; `ScaleController` and `ConnectionManager` never touch transport specifics. BLE scales take a `BLETransport`; the USB HDS takes a `SerialTransport`. Both `BLETransport` and `SerialTransport` extend the minimal `DataTransport` (`connect`/`disconnect`/`dispose`/`connectionState`) with their own I/O methods. A WiFi scale slots in with a new `DataTransport` subclass and a new `Scale` implementation; nothing above the seam changes.
 
@@ -17,7 +17,7 @@ Protocol and discovery facts are confirmed from the `decentespresso/openscale` f
 - DNS-SD auto-discovery + manual-IP fallback, day 1, on all five supported platforms.
 - Keep the WiFi scale a distinct device with a transport-scoped identity (`deviceId = "wifi:<host>"`).
 - Reuse the existing `Scale` / `ScaleController` / `ConnectionManager` seam unchanged.
-- Survive mDNS flakiness and network churn via IP caching, a snapshot watchdog, and backoff reconnect.
+- Survive mDNS flakiness and network churn via IP caching, reachability-driven presence, a snapshot watchdog, and a single (manager-owned) reconnect policy.
 
 **Non-Goals:**
 - WiFi provisioning of the scale. The scale's own AP captive portal handles joining a network; the app only discovers/connects an already-provisioned scale.
@@ -61,7 +61,7 @@ Protocol and discovery facts are confirmed from the `decentespresso/openscale` f
 
 **Reconnect is owned by `ConnectionManager`, not `HDSWifi`** — one reconnect policy across all transports (BLE, USB, WiFi). `HDSWifi` owns only the WebSocket-specific *connect* concerns (handshake, recognition gate, snapshot watchdog) and reports a drop by emitting `disconnected`; the manager's existing preferred-scale reconnect re-connects it.
 
-> **Revised decision (was: in-scale backoff loop).** The first cut had `HDSWifi` run its own resolve→connect→recognize→**backoff** reconnect loop and emit `connecting` (never `disconnected`) to keep the manager out. Real-hardware testing showed why that's wrong: the app *already* reconnects scales in `ConnectionManager` (`_maybeSchedulePreferredScaleReconnect`), so we had **two divergent reconnect policies**, and emitting perpetual `connecting` made the scale behave unlike every other device (confusing `DeviceController`/status). Two owners also raced for the HDS's **single WebSocket-client slot**. Collapsing to one owner (the manager) fixes all three.
+> **Revised decision (was: in-scale backoff loop).** The first cut had `HDSWifi` run its own resolve→connect→recognize→**backoff** reconnect loop and emit `connecting` (never `disconnected`) to keep the manager out. Real-hardware testing showed why that's wrong: the app *already* reconnects scales in `ConnectionManager` (`_maybeSchedulePreferredScaleReconnect`), so we had **two divergent reconnect policies**, and emitting perpetual `connecting` made the scale behave unlike every other device (confusing `DeviceController`/status). Two owners also raced for one of the HDS's **few WebSocket-client slots**. Collapsing to one owner (the manager) fixes all three.
 
 `HDSWifi`'s per-connection state machine (one shot per `onConnect()`):
 
