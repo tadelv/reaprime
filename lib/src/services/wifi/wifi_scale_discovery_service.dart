@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
@@ -45,6 +46,21 @@ abstract class WifiManualEndpointStore {
   Future<void> save(List<String> hosts);
 }
 
+/// Cheap reachability check: does `host:port` accept a TCP connection?
+/// Injected so tests can decide reachability without a real socket.
+typedef WifiReachabilityProbe = Future<bool> Function(String host, int port);
+
+Future<bool> _defaultReachabilityProbe(String host, int port) async {
+  try {
+    final socket =
+        await Socket.connect(host, port, timeout: const Duration(seconds: 2));
+    socket.destroy();
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 /// Discovers the WiFi Half Decent Scale on the local network (DNS-SD) and
 /// surfaces manually-added endpoints, emitting an [HDSWifi] per known host
 /// into the unified device stream.
@@ -59,13 +75,32 @@ class WifiScaleDiscoveryService implements DeviceDiscoveryService {
   final WifiIpCache _cache;
   final WifiManualEndpointStore _manualStore;
 
+  /// Port the HDS WiFi scale serves (ws://host:80/snapshot); also the port the
+  /// reachability probe connects to.
+  static const int _wifiScalePort = 80;
+
   /// Reused scale instances keyed by `deviceId` so a connected scale survives
-  /// list rebuilds (never recreate an in-use HDSWifi).
+  /// list rebuilds (never recreate an in-use HDSWifi). This is the KNOWN set
+  /// (mDNS-discovered ∪ manually-added); visibility is governed by [_unreachable].
   final Map<String, HDSWifi> _scales = {};
-  List<WifiScaleEndpoint> _discovered = [];
   List<String> _manualHosts = [];
   StreamSubscription<List<WifiScaleEndpoint>>? _browserSub;
   bool _started = false;
+
+  // Presence is reachability-driven, not mDNS-membership-driven: mDNS is flaky
+  // (the same scale flaps `service lost`/`found` while it's on), and a
+  // powered-off scale's record lingers on its TTL. So once discovered we KEEP a
+  // scale and decide whether to surface it by probing its cached IP. A scale is
+  // hidden from the device list after [_failureThreshold] consecutive failed
+  // probes, and re-surfaced the moment its IP answers again (or mDNS re-resolves
+  // it). This keeps using the cached IP for as long as it works.
+  final Set<String> _unreachable = {}; // deviceIds currently hidden (IP down)
+  final Map<String, int> _failures = {}; // consecutive failed probes per id
+  Timer? _livenessTimer;
+
+  final WifiReachabilityProbe _probe;
+  final Duration _livenessInterval;
+  final int _failureThreshold;
 
   final BehaviorSubject<List<Device>> _devices =
       BehaviorSubject.seeded(<Device>[]);
@@ -74,9 +109,15 @@ class WifiScaleDiscoveryService implements DeviceDiscoveryService {
     WifiScaleBrowser? browser,
     WifiIpCache? cache,
     WifiManualEndpointStore? manualStore,
+    WifiReachabilityProbe? reachabilityProbe,
+    Duration livenessInterval = const Duration(seconds: 10),
+    int failureThreshold = 2,
   })  : _browser = browser ?? BonsoirWifiScaleBrowser(),
         _cache = cache ?? WifiIpCache(),
-        _manualStore = manualStore ?? SharedPrefsWifiManualEndpointStore();
+        _manualStore = manualStore ?? SharedPrefsWifiManualEndpointStore(),
+        _probe = reachabilityProbe ?? _defaultReachabilityProbe,
+        _livenessInterval = livenessInterval,
+        _failureThreshold = failureThreshold;
 
   @override
   Stream<List<Device>> get devices => _devices.stream;
@@ -84,20 +125,22 @@ class WifiScaleDiscoveryService implements DeviceDiscoveryService {
   @override
   Future<void> initialize() async {
     _manualHosts = await _manualStore.load();
-    _browserSub = _browser.endpoints.listen((eps) {
-      _discovered = eps;
-      _rebuild();
-    });
+    _ensureManualScales();
+    _browserSub = _browser.endpoints.listen(_onEndpoints);
     await _ensureStarted();
-    _rebuild();
+    _emit();
+    _livenessTimer ??=
+        Timer.periodic(_livenessInterval, (_) => _checkLiveness());
   }
 
   @override
   Future<void> scanForDevices({ScanFilter? filter}) async {
     // mDNS browsing is passive and continuous — a "scan" just ensures it is
-    // running and re-publishes the current known endpoints.
+    // running, re-publishes the current set, and kicks an immediate reachability
+    // pass so a just-returned scale surfaces without waiting for the next tick.
     await _ensureStarted();
-    _rebuild();
+    _emit();
+    await _checkLiveness();
   }
 
   @override
@@ -128,7 +171,8 @@ class WifiScaleDiscoveryService implements DeviceDiscoveryService {
     if (h.isEmpty || _manualHosts.contains(h)) return;
     _manualHosts = [..._manualHosts, h];
     await _manualStore.save(_manualHosts);
-    _rebuild();
+    _scales.putIfAbsent('wifi:$h', () => _buildScale(h));
+    _emit();
   }
 
   /// Remove a manually-added host and tear down its scale instance.
@@ -136,23 +180,81 @@ class WifiScaleDiscoveryService implements DeviceDiscoveryService {
     if (!_manualHosts.contains(host)) return;
     _manualHosts = _manualHosts.where((h) => h != host).toList();
     await _manualStore.save(_manualHosts);
-    final removed = _scales.remove('wifi:$host');
+    final id = 'wifi:$host';
+    final removed = _scales.remove(id);
+    _unreachable.remove(id);
+    _failures.remove(id);
     await removed?.disconnect();
     _cache.invalidate(host);
-    _rebuild();
+    _emit();
   }
 
-  void _rebuild() {
-    for (final ep in _discovered) {
+  /// mDNS browse result. Discovery-only: record IPs, ensure a scale exists, and
+  /// clear any "unreachable" mark for a host mDNS just re-announced (it's back).
+  /// Never removes — a vanished mDNS record does NOT hide the scale (that's the
+  /// reachability probe's job), so mDNS flapping can't flicker the list.
+  void _onEndpoints(List<WifiScaleEndpoint> eps) {
+    for (final ep in eps) {
       if (ep.ip != null) _cache.record(ep.host, ep.ip!);
-      _scales.putIfAbsent('wifi:${ep.host}', () => _buildScale(ep.host));
+      final id = 'wifi:${ep.host}';
+      _scales.putIfAbsent(id, () => _buildScale(ep.host));
+      _unreachable.remove(id);
+      _failures.remove(id);
     }
+    _emit();
+  }
+
+  void _ensureManualScales() {
     for (final host in _manualHosts) {
       _scales.putIfAbsent('wifi:$host', () => _buildScale(host));
     }
-    if (!_devices.isClosed) {
-      _devices.add(List<Device>.from(_scales.values));
+  }
+
+  /// Probe each known scale's cached IP. Only an actively CONNECTED scale is
+  /// skipped — its live socket already proves reachability, and a second probe
+  /// socket could disturb the single-client HDS. A CONNECTING scale is still
+  /// probed: when a scale powers off the controller keeps retrying it with
+  /// backoff, so it sits in `connecting` against a dead IP — if we skipped that
+  /// too, it would never be hidden. Others are hidden after [_failureThreshold]
+  /// consecutive failures and re-surfaced on the next success.
+  Future<void> _checkLiveness() async {
+    if (_scales.isEmpty) return;
+    var changed = false;
+    for (final entry in _scales.entries.toList()) {
+      final id = entry.key;
+      final state = entry.value.currentState;
+      if (state == ConnectionState.connected) {
+        _failures.remove(id);
+        if (_unreachable.remove(id)) changed = true;
+        continue;
+      }
+      final host = id.substring('wifi:'.length);
+      final reachable = await _probe(_cache.connectHostFor(host), _wifiScalePort);
+      if (reachable) {
+        _failures.remove(id);
+        if (_unreachable.remove(id)) changed = true;
+      } else {
+        final n = (_failures[id] ?? 0) + 1;
+        _failures[id] = n;
+        if (n >= _failureThreshold && _unreachable.add(id)) {
+          // Cached IP stopped answering — hide it and drop the cache so the next
+          // mDNS resolve can pick up a possibly-new IP.
+          _cache.invalidate(host);
+          _log.info('WiFi scale $host unreachable (${n}x) — hiding');
+          changed = true;
+        }
+      }
     }
+    if (changed) _emit();
+  }
+
+  void _emit() {
+    if (_devices.isClosed) return;
+    final visible = <Device>[
+      for (final e in _scales.entries)
+        if (!_unreachable.contains(e.key)) e.value,
+    ];
+    _devices.add(visible);
   }
 
   HDSWifi _buildScale(String host) => HDSWifi(
@@ -163,6 +265,8 @@ class WifiScaleDiscoveryService implements DeviceDiscoveryService {
       );
 
   Future<void> dispose() async {
+    _livenessTimer?.cancel();
+    _livenessTimer = null;
     await _browserSub?.cancel();
     await _browser.stop();
     if (!_devices.isClosed) await _devices.close();
