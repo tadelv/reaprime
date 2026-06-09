@@ -87,18 +87,22 @@ class _StatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      spacing: 6,
-      children: [
-        Icon(icon, size: 14, color: color ?? theme.colorScheme.mutedForeground),
-        Text(
-          label,
-          style: theme.textTheme.small.copyWith(
-            color: color ?? theme.colorScheme.foreground,
+    return Semantics(
+      label: label,
+      excludeSemantics: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 6,
+        children: [
+          Icon(icon, size: 14, color: color ?? theme.colorScheme.mutedForeground),
+          Text(
+            label,
+            style: theme.textTheme.small.copyWith(
+              color: color ?? theme.colorScheme.foreground,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

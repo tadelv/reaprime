@@ -55,16 +55,20 @@ class BrowserHeroCard extends StatelessWidget {
             spacing: 16,
             children: [
               // QR code
-              SizedBox(
-                width: 120,
-                height: 120,
-                child: PrettyQrView.data(
-                  data: _url,
-                  decoration: PrettyQrDecoration(
-                    quietZone: PrettyQrQuietZone.standard,
-                    shape: PrettyQrSquaresSymbol(
-                      unifiedFinderPattern: true,
-                      color: theme.colorScheme.foreground,
+              Semantics(
+                label: 'QR code to open WebUI at $_displayUrl',
+                excludeSemantics: true,
+                child: SizedBox(
+                  width: 120,
+                  height: 120,
+                  child: PrettyQrView.data(
+                    data: _url,
+                    decoration: PrettyQrDecoration(
+                      quietZone: PrettyQrQuietZone.standard,
+                      shape: PrettyQrSquaresSymbol(
+                        unifiedFinderPattern: true,
+                        color: theme.colorScheme.foreground,
+                      ),
                     ),
                   ),
                 ),
