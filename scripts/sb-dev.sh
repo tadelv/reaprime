@@ -183,7 +183,7 @@ start_cmd() {
       printf '%s\n' "--preferred-scale-id $preferred_scale_id"
     [[ "$real" -eq 1 ]] && printf '%s\n' "--real"
     [[ "$adb_forward" -eq 1 ]] && printf '%s\n' "--adb-forward"
-    for d in "${extra_defines[@]}"; do printf '%s\n' "--dart-define ${d#--dart-define=}"; done
+    for d in ${extra_defines[@]+"${extra_defines[@]}"}; do printf '%s\n' "--dart-define ${d#--dart-define=}"; done
   } > "$FLAGSFILE"
 
   # Set up adb port forwarding before spawning flutter so readiness
@@ -219,7 +219,7 @@ start_cmd() {
     defines+=("--dart-define=preferredMachineId=$preferred_machine_id")
   [[ -n "$preferred_scale_id" ]] && \
     defines+=("--dart-define=preferredScaleId=$preferred_scale_id")
-  defines+=("${extra_defines[@]}")
+  defines+=(${extra_defines[@]+"${extra_defines[@]}"})
 
   local -a platform_flag=()
   [[ -n "$platform" ]] && platform_flag=(-d "$platform")
@@ -233,7 +233,8 @@ start_cmd() {
   echo $! > "$HOLDER_PIDFILE"
 
   # Spawn flutter with stdin from the fifo, logs redirected
-  nohup ./flutter_with_commit.sh run "${platform_flag[@]}" "${defines[@]}" \
+  nohup ./flutter_with_commit.sh run \
+    ${platform_flag[@]+"${platform_flag[@]}"} ${defines[@]+"${defines[@]}"} \
     < "$STDIN_FIFO" > "$LOGFILE" 2>&1 &
   echo $! > "$PIDFILE"
 
@@ -395,7 +396,7 @@ restart_cmd() {
     done < "$FLAGSFILE"
   fi
   stop_cmd || true
-  start_cmd "${saved_args[@]}"
+  start_cmd ${saved_args[@]+"${saved_args[@]}"}
 }
 
 case "$cmd" in
