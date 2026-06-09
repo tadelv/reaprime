@@ -422,7 +422,8 @@ of vanishing. Cross-transport (BLE/USB/WiFi) by construction.
   the shared `buildAvailabilityDeviceList`. The aggregator re-emits when the
   registry changes. `DeviceController` itself stays live-only.
 - **Forget:** `RememberedDevicesController.forget(id)`, exposed as
-  `PUT /api/v1/devices/forget` (deviceId in body/query) and a GUI button.
+  `PUT /api/v1/devices/forget` (deviceId in body/query). A GUI Forget control
+  lives in the web skin (separate repo), driven by this endpoint.
 - **Identity:** by `deviceId`, stable per transport (BLE MAC, WiFi `wifi:<host>`,
   serial USB stable id or — on macOS where vid/pid is unreadable — the port
   path). Moving a USB device to a different physical port yields a new id (new

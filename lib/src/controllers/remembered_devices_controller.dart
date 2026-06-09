@@ -91,16 +91,33 @@ class RememberedDevicesController {
       return; // already remembered with the same metadata
     }
     _registry[device.id] = device;
+    try {
+      await _persist();
+    } catch (_) {
+      // Roll back so the in-memory registry stays consistent with disk on a
+      // persist failure (which _persist has already logged at SEVERE).
+      if (existing != null) {
+        _registry[device.id] = existing;
+      } else {
+        _registry.remove(device.id);
+      }
+      rethrow;
+    }
     _log.info('remembering $device');
-    await _persist();
     _emit();
   }
 
   /// Forget a remembered device. No-op if it isn't remembered.
   Future<void> forget(String id) async {
-    if (_registry.remove(id) == null) return;
+    final removed = _registry.remove(id);
+    if (removed == null) return;
+    try {
+      await _persist();
+    } catch (_) {
+      _registry[id] = removed; // roll back: memory must match disk
+      rethrow;
+    }
     _log.info('forgot $id');
-    await _persist();
     _emit();
   }
 

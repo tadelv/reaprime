@@ -7,7 +7,7 @@ The user wants devices they've used to persist as **unavailable** entries when o
 ## Goals / Non-Goals
 
 **Goals:**
-- Persist `{id, name, type}` for devices the user connects to or prefers, across restarts.
+- Persist `{id, name, type}` for devices the user connects to, across restarts.
 - Show remembered-but-absent devices in the device API as `available: false`; present ones as `available: true`.
 - A forget action (REST + GUI) that drops a device from the registry.
 - Cross-transport (BLE/USB/WiFi) by construction.
@@ -32,7 +32,7 @@ The user wants devices they've used to persist as **unavailable** entries when o
 **Mechanics:** present ids = `DeviceController.devices.map(id)`. For each remembered entry whose id ∉ present, emit `{id, name, type, state: "disconnected", available: false}`. For each present device, emit its real `{id, name, type, state}` + `available: true`.
 
 ### Decision: Observe connections via existing controller streams
-**Choice:** `RememberedDevicesController` subscribes to `De1Controller.de1` (machine connect → remember `{id, name, machine}`) and `ScaleController.connectionState` (on `connected` → remember the connected scale via `ScaleController.connectedScale()` `{id, name, scale}`). Preferred ids already persisted are also folded into the registry on load.
+**Choice:** `RememberedDevicesController` subscribes to `De1Controller.de1` (machine connect → remember `{id, name, machine}`) and `ScaleController.connectionState` (on `connected` → remember the connected scale via `ScaleController.connectedScale()` `{id, name, scale}`). Only connection events feed the registry — preferred ids are not folded in (a preferred device gets remembered when it connects, which it does on the auto-connect path).
 **Why:** Reuses the cleanest existing "device connected" signals without threading new callbacks through `ConnectionManager`. No change to the comms layer.
 **Alternative:** Hook `DisconnectSupervisor.onScaleConnected/onMachineConnected` — those fire but don't carry the device metadata; we'd still have to read it from the controllers. Observing the controllers directly is simpler.
 
