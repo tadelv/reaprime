@@ -46,6 +46,30 @@ class SimulatedWebViewDevice {
     platform: 'Linux aarch64',
     maxTouchPoints: 5,
   );
+
+  static const teclastP80X = SimulatedWebViewDevice(
+    id: 'teclast-p80x',
+    name: 'Teclast P80X',
+    physicalSize: Size(1280, 800),
+    webViewSurfaceSize: Size(1281, 801),
+    densityDpi: 213,
+    viewportSize: Size(962, 602),
+    screenSize: Size(962, 601),
+    platform: 'Linux aarch64',
+    maxTouchPoints: 2,
+  );
+
+  static const teclastP85Pro = SimulatedWebViewDevice(
+    id: 'teclast-p85-pro',
+    name: 'Teclast P85 Pro',
+    physicalSize: Size(1280, 800),
+    webViewSurfaceSize: Size(1282, 801),
+    densityDpi: 180,
+    viewportSize: Size(1140, 712),
+    screenSize: Size(1138, 712),
+    platform: 'Linux armv8l',
+    maxTouchPoints: 5,
+  );
 }
 
 final simulatedWebViewDevice = ValueNotifier<SimulatedWebViewDevice?>(null);
@@ -53,6 +77,12 @@ final simulatedWebViewDevice = ValueNotifier<SimulatedWebViewDevice?>(null);
 SimulatedWebViewDevice? simulatedWebViewDeviceById(String? id) {
   if (id == SimulatedWebViewDevice.teclastT50Mini.id) {
     return SimulatedWebViewDevice.teclastT50Mini;
+  }
+  if (id == SimulatedWebViewDevice.teclastP80X.id) {
+    return SimulatedWebViewDevice.teclastP80X;
+  }
+  if (id == SimulatedWebViewDevice.teclastP85Pro.id) {
+    return SimulatedWebViewDevice.teclastP85Pro;
   }
   return null;
 }
