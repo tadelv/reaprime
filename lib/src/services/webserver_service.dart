@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/controllers/remembered_devices_controller.dart';
+import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/profile_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
@@ -122,6 +124,7 @@ Future<void> startWebServer(
   GrinderStorageService? grinderStorage,
   required ConnectionManager connectionManager,
   WifiScaleDiscoveryService? wifiScaleDiscoveryService,
+  RememberedDevicesController? rememberedDevicesController,
   DecentAccountService? decentAccountService,
   DecentProxyService? decentProxyService,
   ProxyTokenService? proxyTokenService,
@@ -137,6 +140,7 @@ Future<void> startWebServer(
     controller: deviceController,
     batteryController: batteryController,
     connectionManager: connectionManager,
+    rememberedController: rememberedDevicesController,
   );
   final settingsHandler = SettingsHandler(
     controller: settingsController,

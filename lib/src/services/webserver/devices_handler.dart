@@ -8,6 +8,7 @@ class DevicesStateAggregator {
   final DeviceController _controller;
   final BatteryController? _batteryController;
   final ConnectionManager _connectionManager;
+  final RememberedDevicesController? _rememberedController;
   final Logger _log = Logger("DevicesStateAggregator");
 
   final List<StreamSubscription> _subscriptions = [];
@@ -32,9 +33,11 @@ class DevicesStateAggregator {
     required DeviceController controller,
     BatteryController? batteryController,
     required ConnectionManager connectionManager,
+    RememberedDevicesController? rememberedController,
   })  : _controller = controller,
         _batteryController = batteryController,
-        _connectionManager = connectionManager {
+        _connectionManager = connectionManager,
+        _rememberedController = rememberedController {
     _start();
   }
 
@@ -62,6 +65,15 @@ class DevicesStateAggregator {
     _subscriptions.add(
       _connectionManager.status.skip(1).listen((_) => _emitState()),
     );
+
+    // Re-emit when the remembered set changes (a device remembered/forgotten),
+    // so available/unavailable entries appear/disappear promptly (skip replay).
+    final remembered = _rememberedController;
+    if (remembered != null) {
+      _subscriptions.add(
+        remembered.changes.skip(1).listen((_) => _emitState()),
+      );
+    }
 
     // Set up initial per-device subscriptions
     _updateDeviceSubscriptions(_controller.devices);
@@ -122,17 +134,10 @@ class DevicesStateAggregator {
   }
 
   Future<Map<String, dynamic>> _buildSnapshot() async {
-    final devices = _controller.devices;
-    final devList = <Map<String, String>>[];
-    for (var device in devices) {
-      var state = await device.connectionState.first;
-      devList.add({
-        'name': device.name,
-        'id': device.deviceId,
-        'state': state.name,
-        'type': device.type.name,
-      });
-    }
+    final devList = await buildAvailabilityDeviceList(
+      _controller.devices,
+      _rememberedController?.remembered ?? const [],
+    );
 
     final snapshot = <String, dynamic>{
       'timestamp': DateTime.now().toUtc().toIso8601String(),
@@ -185,6 +190,7 @@ class DevicesStateAggregator {
 class DevicesHandler {
   final DeviceController _controller;
   final ConnectionManager _connectionManager;
+  final RememberedDevicesController? _rememberedController;
   final Logger _log = Logger("Devices handler");
   final DevicesStateAggregator _aggregator;
 
@@ -192,12 +198,15 @@ class DevicesHandler {
     required DeviceController controller,
     BatteryController? batteryController,
     required ConnectionManager connectionManager,
+    RememberedDevicesController? rememberedController,
   })  : _controller = controller,
         _connectionManager = connectionManager,
+        _rememberedController = rememberedController,
         _aggregator = DevicesStateAggregator(
           controller: controller,
           batteryController: batteryController,
           connectionManager: connectionManager,
+          rememberedController: rememberedController,
         );
 
   void dispose() {
@@ -241,25 +250,23 @@ class DevicesHandler {
     app.put('/api/v1/devices/connect', _handleConnect);
     app.put('/api/v1/devices/disconnect', _handleDisconnect);
 
+    // Forget a remembered device: drop it from the persistent registry. If the
+    // device isn't currently present it then no longer appears in the list.
+    // deviceId comes from the body/query (not the path) since serial ids are
+    // paths like /dev/cu.* and WiFi ids contain ':', neither URL-path-safe.
+    app.put('/api/v1/devices/forget', _handleForget);
+
     app.get(
       '/ws/v1/devices',
       sws.webSocketHandler(_handleDevicesSocket),
     );
   }
 
-  Future<List<Map<String, String>>> _deviceList() async {
-    var devices = _controller.devices;
-    var devMap = <Map<String, String>>[];
-    for (var device in devices) {
-      var state = await device.connectionState.first;
-      devMap.add({
-        'name': device.name,
-        'id': device.deviceId,
-        'state': state.name,
-        'type': device.type.name,
-      });
-    }
-    return devMap;
+  Future<List<Map<String, dynamic>>> _deviceList() async {
+    return buildAvailabilityDeviceList(
+      _controller.devices,
+      _rememberedController?.remembered ?? const [],
+    );
   }
 
   /// Extract deviceId from JSON body or query parameter.
@@ -276,6 +283,19 @@ class DevicesHandler {
       // Not valid JSON — fall through to query parameter
     }
     return req.requestedUri.queryParameters['deviceId'];
+  }
+
+  Future<Response> _handleForget(Request req) async {
+    final remembered = _rememberedController;
+    if (remembered == null) {
+      return jsonError({'error': 'remembered devices not available'});
+    }
+    final deviceId = await _extractDeviceId(req);
+    if (deviceId == null) {
+      return jsonBadRequest({'error': 'Missing deviceId'});
+    }
+    await remembered.forget(deviceId);
+    return jsonOk(null);
   }
 
   Future<Response> _handleConnect(Request req) async {
@@ -427,5 +447,40 @@ class DevicesHandler {
         await (device as Sensor).onConnect();
     }
   }
+}
+
+/// Builds the API device list: currently-present devices (`available: true`)
+/// merged with remembered devices that aren't present (`available: false`,
+/// reported as `disconnected`). A remembered device that IS present is listed
+/// once, as available. Shared by the REST `_deviceList` and the WebSocket
+/// `_buildSnapshot` so both surfaces agree.
+Future<List<Map<String, dynamic>>> buildAvailabilityDeviceList(
+  List<Device> liveDevices,
+  List<RememberedDevice> remembered,
+) async {
+  final list = <Map<String, dynamic>>[];
+  final liveIds = <String>{};
+  for (final device in liveDevices) {
+    final state = await device.connectionState.first;
+    liveIds.add(device.deviceId);
+    list.add({
+      'name': device.name,
+      'id': device.deviceId,
+      'state': state.name,
+      'type': device.type.name,
+      'available': true,
+    });
+  }
+  for (final r in remembered) {
+    if (liveIds.contains(r.id)) continue;
+    list.add({
+      'name': r.name,
+      'id': r.id,
+      'state': ConnectionState.disconnected.name,
+      'type': r.type.name,
+      'available': false,
+    });
+  }
+  return list;
 }
 

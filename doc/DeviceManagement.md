@@ -400,6 +400,34 @@ Future<void> connectToScale(Scale scale) async {
 
 **Pattern:** Mirrors ScaleController auto-connect logic
 
+### RememberedDevicesController
+
+**File:** `lib/src/controllers/remembered_devices_controller.dart`
+
+Persists devices the user has connected to (machine + scale) so they stay
+visible — marked **unavailable** — when they're not currently present, instead
+of vanishing. Cross-transport (BLE/USB/WiFi) by construction.
+
+- **Registry:** `{id, name, type}` per device, persisted as a JSON list in the
+  settings layer (`SettingsService.rememberedDevices`), mirroring the
+  preferred-device persistence pattern. Loaded on `initialize()`.
+- **Observation:** consumes two `Stream<RememberedDevice?>` (machine, scale);
+  `main.dart` wires these from `De1Controller.de1` and
+  `ScaleController.connectionState` (+ `connectedScale()`), reading
+  `{id, name, type}` off the connected device. A null emission (disconnect)
+  does **not** forget — the device stays remembered.
+- **Availability:** computed at the API layer. `DevicesStateAggregator` /
+  `DevicesHandler` merge live devices (`available: true`) with remembered
+  devices that aren't present (`available: false`, `state: "disconnected"`) via
+  the shared `buildAvailabilityDeviceList`. The aggregator re-emits when the
+  registry changes. `DeviceController` itself stays live-only.
+- **Forget:** `RememberedDevicesController.forget(id)`, exposed as
+  `PUT /api/v1/devices/forget` (deviceId in body/query) and a GUI button.
+- **Identity:** by `deviceId`, stable per transport (BLE MAC, WiFi `wifi:<host>`,
+  serial USB stable id or — on macOS where vid/pid is unreadable — the port
+  path). Moving a USB device to a different physical port yields a new id (new
+  remembered entry); Forget removes the stale one.
+
 ### Bengle integrated scale
 
 When a Bengle is the connected machine, its integrated scale is auto-attached
