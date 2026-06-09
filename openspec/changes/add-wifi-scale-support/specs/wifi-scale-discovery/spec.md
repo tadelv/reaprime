@@ -21,7 +21,7 @@ The system SHALL discover a Half Decent Scale on the local network using DNS-SD 
 
 ### Requirement: Add a WiFi scale manually by address
 
-The system SHALL allow a user to add a WiFi Half Decent Scale by entering its address (IP, optionally with port), without requiring DNS-SD discovery. This manual path SHALL be available on all supported platforms and serves as the fallback when discovery is unavailable.
+The system SHALL allow a user to add a WiFi Half Decent Scale by entering its address (IP or hostname; the port is fixed at 80), without requiring DNS-SD discovery. This manual path SHALL be available on all supported platforms and serves as the fallback when discovery is unavailable.
 
 #### Scenario: User enters a valid IP
 

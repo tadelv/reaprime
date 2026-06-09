@@ -12,7 +12,7 @@
 
 ## 3. JSON protocol parser
 
-- [x] 3.1 Write unit tests for the frame parser: untyped `{grams, ms}` → weight; `status` → battery/charging; `button`/`power`/`rate`/`error` typed frames; unknown type ignored without error; malformed JSON handled
+- [x] 3.1 Write unit tests for the frame parser: untyped `{grams, ms}` → weight; `status` → battery (charging/timer-running decoded but not surfaced); `button`/`power`/`rate`/`error` typed frames; unknown type ignored without error; malformed JSON handled
 - [x] 3.2 Implement the parser mapping frames to the domain `Scale` snapshot model
 
 ## 4. HDSWifi scale + reliability state machine
@@ -20,7 +20,7 @@
 - [x] 4.1 Write unit tests (fake transport) for: connect handshake order (`rate 10k` → `events on` → `status`); recognition gate (first `grams`/`status` → connected; timeout → fail); tare/timer/display commands sent; `deviceId == "wifi:<host>"`
 - [x] 4.2 Write unit tests for the watchdog state machine: stalled stream → `disconnected` (no in-scale reconnect — `ConnectionManager` owns it); socket close / `power_off` → `disconnected`; clean `disconnect()`/`dispose()` cancels pending timers/callbacks (generation-token idiom); reconnect of the same instance resumes snapshots
 - [x] 4.3 Implement `HDSWifi` in `lib/src/models/device/impl/decent_scale/` implementing the `Scale` interface (currentSnapshot, tare, startTimer/stopTimer/resetTimer, sleep/wakeDisplay), wiring the parser, handshake, recognition gate, and the snapshot-watchdog state machine (drop → `disconnected`; reconnect owned by `ConnectionManager`)
-- [x] 4.4 Implement resolve-once + IPv4-preferred IP cache (keyed by host) used by the RESOLVING state; self-heal stale cache on successful re-resolve
+- [x] 4.4 Implement resolve-once + IPv4-preferred IP cache (keyed by host) used by the transport factory on connect; self-heal stale cache on successful re-resolve
 
 ## 5. WifiScaleDiscoveryService
 
