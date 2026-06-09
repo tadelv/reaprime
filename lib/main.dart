@@ -21,6 +21,8 @@ import 'package:reaprime/src/controllers/steam_sequencer.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/controllers/remembered_devices_controller.dart';
+import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/controllers/display_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/presence_controller.dart';
@@ -306,6 +308,29 @@ void main() async {
     settingsController: settingsController,
   );
 
+  // Remembers devices the user connects to (machine + scale), shown as
+  // unavailable when absent. Reads {id,name,type} off the connected device;
+  // the controller itself stays interface-agnostic.
+  final rememberedDevicesController = RememberedDevicesController(
+    machineConnections: de1Controller.de1.map((de1) => de1 == null
+        ? null
+        : RememberedDevice(
+            id: de1.deviceId, name: de1.name, type: DeviceType.machine)),
+    scaleConnections: scaleController.connectionState.map((state) {
+      // `state` is the device ConnectionState (from the stream type); name it
+      // by value to avoid the material.dart ConnectionState import clash.
+      if (state.name != 'connected') return null;
+      try {
+        final s = scaleController.connectedScale();
+        return RememberedDevice(id: s.deviceId, name: s.name, type: s.type);
+      } catch (_) {
+        return null;
+      }
+    }),
+    settings: SharedPreferencesSettingsService(),
+  );
+  await rememberedDevicesController.initialize();
+
   final scanStateGuardian = ScanStateGuardian(
     bleService: bleDiscoveryService,
   );
@@ -430,6 +455,7 @@ void main() async {
       grinderStorage: grinderStorage,
       connectionManager: connectionManager,
       wifiScaleDiscoveryService: wifiScaleDiscoveryService,
+      rememberedDevicesController: rememberedDevicesController,
       decentAccountService: decentAccountService,
       decentProxyService: decentProxyService,
       proxyTokenService: proxyTokenService,

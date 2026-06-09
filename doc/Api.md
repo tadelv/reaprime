@@ -72,13 +72,21 @@ For browser clients on a different origin, `ETag` is exposed via `Access-Control
 
 | Method | Path | Description | Handler |
 |--------|------|-------------|---------|
-| GET | `/api/v1/devices` | List discovered devices | `devices_handler.dart` |
+| GET | `/api/v1/devices` | List devices (present + remembered) | `devices_handler.dart` |
 | POST | `/api/v1/devices/scan` | Start BLE scan | |
 | POST | `/api/v1/devices/connect` | Connect to device by ID | |
 | POST | `/api/v1/devices/disconnect` | Disconnect device | |
+| PUT | `/api/v1/devices/forget` | Forget a remembered device | |
 | GET | `/api/v1/devices/wifi` | List manually-added WiFi scale endpoints | `wifi_scale_handler.dart` |
 | POST | `/api/v1/devices/wifi` | Add a WiFi scale by IP/hostname (`{host}`) | |
 | DELETE | `/api/v1/devices/wifi` | Remove a manual WiFi endpoint (`{host}` body or `?host=`) | |
+
+Each device entry carries an **`available`** boolean. `true` = currently present
+in discovery; `false` = a **remembered** device that isn't present (reported with
+`state: "disconnected"`). Devices the user connects to are remembered and persist
+across restarts, shown as unavailable when offline, until forgotten via
+`PUT /api/v1/devices/forget` (deviceId in the JSON body or `?deviceId=` query).
+The same `available` field is on each device in the `ws/v1/devices` snapshot.
 
 **Manual WiFi scale endpoints.** Auto-discovered (DNS-SD) WiFi scales appear in
 `GET /api/v1/devices` like any other device and need no extra calls. The

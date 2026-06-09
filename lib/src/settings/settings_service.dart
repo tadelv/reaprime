@@ -58,6 +58,10 @@ abstract class SettingsService {
   Future<void> setSleepTimeoutMinutes(int value);
   Future<String> wakeSchedules();
   Future<void> setWakeSchedules(String json);
+  // Remembered devices, as a JSON array string of {id, name, type}. The
+  // RememberedDevicesController owns encode/decode (RememberedDevice).
+  Future<String> rememberedDevices();
+  Future<void> setRememberedDevices(String json);
   Future<bool> lowBatteryBrightnessLimit();
   Future<void> setLowBatteryBrightnessLimit(bool value);
   Future<bool> onboardingCompleted();
@@ -366,6 +370,16 @@ class SharedPreferencesSettingsService extends SettingsService {
   }
 
   @override
+  Future<String> rememberedDevices() async {
+    return await prefs.getString(SettingsKeys.rememberedDevices.name) ?? '[]';
+  }
+
+  @override
+  Future<void> setRememberedDevices(String json) async {
+    await prefs.setString(SettingsKeys.rememberedDevices.name, json);
+  }
+
+  @override
   Future<void> setWakeSchedules(String json) async {
     await prefs.setString(SettingsKeys.wakeSchedules.name, json);
   }
@@ -438,6 +452,7 @@ enum SettingsKeys {
   userPresenceEnabled,
   sleepTimeoutMinutes,
   wakeSchedules,
+  rememberedDevices,
   lowBatteryBrightnessLimit,
   onboardingCompleted,
   accountStepSeen,
