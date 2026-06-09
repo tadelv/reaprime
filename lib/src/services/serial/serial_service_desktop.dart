@@ -587,11 +587,19 @@ class _DesktopSerialPort implements SerialTransport {
     return _safePortName() ?? "${_port.address}";
   }
 
+  // Once dispose() frees the native sp_port (and its sp_port_config), ANY
+  // further open/setConfig/close is a use-after-free that libserialport turns
+  // into a double-free abort (`sp_free_config` SIGABRT). The reconcile can
+  // dispose this transport while the bound device still holds it and later
+  // calls connect(), so every native-touching method guards on this flag.
+  bool _disposed = false;
+
   @override
   Future<void> disconnect() async {
+    if (_disposed) return;
     _portSubscription?.cancel();
     _port.close();
-    _open.add(ConnectionState.disconnected);
+    if (!_open.isClosed) _open.add(ConnectionState.disconnected);
   }
 
   /// End-of-life cleanup. Calls `disconnect()` to stop the reader isolate +
@@ -599,10 +607,17 @@ class _DesktopSerialPort implements SerialTransport {
   /// closes the exposed stream controllers. Safe to call more than once.
   @override
   Future<void> dispose() async {
+    if (_disposed) return;
+    // Mark disposed BEFORE freeing native so a racing connect()/disconnect()/
+    // write() bails instead of touching freed memory. Inline the close here
+    // (disconnect() now no-ops once disposed).
+    _disposed = true;
     try {
-      await disconnect();
+      _portSubscription?.cancel();
+      _port.close();
+      if (!_open.isClosed) _open.add(ConnectionState.disconnected);
     } catch (e) {
-      _log.warning("dispose: disconnect failed", e);
+      _log.warning("dispose: close failed", e);
     }
     try {
       _port.dispose();
@@ -636,6 +651,11 @@ class _DesktopSerialPort implements SerialTransport {
 
   @override
   Future<void> connect() async {
+    // A device may still hold this transport after the reconcile disposed it
+    // (freeing the native port) — opening it would be a use-after-free.
+    if (_disposed) {
+      throw StateError("serial transport disposed (id=$id) — cannot connect");
+    }
     // Log name↔id mapping on every connect attempt so later log lines tagged
     // either by path (`SerialPort:/dev/tty…`) or stable id
     // (`UnifiedDe1Transport-usb-…`) can be correlated.
@@ -654,6 +674,10 @@ class _DesktopSerialPort implements SerialTransport {
       return;
     }
     await Future.microtask(() async {
+      // Re-check: dispose() may have run during the await gap above.
+      if (_disposed) {
+        throw StateError("serial transport disposed (id=$id) during open");
+      }
       if (await _port.open(mode: 3) == false) {
         _log.warning("could not open port");
         throw "failed to open port: ${SerialPort.lastError}";
@@ -733,6 +757,9 @@ class _DesktopSerialPort implements SerialTransport {
   }
 
   Future<void> _write(Uint8List command) async {
+    if (_disposed) {
+      throw StateError("serial transport disposed (id=$id) — cannot write");
+    }
     try {
       // Write all bytes, handling short writes by looping.
       // Finite timeout (not 0 = block-forever): scan probes non-Decent
