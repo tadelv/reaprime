@@ -38,6 +38,8 @@ class DataManagementPage extends StatefulWidget {
     this.workflowController,
   });
 
+  static const routeName = '/data';
+
   final SettingsController controller;
   final PersistenceController persistenceController;
   final ProfileStorageService? profileStorageService;

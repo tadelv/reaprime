@@ -1,290 +1,154 @@
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
-import 'package:reaprime/src/services/foreground_service.dart';
 import 'package:reaprime/build_info.dart';
-import 'package:reaprime/src/controllers/device_controller.dart';
-import 'package:reaprime/src/controllers/persistence_controller.dart';
-import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/controllers/presence_controller.dart';
-import 'package:reaprime/src/services/storage/bean_storage_service.dart';
-import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
-import 'package:reaprime/src/services/storage/profile_storage_service.dart';
-import 'package:reaprime/src/settings/battery_charging_settings_page.dart';
-import 'package:reaprime/src/settings/data_management_page.dart';
-import 'package:reaprime/src/settings/device_management_page.dart';
-import 'package:reaprime/src/settings/presence_settings_page.dart';
-import 'package:reaprime/src/settings/charging_mode.dart';
-import 'package:reaprime/src/settings/gateway_mode.dart';
-import 'package:reaprime/src/settings/gateway_mode_info_dialog.dart';
-import 'package:reaprime/src/settings/plugins_settings_view.dart';
-import 'package:reaprime/src/settings/settings_service.dart';
-import 'package:reaprime/src/settings/update_dialog.dart';
 import 'package:reaprime/src/services/android_updater.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
-import 'package:reaprime/src/account/decent_login_form.dart';
-import 'package:reaprime/src/services/account/decent_account_service.dart';
-import 'package:reaprime/src/webui_support/webui_service.dart';
+import 'package:reaprime/src/settings/battery_charging_settings_page.dart';
+import 'package:reaprime/src/settings/common.dart';
+import 'package:reaprime/src/settings/presence_settings_page.dart';
+import 'package:reaprime/src/settings/charging_mode.dart';
+import 'package:reaprime/src/settings/update_dialog.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'settings_controller.dart';
 
-/// Displays the various settings that can be customized by the user.
-class SettingsView extends StatefulWidget {
+/// Flat iOS-style list of settings. Heavy sub-pages (devices, data, skins,
+/// account, advanced) are standalone launcher destinations.
+class SettingsView extends StatelessWidget {
   const SettingsView({
     super.key,
     required this.controller,
-    required this.persistenceController,
-    required this.deviceController,
-    required this.presenceController,
-    required this.webUIService,
-    required this.webUIStorage,
     this.updateCheckService,
-    this.profileStorageService,
-    this.beanStorageService,
-    this.grinderStorageService,
-    this.workflowController,
-    this.decentAccountService,
+    required this.presenceController,
+    this.webUIStorage,
   });
 
   static const routeName = '/settings';
 
   final SettingsController controller;
-  final PersistenceController persistenceController;
-  final DeviceController deviceController;
   final PresenceController presenceController;
-  final WebUIService webUIService;
-  final WebUIStorage webUIStorage;
   final UpdateCheckService? updateCheckService;
-  final ProfileStorageService? profileStorageService;
-  final BeanStorageService? beanStorageService;
-  final GrinderStorageService? grinderStorageService;
-  final WorkflowController? workflowController;
-  final DecentAccountService? decentAccountService;
-
-  @override
-  State<SettingsView> createState() => _SettingsViewState();
-}
-
-class _SettingsViewState extends State<SettingsView>
-    with WidgetsBindingObserver {
-  String? _selectedSkinId;
-  static const String _customSkinId = '__custom__';
-  static const String _liveEditSkinId = '__live_edit__';
-  final Logger _log = Logger("Settings");
-  bool _storagePermissionGranted = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _selectedSkinId = widget.webUIStorage.defaultSkin?.id;
-    _checkStoragePermission();
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _checkStoragePermission();
-    }
-  }
-
-  Future<void> _checkStoragePermission() async {
-    if (!Platform.isAndroid || BuildInfo.appStore) return;
-    final status = await Permission.manageExternalStorage.status;
-    if (mounted && status.isGranted != _storagePermissionGranted) {
-      setState(() => _storagePermissionGranted = status.isGranted);
-    }
-  }
+  final WebUIStorage? webUIStorage;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: 16,
-          children: [
-            _buildAppearanceSection(),
-            _buildGatewaySection(),
-            if (Platform.isAndroid || Platform.isIOS) _buildBatterySection(),
-            _buildPresenceSection(),
-            _buildDeviceManagementSection(),
-            _buildDataManagementSection(),
-            if (widget.decentAccountService != null)
-              _buildDecentAccountSection(),
-            _buildWebUISection(),
-            _buildAdvancedSection(),
-            _buildAboutSection(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // MARK: - Section Builders
-
-  Widget _buildAppearanceSection() {
-    return _SettingsSection(
-      title: 'Appearance',
-      icon: Icons.palette_outlined,
-      description: 'Customize the visual appearance of the app',
-      children: [
-        _SettingRow(
-          label: 'Theme',
-          child: DropdownButton<ThemeMode>(
-            isExpanded: true,
-            value: widget.controller.themeMode,
-            onChanged: widget.controller.updateThemeMode,
-            items: const [
-              DropdownMenuItem(
-                value: ThemeMode.system,
-                child: Text('System Theme'),
-              ),
-              DropdownMenuItem(
-                value: ThemeMode.light,
-                child: Text('Light Theme'),
-              ),
-              DropdownMenuItem(
-                value: ThemeMode.dark,
-                child: Text('Dark Theme'),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGatewaySection() {
-    return _SettingsSection(
-      title: 'Gateway & Control',
-      icon: Icons.settings_remote_outlined,
-      description: 'Configure how external clients can control the machine',
-      onInfoPressed: () => showGatewayModeInfoDialog(context),
-      children: [
-        MergeSemantics(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      body: ListenableBuilder(
+        listenable: controller,
+        builder: (context, _) {
+          return ListView(
             children: [
-              Text(
-                'Gateway Mode',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+              SettingsTile(
+                icon: Icons.palette_outlined,
+                label: 'Appearance',
+                trailing: Text(_themeModeLabel(controller.themeMode)),
+                onTap: () => _showThemePicker(context),
               ),
-              const SizedBox(height: 8),
-              DropdownButton<GatewayMode>(
-                isExpanded: true,
-                value: widget.controller.gatewayMode,
-                onChanged: (v) {
-                  if (v != null) widget.controller.updateGatewayMode(v);
-                },
-                items: const [
-                  DropdownMenuItem(
-                    value: GatewayMode.full,
-                    child: Text('Full (App has no control)'),
-                  ),
-                  DropdownMenuItem(
-                    value: GatewayMode.tracking,
-                    child: Text(
-                      'Tracking (App will stop shot if target weight is reached)',
-                    ),
-                  ),
-                  DropdownMenuItem(
-                    value: GatewayMode.disabled,
-                    child: Text('Disabled (App has full control)'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
+              SettingsDivider(),
 
-  Widget _buildBatterySection() {
-    return Semantics(
-      explicitChildNodes: true,
-      child: ShadCard(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.battery_charging_full_outlined, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Battery & Charging',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+              // Automatic update checks
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: ShadSwitch(
+                  value: controller.automaticUpdateCheck,
+                  onChanged: (v) async {
+                    await controller.setAutomaticUpdateCheck(v);
+                    if (v) {
+                      await updateCheckService?.enableAutomaticChecks();
+                    } else {
+                      await updateCheckService?.disableAutomaticChecks();
+                    }
+                  },
+                  label: const Text('Automatic update checks'),
+                  sublabel: const Text('Check for updates every 12 hours'),
                 ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Smart charging and night mode settings',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.7),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Mode: ${_chargingModeLabel(widget.controller.chargingMode)}',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            if (widget.controller.nightModeEnabled) ...[
-              const SizedBox(height: 4),
-              Text(
-                'Night mode enabled',
-                style: Theme.of(context).textTheme.bodySmall,
+              const SettingsDivider(),
+              //
+              // Check for updates
+              ListTile(
+                leading: const Icon(LucideIcons.refreshCcwDot),
+                title: const Text('Check for updates'),
+                trailing: updateCheckService?.hasAvailableUpdate == true
+                    ? Chip(
+                        label: Text(
+                          updateCheckService?.availableUpdate?.version ?? '',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                      )
+                    : null,
+                onTap: () => _checkForUpdates(context),
               ),
-            ],
-            const SizedBox(height: 12),
-            Semantics(
-              button: true,
-              label: 'Configure battery and charging settings',
-              child: ExcludeSemantics(
-                child: ShadButton.outline(
-                  onPressed: () {
+              const SettingsDivider(),
+
+              if (Platform.isAndroid || Platform.isIOS) ...[
+                SettingsTile(
+                  icon: Icons.battery_charging_full_outlined,
+                  label: 'Battery Charging',
+                  trailing: Text(_chargingModeLabel(controller.chargingMode)),
+                  onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => BatteryChargingSettingsPage(
-                          controller: widget.controller,
+                          controller: controller,
                         ),
                       ),
                     );
                   },
-                  child: const Text('Configure'),
                 ),
+                SettingsDivider(),
+              ],
+
+              SettingsTile(
+                icon: Icons.schedule_outlined,
+                label: 'Presence',
+                trailing: Text(_presenceSubtitle()),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => PresenceSettingsPage(
+                        controller: controller,
+                        keepAwakeUntil: presenceController.keepAwakeUntil,
+                      ),
+                    ),
+                  );
+                },
               ),
-            ),
-          ],
-        ),
+              SettingsDivider(),
+
+              SettingsTile(
+                icon: Icons.info_outline,
+                label: 'About',
+                trailing: const Icon(Icons.chevron_right, size: 20),
+                onTap: () => _showAboutSection(context),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
+
+  // MARK: - Label Helpers
+
+  static String _themeModeLabel(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.system:
+        return 'System';
+      case ThemeMode.light:
+        return 'Light';
+      case ThemeMode.dark:
+        return 'Dark';
+    }
+  }
+
 
   String _chargingModeLabel(ChargingMode mode) {
     switch (mode) {
@@ -299,1034 +163,137 @@ class _SettingsViewState extends State<SettingsView>
     }
   }
 
-  Widget _buildPresenceSection() {
-    final enabled = widget.controller.userPresenceEnabled;
-    final timeout = widget.controller.sleepTimeoutMinutes;
-
-    String subtitle;
-    if (!enabled) {
-      subtitle = 'Disabled';
-    } else if (timeout > 0) {
-      subtitle = 'Sleep after $timeout min';
-    } else {
-      subtitle = 'Enabled, no sleep timeout';
-    }
-
-    return Semantics(
-      explicitChildNodes: true,
-      child: ShadCard(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.schedule_outlined, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Presence & Sleep',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Automatic sleep and scheduled wake settings',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.7),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
-            const SizedBox(height: 12),
-            Semantics(
-              button: true,
-              label: 'Configure presence and sleep settings',
-              child: ExcludeSemantics(
-                child: ShadButton.outline(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => PresenceSettingsPage(
-                          controller: widget.controller,
-                          keepAwakeUntil:
-                              widget.presenceController.keepAwakeUntil,
-                        ),
-                      ),
-                    );
-                  },
-                  child: const Text('Configure'),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  String _presenceSubtitle() {
+    final enabled = controller.userPresenceEnabled;
+    final timeout = controller.sleepTimeoutMinutes;
+    if (!enabled) return 'Disabled';
+    if (timeout > 0) return 'Sleep after $timeout min';
+    return 'Enabled, no sleep timeout';
   }
 
-  Widget _buildDeviceManagementSection() {
-    // Resolve device names from DeviceController if available
-    final machineId = widget.controller.preferredMachineId;
-    final scaleId = widget.controller.preferredScaleId;
+  // MARK: - Dialogs
 
-    final machineName = _resolveDeviceName(machineId);
-    final scaleName = _resolveDeviceName(scaleId);
-
-    return Semantics(
-      explicitChildNodes: true,
-      child: ShadCard(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.devices_outlined, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Device Management',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Configure preferred auto-connect devices',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.7),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Machine: ${machineName ?? "Not set"}',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Scale: ${scaleName ?? "Not set"}',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 12),
-            Semantics(
-              button: true,
-              label: 'Configure preferred devices',
-              child: ExcludeSemantics(
-                child: ShadButton.outline(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => DeviceManagementPage(
-                          settingsController: widget.controller,
-                          deviceController: widget.deviceController,
-                        ),
-                      ),
-                    );
-                  },
-                  child: const Text('Configure'),
-                ),
-              ),
-            ),
-            const Divider(height: 32),
-            Text(
-              'Simulated Devices',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Select which simulated devices appear in scan results',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.7),
-              ),
-            ),
-            const SizedBox(height: 8),
-            for (final type in SimulatedDevicesTypes.values)
-              MergeSemantics(
-                child: ShadSwitch(
-                  value: widget.controller.simulatedDevices.contains(type),
-                  onChanged: (v) async {
-                    final current = Set<SimulatedDevicesTypes>.from(
-                      widget.controller.simulatedDevices,
-                    );
-                    if (v) {
-                      current.add(type);
-                    } else {
-                      current.remove(type);
-                    }
-                    _log.info("simulated devices: $current");
-                    await widget.controller.setSimulatedDevices(current);
-                  },
-                  label: Text(
-                    type.name[0].toUpperCase() + type.name.substring(1),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDataManagementSection() {
-    return Semantics(
-      explicitChildNodes: true,
-      child: ShadCard(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.storage_outlined, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Data Management',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Export, import, and backup your data',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.7),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Backup, restore, and privacy settings',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 12),
-            Semantics(
-              button: true,
-              label: 'Configure data management',
-              child: ExcludeSemantics(
-                child: ShadButton.outline(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => DataManagementPage(
-                          controller: widget.controller,
-                          persistenceController: widget.persistenceController,
-                          profileStorageService: widget.profileStorageService,
-                          beanStorageService: widget.beanStorageService,
-                          grinderStorageService: widget.grinderStorageService,
-                          workflowController: widget.workflowController,
-                        ),
-                      ),
-                    );
-                  },
-                  child: const Text('Configure'),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDecentAccountSection() {
-    final accountService = widget.decentAccountService!;
-
-    return Semantics(
-      explicitChildNodes: true,
-      child: ShadCard(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.account_circle_outlined, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Decent Account',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Link your Decent Espresso account',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.7),
-              ),
-            ),
-            const SizedBox(height: 16),
-            FutureBuilder<bool>(
-              future: accountService.isLoggedIn(),
-              builder: (context, snapshot) {
-                final loggedIn = snapshot.data ?? false;
-
-                if (loggedIn) {
-                  return FutureBuilder<String?>(
-                    future: accountService.getEmail(),
-                    builder: (context, emailSnap) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Logged in as: ${emailSnap.data ?? ''}',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                          const SizedBox(height: 12),
-                          Semantics(
-                            button: true,
-                            label: 'Unlink Decent account',
-                            child: ExcludeSemantics(
-                              child: ShadButton.destructive(
-                                onPressed: () async {
-                                  await accountService.logout();
-                                  setState(() {});
-                                },
-                                child: const Text('Unlink Account'),
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  );
-                }
-
-                return Semantics(
-                  button: true,
-                  label: 'Link your Decent Espresso account',
-                  child: ExcludeSemantics(
-                    child: ShadButton.outline(
-                      onPressed: () =>
-                          _showLoginDialog(context, accountService),
-                      child: const Text('Link Account'),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showLoginDialog(
-    BuildContext context,
-    DecentAccountService accountService,
-  ) {
+  void _showThemePicker(BuildContext context) {
     showShadDialog(
       context: context,
       builder: (dialogContext) {
         return ShadDialog(
-          title: const Text('Link Decent Account'),
-          child: Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: DecentLoginForm(
-              accountService: accountService,
-              onSuccess: () {
-                Navigator.of(dialogContext).pop();
-                setState(() {});
-              },
-              secondaryLabel: 'Cancel',
-              onSecondary: () => Navigator.of(dialogContext).pop(),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildStoragePermissionRow() {
-    if (!Platform.isAndroid || BuildInfo.appStore) {
-      return const SizedBox.shrink();
-    }
-
-    if (_storagePermissionGranted) {
-      return _SettingRow(
-        label: 'Storage Access',
-        child: Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.green, size: 20),
-            const SizedBox(width: 8),
-            const Text('Full storage access granted'),
-          ],
-        ),
-      );
-    }
-
-    return _SettingRow(
-      label: 'Storage Access',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Grant full storage access to live-edit skins from external folders without copying.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 8),
-          Semantics(
-            button: true,
-            label: 'Grant full storage access',
-            child: ExcludeSemantics(
-              child: ShadButton.outline(
-                onPressed: () async {
-                  final result = await Permission.manageExternalStorage
-                      .request();
-                  if (result.isPermanentlyDenied) {
-                    await openAppSettings();
-                  }
-                  await _checkStoragePermission();
-                },
-                child: const Text('Grant Storage Access'),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWebUISection() {
-    return _SettingsSection(
-      title: 'Web Interface',
-      icon: Icons.web_outlined,
-      description: 'Select and manage web-based user interface skins',
-      children: [
-        _SettingRow(label: 'Skin', child: _buildSkinSelector()),
-        _buildStoragePermissionRow(),
-        const Divider(height: 24),
-        if (!widget.webUIService.isServing)
-          Semantics(
-            button: true,
-            label: 'Start web interface server',
-            child: ExcludeSemantics(
-              child: ShadButton(
-                onPressed: _startSelectedSkin,
-                child: const Text("Start WebUI Server"),
-              ),
-            ),
-          )
-        else
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
+          title: const Text('Appearance'),
+          child: Material(
+            type: MaterialType.transparency,
+            child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Semantics(
-                button: true,
-                label: 'Open web interface in browser',
-                child: ExcludeSemantics(
-                  child: ShadButton(
-                    onPressed: () async {
-                      await _openWebUIInBrowser();
-                    },
-                    child: const Text("Open UI in browser"),
-                  ),
-                ),
+              ListTile(
+                title: const Text('System Theme'),
+                trailing: controller.themeMode == ThemeMode.system
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () {
+                  controller.updateThemeMode(ThemeMode.system);
+                  Navigator.of(dialogContext).pop();
+                },
               ),
-              Semantics(
-                button: true,
-                label: 'Stop web interface server',
-                child: ExcludeSemantics(
-                  child: ShadButton.destructive(
-                    onPressed: () async {
-                      await widget.webUIService.stopServing();
-                      setState(() {});
-                    },
-                    child: const Text("Stop WebUI Server"),
-                  ),
-                ),
+              ListTile(
+                title: const Text('Light Theme'),
+                trailing: controller.themeMode == ThemeMode.light
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () {
+                  controller.updateThemeMode(ThemeMode.light);
+                  Navigator.of(dialogContext).pop();
+                },
+              ),
+              ListTile(
+                title: const Text('Dark Theme'),
+                trailing: controller.themeMode == ThemeMode.dark
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () {
+                  controller.updateThemeMode(ThemeMode.dark);
+                  Navigator.of(dialogContext).pop();
+                },
               ),
             ],
           ),
-        if (!BuildInfo.appStore) ...[
-          const Divider(height: 24),
-          Semantics(
-            button: true,
-            label: 'Check for skin updates',
-            child: ExcludeSemantics(
-              child: ShadButton.outline(
-                onPressed: () => _checkForSkinUpdates(context),
-                child: const Text("Check for Skin Updates"),
-              ),
-            ),
           ),
-        ],
-      ],
+        );
+      },
     );
   }
 
-  Widget _buildAdvancedSection() {
-    return _SettingsSection(
-      title: 'Advanced',
-      icon: Icons.tune_outlined,
-      description: 'Developer tools and advanced configuration',
-      children: [
-        _SettingRow(
-          label: 'Log Level',
-          child: DropdownButton<String>(
-            isExpanded: true,
-            value: widget.controller.logLevel,
-            onChanged: widget.controller.updateLogLevel,
-            items: const [
-              DropdownMenuItem(value: "FINE", child: Text('Fine')),
-              DropdownMenuItem(value: "INFO", child: Text('Info')),
-              DropdownMenuItem(value: "FINEST", child: Text('Finest')),
-              DropdownMenuItem(value: "WARNING", child: Text('Warning')),
-            ],
-          ),
-        ),
-        const Divider(height: 24),
-        MergeSemantics(
-          child: ShadSwitch(
-            value: widget.controller.automaticUpdateCheck,
-            onChanged: (v) async {
-              await widget.controller.setAutomaticUpdateCheck(v);
-              if (v) {
-                await widget.updateCheckService?.enableAutomaticChecks();
-              } else {
-                await widget.updateCheckService?.disableAutomaticChecks();
-              }
-            },
-            label: const Text("Automatic update checks"),
-            sublabel: const Text("Check for updates every 12 hours"),
-          ),
-        ),
-        const SizedBox(height: 16),
-        if (widget.updateCheckService?.hasAvailableUpdate == true) ...[
-          Semantics(
-            button: true,
-            label: "Update available",
-            child: ExcludeSemantics(
-              child: ShadButton(
-                onPressed: () {
-                  if (Platform.isAndroid) {
-                    _checkForUpdates(context);
-                  } else {
-                    final url = widget.updateCheckService?.getReleaseUrl();
-                    if (url != null) launchUrl(Uri.parse(url));
-                  }
-                },
-                leading: Icon(
-                  Icons.system_update,
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
-                ),
-                child: Text(
-                  'Update available: ${widget.updateCheckService?.availableUpdate?.version}',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            Semantics(
-              button: true,
-              label: 'Open plugins settings',
-              child: ExcludeSemantics(
-                child: ShadButton.outline(
-                  onPressed: () => Navigator.of(
-                    context,
-                  ).pushNamed(PluginsSettingsView.routeName),
-                  child: const Text("Plugins"),
-                ),
-              ),
-            ),
-            Semantics(
-              button: true,
-              label: 'Check for app updates',
-              child: ExcludeSemantics(
-                child: ShadButton.outline(
-                  onPressed: () => _checkForUpdates(context),
-                  child: const Text("Check for updates"),
-                ),
-              ),
+  void _showAboutSection(BuildContext context) {
+    showShadDialog(
+      context: context,
+      builder: (dialogContext) {
+        return ShadDialog(
+          title: const Text('About'),
+          actions: [
+            ShadButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
             ),
           ],
-        ),
-        if (!BuildInfo.appStore) ...[
-          const Divider(height: 24),
-          Semantics(
-            button: true,
-            label: 'Exit Decent',
-            child: ExcludeSemantics(
-              child: ShadButton.destructive(
-                onPressed: () => _exitApp(),
-                child: const Text("Exit Decent"),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              InfoRow('Version', BuildInfo.version),
+              const SizedBox(height: 8),
+              InfoRow('Build', BuildInfo.buildNumber),
+              const SizedBox(height: 8),
+              InfoRow('Commit', BuildInfo.commitShort),
+              const SizedBox(height: 8),
+              InfoRow('Branch', BuildInfo.branch),
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 8),
+              Text(
+                'License',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
+              const SizedBox(height: 4),
+              Text(
+                'Copyright © 2025-2026 Decent Espresso',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Licensed under GNU General Public License v3.0',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              ShadButton.outline(
+                onPressed: () async {
+                  await launchUrl(
+                    Uri.parse('https://www.gnu.org/licenses/gpl-3.0.html'),
+                  );
+                },
+                child: const Text('View GPL v3 License'),
+              ),
+            ],
           ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildAboutSection() {
-    return _SettingsSection(
-      title: 'About',
-      icon: Icons.info_outline,
-      description: 'Version and build information',
-      children: [
-        GestureDetector(
-          onLongPress: () {
-            if (!kDebugMode) {
-              return;
-            }
-            widget.updateCheckService?.debugForceUpdate();
-            setState(() {});
-          },
-          child: _InfoRow('Version', BuildInfo.version),
-        ),
-        _InfoRow('Build', BuildInfo.buildNumber),
-        _InfoRow('Commit', BuildInfo.commitShort),
-        _InfoRow('Branch', BuildInfo.branch),
-        const Divider(height: 24),
-        Text(
-          'License',
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Copyright © 2025-2026 Decent Espresso',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 2),
-        Text(
-          'Licensed under GNU General Public License v3.0',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 12),
-        Semantics(
-          button: true,
-          label: 'View GPL version 3 license',
-          child: ExcludeSemantics(
-            child: ShadButton.outline(
-              onPressed: () async {
-                await launchUrl(
-                  Uri.parse('https://www.gnu.org/licenses/gpl-3.0.html'),
-                );
-              },
-              child: const Text('View GPL v3 License'),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // MARK: - Helper Widgets
-
-  Widget _buildSkinSelector() {
-    final installedSkins = widget.webUIStorage.installedSkins;
-
-    return DropdownButton<String>(
-      isExpanded: true,
-      value: _selectedSkinId,
-      onChanged: (value) async {
-        if (value == null) return;
-
-        setState(() => _selectedSkinId = value);
-
-        if (value == _customSkinId) {
-          await _pickCustomSkinZip(context);
-        } else if (value == _liveEditSkinId) {
-          await _pickLiveEditFolder(context);
-        } else if (widget.webUIService.isServing) {
-          await _restartServerWithSkin(value);
-        }
+        );
       },
-      items: [
-        ...installedSkins.map((skin) {
-          return DropdownMenuItem(
-            value: skin.id,
-            child: Row(
-              children: [
-                Icon(skin.isBundled ? Icons.verified : Icons.folder, size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(skin.name, overflow: TextOverflow.ellipsis),
-                ),
-                if (skin.version != null)
-                  Text(
-                    ' v${skin.version}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                if (!skin.isBundled && !BuildInfo.appStore)
-                  SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      iconSize: 16,
-                      tooltip: 'Remove ${skin.name}',
-                      icon: const Icon(Icons.delete_outline),
-                      onPressed: () async {
-                        // Close the dropdown first
-                        Navigator.of(context).pop();
-
-                        final confirmed = await showDialog<bool>(
-                          context: context,
-                          builder: (dialogContext) => AlertDialog(
-                            title: const Text('Remove skin?'),
-                            content: Text(
-                              'Remove "${skin.name}"? This cannot be undone.',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.of(
-                                  dialogContext,
-                                ).pop(false),
-                                child: const Text('Cancel'),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.of(
-                                  dialogContext,
-                                ).pop(true),
-                                child: const Text('Remove'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (confirmed != true) return;
-
-                        try {
-                          await widget.webUIStorage.removeSkin(skin.id);
-
-                          if (_selectedSkinId == skin.id) {
-                            _selectedSkinId =
-                                widget.webUIStorage.defaultSkin?.id;
-                            if (widget.webUIService.isServing) {
-                              await widget.webUIService.stopServing();
-                            }
-                          }
-                        } catch (e) {
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Failed to remove skin: $e'),
-                              ),
-                            );
-                          }
-                        }
-
-                        setState(() {});
-                      },
-                    ),
-                  ),
-              ],
-            ),
-          );
-        }),
-        if (!BuildInfo.appStore)
-          const DropdownMenuItem(
-            value: _customSkinId,
-            child: Row(
-              children: [
-                Icon(Icons.archive_outlined, size: 16),
-                SizedBox(width: 8),
-                Text('Install from .zip...'),
-              ],
-            ),
-          ),
-        if (!BuildInfo.appStore &&
-            (Platform.isMacOS ||
-                Platform.isLinux ||
-                Platform.isWindows ||
-                (Platform.isAndroid &&
-                    (_storagePermissionGranted ||
-                        _selectedSkinId == _liveEditSkinId))))
-          const DropdownMenuItem(
-            value: _liveEditSkinId,
-            child: Row(
-              children: [
-                Icon(Icons.folder_open, size: 16),
-                SizedBox(width: 8),
-                Text('Live-edit from folder...'),
-              ],
-            ),
-          ),
-      ],
     );
-  }
-
-  // MARK: - WebUI Actions
-
-  Future<void> _restartServerWithSkin(String skinId) async {
-    try {
-      final skin = widget.webUIStorage.getSkin(skinId);
-      if (skin == null) throw Exception('Selected skin not found');
-
-      _log.info('Restarting WebUI server with skin: ${skin.name}');
-
-      await widget.webUIService.stopServing();
-      await widget.webUIService.serveFolderAtPath(skin.path);
-
-      try {
-        await widget.webUIStorage.setDefaultSkin(skin.id);
-        _log.info('Set default skin to: ${skin.id}');
-      } catch (e) {
-        _log.warning('Failed to set default skin: $e');
-      }
-
-      setState(() {});
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('WebUI restarted with ${skin.name}'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      _log.severe('Failed to restart WebUI server', e);
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to restart WebUI: $e')));
-      }
-    }
-  }
-
-  Future<void> _startSelectedSkin() async {
-    if (_selectedSkinId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a skin first')),
-      );
-      return;
-    }
-
-    if (_selectedSkinId == _customSkinId) {
-      await _pickCustomSkinZip(context);
-      return;
-    }
-
-    if (_selectedSkinId == _liveEditSkinId) {
-      await _pickLiveEditFolder(context);
-      return;
-    }
-
-    try {
-      final skin = widget.webUIStorage.getSkin(_selectedSkinId!);
-      if (skin == null) throw Exception('Selected skin not found');
-
-      await widget.webUIService.serveFolderAtPath(skin.path);
-
-      try {
-        await widget.webUIStorage.setDefaultSkin(skin.id);
-        _log.info('Set default skin to: ${skin.id}');
-      } catch (e) {
-        _log.warning('Failed to set default skin: $e');
-      }
-
-      setState(() {});
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('WebUI started with ${skin.name}'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to start WebUI: $e')));
-      }
-    }
-  }
-
-  Future<void> _pickCustomSkinZip(BuildContext context) async {
-    final result = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['zip'],
-    );
-
-    if (result == null || result.files.isEmpty) {
-      setState(() => _selectedSkinId = widget.webUIStorage.defaultSkin?.id);
-      return;
-    }
-
-    final filePath = result.files.single.path;
-    if (filePath == null) {
-      setState(() => _selectedSkinId = widget.webUIStorage.defaultSkin?.id);
-      return;
-    }
-
-    try {
-      final skinId = await widget.webUIStorage.installFromPath(filePath);
-      final skin = widget.webUIStorage.getSkin(skinId);
-      if (skin == null) {
-        throw Exception('Installed skin not found: $skinId');
-      }
-      await widget.webUIService.serveFolderAtPath(skin.path);
-      await widget.webUIStorage.setDefaultSkin(skinId);
-      setState(() => _selectedSkinId = skinId);
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Expanded(child: Text('Custom skin installed and loaded')),
-                ShadButton.outline(
-                  onPressed: () async {
-                    await _openWebUIInBrowser();
-                  },
-                  child: const Text("Open"),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to install skin: $e')));
-      }
-      setState(() => _selectedSkinId = widget.webUIStorage.defaultSkin?.id);
-    }
-  }
-
-  Future<void> _pickLiveEditFolder(BuildContext context) async {
-    final selectedDirectory = await FilePicker.getDirectoryPath();
-
-    if (selectedDirectory != null) {
-      final indexFile = File('$selectedDirectory/index.html');
-      final itExists = await indexFile.exists();
-
-      if (itExists) {
-        await widget.webUIService.serveFolderAtPath(selectedDirectory);
-        setState(() {});
-
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  Expanded(child: Text('Live-editing from $selectedDirectory')),
-                  ShadButton.outline(
-                    onPressed: () async {
-                      await _openWebUIInBrowser();
-                    },
-                    child: const Text("Open"),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-      } else {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('index.html not found in selected folder'),
-            ),
-          );
-        }
-        setState(() => _selectedSkinId = widget.webUIStorage.defaultSkin?.id);
-      }
-    } else {
-      setState(() => _selectedSkinId = widget.webUIStorage.defaultSkin?.id);
-    }
-  }
-
-  Future<bool> _openWebUIInBrowser() async {
-    return await launchUrl(
-      Uri.parse(
-        'http://localhost:3000?_=${DateTime.now().millisecondsSinceEpoch}',
-      ),
-    );
-  }
-
-  // MARK: - Update Actions
-
-  Future<void> _checkForSkinUpdates(BuildContext context) async {
-    try {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Checking for skin updates...')),
-      );
-
-      await widget.webUIStorage.downloadRemoteSkins();
-
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Skin updates completed'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e, stackTrace) {
-      _log.severe('Error checking for skin updates', e, stackTrace);
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to check for skin updates: $e')),
-      );
-    }
-  }
-
-  Future<void> _exitApp() async {
-    if (Platform.isAndroid) {
-      await ForegroundTaskService.stop();
-    }
-    exit(0);
   }
 
   Future<void> _checkForUpdates(BuildContext context) async {
+    final log = Logger('Settings View');
     try {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Checking for updates...')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Checking for updates...')),
+      );
 
-      // Check for app updates
-      final updateInfo = await widget.updateCheckService?.checkForUpdate();
+      final updateInfo = await updateCheckService?.checkForUpdate();
 
       if (!context.mounted) return;
 
       if (updateInfo != null) {
         if (Platform.isAndroid) {
-          // On Android, show download/install dialog
           final updater = AndroidUpdater(owner: 'tadelv', repo: 'reaprime');
           showDialog(
             context: context,
@@ -1338,8 +305,7 @@ class _SettingsViewState extends State<SettingsView>
             ),
           );
         } else {
-          // On other platforms, show dialog and open browser
-          final releaseUrl = widget.updateCheckService?.getReleaseUrl();
+          final releaseUrl = updateCheckService?.getReleaseUrl();
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
@@ -1392,169 +358,13 @@ class _SettingsViewState extends State<SettingsView>
       }
 
       // Also update WebUI skins
-      await widget.webUIStorage.downloadRemoteSkins();
+      await webUIStorage?.downloadRemoteSkins();
     } catch (e, stackTrace) {
-      _log.severe('Error checking for updates', e, stackTrace);
+      log.severe('Error checking for updates', e, stackTrace);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to check for updates: $e')),
       );
     }
-  }
-
-  // MARK: - Helpers
-
-  String? _resolveDeviceName(String? deviceId) {
-    if (deviceId == null) return null;
-    try {
-      final device = widget.deviceController.devices.firstWhere(
-        (d) => d.deviceId == deviceId,
-      );
-      return device.name;
-    } catch (_) {
-      // Device not currently known — show truncated ID
-      if (deviceId.length > 8) {
-        return '...${deviceId.substring(deviceId.length - 8)}';
-      }
-      return deviceId;
-    }
-  }
-}
-
-// MARK: - Helper Widgets
-
-class _SettingsSection extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final String? description;
-  final VoidCallback? onInfoPressed;
-  final List<Widget> children;
-
-  const _SettingsSection({
-    required this.title,
-    required this.icon,
-    this.description,
-    this.onInfoPressed,
-    required this.children,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      explicitChildNodes: true,
-      child: ShadCard(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                ExcludeSemantics(child: Icon(icon, size: 20)),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                if (onInfoPressed != null)
-                  Semantics(
-                    button: true,
-                    label: 'Learn more about $title',
-                    child: ExcludeSemantics(
-                      child: IconButton(
-                        icon: const Icon(Icons.info_outline, size: 18),
-                        onPressed: onInfoPressed,
-                        tooltip: 'Learn more',
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            if (description != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                description!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.7),
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
-            ...children,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SettingRow extends StatelessWidget {
-  final String label;
-  final Widget child;
-
-  const _SettingRow({required this.label, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return MergeSemantics(
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 12.0),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 140,
-              child: Text(
-                label,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
-              ),
-            ),
-            Expanded(child: child),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _InfoRow(this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    return MergeSemantics(
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 8.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 80,
-              child: Text(
-                '$label:',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-            Expanded(
-              child: Text(
-                value,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(fontFamily: 'monospace'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
