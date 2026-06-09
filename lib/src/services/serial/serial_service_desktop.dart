@@ -55,6 +55,17 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
   // (no change) stay silent instead of re-emitting the same list every tick.
   Set<String> _lastEmittedIds = {};
 
+  // Paths whose bound device SELF-disconnected (watchdog/serial error/explicit
+  // disconnect) while the OS port was still present. The timer reconcile must
+  // NOT auto-re-probe these: a Half Decent Scale that's currently serving
+  // another transport (BLE/WiFi) streams no data over USB, so its watchdog
+  // disconnects ~10s in; immediately re-probing reconnects it, it disconnects
+  // again, and so on — a reap→re-probe→reconnect churn loop. An explicit user
+  // scan clears this set and retries (intentional, user-initiated recovery); a
+  // physical unplug (port vanished) also clears the path so a replug re-detects
+  // fresh.
+  final Set<String> _selfDisconnectedPaths = {};
+
   // Force the next reconcile to emit even if the device set is unchanged.
   // Set by an explicit `scanForDevices()`: DeviceController clears `discovered`
   // devices from its own map at scan start and relies on each service
@@ -111,6 +122,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     _portPathToTransport.clear();
     _portPathToDevice.clear();
     _portPathToDeviceId.clear();
+    _selfDisconnectedPaths.clear();
     if (!_machineSubject.isClosed) await _machineSubject.close();
   }
 
@@ -143,6 +155,12 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
   }
 
   Future<void> _performScan() async {
+    // An explicit `scanForDevices()` sets this; the timer reconcile does not.
+    // On an explicit scan the user is asking us to retry, so clear the
+    // self-disconnect suppression and re-probe everything.
+    final explicitScan = _forceEmitOnNextScan;
+    if (explicitScan) _selfDisconnectedPaths.clear();
+
     final ports = (await SerialPort.availablePorts).toSet();
     _log.fine("Found ports: $ports");
 
@@ -163,6 +181,14 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       _portPathToDevice.remove(path);
       _portPathToDeviceId.remove(path);
       final transport = _portPathToTransport.remove(path);
+      // Track/clear suppression: a self-disconnect with the port still present
+      // must not be auto-re-probed (churn loop); a physical unplug clears it so
+      // a replug re-detects fresh.
+      if (portGone) {
+        _selfDisconnectedPaths.remove(path);
+      } else {
+        _selfDisconnectedPaths.add(path);
+      }
       _log.warning("Reaping $path (device=${device.name}, reason="
           "${portGone ? 'port vanished' : 'device disconnected'}) — disposing");
       if (transport != null) {
@@ -190,6 +216,10 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       // every reconcile, so a transient open failure self-heals on the next
       // tick and a newly-plugged device is picked up.
       if (_portPathToDevice.containsKey(p)) return false;
+      // A device that self-disconnected while present is not auto-re-probed by
+      // the timer reconcile (it would loop). `explicitScan` cleared this set
+      // above, so a user scan still retries.
+      if (_selfDisconnectedPaths.contains(p)) return false;
       final port = SerialPort(p);
       final meta = _readPortMetadata(p, port);
       port.dispose();
