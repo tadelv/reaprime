@@ -141,6 +141,7 @@ Future<void> startWebServer(
     batteryController: batteryController,
     connectionManager: connectionManager,
     rememberedController: rememberedDevicesController,
+    preferredScaleId: () => settingsController.preferredScaleId,
   );
   final settingsHandler = SettingsHandler(
     controller: settingsController,

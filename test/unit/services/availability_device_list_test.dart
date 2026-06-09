@@ -82,5 +82,59 @@ void main() {
       expect(byId['m1']!['available'], isTrue);
       expect(byId['s-gone']!['available'], isFalse);
     });
+
+    group('ordering', () {
+      test('the preferred scale is listed first', () async {
+        final list = await buildAvailabilityDeviceList(
+          [
+            _FakeDevice('zzz', 'Z', DeviceType.machine),
+            _FakeDevice('pref', 'Pref scale', DeviceType.scale),
+            _FakeDevice('aaa', 'A', DeviceType.scale),
+          ],
+          const [],
+          preferredScaleId: 'pref',
+        );
+        expect(list.first['id'], 'pref');
+      });
+
+      test('order is stable regardless of input order or connection state',
+          () async {
+        // Same devices, different input order and states — the output order
+        // must be identical (so the list does not shift on connect/disconnect).
+        final a = await buildAvailabilityDeviceList(
+          [
+            _FakeDevice('s2', 'S2', DeviceType.scale, ConnectionState.connected),
+            _FakeDevice('m1', 'M1', DeviceType.machine, ConnectionState.discovered),
+            _FakeDevice('s1', 'S1', DeviceType.scale, ConnectionState.connected),
+          ],
+          const [],
+          preferredScaleId: 's1',
+        );
+        final b = await buildAvailabilityDeviceList(
+          [
+            _FakeDevice('m1', 'M1', DeviceType.machine, ConnectionState.connected),
+            _FakeDevice('s1', 'S1', DeviceType.scale, ConnectionState.disconnected),
+            _FakeDevice('s2', 'S2', DeviceType.scale, ConnectionState.discovered),
+          ],
+          const [],
+          preferredScaleId: 's1',
+        );
+        expect(a.map((d) => d['id']).toList(), b.map((d) => d['id']).toList());
+        // preferred scale first, then deterministic (type, id)
+        expect(a.map((d) => d['id']).toList(), ['s1', 'm1', 's2']);
+      });
+
+      test('without a preferred scale, order is still deterministic', () async {
+        final list = await buildAvailabilityDeviceList(
+          [
+            _FakeDevice('s2', 'S2', DeviceType.scale),
+            _FakeDevice('m1', 'M1', DeviceType.machine),
+            _FakeDevice('s1', 'S1', DeviceType.scale),
+          ],
+          const [],
+        );
+        expect(list.map((d) => d['id']).toList(), ['m1', 's1', 's2']);
+      });
+    });
   });
 }
