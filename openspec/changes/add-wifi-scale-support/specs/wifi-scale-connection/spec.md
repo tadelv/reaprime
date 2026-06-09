@@ -61,21 +61,21 @@ The system SHALL implement the `Scale` interface operations for the WiFi scale b
 - **WHEN** a timer (start/stop/reset) or display (on/off) operation is requested
 - **THEN** the system sends the corresponding protocol command over the WebSocket
 
-### Requirement: Detect a stalled stream and reconnect with backoff
+### Requirement: Detect a stalled stream and surrender the connection
 
-The system SHALL monitor the continuous weight-frame stream with a watchdog. If no frame arrives within the watchdog interval, the system SHALL treat the connection as stale, mark it disconnected, and attempt to reconnect using exponential backoff (preferring the cached IP). This watchdog-and-reconnect loop is the mechanism that makes the WiFi link reliable under network churn.
+The system SHALL monitor the continuous weight-frame stream with a watchdog. If no frame arrives within the watchdog interval, the system SHALL treat the connection as stale and mark it disconnected. The scale itself runs no reconnect loop — re-connection is owned by a single policy (`ConnectionManager`'s preferred-scale reconnect), shared with the BLE/USB scales, which rebuilds the transport preferring the cached IP. This watchdog-then-surrender behaviour, combined with the manager's reconnect, is what makes the WiFi link reliable under network churn without two competing reconnect owners.
 
 #### Scenario: Stream stalls
 
 - **WHEN** no weight frame has been received for longer than the watchdog interval
-- **THEN** the system marks the scale disconnected and initiates a reconnect attempt
+- **THEN** the system marks the scale disconnected and tears down its transport, leaving re-connection to `ConnectionManager`
 
-#### Scenario: Reconnect backoff
+#### Scenario: Single reconnect owner
 
-- **WHEN** reconnect attempts fail repeatedly
-- **THEN** the system increases the delay between attempts (exponential backoff up to a capped maximum) rather than retrying in a tight loop
+- **WHEN** a connected scale drops (socket close, watchdog stall, or `power_off`)
+- **THEN** the scale emits `disconnected` and does not retry on its own; `ConnectionManager`'s preferred-scale reconnect re-attempts the connection (preferring the cached IP)
 
 #### Scenario: Stream resumes after reconnect
 
-- **WHEN** a reconnect succeeds and valid frames resume
+- **WHEN** a manager-driven reconnect succeeds and valid frames resume
 - **THEN** the system marks the scale connected again and continues emitting snapshots without requiring user intervention

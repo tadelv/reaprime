@@ -18,8 +18,8 @@
 ## 4. HDSWifi scale + reliability state machine
 
 - [x] 4.1 Write unit tests (fake transport) for: connect handshake order (`rate 10k` → `events on` → `status`); recognition gate (first `grams`/`status` → connected; timeout → fail); tare/timer/display commands sent; `deviceId == "wifi:<host>"`
-- [x] 4.2 Write unit tests for the watchdog + backoff state machine: stalled stream → disconnected → reconnect; exponential backoff (5→10→20→40→60s cap); clean `disconnect()`/`dispose()` cancels pending reconnect (generation-token idiom); stream resume → reconnected
-- [x] 4.3 Implement `HDSWifi` in `lib/src/models/device/impl/decent_scale/` implementing the `Scale` interface (currentSnapshot, tare, startTimer/stopTimer/resetTimer, sleep/wakeDisplay), wiring the parser, handshake, recognition gate, and watchdog/backoff state machine
+- [x] 4.2 Write unit tests for the watchdog state machine: stalled stream → `disconnected` (no in-scale reconnect — `ConnectionManager` owns it); socket close / `power_off` → `disconnected`; clean `disconnect()`/`dispose()` cancels pending timers/callbacks (generation-token idiom); reconnect of the same instance resumes snapshots
+- [x] 4.3 Implement `HDSWifi` in `lib/src/models/device/impl/decent_scale/` implementing the `Scale` interface (currentSnapshot, tare, startTimer/stopTimer/resetTimer, sleep/wakeDisplay), wiring the parser, handshake, recognition gate, and the snapshot-watchdog state machine (drop → `disconnected`; reconnect owned by `ConnectionManager`)
 - [x] 4.4 Implement resolve-once + IPv4-preferred IP cache (keyed by host) used by the RESOLVING state; self-heal stale cache on successful re-resolve
 
 ## 5. WifiScaleDiscoveryService

@@ -7,7 +7,11 @@ import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
 import 'package:rxdart/subjects.dart';
 
-class HDSSerial implements Scale {
+/// Implements [TransportHandoffScale]: a USB disconnect only releases the
+/// serial port (no power-off command), so handing the active-scale role to
+/// another transport of the same physical HDS is non-destructive. Declaring the
+/// capability makes that a compile-checked property.
+class HDSSerial implements Scale, TransportHandoffScale {
   late Logger _log;
   final SerialTransport _transport;
 
@@ -56,6 +60,9 @@ class HDSSerial implements Scale {
       _isDisconnecting = false;
     }
   }
+
+  @override
+  Future<void> disconnectForHandoff() => disconnect();
 
   @override
   String get name => "Half Decent Scale (USB)";

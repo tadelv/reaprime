@@ -71,15 +71,26 @@ class WifiScaleHandler {
   /// Extract `host` from a JSON body, falling back to a `?host=` query param
   /// (so `DELETE` works for clients that can't send a body).
   Future<String?> _extractHost(Request req) async {
+    String body;
     try {
-      final body = await req.readAsString();
-      if (body.isNotEmpty) {
-        final json = jsonDecode(body) as Map<String, dynamic>;
-        final h = json['host'] as String?;
-        if (h != null) return h.trim();
+      body = await req.readAsString();
+    } catch (e, st) {
+      // An I/O failure reading the body is unexpected and worth surfacing —
+      // don't let it masquerade as "no JSON". Still try the query param.
+      _log.warning('failed to read request body', e, st);
+      return req.requestedUri.queryParameters['host']?.trim();
+    }
+    if (body.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(body);
+        // Tolerate a well-formed-but-wrong-shape body (e.g. an array): fall
+        // through to the query param rather than throwing.
+        if (decoded is Map<String, dynamic> && decoded['host'] is String) {
+          return (decoded['host'] as String).trim();
+        }
+      } on FormatException {
+        // Not valid JSON — fall through to the query parameter.
       }
-    } catch (_) {
-      // Not valid JSON — fall through to the query parameter.
     }
     return req.requestedUri.queryParameters['host']?.trim();
   }

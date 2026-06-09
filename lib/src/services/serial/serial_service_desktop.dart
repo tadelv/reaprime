@@ -59,21 +59,25 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
   // disconnect) while the OS port was still present. The timer reconcile must
   // NOT auto-re-probe these: a Half Decent Scale that's currently serving
   // another transport (BLE/WiFi) streams no data over USB, so its watchdog
-  // disconnects ~10s in; immediately re-probing reconnects it, it disconnects
+  // disconnects ~12s in; immediately re-probing reconnects it, it disconnects
   // again, and so on — a reap→re-probe→reconnect churn loop. An explicit user
   // scan clears this set and retries (intentional, user-initiated recovery); a
   // physical unplug (port vanished) also clears the path so a replug re-detects
   // fresh.
   final Set<String> _selfDisconnectedPaths = {};
 
-  // Paths that were ever detected as a Half Decent Scale (which streams weight
-  // continuously while powered, on every transport at once). A *discovered*
-  // (not-connected) HDS releases its port and would otherwise linger as
-  // "available" forever even after the physical scale is switched off, since
+  // Paths that were ever detected as a Half Decent Scale. The HDS streams
+  // weight to every connected transport (BLE/USB/WiFi) at once, but its server
+  // has only a few client slots — so the contention comes from holding the USB
+  // port open *persistently* as an extra client (see `_portPathToDevice` and
+  // the HDS branch in `_detectDevice`), NOT from reading data. A *discovered*
+  // (not-connected) HDS therefore releases its port and would otherwise linger
+  // as "available" forever even after the physical scale is switched off, since
   // nothing re-reads it. Every Nth reconcile we re-verify these by re-probing
-  // the port: still streaming → keep; silent → reap (scale off). Re-opening for
-  // a brief read is safe — the scale serves all transports simultaneously, so
-  // it doesn't disturb a live WiFi/BLE connection.
+  // the port: still streaming → keep; silent → reap (scale off). A quick
+  // open-read-close is safe precisely because the scale serves all transports
+  // simultaneously — the transient probe sees live data without displacing a
+  // live WiFi/BLE client.
   final Set<String> _hdsPaths = {};
   int _livenessTick = 0;
   static const int _livenessEveryNReconciles = 3; // ~24s at the 8s interval
@@ -126,10 +130,12 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
   Future<void> dispose() async {
     _reconcileTimer?.cancel();
     _reconcileTimer = null;
-    for (final transport in _portPathToTransport.values) {
+    for (final entry in _portPathToTransport.entries) {
       try {
-        await transport.dispose();
-      } catch (_) {}
+        await entry.value.dispose();
+      } catch (e, st) {
+        _log.warning("dispose failed for ${entry.key}", e, st);
+      }
     }
     _portPathToTransport.clear();
     _portPathToDevice.clear();
@@ -197,7 +203,10 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
         final t = _portPathToTransport.remove(path);
         try {
           await t?.dispose();
-        } catch (_) {}
+        } catch (e, st) {
+          // Non-actionable: disposing a transport for a scale being released.
+          _log.fine("liveness release: dispose failed for $path", e, st);
+        }
       }
       _selfDisconnectedPaths.removeAll(_hdsPaths);
     }
@@ -221,9 +230,11 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       final transport = _portPathToTransport.remove(path);
       // Track/clear suppression: a self-disconnect with the port still present
       // must not be auto-re-probed (churn loop); a physical unplug clears it so
-      // a replug re-detects fresh.
+      // a replug re-detects fresh, and forgets the HDS-path mark (a replug
+      // re-detects and re-adds it) so `_hdsPaths` can't grow unbounded.
       if (portGone) {
         _selfDisconnectedPaths.remove(path);
+        _hdsPaths.remove(path);
       } else {
         _selfDisconnectedPaths.add(path);
       }
@@ -448,11 +459,12 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
         _portPathToDeviceId[id] = device.deviceId;
         _hdsPaths.add(id);
         // Don't hold the USB serial port open just because we discovered the
-        // scale. The Half Decent Scale has limited client slots — an open USB
-        // port is an active client that contends with a WiFi connection to the
-        // same physical scale (firmware logs "Client N disconnected"). The
-        // device stays "discovered"/Available with the port closed; the port
-        // reopens only when the user connects (HDSSerial.onConnect → connect()).
+        // scale. The Half Decent Scale has only a few client slots — an open
+        // USB port held idle is a persistent client that occupies one of them
+        // and contends with a WiFi connection to the same physical scale
+        // (firmware logs "Client N disconnected"). The device stays
+        // "discovered"/Available with the port closed; the port reopens only
+        // when the user connects (HDSSerial.onConnect → connect()).
         await transport.disconnect();
         return device;
       } else if (isSensorBasket(strings)) {

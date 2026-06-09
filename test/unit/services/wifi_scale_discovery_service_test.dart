@@ -207,6 +207,41 @@ void main() {
         expect((await _latest(svc)).single.deviceId, 'wifi:hds.local');
       });
 
+      test(
+          'an mDNS re-announce resets the failure counter (does not just clear '
+          'the hidden mark)', () async {
+        var reachable = true;
+        final browser = FakeWifiScaleBrowser();
+        final svc = makeSvc(
+          browser: browser,
+          probe: (_, _) async => reachable,
+          failureThreshold: 2,
+        );
+        await svc.initialize();
+        browser.emit([
+          const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5'),
+        ]);
+
+        reachable = false;
+        await svc.scanForDevices(); // failure 1 of 2 — still shown
+        expect(await _latest(svc), hasLength(1));
+
+        // mDNS re-announces the same host mid-way through accumulating
+        // failures. This must RESET the counter, not just clear a (not-yet-set)
+        // hidden mark.
+        browser.emit([
+          const WifiScaleEndpoint(host: 'hds.local', ip: '10.0.0.5'),
+        ]);
+
+        await svc.scanForDevices(); // counter was reset → failure 1 of 2 again
+        expect(await _latest(svc), hasLength(1),
+            reason: 're-announce must reset the failure count, so one more '
+                'failure is not enough to hide the scale');
+
+        await svc.scanForDevices(); // now failure 2 of 2 — hidden
+        expect(await _latest(svc), isEmpty);
+      });
+
       test('mDNS losing a service does NOT hide a still-reachable scale',
           () async {
         final browser = FakeWifiScaleBrowser();
