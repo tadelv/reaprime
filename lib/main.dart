@@ -312,17 +312,17 @@ void main() async {
   // unavailable when absent. Reads {id,name,type} off the connected device;
   // the controller itself stays interface-agnostic.
   final rememberedDevicesController = RememberedDevicesController(
-    machineConnections: de1Controller.de1.map((de1) => de1 == null
-        ? null
-        : RememberedDevice(
-            id: de1.deviceId, name: de1.name, type: DeviceType.machine)),
+    // `fromDevice` returns null for simulated devices (mocks) — their presence
+    // is governed by the simulate setting, not real discovery, so they are
+    // never remembered.
+    machineConnections: de1Controller.de1
+        .map((de1) => de1 == null ? null : RememberedDevice.fromDevice(de1)),
     scaleConnections: scaleController.connectionState.map((state) {
       // `state` is the device ConnectionState (from the stream type); name it
       // by value to avoid the material.dart ConnectionState import clash.
       if (state.name != 'connected') return null;
       try {
-        final s = scaleController.connectedScale();
-        return RememberedDevice(id: s.deviceId, name: s.name, type: s.type);
+        return RememberedDevice.fromDevice(scaleController.connectedScale());
       } catch (_) {
         return null;
       }
