@@ -2,9 +2,10 @@ import 'dart:async';
 
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/sensor.dart';
+import 'package:reaprime/src/models/device/simulated_device.dart';
 import 'package:rxdart/rxdart.dart';
 
-class MockDebugPort implements Sensor {
+class MockDebugPort implements Sensor, SimulatedDevice {
   @override
   Stream<ConnectionState> get connectionState =>
       BehaviorSubject.seeded(ConnectionState.connected);

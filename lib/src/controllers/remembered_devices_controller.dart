@@ -62,14 +62,17 @@ class RememberedDevicesController {
     }
     _log.info('loaded ${_registry.length} remembered device(s)');
     _emit();
+    // SEVERE, not warning: the scale mapper narrows its catch to the benign
+    // DeviceNotConnectedException race, so anything reaching here is a genuine
+    // upstream defect, not an expected condition.
     _subs.add(_machineConnections.listen(
       (d) { if (d != null) unawaited(_rememberFromStream(d)); },
       onError: (e, st) =>
-          _log.warning('machine connection stream error', e, st),
+          _log.severe('machine connection stream error', e, st),
     ));
     _subs.add(_scaleConnections.listen(
       (d) { if (d != null) unawaited(_rememberFromStream(d)); },
-      onError: (e, st) => _log.warning('scale connection stream error', e, st),
+      onError: (e, st) => _log.severe('scale connection stream error', e, st),
     ));
   }
 
