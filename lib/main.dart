@@ -986,6 +986,32 @@ class _AppRootState extends State<AppRoot> {
                 );
               },
             ),
+            PlatformMenuItem(
+              label: 'Simulate Teclast P80X WebView',
+              shortcut: const SingleActivator(
+                LogicalKeyboardKey.digit7,
+                alt: true,
+                meta: true,
+              ),
+              onSelected: () async {
+                await _setSimulatedWebViewDevice(
+                  SimulatedWebViewDevice.teclastP80X,
+                );
+              },
+            ),
+            PlatformMenuItem(
+              label: 'Simulate Teclast P85 Pro WebView',
+              shortcut: const SingleActivator(
+                LogicalKeyboardKey.digit6,
+                alt: true,
+                meta: true,
+              ),
+              onSelected: () async {
+                await _setSimulatedWebViewDevice(
+                  SimulatedWebViewDevice.teclastP85Pro,
+                );
+              },
+            ),
           ],
         ],
       ),
