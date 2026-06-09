@@ -112,6 +112,7 @@ class MockDe1 implements De1Interface {
 
   @override
   Future<void> onConnect() async {
+    _connectionState.add(ConnectionState.connected);
     _currentState = MachineState.idle;
     _simulateState();
   }
@@ -460,6 +461,7 @@ class MockDe1 implements De1Interface {
 
   Future<void> onDisconnect() async {
     _stateTimer?.cancel();
+    _connectionState.add(ConnectionState.disconnected);
   }
 
   bool _chargerOn = false;
@@ -563,8 +565,13 @@ class MockDe1 implements De1Interface {
         return De1WaterLevels(currentLevel: 50.0, refillLevel: 5.0);
       });
 
+  // Seed `discovered`, not `connected`: a simulated machine is only "connected"
+  // once it is actually connected through the controller (onConnect), exactly
+  // like a real device. Seeding `connected` made every enabled mock machine
+  // (MockDe1 AND MockBengle) self-report connected, so the device list showed
+  // two machines connected at once — impossible for real devices.
   final BehaviorSubject<ConnectionState> _connectionState =
-      BehaviorSubject.seeded(ConnectionState.connected);
+      BehaviorSubject.seeded(ConnectionState.discovered);
 
   @override
   Stream<ConnectionState> get connectionState => _connectionState.stream;

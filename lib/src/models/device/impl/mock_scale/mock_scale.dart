@@ -6,8 +6,13 @@ import 'package:reaprime/src/models/device/scale.dart';
 import 'package:rxdart/subjects.dart';
 
 class MockScale implements Scale {
+  // Seed `discovered`, not `connected`: a simulated scale is only "connected"
+  // once it is actually connected through the controller (onConnect), like a
+  // real scale. Seeding `connected` made Mock Scale self-report connected even
+  // when it wasn't the active scale, so the device list could show two scales
+  // connected at once.
   final BehaviorSubject<ConnectionState> _connectionSubject =
-      BehaviorSubject.seeded(ConnectionState.connected);
+      BehaviorSubject.seeded(ConnectionState.discovered);
 
   @override
   Stream<ConnectionState> get connectionState => _connectionSubject.stream;
@@ -27,7 +32,9 @@ class MockScale implements Scale {
   String get name => "Mock Scale";
 
   @override
-  Future<void> onConnect() async {}
+  Future<void> onConnect() async {
+    _connectionSubject.add(ConnectionState.connected);
+  }
 
   @override
   Future<void> tare() async {
