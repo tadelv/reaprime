@@ -23,6 +23,7 @@ class DestinationCard extends StatelessWidget {
     return Semantics(
       button: true,
       label: label,
+      excludeSemantics: true,
       child: ShadCard(
         rowMainAxisAlignment: .center,
         columnMainAxisAlignment: .spaceBetween,
@@ -31,53 +32,57 @@ class DestinationCard extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(8),
           onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              // mainAxisSize: MainAxisSize.min,
-              spacing: 12,
-              children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Icon(
-                      icon,
-                      size: 32,
-                      color: theme.colorScheme.foreground,
-                    ),
-                    if (badge != null)
-                      Positioned(
-                        right: -8,
-                        top: -8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primary,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            badge!,
-                            style: theme.textTheme.small.copyWith(
-                              color: theme.colorScheme.primaryForeground,
-                              fontSize: 10,
+          child: SizedBox.expand(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: 24,
+                horizontal: 16,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                spacing: 12,
+                children: [
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 32,
+                        color: theme.colorScheme.foreground,
+                      ),
+                      if (badge != null)
+                        Positioned(
+                          right: -8,
+                          top: -8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              badge!,
+                              style: theme.textTheme.small.copyWith(
+                                color: theme.colorScheme.primaryForeground,
+                                fontSize: 10,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                  ],
-                ),
-                Text(
-                  label,
-                  style: theme.textTheme.table.copyWith(
-                    color: theme.colorScheme.foreground,
+                    ],
                   ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
+                  Text(
+                    label,
+                    style: theme.textTheme.table.copyWith(
+                      color: theme.colorScheme.foreground,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -137,3 +142,6 @@ Widget destinationCardPreview() {
     ),
   );
 }
+
+
+
