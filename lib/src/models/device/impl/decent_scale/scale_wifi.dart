@@ -68,6 +68,10 @@ class HDSWifi implements Scale {
   @override
   Stream<ConnectionState> get connectionState => _connectionSubject.stream;
 
+  /// Synchronous current connection state. The discovery service consults this
+  /// to avoid reachability-probing a scale that's already connected/connecting.
+  ConnectionState get currentState => _connectionSubject.value;
+
   final BehaviorSubject<ScaleSnapshot> _snapshot = BehaviorSubject();
   @override
   Stream<ScaleSnapshot> get currentSnapshot => _snapshot.stream;
