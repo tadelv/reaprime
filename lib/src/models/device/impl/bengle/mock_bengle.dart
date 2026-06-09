@@ -6,6 +6,7 @@ import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
 import 'package:reaprime/src/models/device/led_strip.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/device/simulated_device.dart';
 import 'package:rxdart/rxdart.dart';
 
 /// Simulated Bengle. Reuses [MockDe1]'s state machine — Bengle's behavior
@@ -16,7 +17,7 @@ import 'package:rxdart/rxdart.dart';
 ///
 /// Capability surfaces (cup warmer, integrated scale, LED) are
 /// mirrored here.
-class MockBengle extends MockDe1 implements BengleInterface {
+class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
   MockBengle({
     super.deviceId = 'MockBengle',
     bool probeAttached = true,

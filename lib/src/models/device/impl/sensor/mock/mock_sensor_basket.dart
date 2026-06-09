@@ -3,9 +3,10 @@ import 'dart:math';
 
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/sensor.dart';
+import 'package:reaprime/src/models/device/simulated_device.dart';
 import 'package:rxdart/rxdart.dart';
 
-class MockSensorBasket implements Sensor {
+class MockSensorBasket implements Sensor, SimulatedDevice {
   @override
   Stream<ConnectionState> get connectionState =>
       BehaviorSubject.seeded(ConnectionState.connected);

@@ -281,15 +281,24 @@ class DevicesHandler {
   /// Extract deviceId from JSON body or query parameter.
   /// Body takes precedence; query param is kept for backward compatibility.
   Future<String?> _extractDeviceId(Request req) async {
+    String body;
     try {
-      final body = await req.readAsString();
-      if (body.isNotEmpty) {
-        final json = jsonDecode(body) as Map<String, dynamic>;
-        final id = json['deviceId'] as String?;
-        if (id != null) return id;
+      body = await req.readAsString();
+    } catch (e, st) {
+      _log.warning('failed to read request body', e, st);
+      return req.requestedUri.queryParameters['deviceId'];
+    }
+    if (body.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(body);
+        // Tolerate a wrong-shape body (e.g. an array) by falling through to the
+        // query param, rather than letting a cast throw.
+        if (decoded is Map<String, dynamic> && decoded['deviceId'] is String) {
+          return decoded['deviceId'] as String;
+        }
+      } on FormatException {
+        // Not valid JSON — fall through to the query parameter.
       }
-    } catch (_) {
-      // Not valid JSON — fall through to query parameter
     }
     return req.requestedUri.queryParameters['deviceId'];
   }
