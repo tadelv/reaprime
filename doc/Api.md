@@ -76,6 +76,18 @@ For browser clients on a different origin, `ETag` is exposed via `Access-Control
 | POST | `/api/v1/devices/scan` | Start BLE scan | |
 | POST | `/api/v1/devices/connect` | Connect to device by ID | |
 | POST | `/api/v1/devices/disconnect` | Disconnect device | |
+| GET | `/api/v1/devices/wifi` | List manually-added WiFi scale endpoints | `wifi_scale_handler.dart` |
+| POST | `/api/v1/devices/wifi` | Add a WiFi scale by IP/hostname (`{host}`) | |
+| DELETE | `/api/v1/devices/wifi` | Remove a manual WiFi endpoint (`{host}` body or `?host=`) | |
+
+**Manual WiFi scale endpoints.** Auto-discovered (DNS-SD) WiFi scales appear in
+`GET /api/v1/devices` like any other device and need no extra calls. The
+`/api/v1/devices/wifi` routes are only for *manually* entering a scale by IP or
+hostname (e.g. on networks where mDNS is blocked). All three return
+`{ "endpoints": [<host>, ...] }`. An added endpoint surfaces in the device list
+as a "Half Decent Scale (WiFi)" entry and validates through the normal
+recognition gate — a bad/unreachable address shows as a scale that never
+reaches `connected`.
 
 ### Shots
 

@@ -75,6 +75,8 @@ import 'package:reaprime/src/services/webview_log_service.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/services/webserver/info_handler.dart';
 import 'package:reaprime/src/services/webserver/debug_handler.dart';
+import 'package:reaprime/src/services/webserver/wifi_scale_handler.dart';
+import 'package:reaprime/src/services/wifi/wifi_scale_discovery_service.dart';
 import 'package:mime/mime.dart';
 import 'package:path/path.dart' as p;
 import 'package:reaprime/src/models/device/device.dart' as device;
@@ -119,6 +121,7 @@ Future<void> startWebServer(
   BeanStorageService? beanStorage,
   GrinderStorageService? grinderStorage,
   required ConnectionManager connectionManager,
+  WifiScaleDiscoveryService? wifiScaleDiscoveryService,
   DecentAccountService? decentAccountService,
   DecentProxyService? decentProxyService,
   ProxyTokenService? proxyTokenService,
@@ -235,6 +238,10 @@ Future<void> startWebServer(
 
   final infoHandler = InfoHandler();
 
+  final wifiScaleHandler = wifiScaleDiscoveryService == null
+      ? null
+      : WifiScaleHandler(service: wifiScaleDiscoveryService);
+
   DebugHandler? debugHandler;
   const simulateEnv = String.fromEnvironment("simulate");
   if (simulateEnv.isNotEmpty) {
@@ -270,6 +277,7 @@ Future<void> startWebServer(
       grindersHandler,
       infoHandler,
       debugHandler,
+      wifiScaleHandler,
     ),
     '0.0.0.0',
     8080,
@@ -308,11 +316,13 @@ Handler _init(
   GrindersHandler? grindersHandler,
   InfoHandler infoHandler,
   DebugHandler? debugHandler,
+  WifiScaleHandler? wifiScaleHandler,
 ) {
   log.info("called _init");
   var app = Router().plus;
 
   deviceHandler.addRoutes(app);
+  wifiScaleHandler?.addRoutes(app);
   de1Handler.addRoutes(app);
   scaleHandler.addRoutes(app);
   settingsHandler.addRoutes(app);

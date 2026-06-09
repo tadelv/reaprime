@@ -429,6 +429,7 @@ void main() async {
       beanStorage: beanStorage,
       grinderStorage: grinderStorage,
       connectionManager: connectionManager,
+      wifiScaleDiscoveryService: wifiScaleDiscoveryService,
       decentAccountService: decentAccountService,
       decentProxyService: decentProxyService,
       proxyTokenService: proxyTokenService,
