@@ -119,6 +119,9 @@ class WifiScaleDiscoveryService implements DeviceDiscoveryService {
     }
   }
 
+  /// The currently-configured manually-added hosts (IPs or hostnames).
+  List<String> get manualEndpoints => List.unmodifiable(_manualHosts);
+
   /// Add a manually-entered host (IP or hostname). Idempotent.
   Future<void> addManualEndpoint(String host) async {
     final h = host.trim();

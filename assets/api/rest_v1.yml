@@ -138,8 +138,102 @@ paths:
         "404":
           description: "Device not found"
 
+  /api/v1/devices/wifi:
+    get:
+      summary: List manually-added WiFi scale endpoints
+      description: |
+        Returns the hosts (IPs or hostnames) added manually for WiFi scale
+        discovery. Auto-discovered (DNS-SD) WiFi scales are NOT listed here —
+        they appear in `GET /api/v1/devices` like any other device.
+      tags: [Devices]
+      responses:
+        "200":
+          description: The configured manual endpoints
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  endpoints:
+                    type: array
+                    items:
+                      type: string
+    post:
+      summary: Add a manual WiFi scale endpoint
+      description: |
+        Registers a WiFi scale by IP or hostname (e.g. `192.168.1.42` or
+        `hds.local`). Idempotent. The endpoint surfaces in the device list as a
+        "Half Decent Scale (WiFi)" entry and connects/validates through the
+        normal recognition gate — a bad/unreachable address shows as a scale
+        that never reaches `connected`.
+      tags: [Devices]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                host:
+                  type: string
+                  description: IP address or hostname of the WiFi scale
+              required:
+                - host
+      responses:
+        "200":
+          description: The updated list of manual endpoints
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  endpoints:
+                    type: array
+                    items:
+                      type: string
+        "400":
+          description: "Missing host"
+    delete:
+      summary: Remove a manual WiFi scale endpoint
+      description: |
+        Removes a manually-added endpoint and tears down its scale instance.
+        Accepts `host` via JSON body (preferred) or `?host=` query parameter.
+      tags: [Devices]
+      parameters:
+        - name: host
+          description: IP or hostname to remove
+          in: query
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                host:
+                  type: string
+              required:
+                - host
+      responses:
+        "200":
+          description: The updated list of manual endpoints
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  endpoints:
+                    type: array
+                    items:
+                      type: string
+        "400":
+          description: "Missing host"
+
   # Machine specific API
-  
+
   /api/v1/machine/info:
     get:
       summary: Retrieves the current Machine information
