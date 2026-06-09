@@ -21,8 +21,8 @@ import 'package:reaprime/src/controllers/steam_sequencer.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/controllers/remembered_device_sources.dart';
 import 'package:reaprime/src/controllers/remembered_devices_controller.dart';
-import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/controllers/display_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/presence_controller.dart';
@@ -33,7 +33,6 @@ import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/controllers/workflow_device_sync.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/device.dart';
-import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/services/android_updater.dart';
 import 'package:reaprime/src/services/blue_plus_discovery_service.dart';
@@ -310,27 +309,16 @@ void main() async {
   );
 
   // Remembers devices the user connects to (machine + scale), shown as
-  // unavailable when absent. Reads {id,name,type} off the connected device;
-  // the controller itself stays interface-agnostic.
+  // unavailable when absent. The stream mappers (which read {id,name,type} off
+  // the connected device and skip simulated devices) live in
+  // `remembered_device_sources.dart` so they're unit-testable; the controller
+  // itself stays interface-agnostic.
   final rememberedDevicesController = RememberedDevicesController(
-    // `fromDevice` returns null for simulated devices (mocks) — their presence
-    // is governed by the simulate setting, not real discovery, so they are
-    // never remembered.
-    machineConnections: de1Controller.de1
-        .map((de1) => de1 == null ? null : RememberedDevice.fromDevice(de1)),
-    scaleConnections: scaleController.connectionState.map((state) {
-      // `state` is the device ConnectionState (from the stream type); name it
-      // by value to avoid the material.dart ConnectionState import clash.
-      if (state.name != 'connected') return null;
-      try {
-        return RememberedDevice.fromDevice(scaleController.connectedScale());
-      } on DeviceNotConnectedException {
-        // Benign race: the stream said `connected` but a disconnect already
-        // nulled the scale. Other exceptions are real defects — let them
-        // surface rather than silently skipping the remember.
-        return null;
-      }
-    }),
+    machineConnections: de1Controller.de1.map(rememberedFromMachine),
+    scaleConnections: scaleController.connectionState.map(
+      (state) =>
+          rememberedFromScaleState(state, scaleController.connectedScale),
+    ),
     settings: SharedPreferencesSettingsService(),
   );
   await rememberedDevicesController.initialize();

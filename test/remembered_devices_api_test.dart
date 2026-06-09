@@ -114,4 +114,34 @@ void main() {
         'PUT', Uri.parse('http://localhost/api/v1/devices/forget')));
     expect(res.statusCode, 400);
   });
+
+  test('forget accepts deviceId via the query param (no body)', () async {
+    final res = await handler(Request(
+      'PUT',
+      Uri.parse(
+          'http://localhost/api/v1/devices/forget?deviceId=wifi:hds.local'),
+    ));
+    expect(res.statusCode, 200);
+    expect((await getDevices()).any((d) => d['id'] == 'wifi:hds.local'), isFalse);
+  });
+
+  test('forget returns 503 when the remembered controller is unwired',
+      () async {
+    // A handler with no remembered controller — the feature is unavailable, not
+    // a server fault, so it must be 503 (not 500).
+    final bareHandler = DevicesHandler(
+      controller: deviceController,
+      connectionManager: connectionManager,
+    );
+    final app = Router().plus;
+    bareHandler.addRoutes(app);
+    final res = await app.call(Request(
+      'PUT',
+      Uri.parse('http://localhost/api/v1/devices/forget'),
+      body: jsonEncode({'deviceId': 'x'}),
+      headers: {'content-type': 'application/json'},
+    ));
+    expect(res.statusCode, 503);
+    bareHandler.dispose();
+  });
 }

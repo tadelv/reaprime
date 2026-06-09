@@ -73,9 +73,9 @@ For browser clients on a different origin, `ETag` is exposed via `Access-Control
 | Method | Path | Description | Handler |
 |--------|------|-------------|---------|
 | GET | `/api/v1/devices` | List devices (present + remembered) | `devices_handler.dart` |
-| POST | `/api/v1/devices/scan` | Start BLE scan | |
-| POST | `/api/v1/devices/connect` | Connect to device by ID | |
-| POST | `/api/v1/devices/disconnect` | Disconnect device | |
+| GET | `/api/v1/devices/scan` | Start a device scan (`?quick=`, `?connect=`) | |
+| PUT | `/api/v1/devices/connect` | Connect to device by ID | |
+| PUT | `/api/v1/devices/disconnect` | Disconnect device | |
 | PUT | `/api/v1/devices/forget` | Forget a remembered device | |
 | GET | `/api/v1/devices/wifi` | List manually-added WiFi scale endpoints | `wifi_scale_handler.dart` |
 | POST | `/api/v1/devices/wifi` | Add a WiFi scale by IP/hostname (`{host}`) | |

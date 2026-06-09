@@ -153,22 +153,24 @@ void main() {
         reason: 'same name, distinct ids → distinct entries');
   });
 
-  test('a failed persist on the connect path is contained, not an unhandled '
-      'error', () async {
+  test('a failed persist on the connect path is contained and rolled back',
+      () async {
     controller = build();
     await controller.initialize();
     settings.failRememberedDevicesWrite = true;
 
     // A throwing persist on the un-awaited stream path must be caught (logged in
     // _persist) — if it leaked as an unhandled async error the test zone would
-    // fail. The device is still tracked in memory.
+    // fail. The registry rolls back so memory matches disk (nothing persisted),
+    // and the device self-heals on the next connect.
     scale.add(const RememberedDevice(id: 's', name: 'S', type: DeviceType.scale));
     await Future.delayed(Duration.zero);
 
-    expect(controller.remembered.map((d) => d.id), ['s']);
+    expect(controller.remembered, isEmpty,
+        reason: 'a failed persist rolls back the in-memory add');
   });
 
-  test('forget surfaces a persist failure to its caller', () async {
+  test('forget surfaces a persist failure and rolls back', () async {
     await settings.setRememberedDevices(RememberedDevice.encodeList([
       const RememberedDevice(id: 'a', name: 'A', type: DeviceType.scale),
     ]));
@@ -178,6 +180,37 @@ void main() {
 
     await expectLater(controller.forget('a'), throwsA(isA<StateError>()),
         reason: 'the awaitable forget path must not swallow a persist failure');
+    expect(controller.remembered.map((d) => d.id), ['a'],
+        reason: 'a failed persist rolls back the removal (memory matches disk)');
+  });
+
+  test('initialize is idempotent (no double-subscribe / double-load)',
+      () async {
+    controller = build();
+    await controller.initialize();
+    await controller.initialize(); // second call must be a no-op
+
+    final emissions = <int>[];
+    final sub = controller.changes.listen((l) => emissions.add(l.length));
+    scale.add(const RememberedDevice(id: 's', name: 'S', type: DeviceType.scale));
+    await Future.delayed(Duration.zero);
+
+    expect(controller.remembered.map((d) => d.id), ['s']);
+    // seeded(0) + exactly ONE remember(1) — a double-subscribe would emit twice.
+    expect(emissions, [0, 1]);
+    await sub.cancel();
+  });
+
+  test('a partially-malformed stored list loads only the valid records',
+      () async {
+    // One valid record + one missing required fields (dropped).
+    await settings.setRememberedDevices(
+        '[{"id":"a","name":"A","type":"scale"},{"id":"b"}]');
+    controller = build();
+    await controller.initialize();
+
+    expect(controller.remembered.map((d) => d.id), ['a'],
+        reason: 'an unreadable record must not abort the whole load');
   });
 
   test('changes stream emits on remember and forget', () async {
