@@ -18,6 +18,20 @@ abstract class Scale extends Device {
   Future<void> resetTimer() async {}
 }
 
+/// A scale that mutates its physical device on a normal [Device.disconnect]
+/// (e.g. the BLE Decent Scale powers the scale OFF on disconnect), and can
+/// instead release the connection WITHOUT that side effect.
+///
+/// The controller uses this when it hands the active-scale role to another
+/// transport of the SAME physical scale — switching between the BLE/USB/WiFi
+/// views of one Half Decent Scale. A plain disconnect there would power the
+/// shared physical scale off mid-switch, defeating the switch. Scales without
+/// a destructive disconnect don't need to implement this.
+abstract interface class TransportHandoffScale {
+  /// Drop the active connection without the disconnect-time power-off.
+  Future<void> disconnectForHandoff();
+}
+
 class ScaleSnapshot {
   final DateTime timestamp;
   final double weight;

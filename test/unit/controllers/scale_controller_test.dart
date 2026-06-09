@@ -47,7 +47,41 @@ class _TrackingScale implements Scale {
   Future<void> resetTimer() async {}
 }
 
+/// A handoff-capable scale (like the BLE Decent Scale) that records whether it
+/// was released via the destructive [disconnect] (power-off) or the
+/// non-destructive [disconnectForHandoff].
+class _HandoffTrackingScale extends _TrackingScale
+    implements TransportHandoffScale {
+  _HandoffTrackingScale(super.deviceId);
+  bool handoffReleased = false;
+
+  @override
+  Future<void> disconnectForHandoff() async {
+    handoffReleased = true;
+    _conn.add(ConnectionState.disconnected);
+  }
+}
+
 void main() {
+  test(
+      'switching away from a handoff-capable scale releases it WITHOUT '
+      'power-off (uses disconnectForHandoff)', () async {
+    final controller = ScaleController();
+    final a = _HandoffTrackingScale('A'); // e.g. BLE Decent Scale
+    final b = _TrackingScale('B'); // e.g. WiFi HDS
+
+    await controller.connectToScale(a);
+    await controller.connectToScale(b);
+
+    expect(a.handoffReleased, isTrue,
+        reason: 'a transport switch must use the non-power-off handoff path');
+    expect(a.disconnected, isFalse,
+        reason: 'the destructive disconnect() (power-off) must NOT be used '
+            'when switching the active scale');
+
+    controller.dispose();
+  });
+
   test('connecting a new scale disconnects the previously-connected scale',
       () async {
     final controller = ScaleController();
