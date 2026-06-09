@@ -50,7 +50,17 @@ class ScaleController {
     _onDisconnect();
     if (previous != null && previous.deviceId != scale.deviceId) {
       try {
-        await previous.disconnect();
+        // Switching the active scale is a handoff, not a user "turn off". The
+        // BLE Decent Scale powers the physical device off on a normal
+        // disconnect; since the same physical Half Decent Scale can be reached
+        // via BLE/USB/WiFi, powering it off here would defeat a transport
+        // switch (and turn the scale off). Use the non-destructive handoff
+        // path when the scale supports it.
+        if (previous is TransportHandoffScale) {
+          await (previous as TransportHandoffScale).disconnectForHandoff();
+        } else {
+          await previous.disconnect();
+        }
       } catch (e) {
         log.warning(
             'Failed to disconnect previous scale ${previous.deviceId}', e);

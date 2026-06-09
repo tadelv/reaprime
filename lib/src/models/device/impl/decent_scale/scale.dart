@@ -10,7 +10,7 @@ import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:rxdart/subjects.dart';
 
-class DecentScale implements Scale {
+class DecentScale implements Scale, TransportHandoffScale {
   static final BleServiceIdentifier serviceIdentifier =
       BleServiceIdentifier.short('fff0');
   static final BleServiceIdentifier dataCharacteristic =
@@ -156,26 +156,38 @@ class DecentScale implements Scale {
   bool _isDisconnecting = false;
 
   @override
-  disconnect() async {
+  disconnect() async => _disconnect(powerOff: true);
+
+  /// [TransportHandoffScale]: release the BLE link WITHOUT powering the
+  /// physical scale off, so the controller can hand the active-scale role to
+  /// another transport (USB/WiFi) of the SAME physical Half Decent Scale.
+  /// Powering off here would turn the shared device off mid-switch.
+  @override
+  Future<void> disconnectForHandoff() => _disconnect(powerOff: false);
+
+  Future<void> _disconnect({required bool powerOff}) async {
     if (_isDisconnecting) {
       return;
     }
     _isDisconnecting = true;
     final uptimeSec = _heartbeatTotalTicks * 4;
-    _log.info("disconnecting (notifications=$_totalNotifications, uptime=${uptimeSec}s)");
+    _log.info("disconnecting (notifications=$_totalNotifications, "
+        "uptime=${uptimeSec}s, powerOff=$powerOff)");
     subscription?.cancel();
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
-    try {
-      // Best-effort: `disconnect()` often fires *on* a transport-state
-      // disconnected event, in which case the write throws `device is
-      // disconnected` immediately. On the happy path the scale powers
-      // off after acking and severs BLE — neither outcome should block
-      // or escalate. The 2 s timeout caps the wait so a flaky link
-      // can't stall the rest of the disconnect sequence.
-      await _sendPowerOff().timeout(const Duration(seconds: 2));
-    } catch (e) {
-      _log.fine('power-off write skipped (device likely already off): $e');
+    if (powerOff) {
+      try {
+        // Best-effort: `disconnect()` often fires *on* a transport-state
+        // disconnected event, in which case the write throws `device is
+        // disconnected` immediately. On the happy path the scale powers
+        // off after acking and severs BLE — neither outcome should block
+        // or escalate. The 2 s timeout caps the wait so a flaky link
+        // can't stall the rest of the disconnect sequence.
+        await _sendPowerOff().timeout(const Duration(seconds: 2));
+      } catch (e) {
+        _log.fine('power-off write skipped (device likely already off): $e');
+      }
     }
     // `BluePlusTransport.disconnect` swallows its own errors internally,
     // so no extra try/catch needed here.
