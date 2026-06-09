@@ -66,6 +66,18 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
   // fresh.
   final Set<String> _selfDisconnectedPaths = {};
 
+  // Paths that were ever detected as a Half Decent Scale (which streams weight
+  // continuously while powered, on every transport at once). A *discovered*
+  // (not-connected) HDS releases its port and would otherwise linger as
+  // "available" forever even after the physical scale is switched off, since
+  // nothing re-reads it. Every Nth reconcile we re-verify these by re-probing
+  // the port: still streaming → keep; silent → reap (scale off). Re-opening for
+  // a brief read is safe — the scale serves all transports simultaneously, so
+  // it doesn't disturb a live WiFi/BLE connection.
+  final Set<String> _hdsPaths = {};
+  int _livenessTick = 0;
+  static const int _livenessEveryNReconciles = 3; // ~24s at the 8s interval
+
   // Force the next reconcile to emit even if the device set is unchanged.
   // Set by an explicit `scanForDevices()`: DeviceController clears `discovered`
   // devices from its own map at scan start and relies on each service
@@ -123,6 +135,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     _portPathToDevice.clear();
     _portPathToDeviceId.clear();
     _selfDisconnectedPaths.clear();
+    _hdsPaths.clear();
     if (!_machineSubject.isClosed) await _machineSubject.close();
   }
 
@@ -163,6 +176,31 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
 
     final ports = (await SerialPort.availablePorts).toSet();
     _log.fine("Found ports: $ports");
+
+    // --- Liveness re-verification (every Nth reconcile, and on explicit scan).
+    // A discovered (not-connected) HDS released its port and is otherwise never
+    // re-read, so it would linger as "available" after the scale is switched
+    // off. Release it here so this pass re-probes it (re-detect → still on;
+    // silent → dropped), and lift suppression on known HDS ports so a scale
+    // that came back is re-detected. A CONNECTED HDS is left untouched.
+    final livenessPass =
+        explicitScan || (++_livenessTick % _livenessEveryNReconciles == 0);
+    if (livenessPass) {
+      for (final path in _portPathToDevice.keys.toList()) {
+        final d = _portPathToDevice[path];
+        if (d is! HDSSerial) continue;
+        if ((await d.connectionState.first) == ConnectionState.connected) {
+          continue;
+        }
+        _portPathToDevice.remove(path);
+        _portPathToDeviceId.remove(path);
+        final t = _portPathToTransport.remove(path);
+        try {
+          await t?.dispose();
+        } catch (_) {}
+      }
+      _selfDisconnectedPaths.removeAll(_hdsPaths);
+    }
 
     // --- Reap. A tracked path is stale if EITHER:
     //   (a) the OS port no longer exists (physical unplug / OS rename), OR
@@ -264,6 +302,18 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       }),
     );
 
+    // A liveness-released HDS that didn't re-detect is plugged in but silent →
+    // the scale is off. Suppress its port so it isn't re-probed every reconcile
+    // (the next liveness pass lifts this and re-probes, so it auto-recovers when
+    // the scale powers back on).
+    if (livenessPass) {
+      for (final p in _hdsPaths) {
+        if (ports.contains(p) && !_portPathToDevice.containsKey(p)) {
+          _selfDisconnectedPaths.add(p);
+        }
+      }
+    }
+
     // Emit when the tracked device set changed, OR when an explicit scan
     // requested it (DeviceController cleared its map and needs a re-emit).
     // Steady-state timer reconciles with no change stay silent.
@@ -336,6 +386,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     if (port.productName == "Half Decent Scale") {
       final device = HDSSerial(transport: transport);
       _portPathToDeviceId[id] = device.deviceId;
+      _hdsPaths.add(id);
       return device;
     }
 
@@ -395,6 +446,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
         _log.info("Detected: Decent Scale — releasing port until user connects");
         final device = HDSSerial(transport: transport);
         _portPathToDeviceId[id] = device.deviceId;
+        _hdsPaths.add(id);
         // Don't hold the USB serial port open just because we discovered the
         // scale. The Half Decent Scale has limited client slots — an open USB
         // port is an active client that contends with a WiFi connection to the
