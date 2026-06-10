@@ -112,7 +112,7 @@ Both steps are required, not optional.
 | Services | `lib/src/services/` | Discovery, storage, settings, web server |
 | Plugins | `lib/src/plugins/` | JS plugin lifecycle, manifest, sandboxed runtime |
 | Bundled Plugins | `packages/dye2-plugin/`, `assets/plugins/` | DYE2 (bean/grinder management, TypeScript/Vite), Settings (web-based settings dashboard, plain JS). |
-| UI Features | `lib/src/` | `home_feature/`, `history_feature/`, `realtime_shot_feature/`, `settings/`, etc. |
+| UI Features | `lib/src/` | `launcher/` (post-onboarding home), `onboarding_feature/`, `home_feature/` (legacy), `history_feature/`, `realtime_shot_feature/`, `settings/`, etc. |
 | WebUI Skins | `lib/src/webui_support/` | Web-based UI skin management and serving |
 
 ### Key Controllers
