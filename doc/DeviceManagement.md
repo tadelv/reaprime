@@ -429,22 +429,34 @@ to gate "internal scale" UX hints.
    ↓
 5. runApp(MyApp(...))
    ↓
-6. PermissionsView → DeviceDiscoveryView displayed
+6. OnboardingView displayed (steps: android-warning → welcome → login →
+   permissions → initialization → scan)
    ↓
-7. User grants permissions → deviceController.initialize()
+7. Permissions step grants permissions; initialization step runs
+   deviceController.initialize()
    ↓
-8. DeviceDiscoveryView calls connectionManager.connect()
+8. Scan step calls connectionManager.connect()
    ↓
 9. ConnectionManager: scan → early-connect preferred devices → apply policy
    ↓
 10. Status stream: idle → scanning → connectingMachine → connectingScale → ready
     ↓
-11. DeviceDiscoveryView navigates to HomeScreen on `ready`
+11. On `ready`, onboarding completes → navigates to LauncherView, then pushes
+    SkinView on top when the platform supports an in-app WebView, the device
+    isn't a degraded Android (SDK < 31), and the skin server is serving.
+    Degraded/unsupported devices stay on the launcher (browser hero card).
 ```
 
 If multiple machines or scales are found without a preferred device set, ConnectionManager emits `pendingAmbiguity: machinePicker` or `scalePicker`, and the UI shows a picker dialog.
 
-### Scale Reconnect from HomeScreen
+### Scale Reconnect from StatusTile (legacy home_feature)
+
+> **Note:** This tap-to-reconnect affordance lives in the legacy `home_feature`
+> StatusTile. Since the native UI redesign, `LauncherView` (not `home_feature`)
+> is the default post-onboarding screen, and it does **not** yet expose an
+> equivalent scan-and-connect entry point — that work is tracked as a follow-up.
+> The underlying `connectionManager.scanAndConnectScale()` flow below is
+> unchanged and still drives the machine-wake reconnect path.
 
 ```
 1. User taps "Scale" text in StatusTile (when no scale connected)
