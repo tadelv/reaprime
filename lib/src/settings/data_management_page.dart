@@ -178,7 +178,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
               if (_canImportFromDe1app)
                 ShadButton.outline(
                   onPressed: _importFromDe1app,
-                  child: const Text('Import from Decent app'),
+                  child: const Text('Import from DE1 app'),
                 ),
             ],
           ),
@@ -658,14 +658,14 @@ class _DataManagementPageState extends State<DataManagementPage> {
       if (folderPath == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No Decent app data found')),
+            const SnackBar(content: Text('No DE1 app data found')),
           );
         }
         return;
       }
     } else {
       folderPath = await FilePicker.getDirectoryPath(
-        dialogTitle: 'Select Decent app folder',
+        dialogTitle: 'Select the DE1 app folder',
       );
     }
     if (folderPath == null) return;
@@ -694,7 +694,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
       if (scanResult.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No Decent app data found in this folder')),
+            const SnackBar(content: Text('No DE1 app data found in this folder')),
           );
         }
         return;

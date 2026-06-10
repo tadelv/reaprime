@@ -101,7 +101,7 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Select and manage web-based user interface skins',
+                      'Choose and manage your skins',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: Theme.of(context)
                                 .colorScheme
@@ -129,7 +129,7 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Server',
+                            'Skin Server',
                             style: Theme.of(context)
                                 .textTheme
                                 .titleMedium
@@ -141,8 +141,8 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
                     const SizedBox(height: 4),
                     Text(
                       widget.webUIService.isServing
-                          ? 'WebUI server is running'
-                          : 'WebUI server is stopped',
+                          ? 'Skin server is running'
+                          : 'Skin server is stopped',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: Theme.of(context)
                                 .colorScheme
@@ -153,7 +153,7 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
                     const SizedBox(height: 16),
                     if (!widget.webUIService.isServing)
                       _ActionButton(
-                        label: 'Start WebUI Server',
+                        label: 'Start Skin Server',
                         icon: Icons.play_arrow,
                         onPressed: _startSelectedSkin,
                       )
@@ -168,7 +168,7 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
                             onPressed: _openWebUIInBrowser,
                           ),
                           _ActionButton.destructive(
-                            label: 'Stop Server',
+                            label: 'Stop Skin Server',
                             icon: Icons.stop,
                             onPressed: () async {
                               await widget.webUIService.stopServing();
@@ -388,7 +388,7 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('WebUI restarted with ${skin.name}'),
+            content: Text('Skin server restarted with ${skin.name}'),
             backgroundColor: Colors.green,
           ),
         );
@@ -397,7 +397,7 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
       _log.severe('Failed to restart WebUI server', e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to restart WebUI: $e')),
+          SnackBar(content: Text('Failed to restart skin server: $e')),
         );
       }
     }
@@ -439,7 +439,7 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('WebUI started with ${skin.name}'),
+            content: Text('Skin server started with ${skin.name}'),
             backgroundColor: Colors.green,
           ),
         );
@@ -447,7 +447,7 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to start WebUI: $e')),
+          SnackBar(content: Text('Failed to start skin server: $e')),
         );
       }
     }
