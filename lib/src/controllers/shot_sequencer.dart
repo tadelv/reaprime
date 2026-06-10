@@ -50,6 +50,28 @@ class ShotSequencer {
   DateTime? _lastVolumeUpdateTime;
   bool _volumeCountingActive = false;
 
+  // Final beverage weight on weighed shots. After the machine-reported stop the
+  // pump is off, so flow onto the scale can only decay — the post-stop window
+  // keeps taking the rising weight (turbo catch-up included, with no flow or
+  // gram cap) and locks the yield on the first of three events: the scale
+  // settles, the cup is removed (a sharp drop), or a touch spikes the flow back
+  // up against the decay. The saved trace stops at the stop boundary, so only
+  // this value follows the tail, not the graph. Null when no scale weighs the
+  // shot.
+  static const double _settleFlowThreshold = 0.4; // g/s; |flow| below = still
+  static const int _settleSampleCount = 3; // consecutive still samples = settled
+  static const double _removalFlowThreshold = 3.0; // g/s; flow < -this = removal
+  static const double _spikeFlowJump = 3.0; // g/s; flow rising vs prev = spike
+  static const Duration _stoppingBackstop = Duration(seconds: 4);
+  double? _trustedFinalYield;
+  bool _stoppingYieldLocked = false;
+  int _settleSamples = 0;
+  double? _prevStoppingFlow;
+
+  double? get trustedFinalYield => _trustedFinalYield == null
+      ? null
+      : (_trustedFinalYield! * 10).roundToDouble() / 10;
+
   ShotSequencer({
     required this.scaleController,
     required this.de1controller,
@@ -246,6 +268,10 @@ class ShotSequencer {
           _accumulatedVolume = 0.0;
           _lastVolumeUpdateTime = null;
           _volumeCountingActive = false;
+          _trustedFinalYield = null;
+          _stoppingYieldLocked = false;
+          _settleSamples = 0;
+          _prevStoppingFlow = null;
           skippedSteps.clear();
 
           if (_bypassSAW == false && scale != null && !_scaleLost) {
@@ -311,8 +337,7 @@ class ShotSequencer {
             de1controller.connectedDe1().requestState(
               MachineState.idle,
             ); // Send stop command to machine
-            _state = ShotState.stopping;
-            _stateStream.add(_state);
+            _enterStopping(scale);
             break;
           }
         }
@@ -330,15 +355,13 @@ class ShotSequencer {
             de1controller.connectedDe1().requestState(
               MachineState.idle,
             ); // Send stop command to machine
-            _state = ShotState.stopping;
-            _stateStream.add(_state);
+            _enterStopping(scale);
             break;
           }
         }
         if (machine.state.substate == MachineSubstate.pouringDone ||
             machine.state.substate == MachineSubstate.idle) {
-          _state = ShotState.stopping;
-          _stateStream.add(_state);
+          _enterStopping(scale);
         }
         break;
 
@@ -349,15 +372,25 @@ class ShotSequencer {
           scaleController.connectedScale().stopTimer();
         }
 
-        if (_stoppingStateFuture != null) {
+        _refineStoppingYield(scale);
+        if (_stoppingYieldLocked) {
+          _log.info(
+            "Final yield ${trustedFinalYield}g locked. "
+            "Final volume: ${_accumulatedVolume}ml",
+          );
+          _finishStopping();
           break;
         }
-        _stoppingStateFuture = Future.delayed(Duration(seconds: 4), () {
-          _log.info(
-            "Recording finished. Final volume: ${_accumulatedVolume}ml",
-          );
-          _state = ShotState.finished;
-          _stateStream.add(_state);
+
+        // Safety backstop: a noisy scale might never produce a settle / removal
+        // / spike event. Guarantee the shot still finalizes.
+        _stoppingStateFuture ??= Future.delayed(_stoppingBackstop, () {
+          if (_state == ShotState.stopping) {
+            _log.info(
+              "Stopping backstop fired. Final volume: ${_accumulatedVolume}ml",
+            );
+            _finishStopping();
+          }
         });
         break;
 
@@ -370,6 +403,82 @@ class ShotSequencer {
         break;
     }
     _log.finest("State out: ${_state.name}");
+  }
+
+  void _enterStopping(WeightSnapshot? scale) {
+    _latchTrustedFinalYield(scale);
+    // Recording stops at the machine-reported shot end.
+    dataCollectionEnabled = false;
+    // The post-stop window exists solely to catch the final drips on the scale
+    // and fold them into the yield (see _refineStoppingYield). With a scale,
+    // hold in `stopping` until the yield locks; without one there is nothing to
+    // catch, so end the shot immediately — no settling window, no waiting.
+    _state = _trustedFinalYield != null
+        ? ShotState.stopping
+        : ShotState.finished;
+    _stateStream.add(_state);
+  }
+
+  void _latchTrustedFinalYield(WeightSnapshot? scale) {
+    final weight = scale?.weight;
+    if (weight == null || weight <= 0 || !weight.isFinite) return;
+    _trustedFinalYield = weight;
+  }
+
+  /// Refines the final yield during the post-stop window.
+  ///
+  /// The pump is off, so flow onto the scale can only decay. We keep taking the
+  /// rising weight — turbo catch-up included, with no flow or gram cap — and
+  /// lock the yield on the first of:
+  ///   * removal: a sharp drop (flow below -[_removalFlowThreshold]) — keep the
+  ///     peak from before it;
+  ///   * spike: flow jumping up vs the previous sample (a touch/bump rising
+  ///     against the decay) — keep the prior value;
+  ///   * settle: [_settleSampleCount] consecutive near-still samples — trust the
+  ///     settled reading itself.
+  ///
+  /// Magnitude is never gated, so a high-flow turbo tail is not mistaken for a
+  /// spike; only flow rising *against* the decay is.
+  void _refineStoppingYield(WeightSnapshot? scale) {
+    if (_stoppingYieldLocked) return;
+    final weight = scale?.weight;
+    if (weight == null || weight <= 0 || !weight.isFinite) return;
+    final flow = scale!.weightFlow.isFinite ? scale.weightFlow : 0.0;
+    final prevFlow = _prevStoppingFlow;
+    _prevStoppingFlow = flow;
+
+    // Cup removal — a sharp drop. Keep the peak from before it.
+    if (flow < -_removalFlowThreshold) {
+      _stoppingYieldLocked = true;
+      return;
+    }
+    // Touch/bump — flow jumps up against the post-stop decay. Keep the prior
+    // value. Skipped on the first sample, which has no decay baseline yet.
+    if (prevFlow != null && flow > prevFlow + _spikeFlowJump) {
+      _stoppingYieldLocked = true;
+      return;
+    }
+
+    // Still filling — take the rising weight.
+    if (_trustedFinalYield == null || weight > _trustedFinalYield!) {
+      _trustedFinalYield = weight;
+    }
+
+    // Settled — trust the settled reading (authoritative over any earlier
+    // transient peak) and lock.
+    if (flow.abs() < _settleFlowThreshold) {
+      if (++_settleSamples >= _settleSampleCount) {
+        _trustedFinalYield = weight;
+        _stoppingYieldLocked = true;
+      }
+    } else {
+      _settleSamples = 0;
+    }
+  }
+
+  void _finishStopping() {
+    _state = ShotState.finished;
+    _stateStream.add(_state);
   }
 }
 

@@ -388,6 +388,341 @@ void main() {
         shotSequencer.dispose();
       });
     });
+
+    test('trusted final yield ignores cup removal during drip window', () {
+      fakeAsync((async) {
+        scaleController.emitWeight(0.0);
+
+        final shotSequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          targetYield: 36.0,
+          bypassSAW: false,
+          blockOnNoScale: false,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+        );
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring(shotSequencer);
+        async.elapse(Duration(milliseconds: 10));
+
+        scaleController.emitWeight(36.0, weightFlow: 0.4);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouring,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        scaleController.emitWeight(36.5, weightFlow: 0.3);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouringDone,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        scaleController.emitWeight(2.0, weightFlow: -20.0);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouringDone,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(shotSequencer.trustedFinalYield, 36.5);
+
+        shotSequencer.dispose();
+      });
+    });
+
+    test('an upward touch spike locks the yield at the pre-spike value', () {
+      fakeAsync((async) {
+        scaleController.emitWeight(0.0);
+
+        final shotSequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          targetYield: 36.0,
+          bypassSAW: false,
+          blockOnNoScale: false,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+        );
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring(shotSequencer);
+        async.elapse(Duration(milliseconds: 10));
+
+        // SAW stops the shot, then one real settling drip establishes the
+        // decaying-flow baseline.
+        scaleController.emitWeight(36.0, weightFlow: 0.4);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouring,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        scaleController.emitWeight(36.3, weightFlow: 0.3);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouringDone,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        // A finger touch spikes the flow up against the decay — locked out.
+        scaleController.emitWeight(45.0, weightFlow: 12.0);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouringDone,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(shotSequencer.trustedFinalYield, 36.3);
+
+        shotSequencer.dispose();
+      });
+    });
+
+    test('captures a turbo catch-up beyond the old gram and flow caps', () {
+      fakeAsync((async) {
+        scaleController.emitWeight(0.0);
+
+        final shotSequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          targetYield: 30.0,
+          bypassSAW: false,
+          blockOnNoScale: false,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+        );
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring(shotSequencer);
+        async.elapse(Duration(milliseconds: 10));
+
+        // SAW stops at the 30 g target while flow is still high (turbo).
+        scaleController.emitWeight(30.0, weightFlow: 8.0);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouring,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        // In-flight water keeps landing at high (but decaying) flow — an 8 g
+        // rise the old >5 g / flow>3 caps would have rejected.
+        for (final s in [
+          [34.0, 6.0],
+          [37.0, 4.0],
+          [38.0, 1.0],
+        ]) {
+          scaleController.emitWeight(s[0], weightFlow: s[1]);
+          testDe1.emitStateAndSubstate(
+            MachineState.espresso,
+            MachineSubstate.pouringDone,
+          );
+          async.elapse(Duration(milliseconds: 10));
+        }
+
+        // Then it settles.
+        for (var i = 0; i < 3; i++) {
+          scaleController.emitWeight(38.1, weightFlow: 0.1);
+          testDe1.emitStateAndSubstate(
+            MachineState.espresso,
+            MachineSubstate.pouringDone,
+          );
+          async.elapse(Duration(milliseconds: 10));
+        }
+
+        expect(shotSequencer.trustedFinalYield, 38.1);
+
+        shotSequencer.dispose();
+      });
+    });
+
+    test('settling locks the yield and finishes the shot', () {
+      fakeAsync((async) {
+        scaleController.emitWeight(0.0);
+
+        final shotSequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          targetYield: 100.0, // no SAW; machine reports the end
+          bypassSAW: false,
+          blockOnNoScale: false,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+        );
+
+        final states = <ShotState>[];
+        shotSequencer.state.listen(states.add);
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring(shotSequencer);
+        async.elapse(Duration(milliseconds: 10));
+
+        scaleController.emitWeight(36.0, weightFlow: 0.3);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouringDone,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        // Three near-still samples settle the yield.
+        for (var i = 0; i < 3; i++) {
+          scaleController.emitWeight(36.1, weightFlow: 0.1);
+          testDe1.emitStateAndSubstate(
+            MachineState.espresso,
+            MachineSubstate.pouringDone,
+          );
+          async.elapse(Duration(milliseconds: 10));
+        }
+
+        expect(shotSequencer.trustedFinalYield, 36.1);
+        expect(
+          states,
+          contains(ShotState.finished),
+          reason: 'settling finalizes the shot without waiting for the backstop',
+        );
+
+        shotSequencer.dispose();
+      });
+    });
+
+    test(
+      'recorded trace stops at the machine-reported shot end; drips only '
+      'refine the yield',
+      () {
+        fakeAsync((async) {
+          scaleController.emitWeight(0.0);
+
+          final shotSequencer = ShotSequencer(
+            scaleController: scaleController,
+            de1controller: de1Controller,
+            persistenceController: persistenceController,
+            targetProfile: profile,
+            // High target so app-side SAW never fires — the machine itself
+            // reports the shot end via the pouringDone substate.
+            targetYield: 100.0,
+            bypassSAW: false,
+            blockOnNoScale: false,
+            weightFlowMultiplier: 0.0,
+            volumeFlowMultiplier: 0.0,
+          );
+
+          final recorded = <ShotSnapshot>[];
+          shotSequencer.shotData.listen(recorded.add);
+
+          async.elapse(Duration(milliseconds: 10));
+          driveToPouring(shotSequencer);
+          async.elapse(Duration(milliseconds: 10));
+
+          // Two real pour samples climb toward the final weight.
+          scaleController.emitWeight(30.0, weightFlow: 1.5);
+          testDe1.emitStateAndSubstate(
+            MachineState.espresso,
+            MachineSubstate.pouring,
+          );
+          async.elapse(Duration(milliseconds: 10));
+
+          scaleController.emitWeight(35.5, weightFlow: 0.8);
+          testDe1.emitStateAndSubstate(
+            MachineState.espresso,
+            MachineSubstate.pouring,
+          );
+          async.elapse(Duration(milliseconds: 10));
+
+          // Machine reports the shot is done — this is the boundary. Recording
+          // must stop here; this sample and the drips after it are excluded.
+          scaleController.emitWeight(36.0, weightFlow: 0.3);
+          testDe1.emitStateAndSubstate(
+            MachineState.espresso,
+            MachineSubstate.pouringDone,
+          );
+          async.elapse(Duration(milliseconds: 10));
+
+          // Post-stop drip refines the yield but stays out of the trace.
+          scaleController.emitWeight(36.4, weightFlow: 0.2);
+          testDe1.emitStateAndSubstate(
+            MachineState.espresso,
+            MachineSubstate.pouringDone,
+          );
+          async.elapse(Duration(milliseconds: 10));
+
+          // The two driveToPouring frames carry the seeded 0.0 weight, then the
+          // two pour samples. Nothing from the stopping window is recorded.
+          expect(
+            recorded.map((s) => s.scale?.weight).toList(),
+            [0.0, 0.0, 30.0, 35.5],
+          );
+          expect(
+            recorded.last.machine.state.substate,
+            MachineSubstate.pouring,
+            reason: 'trace ends on the last actively-pouring sample',
+          );
+          // The yield, however, follows the last drip.
+          expect(shotSequencer.trustedFinalYield, 36.4);
+
+          shotSequencer.dispose();
+        });
+      },
+    );
+
+    test('non-scale shot finishes immediately, with no settling window', () {
+      fakeAsync((async) {
+        // No scale: the settling window only exists to catch scale drips, so
+        // the shot must end the moment the machine reports it — no 4s wait.
+        scaleController.simulateDisconnect();
+
+        final shotSequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          targetYield: 36.0,
+          bypassSAW: false,
+          blockOnNoScale: false,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+        );
+
+        final states = <ShotState>[];
+        shotSequencer.state.listen(states.add);
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring(shotSequencer);
+        async.elapse(Duration(milliseconds: 10));
+
+        // Machine reports the shot end.
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouringDone,
+        );
+        // Only a tiny tick elapses — far less than the 4s scale settling window.
+        async.elapse(Duration(milliseconds: 50));
+
+        expect(
+          states,
+          contains(ShotState.finished),
+          reason: 'no-scale shot finishes without waiting for drips',
+        );
+        expect(
+          states,
+          isNot(contains(ShotState.stopping)),
+          reason: 'no-scale shot never enters the drip-settling window',
+        );
+        expect(shotSequencer.trustedFinalYield, isNull);
+
+        shotSequencer.dispose();
+      });
+    });
   });
 
   group('ShotSequencer — blockOnNoScale', () {
