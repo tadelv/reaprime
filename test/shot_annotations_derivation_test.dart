@@ -87,6 +87,17 @@ void main() {
       expect(ann.espressoNotes, isNull);
     });
 
+    test('prefers a trusted yield latched by the shot sequencer', () {
+      final ann = ShotAnnotations.deriveForFinishedShot(
+        measurements: _trace([0.0, 18.0, 36.0, 2.0]),
+        targetDoseWeight: 18.0,
+        preferredYield: 36.4,
+      );
+      expect(ann, isNotNull);
+      expect(ann!.actualYield, 36.4);
+      expect(ann.actualDoseWeight, 18.0);
+    });
+
     test('still records dose when no scale is connected', () {
       final ann = ShotAnnotations.deriveForFinishedShot(
         measurements: _trace([null, null]),

@@ -107,8 +107,11 @@ class ShotAnnotations {
   static ShotAnnotations? deriveForFinishedShot({
     required List<ShotSnapshot> measurements,
     double? targetDoseWeight,
+    double? preferredYield,
   }) {
-    final yield_ = finalScaleWeight(measurements);
+    final yield_ = (preferredYield != null && preferredYield > 0)
+        ? (preferredYield * 10).roundToDouble() / 10
+        : finalScaleWeight(measurements);
     final dose = (targetDoseWeight != null && targetDoseWeight > 0)
         ? targetDoseWeight
         : null;

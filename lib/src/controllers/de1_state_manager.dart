@@ -651,6 +651,7 @@ class De1StateManager with WidgetsBindingObserver {
         annotations: ShotAnnotations.deriveForFinishedShot(
           measurements: measurements,
           targetDoseWeight: baseWorkflow.context?.targetDoseWeight,
+          preferredYield: _currentShotSequencer!.trustedFinalYield,
         ),
       ),
     );
