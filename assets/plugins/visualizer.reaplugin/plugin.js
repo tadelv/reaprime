@@ -191,7 +191,7 @@ function createPlugin(host) {
       pressure: { pressure: [], goal: [] },
       flow: { flow: [], goal: [], by_weight: [] },
       temperature: { mix: [], basket: [], goal: [] },
-      totals: {},
+      totals: { weight: [], water_dispensed: [] },
       state_change: [],
       profile: reaShot.workflow.profile,
       app: {
@@ -220,6 +220,13 @@ function createPlugin(host) {
 
       const currentTimestamp = new Date(machine.timestamp).getTime();
       const elapsed = (currentTimestamp - firstTimestamp) / 1000;
+      if (i > 0) {
+        const prevMachine = uploadMeasurements[i - 1].machine;
+        const timeDelta = elapsed - visualizerShot.elapsed[i - 1];
+        totalWaterDispensed += prevMachine.flow * timeDelta;
+      }
+      const waterDispensed = Number.isFinite(m.volume) ? m.volume : totalWaterDispensed;
+
       visualizerShot.elapsed.push(elapsed);
 
       visualizerShot.pressure.pressure.push(machine.pressure);
@@ -230,16 +237,10 @@ function createPlugin(host) {
       visualizerShot.temperature.mix.push(machine.mixTemperature);
       visualizerShot.temperature.basket.push(machine.groupTemperature);
       visualizerShot.temperature.goal.push(machine.targetMixTemperature);
+      visualizerShot.totals.weight.push(scale?.weight ?? 0);
+      visualizerShot.totals.water_dispensed.push(waterDispensed);
       visualizerShot.state_change.push(machine.state.substate);
-
-      if (i > 0) {
-        const prevMachine = uploadMeasurements[i - 1].machine;
-        const timeDelta = elapsed - visualizerShot.elapsed[i - 1];
-        totalWaterDispensed += prevMachine.flow * timeDelta;
-      }
     }
-
-    visualizerShot.totals.water_dispensed = totalWaterDispensed;
 
     return visualizerShot;
   }
@@ -971,7 +972,7 @@ function createPlugin(host) {
   // Return the plugin object
   return {
     id: "visualizer.reaplugin",
-    version: "1.3.0",
+    version: "1.4.0",
 
     onLoad(settings) {
       state.username = settings.Username;
@@ -1138,7 +1139,7 @@ function createPlugin(host) {
           })
           .catch((error) => {
             log(`Import failed: ${error.message}`);
-            
+
             // Emit error event for UI listeners
             host.emit('importError', {
               success: false,
@@ -1149,9 +1150,9 @@ function createPlugin(host) {
             return {
               status: error.message.includes('credentials') ? 401 : 400,
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
+              body: JSON.stringify({
                 success: false,
-                error: error.message 
+                error: error.message
               })
             };
           });
