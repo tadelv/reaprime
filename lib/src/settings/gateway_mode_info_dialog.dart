@@ -3,7 +3,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// Shows an informational dialog explaining the Gateway Mode settings
 ///
-/// This dialog explains the three gateway modes (Disabled, Full, Tracking)
+/// This dialog explains the three gateway modes (Tracking, Full, Disabled)
 /// and when to use them. It can be reused in both the Settings view and
 /// the Home screen quick settings card.
 ///
@@ -21,7 +21,7 @@ void showGatewayModeInfoDialog(BuildContext context) {
         (context) => ShadDialog(
           title: const Text('Gateway Mode'),
           description: const Text(
-            'Control whether Rea acts as a gateway for external clients',
+            'Control how external skins interact with the machine',
           ),
           actions: [
             ShadButton(
@@ -35,31 +35,31 @@ void showGatewayModeInfoDialog(BuildContext context) {
             spacing: 16,
             children: [
               _GatewayModeOption(
-                title: 'Disabled',
+                title: 'Tracking',
                 description:
-                    'Gateway is completely disabled. Rea has full control over the machine, shot execution, and all parameters. External clients cannot control the machine.',
-                icon: Icons.block,
-                color: Colors.grey,
+                    'External skins control the machine. This app adds weight tracking and stops the shot at your target. (Used by most skins.)',
+                icon: Icons.track_changes,
+                color: Colors.orange,
               ),
               _GatewayModeOption(
                 title: 'Full',
                 description:
-                    'Full gateway mode. Rea has no control - external clients have complete control over the machine, shot execution, profiles, and all parameters. Rea only displays status and graphs.',
+                    'External skins fully control the machine, including stopping the shot. This app only displays status.',
                 icon: Icons.open_in_browser,
                 color: Colors.blue,
               ),
               _GatewayModeOption(
-                title: 'Tracking',
+                title: 'Disabled',
                 description:
-                    'Hybrid mode. Rea will not show graphs but will monitor the shot. When the target weight is reached, Rea will automatically stop the shot. External clients can still control most parameters.',
-                icon: Icons.track_changes,
-                color: Colors.orange,
+                    'This app controls the machine directly. External skins can\'t. (Legacy.)',
+                icon: Icons.block,
+                color: Colors.grey,
               ),
               const SizedBox(height: 8),
               Builder(
                 builder:
                     (context) => Text(
-                      'Use gateway mode when you want to control Rea from external applications like web dashboards, mobile apps, or automation systems.',
+                      'Use gateway mode when you drive the machine from an external skin — a web dashboard, browser, or another tablet.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontStyle: FontStyle.italic,
                       ),

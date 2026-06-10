@@ -42,17 +42,20 @@ class SettingsView extends StatelessWidget {
       body: ListenableBuilder(
         listenable: controller,
         builder: (context, _) {
+          final isMobile = Platform.isAndroid || Platform.isIOS;
           return ListView(
             children: [
+              // MARK: General
+              const SettingsSectionHeader('General'),
               SettingsTile(
                 icon: Icons.palette_outlined,
                 label: 'Appearance',
                 trailing: Text(_themeModeLabel(controller.themeMode)),
                 onTap: () => _showThemePicker(context),
               ),
-              SettingsDivider(),
 
-              // Automatic update checks
+              // MARK: Updates
+              const SettingsSectionHeader('Updates'),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: ShadSwitch(
@@ -70,8 +73,6 @@ class SettingsView extends StatelessWidget {
                 ),
               ),
               const SettingsDivider(),
-              //
-              // Check for updates
               ListTile(
                 leading: const Icon(LucideIcons.refreshCcwDot),
                 title: const Text('Check for updates'),
@@ -86,12 +87,13 @@ class SettingsView extends StatelessWidget {
                     : null,
                 onTap: () => _checkForUpdates(context),
               ),
-              const SettingsDivider(),
 
-              if (Platform.isAndroid || Platform.isIOS) ...[
+              // MARK: Power
+              const SettingsSectionHeader('Power'),
+              if (isMobile) ...[
                 SettingsTile(
                   icon: Icons.battery_charging_full_outlined,
-                  label: 'Battery Charging',
+                  label: 'Battery & Charging',
                   trailing: Text(_chargingModeLabel(controller.chargingMode)),
                   onTap: () {
                     Navigator.of(context).push(
@@ -103,12 +105,11 @@ class SettingsView extends StatelessWidget {
                     );
                   },
                 ),
-                SettingsDivider(),
+                const SettingsDivider(),
               ],
-
               SettingsTile(
                 icon: Icons.schedule_outlined,
-                label: 'Presence',
+                label: 'Sleep & Wake',
                 trailing: Text(_presenceSubtitle()),
                 onTap: () {
                   Navigator.of(context).push(
@@ -121,8 +122,9 @@ class SettingsView extends StatelessWidget {
                   );
                 },
               ),
-              SettingsDivider(),
 
+              // MARK: About
+              const SettingsSectionHeader('About'),
               SettingsTile(
                 icon: Icons.info_outline,
                 label: 'About',
@@ -153,13 +155,13 @@ class SettingsView extends StatelessWidget {
   String _chargingModeLabel(ChargingMode mode) {
     switch (mode) {
       case ChargingMode.disabled:
-        return 'Disabled';
+        return 'Always charge';
       case ChargingMode.longevity:
-        return 'Longevity';
+        return 'Lifespan';
       case ChargingMode.balanced:
         return 'Balanced';
       case ChargingMode.highAvailability:
-        return 'High Availability';
+        return 'Always ready';
     }
   }
 

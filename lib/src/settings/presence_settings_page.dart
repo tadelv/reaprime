@@ -39,7 +39,7 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Presence & Sleep')),
+      appBar: AppBar(title: const Text('Sleep & Wake')),
       body: ListenableBuilder(
         listenable: widget.controller,
         builder: (context, _) {
@@ -79,10 +79,9 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
             onChanged: (v) {
               widget.controller.setUserPresenceEnabled(v);
             },
-            label: const Text('User Presence'),
+            label: const Text('Auto sleep & wake'),
             sublabel: const Text(
-              'Enable presence-based power management. When enabled, the machine '
-              'can automatically sleep after inactivity and wake on a schedule.',
+              'Let the machine sleep when idle and wake on a schedule.',
             ),
           ),
         ],
@@ -97,14 +96,14 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Sleep Timeout',
+            'Sleep',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
           ),
           const SizedBox(height: 4),
           Text(
-            'Automatically put the machine to sleep after a period of inactivity. '
+            'Put the machine to sleep after a period of inactivity. '
             'The timer resets whenever the machine is used.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context)
@@ -171,7 +170,7 @@ class _PresenceSettingsPageState extends State<PresenceSettingsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Wake Schedules',
+            'Wake schedule',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),

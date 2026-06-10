@@ -42,15 +42,15 @@ class AdvancedPage extends StatelessWidget {
                       value: controller.logLevel,
                       onChanged: controller.updateLogLevel,
                       items: const [
-                        DropdownMenuItem(value: 'FINE', child: Text('Fine')),
-                        DropdownMenuItem(value: 'INFO', child: Text('Info')),
-                        DropdownMenuItem(
-                          value: 'FINEST',
-                          child: Text('Finest'),
-                        ),
                         DropdownMenuItem(
                           value: 'WARNING',
                           child: Text('Warning'),
+                        ),
+                        DropdownMenuItem(value: 'INFO', child: Text('Info')),
+                        DropdownMenuItem(value: 'FINE', child: Text('Fine')),
+                        DropdownMenuItem(
+                          value: 'FINEST',
+                          child: Text('Finest'),
                         ),
                       ],
                     ),
@@ -149,7 +149,7 @@ class AdvancedPage extends StatelessWidget {
         return ShadDialog(
           title: const Text('Gateway Mode'),
           description: const Text(
-            'Control how external clients interact with the machine',
+            'Control how external skins interact with the machine',
           ),
           actions: [
             TextButton.icon(
@@ -166,16 +166,26 @@ class AdvancedPage extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ...GatewayMode.values.map((mode) {
+                ...const [
+                  GatewayMode.tracking,
+                  GatewayMode.full,
+                  GatewayMode.disabled,
+                ].map((mode) {
                   String subtitle;
                   switch (mode) {
-                    case GatewayMode.full:
-                      subtitle = 'App has no control';
                     case GatewayMode.tracking:
                       subtitle =
-                          'App will stop shot if target weight is reached';
+                          'External skins control the machine. This app adds '
+                          'weight tracking and stops the shot at your target. '
+                          '(Used by most skins.)';
+                    case GatewayMode.full:
+                      subtitle =
+                          'External skins fully control the machine, including '
+                          'stopping the shot. This app only displays status.';
                     case GatewayMode.disabled:
-                      subtitle = 'App has full control';
+                      subtitle =
+                          'This app controls the machine directly. External '
+                          'skins can\'t. (Legacy.)';
                   }
                   return ListTile(
                     title: Text(
