@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -10,6 +12,7 @@ import 'package:reaprime/src/services/telemetry/boot_timing.dart';
 import 'package:reaprime/src/services/webview_compatibility_checker.dart';
 import 'package:reaprime/src/services/webview_log_service.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
+import 'package:reaprime/src/skin_feature/simulated_webview_device.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Displays the WebUI skin in a full-screen webview
@@ -44,7 +47,6 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
   CompatibilityResult? _compatibilityResult;
   bool _rendererCrashed = false;
 
-  late InAppWebViewSettings _settings;
   InAppWebViewController? _webViewController;
 
   bool _didShowExit = false;
@@ -171,21 +173,14 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
     });
 
     if (result.isCompatible) {
-      _log.info('WebView is compatible, initializing...');
-      _initializeSettings();
+      _log.info('WebView is compatible');
     } else {
       _log.warning('WebView is not compatible: ${result.reason}');
     }
   }
 
-  void _initializeSettings() {
-    _log.info(
-      'Initializing InAppWebView settings for platform: ${Platform.operatingSystem}',
-    );
-
-    // Simple, standard WebView settings for modern devices
-    // Problematic devices are filtered out by WebViewCompatibilityChecker
-    _settings = InAppWebViewSettings(
+  InAppWebViewSettings _createSettings() {
+    return InAppWebViewSettings(
       // JavaScript
       javaScriptEnabled: true,
       javaScriptCanOpenWindowsAutomatically: false,
@@ -223,8 +218,6 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
       ),
       useOnRenderProcessGone: true,
     );
-
-    _log.info('InAppWebView settings initialized');
   }
 
   void _showExitInstructions() {
@@ -423,7 +416,6 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
                     setState(() {
                       _compatibilityResult = null;
                     });
-                    _initializeSettings();
                   },
                   child: const Text('Ignore and load anyway'),
                 ),
@@ -562,134 +554,244 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
   }
 
   Widget _buildWebViewStack() {
-    return Stack(
-      // Android-only: device-pixel-ratio rounding lays the Android WebView out
-      // ~1px short on the right/bottom on some devices, revealing the background
-      // as a hairline (flutter_webview_plugin#356/#654, flutter_inappwebview#1542).
-      // On Android, size the webview 1px past those edges inside a Clip.none
-      // Stack so it covers every pixel; the OS clips the off-screen bleed.
-      // Other platforms don't have this compositing quirk.
-      clipBehavior: Platform.isAndroid ? Clip.none : Clip.hardEdge,
-      children: [
-        Positioned.fill(
-          right: Platform.isAndroid ? -1 : 0,
-          bottom: Platform.isAndroid ? -1 : 0,
-          child: InAppWebView(
-            // Cache-busting param bypasses stale service workers: a SW
-            // caches responses by exact URL, so /?_=<ts> won't match
-            // its cached '/' and falls through to the network.
-            initialUrlRequest: URLRequest(url: WebUri(_skinUrl)),
-            initialSettings: _settings,
-            onWebViewCreated: (controller) {
-              _log.info('InAppWebView created');
-              _webViewController = controller;
-            },
-            onLoadStart: (controller, url) {
-              _log.info('Page started loading: $url');
-              // Webview is up — final cold-boot milestone (idempotent).
-              BootTiming.mark('webview');
-              BootTiming.complete();
-              setState(() {
-                _isLoading = true;
-                _errorMessage = null;
-              });
-            },
-            onLoadStop: (controller, url) async {
-              _log.info('Page finished loading: $url');
-              setState(() {
-                _isLoading = false;
-              });
-
-              // Inject CSS to hide scrollbars in web content
-              // await controller.evaluateJavascript(source: '''
-              //   (function() {
-              //     var style = document.createElement('style');
-              //     style.textContent = `
-              //       ::-webkit-scrollbar {
-              //         display: none !important;
-              //         width: 0 !important;
-              //         height: 0 !important;
-              //       }
-              //       * {
-              //         scrollbar-width: none !important;
-              //         -ms-overflow-style: none !important;
-              //       }
-              //       html, body {
-              //         overflow: overlay !important;
-              //       }
-              //     `;
-              //     document.head.appendChild(style);
-              //   })();
-              // ''');
-
-              // Show exit instructions snackbar
-              if (mounted && _didShowExit == false) {
-                _didShowExit = true;
-                _showExitInstructions();
-              }
-            },
-            onReceivedError: (controller, request, error) {
-              _log.severe(
-                'WebView error - Code: ${error.type}, Description: ${error.description}',
-              );
-              setState(() {
-                _isLoading = false;
-                _errorMessage = 'Failed to load skin: ${error.description}';
-              });
-            },
-            onReceivedHttpError: (controller, request, errorResponse) {
-              _log.warning('HTTP error - Status: ${errorResponse.statusCode}');
-            },
-            shouldOverrideUrlLoading: (controller, navigationAction) async {
-              final url = navigationAction.request.url.toString();
-
-              // Allow all navigation within localhost:3000
-              if (url.startsWith('http://localhost:3000') ||
-                  url.contains('/api/v1/plugins/settings.reaplugin')) {
-                _log.fine('Allowing navigation to: $url');
-                return NavigationActionPolicy.ALLOW;
-              }
-
-              // Block external navigation
-              _log.info('Blocking navigation to: $url');
-              return NavigationActionPolicy.CANCEL;
-            },
-            onConsoleMessage: (controller, consoleMessage) {
-              // Route to dedicated webview log service (file + stream)
-              final skinId = widget.settingsController.defaultSkinId;
-              widget.webViewLogService.log(
-                skinId,
-                consoleMessage.messageLevel.toString(),
-                consoleMessage.message,
-              );
-              // Also log at FINEST for app-level debug visibility
-              _log.finest(
-                'WebView Console [$skinId] [${consoleMessage.messageLevel}]: ${consoleMessage.message}',
-              );
-            },
-            onRenderProcessGone: (controller, detail) {
-              _log.warning(
-                'WebView renderer process gone — '
-                'didCrash: ${detail.didCrash}, '
-                'rendererPriorityAtExit: ${detail.rendererPriorityAtExit}',
-              );
-              _webViewController = null;
-              // Show reload UI, then rebuild the WebView after a brief delay
-              setState(() {
-                _rendererCrashed = true;
-              });
-              Future.delayed(const Duration(milliseconds: 500), () {
-                if (mounted) {
-                  setState(() {
-                    _rendererCrashed = false;
-                  });
-                }
-              });
-            },
-          ),
-        ),
-        if (_isLoading) const Center(child: CircularProgressIndicator()),
-      ],
+    return ValueListenableBuilder<SimulatedWebViewDevice?>(
+      valueListenable: simulatedWebViewDevice,
+      builder: (context, simulatedDevice, _) {
+        return Stack(
+          // Android-only: device-pixel-ratio rounding lays the Android WebView out
+          // ~1px short on the right/bottom on some devices, revealing the background
+          // as a hairline (flutter_webview_plugin#356/#654, flutter_inappwebview#1542).
+          // On Android, size the webview 1px past those edges inside a Clip.none
+          // Stack so it covers every pixel; the OS clips the off-screen bleed.
+          // Other platforms don't have this compositing quirk.
+          clipBehavior: Platform.isAndroid ? Clip.none : Clip.hardEdge,
+          children: [
+            Positioned.fill(
+              right: Platform.isAndroid ? -1 : 0,
+              bottom: Platform.isAndroid ? -1 : 0,
+              child: _buildWebView(simulatedDevice),
+            ),
+            if (_isLoading) const Center(child: CircularProgressIndicator()),
+          ],
+        );
+      },
     );
+  }
+
+  Widget _buildWebView(SimulatedWebViewDevice? simulatedDevice) {
+    return InAppWebView(
+      key: ValueKey(simulatedDevice?.id ?? 'native-webview'),
+      // Cache-busting param bypasses stale service workers: a SW
+      // caches responses by exact URL, so /?_=<ts> won't match
+      // its cached '/' and falls through to the network.
+      initialUrlRequest: URLRequest(url: WebUri(_skinUrl)),
+      initialSettings: _createSettings(),
+      initialUserScripts: _simulatedDeviceScripts(simulatedDevice),
+      onWebViewCreated: (controller) {
+        _log.info('InAppWebView created');
+        _webViewController = controller;
+      },
+      onLoadStart: (controller, url) {
+        _log.info('Page started loading: $url');
+        // Webview is up — final cold-boot milestone (idempotent).
+        BootTiming.mark('webview');
+        BootTiming.complete();
+        setState(() {
+          _isLoading = true;
+          _errorMessage = null;
+        });
+      },
+      onLoadStop: (controller, url) async {
+        _log.info('Page finished loading: $url');
+        setState(() {
+          _isLoading = false;
+        });
+
+        // Inject CSS to hide scrollbars in web content
+        // await controller.evaluateJavascript(source: '''
+        //   (function() {
+        //     var style = document.createElement('style');
+        //     style.textContent = `
+        //       ::-webkit-scrollbar {
+        //         display: none !important;
+        //         width: 0 !important;
+        //         height: 0 !important;
+        //       }
+        //       * {
+        //         scrollbar-width: none !important;
+        //         -ms-overflow-style: none !important;
+        //       }
+        //       html, body {
+        //         overflow: overlay !important;
+        //       }
+        //     `;
+        //     document.head.appendChild(style);
+        //   })();
+        // ''');
+
+        // Show exit instructions snackbar
+        if (mounted && _didShowExit == false) {
+          _didShowExit = true;
+          _showExitInstructions();
+        }
+      },
+      onReceivedError: (controller, request, error) {
+        _log.severe(
+          'WebView error - Code: ${error.type}, Description: ${error.description}',
+        );
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Failed to load skin: ${error.description}';
+        });
+      },
+      onReceivedHttpError: (controller, request, errorResponse) {
+        _log.warning('HTTP error - Status: ${errorResponse.statusCode}');
+      },
+      shouldOverrideUrlLoading: (controller, navigationAction) async {
+        final url = navigationAction.request.url.toString();
+
+        // Allow all navigation within localhost:3000
+        if (url.startsWith('http://localhost:3000') ||
+            url.contains('/api/v1/plugins/settings.reaplugin')) {
+          _log.fine('Allowing navigation to: $url');
+          return NavigationActionPolicy.ALLOW;
+        }
+
+        // Block external navigation
+        _log.info('Blocking navigation to: $url');
+        return NavigationActionPolicy.CANCEL;
+      },
+      onConsoleMessage: (controller, consoleMessage) {
+        // Route to dedicated webview log service (file + stream)
+        final skinId = widget.settingsController.defaultSkinId;
+        widget.webViewLogService.log(
+          skinId,
+          consoleMessage.messageLevel.toString(),
+          consoleMessage.message,
+        );
+        // Also log at FINEST for app-level debug visibility
+        _log.finest(
+          'WebView Console [$skinId] [${consoleMessage.messageLevel}]: ${consoleMessage.message}',
+        );
+      },
+      onRenderProcessGone: (controller, detail) {
+        _log.warning(
+          'WebView renderer process gone — '
+          'didCrash: ${detail.didCrash}, '
+          'rendererPriorityAtExit: ${detail.rendererPriorityAtExit}',
+        );
+        _webViewController = null;
+        // Show reload UI, then rebuild the WebView after a brief delay
+        setState(() {
+          _rendererCrashed = true;
+        });
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            setState(() {
+              _rendererCrashed = false;
+            });
+          }
+        });
+      },
+    );
+  }
+
+  UnmodifiableListView<UserScript>? _simulatedDeviceScripts(
+    SimulatedWebViewDevice? simulatedDevice,
+  ) {
+    if (!kDebugMode || !Platform.isMacOS || simulatedDevice == null) {
+      return null;
+    }
+
+    final dpr = simulatedDevice.devicePixelRatio.toStringAsFixed(6);
+    final surfaceWidth = simulatedDevice.webViewSurfaceSize.width.toInt();
+    final surfaceHeight = simulatedDevice.webViewSurfaceSize.height.toInt();
+    final cssWidth = simulatedDevice.viewportSize.width.toStringAsFixed(3);
+    final cssHeight = simulatedDevice.viewportSize.height.toStringAsFixed(3);
+    final screenWidth = simulatedDevice.screenSize.width.toStringAsFixed(3);
+    final screenHeight = simulatedDevice.screenSize.height.toStringAsFixed(3);
+    final outerWidth = simulatedDevice.outerWidth.toStringAsFixed(3);
+    final maxTouchPoints = simulatedDevice.maxTouchPoints;
+    final platform = simulatedDevice.platform;
+
+    return UnmodifiableListView<UserScript>([
+      UserScript(
+        source:
+            '''
+(function () {
+  const define = (target, key, value) => {
+    try {
+      Object.defineProperty(target, key, {
+        configurable: true,
+        get: () => value
+      });
+    } catch (_) {}
+  };
+
+  define(window, 'devicePixelRatio', $dpr);
+  define(window, 'innerWidth', $cssWidth);
+  define(window, 'innerHeight', $cssHeight);
+  define(window, 'outerWidth', $outerWidth);
+  define(window, 'outerHeight', $cssHeight);
+  define(window.screen, 'width', $screenWidth);
+  define(window.screen, 'height', $screenHeight);
+  define(window.screen, 'availWidth', $screenWidth);
+  define(window.screen, 'availHeight', $screenHeight);
+  define(navigator, 'maxTouchPoints', $maxTouchPoints);
+  define(navigator, 'platform', '$platform');
+  define(window, 'ontouchstart', null);
+  define(document, 'ontouchstart', null);
+  define(document.documentElement, 'ontouchstart', null);
+
+  define(window.visualViewport, 'width', $surfaceWidth / $dpr);
+  define(window.visualViewport, 'height', $surfaceHeight / $dpr);
+
+  const nativeMatchMedia = window.matchMedia
+    ? window.matchMedia.bind(window)
+    : null;
+  const touchMedia = new Map([
+    ['(pointer:coarse)', true],
+    ['(any-pointer:coarse)', true],
+    ['(hover:none)', true],
+    ['(any-hover:none)', true],
+    ['(pointer:fine)', false],
+    ['(any-pointer:fine)', false],
+    ['(hover:hover)', false],
+    ['(any-hover:hover)', false]
+  ]);
+  window.matchMedia = (query) => {
+    const normalized = String(query).replace(/\\s+/g, '').toLowerCase();
+    const simulatedMatch = touchMedia.get(normalized);
+    const nativeResult = nativeMatchMedia ? nativeMatchMedia(query) : null;
+    if (simulatedMatch === undefined) {
+      return nativeResult;
+    }
+    return {
+      matches: simulatedMatch,
+      media: nativeResult ? nativeResult.media : String(query),
+      onchange: null,
+      addListener: nativeResult && nativeResult.addListener
+        ? nativeResult.addListener.bind(nativeResult)
+        : () => {},
+      removeListener: nativeResult && nativeResult.removeListener
+        ? nativeResult.removeListener.bind(nativeResult)
+        : () => {},
+      addEventListener: nativeResult && nativeResult.addEventListener
+        ? nativeResult.addEventListener.bind(nativeResult)
+        : () => {},
+      removeEventListener: nativeResult && nativeResult.removeEventListener
+        ? nativeResult.removeEventListener.bind(nativeResult)
+        : () => {},
+      dispatchEvent: nativeResult && nativeResult.dispatchEvent
+        ? nativeResult.dispatchEvent.bind(nativeResult)
+        : () => false
+    };
+  };
+})();
+''',
+        injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+        contentWorld: ContentWorld.PAGE,
+      ),
+    ]);
   }
 }
