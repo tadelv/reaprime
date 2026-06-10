@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/onboarding_feature/widgets/onboarding_scaffold.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/services/foreground_service.dart';
 import 'package:reaprime/src/services/telemetry/boot_timing.dart';
@@ -138,44 +139,40 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            FutureBuilder<void>(
-              future: _initFuture,
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Semantics(
-                    liveRegion: true,
-                    child: Text('Error: ${snapshot.error}'),
-                  );
-                }
-                return Column(
-                  spacing: 16,
-                  children: [
-                    SizedBox(
-                      width: 200,
-                      child: Semantics(
-                        label: 'Starting Streamline',
-                        child: ShadProgress(),
-                      ),
-                    ),
-                    Semantics(
-                      liveRegion: true,
-                      child: Text(
-                        'Streamline is starting...',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ],
+    return OnboardingScaffold(
+      semanticsLabel: 'Starting Decent',
+      body: [
+        FutureBuilder<void>(
+          future: _initFuture,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Semantics(
+                liveRegion: true,
+                child: Text('Error: ${snapshot.error}'),
+              );
+            }
+            return Column(
+              spacing: 16,
+              children: [
+                SizedBox(
+                  width: 200,
+                  child: Semantics(
+                    label: 'Starting Decent',
+                    child: ShadProgress(),
+                  ),
+                ),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    'Decent is starting...',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              ],
+            );
+          },
         ),
-      ),
+      ],
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/onboarding_feature/widgets/onboarding_scaffold.dart';
 import 'package:reaprime/src/widgets/accessible_button.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -25,49 +26,28 @@ class _WelcomeStepView extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
 
-    return Scaffold(
-      body: Semantics(
-        explicitChildNodes: true,
-        label: 'Welcome screen',
-        child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text(
-                  'Welcome to Decent',
-                  style: theme.textTheme.h3,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Control your Decent espresso machine, manage profiles, and track your shots — right here or from any device on your network.',
-                  style: theme.textTheme.p,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Coming from the Decent app? You can import your data next.',
-                  style: theme.textTheme.muted,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 32),
-                AccessibleButton(
-                  label: 'Get Started',
-                  onTap: controller.advance,
-                  child: ShadButton(
-                    onPressed: controller.advance,
-                    child: const Text('Get Started'),
-                  ),
-                ),
-              ],
-            ),
-          ),
+    return OnboardingScaffold(
+      title: 'Welcome to Decent',
+      semanticsLabel: 'Welcome screen',
+      body: [
+        Text(
+          'Control your Decent espresso machine, manage profiles, and track your shots — right here or from any device on your network.',
+          style: theme.textTheme.p,
+          textAlign: TextAlign.center,
         ),
+        const SizedBox(height: 12),
+        Text(
+          'Coming from the DE1 app? You can import your data next.',
+          style: theme.textTheme.muted,
+          textAlign: TextAlign.center,
+        ),
+      ],
+      primaryAction: AccessibleButton(
+        label: 'Get Started',
+        onTap: controller.advance,
+        child: ShadButton(
+          onPressed: controller.advance,
+          child: const Text('Get Started'),
         ),
       ),
     );

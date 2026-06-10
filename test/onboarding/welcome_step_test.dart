@@ -41,7 +41,7 @@ void main() {
       );
       expect(
         find.text(
-          'Coming from the Decent app? You can import your data next.',
+          'Coming from the DE1 app? You can import your data next.',
         ),
         findsOneWidget,
       );

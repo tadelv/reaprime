@@ -19,6 +19,7 @@ import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/controllers/scan_state_guardian.dart';
 import 'package:reaprime/src/onboarding_feature/onboarding_controller.dart';
 import 'package:reaprime/src/onboarding_feature/onboarding_view.dart';
+import 'package:reaprime/src/onboarding_feature/steps/android_warning_step.dart';
 import 'package:reaprime/src/onboarding_feature/steps/import_step.dart';
 import 'package:reaprime/src/onboarding_feature/steps/initialization_step.dart';
 import 'package:reaprime/src/onboarding_feature/steps/permissions_step.dart';
@@ -128,6 +129,9 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     _initializeDe1StateManager();
     _onboardingController = OnboardingController(steps: [
+      createAndroidWarningStep(
+        settingsController: widget.settingsController,
+      ),
       OnboardingStep(
         id: 'welcome',
         shouldShow: () async =>

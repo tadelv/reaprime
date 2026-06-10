@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
+import 'package:reaprime/src/onboarding_feature/widgets/onboarding_scaffold.dart';
 import 'package:reaprime/src/services/foreground_service.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:universal_ble/universal_ble.dart';
@@ -121,44 +122,40 @@ class _PermissionsStepViewState extends State<_PermissionsStepView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            FutureBuilder<void>(
-              future: _permissionsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Semantics(
-                    liveRegion: true,
-                    child: Text('Error: ${snapshot.error}'),
-                  );
-                }
-                return Column(
-                  spacing: 16,
-                  children: [
-                    SizedBox(
-                      width: 200,
-                      child: Semantics(
-                        label: 'Requesting permissions',
-                        child: ShadProgress(),
-                      ),
-                    ),
-                    Semantics(
-                      liveRegion: true,
-                      child: Text(
-                        'Requesting permissions...',
-                        style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  ),
-                ],
+    return OnboardingScaffold(
+      semanticsLabel: 'Requesting permissions',
+      body: [
+        FutureBuilder<void>(
+          future: _permissionsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Semantics(
+                liveRegion: true,
+                child: Text('Error: ${snapshot.error}'),
               );
-            },
-          ),
-          ],
+            }
+            return Column(
+              spacing: 16,
+              children: [
+                SizedBox(
+                  width: 200,
+                  child: Semantics(
+                    label: 'Requesting permissions',
+                    child: ShadProgress(),
+                  ),
+                ),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    'Requesting permissions...',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              ],
+            );
+          },
         ),
-      ),
+      ],
     );
   }
 }

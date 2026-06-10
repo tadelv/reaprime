@@ -34,6 +34,7 @@ class MockSettingsService extends SettingsService {
   bool _lowBatteryBrightnessLimit = false;
   bool _onboardingCompleted = true; // skip onboarding in tests
   bool _accountStepSeen = true; // skip account step in tests
+  bool _androidWarningDismissed = true; // skip android warning in tests
 
   @override
   Future<ThemeMode> themeMode() async => _themeMode;
@@ -144,4 +145,9 @@ class MockSettingsService extends SettingsService {
   Future<bool> accountStepSeen() async => _accountStepSeen;
   @override
   Future<void> setAccountStepSeen(bool value) async => _accountStepSeen = value;
+  @override
+  Future<bool> androidWarningDismissed() async => _androidWarningDismissed;
+  @override
+  Future<void> setAndroidWarningDismissed(bool value) async =>
+      _androidWarningDismissed = value;
 }
