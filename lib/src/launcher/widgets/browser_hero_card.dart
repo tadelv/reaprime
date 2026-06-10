@@ -30,7 +30,7 @@ class BrowserHeroCard extends StatelessWidget {
     return ShadCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 16,
+        spacing: 8,
         children: [
           Row(
             spacing: 8,
@@ -41,13 +41,15 @@ class BrowserHeroCard extends StatelessWidget {
                 color: theme.colorScheme.primary,
               ),
               Text(
-                'Open in browser',
+                'Open in your browser',
                 style: theme.textTheme.h4,
               ),
             ],
           ),
           Text(
-            'For the best experience, open the UI on a phone or laptop browser.',
+            "This device's built-in web view is unreliable, so the interface "
+            "isn't shown inside the app. Open it in a browser instead — tap "
+            'Open Browser below, or scan the code from a phone or laptop.',
             style: theme.textTheme.muted,
           ),
           Row(
