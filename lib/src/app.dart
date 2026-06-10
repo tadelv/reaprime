@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/main.dart';
@@ -14,7 +15,6 @@ import 'package:reaprime/src/controllers/presence_navigator_observer.dart';
 import 'package:reaprime/src/controllers/shot_sequencer.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/history_feature/history_feature.dart';
-import 'package:reaprime/src/landing_feature/landing_feature.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/controllers/scan_state_guardian.dart';
 import 'package:reaprime/src/onboarding_feature/onboarding_controller.dart';
@@ -124,6 +124,10 @@ class _MyAppState extends State<MyApp> {
   Timer? _restartTimer;
   late final OnboardingController _onboardingController;
 
+  /// Android SDK < 31 — these devices get the browser hero card instead of the
+  /// in-app skin (reduced WebView/BLE reliability). Resolved once at startup.
+  bool _degradedAndroid = false;
+
   @override
   void initState() {
     super.initState();
@@ -184,6 +188,21 @@ class _MyAppState extends State<MyApp> {
       ),
     ]);
     _onboardingController.initialize();
+    _resolveDegradedAndroid();
+  }
+
+  /// Resolves whether this is a degraded Android device (SDK < 31). Runs once;
+  /// the launcher reads the resolved value synchronously.
+  Future<void> _resolveDegradedAndroid() async {
+    if (!Platform.isAndroid) return;
+    try {
+      final info = await DeviceInfoPlugin().androidInfo;
+      if (mounted && info.version.sdkInt < 31) {
+        setState(() => _degradedAndroid = true);
+      }
+    } catch (e) {
+      _log.warning('Failed to resolve Android SDK for degraded check: $e');
+    }
   }
 
   @override
@@ -215,56 +234,47 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  /// Navigates to the appropriate screen after onboarding completes.
-  ///
-  /// Replicates the logic from DeviceDiscoveryView._navigateAfterConnection:
-  /// 1. Check platform WebView support
-  /// 2. Ensure WebUI service is running
-  /// 3. Push HomeScreen, then SkinView on top (or LandingFeature if no WebView)
+  /// Navigates to the launcher after onboarding completes, then opens the skin
+  /// on top when the platform supports an in-app WebView and the skin server is
+  /// running. Degraded Android and unsupported platforms stay on the launcher
+  /// (which shows the browser hero card).
   Future<void> _navigateAfterOnboarding() async {
     final navigator = NavigationService.navigatorKey.currentState;
     if (navigator == null) return;
 
-    // Check platform - WebView supported on iOS, Android, macOS, Windows
+    // The launcher is always the base of the stack. Its conditional content
+    // (browser hero / return-to-skin / skin-unavailable) covers every case
+    // that used to route to the now-removed LandingFeature.
+    navigator.pushNamedAndRemoveUntil(
+      LauncherView.routeName,
+      (_) => false,
+    );
+
+    // WebView supported on iOS, Android, macOS, Windows. Degraded Android
+    // (SDK < 31) is steered to the browser, so don't auto-open the skin there.
     final supportedPlatforms = Platform.isIOS ||
         Platform.isAndroid ||
         Platform.isMacOS ||
         Platform.isWindows;
-
-    if (!supportedPlatforms) {
-      _log.info(
-        'Platform not supported for WebView, using Landing page',
-      );
-      navigator.pushNamedAndRemoveUntil(
-        LandingFeature.routeName,
-        (_) => false,
-      );
+    if (!supportedPlatforms || _degradedAndroid) {
+      _log.info('Skin not auto-opened (unsupported platform or degraded '
+          'Android) — launcher shows the browser hero card.');
       return;
     }
 
-    // Ensure WebUI is ready
+    // Ensure WebUI is serving before pushing SkinView on top of the launcher.
     if (!widget.webUIService.isServing) {
       _log.info('WebUI not serving, attempting to start...');
-
       final defaultSkin = widget.webUIStorage.defaultSkin;
-      if (defaultSkin != null) {
-        try {
-          await widget.webUIService.serveFolderAtPath(defaultSkin.path);
-          _log.info('WebUI service started successfully');
-        } catch (e) {
-          _log.severe('Failed to start WebUI service: $e');
-          navigator.pushNamedAndRemoveUntil(
-            LandingFeature.routeName,
-            (_) => false,
-          );
-          return;
-        }
-      } else {
-        _log.warning('No default skin available, using Landing page');
-        navigator.pushNamedAndRemoveUntil(
-          LandingFeature.routeName,
-          (_) => false,
-        );
+      if (defaultSkin == null) {
+        _log.warning('No default skin available — staying on launcher.');
+        return;
+      }
+      try {
+        await widget.webUIService.serveFolderAtPath(defaultSkin.path);
+        _log.info('WebUI service started successfully');
+      } catch (e) {
+        _log.severe('Failed to start WebUI service: $e — staying on launcher.');
         return;
       }
     }
@@ -273,11 +283,6 @@ class _MyAppState extends State<MyApp> {
     // (port bound before isServing flips true) and the REST server is already
     // up from main(), so both are ready by the time we navigate.
     _log.info('Navigating to SkinView');
-    // Push both routes to stack: Launcher first, then SkinView on top
-    navigator.pushNamedAndRemoveUntil(
-      LauncherView.routeName,
-      (_) => false,
-    );
     navigator.pushNamed(SkinView.routeName);
   }
 
@@ -449,6 +454,7 @@ class _MyAppState extends State<MyApp> {
                         pluginLoaderService: widget.pluginLoaderService,
                         batteryController: widget.batteryController,
                         decentAccountService: widget.decentAccountService,
+                        isDegradedAndroid: _degradedAndroid,
                       );
                     case HistoryFeature.routeName:
                       final possibleShot = routeSettings.arguments as String;
@@ -460,11 +466,6 @@ class _MyAppState extends State<MyApp> {
                     case PluginsSettingsView.routeName:
                       return PluginsSettingsView(
                         pluginLoaderService: widget.pluginLoaderService,
-                      );
-                    case LandingFeature.routeName:
-                      return LandingFeature(
-                        webUIStorage: widget.webUIStorage,
-                        webUIService: widget.webUIService,
                       );
                     case DeviceManagementPage.routeName:
                       return DeviceManagementPage(

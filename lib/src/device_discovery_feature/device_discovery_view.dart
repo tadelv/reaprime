@@ -8,7 +8,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/launcher/launcher_view.dart';
 import 'package:reaprime/src/home_feature/widgets/device_selection_widget.dart';
-import 'package:reaprime/src/landing_feature/landing_feature.dart';
 import 'package:reaprime/src/shared/connection_error_banner.dart';
 import 'package:reaprime/src/skin_feature/skin_view.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
@@ -119,7 +118,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       widget.logger.info(
         'Platform not supported for WebView, using Landing page',
       );
-      _navigateToRoute(LandingFeature.routeName);
+      _navigateToRoute(LauncherView.routeName);
       return;
     }
 
@@ -134,12 +133,12 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
           widget.logger.info('WebUI service started successfully');
         } catch (e) {
           widget.logger.severe('Failed to start WebUI service: $e');
-          _navigateToRoute(LandingFeature.routeName);
+          _navigateToRoute(LauncherView.routeName);
           return;
         }
       } else {
         widget.logger.warning('No default skin available, using Landing page');
-        _navigateToRoute(LandingFeature.routeName);
+        _navigateToRoute(LauncherView.routeName);
         return;
       }
     }
@@ -160,7 +159,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
       Navigator.popAndPushNamed(context, LauncherView.routeName);
       Navigator.of(context).pushNamed(SkinView.routeName);
     } else {
-      // For LandingFeature or any other route, navigate directly
+      // For any non-skin route, navigate directly
       Navigator.popAndPushNamed(context, route);
     }
   }

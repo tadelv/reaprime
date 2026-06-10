@@ -20,6 +20,28 @@ import 'package:reaprime/src/skin_selector/skin_selector_page.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+/// Which skin-related widget the launcher shows above the grid. The three
+/// states are mutually exclusive.
+enum LauncherSkinSlot { browserHero, returnToSkin, skinUnavailable }
+
+/// Pure decision for the launcher's skin slot.
+///
+/// Browser hero wins whenever the skin can't be shown in-app (no WebView, or a
+/// degraded Android where the app steers users to a browser). Otherwise the
+/// return-to-skin button shows while serving, falling back to the
+/// skin-unavailable explanation when the skin server is stopped.
+LauncherSkinSlot resolveLauncherSkinSlot({
+  required bool supportsWebView,
+  required bool isDegradedAndroid,
+  required bool isServing,
+}) {
+  if (!supportsWebView || isDegradedAndroid) {
+    return LauncherSkinSlot.browserHero;
+  }
+  if (isServing) return LauncherSkinSlot.returnToSkin;
+  return LauncherSkinSlot.skinUnavailable;
+}
+
 class LauncherView extends StatelessWidget {
   static const routeName = '/home';
 
@@ -31,6 +53,7 @@ class LauncherView extends StatelessWidget {
     required this.pluginLoaderService,
     this.batteryController,
     this.decentAccountService,
+    this.isDegradedAndroid = false,
   });
 
   final De1Controller de1Controller;
@@ -40,23 +63,21 @@ class LauncherView extends StatelessWidget {
   final BatteryController? batteryController;
   final DecentAccountService? decentAccountService;
 
+  /// Whether this is a degraded Android device (SDK < 31). Resolved once at
+  /// app startup and injected so the launcher stays synchronous.
+  final bool isDegradedAndroid;
+
   bool get _supportsWebView =>
       Platform.isIOS || Platform.isAndroid || Platform.isMacOS || Platform.isWindows;
 
-  bool get _isDegradedAndroid {
-    if (!Platform.isAndroid) return false;
-    // SDK version check would go here; for now we rely on the
-    // onboarding warning step and keep this as a layout hint.
-    // The launcher shows the browser hero card on platforms without WebView.
-    return false;
-  }
-
-  bool get _showBrowserHero => !_supportsWebView || _isDegradedAndroid;
-
-  bool get _canReturnToSkin => _supportsWebView && webUIService.isServing;
-
   @override
   Widget build(BuildContext context) {
+    final slot = resolveLauncherSkinSlot(
+      supportsWebView: _supportsWebView,
+      isDegradedAndroid: isDegradedAndroid,
+      isServing: webUIService.isServing,
+    );
+
     return Scaffold(
       body: Column(
         children: [
@@ -79,19 +100,9 @@ class LauncherView extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     spacing: 24,
                     children: [
-                      // Return to skin — hero button or unavailable explanation
-                      if (_canReturnToSkin)
-                        _ReturnToSkinButton(onTap: () {
-                          Navigator.of(context).pushNamed(SkinView.routeName);
-                        })
-                      else
-                        _buildSkinUnavailable(context),
-
-                      // Browser hero card (no WebView or degraded)
-                      if (_showBrowserHero)
-                        BrowserHeroCard(
-                          deviceIp: webUIService.deviceIp(),
-                        ),
+                      // Skin slot — exactly one of: browser hero,
+                      // return-to-skin, or skin-unavailable explanation.
+                      _buildSkinSlot(context, slot),
 
                       // Destination grid
                       _buildGrid(context),
@@ -106,20 +117,25 @@ class LauncherView extends StatelessWidget {
     );
   }
 
-  Widget _buildSkinUnavailable(BuildContext context) {
-    final reason = !_supportsWebView
-        ? SkinUnavailableReason.noWebView
-        : SkinUnavailableReason.notServing;
-
-    return SkinUnavailableCard(
-      reason: reason,
-      onPickSkin: () {
-        Navigator.of(context).pushNamed(SkinSelectorPage.routeName);
-      },
-      onSendFeedback: () {
-        Navigator.of(context).pushNamed(SettingsView.routeName);
-      },
-    );
+  Widget _buildSkinSlot(BuildContext context, LauncherSkinSlot slot) {
+    switch (slot) {
+      case LauncherSkinSlot.browserHero:
+        return BrowserHeroCard(deviceIp: webUIService.deviceIp());
+      case LauncherSkinSlot.returnToSkin:
+        return _ReturnToSkinButton(onTap: () {
+          Navigator.of(context).pushNamed(SkinView.routeName);
+        });
+      case LauncherSkinSlot.skinUnavailable:
+        return SkinUnavailableCard(
+          reason: SkinUnavailableReason.notServing,
+          onPickSkin: () {
+            Navigator.of(context).pushNamed(SkinSelectorPage.routeName);
+          },
+          onSendFeedback: () {
+            Navigator.of(context).pushNamed(SettingsView.routeName);
+          },
+        );
+    }
   }
 
   Widget _buildGrid(BuildContext context) {
