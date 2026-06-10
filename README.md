@@ -226,7 +226,7 @@ make dual-build
 
 ### Minimum Requirements
 
-- **Android**: 8.0 (API 26) or later
+- **Android**: 9.0 (API 28) or later
 - **macOS**: 10.14 or later
 - **Linux**: Modern distribution with GTK 3.0+
 - **Windows**: Windows 10 or later
