@@ -84,19 +84,19 @@ class _BatteryChargingSettingsPageState
             items: const [
               DropdownMenuItem(
                 value: ChargingMode.disabled,
-                child: Text('Disabled (always charge)'),
+                child: Text('Always charge'),
               ),
               DropdownMenuItem(
                 value: ChargingMode.longevity,
-                child: Text('Longevity (45-55%)'),
+                child: Text('Maximize battery lifespan (45–55%)'),
               ),
               DropdownMenuItem(
                 value: ChargingMode.balanced,
-                child: Text('Balanced (40-80%)'),
+                child: Text('Balanced (40–80%)'),
               ),
               DropdownMenuItem(
                 value: ChargingMode.highAvailability,
-                child: Text('High Availability (80-95%)'),
+                child: Text('Always ready (80–95%)'),
               ),
             ],
           ),
@@ -126,14 +126,16 @@ class _BatteryChargingSettingsPageState
             onChanged: (v) {
               widget.controller.setNightModeEnabled(v);
             },
-            label: const Text('Night Mode'),
-            sublabel:
-                const Text('Override charging schedule in the evening and night'),
+            label: const Text('Overnight charging'),
+            sublabel: const Text(
+              'Top up before bedtime, then pause charging overnight to reduce '
+              'battery wear.',
+            ),
           ),
           if (widget.controller.nightModeEnabled) ...[
             const SizedBox(height: 16),
             _buildTimePicker(
-              label: 'Sleep time',
+              label: 'Bedtime',
               minutesSinceMidnight: widget.controller.nightModeSleepTime,
               onChanged: (minutes) {
                 widget.controller.setNightModeSleepTime(minutes);
@@ -141,7 +143,7 @@ class _BatteryChargingSettingsPageState
             ),
             const SizedBox(height: 8),
             _buildTimePicker(
-              label: 'Morning time',
+              label: 'Wake-up time',
               minutesSinceMidnight: widget.controller.nightModeMorningTime,
               onChanged: (minutes) {
                 widget.controller.setNightModeMorningTime(minutes);
@@ -173,15 +175,15 @@ class _BatteryChargingSettingsPageState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Emergency Floor',
+            'Low battery protection',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
           ),
           const SizedBox(height: 8),
           Text(
-            'If battery drops to 15% or below, charging is always enabled '
-            'regardless of other settings.',
+            'If the battery drops to 15% or lower, charging turns on '
+            'automatically — whatever the settings above say.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ],
