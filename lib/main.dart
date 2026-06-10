@@ -80,6 +80,7 @@ import 'package:reaprime/src/services/telemetry/anonymization.dart';
 import 'package:reaprime/src/services/telemetry/error_report_throttle.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_forwarder_filter.dart';
 import 'package:reaprime/src/services/webview_log_service.dart';
+import 'package:reaprime/src/skin_feature/simulated_webview_device.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 
 /// Set system information as custom keys in telemetry service.
@@ -130,6 +131,49 @@ Set<SimulatedDevicesTypes> _parseSimulateFlag(String value) {
       .toSet();
 }
 
+const _defaultDesktopWindowSize = Size(1280, 800);
+const _defaultDesktopAspectRatio = 1.6;
+
+Future<Size> _simulatedWebViewWindowSize(
+  SimulatedWebViewDevice device,
+) async {
+  final titleBarHeight = Platform.isMacOS
+      ? await WindowManager.instance.getTitleBarHeight()
+      : 0;
+  return Size(
+    device.viewportSize.width,
+    device.viewportSize.height + titleBarHeight,
+  );
+}
+
+Future<void> _setSimulatedWebViewDevice(
+  SimulatedWebViewDevice? device, {
+  bool persist = true,
+}) async {
+  simulatedWebViewDevice.value = device;
+  if (persist) {
+    await persistSimulatedWebViewDevice(device);
+  }
+
+  if (device == null) {
+    await WindowManager.instance.setMinimumSize(_defaultDesktopWindowSize);
+    await WindowManager.instance.setAspectRatio(_defaultDesktopAspectRatio);
+    await WindowManager.instance.setSize(_defaultDesktopWindowSize);
+    await WindowManager.instance.center();
+    await WindowManager.instance.focus();
+    return;
+  }
+
+  final windowSize = await _simulatedWebViewWindowSize(device);
+  await WindowManager.instance.setMinimumSize(windowSize);
+  await WindowManager.instance.setAspectRatio(
+    windowSize.width / windowSize.height,
+  );
+  await WindowManager.instance.setSize(windowSize);
+  await WindowManager.instance.center();
+  await WindowManager.instance.focus();
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Force the semantics tree to always be active so assistive technologies
@@ -147,9 +191,18 @@ void main() async {
 
   if (Platform.isWindows || Platform.isMacOS) {
     await WindowManager.instance.ensureInitialized();
-    WindowManager.instance.setMinimumSize(const Size(1280, 800));
-    await WindowManager.instance.setAspectRatio(1.6);
-    await WindowManager.instance.setSize(const Size(1280, 800));
+    WindowManager.instance.setMinimumSize(_defaultDesktopWindowSize);
+    await WindowManager.instance.setAspectRatio(_defaultDesktopAspectRatio);
+    await WindowManager.instance.setSize(_defaultDesktopWindowSize);
+    final startupSimulatedWebViewDevice = kDebugMode && Platform.isMacOS
+        ? await loadPersistedSimulatedWebViewDevice()
+        : null;
+    if (startupSimulatedWebViewDevice != null) {
+      await _setSimulatedWebViewDevice(
+        startupSimulatedWebViewDevice,
+        persist: false,
+      );
+    }
   }
 
   final appDocsPath = (await getApplicationDocumentsDirectory()).path;
@@ -908,6 +961,32 @@ class _AppRootState extends State<AppRoot> {
               }
             },
           ),
+          if (kDebugMode) ...[
+            PlatformMenuItem(
+              label: 'Use Native macOS WebView',
+              shortcut: const SingleActivator(
+                LogicalKeyboardKey.digit0,
+                alt: true,
+                meta: true,
+              ),
+              onSelected: () async {
+                await _setSimulatedWebViewDevice(null);
+              },
+            ),
+            PlatformMenuItem(
+              label: 'Simulate Teclast M50/T50 Mini WebView',
+              shortcut: const SingleActivator(
+                LogicalKeyboardKey.digit8,
+                alt: true,
+                meta: true,
+              ),
+              onSelected: () async {
+                await _setSimulatedWebViewDevice(
+                  SimulatedWebViewDevice.teclastT50Mini,
+                );
+              },
+            ),
+          ],
         ],
       ),
     ];
