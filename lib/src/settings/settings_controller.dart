@@ -62,6 +62,7 @@ class SettingsController with ChangeNotifier {
   bool _lowBatteryBrightnessLimit = true;
   bool _onboardingCompleted = false;
   bool _accountStepSeen = false;
+  bool _androidWarningDismissed = false;
 
   TelemetryService? _telemetryService;
 
@@ -91,6 +92,7 @@ class SettingsController with ChangeNotifier {
   bool get lowBatteryBrightnessLimit => _lowBatteryBrightnessLimit;
   bool get onboardingCompleted => _onboardingCompleted;
   bool get accountStepSeen => _accountStepSeen;
+  bool get androidWarningDismissed => _androidWarningDismissed;
 
   set telemetryService(TelemetryService service) => _telemetryService = service;
 
@@ -123,6 +125,8 @@ class SettingsController with ChangeNotifier {
     _lowBatteryBrightnessLimit = await _settingsService.lowBatteryBrightnessLimit();
     _onboardingCompleted = await _settingsService.onboardingCompleted();
     _accountStepSeen = await _settingsService.accountStepSeen();
+    _androidWarningDismissed =
+        await _settingsService.androidWarningDismissed();
 
     // Sync telemetry consent to TelemetryService if it exists
     if (_telemetryService != null) {
@@ -382,6 +386,13 @@ class SettingsController with ChangeNotifier {
     if (value == _accountStepSeen) return;
     _accountStepSeen = value;
     await _settingsService.setAccountStepSeen(value);
+    notifyListeners();
+  }
+
+  Future<void> setAndroidWarningDismissed(bool value) async {
+    if (value == _androidWarningDismissed) return;
+    _androidWarningDismissed = value;
+    await _settingsService.setAndroidWarningDismissed(value);
     notifyListeners();
   }
 }

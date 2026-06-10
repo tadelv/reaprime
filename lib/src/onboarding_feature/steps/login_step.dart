@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/account/decent_login_form.dart';
 import 'package:reaprime/src/onboarding_feature/onboarding_controller.dart';
+import 'package:reaprime/src/onboarding_feature/widgets/onboarding_scaffold.dart';
 import 'package:reaprime/src/services/account/decent_account_service.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 OnboardingStep createLoginStep({
   required DecentAccountService accountService,
@@ -38,47 +40,31 @@ class LoginStepWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Icon(
-              Icons.account_circle_outlined,
-              size: 64,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Link Your Decent Account',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Sync your profiles, beans, and shots across devices.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.7),
-                  ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            DecentLoginForm(
-              accountService: accountService,
-              onSuccess: onComplete,
-              secondaryLabel: 'Skip for now',
-              onSecondary: onComplete,
-            ),
-          ],
+    final theme = ShadTheme.of(context);
+
+    return OnboardingScaffold(
+      title: 'Link Your Decent Account',
+      semanticsLabel: 'Link your Decent account',
+      body: [
+        Icon(
+          Icons.account_circle_outlined,
+          size: 64,
+          color: theme.colorScheme.primary,
         ),
-      ),
+        const SizedBox(height: 16),
+        Text(
+          'Sync your profiles, beans, and shots across devices.',
+          style: theme.textTheme.muted,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 32),
+        DecentLoginForm(
+          accountService: accountService,
+          onSuccess: onComplete,
+          secondaryLabel: 'Skip for now',
+          onSecondary: onComplete,
+        ),
+      ],
     );
   }
 }
