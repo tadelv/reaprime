@@ -227,7 +227,8 @@ make dual-build
 ### Minimum Requirements
 
 - **Android**: 9.0 (API 28) or later
-- **macOS**: 10.14 or later
+- **macOS**: 13.0 or later
+- **iOS**: 15.0 or later (experimental)
 - **Linux**: Modern distribution with GTK 3.0+
 - **Windows**: Windows 10 or later
   - **Important**: Requires [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-supported-redistributable-version) to be installed
