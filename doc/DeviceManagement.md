@@ -134,6 +134,7 @@ Discovery services use name-based matching via `DeviceMatcher` to create appropr
 - `DeviceMatcher.match()` takes a transport and advertised name, returns a `Device?`
 - Name rules map advertisement names to device factories
 - Service verification happens during `onConnect()` using `BleServiceIdentifier`
+- DiFluid R2 reflectometers are matched separately from DiFluid scales by advertised name and the R2 BLE service UUID, then exposed as `Sensor` devices with a `measure` command
 
 ### Service Lifecycle
 
@@ -399,6 +400,11 @@ Future<void> connectToScale(Scale scale) async {
 - Exposes sensor data streams
 
 **Pattern:** Mirrors ScaleController auto-connect logic
+
+DiFluid R2 reflectometers use the standard `Sensor` abstraction. After the
+sensor is connected, skins can call the `measure` command through the existing
+Sensors API and read TDS, temperature, refractive index, and status values from
+the sensor data stream.
 
 ### RememberedDevicesController
 
@@ -1027,4 +1033,3 @@ _log.info('Found serial ports: $ports');
 - **State Manager:** Orchestrator for machine state changes and related behaviors
 - **UUID:** Universally Unique Identifier, used to identify BLE services/devices
 - **Service Mapping:** Dictionary mapping UUIDs to device factory functions
-

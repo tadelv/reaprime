@@ -7,6 +7,7 @@ import 'package:reaprime/src/models/device/impl/bookoo/miniscale.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
 import 'package:reaprime/src/models/device/impl/decent_temp/temperature.dart';
+import 'package:reaprime/src/models/device/impl/difluid/difluid_r2_sensor.dart';
 import 'package:reaprime/src/models/device/impl/difluid/difluid_scale.dart';
 import 'package:reaprime/src/models/device/impl/eureka/eureka_scale.dart';
 import 'package:reaprime/src/models/device/impl/felicita/arc.dart';
@@ -43,6 +44,7 @@ class DeviceMatcher {
     ],
     DeviceType.sensor => [
       DecentTemp.serviceIdentifier.long,
+      DifluidR2Sensor.serviceIdentifier.long,
     ],
   };
 
@@ -95,6 +97,9 @@ class DeviceMatcher {
 
     if (nameLower.contains('smartchef')) {
       return SmartChefScale(transport: transport);
+    }
+    if (nameLower.contains('difluid') && nameLower.contains('r2')) {
+      return DifluidR2Sensor(transport: transport);
     }
     if (nameLower.contains('aku') || nameLower.contains('varia')) {
       return VariaAkuScale(transport: transport);

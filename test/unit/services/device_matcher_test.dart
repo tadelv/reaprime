@@ -9,6 +9,7 @@ import 'package:reaprime/src/models/device/impl/blackcoffee/blackcoffee_scale.da
 import 'package:reaprime/src/models/device/impl/bookoo/miniscale.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
+import 'package:reaprime/src/models/device/impl/difluid/difluid_r2_sensor.dart';
 import 'package:reaprime/src/models/device/impl/difluid/difluid_scale.dart';
 import 'package:reaprime/src/models/device/impl/eureka/eureka_scale.dart';
 import 'package:reaprime/src/models/device/impl/felicita/arc.dart';
@@ -28,7 +29,8 @@ class _MockBLETransport extends BLETransport {
   String get name => 'Mock';
 
   @override
-  Stream<ConnectionState> get connectionState => Stream.value(ConnectionState.discovered);
+  Stream<ConnectionState> get connectionState =>
+      Stream.value(ConnectionState.discovered);
 
   @override
   Future<void> connect() async {}
@@ -40,18 +42,27 @@ class _MockBLETransport extends BLETransport {
   Future<List<String>> discoverServices() async => [];
 
   @override
-  Future<Uint8List> read(String serviceUUID, String characteristicUUID,
-          {Duration? timeout}) async =>
-      Uint8List(0);
+  Future<Uint8List> read(
+    String serviceUUID,
+    String characteristicUUID, {
+    Duration? timeout,
+  }) async => Uint8List(0);
 
   @override
-  Future<void> subscribe(String serviceUUID, String characteristicUUID,
-          void Function(Uint8List) callback) async {}
+  Future<void> subscribe(
+    String serviceUUID,
+    String characteristicUUID,
+    void Function(Uint8List) callback,
+  ) async {}
 
   @override
   Future<void> write(
-          String serviceUUID, String characteristicUUID, Uint8List data,
-          {bool withResponse = true, Duration? timeout}) async {}
+    String serviceUUID,
+    String characteristicUUID,
+    Uint8List data, {
+    bool withResponse = true,
+    Duration? timeout,
+  }) async {}
 
   @override
   Future<void> setTransportPriority(bool prioritized) async {}
@@ -299,10 +310,19 @@ void main() {
       expect(device, isA<HiroiaScale>());
     });
 
-    test('Difluid matches', () async {
+    test('DiFluid R2 matches reflectometer sensor', () async {
       final device = await DeviceMatcher.match(
         transport: mockTransport,
         advertisedName: 'Difluid R2',
+      );
+
+      expect(device, isA<DifluidR2Sensor>());
+    });
+
+    test('other DiFluid devices still match the scale', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'Difluid Microbalance',
       );
 
       expect(device, isA<DifluidScale>());
