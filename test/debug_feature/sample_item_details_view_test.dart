@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/device/impl/bengle/mock_bengle.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
-import 'package:reaprime/src/sample_feature/sample_item_details_view.dart';
+import 'package:reaprime/src/debug_feature/sample_item_details_view.dart';
 
 void main() {
   group('debugViewTitle', () {
