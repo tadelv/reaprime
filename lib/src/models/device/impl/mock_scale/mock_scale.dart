@@ -21,8 +21,11 @@ class MockScale implements Scale, SimulatedDevice {
   @override
   Stream<ScaleSnapshot> get currentSnapshot => _snapshotStream.stream;
 
+  // Space-free id so it matches the `MockScale` token used by
+  // preferredScaleId dart-defines, sb-dev's `--connect-scale` flag, and
+  // remembered-device records. The human-facing `name` keeps the space.
   @override
-  String get deviceId => "Mock Scale";
+  String get deviceId => "MockScale";
 
   @override
   disconnect() async {

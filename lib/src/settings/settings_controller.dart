@@ -213,7 +213,7 @@ class SettingsController with ChangeNotifier {
     _preferredMachineId =
         devices.contains(SimulatedDevicesTypes.machine) ? 'MockDe1' : null;
     _preferredScaleId =
-        devices.contains(SimulatedDevicesTypes.scale) ? 'Mock Scale' : null;
+        devices.contains(SimulatedDevicesTypes.scale) ? 'MockScale' : null;
     notifyListeners();
   }
 
