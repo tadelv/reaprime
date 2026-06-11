@@ -488,10 +488,10 @@ If multiple machines or scales are found without a preferred device set, Connect
 
 > **Note:** This tap-to-reconnect affordance lives in the legacy `home_feature`
 > StatusTile. Since the native UI redesign, `LauncherView` (not `home_feature`)
-> is the default post-onboarding screen, and it does **not** yet expose an
-> equivalent scan-and-connect entry point — that work is tracked as a follow-up.
-> The underlying `connectionManager.scanAndConnectScale()` flow below is
-> unchanged and still drives the machine-wake reconnect path.
+> is the default post-onboarding screen. When no machine is connected, the
+> launcher shows a **"Connect your machine"** hero card above the skin slot
+> that pushes a full-screen scan page (`LauncherScanPage`) reusing the
+> onboarding scan flow. Tapping it triggers `connectionManager.connect()`.
 
 ```
 1. User taps "Scale" text in StatusTile (when no scale connected)
