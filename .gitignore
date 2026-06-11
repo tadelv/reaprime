@@ -70,3 +70,6 @@ pubspec_overrides.yaml
 /skills-lock.json
 /.agents/skills/google-analytics-cli/
 /.claude/skills/google-analytics-cli
+
+# Brainstorming visual companion
+.superpowers/
