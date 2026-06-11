@@ -83,7 +83,7 @@ class AdvancedPage extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
-                    vertical: 4,
+                    vertical: 8,
                   ),
                   child: ShadSwitch(
                     value: controller.simulatedDevices.contains(type),
