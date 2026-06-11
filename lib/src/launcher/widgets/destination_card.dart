@@ -35,10 +35,11 @@ class DestinationCard extends StatelessWidget {
           child: SizedBox.expand(
             child: Padding(
               padding: const EdgeInsets.symmetric(
-                vertical: 24,
+                vertical: 20,
                 horizontal: 16,
               ),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 spacing: 12,
                 children: [
