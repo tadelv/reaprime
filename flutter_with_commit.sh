@@ -40,9 +40,21 @@ BUILD_NUMBER=$(git rev-list --count origin/main 2>/dev/null || echo "1")
 # e.g. "1.2.3-beta.1" -> build-name "1.2.3", but VERSION dart-define keeps the full string
 BUILD_NAME="${VERSION%%-*}"
 
+# --- Parse --skip-skins flag (from anywhere in args) ---
+SKIP_SKINS=false
+FILTERED_ARGS=()
+for arg in "$@"; do
+  if [ "$arg" = "--skip-skins" ]; then
+    SKIP_SKINS=true
+  else
+    FILTERED_ARGS+=("$arg")
+  fi
+done
+set -- "${FILTERED_ARGS[@]}"
+
 # --- Command required ---
 if [ $# -lt 1 ]; then
-  echo "Usage: $0 <flutter command> [arguments...]"
+  echo "Usage: $0 [--skip-skins] <flutter command> [arguments...]"
   exit 1
 fi
 
@@ -53,7 +65,9 @@ EXTRA_ARGS=("$@")
 
 # --- Bundle skins (downloads to assets/bundled_skins/) ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -f "$SCRIPT_DIR/bundle_skins.sh" ]; then
+if [ "$SKIP_SKINS" = true ]; then
+  echo "Skipping skin bundling (--skip-skins)"
+elif [ -f "$SCRIPT_DIR/bundle_skins.sh" ]; then
   echo "Bundling skins..."
   bash "$SCRIPT_DIR/bundle_skins.sh"
 fi

@@ -32,6 +32,10 @@ rm -f "$OUTPUT_DIR"/*.zip "$OUTPUT_DIR"/manifest.json
 # set GITHUB_TOKEN or GH_TOKEN if you hit rate limits.
 GH_AUTH_HEADER=()
 GH_TOKEN_VALUE="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+# Fall back to gh CLI auth token if no env var set
+if [ -z "$GH_TOKEN_VALUE" ] && command -v gh &>/dev/null; then
+  GH_TOKEN_VALUE=$(gh auth token 2>/dev/null || true)
+fi
 if [ -n "$GH_TOKEN_VALUE" ]; then
   GH_AUTH_HEADER=(-H "Authorization: Bearer $GH_TOKEN_VALUE")
 fi
