@@ -32,107 +32,191 @@ class _ScaleDebugViewState extends State<ScaleDebugView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Scale debug')),
-      body: Center(
-        child: Column(
-          children: [
-            Text('${widget.scale.name}, ${widget.scale.deviceId}'),
-            StreamBuilder(
-              stream: widget.scale.currentSnapshot,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.active) {
-                  Duration diff =
-                      snapshot.data?.timestamp.difference(_lastDate) ??
-                      Duration.zero;
-                  _lastDate = snapshot.data?.timestamp ?? DateTime.now();
-                  return Column(
-                    spacing: 12,
+    final theme = ShadTheme.of(context);
+
+    return Column(
+      children: [
+        _buildHeader(theme),
+        Expanded(
+          child: StreamBuilder<ScaleSnapshot>(
+            stream: widget.scale.currentSnapshot,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.active) {
+                final diff = snapshot.data?.timestamp.difference(_lastDate) ??
+                    Duration.zero;
+                _lastDate = snapshot.data?.timestamp ?? DateTime.now();
+                return _buildActiveView(theme, snapshot.data!, diff);
+              } else if (snapshot.connectionState ==
+                  ConnectionState.waiting) {
+                return Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        '${snapshot.data?.weight.toStringAsFixed(1)}g',
-                        style: Theme.of(context).textTheme.titleMedium,
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       ),
-                      Text('Battery: ${snapshot.data?.batteryLevel}%'),
-                      Text('last update: ${diff.inMilliseconds}ms ago'),
-                      FilledButton(
-                        onPressed: () async {
-                          await widget.scale.tare();
-                        },
-                        child: Text("Tare"),
-                      ),
-                      FilledButton(
-                        onPressed: () async {
-                          await widget.scale.wakeDisplay();
-                        },
-                        child: Text("Wake"),
-                      ),
-                      FilledButton(
-                        onPressed: () async {
-                          await widget.scale.sleepDisplay();
-                        },
-                        child: Text("Sleep"),
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        spacing: 8,
-                        children: [
-                          FilledButton(
-                            onPressed: () async {
-                              await widget.scale.startTimer();
-                            },
-                            child: Text("Start Timer"),
-                          ),
-                          FilledButton(
-                            onPressed: () async {
-                              await widget.scale.stopTimer();
-                            },
-                            child: Text("Stop Timer"),
-                          ),
-                          FilledButton(
-                            onPressed: () async {
-                              await widget.scale.resetTimer();
-                            },
-                            child: Text("Reset Timer"),
-                          ),
-                        ],
-                      ),
-                      FilledButton(
-                        onPressed: () async {
-                          await widget.scale.disconnect();
-                          if (!context.mounted) {
-                            return;
-                          }
-                          Navigator.of(context).pop();
-                        },
-                        child: Text("Disconnect"),
-                      ),
+                      const SizedBox(width: 8),
+                      Text('Connecting…', style: theme.textTheme.muted),
                     ],
-                  );
-                } else if (snapshot.connectionState ==
-                    ConnectionState.waiting) {
-                  return Column(
-                    children: [
-                      Text("Connecting"),
-                      ShadButton(child: Text("disconnect"),
-                      onPressed: () async {
-                          await widget.scale.disconnect();
-                        },)
-                    ],
-                  );
-                }
-                return Text("Waiting for data: ${snapshot.connectionState}");
-              },
-            ),
-          ],
+                  ),
+                );
+              }
+              return Center(
+                child: Text(
+                  'Waiting for data',
+                  style: theme.textTheme.muted,
+                ),
+              );
+            },
+          ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildHeader(ShadThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Row(
+        children: [
+          Text('Scale Debug', style: theme.textTheme.h4),
+          const SizedBox(width: 8),
+          Text(
+            widget.scale.deviceId,
+            style: theme.textTheme.muted,
+          ),
+          const Spacer(),
+          ShadButton.destructive(
+            size: ShadButtonSize.sm,
+            child: const Text('Disconnect'),
+            onPressed: () async {
+              await widget.scale.disconnect();
+              if (!mounted) return;
+              Navigator.of(context).pop();
+            },
+          ),
+        ],
       ),
     );
   }
 
-  @override
-  void deactivate() {
-    //widget.scale.disconnect();
-    super.deactivate();
+  Widget _buildActiveView(
+    ShadThemeData theme,
+    ScaleSnapshot data,
+    Duration diff,
+  ) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // Weight hero
+        Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                data.weight.toStringAsFixed(1),
+                style: theme.textTheme.h1.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                'grams',
+                style: theme.textTheme.muted,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Battery + latency
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Battery: ${data.batteryLevel}%',
+              style: theme.textTheme.muted,
+            ),
+            const SizedBox(width: 16),
+            Text(
+              '${diff.inMilliseconds}ms ago',
+              style: theme.textTheme.muted,
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // Tare button
+        ShadButton(
+          child: const Text('Tare'),
+          onPressed: () async {
+            await widget.scale.tare();
+          },
+        ),
+        const SizedBox(height: 16),
+
+        // Display controls row
+        Row(
+          children: [
+            Expanded(
+              child: ShadButton.outline(
+                child: const Text('Wake'),
+                onPressed: () async {
+                  await widget.scale.wakeDisplay();
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ShadButton.outline(
+                child: const Text('Sleep'),
+                onPressed: () async {
+                  await widget.scale.sleepDisplay();
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Timer controls row
+        Text('Timer', style: theme.textTheme.small),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: ShadButton.outline(
+                size: ShadButtonSize.sm,
+                child: const Text('Start'),
+                onPressed: () async {
+                  await widget.scale.startTimer();
+                },
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: ShadButton.outline(
+                size: ShadButtonSize.sm,
+                child: const Text('Stop'),
+                onPressed: () async {
+                  await widget.scale.stopTimer();
+                },
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: ShadButton.outline(
+                size: ShadButtonSize.sm,
+                child: const Text('Reset'),
+                onPressed: () async {
+                  await widget.scale.resetTimer();
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 }
