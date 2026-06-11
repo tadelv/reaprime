@@ -36,63 +36,60 @@ class DebugItemListView extends StatelessWidget {
             final devices = deviceSnapshot.data ?? [];
             final isEmpty = devices.isEmpty && !isScanning;
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildHeader(context, devices.length, isScanning),
-                if (isScanning) const ShadProgress(),
-                Expanded(
-                  child: isEmpty
-                      ? _buildEmptyState(context)
-                      : _buildGroupedList(context, devices),
+            return Scaffold(
+              appBar: AppBar(
+                title: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Debug Devices'),
+                    if (devices.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      ShadBadge(
+                        child: Text('${devices.length}'),
+                      ),
+                    ],
+                  ],
                 ),
-              ],
+                actions: [
+                  if (isScanning)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          SizedBox(width: 8),
+                          Text('Scanning…'),
+                        ],
+                      ),
+                    )
+                  else
+                    ShadButton.ghost(
+                      leading: const Icon(LucideIcons.radar, size: 16),
+                      child: const Text('Scan'),
+                      onPressed: () => controller.scanForDevices(),
+                    ),
+                ],
+              ),
+              body: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (isScanning) const ShadProgress(),
+                  Expanded(
+                    child: isEmpty
+                        ? _buildEmptyState(context)
+                        : _buildGroupedList(context, devices),
+                  ),
+                ],
+              ),
             );
           },
         );
       },
-    );
-  }
-
-  /// Header row with title, device count, and scan button.
-  Widget _buildHeader(BuildContext context, int count, bool isScanning) {
-    final theme = ShadTheme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Text(
-            'Debug Devices',
-            style: theme.textTheme.h4,
-          ),
-          if (count > 0) ...[
-            const SizedBox(width: 8),
-            ShadBadge(
-              child: Text('$count'),
-            ),
-          ],
-          const Spacer(),
-          if (isScanning)
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                const SizedBox(width: 8),
-                Text('Scanning…', style: theme.textTheme.muted),
-              ],
-            )
-          else
-            ShadButton.ghost(
-              leading: const Icon(LucideIcons.radar, size: 16),
-              child: const Text('Scan'),
-              onPressed: () => controller.scanForDevices(),
-            ),
-        ],
-      ),
     );
   }
 
