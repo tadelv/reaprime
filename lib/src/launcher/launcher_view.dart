@@ -3,17 +3,24 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/account/account_page.dart';
 import 'package:reaprime/src/controllers/battery_controller.dart';
+import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
+import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/controllers/scan_state_guardian.dart';
+import 'package:reaprime/src/launcher/launcher_scan_page.dart';
 import 'package:reaprime/src/launcher/widgets/browser_hero_card.dart';
+import 'package:reaprime/src/launcher/widgets/connect_device_hero_card.dart';
 import 'package:reaprime/src/launcher/widgets/destination_card.dart';
 import 'package:reaprime/src/launcher/widgets/skin_unavailable_card.dart';
 import 'package:reaprime/src/launcher/widgets/status_bar.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
+import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/services/account/decent_account_service.dart';
 import 'package:reaprime/src/settings/advanced_page.dart';
 import 'package:reaprime/src/settings/data_management_page.dart';
 import 'package:reaprime/src/settings/device_management_page.dart';
+import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/settings/settings_view.dart';
 import 'package:reaprime/src/skin_feature/skin_view.dart';
 import 'package:reaprime/src/skin_selector/skin_selector_page.dart';
@@ -51,6 +58,10 @@ class LauncherView extends StatelessWidget {
     required this.scaleController,
     required this.webUIService,
     required this.pluginLoaderService,
+    required this.connectionManager,
+    required this.deviceController,
+    required this.settingsController,
+    required this.scanStateGuardian,
     this.batteryController,
     this.decentAccountService,
     this.isDegradedAndroid = false,
@@ -60,6 +71,10 @@ class LauncherView extends StatelessWidget {
   final ScaleController scaleController;
   final WebUIService webUIService;
   final PluginLoaderService pluginLoaderService;
+  final ConnectionManager connectionManager;
+  final DeviceController deviceController;
+  final SettingsController settingsController;
+  final ScanStateGuardian scanStateGuardian;
   final BatteryController? batteryController;
   final DecentAccountService? decentAccountService;
 
@@ -100,9 +115,25 @@ class LauncherView extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     spacing: 24,
                     children: [
-                      // Skin slot — exactly one of: browser hero,
-                      // return-to-skin, or skin-unavailable explanation.
-                      _buildSkinSlot(context, slot),
+                      StreamBuilder<De1Interface?>(
+                        stream: de1Controller.de1,
+                        builder: (context, snapshot) {
+                          final hasMachine = snapshot.data != null;
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            mainAxisSize: MainAxisSize.min,
+                            spacing: 24,
+                            children: [
+                              if (!hasMachine)
+                                ConnectDeviceHeroCard(
+                                  onScan: () => Navigator.of(context)
+                                      .pushNamed(LauncherScanPage.routeName),
+                                ),
+                              _buildSkinSlot(context, slot),
+                            ],
+                          );
+                        },
+                      ),
 
                       // Destination grid
                       _buildGrid(context),

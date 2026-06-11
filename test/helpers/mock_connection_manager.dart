@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
+import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart' as device_scale;
 import 'package:reaprime/src/models/scan_report.dart';
 import 'package:rxdart/rxdart.dart';
@@ -24,6 +25,12 @@ class FakeDe1 implements De1Interface {
 
   FakeDe1({this.deviceId = 'fake-de1', String? name})
       : name = name ?? 'DE1-$deviceId';
+
+  @override
+  Stream<MachineSnapshot> get currentSnapshot => const Stream.empty();
+
+  @override
+  Stream<De1WaterLevels> get waterLevels => const Stream.empty();
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;

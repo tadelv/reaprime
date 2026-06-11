@@ -38,6 +38,7 @@ import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/battery_controller.dart';
 import 'package:reaprime/src/launcher/launcher_view.dart';
+import 'package:reaprime/src/launcher/launcher_scan_page.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
@@ -455,6 +456,10 @@ class _MyAppState extends State<MyApp> {
                         batteryController: widget.batteryController,
                         decentAccountService: widget.decentAccountService,
                         isDegradedAndroid: _degradedAndroid,
+                        connectionManager: widget.connectionManager,
+                        deviceController: widget.deviceController,
+                        settingsController: widget.settingsController,
+                        scanStateGuardian: widget.scanStateGuardian,
                       );
                     case HistoryFeature.routeName:
                       final possibleShot = routeSettings.arguments as String;
@@ -499,6 +504,13 @@ class _MyAppState extends State<MyApp> {
                       }
                       return AccountPage(
                         accountService: widget.decentAccountService!,
+                      );
+                    case LauncherScanPage.routeName:
+                      return LauncherScanPage(
+                        connectionManager: widget.connectionManager,
+                        deviceController: widget.deviceController,
+                        settingsController: widget.settingsController,
+                        scanStateGuardian: widget.scanStateGuardian,
                       );
                     case SkinView.routeName:
                       return SkinView(
