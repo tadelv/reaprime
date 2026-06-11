@@ -155,7 +155,7 @@ class _DeviceDiscoveryState extends State<DeviceDiscoveryView> {
     if (!mounted) return;
 
     if (route == SkinView.routeName) {
-      // Push both routes to stack: HomeScreen first, then SkinView on top
+      // Push both routes to stack: LauncherView first, then SkinView on top
       Navigator.popAndPushNamed(context, LauncherView.routeName);
       Navigator.of(context).pushNamed(SkinView.routeName);
     } else {
