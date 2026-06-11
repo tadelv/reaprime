@@ -5,14 +5,9 @@ import 'package:shadcn_ui/shadcn_ui.dart' hide Scale;
 class ScaleDebugView extends StatefulWidget {
   final Scale scale;
 
-  /// When true, calls [scale.onConnect()] in initState for raw inspection.
-  /// When false, assumes the device is already connected via ConnectionManager.
-  final bool inspect;
-
   const ScaleDebugView({
     super.key,
     required this.scale,
-    this.inspect = false,
   });
 
   @override
@@ -25,9 +20,7 @@ class _ScaleDebugViewState extends State<ScaleDebugView> {
   @override
   void initState() {
     super.initState();
-    if (widget.inspect) {
-      widget.scale.onConnect();
-    }
+    widget.scale.onConnect();
   }
 
   @override
@@ -47,7 +40,7 @@ class _ScaleDebugViewState extends State<ScaleDebugView> {
             child: const Text('Disconnect'),
             onPressed: () async {
               await widget.scale.disconnect();
-              if (!mounted) return;
+              if (!context.mounted) return;
               Navigator.of(context).pop();
             },
           ),
@@ -57,8 +50,8 @@ class _ScaleDebugViewState extends State<ScaleDebugView> {
         stream: widget.scale.currentSnapshot,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.active) {
-            final diff = snapshot.data?.timestamp.difference(_lastDate) ??
-                Duration.zero;
+            final diff =
+                snapshot.data?.timestamp.difference(_lastDate) ?? Duration.zero;
             _lastDate = snapshot.data?.timestamp ?? DateTime.now();
             return _buildActiveView(theme, snapshot.data!, diff);
           } else if (snapshot.connectionState == ConnectionState.waiting) {
@@ -87,8 +80,6 @@ class _ScaleDebugViewState extends State<ScaleDebugView> {
       ),
     );
   }
-
-
 
   Widget _buildActiveView(
     ShadThemeData theme,

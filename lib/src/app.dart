@@ -370,14 +370,11 @@ class _MyAppState extends State<MyApp> {
                     case De1DebugView.routeName:
                       final args = routeSettings.arguments;
                       final String deviceId;
-                      final bool inspect;
                       if (args is Map<String, dynamic>) {
                         deviceId = args['deviceId'] as String;
-                        inspect = args['inspect'] as bool? ?? true;
                       } else {
-                        // Legacy: plain string deviceId, default to inspect
+                        // Legacy: plain string deviceId
                         deviceId = args as String;
-                        inspect = true;
                       }
                       var device = widget.deviceController.devices.firstWhere(
                         (e) => e.deviceId == deviceId,
@@ -385,13 +382,11 @@ class _MyAppState extends State<MyApp> {
                       if (device is De1Interface) {
                         return De1DebugView(
                           machine: device,
-                          inspect: inspect,
                         );
                       }
                       if (device is Scale) {
                         return ScaleDebugView(
                           scale: device,
-                          inspect: inspect,
                         );
                       }
                       return Scaffold(
@@ -407,7 +402,6 @@ class _MyAppState extends State<MyApp> {
                     case DebugItemListView.routeName:
                       return DebugItemListView(
                         controller: widget.deviceController,
-                        connectionManager: widget.connectionManager,
                       );
                     case RealtimeShotFeature.routeName:
                       final args = routeSettings.arguments;
