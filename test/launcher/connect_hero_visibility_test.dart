@@ -66,11 +66,11 @@ void main() {
       );
 
   testWidgets('hero shows when no machine connected', (tester) async {
-    tester.binding.window.physicalSizeTestValue = const Size(1200, 900);
-    tester.binding.window.devicePixelRatioTestValue = 1.0;
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1.0;
     addTearDown(() {
-      tester.binding.window.clearPhysicalSizeTestValue();
-      tester.binding.window.clearDevicePixelRatioTestValue();
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
     });
     de1Controller.de1Subject.add(null);
     await tester.pumpWidget(buildLauncher());
@@ -80,11 +80,11 @@ void main() {
   });
 
   testWidgets('hero hidden when a machine is connected', (tester) async {
-    tester.binding.window.physicalSizeTestValue = const Size(1200, 900);
-    tester.binding.window.devicePixelRatioTestValue = 1.0;
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1.0;
     addTearDown(() {
-      tester.binding.window.clearPhysicalSizeTestValue();
-      tester.binding.window.clearDevicePixelRatioTestValue();
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
     });
     de1Controller.de1Subject.add(FakeDe1());
     await tester.pumpWidget(buildLauncher());
