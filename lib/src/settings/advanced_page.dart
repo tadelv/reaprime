@@ -3,7 +3,7 @@ import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/settings/common.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
-import 'package:reaprime/src/debug_feature/sample_item_list_view.dart';
+import 'package:reaprime/src/debug_feature/debug_item_list_view.dart';
 import 'package:reaprime/src/services/foreground_service.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'dart:io';
@@ -112,7 +112,7 @@ class AdvancedPage extends StatelessWidget {
                 trailing: const Icon(Icons.chevron_right, size: 20),
                 onTap: () => Navigator.pushNamed(
                   context,
-                  SampleItemListView.routeName,
+                  DebugItemListView.routeName,
                 ),
               ),
               const SettingsDivider(),
