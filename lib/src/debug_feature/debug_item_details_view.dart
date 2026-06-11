@@ -18,16 +18,11 @@ class De1DebugView extends StatefulWidget {
   const De1DebugView({
     super.key,
     required this.machine,
-    this.inspect = false,
   });
 
   static const routeName = '/debug_details';
 
   final De1Interface machine;
-
-  /// When true, calls [machine.onConnect()] in initState for raw inspection.
-  /// When false, assumes the device is already connected via ConnectionManager.
-  final bool inspect;
 
   @override
   State<De1DebugView> createState() => _De1DebugViewState();
@@ -39,9 +34,7 @@ class _De1DebugViewState extends State<De1DebugView> {
   @override
   void initState() {
     super.initState();
-    if (widget.inspect) {
-      widget.machine.onConnect();
-    }
+    widget.machine.onConnect();
   }
 
   @override
@@ -72,8 +65,6 @@ class _De1DebugViewState extends State<De1DebugView> {
       ),
     );
   }
-
-
 
   Widget _buildStateDropdown(BuildContext context) {
     return ShadSelect<MachineState>(
@@ -189,8 +180,14 @@ class _De1DebugViewState extends State<De1DebugView> {
       _dataRow('Group temp', '${data?.groupTemperature.toStringAsFixed(2)}°'),
       _dataRow('Flow', data?.flow.toStringAsFixed(2) ?? '—'),
       _dataRow('Pressure', data?.pressure.toStringAsFixed(2) ?? '—'),
-      _dataRow('Target mix', '${data?.targetMixTemperature.toStringAsFixed(2)}°'),
-      _dataRow('Target head', '${data?.targetGroupTemperature.toStringAsFixed(2)}°'),
+      _dataRow(
+        'Target mix',
+        '${data?.targetMixTemperature.toStringAsFixed(2)}°',
+      ),
+      _dataRow(
+        'Target head',
+        '${data?.targetGroupTemperature.toStringAsFixed(2)}°',
+      ),
       _dataRow('Target press.', data?.targetPressure.toStringAsFixed(2) ?? '—'),
       _dataRow('Target flow', data?.flow.toStringAsFixed(2) ?? '—'),
       _dataRow('Update freq', '${diff.inMilliseconds}ms'),
@@ -401,12 +398,14 @@ class _De1DebugViewState extends State<De1DebugView> {
           size: ShadButtonSize.sm,
           child: const Text('Send'),
           onPressed: () {
-            widget.machine.sendRawMessage(De1RawMessage(
-              type: De1RawMessageType.request,
-              operation: De1RawOperationType.write,
-              characteristicUUID: _serialCharacteristicController.text,
-              payload: _serialPayloadController.text,
-            ));
+            widget.machine.sendRawMessage(
+              De1RawMessage(
+                type: De1RawMessageType.request,
+                operation: De1RawOperationType.write,
+                characteristicUUID: _serialCharacteristicController.text,
+                payload: _serialPayloadController.text,
+              ),
+            );
           },
         ),
       ],

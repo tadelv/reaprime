@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
@@ -14,13 +13,11 @@ class DebugItemListView extends StatelessWidget {
   const DebugItemListView({
     super.key,
     required this.controller,
-    required this.connectionManager,
   });
 
   static const routeName = '/debug';
 
   final DeviceController controller;
-  final ConnectionManager connectionManager;
 
   @override
   Widget build(BuildContext context) {
@@ -160,7 +157,7 @@ class DebugItemListView extends StatelessWidget {
     );
   }
 
-  /// A single device row with connection-state icon, name, and action buttons.
+  /// A single device row with connection-state icon, name, and Connect button.
   Widget _buildDeviceRow(
     BuildContext context,
     dev.Device device, {
@@ -172,7 +169,6 @@ class DebugItemListView extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
-        onTap: () => _navigateToDebugView(context, device, inspect: true),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
@@ -218,20 +214,12 @@ class DebugItemListView extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              ShadButton.outline(
-                size: ShadButtonSize.sm,
-                child: const Text('Inspect'),
-                onPressed: () =>
-                    _navigateToDebugView(context, device, inspect: true),
-              ),
-              if (showConnect) ...[
-                const SizedBox(width: 6),
+              if (showConnect)
                 ShadButton(
                   size: ShadButtonSize.sm,
                   child: const Text('Connect'),
-                  onPressed: () => _onConnect(context, device),
+                  onPressed: () => _navigateToDebugView(context, device),
                 ),
-              ],
             ],
           ),
         ),
@@ -239,34 +227,16 @@ class DebugItemListView extends StatelessWidget {
     );
   }
 
-  Future<void> _onConnect(BuildContext context, dev.Device device) async {
-    try {
-      if (device is De1Interface) {
-        await connectionManager.connectMachine(device);
-      } else if (device is Scale) {
-        await connectionManager.connectScale(device);
-      }
-    } catch (_) {
-      // Error already surfaced by ConnectionManager via its status stream.
-      // Swallow here so the rethrow doesn't escape the async onPressed
-      // into the Flutter error zone (→ Crashlytics fatal).
-    }
-    if (!context.mounted) return;
-    _navigateToDebugView(context, device, inspect: false);
-  }
-
   void _navigateToDebugView(
     BuildContext context,
-    dev.Device device, {
-    required bool inspect,
-  }) {
+    dev.Device device,
+  ) {
     if (device is De1Interface) {
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => De1DebugView(
             machine: device,
-            inspect: inspect,
           ),
         ),
       );
@@ -276,7 +246,6 @@ class DebugItemListView extends StatelessWidget {
         MaterialPageRoute(
           builder: (_) => ScaleDebugView(
             scale: device,
-            inspect: inspect,
           ),
         ),
       );
