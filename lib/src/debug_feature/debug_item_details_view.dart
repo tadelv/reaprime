@@ -48,44 +48,32 @@ class _De1DebugViewState extends State<De1DebugView> {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
 
-    return Column(
-      children: [
-        _buildHeader(context, theme),
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final isWide = constraints.maxWidth > 900;
-              if (isWide) {
-                return _buildWideLayout(theme);
-              }
-              return _buildNarrowLayout(theme);
-            },
-          ),
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          debugViewTitle(widget.machine),
         ),
-      ],
-    );
-  }
-
-  Widget _buildHeader(BuildContext context, ShadThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: Row(
-        children: [
-          Text(
-            debugViewTitle(widget.machine),
-            style: theme.textTheme.h4,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            widget.machine.deviceId,
-            style: theme.textTheme.muted,
-          ),
-          const Spacer(),
+        leading: IconButton(
+          icon: const Icon(LucideIcons.arrowLeft),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        actions: [
           _buildStateDropdown(context),
         ],
       ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth > 900;
+          if (isWide) {
+            return _buildWideLayout(theme);
+          }
+          return _buildNarrowLayout(theme);
+        },
+      ),
     );
   }
+
+
 
   Widget _buildStateDropdown(BuildContext context) {
     return ShadSelect<MachineState>(

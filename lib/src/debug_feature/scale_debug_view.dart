@@ -34,60 +34,14 @@ class _ScaleDebugViewState extends State<ScaleDebugView> {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
 
-    return Column(
-      children: [
-        _buildHeader(theme),
-        Expanded(
-          child: StreamBuilder<ScaleSnapshot>(
-            stream: widget.scale.currentSnapshot,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.active) {
-                final diff = snapshot.data?.timestamp.difference(_lastDate) ??
-                    Duration.zero;
-                _lastDate = snapshot.data?.timestamp ?? DateTime.now();
-                return _buildActiveView(theme, snapshot.data!, diff);
-              } else if (snapshot.connectionState ==
-                  ConnectionState.waiting) {
-                return Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('Connecting…', style: theme.textTheme.muted),
-                    ],
-                  ),
-                );
-              }
-              return Center(
-                child: Text(
-                  'Waiting for data',
-                  style: theme.textTheme.muted,
-                ),
-              );
-            },
-          ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Scale Debug'),
+        leading: IconButton(
+          icon: const Icon(LucideIcons.arrowLeft),
+          onPressed: () => Navigator.of(context).pop(),
         ),
-      ],
-    );
-  }
-
-  Widget _buildHeader(ShadThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: Row(
-        children: [
-          Text('Scale Debug', style: theme.textTheme.h4),
-          const SizedBox(width: 8),
-          Text(
-            widget.scale.deviceId,
-            style: theme.textTheme.muted,
-          ),
-          const Spacer(),
+        actions: [
           ShadButton.destructive(
             size: ShadButtonSize.sm,
             child: const Text('Disconnect'),
@@ -99,8 +53,42 @@ class _ScaleDebugViewState extends State<ScaleDebugView> {
           ),
         ],
       ),
+      body: StreamBuilder<ScaleSnapshot>(
+        stream: widget.scale.currentSnapshot,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.active) {
+            final diff = snapshot.data?.timestamp.difference(_lastDate) ??
+                Duration.zero;
+            _lastDate = snapshot.data?.timestamp ?? DateTime.now();
+            return _buildActiveView(theme, snapshot.data!, diff);
+          } else if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('Connecting…', style: theme.textTheme.muted),
+                ],
+              ),
+            );
+          }
+          return Center(
+            child: Text(
+              'Waiting for data',
+              style: theme.textTheme.muted,
+            ),
+          );
+        },
+      ),
     );
   }
+
+
 
   Widget _buildActiveView(
     ShadThemeData theme,
