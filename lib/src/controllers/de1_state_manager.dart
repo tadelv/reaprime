@@ -136,8 +136,8 @@ class De1StateManager with WidgetsBindingObserver {
     _logger.fine('Navigation context ready: $_navigationContextReady');
   }
 
-  /// Returns true if the home screen is the current top-level route.
-  bool get _isHomeScreenActive {
+  /// Returns true if the launcher is the current top-level route.
+  bool get _isLauncherActive {
     final context = _navigatorKey.currentContext;
     if (context == null || !context.mounted) return false;
     final navigator = Navigator.of(context);
@@ -386,8 +386,8 @@ class De1StateManager with WidgetsBindingObserver {
   /// to the realtime shot feature regardless of gateway mode. Otherwise, falls
   /// back to gateway-mode-specific behavior.
   void _handleEspressoState(MachineSnapshot snapshot, GatewayMode gatewayMode) {
-    // Navigate to realtime feature if home screen is showing, regardless of mode
-    if (_appIsInForeground && _isHomeScreenActive) {
+    // Navigate to realtime feature if launcher is showing, regardless of mode
+    if (_appIsInForeground && _isLauncherActive) {
       _handleDisabledModeForEspresso();
       return;
     }
@@ -407,12 +407,12 @@ class De1StateManager with WidgetsBindingObserver {
 
   /// Handles steam state based on the current gateway mode.
   ///
-  /// If the home screen is active and the app is in the foreground, navigates
+  /// If the launcher is active and the app is in the foreground, navigates
   /// to the realtime steam feature regardless of gateway mode. Otherwise, falls
   /// back to gateway-mode-specific behavior.
   void _handleSteamState(MachineSnapshot snapshot, GatewayMode gatewayMode) {
-    // Navigate to realtime feature if home screen is showing, regardless of mode
-    if (_appIsInForeground && _isHomeScreenActive) {
+    // Navigate to realtime feature if launcher is showing, regardless of mode
+    if (_appIsInForeground && _isLauncherActive) {
       _handleDisabledModeForSteam();
       return;
     }

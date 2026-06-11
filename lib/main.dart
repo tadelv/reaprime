@@ -65,7 +65,7 @@ import 'package:reaprime/src/controllers/scan_state_guardian.dart';
 import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 
 import 'src/app.dart';
-import 'src/home_feature/home_feature.dart';
+import 'src/launcher/launcher_view.dart';
 import 'src/services/foreground_service.dart';
 import 'src/settings/settings_controller.dart';
 import 'src/settings/settings_service.dart';
@@ -955,7 +955,7 @@ class _AppRootState extends State<AppRoot> {
               final navigator = NavigationService.navigatorKey.currentState;
               if (navigator != null) {
                 navigator.pushNamedAndRemoveUntil(
-                  HomeScreen.routeName,
+                  LauncherView.routeName,
                   (_) => false,
                 );
               }
