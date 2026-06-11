@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/connection_error.dart';
@@ -7,93 +5,19 @@ import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scan_state_guardian.dart';
 import 'package:reaprime/src/models/adapter_state.dart';
-import 'package:reaprime/src/models/device/de1_interface.dart';
-import 'package:reaprime/src/models/device/device.dart' as dev;
-import 'package:reaprime/src/models/device/scale.dart' as device_scale;
 import 'package:reaprime/src/models/scan_report.dart';
 import 'package:reaprime/src/onboarding_feature/onboarding_controller.dart';
 import 'package:reaprime/src/onboarding_feature/steps/scan_step.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
-import 'package:rxdart/rxdart.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../helpers/mock_connection_manager.dart';
 import '../helpers/mock_de1_controller.dart';
 import '../helpers/mock_device_discovery_service.dart';
 import '../helpers/mock_device_scanner.dart';
 import '../helpers/mock_scale_controller.dart';
 import '../helpers/mock_settings_service.dart';
 import '../helpers/test_scale.dart';
-
-/// Minimal De1Interface stub for testing.
-class _FakeDe1 implements De1Interface {
-  @override
-  final String deviceId;
-
-  @override
-  final String name;
-
-  @override
-  dev.DeviceType get type => dev.DeviceType.machine;
-
-  @override
-  Stream<dev.ConnectionState> get connectionState =>
-      Stream.value(dev.ConnectionState.connected);
-
-  _FakeDe1({this.deviceId = 'fake-de1', String? name})
-      : name = name ?? 'DE1-$deviceId';
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => null;
-}
-
-/// A [ConnectionManager] subclass that gives tests direct control over the
-/// status stream and records `connect()` calls, without requiring real
-/// device scanning infrastructure.
-class MockConnectionManager extends ConnectionManager {
-  final _statusOverride = BehaviorSubject<ConnectionStatus>.seeded(
-    const ConnectionStatus(phase: ConnectionPhase.scanning),
-  );
-
-  int connectCallCount = 0;
-  ScanReport? _lastScanReport;
-
-  MockConnectionManager({
-    required super.deviceScanner,
-    required super.de1Controller,
-    required super.scaleController,
-    required super.settingsController,
-  });
-
-  @override
-  Stream<ConnectionStatus> get status => _statusOverride.stream;
-
-  @override
-  ConnectionStatus get currentStatus => _statusOverride.value;
-
-  @override
-  ScanReport? get lastScanReport => _lastScanReport;
-
-  void setLastScanReport(ScanReport? report) => _lastScanReport = report;
-
-  void emitStatus(ConnectionStatus status) => _statusOverride.add(status);
-
-  @override
-  Future<void> connect({bool scaleOnly = false}) async {
-    connectCallCount++;
-  }
-
-  @override
-  Future<void> connectMachine(De1Interface machine) async {}
-
-  @override
-  Future<void> connectScale(device_scale.Scale scale) async {}
-
-  @override
-  Future<void> dispose() async {
-    _statusOverride.close();
-    await super.dispose();
-  }
-}
 
 class _TrackingOnboardingController extends OnboardingController {
   int advanceCallCount = 0;
@@ -522,7 +446,7 @@ void main() {
       // Configure a preferred machine ID that won't match found devices
       await settingsController.setPreferredMachineId('preferred-123');
 
-      final differentMachine = _FakeDe1(deviceId: 'other-456');
+      final differentMachine = FakeDe1(deviceId: 'other-456');
 
       // Add the device to the discovery service so DeviceSelectionWidget sees it
       deviceDiscoveryService.addDevice(differentMachine);
@@ -552,7 +476,7 @@ void main() {
     testWidgets(
         'shows normal header when preferred machine is among found machines',
         (tester) async {
-      final machine = _FakeDe1(deviceId: 'preferred-123');
+      final machine = FakeDe1(deviceId: 'preferred-123');
       await settingsController.setPreferredMachineId('preferred-123');
 
       deviceDiscoveryService.addDevice(machine);
@@ -583,7 +507,7 @@ void main() {
         'shows normal header when no preferred machine is configured',
         (tester) async {
       // No preferred machine set (default)
-      final machine = _FakeDe1(deviceId: 'some-machine');
+      final machine = FakeDe1(deviceId: 'some-machine');
 
       deviceDiscoveryService.addDevice(machine);
       await deviceControllerWithDevices.initialize();
@@ -611,7 +535,7 @@ void main() {
 
       final differentScale =
           TestScale(deviceId: 'other-scale-456', name: 'Other Scale');
-      final machine = _FakeDe1(deviceId: 'machine-1');
+      final machine = FakeDe1(deviceId: 'machine-1');
 
       deviceDiscoveryService.addDevice(machine);
       deviceDiscoveryService.addDevice(differentScale);
