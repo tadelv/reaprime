@@ -24,7 +24,7 @@ Flags:
 
 - `--platform <id>` — forwarded as `-d <id>` to flutter (`macos`, `linux`, `chrome`, or an Android adb serial like `8734SCCFAC00000747`).
 - `--connect-machine <name|id>` — sets `--dart-define=preferredMachineId=<value>` and triggers a post-boot scan loop. Simulate: `MockDe1`. Real BLE: the advertised name (`DE1`) or the MAC (`D9:11:0B:E6:9F:86`) — the scan loop matches either.
-- `--connect-scale <name|id>` — same semantics for the scale. Simulate example: `MockScale` (note the REST `name` field is `"Mock Scale"` with a space; the flag takes the dart-define identifier without one).
+- `--connect-scale <name|id>` — same semantics for the scale. Simulate example: `MockScale` — that's the scale's `deviceId`; its display `name` in `/api/v1/devices` is `"Mock Scale"` (with a space).
 - `--real` — skip injecting `--dart-define=simulate=1`. Mock device registration is compiled out, so only real transports (BLE, USB serial, HDS) will discover devices.
 - `--adb-forward` — before spawning flutter, run `adb forward tcp:$PORT tcp:$PORT` so the readiness check and all `curl` calls against `localhost:$PORT` reach the REST server on an Android device. Removed on `stop`.
 - `--dart-define key=val` — repeatable passthrough for extra defines.

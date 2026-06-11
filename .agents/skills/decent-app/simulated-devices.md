@@ -9,7 +9,7 @@ Registered in `lib/src/services/simulated_device_service.dart`:
 | Type    | Internal id         | REST `name` field | Source |
 |---------|---------------------|-------------------|--------|
 | Machine | `MockDe1`           | `MockDe1`         | `lib/src/models/device/impl/mock_de1/mock_de1.dart` |
-| Scale   | `MockScale`         | `Mock Scale`      | `lib/src/models/device/impl/mock_scale/mock_scale.dart` |
+| Scale   | `MockScale`         | `Mock Scale`      | `lib/src/models/device/impl/mock_scale/mock_scale.dart` (id is `MockScale`; `name` carries the space) |
 | Sensor  | `MockSensorBasket`  | `SensorBasket`    | `lib/src/models/device/impl/sensor/mock/mock_sensor_basket.dart` |
 | Sensor  | `MockDebugPort`     | `DebugPort`       | `lib/src/models/device/impl/sensor/mock/mock_debug_port.dart` |
 
@@ -73,4 +73,4 @@ On Linux the app documents dir is under `$HOME/.local/share/reaprime/` (or `$XDG
 ## Known weirdness
 
 - **First scan can be empty.** `SimulatedDeviceService.enabledDevices` is populated by a `settingsController` listener (`lib/main.dart` ~line 349). If you scan before that listener fires, `scanForDevices()` returns with no devices and the stream emits nothing. `sb-dev connect_machine` works around this with a 30s re-scan loop; a manual `curl /api/v1/devices/scan?connect=true` may need retrying.
-- **`MockScale` identifier vs REST name mismatch.** The dart-define / `sb-dev --connect-scale` value is `MockScale` (no space), but the scale's `name` field returned by `/api/v1/devices` is `"Mock Scale"` (with a space). Pass `MockScale` as the flag; filter on `"Mock Scale"` when parsing the devices list. The `MockDe1` machine uses the same string (`"MockDe1"`) for both, so it has no such quirk.
+- **Scale id `MockScale` vs display name `Mock Scale`.** The scale's `deviceId` is `MockScale` (no space) — that's what you pass to `preferredScaleId` / `sb-dev --connect-scale` and what matches in connection policy. Its human-facing `name` field returned by `/api/v1/devices` is `"Mock Scale"` (with a space), so filter on `"Mock Scale"` when matching by name. The `MockDe1` machine uses the same string for both.

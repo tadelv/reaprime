@@ -104,13 +104,13 @@ void main() {
       expect(controller.preferredMachineId, 'MockDe1');
     });
 
-    test('sets preferred scale ID to Mock Scale when scale enabled', () {
+    test('sets preferred scale ID to MockScale when scale enabled', () {
       final spy = _SpySettingsService();
       final controller = SettingsController(spy);
 
       controller.enableSimulatedDevicesForSession({SimulatedDevicesTypes.scale});
 
-      expect(controller.preferredScaleId, 'Mock Scale');
+      expect(controller.preferredScaleId, 'MockScale');
     });
 
     test('does NOT set preferred machine ID when only scale enabled', () {
@@ -130,7 +130,7 @@ void main() {
         {SimulatedDevicesTypes.machine, SimulatedDevicesTypes.scale},
       );
       expect(controller.preferredMachineId, 'MockDe1');
-      expect(controller.preferredScaleId, 'Mock Scale');
+      expect(controller.preferredScaleId, 'MockScale');
 
       controller.enableSimulatedDevicesForSession({});
 

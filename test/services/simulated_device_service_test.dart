@@ -67,8 +67,8 @@ void main() {
       expect(identical(firstMachine, secondMachine), isTrue,
           reason: 'rescan must not replace the existing MockDe1 instance');
 
-      final firstScale = first.firstWhere((d) => d.deviceId == 'Mock Scale');
-      final secondScale = second.firstWhere((d) => d.deviceId == 'Mock Scale');
+      final firstScale = first.firstWhere((d) => d.deviceId == 'MockScale');
+      final secondScale = second.firstWhere((d) => d.deviceId == 'MockScale');
       expect(identical(firstScale, secondScale), isTrue,
           reason: 'rescan must not replace the existing MockScale instance');
     });
@@ -80,7 +80,7 @@ void main() {
       final firstEmission = service.devices.first;
       await service.scanForDevices();
       final first = await firstEmission;
-      final scale = first.firstWhere((d) => d.deviceId == 'Mock Scale');
+      final scale = first.firstWhere((d) => d.deviceId == 'MockScale');
       await scale.onConnect();
       expect(await scale.connectionState.first, ConnectionState.connected);
 
@@ -89,7 +89,7 @@ void main() {
       final secondEmission = service.devices.first;
       await service.scanForDevices();
       final second = await secondEmission;
-      final scaleAfter = second.firstWhere((d) => d.deviceId == 'Mock Scale');
+      final scaleAfter = second.firstWhere((d) => d.deviceId == 'MockScale');
       expect(await scaleAfter.connectionState.first, ConnectionState.connected,
           reason: 'rescan replaced the connected scale with a discovered one');
     });
