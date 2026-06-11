@@ -54,9 +54,9 @@ import 'package:reaprime/src/settings/device_management_page.dart';
 import 'package:reaprime/src/settings/advanced_page.dart';
 import 'package:reaprime/src/settings/plugins_settings_view.dart';
 import 'package:reaprime/src/skin_selector/skin_selector_page.dart';
-import 'debug_feature/sample_item_details_view.dart';
+import 'debug_feature/debug_item_details_view.dart';
 
-import 'debug_feature/sample_item_list_view.dart';
+import 'debug_feature/debug_item_list_view.dart';
 import 'settings/gateway_mode.dart';
 import 'settings/settings_controller.dart';
 import 'settings/settings_view.dart';
@@ -404,8 +404,8 @@ class _MyAppState extends State<MyApp> {
                           },
                         ),
                       );
-                    case SampleItemListView.routeName:
-                      return SampleItemListView(
+                    case DebugItemListView.routeName:
+                      return DebugItemListView(
                         controller: widget.deviceController,
                         connectionManager: widget.connectionManager,
                       );

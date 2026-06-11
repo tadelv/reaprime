@@ -4,14 +4,14 @@ import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:reaprime/src/models/device/scale.dart';
-import 'package:reaprime/src/debug_feature/sample_item_details_view.dart';
+import 'package:reaprime/src/debug_feature/debug_item_details_view.dart';
 import 'package:reaprime/src/debug_feature/scale_debug_view.dart';
 import 'package:shadcn_ui/shadcn_ui.dart' hide Scale;
 
 /// Displays a list of discovered devices grouped by type, with Inspect and
 /// Connect actions.
-class SampleItemListView extends StatelessWidget {
-  const SampleItemListView({
+class DebugItemListView extends StatelessWidget {
+  const DebugItemListView({
     super.key,
     required this.controller,
     required this.connectionManager,
