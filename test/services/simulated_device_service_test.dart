@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/bengle/mock_bengle.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
@@ -44,6 +45,53 @@ void main() {
       // count by deviceId instead.
       final ids = devices.map((d) => d.deviceId).toSet();
       expect(ids, containsAll(['MockDe1', 'MockBengle']));
+    });
+
+    test('reuses the same device instances across repeated scans', () async {
+      final service = SimulatedDeviceService();
+      service.enabledDevices = {
+        SimulatedDevicesTypes.machine,
+        SimulatedDevicesTypes.scale,
+      };
+
+      final firstEmission = service.devices.first;
+      await service.scanForDevices();
+      final first = await firstEmission;
+
+      final secondEmission = service.devices.first;
+      await service.scanForDevices();
+      final second = await secondEmission;
+
+      final firstMachine = first.firstWhere((d) => d.deviceId == 'MockDe1');
+      final secondMachine = second.firstWhere((d) => d.deviceId == 'MockDe1');
+      expect(identical(firstMachine, secondMachine), isTrue,
+          reason: 'rescan must not replace the existing MockDe1 instance');
+
+      final firstScale = first.firstWhere((d) => d.deviceId == 'Mock Scale');
+      final secondScale = second.firstWhere((d) => d.deviceId == 'Mock Scale');
+      expect(identical(firstScale, secondScale), isTrue,
+          reason: 'rescan must not replace the existing MockScale instance');
+    });
+
+    test('keeps a connected device connected across a rescan', () async {
+      final service = SimulatedDeviceService();
+      service.enabledDevices = {SimulatedDevicesTypes.scale};
+
+      final firstEmission = service.devices.first;
+      await service.scanForDevices();
+      final first = await firstEmission;
+      final scale = first.firstWhere((d) => d.deviceId == 'Mock Scale');
+      await scale.onConnect();
+      expect(await scale.connectionState.first, ConnectionState.connected);
+
+      // A subsequent scan (e.g. the preferred-scale reconnect retry) must
+      // not clobber the connected instance with a fresh `discovered` one.
+      final secondEmission = service.devices.first;
+      await service.scanForDevices();
+      final second = await secondEmission;
+      final scaleAfter = second.firstWhere((d) => d.deviceId == 'Mock Scale');
+      expect(await scaleAfter.connectionState.first, ConnectionState.connected,
+          reason: 'rescan replaced the connected scale with a discovered one');
     });
 
     test('removes MockBengle when bengle becomes disabled', () async {

@@ -37,24 +37,30 @@ class SimulatedDeviceService
     if (enabledDevices.isEmpty) {
       return;
     }
+    // Reuse existing instances across scans. Creating a fresh Mock* on
+    // every scan would discard a device that is already `connected`,
+    // replacing it with a new `discovered` one — orphaning the
+    // controller-held connection and leaving /devices stuck on
+    // `discovered`. `putIfAbsent` preserves the live instance; a
+    // disabled device is removed and re-created fresh on re-enable.
     if (enabledDevices.contains(SimulatedDevicesTypes.machine)) {
-      _devices["MockDe1"] = MockDe1();
+      _devices.putIfAbsent("MockDe1", () => MockDe1());
     } else {
       _devices.remove("MockDe1");
     }
     if (enabledDevices.contains(SimulatedDevicesTypes.bengle)) {
-      _devices["MockBengle"] = MockBengle();
+      _devices.putIfAbsent("MockBengle", () => MockBengle());
     } else {
       _devices.remove("MockBengle");
     }
     if (enabledDevices.contains(SimulatedDevicesTypes.scale)) {
-      _devices["MockScale"] = MockScale();
+      _devices.putIfAbsent("MockScale", () => MockScale());
     } else {
       _devices.remove("MockScale");
     }
     if (enabledDevices.contains(SimulatedDevicesTypes.sensor)) {
-      _devices["MockSensorBasket"] = MockSensorBasket();
-      _devices["MockDebugPort"] = MockDebugPort();
+      _devices.putIfAbsent("MockSensorBasket", () => MockSensorBasket());
+      _devices.putIfAbsent("MockDebugPort", () => MockDebugPort());
     } else {
       _devices.remove("MockSensorBasket");
       _devices.remove("MockDebugPort");
