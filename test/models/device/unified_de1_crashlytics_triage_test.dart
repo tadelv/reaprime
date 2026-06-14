@@ -115,9 +115,11 @@ void main() {
         );
 
         await sub.cancel();
+        // onConnect's first MMR read now retries (3 * 4s + settle) against
+        // the silent stub before throwing MmrTimeoutException; allow headroom.
         await onConnectFuture;
       },
-      timeout: const Timeout(Duration(seconds: 10)),
+      timeout: const Timeout(Duration(seconds: 20)),
     );
   });
 

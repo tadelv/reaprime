@@ -60,6 +60,12 @@ class FakeBleTransport extends BLETransport {
   /// Ordered writes seen by the transport.
   final List<FakeBleWrite> writes = [];
 
+  /// Number of upcoming matching MMR read requests whose notification is
+  /// silently dropped (the queued response is left intact for a retry).
+  /// Simulates the Android post-connect notify-loss the `_mmrReadRaw`
+  /// retry guards against.
+  int dropNextMmrResponses = 0;
+
   /// Queue an integer to be returned when a read request to [item] hits
   /// the MMR write characteristic.
   void queueMmrResponseInt(MmrAddress item, int value) {
@@ -146,6 +152,12 @@ class FakeBleTransport extends BLETransport {
     // when the test has queued a response for the requested address.
     if (characteristicUUID != Endpoint.readFromMMR.uuid) return;
     if (data.length < 4) return;
+    // Drop this notification (but keep the queued response) to simulate a
+    // lost notify; the retry's next write will be answered.
+    if (dropNextMmrResponses > 0) {
+      dropNextMmrResponses--;
+      return;
+    }
     final addrMid1 = data[1];
     final addrMid2 = data[2];
     final addrLow = data[3];
