@@ -675,6 +675,78 @@ void main() {
       },
     );
 
+    test('suppresses weight and flow to 0 until the pour-time tare', () {
+      fakeAsync((async) {
+        // A cup is already sitting on the scale when the shot begins — its
+        // weight (and the noise-flow off it) must not leak into the trace
+        // before the scale is tared for the pour.
+        scaleController.emitWeight(80.0, weightFlow: 1.2);
+
+        final shotSequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          targetYield: 36.0,
+          bypassSAW: false,
+          blockOnNoScale: false,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+        );
+
+        final recorded = <ShotSnapshot>[];
+        shotSequencer.shotData.listen(recorded.add);
+
+        async.elapse(Duration(milliseconds: 10));
+
+        // idle → preheating: the preparing-for-shot frame is recorded but
+        // pre-tare, so it must read 0 despite the 80g cup on the platter.
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.preparingForShot,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        // Still preheating, scale still shows the cup — still suppressed.
+        scaleController.emitWeight(80.1, weightFlow: 0.4);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.preparingForShot,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        // preheating → pouring: the pour-time tare fires here. This frame is
+        // gated before the transition, so it is still 0...
+        scaleController.emitWeight(0.0, weightFlow: 0.0);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouring,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        // ...and subsequent pour samples flow through for real.
+        scaleController.emitWeight(18.0, weightFlow: 2.0);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouring,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(
+          recorded.map((s) => s.scale?.weight).toList(),
+          [0.0, 0.0, 0.0, 18.0],
+          reason: 'pre-tare frames are 0; real weight only after the pour tare',
+        );
+        expect(
+          recorded.map((s) => s.scale?.weightFlow).toList(),
+          [0.0, 0.0, 0.0, 2.0],
+          reason: 'flow off the un-tared cup must not leak either',
+        );
+
+        shotSequencer.dispose();
+      });
+    });
+
     test('non-scale shot finishes immediately, with no settling window', () {
       fakeAsync((async) {
         // No scale: the settling window only exists to catch scale drips, so
