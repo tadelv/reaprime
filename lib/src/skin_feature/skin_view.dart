@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -7,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:logging/logging.dart';
+import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/home_feature/widgets/quick_settings_widget.dart';
 import 'package:reaprime/src/services/telemetry/boot_timing.dart';
 import 'package:reaprime/src/services/webview_compatibility_checker.dart';
@@ -586,7 +588,7 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
       // its cached '/' and falls through to the network.
       initialUrlRequest: URLRequest(url: WebUri(_skinUrl)),
       initialSettings: _createSettings(),
-      initialUserScripts: _simulatedDeviceScripts(simulatedDevice),
+      initialUserScripts: _initialUserScripts(simulatedDevice),
       onWebViewCreated: (controller) {
         _log.info('InAppWebView created');
         _webViewController = controller;
@@ -693,6 +695,60 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
           }
         });
       },
+    );
+  }
+
+  /// Scripts injected into the skin at document start, before any page script
+  /// runs. Always carries the host-identity beacon; appends the simulated-device
+  /// shims only in the macOS debug harness.
+  UnmodifiableListView<UserScript> _initialUserScripts(
+    SimulatedWebViewDevice? simulatedDevice,
+  ) {
+    return UnmodifiableListView<UserScript>([
+      _hostIdentityScript(),
+      ...?_simulatedDeviceScripts(simulatedDevice),
+    ]);
+  }
+
+  /// A deterministic "you are inside reaprime" beacon for skins.
+  ///
+  /// Skins serve from localhost:3000, which is *also* reachable from an ordinary
+  /// browser on the tablet's :3000 port — so a skin needs a reliable way to tell
+  /// "embedded in reaprime" apart from "opened in a browser" (e.g. Beanie shows a
+  /// full-screen tap-to-wake overlay only inside reaprime). The webview user-agent
+  /// override ("Decent") isn't dependable — some Android System WebView builds
+  /// drop it — and the flutter_inappwebview JS bridge is gated by a bridge secret
+  /// in v6 and isn't reliably exposed as a page global. This user script is the
+  /// dependable signal: injected at document start in the page content world, so
+  /// it's visible to skin JS regardless of UA or bridge state, and it never exists
+  /// in a plain browser because it isn't part of the served HTML.
+  UserScript _hostIdentityScript() {
+    // jsonEncode the whole payload so quotes/newlines in any value can't break
+    // out of the injected source. Platform.operatingSystem already yields
+    // 'android'/'ios'/'macos'/'windows'/'linux'.
+    final payload = jsonEncode({
+      'app': 'decent.app',
+      'platform': Platform.operatingSystem,
+      'version': BuildInfo.version,
+      'build': BuildInfo.buildNumber,
+      'commit': BuildInfo.commitShort,
+    });
+    return UserScript(
+      source:
+          '''
+(function () {
+  try {
+    Object.defineProperty(window, '__DECENT_HOST__', {
+      value: Object.freeze($payload),
+      configurable: false,
+      writable: false,
+      enumerable: false
+    });
+  } catch (_) {}
+})();
+''',
+      injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+      contentWorld: ContentWorld.PAGE,
     );
   }
 
