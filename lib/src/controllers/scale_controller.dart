@@ -107,6 +107,8 @@ class ScaleController {
     _scale = null;
     _scaleConnection = null;
     _flowCalculator = FlowCalculator(windowDuration: smoothingWindowDuration);
+    _lastSnapshotTime = null;
+    _flowSettleUntil = null;
   }
 
   Scale connectedScale() {
@@ -135,16 +137,50 @@ class ScaleController {
     windowDuration: smoothingWindowDuration,
   );
 
+  /// Latest scale-clock timestamp seen. Used to time the post-tare flow-settle
+  /// window off the scale's own clock rather than the wall clock.
+  DateTime? _lastSnapshotTime;
+
+  /// Until this scale-clock time, report `weightFlow` as 0. A tare steps the
+  /// weight discontinuously, and the windowed flow derived across that step is
+  /// a meaningless spike (e.g. a phantom ~5 g/s right after taring). We keep
+  /// feeding the calculator so it refills, but suppress its output for one
+  /// smoothing window so the spike never reaches consumers. Null = not
+  /// settling.
+  DateTime? _flowSettleUntil;
+
+  /// Tare the connected scale and swallow the resulting flow spike.
+  ///
+  /// Route tare requests through here (rather than `connectedScale().tare()`)
+  /// so the controller can drop the flow history accumulated across the tare's
+  /// weight discontinuity and suppress flow for one smoothing window — without
+  /// that, a phantom flow transient leaks into the shot trace and the
+  /// visualizer right after each tare. Throws [DeviceNotConnectedException] if
+  /// no scale is connected.
+  Future<void> tare() async {
+    final scale = connectedScale();
+    await scale.tare();
+    _flowCalculator = FlowCalculator(windowDuration: smoothingWindowDuration);
+    weightFlowAverage = MovingAverage(10);
+    _flowSettleUntil = _lastSnapshotTime?.add(smoothingWindowDuration);
+  }
+
   void _processSnapshot(ScaleSnapshot snapshot) {
+    _lastSnapshotTime = snapshot.timestamp;
     final flow = _flowCalculator.addSample(snapshot.timestamp, snapshot.weight);
 
     weightFlowAverage.add(flow); // Use your existing average queue
+
+    // Suppress the flow transient a tare introduces until the smoothing window
+    // has cleared the discontinuity. Weight itself stays truthful throughout.
+    final settling = _flowSettleUntil != null &&
+        snapshot.timestamp.isBefore(_flowSettleUntil!);
 
     _weightSnapshotController.add(
       WeightSnapshot(
         timestamp: snapshot.timestamp,
         weight: snapshot.weight,
-        weightFlow: weightFlowAverage.average,
+        weightFlow: settling ? 0.0 : weightFlowAverage.average,
         battery: snapshot.batteryLevel,
         timerValue: snapshot.timerValue,
       ),

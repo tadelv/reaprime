@@ -46,6 +46,12 @@ class _TrackingScale implements Scale {
   Future<void> stopTimer() async {}
   @override
   Future<void> resetTimer() async {}
+
+  void emitAt(DateTime t, double weight) => _snap.add(ScaleSnapshot(
+        timestamp: t,
+        weight: weight,
+        batteryLevel: 50,
+      ));
 }
 
 /// A handoff-capable scale (like the BLE Decent Scale) that records whether it
@@ -154,6 +160,54 @@ void main() {
     expect(a.disconnected, isFalse,
         reason: 'same-device reconnect should not toggle disconnect');
 
+    controller.dispose();
+  });
+
+  test(
+      'tare suppresses the flow transient for one smoothing window without '
+      'touching weight', () async {
+    final controller = ScaleController();
+    final scale = _TrackingScale('A');
+    await controller.connectToScale(scale);
+
+    final frames = <WeightSnapshot>[];
+    final sub = controller.weightSnapshot.listen(frames.add);
+
+    final t0 = DateTime(2026, 1, 1, 12, 0, 0);
+    // Pre-tare samples build up weight (and therefore a real flow reading) and
+    // establish the latest scale-clock timestamp.
+    scale.emitAt(t0, 10.0);
+    scale.emitAt(t0.add(const Duration(milliseconds: 100)), 14.0);
+    await Future.delayed(Duration.zero);
+    expect(frames.last.weightFlow, greaterThan(0),
+        reason: 'real flow flows before any tare');
+
+    await controller.tare();
+
+    // Within one smoothing window (600ms) of the last pre-tare sample the scale
+    // drops to ~0 — the spike that would otherwise appear must be suppressed,
+    // but the (truthful) weight still passes through.
+    scale.emitAt(t0.add(const Duration(milliseconds: 200)), 0.0);
+    scale.emitAt(t0.add(const Duration(milliseconds: 500)), 0.0);
+    await Future.delayed(Duration.zero);
+    final settleFrames = frames
+        .where((f) => f.timestamp.isAfter(t0.add(const Duration(milliseconds: 150))))
+        .toList();
+    expect(settleFrames, isNotEmpty);
+    expect(settleFrames.every((f) => f.weightFlow == 0), isTrue,
+        reason: 'the post-tare flow transient must be suppressed');
+    expect(frames.last.weight, 0.0,
+        reason: 'weight itself is never suppressed by tare');
+
+    // Past the smoothing window, real flow resumes from a clean baseline.
+    scale.emitAt(t0.add(const Duration(milliseconds: 800)), 4.0);
+    scale.emitAt(t0.add(const Duration(milliseconds: 900)), 8.0);
+    await Future.delayed(Duration.zero);
+    expect(frames.last.weight, 8.0);
+    expect(frames.last.weightFlow, greaterThan(0),
+        reason: 'real flow resumes once the window has cleared');
+
+    await sub.cancel();
     controller.dispose();
   });
 }

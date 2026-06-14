@@ -92,6 +92,10 @@ class ShotSequencer {
       "Initializing ShotSequencer (weightFlowMultiplier: $_weightFlowMultiplier, volumeFlowMultiplier: $_volumeFlowMultiplier, machineHasAutonomousSAW: $_machineHasAutonomousSAW)",
     );
 
+    // When the app won't tare (SAW bypass), trust the scale's readings as-is —
+    // there's no app-side tare to gate on.
+    _scaleTared = _bypassSAW;
+
     final scaleConnected =
         scaleController.currentConnectionState == device.ConnectionState.connected;
 
@@ -198,10 +202,39 @@ class ShotSequencer {
   final double targetYield;
   ShotState _state = ShotState.idle;
   bool _scaleLost = false;
+
+  /// Whether this shot's scale has been tared for the pour yet. Flips `true`
+  /// when the app issues the pour-time tare (the preheating→pouring
+  /// transition). Until then the scale's absolute reading is whatever sits on
+  /// the platter (cup, portafilter, residual drips) and the derived flow is
+  /// noise — so we report 0 for both rather than feed pre-tare garbage into the
+  /// recorded trace and the visualizer upload. Gating through the whole
+  /// preheat (rather than flipping at the earlier preparing-for-shot tare)
+  /// also sidesteps the in-flight-tare race: by the pour the scale has
+  /// physically settled to zero. Seeded `true` when the app won't tare (SAW
+  /// bypass, e.g. Bengle's autonomous SAW) — there's no app-side tare to wait
+  /// for, so the scale's own readings are trusted as-is.
+  bool _scaleTared = false;
   StreamSubscription<device.ConnectionState>? _scaleConnectionSubscription;
 
   void _processSnapshot(ShotSnapshot snapshot) {
     _log.finest("Processing snapshot");
+
+    // Until the scale is tared for this shot, suppress its weight and flow:
+    // the pre-tare reading reflects whatever is resting on the scale, not the
+    // beverage, and the flow derived from it is noise.
+    if (!_scaleTared && snapshot.scale != null) {
+      final raw = snapshot.scale!;
+      snapshot = snapshot.copyWith(
+        scale: WeightSnapshot(
+          timestamp: raw.timestamp,
+          weight: 0,
+          weightFlow: 0,
+          battery: raw.battery,
+          timerValue: raw.timerValue,
+        ),
+      );
+    }
 
     // Update volume calculation
     final snapshotWithVolume = _updateVolume(snapshot);
@@ -278,7 +311,9 @@ class ShotSequencer {
             _log.info(
               "Machine getting ready. Taring scale and resetting timer...",
             );
-            scaleController.connectedScale().tare();
+            scaleController.tare().catchError(
+              (e) => _log.warning("Failed to tare scale at shot start", e),
+            );
             scaleController.connectedScale().resetTimer();
           }
           _state = ShotState.preheating;
@@ -292,8 +327,11 @@ class ShotSequencer {
             machine.state.substate == MachineSubstate.pouring) {
           if (_bypassSAW == false && scale != null && !_scaleLost) {
             _log.info("Taring scale again and starting timer.");
-            scaleController.connectedScale().tare();
+            scaleController.tare().catchError(
+              (e) => _log.warning("Failed to tare scale for pour", e),
+            );
             scaleController.connectedScale().startTimer();
+            _scaleTared = true;
           }
 
           // Start volume counting when shot begins

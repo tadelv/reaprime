@@ -14,7 +14,7 @@ class ScaleHandler {
         case 'tare':
           _log.fine("handling api tare command");
           try {
-            await _controller.connectedScale().tare();
+            await _controller.tare();
           } catch (e) {
             return jsonError({'error': e.toString()});
           }
