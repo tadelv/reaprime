@@ -80,13 +80,15 @@ void main() {
     test(
       'throws MmrTimeoutException when no matching response arrives',
       () async {
-        // getSteamFlow -> _readMMRScaled -> _readMMRInt -> _mmrRead
+        // getSteamFlow -> _readMMRScaled -> _readMMRInt -> _mmrRead.
+        // _mmrRead now retries (3 attempts * 4s + settle ~= 12.6s) before
+        // throwing, so allow headroom past the per-attempt timeout.
         await expectLater(
           () => de1.getSteamFlow(),
           throwsA(isA<MmrTimeoutException>()),
         );
       },
-      timeout: const Timeout(Duration(seconds: 10)),
+      timeout: const Timeout(Duration(seconds: 20)),
     );
   });
 }

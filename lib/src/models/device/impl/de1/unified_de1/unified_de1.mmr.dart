@@ -5,6 +5,20 @@ part of 'unified_de1.dart';
 /// entire connect call chain forever. See comms-harden #2.
 const _mmrReadTimeout = Duration(seconds: 4);
 
+/// Extra read attempts before giving up (total attempts = retries + 1).
+/// On Android the notify subscription can report success during the
+/// post-connect GATT-busy window yet drop the first response — the same
+/// init-timing fragility flutter_blue_plus documents for `setNotifyValue`
+/// (#656 ERROR_GATT_WRITE_REQUEST_BUSY, #771 writeDescriptor returned
+/// false). A single dropped notify on the first `onConnect` read
+/// (`v13Model`) used to abort the entire connect; re-issuing the read a
+/// few times naturally defers past the busy window. The upstream 30s
+/// connect timeout still caps a genuinely unresponsive device.
+const _mmrReadRetries = 2;
+
+/// Settle between MMR read attempts so the GATT stack can quiesce.
+const _mmrReadRetrySettle = Duration(milliseconds: 300);
+
 extension UnifiedDe1MMR on UnifiedDe1 {
   Future<List<int>> _mmrRead(MMRItem item, {int length = 0}) =>
       _mmrReadRaw(item.address, length: length, label: item.name);
@@ -18,45 +32,57 @@ extension UnifiedDe1MMR on UnifiedDe1 {
   Future<List<int>> _mmrReadRaw(int address,
       {int length = 0, String? label}) async {
     final logLabel = label ?? '0x${address.toRadixString(16)}';
-    _log.info("mmr read: $logLabel");
     ByteData bytes = ByteData(20);
     bytes.setInt32(0, address, Endian.big);
     var buffer = bytes.buffer.asUint8List();
     buffer[0] = (length % 0xFF);
 
-    _log.fine(
-      'sending read req ${buffer.map((e) => e.toRadixString(16)).toList()}',
-    );
+    for (var attempt = 0;; attempt++) {
+      _log.info(
+        "mmr read: $logLabel${attempt > 0 ? ' (retry $attempt)' : ''}",
+      );
+      _log.fine(
+        'sending read req ${buffer.map((e) => e.toRadixString(16)).toList()}',
+      );
 
-    // Subscribe BEFORE writing to avoid race where the response arrives
-    // between writeWithResponse completing and firstWhere subscribing.
-    final responseFuture = _mmr
-        .map((d) => d.buffer.asUint8List().toList())
-        .firstWhere((element) {
-          if (buffer[1] == element[1] &&
-              buffer[2] == element[2] &&
-              buffer[3] == element[3]) {
-            return true;
-          } else {
-            return false;
-          }
-        }, orElse: () => <int>[])
-        .timeout(
-          _mmrReadTimeout,
-          onTimeout: () =>
-              throw MmrTimeoutException(logLabel, _mmrReadTimeout),
+      // Subscribe BEFORE writing to avoid race where the response arrives
+      // between writeWithResponse completing and firstWhere subscribing.
+      // A timeout (or a closed stream) yields an empty list so the loop can
+      // retry; only the final attempt throws MmrTimeoutException — keeping
+      // the exception type that `shouldForwardToTelemetry` filters on.
+      final responseFuture = _mmr
+          .map((d) => d.buffer.asUint8List().toList())
+          .firstWhere(
+            (element) =>
+                buffer[1] == element[1] &&
+                buffer[2] == element[2] &&
+                buffer[3] == element[3],
+            orElse: () => <int>[],
+          )
+          .timeout(_mmrReadTimeout, onTimeout: () => <int>[]);
+
+      await _transport.writeWithResponse(
+        Endpoint.readFromMMR,
+        Uint8List.fromList(buffer),
+      );
+
+      final result = await responseFuture;
+      if (result.isNotEmpty) {
+        _log.info(
+          "listen event Result:  ${result.map((e) => e.toRadixString(16)).toList()}",
         );
+        return result;
+      }
 
-    await _transport.writeWithResponse(
-      Endpoint.readFromMMR,
-      Uint8List.fromList(buffer),
-    );
-
-    var result = await responseFuture;
-    _log.info(
-      "listen event Result:  ${result.map((e) => e.toRadixString(16)).toList()}",
-    );
-    return result;
+      if (attempt >= _mmrReadRetries) {
+        throw MmrTimeoutException(logLabel, _mmrReadTimeout);
+      }
+      _log.warning(
+        'mmr read $logLabel timed out (attempt ${attempt + 1} of '
+        '${_mmrReadRetries + 1}), retrying',
+      );
+      await Future<void>.delayed(_mmrReadRetrySettle);
+    }
   }
 
   /// Address-only MMR write for capability mixins; see [_mmrReadRaw].
