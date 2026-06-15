@@ -631,6 +631,40 @@ void main() {
         controller.dispose();
       });
     });
+
+    test('restores brightness on wake even when the sleep->idle edge is missed',
+        () {
+      fakeAsync((async) {
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
+        controller.initialize();
+        async.flushMicrotasks();
+
+        de1Controller.setDe1(testDe1);
+        async.flushMicrotasks();
+
+        // Awake at full brightness, then the skin blacks the screen for sleep.
+        controller.setBrightness(100);
+        testDe1.emitState(MachineState.sleeping);
+        async.flushMicrotasks();
+        controller.setBrightness(0);
+        async.flushMicrotasks();
+        expect(controller.currentState.brightness, 0);
+
+        // A BLE reconnect during sleep swaps in a fresh De1Interface, resetting
+        // the controller's last-seen machine state to null. The reconnected
+        // stream is already awake (idle), so the sleeping->idle transition is
+        // never observed: an edge-triggered restore misses it and leaves the
+        // screen stuck dark. The restore must instead fire off the awake state.
+        final reconnected = _TestDe1();
+        de1Controller.setDe1(reconnected);
+        async.flushMicrotasks();
+
+        expect(controller.currentState.brightness, 100);
+
+        controller.dispose();
+      });
+    });
   });
 
   group('battery brightness cap', () {
