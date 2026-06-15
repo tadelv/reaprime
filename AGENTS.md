@@ -60,8 +60,10 @@ Prerequisites: `bash`, `curl`, `jq`, `websocat`, `flutter`, and POSIX `mkfifo` (
 | Purpose | Path |
 |---------|------|
 | Project instructions | `CLAUDE.md` |
+| Contributing guide & guards | `CONTRIBUTING.md` |
 | TDD workflow | `.claude/skills/tdd-workflow/SKILL.md` |
 | Plans (before commit) | `doc/plans/` |
 | API reference | `doc/Api.md` |
 | API specs (OpenAPI) | `assets/api/rest_v1.yml`, `assets/api/websocket_v1.yml` |
+| PR template | `.github/pull_request_template.md` |
 | Detailed docs | `doc/*.md` |
