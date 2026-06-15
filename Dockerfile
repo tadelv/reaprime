@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl git unzip xz-utils zip ca-certificates \
     libglu1-mesa clang llvm lld cmake ninja-build pkg-config \
     libgtk-3-dev liblzma-dev libserialport-dev \
+    libsecret-1-dev libjsoncpp-dev \
  && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /opt/flutter
