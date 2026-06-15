@@ -39,9 +39,14 @@ dependencies:
   path_provider: ^2.1.5
   archive: ^4.0.7
   equatable: ^2.0.7
-  universal_ble: ^1.1.0
+  universal_ble: ^2.0.4
   shared_preferences: ^2.5.3
+  # share_plus HELD at 12.x — 13.x requires win32 ^6, which conflicts with
+  # file_picker 11's win32 ^5.9 pin. 13.x is only SDK-floor bumps, no API gain.
   share_plus: ^12.0.2
+  # saf_util/saf_stream HELD at 2.x — 3.x migrated to AGP 9, which requires
+  # Gradle 9.4.1+ and enforces built-in Kotlin (hard-fails KGP-applying
+  # plugins). Bump only after the AGP 9 migration. See pubspec KGP note.
   saf_util: ^2.0.0
   saf_stream: ^2.0.0
   # maybe one day? https://github.com/AurelienBallier/flutter_libserialport
@@ -78,11 +83,16 @@ dependencies:
   firebase_performance: ^0.11.1+3
   firebase_analytics: ^12.1.0
   http: ^1.2.2
-  flutter_secure_storage: ^9.2.4
+  flutter_secure_storage: ^10.3.1
+  # network_info_plus HELD at 7.x — 8.x needs win32 ^6, blocked by file_picker
+  # 11's win32 ^5.9 (same cohort as share_plus 13 / saf 3). Windows-only dep.
   network_info_plus: ^7.0.0
   window_manager: ^0.5.1
   flutter_inappwebview: ^6.2.0-beta
-  device_info_plus: ^12.3.0
+  # device_info_plus HELD at 12.x — same win32-6 cohort (see share_plus /
+  # network_info_plus notes). The whole +plus major wave is blocked by
+  # file_picker 11's win32 ^5.9 pin until file_picker 12 (currently beta) ships.
+  device_info_plus: ^12.4.0
   circular_buffer: ^0.13.0
   crypto: ^3.0.3
   cryptography: ^2.7.0
