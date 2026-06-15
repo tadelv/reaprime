@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/transport/ble_timeout_exception.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/services/ble/ble_exception_mapper.dart';
 import 'package:reaprime/src/services/ble/char_subscriptions.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -127,7 +128,7 @@ class AndroidBluePlusTransport implements BLETransport {
           await _device.disconnect(queue: false, timeout: 5).catchError((_) {});
           await Future.delayed(delay);
         } else {
-          rethrow;
+          throw mapFbpConnectError(e);
         }
       }
     }

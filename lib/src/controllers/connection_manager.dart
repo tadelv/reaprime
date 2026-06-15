@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
-import 'package:flutter_blue_plus/flutter_blue_plus.dart'
-    show FlutterBluePlusException;
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/connection/disconnect_expectations.dart';
 import 'package:reaprime/src/controllers/connection/disconnect_supervisor.dart';
@@ -16,6 +14,7 @@ import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/transport/ble_connect_exception.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle_virtual_scale.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/adapter_state.dart';
@@ -224,9 +223,10 @@ class ConnectionManager {
   void _emit(ConnectionError err) => _statusPublisher.emitError(err);
 
   /// Build a [ConnectionError] for a failed connect attempt. Pulls out
-  /// `fbp_code` / `fbp_description` when the caught exception is a
-  /// [FlutterBluePlusException]; otherwise stashes the stringified
-  /// exception under `details.exception`.
+  /// `ble_code` / `ble_description` when the caught exception is a
+  /// [BleConnectException] (the domain type transports map their native
+  /// BLE error into); otherwise stashes the stringified exception under
+  /// `details.exception`.
   ConnectionError _buildConnectError({
     required String kind,
     required String deviceId,
@@ -236,12 +236,12 @@ class ConnectionManager {
     required Object exception,
   }) {
     Map<String, dynamic>? details;
-    if (exception is FlutterBluePlusException) {
+    if (exception is BleConnectException) {
       final map = <String, dynamic>{
-        if (exception.code != null) 'fbp_code': exception.code,
+        if (exception.code != null) 'ble_code': exception.code,
         if (exception.description != null)
-          'fbp_description': exception.description,
-        if (exception.function.isNotEmpty) 'fbp_function': exception.function,
+          'ble_description': exception.description,
+        if (exception.function != null) 'ble_function': exception.function,
       };
       details = map.isEmpty ? null : map;
     } else {

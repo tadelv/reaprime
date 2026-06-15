@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/transport/ble_timeout_exception.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/services/ble/ble_exception_mapper.dart';
 import 'package:reaprime/src/services/ble/char_subscriptions.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -48,7 +49,11 @@ class BluePlusTransport implements BLETransport {
       if (e.platform == ErrorPlatform.android && e.code == 133) {
         // try auto re-connect again
         _log.warning("MTU negotiation failed, attempting re-connect");
-        await _device.connect(license: License.free);
+        try {
+          await _device.connect(license: License.free);
+        } on FlutterBluePlusException catch (e2) {
+          throw mapFbpConnectError(e2);
+        }
       }
     }
   }

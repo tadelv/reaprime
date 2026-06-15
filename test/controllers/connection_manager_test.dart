@@ -1,8 +1,6 @@
 import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart'
-    show FlutterBluePlusException, ErrorPlatform;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/connection_error.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
@@ -11,6 +9,7 @@ import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/device/transport/ble_connect_exception.dart';
 import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/models/scan_report.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
@@ -1063,10 +1062,10 @@ void main() {
       });
 
       test(
-          'emits machineConnectFailed with fbp_code in details when '
-          'FlutterBluePlusException thrown', () async {
-        mockDe1Controller.failNextConnectWith = FlutterBluePlusException(
-            ErrorPlatform.fbp, 'connect', 133, 'GATT Error 133');
+          'emits machineConnectFailed with ble_code in details when '
+          'BleConnectException thrown', () async {
+        mockDe1Controller.failNextConnectWith = BleConnectException(
+            code: '133', description: 'GATT Error 133', function: 'connect');
         final fakeDe1 = _FailingFakeDe1(deviceId: 'D9:11:0B:E6:9F:86');
 
         try {
@@ -1075,7 +1074,7 @@ void main() {
         await Future<void>.delayed(Duration.zero);
 
         final err = connectionManager.currentStatus.error!;
-        expect(err.details, containsPair('fbp_code', 133));
+        expect(err.details, containsPair('ble_code', '133'));
       });
     });
 
@@ -1166,17 +1165,18 @@ void main() {
       });
 
       test(
-          'emits scaleConnectFailed with fbp_code in details when '
-          'FlutterBluePlusException thrown', () async {
-        mockScaleController.failNextConnectWith = FlutterBluePlusException(
-            ErrorPlatform.fbp, 'connect', 1, 'Timed out');
+          'emits scaleConnectFailed with ble_code in details when '
+          'BleConnectException thrown', () async {
+        mockScaleController.failNextConnectWith = BleConnectException(
+            code: 'connectionFailed', description: 'Timed out',
+            function: 'connect');
         final fakeScale =
             TestScale(deviceId: '50:78:7D:1F:AE:E1', name: 'Decent Scale');
 
         await connectionManager.connectScale(fakeScale);
 
         final err = connectionManager.currentStatus.error!;
-        expect(err.details, containsPair('fbp_code', 1));
+        expect(err.details, containsPair('ble_code', 'connectionFailed'));
       });
 
       test('rejects concurrent scale connection attempts', () async {
