@@ -303,13 +303,21 @@ class DisplayController {
 
     if (previousState == _currentMachineState) return;
 
-    // Save brightness before sleep; restore when machine wakes
+    // Save the user's brightness before sleep; restore it whenever the machine
+    // is awake again. This is deliberately keyed off the awake *condition*, not
+    // the precise sleeping->idle edge: if that edge is ever lost — e.g. a BLE
+    // reconnect resets our last-seen state to null, or we start up against an
+    // already-sleeping machine — an edge-triggered restore leaves the screen
+    // stuck dark with no recovery. Level-triggering self-heals on the next
+    // snapshot instead.
     if (_currentMachineState == MachineState.sleeping) {
-      _preSleepBrightness = _requestedBrightness;
-    } else if (previousState == MachineState.sleeping &&
-        (_currentMachineState == MachineState.idle ||
-            _currentMachineState == MachineState.schedIdle)) {
-      _log.info('Machine woke from sleep, restoring brightness');
+      // Never capture a dimmed value: a skin drives brightness to 0 for its
+      // sleep screen, and remembering that would "restore" to black next wake.
+      if (_requestedBrightness > 0) {
+        _preSleepBrightness = _requestedBrightness;
+      }
+    } else if (_requestedBrightness == 0 && _preSleepBrightness > 0) {
+      _log.info('Awake with screen still dimmed — restoring brightness');
       unawaited(setBrightness(_preSleepBrightness));
     }
 
