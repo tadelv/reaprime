@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/services/ble/ble_exception_mapper.dart';
 import 'package:rxdart/subjects.dart';
 import 'package:universal_ble/universal_ble.dart';
 
@@ -30,10 +31,14 @@ class UniversalBleTransport implements BLETransport {
         d ? device.ConnectionState.connected : device.ConnectionState.disconnected,
       );
     });
-    await UniversalBle.connect(
-      _device.deviceId,
-      timeout: Duration(seconds: 10),
-    );
+    try {
+      await UniversalBle.connect(
+        _device.deviceId,
+        timeout: Duration(seconds: 10),
+      );
+    } on UniversalBleException catch (e) {
+      throw mapUniversalConnectError(e);
+    }
   }
 
   @override
@@ -135,7 +140,19 @@ class UniversalBleTransport implements BLETransport {
 
   @override
   Future<void> setTransportPriority(bool prioritized) async {
-    // no implementation (for now)
+    // Android-only in universal_ble 2.x; throws `notSupported` elsewhere.
+    if (!BleCapabilities.supportsConnectionPriorityApi) return;
+    try {
+      await UniversalBle.requestConnectionPriority(
+        _device.deviceId,
+        prioritized
+            ? BleConnectionPriority.highPerformance
+            : BleConnectionPriority.balanced,
+      );
+    } on UniversalBleException catch (e) {
+      // Best-effort hint; never fail a connection over it.
+      _log.fine("requestConnectionPriority not applied: ${e.code}");
+    }
   }
 
   @override

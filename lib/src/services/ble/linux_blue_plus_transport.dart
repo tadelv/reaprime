@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/transport/ble_timeout_exception.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/services/ble/ble_exception_mapper.dart';
 import 'package:reaprime/src/services/ble/char_subscriptions.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -101,10 +102,14 @@ class LinuxBluePlusTransport implements BLETransport {
     // BlueZ handles MTU negotiation automatically via L2CAP, and
     // requesting an MTU at connect time can cause "Operation not
     // permitted" errors or connection failures on some BlueZ versions.
-    await _device.connect(
-      license: License.free,
-      timeout: const Duration(seconds: 15),
-    );
+    try {
+      await _device.connect(
+        license: License.free,
+        timeout: const Duration(seconds: 15),
+      );
+    } on FlutterBluePlusException catch (e) {
+      throw mapFbpConnectError(e);
+    }
 
     // Post-connect settle delay for BlueZ.
     // The connection is reported as established, but BlueZ may still
