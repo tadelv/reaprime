@@ -35,7 +35,6 @@ import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/services/android_updater.dart';
-import 'package:reaprime/src/services/blue_plus_discovery_service.dart';
 import 'package:reaprime/src/services/ble/linux_ble_discovery_service.dart';
 import 'package:reaprime/src/services/wifi/wifi_scale_discovery_service.dart';
 import 'package:reaprime/src/services/database/database.dart' hide Workflow;
@@ -287,14 +286,12 @@ void main() async {
     // - Connection retry logic with backoff
     // - Sequential device processing with settle delays
     bleDiscoveryService = LinuxBleDiscoveryService();
-  } else if (Platform.isWindows || Platform.isMacOS || Platform.isIOS) {
-    // Phase 1 of the flutter_blue_plus → universal_ble migration: macOS and
-    // iOS join Windows on the single universal_ble stack. Android stays on
-    // flutter_blue_plus until Phase 2. See
-    // doc/plans/flutter-blue-plus-to-universal-ble-migration.md.
-    bleDiscoveryService = UniversalBleDiscoveryService();
   } else {
-    bleDiscoveryService = BluePlusDiscoveryService();
+    // flutter_blue_plus → universal_ble migration: every non-Linux platform
+    // (Windows, macOS, iOS as of Phase 1; Android as of Phase 2) runs on the
+    // single universal_ble stack. Linux stays on flutter_blue_plus until
+    // Phase 3. See doc/plans/flutter-blue-plus-to-universal-ble-migration.md.
+    bleDiscoveryService = UniversalBleDiscoveryService();
   }
 
   services.add(bleDiscoveryService);
