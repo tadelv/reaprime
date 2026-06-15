@@ -1,13 +1,9 @@
 # Issue Tracker
 
-Issues for this repo are tracked in Obsidian, not GitHub Issues.
+**For contributors:** GitHub Issues on `tadelv/reaprime` is the canonical issue tracker. Open issues, feature requests, and bug reports there.
 
-Use the **`obsidian-todo-sync`** skill for all issue operations:
-- creating new issues
-- listing/searching open work
-- updating status, priority, or notes
-- triage workflow (apply labels per `doc/agents/triage-labels.md`)
+**For the maintainer (Vid):** A personal Obsidian vault is used for priority tracking, sprint planning, and day-to-day task management. This is private and not part of the contributor workflow.
 
-Skills like `to-issues`, `triage`, `to-prd`, `qa` should invoke `obsidian-todo-sync` instead of `gh issue` commands.
+When an agent is helping the maintainer with personal task management, use the `obsidian-todo-sync` skill. When helping with public-facing issue work (triage, labeling, closing), use GitHub Issues (`gh issue` commands).
 
-GitHub Issues on `tadelv/reaprime` is **not** the canonical tracker.
+Skills like `to-issues`, `triage`, `to-prd` should default to GitHub Issues unless the maintainer explicitly asks for Obsidian.
