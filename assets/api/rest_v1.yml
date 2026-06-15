@@ -3743,14 +3743,16 @@ paths:
   /api/v1/logs:
     get:
       summary: Get recent log entries
-      description: Returns the last N kilobytes of the app log file. Query parameter `kb` controls the size (default: 16).
+      description: |
+      Returns the last N kilobytes of the app log file. Query parameter `kb` controls the size (default: 16).
       tags: [System]
       parameters:
         - name: kb
           in: query
           schema:
             type: integer
-          description: Number of kilobytes to return (default: 16)
+          description: |
+          Number of kilobytes to return (default: 16)
       responses:
         "200":
           description: Recent log entries as plain text
