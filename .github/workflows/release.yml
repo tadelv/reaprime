@@ -24,7 +24,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          flutter-version: '3.41.8'
+          flutter-version: '3.44.2'
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -101,7 +101,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          flutter-version: '3.41.8'
+          flutter-version: '3.44.2'
 
       - name: Install dependencies
         run: |
@@ -240,7 +240,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          flutter-version: '3.41.8'
+          flutter-version: '3.44.2'
 
       - name: Install dependencies
         run: flutter pub get
@@ -296,7 +296,7 @@ jobs:
           # Flutter publishes no prebuilt arm64 Linux SDK; the master channel
           # path lets flutter-action git-clone the tagged version instead.
           channel: 'master'
-          flutter-version: '3.41.8'
+          flutter-version: '3.44.2'
 
       - name: Run git safe dir
         run: git config --global --add safe.directory /opt/hostedtoolcache/flutter/${{ steps.flutter-action.outputs.CHANNEL }}-${{ steps.flutter-action.outputs.VERSION }}-${{ steps.flutter-action.outputs.ARCHITECTURE }}
@@ -352,7 +352,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          flutter-version: '3.41.8'
+          flutter-version: '3.44.2'
 
       - name: Install nuget
         uses: nuget/setup-nuget@v2
@@ -412,7 +412,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          flutter-version: '3.41.8'
+          flutter-version: '3.44.2'
 
       - name: Install FlutterFire CLI
         run: dart pub global activate flutterfire_cli
