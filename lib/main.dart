@@ -287,7 +287,11 @@ void main() async {
     // - Connection retry logic with backoff
     // - Sequential device processing with settle delays
     bleDiscoveryService = LinuxBleDiscoveryService();
-  } else if (Platform.isWindows) {
+  } else if (Platform.isWindows || Platform.isMacOS || Platform.isIOS) {
+    // Phase 1 of the flutter_blue_plus → universal_ble migration: macOS and
+    // iOS join Windows on the single universal_ble stack. Android stays on
+    // flutter_blue_plus until Phase 2. See
+    // doc/plans/flutter-blue-plus-to-universal-ble-migration.md.
     bleDiscoveryService = UniversalBleDiscoveryService();
   } else {
     bleDiscoveryService = BluePlusDiscoveryService();
