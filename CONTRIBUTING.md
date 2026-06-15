@@ -1,91 +1,121 @@
 # Contributing to Decent.app
 
-Thanks for taking the time to contribute. This guide covers the basics so your PR lands smoothly.
+Thanks for contributing. This guide tells you what's required to land a PR — items marked **(required)** are hard gates, not suggestions.
 
-> **Naming note:** The display name is **Decent.app**. The repo, package, and bundle ID still use legacy `reaprime` / `streamline-bridge` identifiers — see the naming table in [`CLAUDE.md`](CLAUDE.md) before renaming anything.
+> **Naming note:** The display name is **Decent.app**. The repo, package, and bundle ID still use legacy `reaprime` / `streamline-bridge` identifiers. See the naming table in [`CLAUDE.md`](CLAUDE.md) before renaming anything.
 
-## Before you start
+## Quick Reference
 
-For non-trivial features, open an issue first to align on scope. Small fixes can go straight to a PR.
+| What | Where |
+|------|-------|
+| Architecture & conventions | [`CLAUDE.md`](CLAUDE.md) |
+| PR template | [`.github/pull_request_template.md`](.github/pull_request_template.md) |
+| API specs (authoritative) | `assets/api/rest_v1.yml`, `assets/api/websocket_v1.yml` |
+| API docs | [`doc/Api.md`](doc/Api.md) |
+| Dev-loop scripts | `scripts/sb-dev.sh` (macOS/Linux) |
+| CI checks | [`.github/workflows/pr-checks.yml`](.github/workflows/pr-checks.yml) |
+| Agent guidance (Cursor, Copilot, etc.) | [`AGENTS.md`](AGENTS.md) |
 
-## Local setup
+## Before You Start
 
-Requirements:
+- **Non-trivial features:** Open an issue first to align on scope.
+- **Small fixes** (typos, one-line bugs): Go straight to a PR.
+- **Read [`CLAUDE.md`](CLAUDE.md)** — it covers architecture, conventions, test patterns, and gotchas. Agents and humans both need it.
 
-- Flutter (stable channel)
-- Node.js 20+ (for the bundled DYE2 plugin)
-- Optional: a DE1 / Bengle machine and a compatible scale, or use simulated devices.
+## Local Setup
+
+Requirements: Flutter (stable), Node.js 20+ (for the DYE2 bundled plugin).
 
 ```bash
 flutter pub get
 (cd packages/dye2-plugin && npm ci && npm run build)
 
-# Run with simulated hardware (no machine/scale required):
+# Run with simulated hardware (no DE1 / scale required):
 flutter run --dart-define=simulate=1
 ```
 
-See [`CLAUDE.md`](CLAUDE.md) for the full command reference and architecture overview.
+See [`CLAUDE.md`](CLAUDE.md) for the full command reference.
 
-## Branch & PR workflow
+## Branching & PRs
 
-- Branch from `main`. Push the branch to your fork and open a PR against `tadelv/reaprime:main`.
-- Keep PRs focused — one feature or fix per PR.
-- Reference the issue you're closing in the PR description (`Fixes #123`).
-- A maintainer will review; expect a few rounds of feedback.
+- Branch from `main`. Push to your fork, open a PR against `tadelv/reaprime:main`.
+- One feature or fix per PR. No bundling unrelated changes.
+- Reference the issue: `Fixes #123` or `Related #123`.
+- A maintainer will review. Expect a few rounds of feedback.
+- **Do not push directly to `main`** — branch protection is active, and even with push access, direct pushes bypass reviews and CI.
 
-## Required checks
+## Guardrails (required)
 
-Every PR runs through [`.github/workflows/pr-checks.yml`](.github/workflows/pr-checks.yml). Before pushing, run the same checks locally:
+These are hard gates. PRs that skip them will be returned.
+
+### 1. Tests
+
+**New behavior needs a test.** Bug fixes need a regression test.
+
+| Tier | Location | When required |
+|------|----------|---------------|
+| Unit | `test/` | New logic, models, handlers, DAOs |
+| Integration | `test/` (mock transport edge) | Multi-component flows |
+| End-to-end | `.agents/skills/decent-app/scenarios/` | API surface changes |
+
+Web server handlers have a strong unit-test convention — see `test/services/webserver/de1handler_cup_warmer_test.dart` for the pattern.
+
+### 2. Spec & Docs (required)
+
+**Every API change must update the spec in the same PR.** The spec is authoritative — stale spec = stale agent knowledge.
+
+| Change | Update this |
+|--------|-------------|
+| REST endpoint added/changed | `assets/api/rest_v1.yml` + `doc/Api.md` |
+| WebSocket topic added/changed | `assets/api/websocket_v1.yml` + `doc/Api.md` |
+| Plugin event/API changed | `doc/Plugins.md` |
+| Skin behavior changed | `doc/Skins.md` |
+| Profile handling changed | `doc/Profiles.md` |
+| Device discovery/connection changed | `doc/DeviceManagement.md` |
+
+### 3. Local Gates (required)
+
+Run these before pushing. Same checks that CI runs:
 
 ```bash
-dart format --output=none --set-exit-if-changed lib test  # advisory for now
-flutter analyze
-flutter test
-(cd packages/dye2-plugin && npm run build)
+flutter analyze                          # must be clean — no new warnings
+flutter test                             # all must pass
+(cd packages/dye2-plugin && npm run build)  # plugin must build
 ```
 
-`dart format` is currently **advisory** in CI — the codebase predates the Dart 3.7 "tall style" formatter and a mass-reformat hasn't happened yet. Format your own changes (`dart format lib test`) but don't reformat untouched files in the same PR.
+`dart format` is currently **advisory** in CI — the codebase predates the Dart 3.7 "tall style" formatter. Format your own changes (`dart format lib test`) but don't reformat untouched files in the same PR.
 
-## Tests
+### 4. Architecture Boundaries (required)
 
-The project uses three test tiers:
+- **No 3rd-party BLE imports** outside `lib/src/services/ble/`. Wrap library-specific types at the transport boundary.
+- **Constructor dependency injection** — no service locators.
+- **Single Responsibility** — each controller/service has one job.
+- See [`CLAUDE.md` → Conventions & Gotchas](CLAUDE.md) for the full list.
 
-| Tier | Where | Mocks |
-|------|-------|-------|
-| Unit | `test/` | Direct collaborators |
-| Integration | `test/integration/` | Only the transport edge |
-| End-to-end | `.agents/skills/decent-app/scenarios/` (markdown recipes) | App runs in `simulate=1` mode |
+### 5. PR Template (required)
 
-**New behavior needs a test.** API handlers in `lib/src/services/webserver/` have a strong unit-test convention — see `test/services/webserver/de1handler_cup_warmer_test.dart` for a template.
+Fill out the PR template. Sections marked `(required)` must be completed. The template lives at [`.github/pull_request_template.md`](.github/pull_request_template.md).
 
-For the end-to-end smoke-test recipe (start app, drive it via `curl` / `websocat`), see [`.agents/skills/decent-app/verification.md`](.agents/skills/decent-app/verification.md).
+## Code Style
 
-## Documentation obligations
-
-These are not optional — the spec and docs are part of the API contract:
-
-- **REST or WebSocket change** → update `assets/api/rest_v1.yml` or `assets/api/websocket_v1.yml` **in the same PR**.
-- **User-facing API change** → update `doc/Api.md`.
-- **Plugin / skin / profile / device-management surface change** → update the matching file under `doc/`.
-
-Stale specs mislead clients and downstream agents.
-
-## Code style
-
-- `dart format` is the source of truth. CI fails on unformatted code.
+- `dart format` is the source of truth. Format your changes.
 - `flutter analyze` must be clean. Don't merge with new warnings.
-- No 3rd-party BLE library imports outside `lib/src/services/ble/` — wrap library-specific types at the transport boundary.
-- Constructor dependency injection, no service locators.
-- See [`CLAUDE.md`](CLAUDE.md) → *Conventions & Gotchas* for the full list (RxDart patterns, StreamBuilder rules, BLE discovery, workflow dual-representation, etc.).
+- Follow existing patterns in the file you're editing — don't introduce a different style.
+- Commits: Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`). Subject ≤72 chars. Explain the *why* in the body.
 
-## Commit messages
+## Commit Messages
 
-Conventional Commits style (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`). Keep the subject ≤72 chars; explain the *why* in the body when it isn't obvious from the diff.
+```
+feat: add cup warmer temperature control endpoint
 
-## License & sign-off
+Added GET/PUT /api/v1/de1/cup_warmer with temperature range
+validation (0–80°C). Updates rest_v1.yml spec and Api.md.
+```
 
-By submitting a PR you agree your contribution is licensed under the same terms as the rest of the repository. No CLA required.
+## License & Sign-Off
+
+By submitting a PR you agree your contribution is licensed under the same terms as the repository. No CLA required.
 
 ## Questions
 
-Open an issue or start a discussion. For agent-specific guidance (Claude Code / Cursor / etc.), see `AGENTS.md` and `CLAUDE.md`.
+Open an issue or start a discussion. For agent-specific guidance, see [`AGENTS.md`](AGENTS.md) and [`CLAUDE.md`](CLAUDE.md).

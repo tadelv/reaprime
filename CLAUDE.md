@@ -90,10 +90,11 @@ After every meaningful code change:
 Plans go in `doc/plans/`. Don't commit unless asked. After implementation, ask whether to update related docs.
 
 **Before opening a PR, merging locally, or considering work done:**
+0. **Fill out the PR template** at [`.github/pull_request_template.md`](.github/pull_request_template.md) — sections marked required are hard gates. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full contributing guide and guardrails.
 1. Move design docs from `doc/plans/` to `doc/plans/archive/<meaningful-subfolder-name>/`. The subfolder name should reflect the feature or fix (e.g., `app-store-readiness`, `scale-auto-connect`). Design docs are worth keeping — they capture the *why*, the rejected alternatives, and constraints that aren't obvious from code, all of which matter when debugging months later. Implementation plans (step-by-step task lists) are not worth archiving — once the work ships, the commit chain is more durable and authoritative; delete them instead.
 2. Check if any documentation needs updating based on the changes made — e.g., `doc/Api.md` if endpoints changed/added, `doc/Skins.md` if skin behavior changed, `doc/Plugins.md` if events changed/added, `doc/Profiles.md` if profile handling changed, `doc/DeviceManagement.md` if device flows changed, etc.
 
-Both steps are required, not optional.
+All three steps are required, not optional.
 
 ## Architecture
 
@@ -222,6 +223,8 @@ All Dart tests (unit + integration) live in `test/` and run via `flutter test`. 
 5. Update `doc/Api.md` if user-facing. Smoke-test via `scripts/sb-dev.sh` + `curl` — see `.agents/skills/decent-app/verification.md`
 
 ## Documentation
+
+**Contributing:** See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the PR template, guardrails, and contribution workflow.
 
 Detailed docs in `doc/`:
 - **`doc/Api.md`** — Full REST & WebSocket API reference (all endpoints, methods, payloads)
