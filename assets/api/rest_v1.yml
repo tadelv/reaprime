@@ -60,6 +60,7 @@ paths:
         no longer remembered when it next goes away. deviceId is taken from the
         JSON body or a query parameter (serial ids are paths and WiFi ids
         contain ':', so they are not URL-path-safe).
+      tags: [Devices]
       requestBody:
         required: false
         content:
@@ -3739,6 +3740,46 @@ paths:
                   - appStore
                   - fullVersion
                   - localIp
+  /api/v1/logs:
+    get:
+      summary: Get recent log entries
+      description: Returns the last N kilobytes of the app log file. Query parameter `kb` controls the size (default: 16).
+      tags: [System]
+      parameters:
+        - name: kb
+          in: query
+          schema:
+            type: integer
+          description: Number of kilobytes to return (default: 16)
+      responses:
+        "200":
+          description: Recent log entries as plain text
+          content:
+            text/plain:
+              schema:
+                type: string
+  /api/v1/webview/logs:
+    get:
+      summary: Get WebView console logs
+      description: Returns console log messages forwarded from in-app WebViews.
+      tags: [System]
+      responses:
+        "200":
+          description: WebView console log entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    timestamp:
+                      type: string
+                      format: date-time
+                    level:
+                      type: string
+                    message:
+                      type: string
   /api/v1/debug/scale/{command}:
     post:
       summary: Control mock scale (simulate mode only)

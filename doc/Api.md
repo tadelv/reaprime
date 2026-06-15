@@ -43,14 +43,16 @@ For browser clients on a different origin, `ETag` is exposed via `Access-Control
 | PUT | `/api/v1/machine/state/{newState}` | Request state change (`idle`, `sleep`, `espresso`, …) | |
 | GET | `/api/v1/machine/settings` | DE1 machine settings (temps, flows) | |
 | POST | `/api/v1/machine/settings` | Update machine settings | |
+| POST | `/api/v1/machine/shotSettings` | Update shot settings (steam temp, hot water, target volume, group temp) | |
 | GET | `/api/v1/machine/settings/advanced` | Advanced heater/phase settings | |
 | POST | `/api/v1/machine/settings/advanced` | Update advanced settings (heater phase flows/timeouts, idle temp, `heaterVoltage`, `refillKitSetting`) | |
 | DELETE | `/api/v1/machine/settings/reset` | Reset machine settings to defaults (fan, heater idle/phase flows + ph2 timeout, refill kit auto, flow multiplier 1.0, steam purge 0) | |
 | GET | `/api/v1/machine/calibration` | Flow estimation calibration | |
 | POST | `/api/v1/machine/calibration` | Update calibration | |
 | POST | `/api/v1/machine/profile` | Upload profile to machine | |
-| POST | `/api/v1/machine/usb-charger` | Toggle USB charger | |
-| POST | `/api/v1/machine/water-threshold` | Update water level threshold | |
+| POST | `/api/v1/machine/firmware` | Upload firmware image to machine (raw binary body) | |
+| — | USB charger | Controlled via `POST /api/v1/machine/settings` with `{"usb": "enable"}` or `{"usb": "disable"}` | |
+| POST | `/api/v1/machine/waterLevels` | Update water level threshold | |
 | GET | `/api/v1/machine/capabilities` | List capability identifiers (`cupWarmer`, `integratedScale`, `ledStrip`, `stopAtWeight`) supported by the connected machine | |
 | GET | `/api/v1/machine/cupWarmer` | Read cup-warmer setpoint °C — Bengle only, 404 elsewhere | |
 | PUT | `/api/v1/machine/cupWarmer` | Set cup-warmer setpoint °C (range 0.0–80.0, `0.0` = off) — Bengle only | |
@@ -222,14 +224,14 @@ Settings fields include: `gatewayMode`, `themeMode`, `logLevel`, `weightFlowMult
 |--------|------|-------------|---------|
 | GET | `/api/v1/display` | Display state (brightness, wakelock) | `display_handler.dart` |
 | POST | `/api/v1/display/brightness` | Set brightness | |
-| POST | `/api/v1/display/wakelock/request` | Request wakelock override | |
-| POST | `/api/v1/display/wakelock/release` | Release wakelock override | |
+| POST | `/api/v1/display/wakelock` | Request wakelock override | |
+| DELETE | `/api/v1/display/wakelock` | Release wakelock override | |
 
 ### Presence & Sleep
 
 | Method | Path | Description | Handler |
 |--------|------|-------------|---------|
-| POST | `/api/v1/presence/heartbeat` | Signal user presence (keep-alive) | `presence_handler.dart` |
+| POST | `/api/v1/machine/heartbeat` | Signal user presence (keep-alive) | `presence_handler.dart` |
 | GET | `/api/v1/presence/settings` | Get presence/sleep settings | |
 | POST | `/api/v1/presence/settings` | Update presence/sleep settings | |
 | GET | `/api/v1/presence/schedules` | List wake schedules | |
@@ -243,16 +245,16 @@ Settings fields include: `gatewayMode`, `themeMode`, `logLevel`, `weightFlowMult
 |--------|------|-------------|---------|
 | GET | `/api/v1/sensors` | List connected sensors | `sensors_handler.dart` |
 | GET | `/api/v1/sensors/:id` | Get sensor manifest | |
-| POST | `/api/v1/sensors/:id/command` | Execute sensor command | |
+| POST | `/api/v1/sensors/:id/execute` | Execute sensor command | |
 
 ### Key-Value Store
 
 | Method | Path | Description | Handler |
 |--------|------|-------------|---------|
-| GET | `/api/v1/kv/:namespace` | List keys in namespace | `kv_store_handler.dart` |
-| GET | `/api/v1/kv/:namespace/:key` | Get value | |
-| PUT | `/api/v1/kv/:namespace/:key` | Set value | |
-| DELETE | `/api/v1/kv/:namespace/:key` | Delete key | |
+| GET | `/api/v1/store/:namespace` | List keys in namespace | `kv_store_handler.dart` |
+| GET | `/api/v1/store/:namespace/:key` | Get value | |
+| POST | `/api/v1/store/:namespace/:key` | Set value | |
+| DELETE | `/api/v1/store/:namespace/:key` | Delete key | |
 
 ### Data Management
 
@@ -282,7 +284,7 @@ The **proxy** lets clients *use* the account without ever seeing the credentials
 | GET | `/api/v1/info` | Build metadata (version, commit, branch) + gateway LAN IP (`localIp`) | `info_handler.dart` |
 | POST | `/api/v1/feedback` | Submit feedback (creates GitHub issue) | `feedback_handler.dart` |
 | GET | `/api/v1/logs` | Recent log entries | `logs_handler.dart` |
-| GET | `/api/v1/webview-logs` | WebView console log forwarding | `webview_logs_handler.dart` |
+| GET | `/api/v1/webview/logs` | WebView console log forwarding | `webview_logs_handler.dart` |
 
 ### Debug (simulate mode only)
 
@@ -306,13 +308,14 @@ All WebSocket endpoints are on port 8080 at `/ws/v1/...`. See [`assets/api/webso
 |------|-------------|------|
 | `/ws/v1/machine/snapshot` | Machine state stream (~10Hz) | Temps, pressures, flow, state |
 | `/ws/v1/scale/snapshot` | Scale weight/flow stream. Stays open across scale disconnects; emits `{"status":"connected"\|"disconnected"}` frames on state change. | Weight, flow, battery |
-| `/ws/v1/machine/shot-settings` | Shot settings changes | Target temp, volume, weight |
-| `/ws/v1/machine/water-levels` | Water level changes | Current/limit levels |
+| `/ws/v1/machine/shotSettings` | Shot settings changes | Target temp, volume, weight |
+| `/ws/v1/machine/waterLevels` | Water level changes | Current/limit levels |
 | `/ws/v1/machine/raw` | Raw BLE characteristic data | Hex-encoded bytes |
 | `/ws/v1/devices` | Device discovery + `ConnectionManager` status (phase, found devices, ambiguity, errors). Also accepts `scan`/`connect`/`disconnect` commands. | Device list, `connectionStatus` |
 | `/ws/v1/sensors/:id/snapshot` | Sensor data stream | Sensor-specific |
 | `/ws/v1/plugins/:id/:endpoint` | Plugin WebSocket proxy | Plugin-specific |
 | `/ws/v1/logs` | App log stream | Timestamped log entries |
+| `/ws/v1/webview/logs` | WebView console log stream | WebView console messages |
 | `/ws/v1/display` | Display state changes | Brightness, wakelock |
 
 ### `connectionStatus.error`

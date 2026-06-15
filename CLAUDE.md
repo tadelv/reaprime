@@ -27,8 +27,9 @@ Decent.app (display name) is a Flutter gateway app for Decent Espresso machines.
 ```bash
 # Run
 ./flutter_with_commit.sh run              # Standard (injects git commit version)
-flutter run --dart-define=simulate=1      # Simulated devices (no hardware needed)
-flutter run --dart-define=simulate=machine  # Simulate machine only (comma-separated: machine,scale)
+flutter run --dart-define=simulate=1      # All simulated devices (no hardware needed)
+flutter run --dart-define=simulate=machine,scale  # Specific types: machine, bengle, scale, sensor
+flutter run --dart-define=simulate=bengle         # Bengle only (integrated scale included)
 
 # Test & Lint
 flutter test                              # All tests
@@ -131,10 +132,15 @@ All three steps are required, not optional.
 - **`PresenceController`:** Client presence/keep-alive tracking
 - **`DisplayController`:** Display/screen management
 - **`FeedbackController`:** Feedback submission orchestration
+- **`De1StateManager`:** Central state→behavior orchestrator. Listens to machine state transitions, manages scale power (sleep/wake on machine state), handles gateway mode logic (full/tracking/disabled), triggers scale re-scans, manages shot/steam sequencing via `ShotSequencer` and `SteamSequencer`, navigates to realtime features in disabled mode.
+- **`ShotSequencer`:** Owned by `De1StateManager` — manages shot lifecycle (timer start/stop, measurement recording, persistence) for a single shot. Recreated per shot.
+- **`SteamSequencer`:** Owned by `De1StateManager` — manages steam session lifecycle (start on steam entry, finalize on exit, record `SteamSnapshot`).
+- **`RememberedDevicesController`:** Persists devices the user connected to (machine + scale) across restarts. Feeds the `available` field in device list — remembered but offline devices show as `state: "disconnected"`.
+- **`ScanStateGuardian`:** Guards against overlapping BLE scans and tracks adapter state across scan attempts.
 
 ### Storage
 
-Persistence uses Drift (SQLite) via `AppDatabase` in `lib/src/services/database/`. DAOs in `daos/` subfolder, mappers in `mappers/`. Storage service interfaces in `lib/src/services/storage/`, all backed by Drift implementations: `StorageService` (shots, workflow), `ProfileStorageService` (profiles), `BeanStorageService` (beans + batches), `GrinderStorageService` (grinders).
+Persistence uses Drift (SQLite) via `AppDatabase` for main data (shots, workflows, beans, grinders, settings). Profiles use a separate Hive key-value store through `HiveProfileStorageService`. DAOs in `daos/` subfolder, mappers in `mappers/`.
 
 **Ambiguous imports:** Domain models and Drift-generated code share class names (`ShotRecord`, `Workflow`, `ProfileRecord`). Use prefixed imports: `import '...shot_record.dart' as domain;` or `hide Workflow` on the database import.
 
@@ -148,7 +154,7 @@ Full endpoint reference in **[`doc/Api.md`](doc/Api.md)**. OpenAPI specs in `ass
 
 ### Dev-loop skill
 
-Driving a running Flutter app (start, stop, hot reload, curl, websocat) is documented in `.agents/skills/decent-app/`. Entry point: `.agents/skills/decent-app/README.md`. Lifecycle is managed by `scripts/sb-dev.sh` (POSIX shell, macOS/Linux only). Prefer `sb-dev reload` (preserves state) over `sb-dev hot-restart`. For end-to-end smoke-testing a change, see `.agents/skills/decent-app/verification.md` and the regression recipes under `.agents/skills/decent-app/scenarios/`.
+Driving a running Flutter app (start, stop, hot reload, curl, websocat) is documented in `.agents/skills/decent-app/`. Entry point: `.agents/skills/decent-app/SKILL.md`. Lifecycle is managed by `scripts/sb-dev.sh` (POSIX shell, macOS/Linux only). Prefer `sb-dev reload` (preserves state) over `sb-dev hot-restart`. For end-to-end smoke-testing a change, see `.agents/skills/decent-app/verification.md` and the regression recipes under `.agents/skills/decent-app/scenarios/`.
 
 ### Data Flow (key paths)
 
@@ -156,6 +162,8 @@ Driving a running Flutter app (start, stop, hot reload, curl, websocat) is docum
 2. **Machine State:** Transport messages → DE1 parses → `De1Controller` broadcasts → WebSocket + Plugins
 3. **API Requests:** HTTP → Shelf router → Handler → Controller → Device
 4. **Connection Flow:** `ConnectionManager.connect()` → scan → apply preferred-device policy → connect machine → connect scale. Status stream drives `DeviceDiscoveryView` UI (phases: idle → scanning → connectingMachine → connectingScale → ready)
+5. **Machine Wake → Scale Reconnect:** `De1StateManager` detects sleep→idle transition → checks scale power mode → delegates to `ConnectionManager.scanAndConnectScale()`
+6. **Disconnect/Reconnect:** `DisconnectSupervisor` watches `De1Controller.de1` + `ScaleController.connectionState` → on drop, resets phase to `idle`, fires error event. `ConnectionManager` owns reconnect policy (preferred-device, one policy for all transports).
 
 ## Conventions & Gotchas
 
@@ -234,13 +242,17 @@ Detailed docs in `doc/`:
 - **`doc/DeviceManagement.md`** — Device discovery and connection management
 - **`doc/RELEASE.md`** — Release process and versioning
 - **`.agents/skills/decent-app/`** — Dev-loop skill: `sb-dev` lifecycle, REST/WebSocket recipes, simulated devices, verification scenarios
+- **`doc/agents/domain.md`** — Domain language, vocabulary conventions, no CONTEXT.md policy
+- **`doc/agents/issue-tracker.md`** — Issue tracking policy (GitHub Issues canonical for contributors)
+- **`doc/agents/triage-labels.md`** — Triage label taxonomy
+- **`.agents/skills/decent-app/`** — Dev-loop skill: `sb-dev` lifecycle, REST/WebSocket recipes, simulated devices, verification scenarios
 - **`packages/dye2-plugin/README.md`** — DYE2 bundled plugin (architecture, build, dev server, extension guide)
 
 ## Agent skills
 
 ### Issue tracker
 
-Issues tracked via Obsidian — use the `obsidian-todo-sync` skill for all create/list/update/triage operations. See `doc/agents/issue-tracker.md`.
+GitHub Issues on `tadelv/reaprime` is the canonical tracker for contributors. The maintainer also uses a personal Obsidian vault for priority tracking — see `doc/agents/issue-tracker.md`.
 
 ### Triage labels
 

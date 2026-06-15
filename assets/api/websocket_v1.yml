@@ -84,6 +84,12 @@ channels:
     messages:
       logMessage:
         $ref: '#/components/messages/LogMessage'
+  WebviewLogs:
+    description: Subscribe to WebView console log messages forwarded from in-app WebViews.
+    address: ws/v1/webview/logs
+    messages:
+      logMessage:
+        $ref: '#/components/messages/LogMessage'
   Devices:
     description: >
       Bidirectional channel for device list state and commands.
@@ -145,6 +151,10 @@ operations:
     action: receive
     channel:
       $ref: '#/channels/Logs'
+  webviewLogMessage:
+    action: receive
+    channel:
+      $ref: '#/channels/WebviewLogs'
   devicesState:
     action: receive
     channel:

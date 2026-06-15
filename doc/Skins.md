@@ -335,12 +335,19 @@ Content-Type: application/json
 You can update individual settings - only include the fields you want to change.
 
 #### Toggle USB Charger
+
+The USB charger is toggled through the machine settings endpoint:
+
 ```http
-PUT /api/v1/machine/usb/enable
-PUT /api/v1/machine/usb/disable
+POST /api/v1/machine/settings
+Content-Type: application/json
+
+{"usb": "enable"}
 ```
 
-Enables or disables USB charging port on the machine.
+Set `"usb"` to `"enable"` to turn the charger on, or `"disable"` to turn it off.
+
+The DE1 firmware re-enables the charger on its own, so the app re-applies the desired state periodically.
 
 #### Update Water Level Threshold
 ```http
