@@ -280,7 +280,7 @@ class _WaterLevel extends StatelessWidget {
 
             return _StatusChip(
               icon: LucideIcons.glassWaterDir,
-              label: '${levels.currentLevel.toInt()}%',
+              label: '${levels.currentLevel.toInt()}mm',
               color: low ? Colors.orange : null,
             );
           },

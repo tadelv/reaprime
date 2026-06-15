@@ -49,8 +49,8 @@ extension MessageParsing on UnifiedDe1 {
       var waterThreshold = data.getUint16(2, Endian.big);
 
       return De1WaterLevels(
-        currentLevel: waterlevel / 256,
-        refillLevel: waterThreshold / 256,
+        currentLevel: waterlevel / 256.0,
+        refillLevel: waterThreshold / 256.0,
       );
     } catch (e) {
       _log.severe("waternotify", e);
