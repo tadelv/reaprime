@@ -25,6 +25,13 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
 
   bool _isScanning = false;
 
+  // Cancellable 15s scan-duration wait. External stopScan() cancels the
+  // timer and completes the completer so scanForDevices returns promptly
+  // instead of being pinned for 15s with _isScanning stuck true
+  // (parity with BluePlusDiscoveryService, comms-harden #11).
+  Timer? _scanDurationTimer;
+  Completer<void>? _scanDurationCompleter;
+
   final BehaviorSubject<AdapterState> _adapterStateSubject =
       BehaviorSubject.seeded(AdapterState.unknown);
 
@@ -66,7 +73,36 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
 
   @override
   void stopScan() {
+    _cancelScanDurationWait();
     UniversalBle.stopScan();
+  }
+
+  /// Cancel the scheduled 15s stopScan and unblock the awaiter in
+  /// scanForDevices so it can proceed to cleanup / free `_isScanning`.
+  void _cancelScanDurationWait() {
+    _scanDurationTimer?.cancel();
+    _scanDurationTimer = null;
+    final c = _scanDurationCompleter;
+    if (c != null && !c.isCompleted) {
+      c.complete();
+    }
+    _scanDurationCompleter = null;
+  }
+
+  /// Wait up to [duration] for the scan to finish, or return early if
+  /// `stopScan()` is called. The BLE scan is stopped in either case.
+  Future<void> _waitForScanDuration(Duration duration) async {
+    final completer = Completer<void>();
+    _scanDurationCompleter = completer;
+    _scanDurationTimer = Timer(duration, () async {
+      try {
+        await UniversalBle.stopScan();
+      } catch (e, st) {
+        log.warning('Scheduled stopScan failed', e, st);
+      }
+      _cancelScanDurationWait();
+    });
+    await completer.future;
   }
 
   @override
@@ -83,12 +119,13 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
     }
 
     _isScanning = true;
+    StreamSubscription<BleDevice>? sub;
 
     try {
       log.fine("Clearing stale connections");
       _currentlyScanning.clear();
 
-      var sub = UniversalBle.scanStream.listen((result) async {
+      sub = UniversalBle.scanStream.listen((result) async {
         log.fine(
           "Found: ${result.deviceId}: ${result.name}, adv: ${result.services}",
         );
@@ -98,10 +135,15 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
         await _deviceScanned(result);
       });
 
-      // Unfiltered scan — empty services list
-      final filter = ScanFilter(withServices: []);
-      await UniversalBle.startScan(scanFilter: filter);
+      // Unfiltered scan — empty services list (sb-044: name-match is the
+      // documented discovery path; service UUIDs are only a scan-filter
+      // optimization, not needed on macOS/iOS).
+      final scanFilter = ScanFilter(withServices: []);
+      await UniversalBle.startScan(scanFilter: scanFilter);
 
+      // CoreBluetooth hides system-connected/bonded BLE devices from scan
+      // results; query them explicitly so a DE1 paired via System Settings
+      // is still discovered (#126).
       final systemDevices = await UniversalBle.getSystemDevices(
         withServices: [],
       );
@@ -109,12 +151,13 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
         await _deviceScanned(d);
       }
 
-      await Future.delayed(Duration(seconds: 15), () async {
-        await UniversalBle.stopScan();
-        await sub.cancel();
-        _deviceStreamController.add(_devices.values.toList());
-      });
+      // Scan for up to 15s; external stopScan() ends the wait early so the
+      // scanner frees `_isScanning` without waiting out the full duration.
+      await _waitForScanDuration(const Duration(seconds: 15));
     } finally {
+      await sub?.cancel();
+      _cancelScanDurationWait();
+      _deviceStreamController.add(_devices.values.toList());
       _isScanning = false;
     }
   }
