@@ -916,12 +916,12 @@ class _AppRootState extends State<AppRoot> {
   List<PlatformMenuItem> _buildPlatformMenus() {
     return [
       PlatformMenu(
-        label: 'Streamline',
+        label: 'Decent',
         menus: [
           PlatformMenuItemGroup(
             members: [
               PlatformMenuItem(
-                label: 'About Streamline',
+                label: 'About Decent',
                 onSelected: null,
               ),
             ],
@@ -929,7 +929,7 @@ class _AppRootState extends State<AppRoot> {
           PlatformMenuItemGroup(
             members: [
               PlatformMenuItem(
-                label: 'Quit Streamline',
+                label: 'Quit Decent',
                 shortcut: const SingleActivator(
                   LogicalKeyboardKey.keyQ,
                   meta: true,
