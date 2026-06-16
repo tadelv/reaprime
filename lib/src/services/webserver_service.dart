@@ -75,6 +75,8 @@ import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/models/wake_schedule.dart';
 import 'package:reaprime/src/services/webview_log_service.dart';
 import 'package:reaprime/build_info.dart';
+import 'package:reaprime/src/services/update_check_service.dart';
+import 'package:reaprime/src/services/app_update_state.dart';
 import 'package:reaprime/src/services/webserver/info_handler.dart';
 import 'package:reaprime/src/services/webserver/debug_handler.dart';
 import 'package:reaprime/src/services/webserver/wifi_scale_handler.dart';
@@ -100,6 +102,7 @@ part 'webserver/presence_handler.dart';
 part 'webserver/display_handler.dart';
 part 'webserver/account_handler.dart';
 part 'webserver/account_proxy_handler.dart';
+part 'webserver/update_handler.dart';
 
 final log = Logger("Webservice");
 
@@ -128,6 +131,7 @@ Future<void> startWebServer(
   DecentAccountService? decentAccountService,
   DecentProxyService? decentProxyService,
   ProxyTokenService? proxyTokenService,
+  UpdateCheckService? updateCheckService,
 }) async {
   log.info("starting webserver");
   final de1Handler = De1Handler(
@@ -243,6 +247,10 @@ Future<void> startWebServer(
 
   final infoHandler = InfoHandler();
 
+  final updateHandler = updateCheckService == null
+      ? null
+      : UpdateHandler(service: updateCheckService);
+
   final wifiScaleHandler = wifiScaleDiscoveryService == null
       ? null
       : WifiScaleHandler(service: wifiScaleDiscoveryService);
@@ -283,6 +291,7 @@ Future<void> startWebServer(
       infoHandler,
       debugHandler,
       wifiScaleHandler,
+      updateHandler,
     ),
     '0.0.0.0',
     8080,
@@ -322,6 +331,7 @@ Handler _init(
   InfoHandler infoHandler,
   DebugHandler? debugHandler,
   WifiScaleHandler? wifiScaleHandler,
+  UpdateHandler? updateHandler,
 ) {
   log.info("called _init");
   var app = Router().plus;
@@ -363,6 +373,7 @@ Handler _init(
     grindersHandler.addRoutes(app);
   }
   infoHandler.addRoutes(app);
+  updateHandler?.addRoutes(app);
   if (debugHandler != null) {
     debugHandler.addRoutes(app);
   }

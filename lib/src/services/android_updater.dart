@@ -152,27 +152,42 @@ class AndroidUpdater {
   }
 
   /// Download an APK file and save it to the app's cache directory
-  /// 
+  ///
   /// [updateInfo] - The update information containing the download URL
-  /// [onProgress] - Optional callback for download progress (0.0 to 1.0)
-  /// 
+  /// [onProgress] - Optional callback for download progress (0.0 to 1.0).
+  ///   Only fires when the server reports a Content-Length.
+  /// [cacheDir] - Target directory (defaults to the app temp dir); injected
+  ///   in tests to avoid the path_provider platform channel.
+  ///
   /// Returns the path to the downloaded APK file
   Future<String> downloadUpdate(
     UpdateInfo updateInfo, {
     Function(double progress)? onProgress,
+    Directory? cacheDir,
   }) async {
     try {
       _log.info('Downloading update from ${updateInfo.downloadUrl}');
 
-      final response = await _httpClient.get(Uri.parse(updateInfo.downloadUrl));
+      final request = http.Request('GET', Uri.parse(updateInfo.downloadUrl));
+      final response = await _httpClient.send(request);
 
       if (response.statusCode != 200) {
         throw Exception('Failed to download update: ${response.statusCode}');
       }
 
-      final bytes = response.bodyBytes;
-      final cacheDir = await getTemporaryDirectory();
-      final apkPath = '${cacheDir.path}/update_${updateInfo.version}.apk';
+      final total = response.contentLength;
+      final bytes = <int>[];
+      var received = 0;
+      await for (final chunk in response.stream) {
+        bytes.addAll(chunk);
+        received += chunk.length;
+        if (onProgress != null && total != null && total > 0) {
+          onProgress(received / total);
+        }
+      }
+
+      final dir = cacheDir ?? await getTemporaryDirectory();
+      final apkPath = '${dir.path}/update_${updateInfo.version}.apk';
       final apkFile = File(apkPath);
 
       await apkFile.writeAsBytes(bytes);

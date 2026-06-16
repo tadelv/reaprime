@@ -117,6 +117,23 @@ channels:
         $ref: '#/components/messages/DisplayState'
       displayCommand:
         $ref: '#/components/messages/DisplayCommand'
+  Update:
+    address: ws/v1/update
+    description: |
+      Bidirectional app-update channel. Emits an `AppUpdateState` snapshot on
+      connect and on every state change. Accepts commands:
+      - `{"command": "check"}` — force a re-poll of GitHub releases.
+      - `{"command": "install"}` — on Android: auto-check if needed, then
+        download + launch the system installer. On other platforms this is not
+        supported and replies with a transient `{"error", "url"}`.
+      Command-level problems (unknown command, unsupported platform) come back
+      as a direct `{"error": ...}` reply; operational outcomes (download/install
+      progress and failures) flow through the `AppUpdateState` stream.
+    messages:
+      updateState:
+        $ref: '#/components/messages/UpdateState'
+      updateCommand:
+        $ref: '#/components/messages/UpdateCommand'
 
 operations:
   machineSnapshot:
@@ -179,6 +196,18 @@ operations:
       $ref: '#/channels/Display'
     messages:
       - $ref: '#/channels/Display/messages/displayCommand'
+  updateState:
+    action: receive
+    channel:
+      $ref: '#/channels/Update'
+    messages:
+      - $ref: '#/channels/Update/messages/updateState'
+  updateCommand:
+    action: send
+    channel:
+      $ref: '#/channels/Update'
+    messages:
+      - $ref: '#/channels/Update/messages/updateCommand'
 
 components:
   messages:
@@ -256,6 +285,18 @@ components:
       summary: Command sent by the client to control display brightness and wake-lock.
       payload:
         $ref: '#/components/schemas/DisplayCommand'
+    UpdateState:
+      name: UpdateState
+      title: App update state
+      summary: Snapshot of the app-update state machine.
+      payload:
+        $ref: '#/components/schemas/AppUpdateState'
+    UpdateCommand:
+      name: UpdateCommand
+      title: App update command
+      summary: Command sent by the client to check for or install an app update.
+      payload:
+        $ref: '#/components/schemas/UpdateCommand'
   schemas:
     Error:
       type: object
@@ -264,6 +305,43 @@ components:
           type: string
         st:
           type: string
+    AppUpdateState:
+      type: object
+      description: Snapshot of the app-update state machine.
+      required: [phase, currentVersion, releaseUrl, installable]
+      properties:
+        phase:
+          type: string
+          enum: [idle, checking, available, downloading, installing, error]
+        currentVersion:
+          type: string
+        latestVersion:
+          type: string
+          nullable: true
+        releaseNotes:
+          type: string
+          nullable: true
+        releaseUrl:
+          type: string
+          description: Release tag URL when known, otherwise the releases page.
+        installable:
+          type: boolean
+          description: True only on Android AND when an update is available.
+        progress:
+          type: number
+          format: float
+          nullable: true
+          description: Download progress 0..1 while phase is downloading.
+        error:
+          type: string
+          nullable: true
+    UpdateCommand:
+      type: object
+      required: [command]
+      properties:
+        command:
+          type: string
+          enum: [check, install]
     ConnectionError:
       type: object
       required: [kind, severity, timestamp, message]
