@@ -238,7 +238,7 @@ void main() {
       });
 
       test(
-        'calls /support/api/sn with Basic Auth from stored credentials',
+        'calls /support/api/sn?onlyespressomachines=1 with Basic Auth from stored credentials',
         () async {
           // base64("test@example.com:cryptpw_abc123")
           const expectedAuth =
@@ -249,7 +249,7 @@ void main() {
 
           await s.fetchSerialNumbers();
 
-          expect(capturedRequest.url.toString(), '$_baseUrl/support/api/sn');
+          expect(capturedRequest.url.toString(), '$_baseUrl/support/api/sn?onlyespressomachines=1');
           expect(capturedRequest.headers['authorization'], expectedAuth);
           expect(capturedRequest.method, 'GET');
         },
