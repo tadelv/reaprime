@@ -1689,9 +1689,11 @@ packages:
   universal_ble:
     dependency: "direct main"
     description:
-      path: "/Users/vid/development/work/universal_ble"
-      relative: false
-    source: path
+      path: "."
+      ref: d47c6a2
+      resolved-ref: d47c6a23d8552a615eca96b51f70a2699f4682bb
+      url: "https://github.com/tadelv/universal_ble.git"
+    source: git
     version: "2.0.4"
   universal_image:
     dependency: transitive
