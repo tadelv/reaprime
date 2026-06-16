@@ -12,10 +12,10 @@ enum ScanStateEvent {
 }
 
 class ScanStateGuardian with WidgetsBindingObserver {
-  final BleDiscoveryService bleService;
+  final BleDiscoveryService? bleService;
   final _log = Logger('ScanStateGuardian');
   final _eventSubject = PublishSubject<ScanStateEvent>();
-  late final StreamSubscription<AdapterState> _adapterSub;
+  StreamSubscription<AdapterState>? _adapterSub;
   AdapterState _lastAdapterState = AdapterState.unknown;
 
   Stream<ScanStateEvent> get events => _eventSubject.stream;
@@ -23,8 +23,11 @@ class ScanStateGuardian with WidgetsBindingObserver {
   /// Current adapter state as last reported by the BLE service.
   AdapterState get currentAdapterState => _lastAdapterState;
 
-  ScanStateGuardian({required this.bleService}) {
-    _adapterSub = bleService.adapterStateStream.listen(_onAdapterStateChanged);
+  ScanStateGuardian({this.bleService}) {
+    final svc = bleService;
+    if (svc != null) {
+      _adapterSub = svc.adapterStateStream.listen(_onAdapterStateChanged);
+    }
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -61,7 +64,7 @@ class ScanStateGuardian with WidgetsBindingObserver {
 
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _adapterSub.cancel();
+    _adapterSub?.cancel();
     _eventSubject.close();
   }
 }

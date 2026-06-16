@@ -17,6 +17,7 @@ OnboardingStep createScanStep({
   required DeviceController deviceController,
   required SettingsController settingsController,
   required ScanStateGuardian scanStateGuardian,
+  bool directConnect = false,
   VoidCallback? onSkipToDashboard,
 }) {
   return OnboardingStep(
@@ -28,6 +29,7 @@ OnboardingStep createScanStep({
       deviceController: deviceController,
       settingsController: settingsController,
       scanStateGuardian: scanStateGuardian,
+      directConnect: directConnect,
       onSkipToDashboard: onSkipToDashboard,
     ),
   );
@@ -41,6 +43,7 @@ class ScanStepView extends StatelessWidget {
   final DeviceController deviceController;
   final SettingsController settingsController;
   final ScanStateGuardian scanStateGuardian;
+  final bool directConnect;
   final VoidCallback? onSkipToDashboard;
 
   /// Preserved for existing tests that pump this threshold.
@@ -54,6 +57,7 @@ class ScanStepView extends StatelessWidget {
     required this.deviceController,
     required this.settingsController,
     required this.scanStateGuardian,
+    this.directConnect = false,
     this.onSkipToDashboard,
   });
 
@@ -64,6 +68,7 @@ class ScanStepView extends StatelessWidget {
       deviceController: deviceController,
       settingsController: settingsController,
       scanStateGuardian: scanStateGuardian,
+      directConnect: directConnect,
       onConnected: onboardingController.advance,
       onExit: onSkipToDashboard ?? onboardingController.advance,
       exitLabel: 'Dashboard',
