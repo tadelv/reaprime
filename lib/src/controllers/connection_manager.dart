@@ -177,8 +177,6 @@ class ConnectionManager {
   @visibleForTesting
   Duration deferredScaleScanDelay = const Duration(seconds: 3);
 
-  @visibleForTesting
-
   ConnectionManager({
     required this.deviceScanner,
     required this.de1Controller,
