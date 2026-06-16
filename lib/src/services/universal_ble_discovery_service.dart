@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 import 'package:reaprime/src/services/ble/universal_ble_transport.dart';
@@ -139,7 +140,27 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
       // documented discovery path; service UUIDs are only a scan-filter
       // optimization, not needed on macOS/iOS).
       final scanFilter = ScanFilter(withServices: []);
-      await UniversalBle.startScan(scanFilter: scanFilter);
+
+      // Android: use aggressive scan settings to avoid the chip-side
+      // advert de-duplication that throttles results to ~1 per 12 s.
+      // matchMode: aggressive disables firmware-layer de-duplication;
+      // numOfMatches: max removes the per-device match cap;
+      // scanMode: lowLatency prioritises scan duty cycle over power.
+      // callbackType omitted: allMatches is the Android default, and
+      // matchLost causes IllegalArgumentException on some GSI images.
+      final platformConfig = Platform.isAndroid
+          ? PlatformConfig(
+              android: AndroidOptions(
+                scanMode: AndroidScanMode.lowLatency,
+                matchMode: AndroidScanMatchMode.aggressive,
+                numOfMatches: AndroidScanNumOfMatches.max,
+              ),
+            )
+          : null;
+      await UniversalBle.startScan(
+        scanFilter: scanFilter,
+        platformConfig: platformConfig,
+      );
 
       // CoreBluetooth/BlueZ hide system-connected/bonded BLE devices from
       // scan results; query them explicitly so a DE1 paired via System
