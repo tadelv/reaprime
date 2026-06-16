@@ -749,7 +749,6 @@ void main() {
       test(
           'auto-scans for preferred scale when machine is ready and scale is missing',
           () async {
-        connectionManager.preferredScaleReconnectDelay = Duration.zero;
         await settingsController.setPreferredScaleId('pref-scale');
         mockScanner.scanCompleter = Completer<void>();
 
@@ -1385,7 +1384,6 @@ void main() {
         mockScaleController.mockEmitConnectionState(ConnectionState.connected);
         mockScaleController.debugSetLastConnectedId('pref-scale');
         await settingsController.setPreferredScaleId('pref-scale');
-        connectionManager.preferredScaleReconnectDelay = Duration.zero;
         mockDe1Controller.de1Subject.add(fakeDe1);
         await Future<void>.delayed(Duration.zero);
         fakeDe1.emitState(MachineState.sleeping);
@@ -1408,7 +1406,6 @@ void main() {
       test('unexpected preferred scale disconnect keeps scanning and reconnects',
           () async {
         await settingsController.setPreferredScaleId('pref-scale');
-        connectionManager.preferredScaleReconnectDelay = Duration.zero;
         final fakeDe1 = _FakeDe1(deviceId: 'connected-de1');
         mockScaleController.mockEmitConnectionState(ConnectionState.connected);
         mockScaleController.debugSetLastConnectedId('pref-scale');
@@ -1435,7 +1432,6 @@ void main() {
           () async {
         await settingsController.setPreferredScaleId('pref-scale');
         await settingsController.setScalePowerMode(ScalePowerMode.disconnect);
-        connectionManager.preferredScaleReconnectDelay = Duration.zero;
 
         final fakeDe1 = _FakeDe1(deviceId: 'connected-de1');
         mockScaleController.mockEmitConnectionState(ConnectionState.connected);
@@ -1476,7 +1472,6 @@ void main() {
           () async {
         await settingsController.setPreferredScaleId('pref-scale');
         await settingsController.setScalePowerMode(ScalePowerMode.disconnect);
-        connectionManager.preferredScaleReconnectDelay = Duration.zero;
 
         final fakeDe1 = _FakeDe1(deviceId: 'connected-de1');
         mockScaleController.mockEmitConnectionState(ConnectionState.connected);
