@@ -101,7 +101,7 @@ All three steps are required, not optional.
 
 ### Design Principles
 
-- **Transport abstraction:** Device implementations depend on injected transport interfaces (`DataTransport`, `BleTransport`, `SerialPort`), not concrete implementations. **Never import 3rd-party BLE libraries** (e.g. `flutter_blue_plus`) outside the `services/ble/` layer — wrap library-specific types (errors, events) in domain types at the transport boundary.
+- **Transport abstraction:** Device implementations depend on injected transport interfaces (`DataTransport`, `BleTransport`, `SerialPort`), not concrete implementations. **Never import 3rd-party BLE libraries** (e.g. `universal_ble`) outside the `services/ble/` layer — wrap library-specific types (errors, events) in domain types at the transport boundary.
 - **Constructor dependency injection:** No service locators. Dependencies passed through constructors.
 - **Single Responsibility:** Each controller/service has one focused purpose.
 

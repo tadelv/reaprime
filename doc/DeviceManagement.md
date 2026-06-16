@@ -42,7 +42,7 @@ REA uses a layered architecture for device management:
                   │
 ┌─────────────────▼───────────────────────────────────────┐
 │           Discovery Services Layer                       │
-│  BluePlus  │  UniversalBle  │  Serial  │  Simulated    │
+│   UniversalBle (BLE)  │  Serial  │  Simulated           │
 └─────────────────┬───────────────────────────────────────┘
                   │
 ┌─────────────────▼───────────────────────────────────────┐
@@ -70,19 +70,14 @@ Discovery services are responsible for scanning and creating device instances. E
 
 ### Available Services
 
-#### 1. BluePlusDiscoveryService
-- **Platform:** Android, iOS, macOS, Linux
-- **Package:** `flutter_blue_plus`
-- **File:** `lib/src/services/blue_plus_discovery_service.dart`
-- **Discovery:** Scans for BLE advertisements, matches service UUIDs to device factories
-
-#### 2. UniversalBleDiscoveryService
-- **Platform:** Windows
-- **Package:** `universal_ble`
+#### 1. UniversalBleDiscoveryService
+- **Platform:** All (Android, iOS, macOS, Windows, Linux)
+- **Package:** `universal_ble` (native backends on mobile/Windows/macOS; pure-Dart BlueZ backend on Linux)
 - **File:** `lib/src/services/universal_ble_discovery_service.dart`
-- **Discovery:** Windows-compatible BLE scanning
+- **Discovery:** Unfiltered BLE scan + name-based matching (`DeviceMatcher`); also queries system/bonded devices (`getSystemDevices`) for CoreBluetooth/BlueZ. Single BLE stack on every platform since the flutter_blue_plus → universal_ble consolidation (see `doc/plans/archive/ble-universal-ble-migration/`).
+- **Linux/BlueZ note:** `UniversalBleTransport` applies BlueZ-specific connect handling on `Platform.isLinux` (stop scan + settle before connect to avoid `le-connection-abort-by-local`, post-connect settle, `discoverServices` retry) — without it the DE1 cold connect fails with "Failed to resolve services".
 
-#### 3. SerialService
+#### 2. SerialService
 - **Platform:** Desktop (macOS, Linux, Windows), Android (USB OTG)
 - **Files:**
   - `lib/src/services/serial/serial_service_desktop.dart` (desktop)
@@ -100,13 +95,13 @@ Discovery services are responsible for scanning and creating device instances. E
      reply at addr `0x0080000C`. v13Model `>= 128` → `Bengle`, else
      `UnifiedDe1`. Encoded via `lib/src/services/serial/mmr_codec.dart`.
 
-#### 4. SimulatedDeviceService
+#### 3. SimulatedDeviceService
 - **Platform:** All
 - **File:** `lib/src/services/simulated_device_service.dart`
 - **Purpose:** Testing without physical hardware
 - **Activation:** Set `simulate=1` compile-time variable or enable in settings
 
-#### 5. WifiScaleDiscoveryService
+#### 4. WifiScaleDiscoveryService
 - **Platform:** All (Android, iOS, macOS, Windows, Linux)
 - **Files:**
   - `lib/src/services/wifi/wifi_scale_discovery_service.dart` (service + `WifiScaleBrowser`/`WifiManualEndpointStore` seams + `WifiScaleEndpoint`)
@@ -670,7 +665,7 @@ Update `main.dart`:
 
 ```dart
 services.add(
-  BluePlusDiscoveryService(
+  UniversalBleDiscoveryService(
     mappings: {
       // ... existing mappings
       AcaiaTemperatureSensor.serviceUUID.toUpperCase(): (t) async {
@@ -743,9 +738,9 @@ class MyDevice implements Device {
 
 // ❌ Bad
 class MyDevice implements Device {
-  final BluePlusTransport _transport; // Coupled to specific implementation
+  final UniversalBleTransport _transport; // Coupled to specific implementation
   
-  MyDevice({required BluePlusTransport transport}) : _transport = transport;
+  MyDevice({required UniversalBleTransport transport}) : _transport = transport;
 }
 ```
 
@@ -904,7 +899,7 @@ Or toggle in Settings UI → Simulated Devices
 2. Another scale already connected (`_scaleConnected` flag)
 3. Scale UUID not matched by `DeviceMatcher`
 4. BLE permissions not granted
-5. Stale device objects in `BluePlusDiscoveryService._devices` list (should be purged on each scan)
+5. Stale device objects in `UniversalBleDiscoveryService._devices` list (should be purged on each scan)
 
 **Debug Steps:**
 - Check ConnectionManager logs: `ConnectionManager` logger at `fine` level
@@ -998,7 +993,7 @@ _log.info('Found serial ports: $ports');
 
 ### Discovery Services
 - `lib/src/services/blue_plus_discovery_service.dart` - BLE (Android/iOS/macOS/Linux)
-- `lib/src/services/universal_ble_discovery_service.dart` - BLE (Windows)
+- `lib/src/services/universal_ble_discovery_service.dart` - BLE (all platforms)
 - `lib/src/services/serial/serial_service.dart` - Serial device factory
 - `lib/src/services/serial/serial_service_desktop.dart` - Desktop serial
 - `lib/src/services/serial/serial_service_android.dart` - Android USB OTG
