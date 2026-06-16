@@ -1,10 +1,41 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
+
+/// What source to serve a skin from — overrides the registry default.
+@immutable
+class SkinOverride {
+  final SkinSource source;
+  final String? value;
+
+  const SkinOverride.registry()
+      : source = SkinSource.registry,
+        value = null;
+
+  const SkinOverride.path(String path)
+      : source = SkinSource.path,
+        value = path;
+
+  const SkinOverride.id(String skinId)
+      : source = SkinSource.id,
+        value = skinId;
+}
+
+enum SkinSource {
+  /// Normal behavior: lookup from WebUIStorage registry.
+  registry,
+
+  /// Serve directly from a filesystem path (--skin-path).
+  path,
+
+  /// Serve a specific skin ID from the registry, session-only (future).
+  id,
+}
 
 /// Injects the account-proxy skin token into served HTML so skin JS can read it
 /// from `window.__REA_PROXY_TOKEN__` and send it as `Authorization: Bearer` to
@@ -29,6 +60,10 @@ class WebUIService {
   int port = 3000;
   String _path = "";
   String? _localIP;
+
+  /// Overrides the skin source for the initialization step. Set from CLI flags
+  /// (--skin-path) before the onboarding flow starts. Defaults to [SkinSource.registry].
+  SkinOverride skinOverride = const SkinOverride.registry();
 
   /// Current account-proxy skin token, set from `ProxyTokenService.skinToken`.
   /// Injected into served HTML so skins can call the proxy. Null = no injection.
