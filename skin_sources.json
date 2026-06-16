@@ -24,5 +24,9 @@
   {
     "type": "github_release",
     "repo": "giladger/Beanie"
+  },
+  {
+    "type": "github_release",
+    "repo": "NilsBruch/NSX"
   }
 ]
