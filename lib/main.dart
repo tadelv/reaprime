@@ -55,6 +55,7 @@ import 'package:reaprime/src/services/simulated_device_service.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
 import 'package:reaprime/src/services/update_check_service.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
+import 'package:reaprime/src/cli/cli_args.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
@@ -172,8 +173,9 @@ Future<void> _setSimulatedWebViewDevice(
   await WindowManager.instance.focus();
 }
 
-void main() async {
+void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+  final cliArgs = parseCliArgs(args);
   // Force the semantics tree to always be active so assistive technologies
   // (TalkBack, VoiceOver, Accessibility Inspector) can read Flutter elements.
   SemanticsBinding.instance.ensureSemantics();
@@ -285,8 +287,11 @@ void main() async {
   // universal_ble stack. Linux uses universal_ble's pure-Dart BlueZ backend.
   // See doc/plans/flutter-blue-plus-to-universal-ble-migration.md.
   bleDiscoveryService = UniversalBleDiscoveryService();
-
-  services.add(bleDiscoveryService);
+  if (!cliArgs.serial) {
+    services.add(bleDiscoveryService);
+  } else {
+    log.info('--serial: BLE service not added to scan list');
+  }
 
   await Hive.initFlutter('store');
 
@@ -370,7 +375,7 @@ void main() async {
   await rememberedDevicesController.initialize();
 
   final scanStateGuardian = ScanStateGuardian(
-    bleService: bleDiscoveryService,
+    bleService: cliArgs.serial ? null : bleDiscoveryService,
   );
 
   final presenceController = PresenceController(
@@ -522,6 +527,19 @@ void main() async {
   });
   await settingsController.loadSettings();
 
+  // CLI overrides — apply after loadSettings so they overwrite any persisted
+  // values and persist themselves.
+  if (cliArgs.bypassOnboarding) {
+    log.info('--bypass-onboarding: skipping onboarding screens');
+    await settingsController.setOnboardingCompleted(true);
+    await settingsController.setAccountStepSeen(true);
+    await settingsController.setAndroidWarningDismissed(true);
+  }
+  if (cliArgs.skinId != null) {
+    log.info('--skin: setting default skin to ${cliArgs.skinId}');
+    await settingsController.setDefaultSkinId(cliArgs.skinId!);
+  }
+
   // Dart-define overrides for preferred devices — allows headless/MCP launches
   // to bypass the device selection screen by seeding the direct-connect path.
   const envMachineId = String.fromEnvironment("preferredMachineId");
@@ -562,6 +580,7 @@ void main() async {
   runApp(
     WithForegroundTask(
       child: AppRoot(
+        directConnect: cliArgs.direct,
         settingsController: settingsController,
         deviceController: deviceController,
         de1Controller: de1Controller,
@@ -790,6 +809,7 @@ class AppLifecycleObserver with WidgetsBindingObserver {
 }
 
 class AppRoot extends StatefulWidget {
+  final bool directConnect;
   final SettingsController settingsController;
   final DeviceController deviceController;
   final De1Controller de1Controller;
@@ -812,6 +832,7 @@ class AppRoot extends StatefulWidget {
 
   const AppRoot({
     super.key,
+    this.directConnect = false,
     required this.settingsController,
     required this.deviceController,
     required this.de1Controller,
@@ -877,6 +898,7 @@ class _AppRootState extends State<AppRoot> {
     final child = KeyedSubtree(
       key: _key,
       child: MyApp(
+        directConnect: widget.directConnect,
         settingsController: widget.settingsController,
         deviceController: widget.deviceController,
         de1Controller: widget.de1Controller,

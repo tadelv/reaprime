@@ -36,6 +36,10 @@ class ScanFlowView extends StatefulWidget {
   final SettingsController settingsController;
   final ScanStateGuardian scanStateGuardian;
 
+  /// When true, auto-connect to the first discovered machine/scale instead
+  /// of showing a picker on ambiguity.
+  final bool directConnect;
+
   /// Invoked once when the connection phase first reaches `ready`.
   final VoidCallback onConnected;
 
@@ -54,6 +58,7 @@ class ScanFlowView extends StatefulWidget {
     required this.deviceController,
     required this.settingsController,
     required this.scanStateGuardian,
+    this.directConnect = false,
     required this.onConnected,
     required this.onExit,
     this.exitLabel = 'Dashboard',

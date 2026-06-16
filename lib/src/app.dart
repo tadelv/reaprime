@@ -74,6 +74,7 @@ class NavigationService {
 class MyApp extends StatefulWidget {
   const MyApp({
     super.key,
+    this.directConnect = false,
     required this.settingsController,
     required this.deviceController,
     required this.de1Controller,
@@ -95,6 +96,7 @@ class MyApp extends StatefulWidget {
     this.batteryController,
   });
 
+  final bool directConnect;
   final SettingsController settingsController;
   final DeviceController deviceController;
   final De1Controller de1Controller;
@@ -180,6 +182,7 @@ class _MyAppState extends State<MyApp> {
         deviceController: widget.deviceController,
         settingsController: widget.settingsController,
         scanStateGuardian: widget.scanStateGuardian,
+        directConnect: widget.directConnect,
         onSkipToDashboard: () {
           NavigationService.navigatorKey.currentState?.pushNamedAndRemoveUntil(
             LauncherView.routeName,
