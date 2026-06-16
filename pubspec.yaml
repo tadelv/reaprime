@@ -72,7 +72,6 @@ dependencies:
   hive_ce: ^2.15.1
   hive_ce_flutter: ^2.3.3
   ansi_escape_codes: ^3.1.1
-  flutter_blue_plus: ^2.0.2
   flutter_js:
     # path: ../dart_js
     git:
