@@ -141,14 +141,20 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
       final scanFilter = ScanFilter(withServices: []);
       await UniversalBle.startScan(scanFilter: scanFilter);
 
-      // CoreBluetooth hides system-connected/bonded BLE devices from scan
-      // results; query them explicitly so a DE1 paired via System Settings
-      // is still discovered (#126).
-      final systemDevices = await UniversalBle.getSystemDevices(
-        withServices: [],
-      );
-      for (var d in systemDevices) {
-        await _deviceScanned(d);
+      // CoreBluetooth/BlueZ hide system-connected/bonded BLE devices from
+      // scan results; query them explicitly so a DE1 paired via System
+      // Settings is still discovered (#126). Optional — must never abort the
+      // main scan (parity with BluePlusDiscoveryService's macOS guard), so
+      // failures are swallowed.
+      try {
+        final systemDevices = await UniversalBle.getSystemDevices(
+          withServices: [],
+        );
+        for (var d in systemDevices) {
+          await _deviceScanned(d);
+        }
+      } catch (e, st) {
+        log.fine('System device check failed', e, st);
       }
 
       // Scan for up to 15s; external stopScan() ends the wait early so the

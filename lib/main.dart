@@ -35,7 +35,6 @@ import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/services/android_updater.dart';
-import 'package:reaprime/src/services/ble/linux_ble_discovery_service.dart';
 import 'package:reaprime/src/services/wifi/wifi_scale_discovery_service.dart';
 import 'package:reaprime/src/services/database/database.dart' hide Workflow;
 import 'package:reaprime/src/services/storage/drift_bean_storage.dart';
@@ -279,20 +278,11 @@ void main() async {
   // Every platform always has exactly one BLE service.
   final BleDiscoveryService bleDiscoveryService;
 
-  if (Platform.isLinux) {
-    // Use Linux-specific BLE discovery service that handles BlueZ quirks:
-    // - Stops scan before connecting (avoids le-connection-abort-by-local)
-    // - Adapter state monitoring and recovery
-    // - Connection retry logic with backoff
-    // - Sequential device processing with settle delays
-    bleDiscoveryService = LinuxBleDiscoveryService();
-  } else {
-    // flutter_blue_plus → universal_ble migration: every non-Linux platform
-    // (Windows, macOS, iOS as of Phase 1; Android as of Phase 2) runs on the
-    // single universal_ble stack. Linux stays on flutter_blue_plus until
-    // Phase 3. See doc/plans/flutter-blue-plus-to-universal-ble-migration.md.
-    bleDiscoveryService = UniversalBleDiscoveryService();
-  }
+  // flutter_blue_plus → universal_ble migration complete: every platform
+  // (Windows, macOS, iOS, Android, and Linux as of Phase 3) runs on the single
+  // universal_ble stack. Linux uses universal_ble's pure-Dart BlueZ backend.
+  // See doc/plans/flutter-blue-plus-to-universal-ble-migration.md.
+  bleDiscoveryService = UniversalBleDiscoveryService();
 
   services.add(bleDiscoveryService);
 
