@@ -70,6 +70,8 @@ abstract class SettingsService {
   Future<void> setAccountStepSeen(bool value);
   Future<bool> androidWarningDismissed();
   Future<void> setAndroidWarningDismissed(bool value);
+  Future<bool> enableSimulatedWebViews();
+  Future<void> setEnableSimulatedWebViews(bool value);
 }
 
 /// SharedPreferences-backed implementation of [SettingsService].
@@ -425,6 +427,17 @@ class SharedPreferencesSettingsService extends SettingsService {
   Future<void> setAndroidWarningDismissed(bool value) async {
     await prefs.setBool(SettingsKeys.androidWarningDismissed.name, value);
   }
+
+  @override
+  Future<bool> enableSimulatedWebViews() async {
+    return await prefs.getBool(SettingsKeys.enableSimulatedWebViews.name) ??
+        false;
+  }
+
+  @override
+  Future<void> setEnableSimulatedWebViews(bool value) async {
+    await prefs.setBool(SettingsKeys.enableSimulatedWebViews.name, value);
+  }
 }
 
 enum SettingsKeys {
@@ -457,6 +470,7 @@ enum SettingsKeys {
   onboardingCompleted,
   accountStepSeen,
   androidWarningDismissed,
+  enableSimulatedWebViews,
 }
 
 enum SimulatedDevicesTypes { machine, scale, sensor, bengle }

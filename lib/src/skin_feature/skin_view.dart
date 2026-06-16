@@ -3,7 +3,6 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -755,7 +754,9 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
   UnmodifiableListView<UserScript>? _simulatedDeviceScripts(
     SimulatedWebViewDevice? simulatedDevice,
   ) {
-    if (!kDebugMode || !Platform.isMacOS || simulatedDevice == null) {
+    if (!widget.settingsController.enableSimulatedWebViews ||
+        !Platform.isMacOS ||
+        simulatedDevice == null) {
       return null;
     }
 
