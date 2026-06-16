@@ -103,6 +103,22 @@ class AdvancedPage extends StatelessWidget {
                     ),
                   ),
                 ),
+              if (Platform.isMacOS) ...[
+                const SettingsDivider(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: ShadSwitch(
+                    value: controller.enableSimulatedWebViews,
+                    onChanged: (v) async {
+                      await controller.setEnableSimulatedWebViews(v);
+                    },
+                    label: const Text('Simulated WebViews'),
+                  ),
+                ),
+              ],
               const SettingsDivider(),
 
               // Debug view

@@ -63,6 +63,7 @@ class SettingsController with ChangeNotifier {
   bool _onboardingCompleted = false;
   bool _accountStepSeen = false;
   bool _androidWarningDismissed = false;
+  bool _enableSimulatedWebViews = false;
 
   TelemetryService? _telemetryService;
 
@@ -93,6 +94,7 @@ class SettingsController with ChangeNotifier {
   bool get onboardingCompleted => _onboardingCompleted;
   bool get accountStepSeen => _accountStepSeen;
   bool get androidWarningDismissed => _androidWarningDismissed;
+  bool get enableSimulatedWebViews => _enableSimulatedWebViews;
 
   set telemetryService(TelemetryService service) => _telemetryService = service;
 
@@ -127,6 +129,8 @@ class SettingsController with ChangeNotifier {
     _accountStepSeen = await _settingsService.accountStepSeen();
     _androidWarningDismissed =
         await _settingsService.androidWarningDismissed();
+    _enableSimulatedWebViews =
+        await _settingsService.enableSimulatedWebViews();
 
     // Sync telemetry consent to TelemetryService if it exists
     if (_telemetryService != null) {
@@ -393,6 +397,13 @@ class SettingsController with ChangeNotifier {
     if (value == _androidWarningDismissed) return;
     _androidWarningDismissed = value;
     await _settingsService.setAndroidWarningDismissed(value);
+    notifyListeners();
+  }
+
+  Future<void> setEnableSimulatedWebViews(bool value) async {
+    if (value == _enableSimulatedWebViews) return;
+    _enableSimulatedWebViews = value;
+    await _settingsService.setEnableSimulatedWebViews(value);
     notifyListeners();
   }
 }

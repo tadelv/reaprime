@@ -192,9 +192,11 @@ void main() async {
     WindowManager.instance.setMinimumSize(_defaultDesktopWindowSize);
     await WindowManager.instance.setAspectRatio(_defaultDesktopAspectRatio);
     await WindowManager.instance.setSize(_defaultDesktopWindowSize);
-    final startupSimulatedWebViewDevice = kDebugMode && Platform.isMacOS
-        ? await loadPersistedSimulatedWebViewDevice()
-        : null;
+    final startupSimulatedWebViewDevice =
+        await SharedPreferencesSettingsService().enableSimulatedWebViews() &&
+                Platform.isMacOS
+            ? await loadPersistedSimulatedWebViewDevice()
+            : null;
     if (startupSimulatedWebViewDevice != null) {
       await _setSimulatedWebViewDevice(
         startupSimulatedWebViewDevice,
@@ -952,7 +954,7 @@ class _AppRootState extends State<AppRoot> {
               }
             },
           ),
-          if (kDebugMode) ...[
+          if (widget.settingsController.enableSimulatedWebViews) ...[
             PlatformMenuItem(
               label: 'Use Native macOS WebView',
               shortcut: const SingleActivator(

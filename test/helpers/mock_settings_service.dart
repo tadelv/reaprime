@@ -36,6 +36,7 @@ class MockSettingsService extends SettingsService {
   bool _onboardingCompleted = true; // skip onboarding in tests
   bool _accountStepSeen = true; // skip account step in tests
   bool _androidWarningDismissed = true; // skip android warning in tests
+  bool _enableSimulatedWebViews = false;
 
   @override
   Future<ThemeMode> themeMode() async => _themeMode;
@@ -168,4 +169,9 @@ class MockSettingsService extends SettingsService {
   @override
   Future<void> setAndroidWarningDismissed(bool value) async =>
       _androidWarningDismissed = value;
+  @override
+  Future<bool> enableSimulatedWebViews() async => _enableSimulatedWebViews;
+  @override
+  Future<void> setEnableSimulatedWebViews(bool value) async =>
+      _enableSimulatedWebViews = value;
 }
