@@ -91,17 +91,40 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
     }
 
     // Serve the bundled default skin (local, fast) — needed before the webview.
-    final defaultSkin = widget.webUIStorage.defaultSkin;
-    if (defaultSkin != null) {
-      _log.info('Starting WebUI service with skin: ${defaultSkin.name}');
-      try {
-        await widget.webUIService.serveFolderAtPath(defaultSkin.path);
-        _log.info('WebUI service started successfully');
-      } catch (e) {
-        _log.severe('Failed to start WebUI service', e);
+    final override = widget.webUIService.skinOverride;
+    bool served = false;
+    if (override.source == SkinSource.path) {
+      final path = override.value!;
+      if (await _isReadableDirectory(path)) {
+        _log.info('Starting WebUI service from --skin-path: $path');
+        try {
+          await widget.webUIService.serveFolderAtPath(path);
+          _log.info('WebUI service started successfully from --skin-path');
+          served = true;
+        } catch (e) {
+          _log.severe('Failed to serve --skin-path: $path', e);
+        }
+      } else {
+        _log.severe('--skin-path not readable or not a directory: $path');
       }
-    } else {
-      _log.warning('No default skin available, WebUI service not started');
+    }
+    if (!served) {
+      // Registry default (or fallback from failed --skin-path).
+      if (override.source == SkinSource.path) {
+        _log.info('Falling back to registry default skin');
+      }
+      final defaultSkin = widget.webUIStorage.defaultSkin;
+      if (defaultSkin != null) {
+        _log.info('Starting WebUI service with skin: ${defaultSkin.name}');
+        try {
+          await widget.webUIService.serveFolderAtPath(defaultSkin.path);
+          _log.info('WebUI service started successfully');
+        } catch (e) {
+          _log.severe('Failed to start WebUI service', e);
+        }
+      } else {
+        _log.warning('No default skin available, WebUI service not started');
+      }
     }
 
     // BLE must be ready before the scan step calls connect().
@@ -135,6 +158,15 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
         (Object e) => _log.warning('Background remote-skin download failed: $e'),
       ),
     );
+  }
+
+  Future<bool> _isReadableDirectory(String path) async {
+    try {
+      final dir = Directory(path);
+      return await dir.exists();
+    } catch (_) {
+      return false;
+    }
   }
 
   @override

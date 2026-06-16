@@ -539,6 +539,10 @@ void main(List<String> args) async {
     log.info('--skin: setting default skin to ${cliArgs.skinId}');
     await settingsController.setDefaultSkinId(cliArgs.skinId!);
   }
+  if (cliArgs.skinPath != null) {
+    log.info('--skin-path: overriding skin source to ${cliArgs.skinPath}');
+    webUIService.skinOverride = SkinOverride.path(cliArgs.skinPath!);
+  }
 
   // Dart-define overrides for preferred devices — allows headless/MCP launches
   // to bypass the device selection screen by seeding the direct-connect path.
