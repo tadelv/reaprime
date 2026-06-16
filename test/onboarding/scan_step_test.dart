@@ -562,4 +562,50 @@ void main() {
       );
     });
   });
+
+  group('directConnect', () {
+    testWidgets(
+        'ScanFlowView receives directConnect: true when set on ScanStepView',
+        (tester) async {
+      await tester.pumpWidget(
+        ShadApp(
+          home: Scaffold(
+            body: ScanStepView(
+              onboardingController: onboardingController,
+              connectionManager: mockConnectionManager,
+              deviceController: DeviceController([]),
+              settingsController: settingsController,
+              scanStateGuardian: scanStateGuardian,
+              directConnect: true,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Should still render the scan flow (no crash)
+      expect(find.byType(ShadProgress), findsOneWidget);
+    });
+
+    testWidgets('does not crash with directConnect: false (default)',
+        (tester) async {
+      await tester.pumpWidget(
+        ShadApp(
+          home: Scaffold(
+            body: ScanStepView(
+              onboardingController: onboardingController,
+              connectionManager: mockConnectionManager,
+              deviceController: DeviceController([]),
+              settingsController: settingsController,
+              scanStateGuardian: scanStateGuardian,
+              // directConnect defaults to false
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byType(ShadProgress), findsOneWidget);
+    });
+  });
 }

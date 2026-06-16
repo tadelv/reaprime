@@ -104,6 +104,10 @@ class ScanFlowViewState extends State<ScanFlowView> {
   bool _showTakingTooLong = false;
   Timer? _tooLongTimer;
 
+  /// Prevents re-triggering auto-connect on subsequent status emissions
+  /// when --direct is active.
+  bool _directAutoConnected = false;
+
   /// Devices discovered so far during the current scan.
   List<De1Interface> _discoveredMachines = [];
   List<device_scale.Scale> _discoveredScales = [];
@@ -129,6 +133,26 @@ class ScanFlowViewState extends State<ScanFlowView> {
         BootTiming.mark('scan_ready');
         widget.onConnected();
         return;
+      }
+
+      // --direct: auto-connect to first discovered machine/scale on ambiguity.
+      if (widget.directConnect && !_directAutoConnected) {
+        if (status.pendingAmbiguity == AmbiguityReason.machinePicker &&
+            _discoveredMachines.isNotEmpty) {
+          _directAutoConnected = true;
+          _log.info('--direct: auto-connecting to ${_discoveredMachines.first.name}');
+          unawaited(widget.connectionManager
+              .connectMachine(_discoveredMachines.first));
+          return;
+        }
+        if (status.pendingAmbiguity == AmbiguityReason.scalePicker &&
+            _discoveredScales.isNotEmpty) {
+          _directAutoConnected = true;
+          _log.info('--direct: auto-connecting to scale ${_discoveredScales.first.name}');
+          unawaited(widget.connectionManager
+              .connectScale(_discoveredScales.first));
+          return;
+        }
       }
 
       // Reset the "taking too long" timer when phase changes away from scanning
