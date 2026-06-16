@@ -293,6 +293,7 @@ Only registered when the app is launched with `--dart-define=simulate=1`. Return
 
 | Method | Endpoint | Description | Handler |
 |--------|----------|-------------|---------|
+| POST | `/api/v1/debug/update/force` | Force a fake "update available" so the update API/UI can be tested without a real newer release. Optional query: `version` (default `99.0.0`), `downloadUrl` (default = real latest APK, so the download/install path runs end-to-end). | `debug_handler.dart` |
 | POST | `/api/v1/debug/scale/stall` | Pause mock scale weight emission (stays "connected") | `debug_handler.dart` |
 | POST | `/api/v1/debug/scale/resume` | Resume weight emission after stall | `debug_handler.dart` |
 | POST | `/api/v1/debug/scale/disconnect` | Simulate scale disconnect (emits disconnected state, stops data) | `debug_handler.dart` |
