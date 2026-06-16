@@ -471,6 +471,14 @@ void main() async {
   );
   displayController.initialize();
 
+  // Update check service — constructed before the web server so the update
+  // API (/api/v1/update, /ws/v1/update) shares its state. initialize() is
+  // still deferred below.
+  final updateCheckService = UpdateCheckService(
+    settingsService: SharedPreferencesSettingsService(),
+    webUIStorage: webUIStorage,
+  );
+
   try {
     await startWebServer(
       deviceController,
@@ -497,6 +505,7 @@ void main() async {
       decentAccountService: decentAccountService,
       decentProxyService: decentProxyService,
       proxyTokenService: proxyTokenService,
+      updateCheckService: updateCheckService,
     );
   } catch (e, st) {
     log.severe('failed to start web server', e, st);
@@ -532,11 +541,7 @@ void main() async {
       ) ??
       Level.FINE;
 
-  // Initialize update check service
-  final updateCheckService = UpdateCheckService(
-    settingsService: SharedPreferencesSettingsService(),
-    webUIStorage: webUIStorage,
-  );
+  // Defer the first update check / skin sync (service constructed above).
   Future.delayed(Duration(minutes: 10), () async {
     await updateCheckService.initialize();
   });

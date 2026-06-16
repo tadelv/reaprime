@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:logging/logging.dart';
+import 'package:rxdart/rxdart.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/services/android_updater.dart';
+import 'package:reaprime/src/services/app_update_state.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
 
@@ -13,24 +16,121 @@ class UpdateCheckService {
   final AndroidUpdater _updater;
   final WebUIStorage _webUIStorage;
 
+  /// Whether this platform can install an update in-app (Android only).
+  /// Injectable so the state machine is testable off-device.
+  final bool _isAndroid;
+
   Timer? _periodicTimer;
   UpdateInfo? _availableUpdate;
-  
+
+  /// Single source of truth for the API surface (`/api/v1/update`,
+  /// `/ws/v1/update`). Derived from [_availableUpdate] plus the current phase.
+  late final BehaviorSubject<AppUpdateState> _state;
+
   static const Duration _checkInterval = (String.fromEnvironment("simulate") == "1") ? Duration(hours: 1) : Duration(hours: 12);
 
   UpdateCheckService({
     required SettingsService settingsService,
     AndroidUpdater? updater,
     required WebUIStorage webUIStorage,
+    bool? platformIsAndroid,
   })  : _settingsService = settingsService,
         _updater = updater ?? AndroidUpdater(owner: 'tadelv', repo: 'reaprime'),
-        _webUIStorage = webUIStorage;
+        _webUIStorage = webUIStorage,
+        _isAndroid = platformIsAndroid ?? Platform.isAndroid {
+    _state = BehaviorSubject.seeded(_snapshot(AppUpdatePhase.idle));
+  }
 
   /// Get the currently available update, if any
   UpdateInfo? get availableUpdate => _availableUpdate;
 
   /// Check if there's an available update
   bool get hasAvailableUpdate => _availableUpdate != null;
+
+  /// Live app-update state for the API (replays the latest value on listen).
+  Stream<AppUpdateState> get updateState => _state.stream;
+
+  /// Synchronous snapshot of the current app-update state (for the REST read).
+  AppUpdateState get currentState => _state.value;
+
+  /// Whether an in-app install can be triggered on this platform.
+  bool get canInstall => _isAndroid;
+
+  /// Build an [AppUpdateState] for [phase] from the current [_availableUpdate].
+  AppUpdateState _snapshot(
+    AppUpdatePhase phase, {
+    double? progress,
+    String? error,
+  }) {
+    final update = _availableUpdate;
+    final hasUpdate = update != null;
+    return AppUpdateState(
+      phase: phase,
+      currentVersion: BuildInfo.version,
+      latestVersion: update?.version,
+      releaseNotes: update?.releaseNotes,
+      releaseUrl: hasUpdate ? getReleaseUrl()! : getReleasesUrl(),
+      installable: _isAndroid && hasUpdate,
+      progress: progress,
+      error: error,
+    );
+  }
+
+  void _emit(AppUpdatePhase phase, {double? progress, String? error}) {
+    _state.add(_snapshot(phase, progress: progress, error: error));
+  }
+
+  bool get _inProgress => const {
+        AppUpdatePhase.checking,
+        AppUpdatePhase.downloading,
+        AppUpdatePhase.installing,
+      }.contains(_state.value.phase);
+
+  /// API command: force a re-check. No-op (coalesced) if an operation is
+  /// already in flight.
+  Future<void> requestCheck() async {
+    if (_inProgress) return;
+    await checkForUpdate();
+  }
+
+  /// API command: ensure an update is known (auto-checking if needed), then
+  /// download and launch the system installer. No-op (coalesced) if an
+  /// operation is already in flight. Only call when [canInstall] is true.
+  Future<void> downloadAndInstall() async {
+    if (_inProgress) return;
+    if (!_isAndroid) return;
+
+    // Auto-check if we have no known update yet.
+    if (_availableUpdate == null) {
+      await checkForUpdate();
+      if (_availableUpdate == null) {
+        // Already on the latest (checkForUpdate settled to idle).
+        return;
+      }
+    }
+
+    final update = _availableUpdate!;
+    try {
+      _emit(AppUpdatePhase.downloading, progress: 0);
+      final path = await _updater.downloadUpdate(
+        update,
+        onProgress: (p) => _emit(AppUpdatePhase.downloading, progress: p),
+      );
+
+      _emit(AppUpdatePhase.installing);
+      final started = await _updater.installUpdate(path);
+      if (!started) {
+        _emit(
+          AppUpdatePhase.error,
+          error: 'Installation permission required. Grant it and retry.',
+        );
+      }
+      // On success the OS installer takes over; the process is replaced.
+    } catch (e, st) {
+      _log.severe('Update download/install failed', e, st);
+      _emit(AppUpdatePhase.error, error: 'Update failed: $e');
+    }
+  }
 
   /// Initialize the service and start periodic checks
   Future<void> initialize() async {
@@ -80,6 +180,7 @@ class UpdateCheckService {
   /// Manually check for updates
   Future<UpdateInfo?> checkForUpdate() async {
     try {
+      _emit(AppUpdatePhase.checking);
       _log.info('Checking for updates (current: ${BuildInfo.version})');
 
       final updateInfo = await _updater.checkForUpdate(
@@ -106,9 +207,13 @@ class UpdateCheckService {
         _availableUpdate = null;
       }
 
+      _emit(_availableUpdate != null
+          ? AppUpdatePhase.available
+          : AppUpdatePhase.idle);
       return updateInfo;
     } catch (e, stackTrace) {
       _log.warning('Error checking for updates', e, stackTrace);
+      _emit(AppUpdatePhase.error, error: 'Update check failed: $e');
       return null;
     }
   }
@@ -140,6 +245,7 @@ class UpdateCheckService {
   /// Clear the available update notification
   void clearAvailableUpdate() {
     _availableUpdate = null;
+    _emit(AppUpdatePhase.idle);
   }
 
   /// Force an update to appear for testing. Only use in debug builds.
@@ -153,6 +259,7 @@ class UpdateCheckService {
       isPrerelease: false,
       tagName: 'v99.0.0',
     );
+    _emit(AppUpdatePhase.available);
   }
 
   /// Skip the current update version permanently
@@ -163,11 +270,13 @@ class UpdateCheckService {
       await _settingsService.setSkippedVersion(version);
     }
     _availableUpdate = null;
+    _emit(AppUpdatePhase.idle);
   }
 
   /// Dispose of resources
   void dispose() {
     _periodicTimer?.cancel();
     _updater.dispose();
+    _state.close();
   }
 }
