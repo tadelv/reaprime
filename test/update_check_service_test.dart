@@ -174,6 +174,32 @@ void main() {
       svc.dispose();
     });
 
+    test('throttles fine-grained progress to ~1% steps', () async {
+      final svc = build();
+      updater.nextCheck = _update();
+      // 1000 tiny increments, as a per-chunk callback would produce.
+      updater.progressToEmit =
+          List.generate(1000, (i) => (i + 1) / 1000);
+
+      final downloadingProgress = <double>[];
+      final sub = svc.updateState.listen((s) {
+        if (s.phase == AppUpdatePhase.downloading && s.progress != null) {
+          downloadingProgress.add(s.progress!);
+        }
+      });
+
+      await svc.downloadAndInstall();
+      await Future.delayed(Duration.zero);
+      await sub.cancel();
+
+      // Far fewer than 1000 frames; ~1% steps -> on the order of 100, plus
+      // the initial 0.0 and the terminal 1.0.
+      expect(downloadingProgress.length, lessThan(110));
+      expect(downloadingProgress.first, 0.0);
+      expect(downloadingProgress.last, closeTo(1.0, 1e-9));
+      svc.dispose();
+    });
+
     test('reports error when install permission is missing', () async {
       final svc = build();
       updater.nextCheck = _update();

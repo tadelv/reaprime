@@ -258,7 +258,10 @@ Future<void> startWebServer(
   DebugHandler? debugHandler;
   const simulateEnv = String.fromEnvironment("simulate");
   if (simulateEnv.isNotEmpty) {
-    debugHandler = DebugHandler(scaleController: scaleController);
+    debugHandler = DebugHandler(
+      scaleController: scaleController,
+      updateCheckService: updateCheckService,
+    );
   }
 
   // Start server

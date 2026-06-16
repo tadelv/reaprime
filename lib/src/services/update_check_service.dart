@@ -112,9 +112,17 @@ class UpdateCheckService {
     final update = _availableUpdate!;
     try {
       _emit(AppUpdatePhase.downloading, progress: 0);
+      // Throttle to ~1% steps — the raw callback fires per network chunk
+      // (thousands of times for a multi-MB APK), which would flood the WS.
+      var lastEmitted = 0.0;
       final path = await _updater.downloadUpdate(
         update,
-        onProgress: (p) => _emit(AppUpdatePhase.downloading, progress: p),
+        onProgress: (p) {
+          if (p - lastEmitted >= 0.01 || p >= 1.0) {
+            lastEmitted = p;
+            _emit(AppUpdatePhase.downloading, progress: p);
+          }
+        },
       );
 
       _emit(AppUpdatePhase.installing);
@@ -249,15 +257,21 @@ class UpdateCheckService {
   }
 
   /// Force an update to appear for testing. Only use in debug builds.
-  void debugForceUpdate() {
-    _log.info('DEBUG: forcing fake update notification');
+  ///
+  /// [downloadUrl] points at a real APK so the download/install path can be
+  /// exercised end-to-end; defaults to the latest released Android APK.
+  void debugForceUpdate({
+    String version = '99.0.0',
+    String? downloadUrl,
+  }) {
+    _log.info('DEBUG: forcing fake update notification ($version)');
     _availableUpdate = UpdateInfo(
-      version: '99.0.0',
-      downloadUrl:
-          'https://github.com/tadelv/reaprime/releases/latest',
-      releaseNotes: 'Fake update for testing the download banner.',
+      version: version,
+      downloadUrl: downloadUrl ??
+          'https://github.com/tadelv/reaprime/releases/download/v0.7.7/decent-android-0.7.7.apk',
+      releaseNotes: 'Forced update for testing the update API.',
       isPrerelease: false,
-      tagName: 'v99.0.0',
+      tagName: 'v$version',
     );
     _emit(AppUpdatePhase.available);
   }
