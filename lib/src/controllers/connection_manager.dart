@@ -147,6 +147,18 @@ class ConnectionManager {
   /// interaction.
   Timer? _preferredScaleReconnect;
 
+  /// Consecutive scale-reconnect failures for exponential backoff.
+  /// Reset on successful scale connect or machine disconnect.
+  int _scaleReconnectFailures = 0;
+
+  /// Compute exponential backoff delay: 5s → 10s → 20s → 40s → 60s cap.
+  Duration get _scaleReconnectBackoff {
+    final base = 5;
+    final seconds = base * (1 << _scaleReconnectFailures).clamp(1, 12);
+    // 5*1=5, 5*2=10, 5*4=20, 5*8=40, 5*12=60
+    return Duration(seconds: seconds.clamp(5, 60));
+  }
+
   MachineState? _latestMachineState;
   StreamSubscription<MachineSnapshot>? _machineSnapshotSub;
 
@@ -166,7 +178,6 @@ class ConnectionManager {
   Duration deferredScaleScanDelay = const Duration(seconds: 3);
 
   @visibleForTesting
-  Duration preferredScaleReconnectDelay = const Duration(seconds: 5);
 
   ConnectionManager({
     required this.deviceScanner,
@@ -402,8 +413,11 @@ class ConnectionManager {
     final preferredMachineId =
         scaleOnly ? null : settingsController.preferredMachineId;
     final preferredScaleId = settingsController.preferredScaleId;
-    final earlyStopEnabled =
-        !scaleOnly && preferredMachineId != null;
+    // Early stop is enabled for any full (non-scaleOnly) connect.
+    // Previously gated on preferredMachineId != null, which meant
+    // auto-discovered machines never stopped the scan early even
+    // with both devices found and connected.
+    final earlyStopEnabled = !scaleOnly;
 
     final scanStartTime = DateTime.now();
 
@@ -517,30 +531,50 @@ class ConnectionManager {
     );
   }
 
-  /// Stop scan early based on connection state and scale preference.
+  /// Stop scan early when all preferred devices are connected.
   ///
-  /// When no preferred scale is configured, stop as soon as the preferred
-  /// machine connects — the post-scan scale phase handles any discovered
-  /// scales, and an immediate stop avoids wasting 10+ seconds of scan
-  /// timeout. When a preferred scale IS configured, keep the original
-  /// behaviour: stop only when both preferred devices are connected.
+  /// Three branches ordered from most-specific to least:
+  /// 1. Preferred machine + preferred scale → both must be connected.
+  /// 2. Preferred machine only → stop on machine connect.
+  /// 3. No preferences → stop when at least one machine + one scale
+  ///    are connected (the common auto-discovered case).
   void _checkEarlyStop(bool earlyStopEnabled) {
     if (!earlyStopEnabled) return;
+    final preferredMachineId = settingsController.preferredMachineId;
     final preferredScaleId = settingsController.preferredScaleId;
-    if (preferredScaleId == null) {
-      // No preferred scale — stop as soon as the machine connects.
-      // Scales discovered so far are still in scanRun.scales and will be
-      // handled by the post-scan scale phase; a scale that advertises
-      // after this stop is recovered by _maybeArmDeferredScaleScan.
+    if (preferredMachineId != null && preferredScaleId != null) {
+      // Both preferred — wait for both.
+      if (_machineConnected && _scaleConnected) {
+        _log.fine('Both preferred devices connected, stopping scan early');
+        _earlyStopFired = true;
+        deviceScanner.stopScan();
+      }
+    } else if (preferredMachineId != null) {
+      // Machine only — stop on machine connect.
       if (_machineConnected) {
-        _log.fine('Machine connected (no preferred scale), stopping scan early');
+        _log.fine(
+          'Preferred machine connected (no preferred scale), '
+          'stopping scan early',
+        );
+        _earlyStopFired = true;
+        deviceScanner.stopScan();
+      }
+    } else if (preferredScaleId != null) {
+      // Scale only (auto-discovered machine) — stop when both connect.
+      if (_machineConnected && _scaleConnected) {
+        _log.fine(
+          'Preferred scale connected (auto machine), stopping scan early',
+        );
         _earlyStopFired = true;
         deviceScanner.stopScan();
       }
     } else {
-      // Preferred scale exists — stop only when both are connected.
+      // No preferences — stop when at least one of each type connects.
       if (_machineConnected && _scaleConnected) {
-        _log.fine('Both preferred devices connected, stopping scan early');
+        _log.fine(
+          'Machine and scale connected (no preferences), stopping scan early',
+        );
+        _earlyStopFired = true;
         deviceScanner.stopScan();
       }
     }
@@ -579,11 +613,13 @@ class ConnectionManager {
   void _maybeSchedulePreferredScaleReconnect() {
     if (_preferredScaleReconnect != null) return;
     if (!_shouldRetryPreferredScale()) return;
+    final delay = _scaleReconnectBackoff;
+    _scaleReconnectFailures++;
     _log.fine(
-      'Preferred scale is missing; retrying scale scan in '
-      '${preferredScaleReconnectDelay.inSeconds}s',
+      'Preferred scale is missing (failure #$_scaleReconnectFailures); '
+      'retrying scale scan in ${delay.inSeconds}s',
     );
-    _preferredScaleReconnect = Timer(preferredScaleReconnectDelay, () {
+    _preferredScaleReconnect = Timer(delay, () {
       _preferredScaleReconnect = null;
       if (!_shouldRetryPreferredScale()) return;
       connect(scaleOnly: true); // fire-and-forget
@@ -600,6 +636,7 @@ class ConnectionManager {
   void _cancelPreferredScaleReconnect() {
     _preferredScaleReconnect?.cancel();
     _preferredScaleReconnect = null;
+    _scaleReconnectFailures = 0;
   }
 
   void _handleMachineConnected() {

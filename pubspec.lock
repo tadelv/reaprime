@@ -1689,10 +1689,9 @@ packages:
   universal_ble:
     dependency: "direct main"
     description:
-      name: universal_ble
-      sha256: da15f61251299daf9c290bb8e40ded1e5313c4636fef6c796a7a656a06c93b4a
-      url: "https://pub.dev"
-    source: hosted
+      path: "/Users/vid/development/work/universal_ble"
+      relative: false
+    source: path
     version: "2.0.4"
   universal_image:
     dependency: transitive

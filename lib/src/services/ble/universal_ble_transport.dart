@@ -37,14 +37,27 @@ class UniversalBleTransport implements BLETransport {
     _log = Logger("BLETransport-${device.deviceId}");
   }
 
+  // Android post-connect settle duration. The Android BLE stack needs
+  // a brief period after connectGatt reports success before service
+  // discovery works reliably (particularly on older tablet SoCs).
+  static const Duration _androidPostConnectDelay =
+      Duration(milliseconds: 200);
+
   @override
   Future<void> connect() async {
+    // TODO(ble-fork): switch to UniversalBle.connectionUpdateStream
+    // once the fork is published — it exposes native disconnect reason
+    // codes (GATT error, HCI status). Until then, connectionStream
+    // only emits bool.
     _connectionStateSubscription = UniversalBle.connectionStream(
       _device.deviceId,
-    ).listen((d) {
-      _connectionStateSubject.add(
-        d ? device.ConnectionState.connected : device.ConnectionState.disconnected,
-      );
+    ).listen((connected) {
+      if (connected) {
+        _connectionStateSubject.add(device.ConnectionState.connected);
+      } else {
+        _log.warning('Transport disconnected (reason not available in this build)');
+        _connectionStateSubject.add(device.ConnectionState.disconnected);
+      }
     });
     if (_isLinux) {
       await _connectBlueZ();
@@ -58,9 +71,27 @@ class UniversalBleTransport implements BLETransport {
     } on UniversalBleException catch (e) {
       throw mapUniversalConnectError(e);
     }
+
+    // Android: post-connect settle + MTU bump.
+    // The 200ms settle avoids service-discovery races on tablet SoCs
+    // where the BLE stack finalises GATT setup asynchronously after
+    // connect. MTU 517 reduces GATT round-trips for reads/writes.
+    if (!_isLinux && Platform.isAndroid) {
+      await Future.delayed(_androidPostConnectDelay);
+      try {
+        await UniversalBle.requestMtu(
+          _device.deviceId,
+          517,
+          timeout: const Duration(seconds: 5),
+        );
+        _log.fine('MTU negotiation successful');
+      } catch (e) {
+        _log.fine('MTU negotiation failed (using default): $e');
+      }
+    }
   }
 
-  /// BlueZ connect with the mitigations the native fbp Linux path needed.
+  /// BlueZ connect with the same mitigations the Linux BLE path needs.
   /// First attempt stops any scan and lets BlueZ settle, then connects. On
   /// failure, run a brief refresh scan (BlueZ can drop the device from its
   /// cache after a disconnect) and retry once.
