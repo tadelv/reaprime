@@ -43,7 +43,7 @@ class DecentProxyResponse {
 /// Callers never see the credentials or the `Authorization` header. Every call
 /// must carry a [callerId] (skin / plugin id / api-client) so use is auditable.
 ///
-/// Phase 1 is read-only (`GET`) and restricted to the `support/api/` prefix.
+/// Forwarding is restricted to explicit methods and the `support/api/` prefix.
 /// See `doc/plans/account-proxy-design.md`.
 class DecentProxyService {
   final http.Client _httpClient;
@@ -80,21 +80,33 @@ class DecentProxyService {
   }) : _httpClient = httpClient,
        _store = credentialStore;
 
-  /// Forwards a GET to `<baseUrl>/<path>` with the stored Decent credentials
-  /// attached as Basic auth, returning the upstream response verbatim (minus
-  /// sensitive headers).
+  /// Forwards a request to `<baseUrl>/<path>` with the stored Decent
+  /// credentials attached as Basic auth, returning the upstream response
+  /// verbatim (minus sensitive headers).
   ///
   /// Throws [DecentProxyForbiddenPathException] if [path] is outside
   /// [allowedPrefixes], or [DecentAccountNotLinkedException] if no account is
   /// linked.
-  Future<DecentProxyResponse> proxyGet({
+  Future<DecentProxyResponse> proxy({
     required String callerId,
+    required String method,
     required String path,
     Map<String, String>? query,
+    String? body,
+    String? contentType,
   }) async {
+    final normalizedMethod = method.toUpperCase();
+    if (normalizedMethod != 'GET' &&
+        normalizedMethod != 'POST' &&
+        normalizedMethod != 'PUT') {
+      throw UnsupportedError('Unsupported proxy method: $method');
+    }
+
     final normalizedPath = _normalizePath(path);
     if (!_isAllowed(normalizedPath)) {
-      _log.warning('caller=$callerId GET /$normalizedPath -> forbidden path');
+      _log.warning(
+        'caller=$callerId $normalizedMethod /$normalizedPath -> forbidden path',
+      );
       throw DecentProxyForbiddenPathException(normalizedPath);
     }
 
@@ -111,19 +123,76 @@ class DecentProxyService {
     final basic = base64Encode(
       utf8.encode('${email.trim()}:${password.trim()}'),
     );
-    final response = await _httpClient.get(
-      uri,
-      headers: {'authorization': 'Basic $basic'},
-    );
+    final outbound = http.Request(normalizedMethod, uri)
+      ..headers['authorization'] = 'Basic $basic';
+    if (contentType != null && contentType.isNotEmpty) {
+      outbound.headers['content-type'] = contentType;
+    }
+    if (body != null) {
+      outbound.body = body;
+    }
+
+    final streamedResponse = await _httpClient.send(outbound);
+    final response = await http.Response.fromStream(streamedResponse);
 
     _log.info(
-      'caller=$callerId GET /$normalizedPath -> ${response.statusCode}',
+      'caller=$callerId $normalizedMethod /$normalizedPath -> ${response.statusCode}',
     );
 
     return DecentProxyResponse(
       statusCode: response.statusCode,
       headers: _relayHeaders(response.headers),
       body: response.body,
+    );
+  }
+
+  /// Forwards a GET to `<baseUrl>/<path>`.
+  Future<DecentProxyResponse> proxyGet({
+    required String callerId,
+    required String path,
+    Map<String, String>? query,
+  }) {
+    return proxy(
+      callerId: callerId,
+      method: 'GET',
+      path: path,
+      query: query,
+    );
+  }
+
+  /// Forwards a POST to `<baseUrl>/<path>`.
+  Future<DecentProxyResponse> proxyPost({
+    required String callerId,
+    required String path,
+    Map<String, String>? query,
+    String? body,
+    String? contentType,
+  }) {
+    return proxy(
+      callerId: callerId,
+      method: 'POST',
+      path: path,
+      query: query,
+      body: body,
+      contentType: contentType,
+    );
+  }
+
+  /// Forwards a PUT to `<baseUrl>/<path>`.
+  Future<DecentProxyResponse> proxyPut({
+    required String callerId,
+    required String path,
+    Map<String, String>? query,
+    String? body,
+    String? contentType,
+  }) {
+    return proxy(
+      callerId: callerId,
+      method: 'PUT',
+      path: path,
+      query: query,
+      body: body,
+      contentType: contentType,
     );
   }
 
