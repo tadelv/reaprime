@@ -209,7 +209,7 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
                         plugin.permissions
                             .map(
                               (permission) => Chip(
-                                label: Text(permission.name),
+                                label: Text(permission.wireName),
                                 backgroundColor:
                                     Theme.of(context).colorScheme.tertiary,
                                 labelStyle:
