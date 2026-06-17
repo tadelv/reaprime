@@ -1,17 +1,20 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter_js/flutter_js.dart';
 import 'package:logging/logging.dart';
 
 import 'plugin_manifest.dart';
+import 'plugin_decent_proxy_bridge.dart';
 import 'plugin_runtime.dart';
 import 'plugin_types.dart';
 import '../services/storage/kv_store_service.dart';
 import '../controllers/de1_controller.dart';
 import '../models/device/de1_interface.dart';
 import '../models/device/machine.dart';
+import '../services/account/decent_proxy_service.dart';
 
 class PluginManager {
   final _log = Logger("PluginManager");
@@ -19,6 +22,9 @@ class PluginManager {
   final Map<String, PluginRuntime> _plugins = {};
   final JavascriptRuntime js;
   final KeyValueStoreService kvStore;
+  final DecentProxyService? decentProxyService;
+  late final PluginDecentProxyBridge _decentProxyBridge;
+  final Map<String, String> _decentProxyBridgeTokens = {};
 
   final StreamController<Map<String, dynamic>> _emitController =
       StreamController.broadcast();
@@ -31,8 +37,12 @@ class PluginManager {
 
   De1Controller? get de1Controller => _de1controller;
 
-  PluginManager({required this.kvStore})
+  PluginManager({required this.kvStore, this.decentProxyService})
     : js = getJavascriptRuntime(xhr: false) {
+    _decentProxyBridge = PluginDecentProxyBridge(
+      decentProxyService: decentProxyService,
+      log: _log,
+    );
     // js.enableHandlePromises();
     // js.enableXhr();
     // js.enableFetch();
@@ -52,6 +62,7 @@ class PluginManager {
         
         // Add HTTP response handling
         globalThis.__pendingHttpRequests = new Map();
+        globalThis.__pendingDecentProxyRequests = new Map();
         
         globalThis.__registerHttpRequest = function (pluginId, requestId) {
           if (!globalThis.__pendingHttpRequests.has(pluginId)) {
@@ -79,6 +90,30 @@ class PluginManager {
             requestId: requestId,
             payload: response
           }));
+        };
+
+        globalThis.__registerDecentProxyRequest = function (pluginId, requestId) {
+          if (!globalThis.__pendingDecentProxyRequests.has(pluginId)) {
+            globalThis.__pendingDecentProxyRequests.set(pluginId, new Map());
+          }
+          return new Promise((resolve, reject) => {
+            globalThis.__pendingDecentProxyRequests
+              .get(pluginId)
+              .set(requestId, { resolve, reject });
+          });
+        };
+
+        globalThis.__handleDecentProxyResponse = function (pluginId, requestId, response) {
+          const pendingByPlugin = globalThis.__pendingDecentProxyRequests.get(pluginId);
+          if (!pendingByPlugin) return;
+          const pending = pendingByPlugin.get(requestId);
+          if (!pending) return;
+          pendingByPlugin.delete(requestId);
+          if (response && response.error) {
+            pending.reject(new Error(response.error));
+            return;
+          }
+          pending.resolve(response);
         };
 
         // Provide btoa function if not available
@@ -168,6 +203,17 @@ class PluginManager {
               headers: headers,
               body: body
             }));
+          },
+          decentProxy(pluginId, bridgeToken, requestId, path, method, query) {
+            sendMessage("host", JSON.stringify({
+              pluginId: pluginId,
+              bridgeToken: bridgeToken,
+              type: "decentProxy",
+              requestId: requestId,
+              path: path,
+              method: method,
+              query: query
+            }));
           }
         };
       })();
@@ -244,7 +290,7 @@ class PluginManager {
       })();
     ''');
 
-    js.onMessage("host", (raw) {
+    js.onMessage("host", (raw) async {
       try {
         _log.finest("receiving: $raw");
         final msg = raw as Map<String, dynamic>;
@@ -262,7 +308,7 @@ class PluginManager {
           // Handle HTTP responses from plugin
           _handlePluginApiResponse(pluginId, msg);
         } else {
-          _handleMessage(pluginId, msg);
+          await _handleMessage(pluginId, msg);
         }
       } catch (e, st) {
         _log.warning("Invalid JS message", e, st);
@@ -292,12 +338,15 @@ class PluginManager {
     await unloadPlugin(id);
 
     final runtime = PluginRuntime(pluginId: id, manifest: manifest);
+    final decentProxyBridgeToken = _newBridgeToken();
 
     _plugins[id] = runtime;
+    _decentProxyBridgeTokens[id] = decentProxyBridgeToken;
 
     try {
       // Direct injection approach with standard factory name
-      final wrapperCode = '''
+      final wrapperCode =
+          '''
       (function () {
         const pluginId = "$id";
         
@@ -306,6 +355,22 @@ class PluginManager {
           log: (msg) => globalThis.host.log(pluginId, msg),
           emit: (type, payload) => globalThis.host.emit(pluginId, type, payload),
           storage: (cmd) => globalThis.host.storage(pluginId, cmd),
+          decentProxy: (path, options = {}) => {
+            const requestId = pluginId + "_decent_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+            return new Promise((resolve, reject) => {
+              if (globalThis.__registerDecentProxyRequest) {
+                globalThis.__registerDecentProxyRequest(pluginId, requestId).then(resolve).catch(reject);
+              }
+              globalThis.host.decentProxy(
+                pluginId,
+                ${jsonEncode(decentProxyBridgeToken)},
+                requestId,
+                path,
+                options.method || "GET",
+                options.query || {}
+              );
+            });
+          },
           // Add HTTP request capability
           httpRequest: (endpoint, method, headers, body) => {
             const requestId = pluginId + "_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
@@ -370,6 +435,7 @@ class PluginManager {
       _log.info("loaded: $id");
     } catch (e, st) {
       _plugins.remove(id);
+      _decentProxyBridgeTokens.remove(id);
       js.evaluate('''
       delete globalThis.__plugins__["$id"];
     ''');
@@ -386,6 +452,7 @@ class PluginManager {
 
   Future<void> unloadPlugin(String id) async {
     final runtime = _plugins.remove(id);
+    _decentProxyBridgeTokens.remove(id);
     if (runtime == null) return;
 
     try {
@@ -482,7 +549,7 @@ class PluginManager {
   // JS → Dart messages
   // ─────────────────────────────────────────────
 
-  void _handleMessage(String pluginId, Map<String, dynamic> msg) {
+  Future<void> _handleMessage(String pluginId, Map<String, dynamic> msg) async {
     _log.finest("handle message: $msg");
     final type = msg['type'];
     final payload = msg['payload'];
@@ -500,9 +567,94 @@ class PluginManager {
 
       case 'pluginStorage':
         final cmd = PluginStorageCommand.fromPlugin(payload);
-        _handlePluginStorage(pluginId, cmd);
+        await _handlePluginStorage(pluginId, cmd);
+        break;
+
+      case 'decentProxy':
+        await _handleDecentProxyMessage(pluginId, msg);
         break;
     }
+  }
+
+  Future<void> _handleDecentProxyMessage(
+    String pluginId,
+    Map<String, dynamic> msg,
+  ) async {
+    final requestId = msg['requestId'] as String?;
+    if (requestId == null) {
+      _log.warning('Decent proxy message from $pluginId missing requestId');
+      return;
+    }
+    if (msg['bridgeToken'] != _decentProxyBridgeTokens[pluginId]) {
+      _log.warning('Decent proxy message from $pluginId has invalid token');
+      _completeDecentProxyRequest(pluginId, requestId, {
+        'error': 'Invalid plugin proxy caller',
+      });
+      return;
+    }
+
+    try {
+      final response = await proxyDecentApiForManifest(
+        pluginId: pluginId,
+        manifest: _plugins[pluginId]?.manifest,
+        path: msg['path'] as String?,
+        method: (msg['method'] as String?) ?? 'GET',
+        query: _stringMap(msg['query']),
+      );
+      _completeDecentProxyRequest(pluginId, requestId, response);
+    } catch (e) {
+      _completeDecentProxyRequest(pluginId, requestId, {
+        'error': e.toString(),
+      });
+    }
+  }
+
+  String _newBridgeToken() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(32, (_) => random.nextInt(256));
+    return base64Url.encode(bytes);
+  }
+
+  Future<Map<String, dynamic>> proxyDecentApiForManifest({
+    required String pluginId,
+    required PluginManifest? manifest,
+    required String? path,
+    String method = 'GET',
+    Map<String, String>? query,
+  }) async {
+    return _decentProxyBridge.proxyForPlugin(
+      pluginId: pluginId,
+      manifest: manifest,
+      path: path,
+      method: method,
+      query: query,
+    );
+  }
+
+  Map<String, String>? _stringMap(dynamic value) {
+    if (value is! Map) return null;
+    final out = <String, String>{};
+    value.forEach((key, value) {
+      if (value != null) {
+        out[key.toString()] = value.toString();
+      }
+    });
+    return out.isEmpty ? null : out;
+  }
+
+  void _completeDecentProxyRequest(
+    String pluginId,
+    String requestId,
+    Map<String, dynamic> response,
+  ) {
+    js.evaluate('''
+      globalThis.__handleDecentProxyResponse(
+        ${jsonEncode(pluginId)},
+        ${jsonEncode(requestId)},
+        ${jsonEncode(response)}
+      );
+    ''');
+    js.executePendingJob();
   }
 
   Future<void> _handlePluginStorage(

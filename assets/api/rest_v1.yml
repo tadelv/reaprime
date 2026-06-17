@@ -5167,7 +5167,7 @@ components:
           type: string
         permissions:
           type: string
-          enum: [log, emit, pluginStorage]
+          enum: [log, emit, pluginStorage, pluginNotify, proxy.decent_api]
         settings:
           description: Plugin settings schema
           type: object

@@ -45,7 +45,7 @@ class PluginManifest {
       'description': description,
       'version': version,
       'apiVersion': apiVersion,
-      'permissions': permissions.map((e) => e.name).toList(),
+      'permissions': permissions.map((e) => e.wireName).toList(),
       'settings': settings,
       'api': api?.toJson(),
     };
@@ -53,13 +53,20 @@ class PluginManifest {
 }
 
 enum PluginPermissions {
-  log,
-  emit,
-  pluginStorage,
-  pluginNotify;
+  log('log'),
+  emit('emit'),
+  pluginStorage('pluginStorage'),
+  pluginNotify('pluginNotify'),
+  proxyDecentApi('proxy.decent_api');
+
+  final String wireName;
+
+  const PluginPermissions(this.wireName);
 
   static PluginPermissions? fromString(String value) {
-    return PluginPermissions.values.firstWhereOrNull((e) => e.name == value);
+    return PluginPermissions.values.firstWhereOrNull(
+      (e) => e.wireName == value || e.name == value,
+    );
   }
 }
 

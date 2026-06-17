@@ -59,6 +59,7 @@ A Decent.app plugin consists of two required files:
   - `api`: Ability to make HTTP requests
   - `emit`: Emit events to the Flutter app
   - `pluginStorage`: Persistent storage
+  - `proxy.decent_api`: Call the linked Decent account proxy through `host.decentProxy`
 - **settings**: User-configurable options with `type` (`string`, `number`, `boolean`) and optional `secure` flag for passwords
 - **api**: Events this plugin emits, used for documentation and type checking
 
@@ -126,6 +127,22 @@ host.storage({
 ```
 
 **Note:** namespace is not used by Decent.app internally, the plugin storage is namespaced to the plugins' identifier.
+
+### `host.decentProxy(path, options)`
+Call the Decent account proxy without exposing stored credentials to plugin code. The plugin must declare the `proxy.decent_api` permission in `manifest.json`; calls without that permission are rejected and logged.
+
+```javascript
+const response = await host.decentProxy("support/api/sn", {
+  method: "GET",
+  query: { onlyespressomachines: "1" }
+});
+
+if (response.status === 200) {
+  const serials = response.body.trim().split("\n");
+}
+```
+
+The returned object has `{ status, headers, body }`. Only `GET` is supported for plugins in the phase-1 bridge. The existing proxy allowlist still applies, so plugin requests are restricted to the supported Decent backend path prefix.
 
 ## Events System
 

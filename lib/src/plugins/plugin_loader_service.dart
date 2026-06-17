@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:reaprime/src/plugins/plugin_manager.dart';
 import 'package:reaprime/src/plugins/plugin_manifest.dart';
 import 'package:reaprime/src/plugins/plugin_runtime.dart';
+import 'package:reaprime/src/services/account/decent_proxy_service.dart';
 import 'package:reaprime/build_info.dart';
 
 class PluginSettingsValidationException implements Exception {
@@ -29,9 +30,15 @@ class PluginLoaderService {
   late SharedPreferences _prefs;
   final Map<String, PluginManifest> _availablePluginsCache = {};
 
-  PluginLoaderService({required KeyValueStoreService kvStore, bool? appStoreMode})
-    : pluginManager = PluginManager(kvStore: kvStore),
-      _appStoreMode = appStoreMode ?? BuildInfo.appStore;
+  PluginLoaderService({
+    required KeyValueStoreService kvStore,
+    DecentProxyService? decentProxyService,
+    bool? appStoreMode,
+  }) : pluginManager = PluginManager(
+         kvStore: kvStore,
+         decentProxyService: decentProxyService,
+       ),
+       _appStoreMode = appStoreMode ?? BuildInfo.appStore;
 
   bool _initialized = false;
 
@@ -340,12 +347,15 @@ class PluginLoaderService {
           '$pluginPath/manifest.json',
         );
         if (kReleaseMode) {
-          final newManifest = PluginManifest.fromJson(jsonDecode(manifestAsset));
+          final newManifest = PluginManifest.fromJson(
+            jsonDecode(manifestAsset),
+          );
           final existingManifestFile = File('${destDir.path}/manifest.json');
           final existingManifest = PluginManifest.fromJson(
             jsonDecode(await existingManifestFile.readAsString()),
           );
-          if (_compareVersions(newManifest.version, existingManifest.version) <= 0) {
+          if (_compareVersions(newManifest.version, existingManifest.version) <=
+              0) {
             // existing plugin has same or newer version
             _log.fine(
               "not overriding bundled plugin: [bundled: ${newManifest.version}], [existing: ${existingManifest.version}]",
@@ -515,7 +525,9 @@ class PluginLoaderService {
     // Validate each setting against schema
     for (final key in settings.keys) {
       if (!manifestSettings.containsKey(key)) {
-        throw PluginSettingsValidationException('Setting "$key" not defined in plugin manifest');
+        throw PluginSettingsValidationException(
+          'Setting "$key" not defined in plugin manifest',
+        );
       }
 
       // TODO: Add more sophisticated validation based on schema type
