@@ -287,7 +287,7 @@ Future<void> startWebServer(
       accountHandler,
       accountProxyHandler,
       proxyTokenService,
-      accountProxyCorsAllowedOrigins(webUIService),
+      () => accountProxyCorsAllowedOrigins(webUIService),
       dataExportHandler,
       dataSyncHandler,
       beansHandler,
@@ -328,7 +328,7 @@ Handler _init(
   AccountHandler? accountHandler,
   AccountProxyHandler? accountProxyHandler,
   ProxyTokenService? proxyTokenService,
-  Set<String> accountProxyAllowedOrigins,
+  Set<String> Function() accountProxyAllowedOrigins,
   DataExportHandler dataExportHandler,
   DataSyncHandler dataSyncHandler,
   BeansHandler? beansHandler,
@@ -434,7 +434,7 @@ Set<String> accountProxyCorsAllowedOrigins(WebUIService webUIService) {
 }
 
 Middleware accountProxyCorsMiddleware(
-  Set<String> allowedOrigins, {
+  Set<String> Function() allowedOrigins, {
   String pathPrefix = '/api/v1/account/proxy/',
 }) {
   return (Handler inner) {
@@ -450,7 +450,7 @@ Middleware accountProxyCorsMiddleware(
       );
 
       final origin = request.headers['origin'];
-      if (origin != null && allowedOrigins.contains(origin)) {
+      if (origin != null && allowedOrigins().contains(origin)) {
         headerUpdates.addAll(_removeHeaderUpdates(response, 'vary'));
         headerUpdates['Access-Control-Allow-Origin'] = origin;
         headerUpdates['Vary'] = _appendVary(response.headers['vary'], 'Origin');
