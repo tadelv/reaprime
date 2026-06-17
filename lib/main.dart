@@ -130,49 +130,6 @@ Set<SimulatedDevicesTypes> _parseSimulateFlag(String value) {
       .toSet();
 }
 
-const _defaultDesktopWindowSize = Size(1280, 800);
-const _defaultDesktopAspectRatio = 1.6;
-
-Future<Size> _simulatedWebViewWindowSize(
-  SimulatedWebViewDevice device,
-) async {
-  final titleBarHeight = Platform.isMacOS
-      ? await WindowManager.instance.getTitleBarHeight()
-      : 0;
-  return Size(
-    device.viewportSize.width,
-    device.viewportSize.height + titleBarHeight,
-  );
-}
-
-Future<void> _setSimulatedWebViewDevice(
-  SimulatedWebViewDevice? device, {
-  bool persist = true,
-}) async {
-  simulatedWebViewDevice.value = device;
-  if (persist) {
-    await persistSimulatedWebViewDevice(device);
-  }
-
-  if (device == null) {
-    await WindowManager.instance.setMinimumSize(_defaultDesktopWindowSize);
-    await WindowManager.instance.setAspectRatio(_defaultDesktopAspectRatio);
-    await WindowManager.instance.setSize(_defaultDesktopWindowSize);
-    await WindowManager.instance.center();
-    await WindowManager.instance.focus();
-    return;
-  }
-
-  final windowSize = await _simulatedWebViewWindowSize(device);
-  await WindowManager.instance.setMinimumSize(windowSize);
-  await WindowManager.instance.setAspectRatio(
-    windowSize.width / windowSize.height,
-  );
-  await WindowManager.instance.setSize(windowSize);
-  await WindowManager.instance.center();
-  await WindowManager.instance.focus();
-}
-
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   final cliArgs = parseCliArgs(args);
@@ -189,18 +146,22 @@ void main(List<String> args) async {
 
   final log = Logger("Main");
 
-  if (Platform.isWindows || Platform.isMacOS) {
+  if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
     await WindowManager.instance.ensureInitialized();
-    WindowManager.instance.setMinimumSize(_defaultDesktopWindowSize);
-    await WindowManager.instance.setAspectRatio(_defaultDesktopAspectRatio);
-    await WindowManager.instance.setSize(_defaultDesktopWindowSize);
+    // Windows/macOS lock to the default kiosk window size at startup. Linux is
+    // left free-form (its default windowing is unchanged); WindowManager is
+    // still initialized so a simulated WebView can resize the window on demand.
+    if (!Platform.isLinux) {
+      WindowManager.instance.setMinimumSize(defaultDesktopWindowSize);
+      await WindowManager.instance.setAspectRatio(defaultDesktopAspectRatio);
+      await WindowManager.instance.setSize(defaultDesktopWindowSize);
+    }
     final startupSimulatedWebViewDevice =
-        await SharedPreferencesSettingsService().enableSimulatedWebViews() &&
-                Platform.isMacOS
+        await SharedPreferencesSettingsService().enableSimulatedWebViews()
             ? await loadPersistedSimulatedWebViewDevice()
             : null;
     if (startupSimulatedWebViewDevice != null) {
-      await _setSimulatedWebViewDevice(
+      await setSimulatedWebViewDevice(
         startupSimulatedWebViewDevice,
         persist: false,
       );
@@ -944,7 +905,52 @@ class _AppRootState extends State<AppRoot> {
         child: child,
       );
     }
+    // Windows/Linux have no native menu bar, so mirror the macOS simulated-
+    // WebView menu shortcuts with Ctrl+Alt+<digit> bindings (Cmd→Ctrl) when the
+    // feature is enabled. The Advanced-settings picker is the discoverable path;
+    // these match the muscle memory of the macOS menu accelerators.
+    if ((Platform.isWindows || Platform.isLinux) &&
+        widget.settingsController.enableSimulatedWebViews) {
+      return CallbackShortcuts(
+        bindings: _simulatedWebViewShortcuts(),
+        child: child,
+      );
+    }
     return child;
+  }
+
+  /// `Ctrl+Alt+<digit>` accelerators for switching the simulated WebView on
+  /// Windows/Linux, mirroring the macOS Cmd+Alt menu shortcuts in
+  /// [_buildPlatformMenus]: 0 → native, 8 → T50 Mini, 7 → P80X, 6 → P85 Pro.
+  Map<ShortcutActivator, VoidCallback> _simulatedWebViewShortcuts() {
+    return {
+      const SingleActivator(
+        LogicalKeyboardKey.digit0,
+        control: true,
+        alt: true,
+      ): () => unawaited(setSimulatedWebViewDevice(null)),
+      const SingleActivator(
+        LogicalKeyboardKey.digit8,
+        control: true,
+        alt: true,
+      ): () => unawaited(
+        setSimulatedWebViewDevice(SimulatedWebViewDevice.teclastT50Mini),
+      ),
+      const SingleActivator(
+        LogicalKeyboardKey.digit7,
+        control: true,
+        alt: true,
+      ): () => unawaited(
+        setSimulatedWebViewDevice(SimulatedWebViewDevice.teclastP80X),
+      ),
+      const SingleActivator(
+        LogicalKeyboardKey.digit6,
+        control: true,
+        alt: true,
+      ): () => unawaited(
+        setSimulatedWebViewDevice(SimulatedWebViewDevice.teclastP85Pro),
+      ),
+    };
   }
 
   List<PlatformMenuItem> _buildPlatformMenus() {
@@ -1004,7 +1010,7 @@ class _AppRootState extends State<AppRoot> {
                 meta: true,
               ),
               onSelected: () async {
-                await _setSimulatedWebViewDevice(null);
+                await setSimulatedWebViewDevice(null);
               },
             ),
             PlatformMenuItem(
@@ -1015,7 +1021,7 @@ class _AppRootState extends State<AppRoot> {
                 meta: true,
               ),
               onSelected: () async {
-                await _setSimulatedWebViewDevice(
+                await setSimulatedWebViewDevice(
                   SimulatedWebViewDevice.teclastT50Mini,
                 );
               },
@@ -1028,7 +1034,7 @@ class _AppRootState extends State<AppRoot> {
                 meta: true,
               ),
               onSelected: () async {
-                await _setSimulatedWebViewDevice(
+                await setSimulatedWebViewDevice(
                   SimulatedWebViewDevice.teclastP80X,
                 );
               },
@@ -1041,7 +1047,7 @@ class _AppRootState extends State<AppRoot> {
                 meta: true,
               ),
               onSelected: () async {
-                await _setSimulatedWebViewDevice(
+                await setSimulatedWebViewDevice(
                   SimulatedWebViewDevice.teclastP85Pro,
                 );
               },

@@ -5,7 +5,9 @@ import 'package:reaprime/src/settings/settings_service.dart';
 /// Spy settings service that tracks calls to setSimulatedDevices.
 class _SpySettingsService implements SettingsService {
   int setSimulatedDevicesCallCount = 0;
+  int setEnableSimulatedWebViewsCallCount = 0;
   Set<SimulatedDevicesTypes> _simulatedDevices = {};
+  bool _enableSimulatedWebViews = false;
   String? _preferredMachineId;
   String? _preferredScaleId;
 
@@ -15,6 +17,13 @@ class _SpySettingsService implements SettingsService {
   Future<void> setSimulatedDevices(Set<SimulatedDevicesTypes> value) async {
     setSimulatedDevicesCallCount++;
     _simulatedDevices = value;
+  }
+  @override
+  Future<bool> enableSimulatedWebViews() async => _enableSimulatedWebViews;
+  @override
+  Future<void> setEnableSimulatedWebViews(bool value) async {
+    setEnableSimulatedWebViewsCallCount++;
+    _enableSimulatedWebViews = value;
   }
   @override
   Future<String?> preferredMachineId() async => _preferredMachineId;
@@ -149,6 +158,42 @@ void main() {
 
       expect(controller.preferredMachineId, 'MockDe1');
       expect(controller.preferredScaleId, isNull);
+    });
+  });
+
+  group('SettingsController.setEnableSimulatedWebViews', () {
+    test('persists and updates the in-memory value', () async {
+      final spy = _SpySettingsService();
+      final controller = SettingsController(spy);
+
+      await controller.setEnableSimulatedWebViews(true);
+
+      expect(controller.enableSimulatedWebViews, isTrue);
+      expect(spy.setEnableSimulatedWebViewsCallCount, 1);
+    });
+
+    test('notifies listeners on change', () async {
+      final spy = _SpySettingsService();
+      final controller = SettingsController(spy);
+      var notified = false;
+      controller.addListener(() => notified = true);
+
+      await controller.setEnableSimulatedWebViews(true);
+
+      expect(notified, isTrue);
+    });
+
+    test('is a no-op when the value is unchanged', () async {
+      final spy = _SpySettingsService();
+      final controller = SettingsController(spy);
+      var notified = false;
+      controller.addListener(() => notified = true);
+
+      // Default is false; setting false again should neither persist nor notify.
+      await controller.setEnableSimulatedWebViews(false);
+
+      expect(spy.setEnableSimulatedWebViewsCallCount, 0);
+      expect(notified, isFalse);
     });
   });
 }
