@@ -136,6 +136,39 @@ void main() {
     },
   );
 
+  test('authenticated + linked relays upstream response bytes', () async {
+    await linkAccount();
+    final app = Router().plus;
+    final proxy = DecentProxyService(
+      httpClient: http_testing.MockClient((request) async {
+        upstream = request;
+        return http.Response.bytes(
+          [0, 159, 146, 150, 255],
+          206,
+          headers: {'content-type': 'application/octet-stream'},
+        );
+      }),
+      credentialStore: store,
+    );
+    AccountProxyHandler(proxy: proxy).addRoutes(app);
+    handler = const Pipeline()
+        .addMiddleware(proxyAuthMiddleware(tokens))
+        .addHandler(app.call);
+
+    final response = await get(
+      '/api/v1/account/proxy/support/api/blob',
+      token: 'skin-token',
+    );
+
+    final bytes = await response.read().fold<List<int>>(
+      <int>[],
+      (buffer, chunk) => buffer..addAll(chunk),
+    );
+    expect(response.statusCode, 206);
+    expect(bytes, [0, 159, 146, 150, 255]);
+    expect(response.headers['content-type'], 'application/octet-stream');
+  });
+
   test('a path outside the allowed prefix returns 403', () async {
     await linkAccount();
     final response = await get(
