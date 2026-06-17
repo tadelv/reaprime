@@ -5166,8 +5166,10 @@ components:
         apiVersion:
           type: string
         permissions:
-          type: string
-          enum: [log, emit, pluginStorage, pluginNotify, proxy.decent_api]
+          type: array
+          items:
+            type: string
+            enum: [log, emit, pluginStorage, pluginNotify, proxy.decent_api]
         settings:
           description: Plugin settings schema
           type: object
