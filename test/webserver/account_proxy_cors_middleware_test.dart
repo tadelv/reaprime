@@ -5,16 +5,16 @@ import 'package:shelf_cors_headers/shelf_cors_headers.dart';
 
 void main() {
   late Handler handler;
+  late Set<String> allowedOrigins;
 
   setUp(() {
+    allowedOrigins = {
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+    };
+
     handler = const Pipeline()
-        .addMiddleware(
-          accountProxyCorsMiddleware({
-            'http://localhost:3000',
-            'http://127.0.0.1:3000',
-            'http://192.168.4.20:3000',
-          }),
-        )
+        .addMiddleware(accountProxyCorsMiddleware(() => allowedOrigins))
         .addMiddleware(
           corsHeaders(
             headers: {
@@ -48,6 +48,8 @@ void main() {
   test(
     'proxy request from an allowed skin origin echoes that origin',
     () async {
+      allowedOrigins.add('http://192.168.4.20:3000');
+
       final response = await request(
         'GET',
         '/api/v1/account/proxy/support/api/sn',
@@ -59,6 +61,31 @@ void main() {
         'http://192.168.4.20:3000',
       );
       expect(response.headers['vary'], contains('Origin'));
+    },
+  );
+
+  test(
+    'proxy request allows a LAN skin origin learned after handler startup',
+    () async {
+      final before = await request(
+        'GET',
+        '/api/v1/account/proxy/support/api/sn',
+        origin: 'http://192.168.4.20:3000',
+      );
+
+      allowedOrigins.add('http://192.168.4.20:3000');
+
+      final after = await request(
+        'GET',
+        '/api/v1/account/proxy/support/api/sn',
+        origin: 'http://192.168.4.20:3000',
+      );
+
+      expect(before.headers['access-control-allow-origin'], isNull);
+      expect(
+        after.headers['access-control-allow-origin'],
+        'http://192.168.4.20:3000',
+      );
     },
   );
 
