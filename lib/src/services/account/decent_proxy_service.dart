@@ -26,13 +26,15 @@ class DecentProxyForbiddenPathException implements Exception {
 class DecentProxyResponse {
   final int statusCode;
   final Map<String, String> headers;
-  final String body;
+  final List<int> bodyBytes;
 
   DecentProxyResponse({
     required this.statusCode,
     required this.headers,
-    required this.body,
+    required this.bodyBytes,
   });
+
+  String get body => utf8.decode(bodyBytes);
 }
 
 /// Auth-enriching reverse proxy for the Decent backend.
@@ -57,9 +59,9 @@ class DecentProxyService {
 
   /// Response headers never relayed to callers (auth/session/transport).
   ///
-  /// `content-length`/`content-encoding` are dropped because the http client
-  /// already decoded the body into [DecentProxyResponse.body]; relaying the
-  /// upstream values would describe the encoded bytes and corrupt the response.
+  /// `content-length`/`content-encoding` are dropped because forwarding may
+  /// still be re-framed by the local HTTP server; relaying upstream transfer
+  /// metadata would describe the wrong bytes.
   static const _strippedResponseHeaders = {
     'set-cookie',
     'www-authenticate',
@@ -144,8 +146,8 @@ class DecentProxyService {
       outbound.bodyBytes = utf8.encode(body);
     }
 
-    final streamedResponse = await _httpClient.send(outbound);
-    final response = await http.Response.fromStream(streamedResponse);
+    final response = await _httpClient.send(outbound);
+    final responseBody = await response.stream.toBytes();
 
     _log.info(
       'caller=$callerId $normalizedMethod /$normalizedPath -> ${response.statusCode}',
@@ -154,7 +156,7 @@ class DecentProxyService {
     return DecentProxyResponse(
       statusCode: response.statusCode,
       headers: _relayHeaders(response.headers),
-      body: response.body,
+      bodyBytes: responseBody,
     );
   }
 

@@ -115,6 +115,26 @@ void main() {
     expect(result.body, 'upstream boom');
   });
 
+  test('relays upstream response body bytes without decoding', () async {
+    await linkAccount();
+    final service = buildService((request) async {
+      return http.Response.bytes(
+        [0, 159, 146, 150, 255],
+        206,
+        headers: {'content-type': 'application/octet-stream'},
+      );
+    });
+
+    final result = await service.proxyGet(
+      callerId: 'api:tok',
+      path: 'support/api/blob',
+    );
+
+    expect(result.statusCode, 206);
+    expect(result.bodyBytes, [0, 159, 146, 150, 255]);
+    expect(result.headers['content-type'], 'application/octet-stream');
+  });
+
   test('strips sensitive response headers but keeps content-type', () async {
     await linkAccount();
     final service = buildService((request) async {

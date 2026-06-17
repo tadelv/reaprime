@@ -3933,7 +3933,14 @@ paths:
             type: string
       responses:
         "200":
-          description: Upstream response relayed verbatim (status and body as-is)
+          description: Common upstream success response relayed verbatim
+        default:
+          description: Any upstream status/body relayed verbatim
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
         "401":
           description: Missing/invalid token, or no Decent account linked
           content:

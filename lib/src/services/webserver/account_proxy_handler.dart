@@ -36,7 +36,7 @@ class AccountProxyHandler {
       );
       return Response(
         result.statusCode,
-        body: result.body,
+        body: result.bodyBytes,
         headers: result.headers,
       );
     } on DecentAccountNotLinkedException {
@@ -77,7 +77,7 @@ class AccountProxyHandler {
       );
       return Response(
         result.statusCode,
-        body: result.body,
+        body: result.bodyBytes,
         headers: result.headers,
       );
     } on DecentAccountNotLinkedException {
