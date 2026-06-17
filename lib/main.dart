@@ -544,6 +544,7 @@ void main(List<String> args) async {
     AppLifecycleObserver(
       updateCheckService: updateCheckService,
       de1Controller: de1Controller,
+      displayController: displayController,
     ),
   );
 
@@ -584,6 +585,7 @@ class AppLifecycleObserver with WidgetsBindingObserver {
   final _log = Logger("App Lifecycle");
   final UpdateCheckService? updateCheckService;
   final De1Controller? de1Controller;
+  final DisplayController? displayController;
 
   late Timer _memTimer;
   bool _wasBackgrounded = false;
@@ -591,7 +593,11 @@ class AppLifecycleObserver with WidgetsBindingObserver {
   StreamSubscription? _stateStreamSubscription;
   int? _lastMachineState;
 
-  AppLifecycleObserver({this.updateCheckService, this.de1Controller}) {
+  AppLifecycleObserver({
+    this.updateCheckService,
+    this.de1Controller,
+    this.displayController,
+  }) {
     _memTimer = Timer.periodic(Duration(minutes: 5), (t) {
       final rss = ProcessInfo.currentRss / (1024 * 1024);
       _log.info("[MEM] RSS=${rss.toStringAsFixed(1)}MB");
@@ -640,6 +646,11 @@ class AppLifecycleObserver with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       // Resume if needed
       _log.info("state: resumed");
+
+      // Re-assert screen brightness: a write issued while the window was paused
+      // (e.g. the wake restore firing as the screen turned back on) may not have
+      // stuck, leaving the screen dark with no other trigger to recover.
+      unawaited(displayController?.onAppResumed() ?? Future<void>.value());
 
       // Check for updates when app comes to foreground
       if (_wasBackgrounded && updateCheckService?.hasAvailableUpdate == true) {

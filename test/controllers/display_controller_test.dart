@@ -665,6 +665,109 @@ void main() {
         controller.dispose();
       });
     });
+
+    test(
+        'restores brightness when a dim-0 lands after the machine is already awake',
+        () {
+      fakeAsync((async) {
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
+        controller.initialize();
+        async.flushMicrotasks();
+
+        de1Controller.setDe1(testDe1); // seeds idle (awake)
+        async.flushMicrotasks();
+
+        controller.setBrightness(100);
+        async.flushMicrotasks();
+
+        // A normal sleep then wake. The skin's sleep-dim write is still in
+        // flight when the wake transition is processed.
+        testDe1.emitState(MachineState.sleeping); // captures preSleep = 100
+        async.flushMicrotasks();
+        testDe1.emitState(MachineState.idle); // wake; brightness still 100
+        async.flushMicrotasks();
+        expect(controller.currentState.brightness, 100);
+
+        // The deferred sleep-dim finally lands — but the machine is already
+        // awake and will emit no further state transition.
+        controller.setBrightness(0);
+        async.flushMicrotasks();
+        expect(controller.currentState.brightness, 0);
+
+        // The next telemetry frame is the same awake state (no transition). The
+        // old edge-gated logic ignored it and left the screen stuck at 0; the
+        // per-snapshot restore heals it.
+        testDe1.emitState(MachineState.idle);
+        async.flushMicrotasks();
+        expect(controller.currentState.brightness, 100);
+
+        controller.dispose();
+      });
+    });
+
+    test('onAppResumed restores brightness when awake and still dimmed', () {
+      fakeAsync((async) {
+        final controller = _createController(de1Controller,
+            settingsController: settingsCtrl);
+        controller.initialize();
+        async.flushMicrotasks();
+
+        de1Controller.setDe1(testDe1); // idle (awake), preSleep defaults to 100
+        async.flushMicrotasks();
+
+        // Screen dark while awake (e.g. a stray dim with no follow-up snapshot).
+        controller.setBrightness(0);
+        async.flushMicrotasks();
+        expect(controller.currentState.brightness, 0);
+
+        controller.onAppResumed();
+        async.flushMicrotasks();
+
+        // Resume heals it back to the saved pre-sleep value.
+        expect(controller.currentState.brightness, 100);
+
+        controller.dispose();
+      });
+    });
+
+    test(
+        'onAppResumed re-applies brightness so an OS write that did not stick recovers',
+        () {
+      fakeAsync((async) {
+        var resetCount = 0;
+        final controller = DisplayController(
+          de1Controller: de1Controller,
+          settingsController: settingsCtrl,
+          setBrightness: (_) async {},
+          resetBrightness: () async {
+            resetCount++;
+          },
+          enableWakeLock: () async {},
+          disableWakeLock: () async {},
+          platformSupport:
+              const DisplayPlatformSupport(brightness: true, wakeLock: true),
+        );
+        controller.initialize();
+        async.flushMicrotasks();
+
+        de1Controller.setDe1(testDe1);
+        async.flushMicrotasks();
+
+        controller.setBrightness(100); // 100 == OS auto -> resetBrightness
+        async.flushMicrotasks();
+        final before = resetCount;
+
+        // Even though our state already believes brightness is 100, the write
+        // issued at wake may not have stuck, so resume must re-assert it.
+        controller.onAppResumed();
+        async.flushMicrotasks();
+
+        expect(resetCount, greaterThan(before));
+
+        controller.dispose();
+      });
+    });
   });
 
   group('battery brightness cap', () {

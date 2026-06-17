@@ -301,15 +301,30 @@ class DisplayController {
     final previousState = _currentMachineState;
     _currentMachineState = snapshot.state.state;
 
-    if (previousState == _currentMachineState) return;
+    _syncBrightnessForMachineState();
 
-    // Save the user's brightness before sleep; restore it whenever the machine
-    // is awake again. This is deliberately keyed off the awake *condition*, not
-    // the precise sleeping->idle edge: if that edge is ever lost — e.g. a BLE
-    // reconnect resets our last-seen state to null, or we start up against an
-    // already-sleeping machine — an edge-triggered restore leaves the screen
-    // stuck dark with no recovery. Level-triggering self-heals on the next
-    // snapshot instead.
+    // Wake-lock only needs re-evaluating when the state actually changes.
+    if (previousState != _currentMachineState) {
+      unawaited(_evaluateWakeLock());
+    }
+  }
+
+  /// Save the user's brightness before sleep; restore it whenever the machine
+  /// is awake again.
+  ///
+  /// Keyed off the awake *condition*, not the precise sleeping->idle edge, and
+  /// re-evaluated on *every* snapshot rather than only on a transition. Two
+  /// things break an edge-triggered restore and leave the screen stuck at the
+  /// sleep-dim (0):
+  ///   * the edge is never observed — a BLE reconnect resets our last-seen
+  ///     state to null, or we start up against an already-sleeping machine;
+  ///   * a stray brightness-0 write lands *after* we've already processed the
+  ///     wake transition — e.g. a skin's deferred sleep-dim arriving a beat
+  ///     after the machine woke, or a buffered "sleeping" frame replayed on a
+  ///     websocket reconnect — so there is no later edge to heal it.
+  /// Re-checking each snapshot self-heals both. It is self-limiting: once
+  /// restored, [_requestedBrightness] is non-zero so the branch stops firing.
+  void _syncBrightnessForMachineState() {
     if (_currentMachineState == MachineState.sleeping) {
       // Never capture a dimmed value: a skin drives brightness to 0 for its
       // sleep screen, and remembering that would "restore" to black next wake.
@@ -320,8 +335,19 @@ class DisplayController {
       _log.info('Awake with screen still dimmed — restoring brightness');
       unawaited(setBrightness(_preSleepBrightness));
     }
+  }
 
-    unawaited(_evaluateWakeLock());
+  /// Re-assert screen brightness after the app window resumes.
+  ///
+  /// A brightness write issued while the activity was paused — e.g. the wake
+  /// restore firing right as the tablet screen was turning back on — can
+  /// silently fail to take effect on Android, and nothing else re-applies it,
+  /// so the screen stays dark even though our state believes it is restored.
+  /// On resume the window is ready again: re-run the restore check and push the
+  /// current value to the OS so a write that never stuck is reapplied.
+  Future<void> onAppResumed() async {
+    _syncBrightnessForMachineState();
+    await _applyBrightness();
   }
 
   // ---------------------------------------------------------------------------
