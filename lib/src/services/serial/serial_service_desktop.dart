@@ -578,13 +578,22 @@ class _DesktopSerialPort implements SerialTransport {
     final stable = computeUsbStableId(vid: vid, pid: pid, serial: serial);
     if (stable != null) return stable;
     // No real USB stable id (e.g. macOS reports null vid/pid for the CH34x
-    // serial chip via libserialport's DriverKit path). Fall back to the port
-    // PATH, not `_port.address`: the address is a libserialport handle that
-    // changes on every `SerialPort()` construction, so using it churns the
-    // deviceId for one physical device (which breaks identity-keyed features
-    // like preferred-device and remembered-devices). The path
-    // (/dev/cu.wchusbserial110, COMx) is stable per physical port.
-    return _safePortName() ?? "${_port.address}";
+    // serial chip via libserialport's DriverKit path, or Linux sysfs attrs
+    // are missing for some USB-serial bridges). Fall back to the port PATH
+    // BASENAME — not the full path. Raw paths like /dev/ttyUSB0 contain
+    // slashes that break URL routing when the ID is used as a WebSocket path
+    // segment (e.g. ws/v1/sensors/{id}/snapshot → the double-slash kills
+    // shelf matching). Basename is stable per physical port and URL-safe.
+    // Prefer the port name over address: the address is a libserialport handle
+    // that changes on every `SerialPort()` construction, churning the deviceId
+    // for one physical device (which breaks identity-keyed features like
+    // preferred-device and remembered-devices).
+    final portName = _safePortName();
+    if (portName != null) {
+      final basename = portName.split('/').last;
+      return 'serial-$basename';
+    }
+    return 'serial-${_port.address}';
   }
 
   // Once dispose() frees the native sp_port (and its sp_port_config), ANY
