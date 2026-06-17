@@ -104,6 +104,17 @@ part 'webserver/account_handler.dart';
 part 'webserver/account_proxy_handler.dart';
 part 'webserver/update_handler.dart';
 
+const _corsExposedResponseHeaders = [
+  'ETag',
+  'Location',
+  'Content-Disposition',
+  'Retry-After',
+  'X-Request-Id',
+  'X-RateLimit-Limit',
+  'X-RateLimit-Remaining',
+  'X-RateLimit-Reset',
+];
+
 final log = Logger("Webservice");
 
 Future<void> startWebServer(
@@ -392,10 +403,12 @@ Handler _init(
       .addMiddleware(
         corsHeaders(
           headers: {
-            // Browsers gate cross-origin reads of non-safelisted response headers
-            // behind Access-Control-Expose-Headers. ETag isn't safelisted, so
-            // skin/web clients couldn't read it without this.
-            'Access-Control-Expose-Headers': 'ETag',
+            // Browsers gate cross-origin reads of non-safelisted response
+            // headers behind Access-Control-Expose-Headers. Keep this aligned
+            // with safe headers the account proxy can relay.
+            'Access-Control-Expose-Headers': _corsExposedResponseHeaders.join(
+              ', ',
+            ),
             'Access-Control-Allow-Headers':
                 'Accept, Accept-Encoding, Authorization, Content-Type, DNT, Origin, User-Agent, If-None-Match',
           },
