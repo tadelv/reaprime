@@ -2,20 +2,26 @@ part of '../webserver_service.dart';
 
 /// HTTP front door for the Decent account proxy.
 ///
-/// Forwards `GET|POST|PUT /api/v1/account/proxy/<decent-path>` through
+/// Forwards `GET /api/v1/account/proxy/<decent-path>` through
 /// [DecentProxyService], which attaches the stored credentials and relays the
 /// upstream response. Caller identity comes from [proxyAuthMiddleware] (via
 /// [proxyCallerOf]); this handler assumes the middleware has already rejected
 /// unauthenticated requests under this prefix.
 class AccountProxyHandler {
   final DecentProxyService _proxy;
+  final bool enableWrites;
 
-  AccountProxyHandler({required DecentProxyService proxy}) : _proxy = proxy;
+  AccountProxyHandler({
+    required DecentProxyService proxy,
+    this.enableWrites = false,
+  }) : _proxy = proxy;
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/account/proxy/<rest|.*>', _handleGet);
-    app.post('/api/v1/account/proxy/<rest|.*>', _handlePost);
-    app.put('/api/v1/account/proxy/<rest|.*>', _handlePut);
+    if (enableWrites) {
+      app.post('/api/v1/account/proxy/<rest|.*>', _handlePost);
+      app.put('/api/v1/account/proxy/<rest|.*>', _handlePut);
+    }
   }
 
   Future<Response> _handleGet(Request request) async {
@@ -26,7 +32,7 @@ class AccountProxyHandler {
       final result = await _proxy.proxyGet(
         callerId: callerId,
         path: rest,
-        query: request.requestedUri.queryParameters,
+        rawQuery: request.requestedUri.query,
       );
       return Response(
         result.statusCode,
@@ -54,7 +60,10 @@ class AccountProxyHandler {
   }) async {
     final rest = request.params['rest'] ?? '';
     final callerId = proxyCallerOf(request)?.id ?? 'unknown';
-    final body = await request.readAsString();
+    final bodyBytes = await request.read().fold<List<int>>(
+      <int>[],
+      (buffer, chunk) => buffer..addAll(chunk),
+    );
     final contentType = request.headers['content-type'];
 
     try {
@@ -62,8 +71,8 @@ class AccountProxyHandler {
         callerId: callerId,
         method: method,
         path: rest,
-        query: request.requestedUri.queryParameters,
-        body: body,
+        rawQuery: request.requestedUri.query,
+        bodyBytes: bodyBytes,
         contentType: contentType,
       );
       return Response(

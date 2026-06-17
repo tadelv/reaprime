@@ -92,6 +92,8 @@ class DecentProxyService {
     required String method,
     required String path,
     Map<String, String>? query,
+    String? rawQuery,
+    List<int>? bodyBytes,
     String? body,
     String? contentType,
   }) async {
@@ -102,7 +104,7 @@ class DecentProxyService {
       throw UnsupportedError('Unsupported proxy method: $method');
     }
 
-    final normalizedPath = _normalizePath(path);
+    final normalizedPath = _canonicalProxyPath(path);
     if (!_isAllowed(normalizedPath)) {
       _log.warning(
         'caller=$callerId $normalizedMethod /$normalizedPath -> forbidden path',
@@ -116,9 +118,17 @@ class DecentProxyService {
       throw DecentAccountNotLinkedException();
     }
 
-    final uri = Uri.parse('$baseUrl/$normalizedPath').replace(
+    final uri = _buildUri(
+      normalizedPath,
+      rawQuery: rawQuery,
       queryParameters: (query == null || query.isEmpty) ? null : query,
     );
+    if (!_isFinalUriAllowed(uri)) {
+      _log.warning(
+        'caller=$callerId $normalizedMethod ${uri.path} -> forbidden final path',
+      );
+      throw DecentProxyForbiddenPathException(normalizedPath);
+    }
 
     final basic = base64Encode(
       utf8.encode('${email.trim()}:${password.trim()}'),
@@ -128,8 +138,10 @@ class DecentProxyService {
     if (contentType != null && contentType.isNotEmpty) {
       outbound.headers['content-type'] = contentType;
     }
-    if (body != null) {
-      outbound.body = body;
+    if (bodyBytes != null) {
+      outbound.bodyBytes = bodyBytes;
+    } else if (body != null) {
+      outbound.bodyBytes = utf8.encode(body);
     }
 
     final streamedResponse = await _httpClient.send(outbound);
@@ -151,12 +163,14 @@ class DecentProxyService {
     required String callerId,
     required String path,
     Map<String, String>? query,
+    String? rawQuery,
   }) {
     return proxy(
       callerId: callerId,
       method: 'GET',
       path: path,
       query: query,
+      rawQuery: rawQuery,
     );
   }
 
@@ -165,6 +179,8 @@ class DecentProxyService {
     required String callerId,
     required String path,
     Map<String, String>? query,
+    String? rawQuery,
+    List<int>? bodyBytes,
     String? body,
     String? contentType,
   }) {
@@ -173,6 +189,8 @@ class DecentProxyService {
       method: 'POST',
       path: path,
       query: query,
+      rawQuery: rawQuery,
+      bodyBytes: bodyBytes,
       body: body,
       contentType: contentType,
     );
@@ -183,6 +201,8 @@ class DecentProxyService {
     required String callerId,
     required String path,
     Map<String, String>? query,
+    String? rawQuery,
+    List<int>? bodyBytes,
     String? body,
     String? contentType,
   }) {
@@ -191,21 +211,81 @@ class DecentProxyService {
       method: 'PUT',
       path: path,
       query: query,
+      rawQuery: rawQuery,
+      bodyBytes: bodyBytes,
       body: body,
       contentType: contentType,
     );
   }
 
-  String _normalizePath(String path) {
+  String _canonicalProxyPath(String path) {
     var p = path.trim();
     while (p.startsWith('/')) {
       p = p.substring(1);
     }
-    return p;
+    final rawSegments = p.split('/');
+    final segments = <String>[];
+    for (final rawSegment in rawSegments) {
+      if (rawSegment.isEmpty) {
+        throw DecentProxyForbiddenPathException(p);
+      }
+      final String segment;
+      try {
+        segment = _decodePathSegment(rawSegment);
+      } catch (_) {
+        throw DecentProxyForbiddenPathException(p);
+      }
+      if (segment == '.' ||
+          segment == '..' ||
+          segment.contains('/') ||
+          segment.contains(r'\')) {
+        throw DecentProxyForbiddenPathException(p);
+      }
+      segments.add(segment);
+    }
+    return segments.join('/');
+  }
+
+  String _decodePathSegment(String rawSegment) {
+    var segment = rawSegment;
+    for (var i = 0; i < 3; i++) {
+      final decoded = Uri.decodeComponent(segment);
+      if (decoded == segment) {
+        return decoded;
+      }
+      segment = decoded;
+    }
+    return segment;
+  }
+
+  Uri _buildUri(
+    String normalizedPath, {
+    String? rawQuery,
+    Map<String, String>? queryParameters,
+  }) {
+    final base = Uri.parse(baseUrl);
+    final baseSegments = base.pathSegments.where((s) => s.isNotEmpty);
+    final query = rawQuery == null || rawQuery.isEmpty ? null : rawQuery;
+    return base.replace(
+      pathSegments: [
+        ...baseSegments,
+        ...normalizedPath.split('/'),
+      ],
+      query: query,
+      queryParameters: query == null ? queryParameters : null,
+    );
   }
 
   bool _isAllowed(String normalizedPath) {
     return allowedPrefixes.any((prefix) => normalizedPath.startsWith(prefix));
+  }
+
+  bool _isFinalUriAllowed(Uri uri) {
+    final base = Uri.parse(baseUrl);
+    final basePath = base.path.endsWith('/') ? base.path : '${base.path}/';
+    return allowedPrefixes.any(
+      (prefix) => uri.path.startsWith('$basePath$prefix'),
+    );
   }
 
   Map<String, String> _relayHeaders(Map<String, String> upstream) {
