@@ -3912,8 +3912,7 @@ paths:
         Forwards a GET to `https://decentespresso.com/{path}` with the linked
         account's credentials attached server-side as Basic auth, and relays the
         upstream status code and body verbatim. Clients never see the
-        credentials. Phase 1 is read-only and restricted to the `support/api/`
-        path prefix.
+        credentials. Forwarding is restricted to the `support/api/` path prefix.
 
 
         Requires `Authorization: Bearer <token>` scoped `account:proxy` — a skin
@@ -3940,6 +3939,106 @@ paths:
                 $ref: "#/components/schemas/Error"
         "403":
           description: Token not scoped for account:proxy, or path not allowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      summary: Write through the Decent backend proxy
+      description: >
+        Forwards a POST to `https://decentespresso.com/{path}` with the linked
+        account's credentials attached server-side as Basic auth, and relays the
+        upstream status code, body, and safe response headers. Clients never see
+        the credentials. Forwarding is restricted to the `support/api/` path
+        prefix.
+
+
+        Requires `Authorization: Bearer <token>` scoped `account:proxy:write`.
+        The skin token is read-only and is rejected for write requests.
+        Unauthenticated/unknown tokens get 401; known but unscoped get 403; a
+        path outside the allowed prefix gets 403; no linked account gets 401.
+      tags: [Account]
+      parameters:
+        - name: path
+          in: path
+          required: true
+          description: Decent backend path (e.g. `support/api/email`)
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+          text/plain:
+            schema:
+              type: string
+          application/x-www-form-urlencoded:
+            schema:
+              type: string
+      responses:
+        "200":
+          description: Upstream response relayed verbatim (status and body as-is)
+        "401":
+          description: Missing/invalid token, or no Decent account linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Token not scoped for account:proxy:write, or path not allowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      summary: Update through the Decent backend proxy
+      description: >
+        Forwards a PUT to `https://decentespresso.com/{path}` with the linked
+        account's credentials attached server-side as Basic auth, and relays the
+        upstream status code, body, and safe response headers. Clients never see
+        the credentials. Forwarding is restricted to the `support/api/` path
+        prefix.
+
+
+        Requires `Authorization: Bearer <token>` scoped `account:proxy:write`.
+        The skin token is read-only and is rejected for write requests.
+        Unauthenticated/unknown tokens get 401; known but unscoped get 403; a
+        path outside the allowed prefix gets 403; no linked account gets 401.
+      tags: [Account]
+      parameters:
+        - name: path
+          in: path
+          required: true
+          description: Decent backend path (e.g. `support/api/profile`)
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+          text/plain:
+            schema:
+              type: string
+          application/x-www-form-urlencoded:
+            schema:
+              type: string
+      responses:
+        "200":
+          description: Upstream response relayed verbatim (status and body as-is)
+        "401":
+          description: Missing/invalid token, or no Decent account linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Token not scoped for account:proxy:write, or path not allowed
           content:
             application/json:
               schema:

@@ -21,6 +21,7 @@ class ProxyCaller {
 ///   into the registry via [registerToken].
 class ProxyTokenService {
   static const String scopeAccountProxy = 'account:proxy';
+  static const String scopeAccountProxyWrite = 'account:proxy:write';
 
   final Map<String, ProxyCaller> _tokens = {};
   late final String _skinToken;
