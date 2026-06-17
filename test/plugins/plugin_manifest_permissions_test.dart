@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/plugins/plugin_manifest.dart';
 
 void main() {
-  test('parses proxy.decent_api as proxyDecentApi permission', () {
+  test('parses manifest permission wire values', () {
     final manifest = PluginManifest.fromJson(<String, dynamic>{
       'id': 'test.plugin',
       'name': 'Test Plugin',
@@ -10,12 +10,13 @@ void main() {
       'description': 'Test',
       'version': '1.0.0',
       'apiVersion': 1,
-      'permissions': ['log', 'proxy.decent_api'],
+      'permissions': ['log', 'api', 'proxy.decent_api'],
       'settings': <String, dynamic>{},
       'api': <dynamic>[],
     });
 
     expect(manifest.permissions, contains(PluginPermissions.log));
+    expect(manifest.permissions, contains(PluginPermissions.api));
     expect(manifest.permissions, contains(PluginPermissions.proxyDecentApi));
   });
 
@@ -28,6 +29,7 @@ void main() {
       version: '1.0.0',
       apiVersion: 1,
       permissions: {
+        PluginPermissions.api,
         PluginPermissions.pluginStorage,
         PluginPermissions.proxyDecentApi,
       },
@@ -37,7 +39,7 @@ void main() {
 
     expect(
       manifest.toJson()['permissions'],
-      containsAll(['pluginStorage', 'proxy.decent_api']),
+      containsAll(['api', 'pluginStorage', 'proxy.decent_api']),
     );
   });
 }

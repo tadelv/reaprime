@@ -54,6 +54,7 @@ class PluginManifest {
 
 enum PluginPermissions {
   log('log'),
+  api('api'),
   emit('emit'),
   pluginStorage('pluginStorage'),
   pluginNotify('pluginNotify'),
