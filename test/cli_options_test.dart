@@ -8,6 +8,7 @@ void main() {
       expect(args.serial, isFalse);
       expect(args.bypassOnboarding, isFalse);
       expect(args.direct, isFalse);
+      expect(args.noAccount, isFalse);
       expect(args.skinId, isNull);
       expect(args.skinPath, isNull);
     });
@@ -37,17 +38,24 @@ void main() {
       expect(args.skinPath, '/home/keith/myskin');
     });
 
+    test('--no-account', () {
+      final args = parseCliArgs(['--no-account']);
+      expect(args.noAccount, isTrue);
+    });
+
     test('all flags combined', () {
       final args = parseCliArgs([
         '--serial',
         '--bypass-onboarding',
         '--direct',
+        '--no-account',
         '--skin=streamline.js',
         '--skin-path=/tmp/test-skin',
       ]);
       expect(args.serial, isTrue);
       expect(args.bypassOnboarding, isTrue);
       expect(args.direct, isTrue);
+      expect(args.noAccount, isTrue);
       expect(args.skinId, 'streamline.js');
       expect(args.skinPath, '/tmp/test-skin');
     });
