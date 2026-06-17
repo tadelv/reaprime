@@ -10,11 +10,14 @@ void main() {
     expect(caller, isNotNull);
     expect(caller!.id, 'skin');
     expect(caller.scopes, contains(ProxyTokenService.scopeAccountProxy));
+    expect(
+      caller.scopes,
+      isNot(contains(ProxyTokenService.scopeAccountProxyWrite)),
+    );
   });
 
   test('two instances mint different skin tokens', () {
-    expect(ProxyTokenService().skinToken,
-        isNot(ProxyTokenService().skinToken));
+    expect(ProxyTokenService().skinToken, isNot(ProxyTokenService().skinToken));
   });
 
   test('unknown tokens do not validate', () {
@@ -36,6 +39,22 @@ void main() {
 
     service.revokeToken('tok-123');
     expect(service.validate('tok-123'), isNull);
+  });
+
+  test('registers API-client tokens with the write scope', () {
+    final service = ProxyTokenService();
+    service.registerToken(
+      'write-token',
+      const ProxyCaller(
+        id: 'api:writer',
+        scopes: {ProxyTokenService.scopeAccountProxyWrite},
+      ),
+    );
+
+    final caller = service.validate('write-token');
+    expect(caller, isNotNull);
+    expect(caller!.scopes, contains(ProxyTokenService.scopeAccountProxyWrite));
+    expect(caller.scopes, isNot(contains(ProxyTokenService.scopeAccountProxy)));
   });
 
   test('the skin token cannot be revoked', () {

@@ -53,11 +53,47 @@ void main() {
   }
 
   Future<Response> get(String path, {String? token}) async {
-    return handler(Request(
-      'GET',
-      Uri.parse('http://localhost$path'),
-      headers: token == null ? {} : {'authorization': 'Bearer $token'},
-    ));
+    return handler(
+      Request(
+        'GET',
+        Uri.parse('http://localhost$path'),
+        headers: token == null ? {} : {'authorization': 'Bearer $token'},
+      ),
+    );
+  }
+
+  Future<Response> send(
+    String method,
+    String path, {
+    String? token,
+    String? body,
+    String? contentType,
+  }) async {
+    final headers = <String, String>{};
+    if (token != null) {
+      headers['authorization'] = 'Bearer $token';
+    }
+    if (contentType != null) {
+      headers['content-type'] = contentType;
+    }
+    return handler(
+      Request(
+        method,
+        Uri.parse('http://localhost$path'),
+        headers: headers,
+        body: body,
+      ),
+    );
+  }
+
+  void registerWriteToken() {
+    tokens.registerToken(
+      'write-token',
+      const ProxyCaller(
+        id: 'api:writer',
+        scopes: {ProxyTokenService.scopeAccountProxyWrite},
+      ),
+    );
   }
 
   test('unauthenticated proxy request is rejected (401)', () async {
@@ -67,34 +103,44 @@ void main() {
   });
 
   test('authenticated but unlinked returns 401', () async {
-    final response =
-        await get('/api/v1/account/proxy/support/api/sn', token: 'skin-token');
+    final response = await get(
+      '/api/v1/account/proxy/support/api/sn',
+      token: 'skin-token',
+    );
     expect(response.statusCode, 401);
     final body = jsonDecode(await response.readAsString());
     expect(body['error'], contains('not linked'));
     expect(upstream, isNull);
   });
 
-  test('authenticated + linked forwards with Basic auth and relays body',
-      () async {
-    await linkAccount();
-    final response =
-        await get('/api/v1/account/proxy/support/api/sn', token: 'skin-token');
+  test(
+    'authenticated + linked forwards with Basic auth and relays body',
+    () async {
+      await linkAccount();
+      final response = await get(
+        '/api/v1/account/proxy/support/api/sn',
+        token: 'skin-token',
+      );
 
-    expect(response.statusCode, 200);
-    expect(await response.readAsString(), 'SN001\nSN002');
+      expect(response.statusCode, 200);
+      expect(await response.readAsString(), 'SN001\nSN002');
 
-    final expected =
-        'Basic ${base64Encode(utf8.encode('user@example.com:cryptpw_abc123'))}';
-    expect(upstream!.headers['authorization'], expected);
-    expect(upstream!.url.toString(),
-        'https://decentespresso.com/support/api/sn');
-  });
+      final expected =
+          'Basic ${base64Encode(utf8.encode('user@example.com:cryptpw_abc123'))}';
+      expect(upstream!.headers['authorization'], expected);
+      expect(
+        upstream!.url.toString(),
+        'https://decentespresso.com/support/api/sn',
+      );
+    },
+  );
 
   test('a path outside the allowed prefix returns 403', () async {
     await linkAccount();
-    final response =
-        await get('/api/v1/account/proxy/admin/wipe', token: 'skin-token');
+    final response = await get(
+      '/api/v1/account/proxy/admin/wipe',
+      token: 'skin-token',
+    );
     expect(response.statusCode, 403);
     expect(upstream, isNull);
   });
@@ -107,5 +153,65 @@ void main() {
     );
     expect(upstream!.url.queryParameters['subject'], 'hi');
     expect(upstream!.url.queryParameters['body'], 'b');
+  });
+
+  test('read-only token is rejected for POST (403)', () async {
+    await linkAccount();
+
+    final response = await send(
+      'POST',
+      '/api/v1/account/proxy/support/api/email',
+      token: 'skin-token',
+      body: '{}',
+      contentType: 'application/json',
+    );
+
+    expect(response.statusCode, 403);
+    expect(upstream, isNull);
+  });
+
+  test('write-scoped token forwards POST body and content-type', () async {
+    await linkAccount();
+    registerWriteToken();
+
+    final response = await send(
+      'POST',
+      '/api/v1/account/proxy/support/api/email',
+      token: 'write-token',
+      body: '{"subject":"hi"}',
+      contentType: 'application/json',
+    );
+
+    expect(response.statusCode, 200);
+    expect(upstream, isNotNull);
+    expect(upstream!.method, 'POST');
+    expect(upstream!.body, '{"subject":"hi"}');
+    expect(upstream!.headers['content-type'], 'application/json');
+
+    final expected =
+        'Basic ${base64Encode(utf8.encode('user@example.com:cryptpw_abc123'))}';
+    expect(upstream!.headers['authorization'], expected);
+  });
+
+  test('write-scoped token forwards PUT body and content-type', () async {
+    await linkAccount();
+    registerWriteToken();
+
+    final response = await send(
+      'PUT',
+      '/api/v1/account/proxy/support/api/profile',
+      token: 'write-token',
+      body: 'name=rea',
+      contentType: 'application/x-www-form-urlencoded',
+    );
+
+    expect(response.statusCode, 200);
+    expect(upstream, isNotNull);
+    expect(upstream!.method, 'PUT');
+    expect(upstream!.body, 'name=rea');
+    expect(
+      upstream!.headers['content-type'],
+      'application/x-www-form-urlencoded',
+    );
   });
 }

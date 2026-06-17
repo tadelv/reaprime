@@ -189,6 +189,106 @@ void main() {
     expect(captured.url.queryParameters['body'], 'b');
   });
 
+  test('forwards POST body and content-type', () async {
+    await linkAccount();
+    late http.Request captured;
+    final service = buildService((request) async {
+      captured = request;
+      return http.Response('posted', 201);
+    });
+
+    final result = await service.proxyPost(
+      callerId: 'api:writer',
+      path: 'support/api/email',
+      body: '{"subject":"hi"}',
+      contentType: 'application/json',
+    );
+
+    expect(result.statusCode, 201);
+    expect(result.body, 'posted');
+    expect(captured.method, 'POST');
+    expect(captured.body, '{"subject":"hi"}');
+    expect(captured.headers['content-type'], 'application/json');
+
+    final expected =
+        'Basic ${base64Encode(utf8.encode('user@example.com:cryptpw_abc123'))}';
+    expect(captured.headers['authorization'], expected);
+    expect(
+      captured.url.toString(),
+      'https://decentespresso.com/support/api/email',
+    );
+  });
+
+  test('forwards PUT body and content-type', () async {
+    await linkAccount();
+    late http.Request captured;
+    final service = buildService((request) async {
+      captured = request;
+      return http.Response('updated', 200);
+    });
+
+    final result = await service.proxyPut(
+      callerId: 'api:writer',
+      path: 'support/api/profile',
+      body: 'name=rea',
+      contentType: 'application/x-www-form-urlencoded',
+    );
+
+    expect(result.statusCode, 200);
+    expect(result.body, 'updated');
+    expect(captured.method, 'PUT');
+    expect(captured.body, 'name=rea');
+    expect(
+      captured.headers['content-type'],
+      'application/x-www-form-urlencoded',
+    );
+  });
+
+  test('strips sensitive response headers from write responses', () async {
+    await linkAccount();
+    final service = buildService((request) async {
+      return http.Response(
+        '{}',
+        200,
+        headers: {
+          'content-type': 'application/json',
+          'authorization': 'Basic upstream',
+          'set-cookie': 'session=secret',
+          'content-length': '2',
+        },
+      );
+    });
+
+    final result = await service.proxyPost(
+      callerId: 'api:writer',
+      path: 'support/api/email',
+      body: '{}',
+      contentType: 'application/json',
+    );
+
+    expect(result.headers['content-type'], 'application/json');
+    expect(result.headers.containsKey('authorization'), isFalse);
+    expect(result.headers.containsKey('set-cookie'), isFalse);
+    expect(result.headers.containsKey('content-length'), isFalse);
+  });
+
+  test('rejects a write path outside the allowed prefix', () async {
+    await linkAccount();
+    final service = buildService((request) async {
+      fail('must not call upstream for a forbidden path: ${request.url}');
+    });
+
+    expect(
+      () => service.proxyPost(
+        callerId: 'api:writer',
+        path: 'admin/delete-all',
+        body: '{}',
+        contentType: 'application/json',
+      ),
+      throwsA(isA<DecentProxyForbiddenPathException>()),
+    );
+  });
+
   test('emits an audit log line carrying the caller identity', () async {
     await linkAccount();
     final records = <LogRecord>[];

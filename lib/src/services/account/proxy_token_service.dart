@@ -21,6 +21,7 @@ class ProxyCaller {
 ///   into the registry via [registerToken].
 class ProxyTokenService {
   static const String scopeAccountProxy = 'account:proxy';
+  static const String scopeAccountProxyWrite = 'account:proxy:write';
 
   /// Write scope. Enforced on `POST`/`PUT` by the write proxy (#355); minted
   /// here so token issuance is ready when the write routes land.

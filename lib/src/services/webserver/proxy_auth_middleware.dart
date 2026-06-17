@@ -16,15 +16,16 @@ ProxyCaller? proxyCallerOf(Request request) =>
 /// Everything outside the prefix passes through untouched (the rest of the
 /// bridge API keeps its LAN-trust model). Inside the prefix, a request must
 /// present `Authorization: Bearer <token>` for a known token holding
-/// [requiredScope]; otherwise it is rejected with 401 (missing/unknown) or 403
-/// (known but unscoped). On success the request is tagged with its [ProxyCaller]
-/// (read via [proxyCallerOf]) for audit. CORS preflight (`OPTIONS`) is allowed
-/// through unauthenticated.
+/// the scope required by its method; otherwise it is rejected with 401
+/// (missing/unknown) or 403 (known but unscoped). On success the request is
+/// tagged with its [ProxyCaller] (read via [proxyCallerOf]) for audit. CORS
+/// preflight (`OPTIONS`) is allowed through unauthenticated.
 Middleware proxyAuthMiddleware(
   ProxyTokenService tokens, {
   String pathPrefix = '/api/v1/account/proxy/',
-  String requiredScope = ProxyTokenService.scopeAccountProxy,
+  String Function(String method)? requiredScopeForMethod,
 }) {
+  final scopeForMethod = requiredScopeForMethod ?? _requiredScopeForMethod;
   return (Handler inner) {
     return (Request request) {
       if (!request.requestedUri.path.startsWith(pathPrefix)) {
@@ -43,6 +44,7 @@ Middleware proxyAuthMiddleware(
       if (caller == null) {
         return _json(401, 'Invalid token');
       }
+      final requiredScope = scopeForMethod(request.method);
       if (!caller.scopes.contains(requiredScope)) {
         return _json(403, 'Token is not scoped for $requiredScope');
       }
@@ -52,6 +54,16 @@ Middleware proxyAuthMiddleware(
       );
     };
   };
+}
+
+String _requiredScopeForMethod(String method) {
+  switch (method.toUpperCase()) {
+    case 'POST':
+    case 'PUT':
+      return ProxyTokenService.scopeAccountProxyWrite;
+    default:
+      return ProxyTokenService.scopeAccountProxy;
+  }
 }
 
 String? _bearerToken(String? authorization) {
