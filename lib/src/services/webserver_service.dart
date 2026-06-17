@@ -287,6 +287,7 @@ Future<void> startWebServer(
       accountHandler,
       accountProxyHandler,
       proxyTokenService,
+      accountProxyCorsAllowedOrigins(webUIService),
       dataExportHandler,
       dataSyncHandler,
       beansHandler,
@@ -327,6 +328,7 @@ Handler _init(
   AccountHandler? accountHandler,
   AccountProxyHandler? accountProxyHandler,
   ProxyTokenService? proxyTokenService,
+  Set<String> accountProxyAllowedOrigins,
   DataExportHandler dataExportHandler,
   DataSyncHandler dataSyncHandler,
   BeansHandler? beansHandler,
@@ -382,6 +384,7 @@ Handler _init(
   }
 
   final handler = const Pipeline()
+      .addMiddleware(accountProxyCorsMiddleware(accountProxyAllowedOrigins))
       .addMiddleware(
         logRequests(
           logger: (msg, isError) {
@@ -412,6 +415,73 @@ Handler _init(
       .addHandler(app.call);
 
   return handler;
+}
+
+Set<String> accountProxyCorsAllowedOrigins(WebUIService webUIService) {
+  final port = webUIService.port;
+  final origins = <String>{
+    'http://localhost:$port',
+    'http://127.0.0.1:$port',
+    'http://[::1]:$port',
+  };
+
+  final deviceIp = webUIService.deviceIp().trim();
+  if (deviceIp.isNotEmpty) {
+    origins.add('http://$deviceIp:$port');
+  }
+
+  return origins;
+}
+
+Middleware accountProxyCorsMiddleware(
+  Set<String> allowedOrigins, {
+  String pathPrefix = '/api/v1/account/proxy/',
+}) {
+  return (Handler inner) {
+    return (Request request) async {
+      final response = await inner(request);
+      if (!request.requestedUri.path.startsWith(pathPrefix)) {
+        return response;
+      }
+
+      final headerUpdates = _removeHeaderUpdates(
+        response,
+        'access-control-allow-origin',
+      );
+
+      final origin = request.headers['origin'];
+      if (origin != null && allowedOrigins.contains(origin)) {
+        headerUpdates.addAll(_removeHeaderUpdates(response, 'vary'));
+        headerUpdates['Access-Control-Allow-Origin'] = origin;
+        headerUpdates['Vary'] = _appendVary(response.headers['vary'], 'Origin');
+      }
+
+      return response.change(headers: headerUpdates);
+    };
+  };
+}
+
+Map<String, Object?> _removeHeaderUpdates(Response response, String name) {
+  final lowerName = name.toLowerCase();
+  final updates = <String, Object?>{};
+  final matchingKeys = response.headersAll.keys.where(
+    (key) => key.toLowerCase() == lowerName,
+  );
+  for (final key in matchingKeys) {
+    updates[key] = null;
+  }
+  return updates;
+}
+
+String _appendVary(String? value, String headerName) {
+  if (value == null || value.trim().isEmpty) {
+    return headerName;
+  }
+  final values = value.split(',').map((part) => part.trim().toLowerCase());
+  if (values.contains(headerName.toLowerCase())) {
+    return value;
+  }
+  return '$value, $headerName';
 }
 
 Future<void> startApiDocsServer() async {
