@@ -62,7 +62,121 @@ class PluginManager {
         
         // Add HTTP response handling
         globalThis.__pendingHttpRequests = new Map();
-        globalThis.__pendingDecentProxyRequests = new Map();
+        const __nativeSendMessage = sendMessage;
+        const __nativeJsonStringify = JSON.stringify.bind(JSON);
+        const __NativePromise = Promise;
+        const __NativeError = Error;
+        const __nativeFreeze = Object.freeze.bind(Object);
+        const __nativeReflectApply = Reflect.apply.bind(Reflect);
+        const __nativePromiseThen = Promise.prototype.then;
+        const __nativePromiseCatch = Promise.prototype.catch;
+        const __nativePromiseFinally = Promise.prototype.finally;
+        const __nativeMapHas = Map.prototype.has;
+        const __nativeMapGet = Map.prototype.get;
+        const __nativeMapSet = Map.prototype.set;
+        const __nativeMapDelete = Map.prototype.delete;
+
+        const __pendingDecentProxyRequests = new Map();
+        let __decentProxySeq = 0;
+        const __decentProxyNonce =
+          Date.now().toString(36) + "_" + Math.random().toString(36).slice(2);
+
+        function __mapHas(map, key) {
+          return __nativeReflectApply(__nativeMapHas, map, [key]);
+        }
+
+        function __mapGet(map, key) {
+          return __nativeReflectApply(__nativeMapGet, map, [key]);
+        }
+
+        function __mapSet(map, key, value) {
+          return __nativeReflectApply(__nativeMapSet, map, [key, value]);
+        }
+
+        function __mapDelete(map, key) {
+          return __nativeReflectApply(__nativeMapDelete, map, [key]);
+        }
+
+        function __pendingDecentProxyByPlugin(pluginId) {
+          if (!__mapHas(__pendingDecentProxyRequests, pluginId)) {
+            __mapSet(__pendingDecentProxyRequests, pluginId, new Map());
+          }
+          return __mapGet(__pendingDecentProxyRequests, pluginId);
+        }
+
+        function __sendHostMessage(message) {
+          __nativeSendMessage("host", __nativeJsonStringify(message));
+        }
+
+        function __wrapDecentProxyPromise(promise) {
+          const wrapped = {
+            then(onFulfilled, onRejected) {
+              return __nativeReflectApply(__nativePromiseThen, promise, [
+                onFulfilled,
+                onRejected
+              ]);
+            },
+            catch(onRejected) {
+              return __nativeReflectApply(__nativePromiseCatch, promise, [
+                onRejected
+              ]);
+            }
+          };
+          if (typeof __nativePromiseFinally === "function") {
+            wrapped.finally = function (onFinally) {
+              return __nativeReflectApply(__nativePromiseFinally, promise, [
+                onFinally
+              ]);
+            };
+          }
+          return __nativeFreeze(wrapped);
+        }
+
+        function __decentProxy(pluginId, bridgeToken, path, method, query) {
+          const requestId = "__decent_proxy_" + __decentProxyNonce + "_" + (++__decentProxySeq);
+          const promise = new __NativePromise((resolve, reject) => {
+            const pendingByPlugin = __pendingDecentProxyByPlugin(pluginId);
+            __mapSet(pendingByPlugin, requestId, { resolve, reject });
+            try {
+              __sendHostMessage({
+                pluginId: pluginId,
+                bridgeToken: bridgeToken,
+                type: "decentProxy",
+                requestId: requestId,
+                path: path,
+                method: method,
+                query: query
+              });
+            } catch (e) {
+              __mapDelete(pendingByPlugin, requestId);
+              reject(e);
+            }
+          });
+          return __wrapDecentProxyPromise(promise);
+        }
+
+        function __completeDecentProxyRequest(pluginId, requestId, response) {
+          const pendingByPlugin = __mapGet(__pendingDecentProxyRequests, pluginId);
+          if (!pendingByPlugin) return;
+          const pending = __mapGet(pendingByPlugin, requestId);
+          if (!pending) return;
+          __mapDelete(pendingByPlugin, requestId);
+          if (response && response.error) {
+            pending.reject(new __NativeError(response.error));
+            return;
+          }
+          pending.resolve(response);
+        }
+
+        Object.defineProperty(globalThis, "__reaprimePluginBridge", {
+          value: __nativeFreeze({
+            decentProxy: __decentProxy,
+            completeDecentProxyRequest: __completeDecentProxyRequest
+          }),
+          writable: false,
+          configurable: false,
+          enumerable: false
+        });
         
         globalThis.__registerHttpRequest = function (pluginId, requestId) {
           if (!globalThis.__pendingHttpRequests.has(pluginId)) {
@@ -90,30 +204,6 @@ class PluginManager {
             requestId: requestId,
             payload: response
           }));
-        };
-
-        globalThis.__registerDecentProxyRequest = function (pluginId, requestId) {
-          if (!globalThis.__pendingDecentProxyRequests.has(pluginId)) {
-            globalThis.__pendingDecentProxyRequests.set(pluginId, new Map());
-          }
-          return new Promise((resolve, reject) => {
-            globalThis.__pendingDecentProxyRequests
-              .get(pluginId)
-              .set(requestId, { resolve, reject });
-          });
-        };
-
-        globalThis.__handleDecentProxyResponse = function (pluginId, requestId, response) {
-          const pendingByPlugin = globalThis.__pendingDecentProxyRequests.get(pluginId);
-          if (!pendingByPlugin) return;
-          const pending = pendingByPlugin.get(requestId);
-          if (!pending) return;
-          pendingByPlugin.delete(requestId);
-          if (response && response.error) {
-            pending.reject(new Error(response.error));
-            return;
-          }
-          pending.resolve(response);
         };
 
         // Provide btoa function if not available
@@ -202,17 +292,6 @@ class PluginManager {
               method: method,
               headers: headers,
               body: body
-            }));
-          },
-          decentProxy(pluginId, bridgeToken, requestId, path, method, query) {
-            sendMessage("host", JSON.stringify({
-              pluginId: pluginId,
-              bridgeToken: bridgeToken,
-              type: "decentProxy",
-              requestId: requestId,
-              path: path,
-              method: method,
-              query: query
             }));
           }
         };
@@ -356,20 +435,13 @@ class PluginManager {
           emit: (type, payload) => globalThis.host.emit(pluginId, type, payload),
           storage: (cmd) => globalThis.host.storage(pluginId, cmd),
           decentProxy: (path, options = {}) => {
-            const requestId = pluginId + "_decent_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
-            return new Promise((resolve, reject) => {
-              if (globalThis.__registerDecentProxyRequest) {
-                globalThis.__registerDecentProxyRequest(pluginId, requestId).then(resolve).catch(reject);
-              }
-              globalThis.host.decentProxy(
-                pluginId,
-                ${jsonEncode(decentProxyBridgeToken)},
-                requestId,
-                path,
-                options.method || "GET",
-                options.query || {}
-              );
-            });
+            return globalThis.__reaprimePluginBridge.decentProxy(
+              pluginId,
+              ${jsonEncode(decentProxyBridgeToken)},
+              path,
+              options.method || "GET",
+              options.query || {}
+            );
           },
           // Add HTTP request capability
           httpRequest: (endpoint, method, headers, body) => {
@@ -648,7 +720,7 @@ class PluginManager {
     Map<String, dynamic> response,
   ) {
     js.evaluate('''
-      globalThis.__handleDecentProxyResponse(
+      globalThis.__reaprimePluginBridge.completeDecentProxyRequest(
         ${jsonEncode(pluginId)},
         ${jsonEncode(requestId)},
         ${jsonEncode(response)}
