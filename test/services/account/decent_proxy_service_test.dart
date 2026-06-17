@@ -155,6 +155,73 @@ void main() {
     );
   });
 
+  test('rejects dot segments before building the upstream URI', () async {
+    await linkAccount();
+    final service = buildService((request) async {
+      fail('must not call upstream for a dot-segment path: ${request.url}');
+    });
+
+    expect(
+      () => service.proxyPost(
+        callerId: 'api:writer',
+        path: 'support/api/../admin',
+        body: '{}',
+        contentType: 'application/json',
+      ),
+      throwsA(isA<DecentProxyForbiddenPathException>()),
+    );
+
+    expect(
+      () => service.proxyPut(
+        callerId: 'api:writer',
+        path: 'support/api/../../admin',
+        body: '{}',
+        contentType: 'application/json',
+      ),
+      throwsA(isA<DecentProxyForbiddenPathException>()),
+    );
+  });
+
+  test('rejects encoded dot segments before forwarding', () async {
+    await linkAccount();
+    final service = buildService((request) async {
+      fail('must not call upstream for encoded dot segments: ${request.url}');
+    });
+
+    expect(
+      () => service.proxyGet(
+        callerId: 'skin',
+        path: 'support/api/%2e%2e/admin',
+      ),
+      throwsA(isA<DecentProxyForbiddenPathException>()),
+    );
+
+    expect(
+      () => service.proxyGet(
+        callerId: 'skin',
+        path: 'support/api/%252e%252e/admin',
+      ),
+      throwsA(isA<DecentProxyForbiddenPathException>()),
+    );
+  });
+
+  test('rejects malformed path encoding before forwarding', () async {
+    await linkAccount();
+    final service = buildService((request) async {
+      fail(
+        'must not call upstream for malformed path encoding: ${request.url}',
+      );
+    });
+
+    expect(
+      () => service.proxyGet(
+        callerId: 'skin',
+        path: 'support/api/%zz/admin',
+      ),
+      throwsA(isA<DecentProxyForbiddenPathException>()),
+    );
+  });
+
   test('normalizes a leading slash in the path', () async {
     await linkAccount();
     late http.Request captured;
@@ -189,6 +256,28 @@ void main() {
     expect(captured.url.queryParameters['body'], 'b');
   });
 
+  test(
+    'forwards repeated raw query parameters without collapsing them',
+    () async {
+      await linkAccount();
+      late http.Request captured;
+      final service = buildService((request) async {
+        captured = request;
+        return http.Response('ok', 200);
+      });
+
+      await service.proxyGet(
+        callerId: 'skin',
+        path: 'support/api/search',
+        rawQuery: 'id=1&id=2&tag=light&tag=dark',
+      );
+
+      expect(captured.url.query, 'id=1&id=2&tag=light&tag=dark');
+      expect(captured.url.queryParametersAll['id'], ['1', '2']);
+      expect(captured.url.queryParametersAll['tag'], ['light', 'dark']);
+    },
+  );
+
   test('forwards POST body and content-type', () async {
     await linkAccount();
     late http.Request captured;
@@ -217,6 +306,44 @@ void main() {
       captured.url.toString(),
       'https://decentespresso.com/support/api/email',
     );
+  });
+
+  test('forwards write body bytes without synthesizing content-type', () async {
+    await linkAccount();
+    late http.Request captured;
+    final service = buildService((request) async {
+      captured = request;
+      return http.Response('posted', 201);
+    });
+
+    await service.proxyPost(
+      callerId: 'api:writer',
+      path: 'support/api/upload',
+      bodyBytes: [0, 1, 2, 255],
+    );
+
+    expect(captured.method, 'POST');
+    expect(captured.bodyBytes, [0, 1, 2, 255]);
+    expect(captured.headers.containsKey('content-type'), isFalse);
+  });
+
+  test('preserves caller content-type exactly for write body bytes', () async {
+    await linkAccount();
+    late http.Request captured;
+    final service = buildService((request) async {
+      captured = request;
+      return http.Response('posted', 201);
+    });
+
+    await service.proxyPost(
+      callerId: 'api:writer',
+      path: 'support/api/upload',
+      bodyBytes: utf8.encode('<payload />'),
+      contentType: 'text/xml',
+    );
+
+    expect(captured.body, '<payload />');
+    expect(captured.headers['content-type'], 'text/xml');
   });
 
   test('forwards PUT body and content-type', () async {

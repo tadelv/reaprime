@@ -67,6 +67,7 @@ void main() {
     String path, {
     String? token,
     String? body,
+    List<int>? bodyBytes,
     String? contentType,
   }) async {
     final headers = <String, String>{};
@@ -81,7 +82,7 @@ void main() {
         method,
         Uri.parse('http://localhost$path'),
         headers: headers,
-        body: body,
+        body: bodyBytes ?? body,
       ),
     );
   }
@@ -155,6 +156,18 @@ void main() {
     expect(upstream!.url.queryParameters['body'], 'b');
   });
 
+  test('preserves repeated query parameters when forwarding', () async {
+    await linkAccount();
+    await get(
+      '/api/v1/account/proxy/support/api/search?id=1&id=2&tag=light&tag=dark',
+      token: 'skin-token',
+    );
+
+    expect(upstream!.url.query, 'id=1&id=2&tag=light&tag=dark');
+    expect(upstream!.url.queryParametersAll['id'], ['1', '2']);
+    expect(upstream!.url.queryParametersAll['tag'], ['light', 'dark']);
+  });
+
   test('read-only token is rejected for POST (403)', () async {
     await linkAccount();
 
@@ -170,9 +183,37 @@ void main() {
     expect(upstream, isNull);
   });
 
+  test('write routes are disabled unless explicitly enabled', () async {
+    await linkAccount();
+    registerWriteToken();
+
+    final response = await send(
+      'POST',
+      '/api/v1/account/proxy/support/api/email',
+      token: 'write-token',
+      body: '{"subject":"hi"}',
+      contentType: 'application/json',
+    );
+
+    expect(response.statusCode, 404);
+    expect(upstream, isNull);
+  });
+
   test('write-scoped token forwards POST body and content-type', () async {
     await linkAccount();
     registerWriteToken();
+    final app = Router().plus;
+    final proxy = DecentProxyService(
+      httpClient: http_testing.MockClient((request) async {
+        upstream = request;
+        return http.Response('SN001\nSN002', 200);
+      }),
+      credentialStore: store,
+    );
+    AccountProxyHandler(proxy: proxy, enableWrites: true).addRoutes(app);
+    handler = const Pipeline()
+        .addMiddleware(proxyAuthMiddleware(tokens))
+        .addHandler(app.call);
 
     final response = await send(
       'POST',
@@ -193,9 +234,50 @@ void main() {
     expect(upstream!.headers['authorization'], expected);
   });
 
+  test('write-scoped token forwards body bytes without content-type', () async {
+    await linkAccount();
+    registerWriteToken();
+    final app = Router().plus;
+    final proxy = DecentProxyService(
+      httpClient: http_testing.MockClient((request) async {
+        upstream = request;
+        return http.Response('SN001\nSN002', 200);
+      }),
+      credentialStore: store,
+    );
+    AccountProxyHandler(proxy: proxy, enableWrites: true).addRoutes(app);
+    handler = const Pipeline()
+        .addMiddleware(proxyAuthMiddleware(tokens))
+        .addHandler(app.call);
+
+    final response = await send(
+      'POST',
+      '/api/v1/account/proxy/support/api/upload',
+      token: 'write-token',
+      bodyBytes: [0, 1, 2, 255],
+    );
+
+    expect(response.statusCode, 200);
+    expect(upstream, isNotNull);
+    expect(upstream!.bodyBytes, [0, 1, 2, 255]);
+    expect(upstream!.headers.containsKey('content-type'), isFalse);
+  });
+
   test('write-scoped token forwards PUT body and content-type', () async {
     await linkAccount();
     registerWriteToken();
+    final app = Router().plus;
+    final proxy = DecentProxyService(
+      httpClient: http_testing.MockClient((request) async {
+        upstream = request;
+        return http.Response('SN001\nSN002', 200);
+      }),
+      credentialStore: store,
+    );
+    AccountProxyHandler(proxy: proxy, enableWrites: true).addRoutes(app);
+    handler = const Pipeline()
+        .addMiddleware(proxyAuthMiddleware(tokens))
+        .addHandler(app.call);
 
     final response = await send(
       'PUT',

@@ -271,11 +271,11 @@ Sync accepts: `target` (URL), `mode` (pull/push/two_way), `onConflict` (skip/ove
 | Method | Path | Description | Handler |
 |--------|------|-------------|---------|
 | GET | `/api/v1/account/decent` | Decent account link status: `{loggedIn}` | `account_handler.dart` |
-| GET/POST/PUT | `/api/v1/account/proxy/<path>` | Auth-enriching proxy to `decentespresso.com/<path>` | `account_proxy_handler.dart` |
+| GET | `/api/v1/account/proxy/<path>` | Auth-enriching proxy to `decentespresso.com/<path>` | `account_proxy_handler.dart` |
 
 Linking/unlinking a Decent account is **native-only** — there are no network login/logout routes. The webserver is unauthenticated with `Access-Control-Allow-Origin: *`, so exposing credential operations would let any LAN client or browser origin store attacker credentials or unlink the account. The status response omits the linked email (PII).
 
-The **proxy** lets clients *use* the account without ever seeing the credentials: it attaches the linked account's Basic auth server-side, forwards to `decentespresso.com`, and relays the upstream status + body verbatim. It requires `Authorization: Bearer <token>` and is enforced only on this path. `GET` requires `account:proxy` (including the skin token injected into served skin pages). `POST` and `PUT` require `account:proxy:write`, intended for user-managed API-client tokens; the skin token remains read-only. Forwarding is restricted to the `support/api/` prefix. Responses: 401 (missing/invalid token or no linked account), 403 (token unscoped or path not allowed). See `doc/plans/account-proxy-design.md`.
+The **proxy** lets clients *use* the account without ever seeing the credentials: it attaches the linked account's Basic auth server-side, forwards to `decentespresso.com`, and relays the upstream status + body verbatim. It requires `Authorization: Bearer <token>` and is enforced only on this path. `GET` requires `account:proxy` (including the skin token injected into served skin pages). Forwarding is restricted to the `support/api/` prefix. The OpenAPI spec documents the generated-client-safe `/support/api/{endpoint}` form; use this raw catch-all route when a Decent backend path contains additional slashes. Responses: 401 (missing/invalid token or no linked account), 403 (token unscoped or path not allowed). `POST` and `PUT` write forwarding stays disabled until a user-managed write-token issuance path exists.
 
 ### Other
 
