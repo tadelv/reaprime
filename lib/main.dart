@@ -445,18 +445,28 @@ void main(List<String> args) async {
   final WebUIService webUIService = WebUIService();
   final WebUIStorage webUIStorage = WebUIStorage(settingsController);
 
-  final decentCredentialStore = await createCredentialStore();
-  final decentAccountService = DecentAccountService(
-    httpClient: http.Client(),
-    credentialStore: decentCredentialStore,
-  );
-  // Same credential store as the account service: the proxy reads the
-  // credentials that account login wrote, and never exposes them to callers.
-  final decentProxyService = DecentProxyService(
-    httpClient: http.Client(),
-    credentialStore: decentCredentialStore,
-  );
+  // Credential store + account service — skip on headless Linux where
+  // libsecret blocks on the XDG secrets portal (no desktop session).
+  DecentAccountService? decentAccountService;
+  DecentProxyService? decentProxyService;
   final proxyTokenService = ProxyTokenService();
+  if (cliArgs.noAccount) {
+    log.info('--no-account: skipping credential store and account service');
+    decentAccountService = null;
+    decentProxyService = null;
+  } else {
+    final decentCredentialStore = await createCredentialStore();
+    decentAccountService = DecentAccountService(
+      httpClient: http.Client(),
+      credentialStore: decentCredentialStore,
+    );
+    // Same credential store as the account service: the proxy reads the
+    // credentials that account login wrote, and never exposes them to callers.
+    decentProxyService = DecentProxyService(
+      httpClient: http.Client(),
+      credentialStore: decentCredentialStore,
+    );
+  }
   // Serve the skin token into :3000 HTML so skins can call the account proxy.
   webUIService.skinProxyToken = proxyTokenService.skinToken;
 

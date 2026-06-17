@@ -5,6 +5,7 @@ class CliArgs {
   final bool serial;
   final bool bypassOnboarding;
   final bool direct;
+  final bool noAccount;
   final String? skinId;
   final String? skinPath;
 
@@ -12,6 +13,7 @@ class CliArgs {
     this.serial = false,
     this.bypassOnboarding = false,
     this.direct = false,
+    this.noAccount = false,
     this.skinId,
     this.skinPath,
   });
@@ -37,6 +39,11 @@ CliArgs parseCliArgs(List<String> args) {
     ..addOption(
       'skin-path',
       help: 'Serve skin directly from filesystem path.',
+    )
+    ..addFlag(
+      'no-account',
+      help: 'Bypass DecentAccountService (headless Linux with no keyring).',
+      defaultsTo: false,
     );
 
   final results = parser.parse(args);
@@ -44,6 +51,7 @@ CliArgs parseCliArgs(List<String> args) {
     serial: results['serial'] as bool,
     bypassOnboarding: results['bypass-onboarding'] as bool,
     direct: results['direct'] as bool,
+    noAccount: results['no-account'] as bool,
     skinId: results['skin'] as String?,
     skinPath: results['skin-path'] as String?,
   );
