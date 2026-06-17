@@ -158,8 +158,8 @@ void main(List<String> args) async {
     }
     final startupSimulatedWebViewDevice =
         await SharedPreferencesSettingsService().enableSimulatedWebViews()
-            ? await loadPersistedSimulatedWebViewDevice()
-            : null;
+        ? await loadPersistedSimulatedWebViewDevice()
+        : null;
     if (startupSimulatedWebViewDevice != null) {
       await setSimulatedWebViewDevice(
         startupSimulatedWebViewDevice,
@@ -396,13 +396,6 @@ void main(List<String> args) async {
     workflowController: workflowController,
     persistenceController: persistenceController,
   );
-  final PluginLoaderService pluginService = PluginLoaderService(
-    kvStore: HiveStoreService(defaultNamespace: "plugins")..initialize(),
-  );
-  // Don't initialize plugins yet - wait for permissions to be granted
-  // pluginService.initialize() will be called from PermissionsView after permissions are granted
-  pluginService.pluginManager.de1Controller = de1Controller;
-
   final WebUIService webUIService = WebUIService();
   final WebUIStorage webUIStorage = WebUIStorage(settingsController);
 
@@ -430,6 +423,14 @@ void main(List<String> args) async {
   }
   // Serve the skin token into :3000 HTML so skins can call the account proxy.
   webUIService.skinProxyToken = proxyTokenService.skinToken;
+
+  final PluginLoaderService pluginService = PluginLoaderService(
+    kvStore: HiveStoreService(defaultNamespace: "plugins")..initialize(),
+    decentProxyService: decentProxyService,
+  );
+  // Don't initialize plugins yet - wait for permissions to be granted
+  // pluginService.initialize() will be called from PermissionsView after permissions are granted
+  pluginService.pluginManager.de1Controller = de1Controller;
 
   BatteryController? batteryController;
   if (Platform.isAndroid || Platform.isIOS) {
@@ -492,9 +493,13 @@ void main(List<String> args) async {
   settingsController.addListener(() {
     // Merge dart-define devices with user-selected devices from settings
     const simEnv = String.fromEnvironment("simulate");
-    final dartDefineDevices = simEnv.isNotEmpty ? _parseSimulateFlag(simEnv) : <SimulatedDevicesTypes>{};
-    simulatedDevicesService.enabledDevices =
-        {...dartDefineDevices, ...settingsController.simulatedDevices};
+    final dartDefineDevices = simEnv.isNotEmpty
+        ? _parseSimulateFlag(simEnv)
+        : <SimulatedDevicesTypes>{};
+    simulatedDevicesService.enabledDevices = {
+      ...dartDefineDevices,
+      ...settingsController.simulatedDevices,
+    };
   });
   await settingsController.loadSettings();
 
@@ -691,8 +696,7 @@ class AppLifecycleObserver with WidgetsBindingObserver {
                 if (Platform.isAndroid) {
                   _showAndroidDownloadDialog(context, updateInfo);
                 } else {
-                  final releaseUrl =
-                      updateCheckService?.getReleaseUrl();
+                  final releaseUrl = updateCheckService?.getReleaseUrl();
                   if (releaseUrl != null) {
                     launchUrl(Uri.parse(releaseUrl));
                   }
@@ -723,50 +727,48 @@ class AppLifecycleObserver with WidgetsBindingObserver {
       final releaseUrl = updateCheckService?.getReleaseUrl();
       showDialog(
         context: context,
-        builder:
-            (ctx) => AlertDialog(
-              title: Text('Update ${info.version}'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Version ${info.version} is available'),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Current version: ${BuildInfo.version}',
-                  ),
-                  if (info.releaseNotes.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Release Notes:',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      constraints:
-                          const BoxConstraints(maxHeight: 200),
-                      child: SingleChildScrollView(
-                        child: Text(info.releaseNotes),
-                      ),
-                    ),
-                  ],
-                ],
+        builder: (ctx) => AlertDialog(
+          title: Text('Update ${info.version}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Version ${info.version} is available'),
+              const SizedBox(height: 8),
+              Text(
+                'Current version: ${BuildInfo.version}',
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Later'),
+              if (info.releaseNotes.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                const Text(
+                  'Release Notes:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
                 ),
-                if (releaseUrl != null)
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(ctx).pop();
-                      launchUrl(Uri.parse(releaseUrl));
-                    },
-                    child: const Text('Download'),
+                const SizedBox(height: 8),
+                Container(
+                  constraints: const BoxConstraints(maxHeight: 200),
+                  child: SingleChildScrollView(
+                    child: Text(info.releaseNotes),
                   ),
+                ),
               ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Later'),
             ),
+            if (releaseUrl != null)
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  launchUrl(Uri.parse(releaseUrl));
+                },
+                child: const Text('Download'),
+              ),
+          ],
+        ),
       );
     }
   }
@@ -939,7 +941,8 @@ class _AppRootState extends State<AppRoot> {
         LogicalKeyboardKey.digit0,
         control: true,
         alt: true,
-      ): () => unawaited(setSimulatedWebViewDevice(null)),
+      ): () =>
+          unawaited(setSimulatedWebViewDevice(null)),
       const SingleActivator(
         LogicalKeyboardKey.digit8,
         control: true,
@@ -1086,8 +1089,7 @@ class _AndroidQuickUpdateDialog extends StatefulWidget {
       _AndroidQuickUpdateDialogState();
 }
 
-class _AndroidQuickUpdateDialogState
-    extends State<_AndroidQuickUpdateDialog> {
+class _AndroidQuickUpdateDialogState extends State<_AndroidQuickUpdateDialog> {
   bool _isDownloading = true;
   bool _isInstalling = false;
   String? _error;
