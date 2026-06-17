@@ -699,7 +699,8 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
 
   /// Scripts injected into the skin at document start, before any page script
   /// runs. Always carries the host-identity beacon; appends the simulated-device
-  /// shims only in the macOS debug harness.
+  /// shims only on desktop (macOS/Windows/Linux) when simulated WebViews are
+  /// enabled and a device is selected.
   UnmodifiableListView<UserScript> _initialUserScripts(
     SimulatedWebViewDevice? simulatedDevice,
   ) {
@@ -754,8 +755,10 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
   UnmodifiableListView<UserScript>? _simulatedDeviceScripts(
     SimulatedWebViewDevice? simulatedDevice,
   ) {
+    final isDesktop =
+        Platform.isMacOS || Platform.isWindows || Platform.isLinux;
     if (!widget.settingsController.enableSimulatedWebViews ||
-        !Platform.isMacOS ||
+        !isDesktop ||
         simulatedDevice == null) {
       return null;
     }

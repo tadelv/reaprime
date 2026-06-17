@@ -10,6 +10,7 @@ import 'dart:io';
 
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/gateway_mode_info_dialog.dart';
+import 'package:reaprime/src/skin_feature/simulated_webview_device.dart';
 
 class AdvancedPage extends StatelessWidget {
   const AdvancedPage({
@@ -103,7 +104,9 @@ class AdvancedPage extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (Platform.isMacOS) ...[
+              if (Platform.isMacOS ||
+                  Platform.isWindows ||
+                  Platform.isLinux) ...[
                 const SettingsDivider(),
                 Padding(
                   padding: const EdgeInsets.symmetric(
@@ -114,10 +117,28 @@ class AdvancedPage extends StatelessWidget {
                     value: controller.enableSimulatedWebViews,
                     onChanged: (v) async {
                       await controller.setEnableSimulatedWebViews(v);
+                      // Disabling returns to the native WebView so the window
+                      // snaps back to its normal size and no device shims linger.
+                      if (!v) {
+                        await setSimulatedWebViewDevice(null);
+                      }
                     },
                     label: const Text('Simulated WebViews'),
                   ),
                 ),
+                if (controller.enableSimulatedWebViews)
+                  ValueListenableBuilder<SimulatedWebViewDevice?>(
+                    valueListenable: simulatedWebViewDevice,
+                    builder: (context, selected, _) {
+                      return SettingsTile(
+                        icon: Icons.devices_outlined,
+                        label: 'Simulated Device',
+                        trailing: Text(selected?.name ?? 'Native WebView'),
+                        onTap: () =>
+                            _showSimulatedWebViewPicker(context, selected),
+                      );
+                    },
+                  ),
               ],
               const SettingsDivider(),
 
@@ -157,6 +178,62 @@ class AdvancedPage extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+
+  void _showSimulatedWebViewPicker(
+    BuildContext context,
+    SimulatedWebViewDevice? selected,
+  ) {
+    showShadDialog(
+      context: context,
+      builder: (dialogContext) {
+        return ShadDialog(
+          title: const Text('Simulated Device'),
+          description: const Text(
+            'Resize the window and spoof viewport/touch APIs to preview skins '
+            'as they appear on Decent tablets.',
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  title: const Text('Native WebView'),
+                  subtitle: Text(
+                    'Use this machine\'s real WebView, no spoofing.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  trailing: selected == null ? const Icon(Icons.check) : null,
+                  onTap: () {
+                    setSimulatedWebViewDevice(null);
+                    Navigator.of(dialogContext).pop();
+                  },
+                ),
+                ...simulatedWebViewDevices.map((device) {
+                  return ListTile(
+                    title: Text(device.name),
+                    subtitle: Text(
+                      '${device.viewportSize.width.toInt()}'
+                      '×${device.viewportSize.height.toInt()} @ '
+                      '${device.devicePixelRatio.toStringAsFixed(2)}x',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    trailing: selected?.id == device.id
+                        ? const Icon(Icons.check)
+                        : null,
+                    onTap: () {
+                      setSimulatedWebViewDevice(device);
+                      Navigator.of(dialogContext).pop();
+                    },
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
