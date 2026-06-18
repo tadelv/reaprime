@@ -38,6 +38,14 @@ class DecentScale implements Scale, TransportHandoffScale {
   int _totalNotifications = 0;
   int _heartbeatTotalTicks = 0;
 
+  // Notification-level watchdog: scale fires at ~10 Hz (every ~100ms).
+  // If no notification arrives for 1s, re-subscribe immediately — the
+  // notification stream may have silently broken without the BLE link
+  // dropping (GATT busy-window, Android radio starvation, etc).
+  // Resets on every notification (_parseNotification).
+  Timer? _notificationWatchdog;
+  static const Duration _notificationWatchdogTimeout = Duration(seconds: 1);
+
   DecentScale({required BLETransport transport})
     : _deviceId = transport.id,
       _device = transport;
@@ -89,10 +97,12 @@ class DecentScale implements Scale, TransportHandoffScale {
       }
       await _registerNotifications();
       _heartbeatTimer?.cancel();
+      _notificationWatchdog?.cancel();
       _ticksSinceLastNotification = 0;
       _watchdogRetryAttempted = false;
       _totalNotifications = 0;
       _heartbeatTotalTicks = 0;
+      _resetNotificationWatchdog();
       _heartbeatTimer = Timer.periodic(Duration(seconds: 4), (timer) async {
         if (await _connectionStateController.stream.first !=
             ConnectionState.connected) {
@@ -146,6 +156,7 @@ class DecentScale implements Scale, TransportHandoffScale {
       subscription?.cancel();
       _heartbeatTimer?.cancel();
       _heartbeatTimer = null;
+      _notificationWatchdog?.cancel();
       _connectionStateController.add(ConnectionState.disconnected);
       try {
         await _device.disconnect();
@@ -176,6 +187,7 @@ class DecentScale implements Scale, TransportHandoffScale {
     subscription?.cancel();
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
+    _notificationWatchdog?.cancel();
     if (powerOff) {
       try {
         // Best-effort: `disconnect()` often fires *on* a transport-state
@@ -216,12 +228,16 @@ class DecentScale implements Scale, TransportHandoffScale {
     // HDS firmware times out and disconnects BLE, which wakes the display.
     // Does NOT produce a BLE notification response — watchdog
     // is fed by weight notifications (0xCE/0xCA) while scale is awake.
+    // Fire-and-forget (withoutResponse: true) — the GATT ACK is not needed
+    // for a heartbeat; the 2s timeout guards against queue stalls.
     List<int> payload = [0x03, 0x0A, 0x03, 0xFF, 0xFF, 0x00, 0x0A];
     try {
       await _device.write(
         serviceIdentifier.long,
         writeCharacteristic.long,
         Uint8List.fromList(payload),
+        withResponse: false,
+        timeout: const Duration(seconds: 2),
       );
     } catch (e) {
       // just disconnect
@@ -237,10 +253,24 @@ class DecentScale implements Scale, TransportHandoffScale {
     );
   }
 
+  void _resetNotificationWatchdog() {
+    _notificationWatchdog?.cancel();
+    if (!_isSleeping && !_isDisconnecting) {
+      _notificationWatchdog = Timer(_notificationWatchdogTimeout, () {
+        _log.warning(
+          'No BLE notifications for ${_notificationWatchdogTimeout.inMilliseconds}ms '
+          '(total=$_totalNotifications), re-subscribing',
+        );
+        _registerNotifications();
+      });
+    }
+  }
+
   void _parseNotification(List<int> data) {
     _ticksSinceLastNotification = 0;
     _watchdogRetryAttempted = false;
     _totalNotifications++;
+    _resetNotificationWatchdog();
     if (data.length < 4) return;
     _log.finest("$hashCode recv: ${data[1].toHex()}");
     switch (data[1]) {
@@ -312,6 +342,7 @@ class DecentScale implements Scale, TransportHandoffScale {
   @override
   Future<void> sleepDisplay() async {
     _isSleeping = true;
+    _notificationWatchdog?.cancel();
     _log.info('Putting Decent Scale display to sleep');
     await _sendOledOff();
   }
@@ -333,6 +364,7 @@ class DecentScale implements Scale, TransportHandoffScale {
     // Reset watchdog so scale has time to resume sending weight notifications
     _ticksSinceLastNotification = 0;
     _watchdogRetryAttempted = false;
+    _notificationWatchdog?.cancel();
     _log.info('Waking Decent Scale display');
     await _sendOledOn();
   }
