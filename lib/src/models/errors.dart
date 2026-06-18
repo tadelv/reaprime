@@ -10,7 +10,11 @@ class PermissionDeniedException implements Exception {
 }
 
 /// Which kind of device produced a [DeviceNotConnectedException].
-enum DeviceKind { machine, scale }
+/// Identifies the general class of a device (machine vs scale vs unknown).
+/// An [unknown] device is a transport that hasn't been classified yet —
+/// used by lower-level BLE transport error handlers that don't know
+/// whether they're connected to a machine or a scale.
+enum DeviceKind { machine, scale, unknown }
 
 /// Thrown when a controller is asked to act on a device that is not
 /// currently connected. Replaces ad-hoc raw-string throws of
@@ -22,6 +26,7 @@ class DeviceNotConnectedException implements Exception {
   const DeviceNotConnectedException(this.kind);
   const DeviceNotConnectedException.machine() : kind = DeviceKind.machine;
   const DeviceNotConnectedException.scale() : kind = DeviceKind.scale;
+  const DeviceNotConnectedException.unknown() : kind = DeviceKind.unknown;
 
   @override
   String toString() =>

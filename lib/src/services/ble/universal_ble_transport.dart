@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/services/ble/ble_exception_mapper.dart';
 import 'package:rxdart/subjects.dart';
 import 'package:universal_ble/universal_ble.dart';
@@ -154,6 +155,35 @@ class UniversalBleTransport implements BLETransport {
     }
   }
 
+  /// Error codes that indicate the device is effectively gone — no sense
+  /// retrying, and definitely not worth a crash. Emit disconnected and throw
+  /// [DeviceNotConnectedException] so upper layers handle it gracefully.
+  static const _goneDeviceCodes = {
+    UniversalBleErrorCode.characteristicNotFound,
+    UniversalBleErrorCode.deviceNotFound,
+    UniversalBleErrorCode.serviceNotFound,
+    UniversalBleErrorCode.connectionTerminated,
+  };
+
+  Never _handleGattError(UniversalBleException e, String operation, String path) {
+    if (_goneDeviceCodes.contains(e.code)) {
+      _log.warning('GATT $operation($path) failed — device gone: ${e.code}');
+      _connectionStateSubject.add(device.ConnectionState.disconnected);
+      throw const DeviceNotConnectedException.unknown();
+    }
+    // Also treat unknownError as likely device-gone on Bluetooth-off / macOS
+    // adapter restarts — same symptom, different error code.
+    if (e.code == UniversalBleErrorCode.unknownError) {
+      _log.warning(
+        'GATT $operation($path) failed — unknown error (likely BT off): $e',
+      );
+      _connectionStateSubject.add(device.ConnectionState.disconnected);
+      throw const DeviceNotConnectedException.unknown();
+    }
+    // All other codes: throw as-is (caller's problem).
+    throw e;
+  }
+
   @override
   Stream<device.ConnectionState> get connectionState =>
       _connectionStateSubject.asBroadcastStream();
@@ -233,12 +263,16 @@ class UniversalBleTransport implements BLETransport {
 
   @override
   Future<Uint8List> read(String serviceUUID, String characteristicUUID, {Duration? timeout}) async {
-    return await UniversalBle.read(
-      _device.deviceId,
-      serviceUUID,
-      characteristicUUID,
-      timeout: timeout
-    );
+    try {
+      return await UniversalBle.read(
+        _device.deviceId,
+        serviceUUID,
+        characteristicUUID,
+        timeout: timeout
+      );
+    } on UniversalBleException catch (e) {
+      _handleGattError(e, 'read', '$serviceUUID/$characteristicUUID');
+    }
   }
 
   final Map<String, StreamSubscription<Uint8List>> _subscriptions = {};
@@ -261,11 +295,15 @@ class UniversalBleTransport implements BLETransport {
     ).listen(callback);
     _subscriptions[key] = sub;
 
-    await UniversalBle.subscribeNotifications(
-      _device.deviceId,
-      serviceUUID,
-      characteristicUUID,
-    );
+    try {
+      await UniversalBle.subscribeNotifications(
+        _device.deviceId,
+        serviceUUID,
+        characteristicUUID,
+      );
+    } on UniversalBleException catch (e) {
+      _handleGattError(e, 'subscribe', '$serviceUUID/$characteristicUUID');
+    }
   }
 
   @override
@@ -276,14 +314,18 @@ class UniversalBleTransport implements BLETransport {
     bool withResponse = true,
     Duration? timeout,
   }) async {
-    await UniversalBle.write(
-      _device.deviceId,
-      BleUuidParser.string(serviceUUID),
-      BleUuidParser.string(characteristicUUID),
-      data,
-      withoutResponse: !withResponse,
-      timeout: timeout
-    );
+    try {
+      await UniversalBle.write(
+        _device.deviceId,
+        BleUuidParser.string(serviceUUID),
+        BleUuidParser.string(characteristicUUID),
+        data,
+        withoutResponse: !withResponse,
+        timeout: timeout
+      );
+    } on UniversalBleException catch (e) {
+      _handleGattError(e, 'write', '$serviceUUID/$characteristicUUID');
+    }
   }
 
   @override
