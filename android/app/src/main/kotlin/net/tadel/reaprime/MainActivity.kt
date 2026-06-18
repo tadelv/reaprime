@@ -1,8 +1,10 @@
 package net.tadel.reaprime
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -17,7 +19,17 @@ import java.io.File
 
 class MainActivity: FlutterFragmentActivity() {
     private val CHANNEL = "com.reaprime.updater/apk_installer"
+    private val NETWORK_CHANNEL = "com.reaprime/network"
     private val TAG = "MainActivity"
+
+    companion object {
+        private const val MULTICAST_LOCK_TAG = "reaprime-multicast"
+
+        // Process-level lock held in a static field so it survives Activity
+        // recreation (WebView crash reinit, config changes). The OS releases it
+        // automatically when the process dies.
+        private var multicastLock: WifiManager.MulticastLock? = null
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // FIRST: Check for cloned environment (Parallel Space, Island, etc.)
@@ -133,6 +145,71 @@ class MainActivity: FlutterFragmentActivity() {
                         else -> result.notImplemented()
                     }
                 }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, NETWORK_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "acquireMulticastLock" -> {
+                        try {
+                            result.success(acquireMulticastLock())
+                        } catch (e: Exception) {
+                            result.error("MULTICAST_LOCK_FAILED", e.message, null)
+                        }
+                    }
+                    "releaseMulticastLock" -> {
+                        try {
+                            releaseMulticastLock()
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("MULTICAST_LOCK_FAILED", e.message, null)
+                        }
+                    }
+                    "isMulticastLockHeld" -> {
+                        result.success(multicastLock?.isHeld ?: false)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    /**
+     * Acquire a process-level MulticastLock so the Wi-Fi firmware stops dropping
+     * inbound broadcast/multicast frames (including ARP), keeping the gateway
+     * reachable on the LAN once the radio idles. Idempotent. Returns whether the
+     * lock is held afterwards.
+     */
+    private fun acquireMulticastLock(): Boolean {
+        multicastLock?.let {
+            if (it.isHeld) {
+                Log.d(TAG, "MulticastLock already held")
+                return true
+            }
+        }
+
+        val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+        if (wifi == null) {
+            Log.w(TAG, "WifiManager unavailable; cannot acquire MulticastLock")
+            return false
+        }
+
+        val lock = multicastLock ?: wifi.createMulticastLock(MULTICAST_LOCK_TAG).apply {
+            // Not reference-counted: a single release() always frees it, no
+            // matter how many acquire() calls happened.
+            setReferenceCounted(false)
+        }
+        lock.acquire()
+        multicastLock = lock
+        Log.i(TAG, "MulticastLock acquired (held=${lock.isHeld})")
+        return lock.isHeld
+    }
+
+    private fun releaseMulticastLock() {
+        multicastLock?.let {
+            if (it.isHeld) {
+                it.release()
+                Log.i(TAG, "MulticastLock released")
+            }
+        }
     }
 
     private fun installApk(apkPath: String) {
