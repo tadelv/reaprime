@@ -46,17 +46,17 @@ class UniversalBleTransport implements BLETransport {
 
   @override
   Future<void> connect() async {
-    // TODO(ble-fork): switch to UniversalBle.connectionUpdateStream
-    // once the fork is published — it exposes native disconnect reason
-    // codes (GATT error, HCI status). Until then, connectionStream
-    // only emits bool.
-    _connectionStateSubscription = UniversalBle.connectionStream(
+    // Use connectionUpdateStream (from our universal_ble fork) to get
+    // native disconnect reason codes (GATT error, HCI status) — the
+    // standard connectionStream only emits bool.
+    _connectionStateSubscription = UniversalBle.connectionUpdateStream(
       _device.deviceId,
-    ).listen((connected) {
-      if (connected) {
+    ).listen((update) {
+      if (update.isConnected) {
         _connectionStateSubject.add(device.ConnectionState.connected);
       } else {
-        _log.warning('Transport disconnected (reason not available in this build)');
+        final reason = update.error ?? 'unknown';
+        _log.warning('Transport disconnected: $reason');
         _connectionStateSubject.add(device.ConnectionState.disconnected);
       }
     });
