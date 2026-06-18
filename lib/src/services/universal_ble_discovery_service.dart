@@ -44,7 +44,10 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
 
   @override
   Future<void> initialize() async {
-    UniversalBle.queueType = QueueType.global;
+    // perDevice: each BLE peripheral gets its own command queue, so
+    // DE1 GATT operations never block scale heartbeat writes and vice
+    // versa. Mirrors flutter_blue_plus' per-connection serialization.
+    UniversalBle.queueType = QueueType.perDevice;
 
     final initialState = await UniversalBle.getBluetoothAvailabilityState();
     _adapterStateSubject.add(_mapAvailabilityState(initialState));
