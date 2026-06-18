@@ -163,6 +163,7 @@ class UniversalBleTransport implements BLETransport {
     UniversalBleErrorCode.deviceNotFound,
     UniversalBleErrorCode.serviceNotFound,
     UniversalBleErrorCode.connectionTerminated,
+    UniversalBleErrorCode.deviceDisconnected,
   };
 
   Never _handleGattError(UniversalBleException e, String operation, String path) {
