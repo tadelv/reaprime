@@ -251,10 +251,12 @@ Settings fields include: `gatewayMode`, `themeMode`, `logLevel`, `weightFlowMult
 
 | Method | Path | Description | Handler |
 |--------|------|-------------|---------|
-| GET | `/api/v1/store/:namespace` | List keys in namespace | `kv_store_handler.dart` |
+| GET | `/api/v1/store/:namespace` | List keys in namespace (or `?full=1` for the whole namespace) | `kv_store_handler.dart` |
 | GET | `/api/v1/store/:namespace/:key` | Get value | |
 | POST | `/api/v1/store/:namespace/:key` | Set value | |
 | DELETE | `/api/v1/store/:namespace/:key` | Delete key | |
+
+`GET /api/v1/store/:namespace?full=1` returns the entire namespace as a `{key: value}` map in one request instead of one GET per key. It sends an `ETag`, so a repeat request with `If-None-Match` returns `304 Not Modified` when nothing changed — cheap to poll. Without the flag the endpoint returns just the array of keys.
 
 ### Data Management
 
