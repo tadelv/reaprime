@@ -27,6 +27,11 @@
     
     <!-- Internet permission -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Multicast lock: keeps the Wi-Fi firmware from dropping inbound
+         broadcast/multicast (incl. ARP), so the gateway stays reachable on the
+         LAN when the radio idles. No root needed. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
     
     <!-- App installation permission -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />

@@ -68,6 +68,7 @@ import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 import 'src/app.dart';
 import 'src/launcher/launcher_view.dart';
 import 'src/services/foreground_service.dart';
+import 'src/services/network/multicast_lock_service.dart';
 import 'src/settings/settings_controller.dart';
 import 'src/settings/settings_service.dart';
 import 'src/services/serial/serial_service.dart';
@@ -183,6 +184,12 @@ void main(List<String> args) async {
 
   Logger.root.info("==== Decent starting ====");
   BootTiming.start();
+
+  // Keep the Wi-Fi firmware from dropping inbound broadcast/multicast (incl.
+  // ARP) once the radio idles, so the gateway's REST/WebSocket server stays
+  // reachable on the LAN. Android-only; no-op elsewhere. Fire-and-forget — the
+  // lock is held for the process lifetime and never blocks startup.
+  unawaited(MulticastLockService().acquire());
 
   Logger.root.info(
     "build: ${BuildInfo.commitShort}, branch: ${BuildInfo.branch}",
