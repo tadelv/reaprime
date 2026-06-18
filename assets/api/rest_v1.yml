@@ -2053,7 +2053,14 @@ paths:
   # REA Key-Value Store for clients
   /api/v1/store/{namespace}:
     get:
-      summary: Get a list of all the keys in the specified key value namespace
+      summary: List keys in a namespace, or read the whole namespace with `?full=1`
+      description: >
+        By default returns an array of the keys stored under the namespace.
+        With `?full=1` returns the entire namespace as a `{key: value}` map in a
+        single request (instead of one GET per key). The full response supports
+        conditional requests: it sends an `ETag`, and an `If-None-Match` request
+        whose value matches returns `304 Not Modified`, which makes polling the
+        whole namespace cheap.
       tags: [Key value store]
       parameters:
         - name: namespace
@@ -2062,15 +2069,34 @@ paths:
           required: true
           schema:
             type: string
+        - name: full
+          in: query
+          required: false
+          description: "Set to `1` to return the whole namespace as a `{key: value}` map instead of a list of keys."
+          schema:
+            type: string
+            enum: ["1"]
       responses:
         "200":
-          description: Array of keys
+          description: >
+            Array of keys, or — when `?full=1` is set — an object mapping each
+            key to its stored JSON value.
+          headers:
+            ETag:
+              description: Present for `?full=1` responses; pass back via `If-None-Match` to poll cheaply.
+              schema:
+                type: string
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: string
+                oneOf:
+                  - type: array
+                    items:
+                      type: string
+                  - type: object
+                    additionalProperties: true
+        "304":
+          description: Returned for a `?full=1` request whose `If-None-Match` matches the current namespace ETag.
 
   /api/v1/store/{namespace}/{key}:
     get:

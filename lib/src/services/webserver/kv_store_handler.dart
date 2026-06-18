@@ -9,6 +9,13 @@ final class KvStoreHandler {
       if (namespace == null) {
         return jsonBadRequest({'error': 'Missing namespace'});
       }
+      // `?full=1` returns the whole namespace as a {key: value} map so a client
+      // can fetch (or poll) everything in one request instead of one GET per
+      // key. ETag/If-None-Match (via jsonOkConditional) lets a poll come back
+      // 304 when nothing changed. Without the flag we return just the key list.
+      if (req.url.queryParameters['full'] == '1') {
+        return jsonOkConditional(req, await store.getAll(namespace: namespace));
+      }
       return jsonOk(await store.keys(namespace: namespace));
     });
 
