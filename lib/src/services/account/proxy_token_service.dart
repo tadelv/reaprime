@@ -22,13 +22,17 @@ class ProxyCaller {
 class ProxyTokenService {
   static const String scopeAccountProxy = 'account:proxy';
 
+  /// Write scope. Enforced on `POST`/`PUT` by the write proxy (#355); minted
+  /// here so token issuance is ready when the write routes land.
+  static const String scopeAccountProxyWrite = 'account:proxy:write';
+
   final Map<String, ProxyCaller> _tokens = {};
   late final String _skinToken;
 
   /// [skinToken] is injectable for tests; production omits it to get a fresh
   /// cryptographically-random token.
   ProxyTokenService({String? skinToken}) {
-    _skinToken = skinToken ?? _generateToken();
+    _skinToken = skinToken ?? generateToken();
     _tokens[_skinToken] = const ProxyCaller(
       id: 'skin',
       scopes: {scopeAccountProxy},
@@ -53,7 +57,9 @@ class ProxyTokenService {
   /// Returns the caller for [token], or null if the token is unknown.
   ProxyCaller? validate(String token) => _tokens[token];
 
-  static String _generateToken() {
+  /// Mints a fresh cryptographically-random bearer token. Used for the skin
+  /// token and for user-created API-client tokens.
+  static String generateToken() {
     final rng = Random.secure();
     final bytes = List<int>.generate(32, (_) => rng.nextInt(256));
     return base64Url.encode(bytes);

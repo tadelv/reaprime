@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/account/decent_login_form.dart';
+import 'package:reaprime/src/account/account_tokens_section.dart';
+import 'package:reaprime/src/controllers/account_tokens_controller.dart';
 import 'package:reaprime/src/services/account/decent_account_service.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -7,11 +9,13 @@ class AccountPage extends StatefulWidget {
   const AccountPage({
     super.key,
     required this.accountService,
+    this.tokensController,
   });
 
   static const routeName = '/account';
 
   final DecentAccountService accountService;
+  final AccountTokensController? tokensController;
 
   @override
   State<AccountPage> createState() => _AccountPageState();
@@ -82,6 +86,17 @@ class _AccountPageState extends State<AccountPage> {
                             ),
                           ),
                         ),
+                        if (widget.tokensController != null) ...[
+                          const SizedBox(height: 16),
+                          ShadCard(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: AccountTokensSection(
+                                controller: widget.tokensController!,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     );
                   },

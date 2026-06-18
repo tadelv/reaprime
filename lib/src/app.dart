@@ -7,6 +7,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/main.dart';
 // import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 // import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:reaprime/src/controllers/account_tokens_controller.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_state_manager.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
@@ -93,6 +94,7 @@ class MyApp extends StatefulWidget {
     this.grinderStorage,
     this.profileStorageService,
     this.decentAccountService,
+    this.accountTokensController,
     this.batteryController,
   });
 
@@ -115,6 +117,7 @@ class MyApp extends StatefulWidget {
   final GrinderStorageService? grinderStorage;
   final ProfileStorageService? profileStorageService;
   final DecentAccountService? decentAccountService;
+  final AccountTokensController? accountTokensController;
   final BatteryController? batteryController;
 
   @override
@@ -501,6 +504,7 @@ class _MyAppState extends State<MyApp> {
                       }
                       return AccountPage(
                         accountService: widget.decentAccountService!,
+                        tokensController: widget.accountTokensController,
                       );
                     case LauncherScanPage.routeName:
                       return LauncherScanPage(

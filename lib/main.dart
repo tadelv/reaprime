@@ -47,6 +47,8 @@ import 'package:reaprime/src/services/storage/profile_storage_service.dart';
 import 'package:reaprime/src/services/account/decent_account_service.dart';
 import 'package:reaprime/src/services/account/decent_proxy_service.dart';
 import 'package:reaprime/src/services/account/proxy_token_service.dart';
+import 'package:reaprime/src/services/account/proxy_token_store.dart';
+import 'package:reaprime/src/controllers/account_tokens_controller.dart';
 import 'package:reaprime/src/services/account/credential_store_factory.dart';
 import 'package:http/http.dart' as http;
 import 'package:reaprime/src/services/storage/hive_store_service.dart';
@@ -403,6 +405,7 @@ void main(List<String> args) async {
   // libsecret blocks on the XDG secrets portal (no desktop session).
   DecentAccountService? decentAccountService;
   DecentProxyService? decentProxyService;
+  AccountTokensController? accountTokensController;
   final proxyTokenService = ProxyTokenService();
   if (cliArgs.noAccount) {
     log.info('--no-account: skipping credential store and account service');
@@ -420,6 +423,13 @@ void main(List<String> args) async {
       httpClient: http.Client(),
       credentialStore: decentCredentialStore,
     );
+    // User-managed API-client tokens: persisted in the same secure store and
+    // loaded into the validator alongside the per-process skin token.
+    accountTokensController = AccountTokensController(
+      tokenService: proxyTokenService,
+      store: ProxyTokenStore(credentialStore: decentCredentialStore),
+    );
+    await accountTokensController.initialize();
   }
   // Serve the skin token into :3000 HTML so skins can call the account proxy.
   webUIService.skinProxyToken = proxyTokenService.skinToken;
@@ -580,6 +590,7 @@ void main(List<String> args) async {
         connectionManager: connectionManager,
         scanStateGuardian: scanStateGuardian,
         decentAccountService: decentAccountService,
+        accountTokensController: accountTokensController,
         batteryController: batteryController,
       ),
     ),
@@ -816,6 +827,7 @@ class AppRoot extends StatefulWidget {
   final ConnectionManager connectionManager;
   final ScanStateGuardian scanStateGuardian;
   final DecentAccountService? decentAccountService;
+  final AccountTokensController? accountTokensController;
   final BatteryController? batteryController;
 
   const AppRoot({
@@ -839,6 +851,7 @@ class AppRoot extends StatefulWidget {
     this.grinderStorage,
     this.profileStorageService,
     this.decentAccountService,
+    this.accountTokensController,
     this.batteryController,
   });
 
@@ -905,6 +918,7 @@ class _AppRootState extends State<AppRoot> {
         connectionManager: widget.connectionManager,
         scanStateGuardian: widget.scanStateGuardian,
         decentAccountService: widget.decentAccountService,
+        accountTokensController: widget.accountTokensController,
         batteryController: widget.batteryController,
       ),
     );
