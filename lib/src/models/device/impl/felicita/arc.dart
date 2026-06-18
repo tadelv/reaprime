@@ -113,7 +113,7 @@ class FelicitaArc implements Scale {
     // This is a no-op
   }
 
-  late StreamSubscription<Uint8List>? _notificationsSubscription;
+  StreamSubscription<Uint8List>? _notificationsSubscription;
 
   Future<void> _registerNotifications() async {
     await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
