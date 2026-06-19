@@ -8,6 +8,7 @@ import 'package:reaprime/src/services/serial/serial_service_desktop.dart';
 import 'package:logging/logging.dart' as logging;
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/subjects.dart';
 
 class DecentScale implements Scale, TransportHandoffScale {
@@ -17,6 +18,8 @@ class DecentScale implements Scale, TransportHandoffScale {
       BleServiceIdentifier.short('fff4');
   static final BleServiceIdentifier writeCharacteristic =
       BleServiceIdentifier.short('36f5');
+
+  static final bool isUsingHeartBeat = false;
 
   final String _deviceId;
 
@@ -44,11 +47,43 @@ class DecentScale implements Scale, TransportHandoffScale {
   // dropping (GATT busy-window, Android radio starvation, etc).
   // Resets on every notification (_parseNotification).
   Timer? _notificationWatchdog;
-  static const Duration _notificationWatchdogTimeout = Duration(seconds: 1);
+  static const Duration _notificationWatchdogTimeout = Duration(seconds: 5);
 
   DecentScale({required BLETransport transport})
     : _deviceId = transport.id,
       _device = transport;
+
+  // --- Protocol: 7-byte frame helper -----------------------------------
+
+  /// Build a 7-byte Decent Scale BLE command frame.
+  /// Prepends [0x03] header and appends XOR checksum over bytes 0-5.
+  /// Matches canonical `calculateChecksum` in openscale: XOR all bytes
+  /// (including header), starting from 0.
+  static Uint8List _buildCommand(List<int> commandBytes) {
+    final bytes = <int>[0x03, ...commandBytes];
+    int xor = 0;
+    for (final b in bytes) {
+      xor ^= b;
+    }
+    bytes.add(xor);
+    return Uint8List.fromList(bytes);
+  }
+
+  Future<void> _writeCommand(
+    List<int> commandBytes, {
+    Duration? timeout,
+    bool withResponse = true,
+  }) async {
+    await _device.write(
+      serviceIdentifier.long,
+      writeCharacteristic.long,
+      _buildCommand(commandBytes),
+      timeout: timeout,
+      withResponse: withResponse,
+    );
+  }
+
+  // --- Scale interface -------------------------------------------------
 
   @override
   Stream<ScaleSnapshot> get currentSnapshot => _streamController.stream;
@@ -62,7 +97,7 @@ class DecentScale implements Scale, TransportHandoffScale {
   @override
   String get name => "Decent Scale";
 
-  final StreamController<ConnectionState> _connectionStateController =
+  final BehaviorSubject<ConnectionState> _connectionStateController =
       BehaviorSubject.seeded(ConnectionState.discovered);
 
   @override
@@ -73,7 +108,13 @@ class DecentScale implements Scale, TransportHandoffScale {
   @override
   Future<void> onConnect() async {
     _log.info("on connect (id=$deviceId)");
-    if (await _device.connectionState.first == ConnectionState.connected) {
+    // Check actual BLE link state via the fork API. The local
+    // BehaviorSubject is freshly seeded (discovered) on each new
+    // DecentScale instance — it cannot detect an already-live
+    // connection created by a prior transport instance.
+    final state = await _device.getConnectionState();
+    if (state == ConnectionState.connected) {
+      _log.info('Already connected, skipping');
       return;
     }
     _connectionStateController.add(ConnectionState.connecting);
@@ -104,18 +145,22 @@ class DecentScale implements Scale, TransportHandoffScale {
       _heartbeatTotalTicks = 0;
       _resetNotificationWatchdog();
       _heartbeatTimer = Timer.periodic(Duration(seconds: 4), (timer) async {
-        if (await _connectionStateController.stream.first !=
-            ConnectionState.connected) {
+        // Use .value (BehaviorSubject current state). .stream.first
+        // returns the seed (discovered) — caused 4s disconnect on every
+        // first connect. Don't call disconnect() here — the state change
+        // already emitted disconnected; re-disconnecting is re-entrant.
+        if (_connectionStateController.value != ConnectionState.connected) {
           timer.cancel();
-          disconnect();
           return;
         }
         _heartbeatTotalTicks++;
 
-        // Periodic heartbeat log every 5 min (75 ticks at 4s)
-        if (_heartbeatTotalTicks % 75 == 0) {
+        // Periodic oled-on every 2 ticks (8s) when awake
+        if (_heartbeatTotalTicks % 2 == 0) {
           final uptimeMin = (_heartbeatTotalTicks * 4) ~/ 60;
-          _log.fine("heartbeat: ${uptimeMin}m uptime, $_totalNotifications notifications");
+          _log.fine(
+            "heartbeat: ${uptimeMin}m uptime, $_totalNotifications notifications",
+          );
           if (!_isSleeping) {
             await _sendOledOn();
           }
@@ -146,7 +191,11 @@ class DecentScale implements Scale, TransportHandoffScale {
 
         await _sendHeartBeat();
       });
-      await _sendHeartBeat();
+      if (isUsingHeartBeat) {
+        await _sendHeartBeat();
+      } else {
+        await tare();
+      }
       if (!_isSleeping) {
         await _sendOledOn();
       }
@@ -182,8 +231,10 @@ class DecentScale implements Scale, TransportHandoffScale {
     }
     _isDisconnecting = true;
     final uptimeSec = _heartbeatTotalTicks * 4;
-    _log.info("disconnecting (notifications=$_totalNotifications, "
-        "uptime=${uptimeSec}s, powerOff=$powerOff)");
+    _log.info(
+      "disconnecting (notifications=$_totalNotifications, "
+      "uptime=${uptimeSec}s, powerOff=$powerOff)",
+    );
     subscription?.cancel();
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
@@ -211,39 +262,122 @@ class DecentScale implements Scale, TransportHandoffScale {
     }
   }
 
+  // --- Commands --------------------------------------------------------
+
   @override
   Future<void> tare() async {
-    List<int> payload = [0x03, 0x0F, 0x01, 0x00, 0x00, 0x01, 0x0C];
-    await _device.write(
-      serviceIdentifier.long,
-      writeCharacteristic.long,
-      Uint8List.fromList(payload),
-    );
+    await _writeCommand([0x0F, 0x00, 0x00, 0x00, 0x01]);
   }
 
   Future<void> _sendHeartBeat() async {
+    if (!isUsingHeartBeat) {
+      return;
+    }
     _log.finest("send hb");
     // Heartbeat ping: tells the scale the app is still alive so it won't
     // auto-sleep or disconnect. Send even when _isSleeping — without it
     // HDS firmware times out and disconnects BLE, which wakes the display.
-    // Does NOT produce a BLE notification response — watchdog
-    // is fed by weight notifications (0xCE/0xCA) while scale is awake.
-    // Fire-and-forget (withoutResponse: true) — the GATT ACK is not needed
-    // for a heartbeat; the 2s timeout guards against queue stalls.
-    List<int> payload = [0x03, 0x0A, 0x03, 0xFF, 0xFF, 0x00, 0x0A];
     try {
-      await _device.write(
-        serviceIdentifier.long,
-        writeCharacteristic.long,
-        Uint8List.fromList(payload),
-        withResponse: false,
+      await _writeCommand(
+        [0x0A, 0x03, 0xFF, 0xFF, 0x00],
         timeout: const Duration(seconds: 2),
+        withResponse: true,
       );
-    } catch (e) {
-      // just disconnect
+    } on DeviceNotConnectedException {
+      _log.info('Heartbeat write failed: device not connected');
       await disconnect();
+    } catch (e) {
+      _log.warning('Heartbeat write failed (transient): $e');
     }
   }
+
+  Future<void> _sendOledOn() async {
+    final heartbeatByte = isUsingHeartBeat ? 0x01 : 0x00;
+    await _writeCommand([0x0A, 0x01, 0x00, 0x00, heartbeatByte]);
+    await Future.delayed(Duration(milliseconds: 100));
+    await _writeCommand([0x0A, 0x04, 0x00, 0x00, heartbeatByte]);
+  }
+
+  Future<void> _sendOledOff() async {
+    await _writeCommand([0x0A, 0x04, 0x01, 0x00, 0x01]);
+    await Future.delayed(Duration(milliseconds: 100));
+    await _writeCommand([0x0A, 0x00, 0x01, 0x00, 0x01]);
+  }
+
+  bool _isSleeping = false;
+  bool _wakeInFlight = false;
+
+  @override
+  Future<void> sleepDisplay() async {
+    _isSleeping = true;
+    _notificationWatchdog?.cancel();
+    _log.info('Putting Decent Scale display to sleep');
+    await _sendOledOff();
+  }
+
+  Future<void> _sendPowerOff() async {
+    _log.info("sending power off");
+    await _writeCommand([
+      0x0A,
+      0x02,
+      0x00,
+      0x00,
+      0x00,
+    ], timeout: Duration(seconds: 10));
+  }
+
+  @override
+  Future<void> wakeDisplay() async {
+    _isSleeping = false;
+    _ticksSinceLastNotification = 0;
+    _watchdogRetryAttempted = false;
+    _notificationWatchdog?.cancel();
+    if (_wakeInFlight) return;
+    _wakeInFlight = true;
+    _log.info('Waking Decent Scale display');
+    try {
+      await _sendOledOn();
+    } finally {
+      _wakeInFlight = false;
+    }
+  }
+
+  bool _timerCommandInFlight = false;
+
+  @override
+  Future<void> startTimer() async {
+    if (_timerCommandInFlight) return;
+    _timerCommandInFlight = true;
+    try {
+      await _writeCommand([0x0B, 0x03, 0x00, 0x00, 0x00]);
+    } finally {
+      _timerCommandInFlight = false;
+    }
+  }
+
+  @override
+  Future<void> stopTimer() async {
+    if (_timerCommandInFlight) return;
+    _timerCommandInFlight = true;
+    try {
+      await _writeCommand([0x0B, 0x00, 0x00, 0x00, 0x00]);
+    } finally {
+      _timerCommandInFlight = false;
+    }
+  }
+
+  @override
+  Future<void> resetTimer() async {
+    if (_timerCommandInFlight) return;
+    _timerCommandInFlight = true;
+    try {
+      await _writeCommand([0x0B, 0x02, 0x00, 0x00, 0x00]);
+    } finally {
+      _timerCommandInFlight = false;
+    }
+  }
+
+  // --- BLE notifications -----------------------------------------------
 
   Future<void> _registerNotifications() async {
     await _device.subscribe(
@@ -303,99 +437,5 @@ class DecentScale implements Scale, TransportHandoffScale {
     final level = data[4];
     _log.fine("heartbeat: ${data.map((e) => e.toRadixString(16))}");
     _batteryLevel = min(level, 100);
-  }
-
-  Future<void> _sendOledOn() async {
-    List<int> payload = [];
-    payload = [0x03, 0x0A, 0x01, 0x00, 0x00, 0x01, 0x08];
-    await _device.write(
-      serviceIdentifier.long,
-      writeCharacteristic.long,
-      Uint8List.fromList(payload),
-    );
-    payload = [0x03, 0x0A, 0x04, 0x00, 0x00, 0x01, 0x08];
-    await _device.write(
-      serviceIdentifier.long,
-      writeCharacteristic.long,
-      Uint8List.fromList(payload),
-    );
-  }
-
-  Future<void> _sendOledOff() async {
-    List<int> payload = [];
-    payload = [0x03, 0x0A, 0x04, 0x01, 0x00, 0x01, 0x09];
-    await _device.write(
-      serviceIdentifier.long,
-      writeCharacteristic.long,
-      Uint8List.fromList(payload),
-    );
-    payload = [0x03, 0x0A, 0x00, 0x01, 0x00, 0x01, 0x09];
-    await _device.write(
-      serviceIdentifier.long,
-      writeCharacteristic.long,
-      Uint8List.fromList(payload),
-    );
-  }
-
-  bool _isSleeping = false;
-
-  @override
-  Future<void> sleepDisplay() async {
-    _isSleeping = true;
-    _notificationWatchdog?.cancel();
-    _log.info('Putting Decent Scale display to sleep');
-    await _sendOledOff();
-  }
-
-  Future<void> _sendPowerOff() async {
-    _log.info("sending power off");
-    List<int> payload = [0x03, 0x0A, 0x02, 0x00, 0x00, 0x00, 0x00];
-    await _device.write(
-      serviceIdentifier.long,
-      writeCharacteristic.long,
-      Uint8List.fromList(payload),
-      timeout: Duration(seconds: 10),
-    );
-  }
-
-  @override
-  Future<void> wakeDisplay() async {
-    _isSleeping = false;
-    // Reset watchdog so scale has time to resume sending weight notifications
-    _ticksSinceLastNotification = 0;
-    _watchdogRetryAttempted = false;
-    _notificationWatchdog?.cancel();
-    _log.info('Waking Decent Scale display');
-    await _sendOledOn();
-  }
-
-  @override
-  Future<void> startTimer() async {
-    List<int> payload = [0x03, 0x0B, 0x03, 0x00, 0x00, 0x00, 0x0B];
-    await _device.write(
-      serviceIdentifier.long,
-      writeCharacteristic.long,
-      Uint8List.fromList(payload),
-    );
-  }
-
-  @override
-  Future<void> stopTimer() async {
-    List<int> payload = [0x03, 0x0B, 0x00, 0x00, 0x00, 0x00, 0x08];
-    await _device.write(
-      serviceIdentifier.long,
-      writeCharacteristic.long,
-      Uint8List.fromList(payload),
-    );
-  }
-
-  @override
-  Future<void> resetTimer() async {
-    List<int> payload = [0x03, 0x0B, 0x02, 0x00, 0x00, 0x00, 0x0A];
-    await _device.write(
-      serviceIdentifier.long,
-      writeCharacteristic.long,
-      Uint8List.fromList(payload),
-    );
   }
 }
