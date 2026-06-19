@@ -4,9 +4,8 @@ import 'package:reaprime/src/controllers/account_tokens_controller.dart';
 import 'package:reaprime/src/services/account/proxy_token_service.dart';
 
 /// Settings section for managing API-client tokens (#297): create a named token
-/// (shown once), list existing tokens, and revoke. Read-scoped only for now —
-/// the write scope is plumbed in the controller but not user-facing until the
-/// write proxy (#355) lands.
+/// (shown once), list existing tokens, and revoke. The create dialog offers an
+/// optional write scope, enforced by the account write proxy (#355).
 class AccountTokensSection extends StatefulWidget {
   const AccountTokensSection({super.key, required this.controller});
 
@@ -19,36 +18,56 @@ class AccountTokensSection extends StatefulWidget {
 class _AccountTokensSectionState extends State<AccountTokensSection> {
   Future<void> _createToken() async {
     final controllerText = TextEditingController();
-    final label = await showDialog<String>(
+    var write = false;
+    final result = await showDialog<({String label, bool write})>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('New API token'),
-        content: TextField(
-          controller: controllerText,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Name',
-            hintText: 'e.g. my-laptop',
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('New API token'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: controllerText,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Name',
+                  hintText: 'e.g. my-laptop',
+                ),
+              ),
+              SwitchListTile(
+                key: const Key('token-write-toggle'),
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Allow write access'),
+                subtitle: const Text('Permit POST/PUT through the proxy.'),
+                value: write,
+                onChanged: (v) => setDialogState(() => write = v),
+              ),
+            ],
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                final text = controllerText.text.trim();
+                if (text.isNotEmpty) {
+                  Navigator.of(ctx).pop((label: text, write: write));
+                }
+              },
+              child: const Text('Create'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              final text = controllerText.text.trim();
-              if (text.isNotEmpty) Navigator.of(ctx).pop(text);
-            },
-            child: const Text('Create'),
-          ),
-        ],
       ),
     );
-    if (label == null || label.isEmpty) return;
+    if (result == null || result.label.isEmpty) return;
 
-    final token = await widget.controller.create(label: label);
+    final token =
+        await widget.controller.create(label: result.label, write: result.write);
     if (!mounted) return;
     setState(() {});
     await _showTokenOnce(token);
