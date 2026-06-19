@@ -44,9 +44,9 @@ class _TestDe1Controller extends De1Controller {
   final TestDe1 testDe1;
 
   _TestDe1Controller(this.testDe1)
-      : super(
-          controller: DeviceController([_FakeDiscoveryService()]),
-        );
+    : super(
+        controller: DeviceController([_FakeDiscoveryService()]),
+      );
 
   @override
   De1Interface connectedDe1() => testDe1;
@@ -63,7 +63,7 @@ class _TestScaleController extends ScaleController {
   final BehaviorSubject<WeightSnapshot> _weight = BehaviorSubject();
 
   _TestScaleController(this.testScale)
-      : _connectionState = BehaviorSubject.seeded(ConnectionState.connected);
+    : _connectionState = BehaviorSubject.seeded(ConnectionState.connected);
 
   @override
   Stream<ConnectionState> get connectionState => _connectionState.stream;
@@ -83,11 +83,13 @@ class _TestScaleController extends ScaleController {
   }
 
   void emitWeight(double weight, {double weightFlow = 0.0}) {
-    _weight.add(WeightSnapshot(
-      timestamp: DateTime(2026, 1, 15, 8, 0),
-      weight: weight,
-      weightFlow: weightFlow,
-    ));
+    _weight.add(
+      WeightSnapshot(
+        timestamp: DateTime(2026, 1, 15, 8, 0),
+        weight: weight,
+        weightFlow: weightFlow,
+      ),
+    );
   }
 
   void simulateDisconnect() {
@@ -133,8 +135,7 @@ class _NullStorageService implements StorageService {
     String? profileTitle,
     String? search,
     bool ascending = false,
-  }) async =>
-      [];
+  }) async => [];
   @override
   @override
   Future<int> countShots({
@@ -146,8 +147,7 @@ class _NullStorageService implements StorageService {
     String? coffeeRoaster,
     String? profileTitle,
     String? search,
-  }) async =>
-      0;
+  }) async => 0;
   @override
   Future<ShotRecord?> getLatestShot() async => null;
   @override
@@ -196,6 +196,38 @@ Profile _simpleProfile() {
   );
 }
 
+Profile _profileWithSteps(List<ProfileStep> steps) {
+  return Profile(
+    version: '2',
+    title: 'Test Profile',
+    notes: '',
+    author: 'test',
+    beverageType: BeverageType.espresso,
+    targetVolumeCountStart: 0,
+    tankTemperature: 0,
+    targetWeight: 200,
+    steps: steps,
+  );
+}
+
+ProfileStepPressure _pressureStep({
+  required String name,
+  double? weight,
+  StepExitCondition? exit,
+}) {
+  return ProfileStepPressure(
+    name: name,
+    transition: TransitionType.fast,
+    exit: exit,
+    volume: 0,
+    seconds: 30,
+    weight: weight,
+    temperature: 93,
+    sensor: TemperatureSensor.coffee,
+    pressure: 9,
+  );
+}
+
 void main() {
   group('ShotSequencer — scale disconnect during shot', () {
     late TestDe1 testDe1;
@@ -210,8 +242,9 @@ void main() {
       testScale = TestScale();
       de1Controller = _TestDe1Controller(testDe1);
       scaleController = _TestScaleController(testScale);
-      persistenceController =
-          PersistenceController(storageService: _NullStorageService());
+      persistenceController = PersistenceController(
+        storageService: _NullStorageService(),
+      );
       profile = _simpleProfile();
     });
 
@@ -237,6 +270,19 @@ void main() {
       testDe1.emitStateAndSubstate(
         MachineState.espresso,
         MachineSubstate.pouring,
+      );
+    }
+
+    void emitPouringFrame(int profileFrame) {
+      final current = testDe1.snapshotSubject.value;
+      testDe1.emitSnapshot(
+        current.copyWith(
+          state: const MachineStateSnapshot(
+            state: MachineState.espresso,
+            substate: MachineSubstate.pouring,
+          ),
+          profileFrame: profileFrame,
+        ),
       );
     }
 
@@ -292,59 +338,61 @@ void main() {
       });
     });
 
-    test('does not crash when scale disconnects and timer stop is attempted',
-        () {
-      fakeAsync((async) {
-        // Emit initial weight so withLatestFrom has a value
-        scaleController.emitWeight(0.0);
+    test(
+      'does not crash when scale disconnects and timer stop is attempted',
+      () {
+        fakeAsync((async) {
+          // Emit initial weight so withLatestFrom has a value
+          scaleController.emitWeight(0.0);
 
-        final shotSequencer = ShotSequencer(
-          scaleController: scaleController,
-          de1controller: de1Controller,
-          persistenceController: persistenceController,
-          targetProfile: profile,
-          targetYield: 36.0,
-          bypassSAW: false,
-          blockOnNoScale: false,
-          weightFlowMultiplier: 0.0,
-          volumeFlowMultiplier: 0.0,
-        );
+          final shotSequencer = ShotSequencer(
+            scaleController: scaleController,
+            de1controller: de1Controller,
+            persistenceController: persistenceController,
+            targetProfile: profile,
+            targetYield: 36.0,
+            bypassSAW: false,
+            blockOnNoScale: false,
+            weightFlowMultiplier: 0.0,
+            volumeFlowMultiplier: 0.0,
+          );
 
-        async.elapse(Duration(milliseconds: 10));
-        driveToPouring(shotSequencer);
-        async.elapse(Duration(milliseconds: 10));
+          async.elapse(Duration(milliseconds: 10));
+          driveToPouring(shotSequencer);
+          async.elapse(Duration(milliseconds: 10));
 
-        // Disconnect the scale
-        scaleController.simulateDisconnect();
-        async.elapse(Duration(milliseconds: 10));
+          // Disconnect the scale
+          scaleController.simulateDisconnect();
+          async.elapse(Duration(milliseconds: 10));
 
-        // Machine ends the shot — this transitions to stopping state.
-        testDe1.emitStateAndSubstate(
-          MachineState.espresso,
-          MachineSubstate.pouringDone,
-        );
-        async.elapse(Duration(milliseconds: 10));
+          // Machine ends the shot — this transitions to stopping state.
+          testDe1.emitStateAndSubstate(
+            MachineState.espresso,
+            MachineSubstate.pouringDone,
+          );
+          async.elapse(Duration(milliseconds: 10));
 
-        // Now emit another snapshot. The ShotSequencer is in the stopping
-        // state, which calls scaleController.connectedScale().stopTimer().
-        // With the bug, connectedScale() throws because scale is disconnected.
-        expect(
-          () {
-            testDe1.emitStateAndSubstate(
-              MachineState.espresso,
-              MachineSubstate.pouringDone,
-            );
-            async.elapse(Duration(milliseconds: 10));
-          },
-          returnsNormally,
-          reason:
-              'Should not crash when scale disconnects and shot ends — '
-              'connectedScale() throws when scale is gone',
-        );
+          // Now emit another snapshot. The ShotSequencer is in the stopping
+          // state, which calls scaleController.connectedScale().stopTimer().
+          // With the bug, connectedScale() throws because scale is disconnected.
+          expect(
+            () {
+              testDe1.emitStateAndSubstate(
+                MachineState.espresso,
+                MachineSubstate.pouringDone,
+              );
+              async.elapse(Duration(milliseconds: 10));
+            },
+            returnsNormally,
+            reason:
+                'Should not crash when scale disconnects and shot ends — '
+                'connectedScale() throws when scale is gone',
+          );
 
-        shotSequencer.dispose();
-      });
-    });
+          shotSequencer.dispose();
+        });
+      },
+    );
 
     test('SAW still works normally when scale stays connected', () {
       fakeAsync((async) {
@@ -384,6 +432,137 @@ void main() {
           reason:
               'SAW should fire when scale is connected and weight exceeds target',
         );
+
+        shotSequencer.dispose();
+      });
+    });
+
+    test('mixed weight and firmware exit step does not send skipStep', () {
+      fakeAsync((async) {
+        profile = _profileWithSteps([
+          _pressureStep(
+            name: 'mixed',
+            weight: 10,
+            exit: const StepExitCondition(
+              type: ExitType.pressure,
+              condition: ExitCondition.over,
+              value: 2,
+            ),
+          ),
+        ]);
+        scaleController.emitWeight(0.0);
+
+        final shotSequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          targetYield: 200.0,
+          bypassSAW: false,
+          blockOnNoScale: false,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+        );
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring(shotSequencer);
+        async.elapse(Duration(milliseconds: 10));
+
+        scaleController.emitWeight(12.0);
+        emitPouringFrame(0);
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(
+          testDe1.requestedStates,
+          isNot(contains(MachineState.skipStep)),
+          reason:
+              'Mixed weight + firmware-exit steps are firmware-owned to avoid '
+              'a queued tablet skip racing with the firmware frame advance.',
+        );
+
+        shotSequencer.dispose();
+      });
+    });
+
+    test('pure weight step still sends skipStep', () {
+      fakeAsync((async) {
+        profile = _profileWithSteps([
+          _pressureStep(name: 'weight-only', weight: 10),
+        ]);
+        scaleController.emitWeight(0.0);
+
+        final shotSequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          targetYield: 200.0,
+          bypassSAW: false,
+          blockOnNoScale: false,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+        );
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring(shotSequencer);
+        async.elapse(Duration(milliseconds: 10));
+
+        scaleController.emitWeight(12.0);
+        emitPouringFrame(0);
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(testDe1.requestedStates, contains(MachineState.skipStep));
+
+        shotSequencer.dispose();
+      });
+    });
+
+    test('mixed-exit suppression is frame-local', () {
+      fakeAsync((async) {
+        profile = _profileWithSteps([
+          _pressureStep(
+            name: 'firmware-owned',
+            weight: 10,
+            exit: const StepExitCondition(
+              type: ExitType.pressure,
+              condition: ExitCondition.over,
+              value: 2,
+            ),
+          ),
+          _pressureStep(name: 'weight-owned', weight: 20),
+        ]);
+        scaleController.emitWeight(0.0);
+
+        final shotSequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          targetYield: 200.0,
+          bypassSAW: false,
+          blockOnNoScale: false,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+        );
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring(shotSequencer);
+        async.elapse(Duration(milliseconds: 10));
+
+        scaleController.emitWeight(12.0);
+        emitPouringFrame(0);
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(
+          testDe1.requestedStates,
+          isNot(contains(MachineState.skipStep)),
+        );
+
+        scaleController.emitWeight(22.0);
+        emitPouringFrame(1);
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(testDe1.requestedStates, contains(MachineState.skipStep));
 
         shotSequencer.dispose();
       });
@@ -589,7 +768,8 @@ void main() {
         expect(
           states,
           contains(ShotState.finished),
-          reason: 'settling finalizes the shot without waiting for the backstop',
+          reason:
+              'settling finalizes the shot without waiting for the backstop',
         );
 
         shotSequencer.dispose();
@@ -810,8 +990,9 @@ void main() {
       testScale = TestScale();
       de1Controller = _TestDe1Controller(testDe1);
       scaleController = _TestScaleController(testScale);
-      persistenceController =
-          PersistenceController(storageService: _NullStorageService());
+      persistenceController = PersistenceController(
+        storageService: _NullStorageService(),
+      );
       profile = _simpleProfile();
     });
 
@@ -823,83 +1004,86 @@ void main() {
     });
 
     test(
-        'aborts shot and emits noScale decision when no scale connected at start',
-        () {
-      fakeAsync((async) {
-        // No scale at shot start.
-        scaleController.simulateDisconnect();
+      'aborts shot and emits noScale decision when no scale connected at start',
+      () {
+        fakeAsync((async) {
+          // No scale at shot start.
+          scaleController.simulateDisconnect();
 
-        final shotSequencer = ShotSequencer(
-          scaleController: scaleController,
-          de1controller: de1Controller,
-          persistenceController: persistenceController,
-          targetProfile: profile,
-          targetYield: 36.0,
-          bypassSAW: false,
-          blockOnNoScale: true,
-          weightFlowMultiplier: 0.0,
-          volumeFlowMultiplier: 0.0,
-        );
+          final shotSequencer = ShotSequencer(
+            scaleController: scaleController,
+            de1controller: de1Controller,
+            persistenceController: persistenceController,
+            targetProfile: profile,
+            targetYield: 36.0,
+            bypassSAW: false,
+            blockOnNoScale: true,
+            weightFlowMultiplier: 0.0,
+            volumeFlowMultiplier: 0.0,
+          );
 
-        final decisions = <ShotDecision>[];
-        final snapshots = <ShotSnapshot>[];
-        shotSequencer.decisions.listen(decisions.add);
-        shotSequencer.shotData.listen(snapshots.add);
+          final decisions = <ShotDecision>[];
+          final snapshots = <ShotSnapshot>[];
+          shotSequencer.decisions.listen(decisions.add);
+          shotSequencer.shotData.listen(snapshots.add);
 
-        async.elapse(Duration(milliseconds: 10));
+          async.elapse(Duration(milliseconds: 10));
 
-        // Machine entered espresso (e.g. via GHC) — drive snapshots that would
-        // normally be tracked.
-        testDe1.emitStateAndSubstate(
-          MachineState.espresso,
-          MachineSubstate.pouring,
-        );
-        async.elapse(Duration(milliseconds: 10));
+          // Machine entered espresso (e.g. via GHC) — drive snapshots that would
+          // normally be tracked.
+          testDe1.emitStateAndSubstate(
+            MachineState.espresso,
+            MachineSubstate.pouring,
+          );
+          async.elapse(Duration(milliseconds: 10));
 
-        expect(
-          testDe1.requestedStates,
-          contains(MachineState.idle),
-          reason: 'shot should be aborted back to idle',
-        );
-        expect(decisions, hasLength(1));
-        expect(decisions.single.reason, ShotDecisionReason.noScale);
-        expect(
-          snapshots,
-          isEmpty,
-          reason: 'no monitoring should be wired when the shot is blocked',
-        );
+          expect(
+            testDe1.requestedStates,
+            contains(MachineState.idle),
+            reason: 'shot should be aborted back to idle',
+          );
+          expect(decisions, hasLength(1));
+          expect(decisions.single.reason, ShotDecisionReason.noScale);
+          expect(
+            snapshots,
+            isEmpty,
+            reason: 'no monitoring should be wired when the shot is blocked',
+          );
 
-        shotSequencer.dispose();
-      });
-    });
+          shotSequencer.dispose();
+        });
+      },
+    );
 
-    test('does not block when blockOnNoScale is false and no scale connected',
-        () {
-      fakeAsync((async) {
-        scaleController.simulateDisconnect();
+    test(
+      'does not block when blockOnNoScale is false and no scale connected',
+      () {
+        fakeAsync((async) {
+          scaleController.simulateDisconnect();
 
-        final shotSequencer = ShotSequencer(
-          scaleController: scaleController,
-          de1controller: de1Controller,
-          persistenceController: persistenceController,
-          targetProfile: profile,
-          targetYield: 36.0,
-          bypassSAW: false,
-          blockOnNoScale: false,
-          weightFlowMultiplier: 0.0,
-          volumeFlowMultiplier: 0.0,
-        );
+          final shotSequencer = ShotSequencer(
+            scaleController: scaleController,
+            de1controller: de1Controller,
+            persistenceController: persistenceController,
+            targetProfile: profile,
+            targetYield: 36.0,
+            bypassSAW: false,
+            blockOnNoScale: false,
+            weightFlowMultiplier: 0.0,
+            volumeFlowMultiplier: 0.0,
+          );
 
-        final decisions = <ShotDecision>[];
-        shotSequencer.decisions.listen(decisions.add);
+          final decisions = <ShotDecision>[];
+          shotSequencer.decisions.listen(decisions.add);
 
-        async.elapse(Duration(milliseconds: 10));
+          async.elapse(Duration(milliseconds: 10));
 
-        expect(testDe1.requestedStates, isEmpty);
-        expect(decisions, isEmpty);
+          expect(testDe1.requestedStates, isEmpty);
+          expect(decisions, isEmpty);
 
-        shotSequencer.dispose();
-      });
-    });
+          shotSequencer.dispose();
+        });
+      },
+    );
   });
 }

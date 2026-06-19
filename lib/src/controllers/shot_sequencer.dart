@@ -44,6 +44,7 @@ class ShotSequencer {
 
   // Skip step on weight specific
   List<int> skippedSteps = [];
+  final Set<int> _mixedExitWeightSuppressedFrames = {};
 
   // Volume counting state
   double _accumulatedVolume = 0.0;
@@ -59,8 +60,10 @@ class ShotSequencer {
   // this value follows the tail, not the graph. Null when no scale weighs the
   // shot.
   static const double _settleFlowThreshold = 0.4; // g/s; |flow| below = still
-  static const int _settleSampleCount = 3; // consecutive still samples = settled
-  static const double _removalFlowThreshold = 3.0; // g/s; flow < -this = removal
+  static const int _settleSampleCount =
+      3; // consecutive still samples = settled
+  static const double _removalFlowThreshold =
+      3.0; // g/s; flow < -this = removal
   static const double _spikeFlowJump = 3.0; // g/s; flow rising vs prev = spike
   static const Duration _stoppingBackstop = Duration(seconds: 4);
   double? _trustedFinalYield;
@@ -82,12 +85,12 @@ class ShotSequencer {
     required bool blockOnNoScale,
     required double weightFlowMultiplier,
     required double volumeFlowMultiplier,
-  })  : _bypassSAW = bypassSAW,
-        _blockOnNoScale = blockOnNoScale,
-        _weightFlowMultiplier = weightFlowMultiplier,
-        _volumeFlowMultiplier = volumeFlowMultiplier,
-        _machineHasAutonomousSAW =
-            de1controller.connectedDe1() is BengleInterface {
+  }) : _bypassSAW = bypassSAW,
+       _blockOnNoScale = blockOnNoScale,
+       _weightFlowMultiplier = weightFlowMultiplier,
+       _volumeFlowMultiplier = volumeFlowMultiplier,
+       _machineHasAutonomousSAW =
+           de1controller.connectedDe1() is BengleInterface {
     _log.info(
       "Initializing ShotSequencer (weightFlowMultiplier: $_weightFlowMultiplier, volumeFlowMultiplier: $_volumeFlowMultiplier, machineHasAutonomousSAW: $_machineHasAutonomousSAW)",
     );
@@ -97,7 +100,8 @@ class ShotSequencer {
     _scaleTared = _bypassSAW;
 
     final scaleConnected =
-        scaleController.currentConnectionState == device.ConnectionState.connected;
+        scaleController.currentConnectionState ==
+        device.ConnectionState.connected;
 
     if (_blockOnNoScale && !scaleConnected) {
       // The sequencer is created reactively, after the machine has already
@@ -112,7 +116,10 @@ class ShotSequencer {
           details: 'No scale connected, blocking shot',
         ),
       );
-      de1controller.connectedDe1().requestState(MachineState.idle).catchError(
+      de1controller
+          .connectedDe1()
+          .requestState(MachineState.idle)
+          .catchError(
             (error) =>
                 _log.warning("Failed to abort shot for blockOnNoScale: $error"),
           );
@@ -147,7 +154,9 @@ class ShotSequencer {
       );
 
       // Monitor scale connection during shot
-      _scaleConnectionSubscription = scaleController.connectionState.listen((state) {
+      _scaleConnectionSubscription = scaleController.connectionState.listen((
+        state,
+      ) {
         if (state == device.ConnectionState.disconnected && !_scaleLost) {
           if (_state != ShotState.idle && _state != ShotState.finished) {
             _scaleLost = true;
@@ -306,6 +315,7 @@ class ShotSequencer {
           _settleSamples = 0;
           _prevStoppingFlow = null;
           skippedSteps.clear();
+          _mixedExitWeightSuppressedFrames.clear();
 
           if (_bypassSAW == false && scale != null && !_scaleLost) {
             _log.info(
@@ -353,19 +363,9 @@ class ShotSequencer {
           double weightFlow = scale.weightFlow;
           double projectedWeight =
               currentWeight + (weightFlow * _weightFlowMultiplier);
+          final int profileFrame = machine.profileFrame;
 
-          if (targetProfile.steps.length > machine.profileFrame &&
-              skippedSteps.contains(machine.profileFrame) == false &&
-              targetProfile.steps[machine.profileFrame].weight != null &&
-              targetProfile.steps[machine.profileFrame].weight! > 0) {
-            var stepExitWeight =
-                targetProfile.steps[machine.profileFrame].weight!;
-            if (projectedWeight >= stepExitWeight) {
-              _log.info("Step weight reached, moving on");
-              skippedSteps.add(machine.profileFrame);
-              de1controller.connectedDe1().requestState(MachineState.skipStep);
-            }
-          }
+          _handleStepWeightExit(profileFrame, projectedWeight);
           if (!_machineHasAutonomousSAW &&
               targetYield > 0 &&
               projectedWeight >= targetYield) {
@@ -441,6 +441,39 @@ class ShotSequencer {
         break;
     }
     _log.finest("State out: ${_state.name}");
+  }
+
+  void _handleStepWeightExit(int profileFrame, double projectedWeight) {
+    if (profileFrame < 0 || profileFrame >= targetProfile.steps.length) {
+      return;
+    }
+
+    final step = targetProfile.steps[profileFrame];
+    final stepExitWeight = step.weight;
+    if (stepExitWeight == null || stepExitWeight <= 0) {
+      return;
+    }
+
+    if (step.exit != null) {
+      if (_mixedExitWeightSuppressedFrames.add(profileFrame)) {
+        _log.info(
+          "Step $profileFrame (${step.name}) has both weight and firmware "
+          "exit conditions. Firmware owns the frame transition; suppressing "
+          "tablet skipStep.",
+        );
+      }
+      return;
+    }
+
+    if (skippedSteps.contains(profileFrame)) {
+      return;
+    }
+
+    if (projectedWeight >= stepExitWeight) {
+      _log.info("Step weight reached, moving on");
+      skippedSteps.add(profileFrame);
+      de1controller.connectedDe1().requestState(MachineState.skipStep);
+    }
   }
 
   void _enterStopping(WeightSnapshot? scale) {
