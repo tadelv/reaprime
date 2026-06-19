@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -27,24 +27,20 @@ jobs:
           flutter-version: '3.44.2'
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: Install Android SDK 35
-        uses: android-actions/setup-android@v2
-        with:
-          api-level: 35
-          build-tools: 35.0.0
-          ndk: 27.0.12077973
+        uses: android-actions/setup-android@v4
 
       - name: Decode Android keystore
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 --decode > android/app/debug.keystore
 
       - name: Cache Flutter & Gradle
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.pub-cache
@@ -55,9 +51,9 @@ jobs:
         run: flutter pub get
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Build DYE2 plugin
         run: |
@@ -84,7 +80,7 @@ jobs:
              build/app/outputs/flutter-apk/decent-android-${{ steps.version.outputs.version }}.apk
 
       - name: Upload Android APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android-apk
           path: build/app/outputs/flutter-apk/decent-android-${{ steps.version.outputs.version }}.apk
@@ -93,7 +89,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -109,9 +105,9 @@ jobs:
           brew install automake libtool
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Build DYE2 plugin
         run: |
@@ -220,7 +216,7 @@ jobs:
           cd build/macos/Build/Products/Release
           ditto -c -k --keepParent Decent.app ../../../../../decent-macos-${{ steps.version.outputs.version }}.zip
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos-app
           path: decent-macos-${{ steps.version.outputs.version }}.zip
@@ -229,7 +225,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -246,9 +242,9 @@ jobs:
         run: flutter pub get
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Build DYE2 plugin
         run: |
@@ -273,7 +269,7 @@ jobs:
           tar -czf ../../../../decent-linux-x64-${{ steps.version.outputs.version }}.tar.gz bundle
 
       - name: Upload Linux app artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-app
           path: decent-linux-x64-${{ steps.version.outputs.version }}.tar.gz
@@ -283,7 +279,7 @@ jobs:
     runs-on: ubuntu-22.04-arm
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -305,9 +301,9 @@ jobs:
         run: flutter pub get
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Build DYE2 plugin
         run: |
@@ -332,7 +328,7 @@ jobs:
           tar -czf ../../../../decent-linux-arm64-${{ steps.version.outputs.version }}.tar.gz bundle
 
       - name: Upload Raspberry Pi build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: raspberrypi-linux-arm64-app
           path: decent-linux-arm64-${{ steps.version.outputs.version }}.tar.gz
@@ -344,7 +340,7 @@ jobs:
     runs-on: windows-2022
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -363,9 +359,9 @@ jobs:
         run: flutter pub get
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Build DYE2 plugin
         run: |
@@ -392,7 +388,7 @@ jobs:
           Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath decent-windows-x64-${{ steps.version.outputs.version }}.zip
 
       - name: Upload Windows app artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-app
           path: decent-windows-x64-${{ steps.version.outputs.version }}.zip
@@ -401,7 +397,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -429,7 +425,7 @@ jobs:
         run: flutter pub get
 
       - name: Cache Flutter & CocoaPods
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.pub-cache
@@ -437,9 +433,9 @@ jobs:
           key: ${{ runner.os }}-ios-flutter-${{ hashFiles('**/pubspec.yaml', '**/Podfile.lock') }}
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Build DYE2 plugin
         run: |
@@ -597,7 +593,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -609,7 +605,7 @@ jobs:
           echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: release-artifacts
 
