@@ -414,6 +414,14 @@ jobs:
           channel: 'stable'
           flutter-version: '3.44.2'
 
+      # Flutter >=3.44 defaults Swift Package Manager on, which skips
+      # `pod install` so ios/Pods (and FirebaseCrashlytics/upload-symbols)
+      # never gets generated and the dSYM upload step below fails. The iOS
+      # project is committed as CocoaPods (0 SPM refs) and local dev runs
+      # with SPM disabled, so pin CI to the same CocoaPods path.
+      - name: Disable Swift Package Manager (use CocoaPods)
+        run: flutter config --no-enable-swift-package-manager
+
       - name: Install FlutterFire CLI
         run: dart pub global activate flutterfire_cli
 
