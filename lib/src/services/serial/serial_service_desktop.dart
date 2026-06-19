@@ -80,6 +80,13 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
   // simultaneously — the transient probe sees live data without displacing a
   // live WiFi/BLE client.
   final Set<String> _hdsPaths = {};
+
+  // Ports we probed and confirmed are NOT a Decent device (LG Monitor
+  // Controls, Valve VR Radio, etc.). Skipped on subsequent timer reconciles
+  // so we don't spam them with DE1-protocol probes every ~8s. Cleared when
+  // the OS port vanishes, so a replaced device (different physical hardware
+  // on the same path, e.g. Linux /dev/ttyUSB0) gets re-probed.
+  final Set<String> _nonDecentPorts = {};
   int _livenessTick = 0;
   static const int _livenessEveryNReconciles = 3; // ~24s at the 8s interval
 
@@ -143,6 +150,7 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
     _portPathToDeviceId.clear();
     _selfDisconnectedPaths.clear();
     _hdsPaths.clear();
+    _nonDecentPorts.clear();
     if (!_machineSubject.isClosed) await _machineSubject.close();
   }
 
@@ -183,6 +191,11 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
 
     final ports = (await SerialPort.availablePorts).toSet();
     _log.fine("Found ports: $ports");
+
+    // Purge paths that are no longer enumerated — a vanished port means the
+    // device was unplugged. If a different device later gets the same path
+    // (Linux /dev/ttyUSB*), it should be re-probed fresh.
+    _nonDecentPorts.removeWhere((p) => !ports.contains(p));
 
     // Snapshot every tracked port (one connectionState read each) for the pure
     // reconcile planner. Liveness is read from the Device bound to the PATH
@@ -245,6 +258,8 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       // the timer reconcile (it would loop). `explicitScan` cleared this set
       // above, so a user scan still retries.
       if (_selfDisconnectedPaths.contains(p)) return false;
+      // Known non-Decent (already probed and rejected) — skip.
+      if (_nonDecentPorts.contains(p)) return false;
       final port = SerialPort(p);
       final meta = _readPortMetadata(p, port);
       port.dispose();
@@ -515,11 +530,13 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       }
 
       _log.warning("Unknown device on port $id");
+      _nonDecentPorts.add(id);
       _portPathToTransport.remove(id);
       await transport.dispose();
       return null;
     } catch (e, st) {
       _log.warning("Port $id is probably not a device we want", e, st);
+      _nonDecentPorts.add(id);
       _portPathToTransport.remove(id);
       await transport.dispose();
       return null;
