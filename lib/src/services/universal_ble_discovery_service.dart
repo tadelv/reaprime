@@ -130,7 +130,7 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
       _currentlyScanning.clear();
 
       sub = UniversalBle.scanStream.listen((result) async {
-        log.fine(
+        log.finest(
           "Found: ${result.deviceId}: ${result.name}, adv: ${result.services}",
         );
         if (_currentlyScanning.contains(result.deviceId)) {

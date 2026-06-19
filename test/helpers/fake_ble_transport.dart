@@ -109,6 +109,9 @@ class FakeBleTransport extends BLETransport {
   Stream<ConnectionState> get connectionState => _connState.stream;
 
   @override
+  Future<ConnectionState> getConnectionState() async => _connState.value;
+
+  @override
   Future<void> connect() async {}
 
   @override

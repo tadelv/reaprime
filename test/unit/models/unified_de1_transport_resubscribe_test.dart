@@ -26,6 +26,9 @@ class _Fake extends BLETransport {
   @override
   Stream<ConnectionState> get connectionState => _connState.stream;
   @override
+  Future<ConnectionState> getConnectionState() async =>
+      ConnectionState.disconnected;
+  @override
   Future<void> connect() async => _connState.add(ConnectionState.connected);
   @override
   Future<void> disconnect() async =>

@@ -20,6 +20,9 @@ class _Fake extends BLETransport {
   @override String get id => 'fake-dispose';
   @override String get name => 'FakeDispose';
   @override Stream<ConnectionState> get connectionState => _connState.stream;
+  @override
+  Future<ConnectionState> getConnectionState() async =>
+      ConnectionState.disconnected;
   @override Future<void> connect() async {}
   @override Future<void> disconnect() async {}
   @override Future<List<String>> discoverServices() async => [de1ServiceUUID];

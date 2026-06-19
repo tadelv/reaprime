@@ -41,6 +41,10 @@ class _DisconnectedBleTransport extends BLETransport {
   Stream<ConnectionState> get connectionState => _connectionState.stream;
 
   @override
+  Future<ConnectionState> getConnectionState() async =>
+      _connectionState.value;
+
+  @override
   Future<void> connect() async {
     _connectionState.add(ConnectionState.connected);
   }

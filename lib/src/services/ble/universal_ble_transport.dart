@@ -170,6 +170,9 @@ class UniversalBleTransport implements BLETransport {
     if (_goneDeviceCodes.contains(e.code)) {
       _log.warning('GATT $operation($path) failed — device gone: ${e.code}');
       _connectionStateSubject.add(device.ConnectionState.disconnected);
+      // Drain pending writes — the device is gone, queued writes will
+      // only fail with deviceNotFound and flood logs.
+      UniversalBle.clearQueue(_device.deviceId);
       throw const DeviceNotConnectedException.unknown();
     }
     // Also treat unknownError as likely device-gone on Bluetooth-off / macOS
@@ -179,10 +182,26 @@ class UniversalBleTransport implements BLETransport {
         'GATT $operation($path) failed — unknown error (likely BT off): $e',
       );
       _connectionStateSubject.add(device.ConnectionState.disconnected);
+      UniversalBle.clearQueue(_device.deviceId);
       throw const DeviceNotConnectedException.unknown();
     }
     // All other codes: throw as-is (caller's problem).
     throw e;
+  }
+
+  @override
+  Future<device.ConnectionState> getConnectionState() async {
+    final state = await UniversalBle.getConnectionState(
+      _device.deviceId,
+      timeout: const Duration(seconds: 2),
+    );
+    return switch (state) {
+      BleConnectionState.connected => device.ConnectionState.connected,
+      BleConnectionState.connecting => device.ConnectionState.connecting,
+      BleConnectionState.disconnecting ||
+      BleConnectionState.disconnected =>
+        device.ConnectionState.disconnected,
+    };
   }
 
   @override

@@ -33,6 +33,10 @@ class _MockBLETransport extends BLETransport {
       Stream.value(ConnectionState.discovered);
 
   @override
+  Future<ConnectionState> getConnectionState() async =>
+      ConnectionState.disconnected;
+
+  @override
   Future<void> connect() async {}
 
   @override

@@ -35,6 +35,10 @@ class _FakeR2Transport implements BLETransport {
   Stream<ConnectionState> get connectionState => _states.stream;
 
   @override
+  Future<ConnectionState> getConnectionState() async =>
+      ConnectionState.disconnected;
+
+  @override
   Future<void> connect() async {
     _states.add(ConnectionState.connected);
   }
