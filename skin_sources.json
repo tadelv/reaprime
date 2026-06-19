@@ -1,17 +1,7 @@
 [
   {
     "type": "github_release",
-    "repo": "tadelv/baseline.js",
-    "asset": "baseline-skin.zip",
-    "prerelease": true
-  },
-  {
-    "type": "github_release",
     "repo": "allofmeng/streamline_project"
-  },
-  {
-    "type": "github_release",
-    "repo": "tadelv/extracto-patronum"
   },
   {
     "type": "github_release",
@@ -28,5 +18,9 @@
   {
     "type": "github_release",
     "repo": "NilsBruch/NSX"
+  },
+  {
+    "type": "github_release",
+    "repo": "Sabotage1/WorkFlow-Skin"
   }
 ]
