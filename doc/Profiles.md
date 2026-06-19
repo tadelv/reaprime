@@ -8,6 +8,14 @@ REA supports loading profiles to the espresso machine either directly through th
 
 The REA Profile data object definition lives in `lib/src/models/data/profile.dart`.
 
+Step transitions can be owned by either the DE1 firmware or the app. Firmware
+owns pressure/flow `exit` conditions because they are encoded into the profile
+sent to the machine. The app owns per-step `weight` exits because only the
+tablet sees the external scale. If a step defines both `weight` and `exit`, REA
+keeps the machine self-sufficient and lets firmware own that transition; the
+tablet will not send an additional `skipStep` for the same frame. To make
+weight own a step transition, remove the firmware `exit` from that step.
+
 ## Key Capabilities
 
 - List, create, update, and delete profiles via REST API
