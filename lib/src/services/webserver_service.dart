@@ -206,7 +206,7 @@ Future<void> startWebServer(
 
   final accountProxyHandler = decentProxyService == null
       ? null
-      : AccountProxyHandler(proxy: decentProxyService);
+      : AccountProxyHandler(proxy: decentProxyService, enableWrites: true);
 
   final webViewLogsHandler = WebViewLogsHandler(
     webViewLogService: webViewLogService,

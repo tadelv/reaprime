@@ -3953,6 +3953,100 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+    post:
+      summary: Auth-enriching write proxy to the Decent backend
+      description: >
+        Forwards a POST to `https://decentespresso.com/support/api/{endpoint}`
+        with the linked account's credentials attached server-side as Basic
+        auth, relaying the request body, upstream status code, and body
+        verbatim. Clients never see the credentials.
+
+
+        Requires `Authorization: Bearer <token>` scoped
+        `account:proxy:write`. The read-only skin token cannot write — it gets
+        403. Other rejection rules match the GET form (401 unknown token / no
+        linked account; 403 unscoped or disallowed path).
+      tags: [Account]
+      parameters:
+        - name: endpoint
+          in: path
+          required: true
+          description: Decent `support/api` endpoint segment (e.g. `sn`)
+          schema:
+            type: string
+      requestBody:
+        description: Request body relayed verbatim to the upstream endpoint.
+        required: false
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: Common upstream success response relayed verbatim
+        default:
+          description: Any upstream status/body relayed verbatim
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: Missing/invalid token, or no Decent account linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Token not scoped for account:proxy:write, or path not allowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      summary: Auth-enriching write proxy to the Decent backend
+      description: >
+        Same as the POST form but forwards a PUT. Requires a token scoped
+        `account:proxy:write`.
+      tags: [Account]
+      parameters:
+        - name: endpoint
+          in: path
+          required: true
+          description: Decent `support/api` endpoint segment (e.g. `sn`)
+          schema:
+            type: string
+      requestBody:
+        description: Request body relayed verbatim to the upstream endpoint.
+        required: false
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: Common upstream success response relayed verbatim
+        default:
+          description: Any upstream status/body relayed verbatim
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: Missing/invalid token, or no Decent account linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Token not scoped for account:proxy:write, or path not allowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
 components:
   schemas:
