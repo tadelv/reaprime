@@ -16,6 +16,7 @@ import 'package:reaprime/src/controllers/presence_navigator_observer.dart';
 import 'package:reaprime/src/controllers/shot_sequencer.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/history_feature/history_feature.dart';
+import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/controllers/scan_state_guardian.dart';
 import 'package:reaprime/src/onboarding_feature/onboarding_controller.dart';
@@ -415,6 +416,11 @@ class _MyAppState extends State<MyApp> {
                       if (args is ShotSequencer) {
                         shotSequencer = args;
                       } else {
+                        final beverageType = widget
+                            .workflowController.currentWorkflow.profile.beverageType;
+                        final scalelessBeverage =
+                            beverageType == BeverageType.cleaning ||
+                                beverageType == BeverageType.calibrate;
                         shotSequencer = ShotSequencer(
                           scaleController: widget.scaleController,
                           de1controller: widget.de1Controller,
@@ -428,7 +434,8 @@ class _MyAppState extends State<MyApp> {
                                   .context
                                   ?.targetYield ?? 0,
                           bypassSAW: widget.settingsController.gatewayMode == GatewayMode.full,
-                          blockOnNoScale: widget.settingsController.blockOnNoScale,
+                          blockOnNoScale: widget.settingsController.blockOnNoScale &&
+                              !scalelessBeverage,
                           weightFlowMultiplier: widget.settingsController.weightFlowMultiplier,
                           volumeFlowMultiplier: widget.settingsController.volumeFlowMultiplier,
                         );

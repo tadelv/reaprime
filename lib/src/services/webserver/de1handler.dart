@@ -4,15 +4,18 @@ class De1Handler {
   final SettingsController _settingsController;
   final De1Controller _controller;
   final ScaleController _scaleController;
+  final WorkflowController _workflowController;
   final log = Logger("De1WebHandler");
 
   De1Handler({
     required De1Controller controller,
     required SettingsController settingsController,
     required ScaleController scaleController,
+    required WorkflowController workflowController,
   }) : _controller = controller,
        _settingsController = settingsController,
-       _scaleController = scaleController;
+       _scaleController = scaleController,
+       _workflowController = workflowController;
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/machine/info', _infoHandler);
@@ -383,12 +386,18 @@ class De1Handler {
       final scaleConnected =
           _scaleController.currentConnectionState ==
               device.ConnectionState.connected;
+      // A cleaning/backflush profile has no yield to weigh, so the no-scale
+      // guard never applies to it.
+      final isCleaningProfile =
+          _workflowController.currentWorkflow.profile.beverageType ==
+              BeverageType.cleaning;
       log.fine(
-        "Received request to change state to $requestState while scale connected: $scaleConnected and blockOnNoScale: $blockOnNoScale",
+        "Received request to change state to $requestState while scale connected: $scaleConnected, blockOnNoScale: $blockOnNoScale, cleaningProfile: $isCleaningProfile",
       );
       if (requestState == MachineState.espresso &&
           blockOnNoScale &&
-          !scaleConnected) {
+          !scaleConnected &&
+          !isCleaningProfile) {
         log.warning(
           "Blocking espresso request because no scale detected and blockOnNoScale is enabled",
         );
