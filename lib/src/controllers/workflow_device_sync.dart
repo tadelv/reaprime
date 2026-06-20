@@ -35,24 +35,35 @@ class WorkflowDeviceSync {
   final Logger _log = Logger('WorkflowDeviceSync');
 
   Profile? _lastPushedProfile;
+  Profile? _pushingProfile;
 
   void _onChange() {
     final profile = _workflow.currentWorkflow.profile;
-    if (profile == _lastPushedProfile) return;
-    _lastPushedProfile = profile;
+    if (profile == _lastPushedProfile) return; // already on the device
+    if (profile == _pushingProfile) return; // already uploading this profile
+    _pushingProfile = profile;
     _push(profile);
   }
 
   Future<void> _push(Profile profile) async {
     try {
       await _de1.connectedDe1().setProfile(profile);
+      // Mark pushed ONLY after the upload lands. The old behaviour marked it
+      // before the write, so a failed upload (e.g. a BLE write timeout on a
+      // flaky link) was still recorded as pushed — re-applying the same profile
+      // then short-circuited and the DE1 never received it.
+      _lastPushedProfile = profile;
     } on DeviceNotConnectedException {
       _log.fine(
         'DE1 not connected; skipping profile push — will sync via '
         'defaultWorkflow on next connect',
       );
     } catch (e, st) {
-      _log.warning('setProfile failed', e, st);
+      _log.warning('setProfile failed; will retry on next workflow change', e, st);
+    } finally {
+      // Clear the in-flight guard so the next change (including a retry of this
+      // same profile after a failure) can push again.
+      if (_pushingProfile == profile) _pushingProfile = null;
     }
   }
 
