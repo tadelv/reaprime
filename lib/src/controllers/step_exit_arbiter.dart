@@ -25,13 +25,19 @@ class StepExitArbiter {
   /// At ~10 Hz DE1 snapshot rate, 3 frames ≈ 300 ms of deferral.
   static const int maxDeferralFrames = 3;
 
-  /// If pressure is within this many bar of the exit threshold,
-  /// the firmware exit is "near" and we enter deferral.
-  static const double pressureProximityAbsolute = 1.5; // bar
+  /// Proximity window as fraction of exit threshold.
+  /// At 20%, a 9-bar exit enters deferral ~1.8 bar from threshold;
+  /// a 2-bar exit enters ~0.4 bar out. Calibrated to DE1 sensor
+  /// noise at 10 Hz — wide enough to catch genuine firmware approaches,
+  /// narrow enough not to stall low-threshold steps.
+  static const double pressureProximityFraction = 0.20;
 
-  /// If flow is within this many ml/s of the exit threshold,
-  /// the firmware exit is "near" and we enter deferral.
-  static const double flowProximityAbsolute = 0.8; // ml/s
+  /// Proximity window as fraction of flow exit threshold.
+  static const double flowProximityFraction = 0.25;
+
+  /// Absolute floor so low-threshold exits still have meaningful windows.
+  static const double pressureProximityMinimum = 0.3; // bar
+  static const double flowProximityMinimum = 0.2; // ml/s
 
   final Map<int, _DeferralState> _deferrals = {};
 
@@ -93,10 +99,16 @@ class StepExitArbiter {
       return StepExitVerdict.defer;
     }
 
-    final proximityThreshold = switch (exit.type) {
-      ExitType.pressure => pressureProximityAbsolute,
-      ExitType.flow => flowProximityAbsolute,
+    final proximityFraction = switch (exit.type) {
+      ExitType.pressure => pressureProximityFraction,
+      ExitType.flow => flowProximityFraction,
     };
+    final proximityMinimum = switch (exit.type) {
+      ExitType.pressure => pressureProximityMinimum,
+      ExitType.flow => flowProximityMinimum,
+    };
+    final proximityThreshold = (exit.value * proximityFraction)
+        .clamp(proximityMinimum, double.infinity);
 
     // Far from threshold — no race risk.
     if (distance > proximityThreshold) {
@@ -140,9 +152,10 @@ class StepExitArbiter {
   }
 
   /// Notify that the machine's profileFrame has changed.
-  /// Clears any deferral state for frames other than [newFrame].
+  /// Clears deferral state for frames the machine has passed
+  /// (frames below [newFrame]), since firmware never revisits them.
   void onFrameAdvanced(int newFrame) {
-    _deferrals.removeWhere((frame, _) => frame != newFrame);
+    _deferrals.removeWhere((frame, _) => frame < newFrame);
   }
 
   /// Reset all state. Call at shot start.
@@ -169,18 +182,23 @@ class _DeferralState {
     frameCount++;
   }
 
-  /// Whether the latest reading is moving toward the exit condition
-  /// threshold compared to the previous reading.
+  /// Whether the latest readings are moving toward the exit condition
+  /// threshold. Requires all available pairwise comparisons to point
+  /// toward the exit — a single reversal flips to "not trending."
   ///
   /// On the first sample (no prior reading), assumes trending
   /// (conservative: gives firmware the benefit of the doubt).
   bool isTrending(ExitCondition condition) {
     if (readings.length < 2) return true;
-    final prev = readings[readings.length - 2];
-    final curr = readings.last;
-    return switch (condition) {
-      ExitCondition.over => curr > prev,
-      ExitCondition.under => curr < prev,
-    };
+    for (var i = readings.length - 1; i >= 1; i--) {
+      final prev = readings[i - 1];
+      final curr = readings[i];
+      final stepTowards = switch (condition) {
+        ExitCondition.over => curr > prev,
+        ExitCondition.under => curr < prev,
+      };
+      if (!stepTowards) return false;
+    }
+    return true;
   }
 }

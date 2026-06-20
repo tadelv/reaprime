@@ -228,6 +228,24 @@ ProfileStepPressure _pressureStep({
   );
 }
 
+ProfileStepFlow _flowStep({
+  required String name,
+  double? weight,
+  StepExitCondition? exit,
+}) {
+  return ProfileStepFlow(
+    name: name,
+    transition: TransitionType.fast,
+    exit: exit,
+    volume: 0,
+    seconds: 30,
+    weight: weight,
+    temperature: 93,
+    sensor: TemperatureSensor.coffee,
+    flow: 4,
+  );
+}
+
 void main() {
   group('ShotSequencer — scale disconnect during shot', () {
     late TestDe1 testDe1;
@@ -296,6 +314,20 @@ void main() {
           ),
           profileFrame: profileFrame,
           pressure: pressure,
+        ),
+      );
+    }
+
+    void emitPouringFrameWithFlow(int profileFrame, double flow) {
+      final current = testDe1.snapshotSubject.value;
+      testDe1.emitSnapshot(
+        current.copyWith(
+          state: const MachineStateSnapshot(
+            state: MachineState.espresso,
+            substate: MachineSubstate.pouring,
+          ),
+          profileFrame: profileFrame,
+          flow: flow,
         ),
       );
     }
@@ -756,6 +788,70 @@ void main() {
           reason:
               'Frame 0 deferral cancelled by firmware advance. '
               'Frame 1 weight not yet reached.',
+        );
+
+        shotSequencer.dispose();
+      });
+    });
+
+    test('mixed flow-under step defers when near threshold', () {
+      fakeAsync((async) {
+        // Flow exit under 2.0 ml/s. Emit flow 2.5 → distance 0.5, proximity =
+        // 2.0 * 0.25 = 0.5 → boundary (not > 0.5) → near → defer.
+        profile = _profileWithSteps([
+          _flowStep(
+            name: 'flow-near',
+            weight: 10,
+            exit: const StepExitCondition(
+              type: ExitType.flow,
+              condition: ExitCondition.under,
+              value: 2.0,
+            ),
+          ),
+        ]);
+        scaleController.emitWeight(0.0);
+
+        final shotSequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          targetYield: 200.0,
+          bypassSAW: false,
+          blockOnNoScale: false,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+        );
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring(shotSequencer);
+        async.elapse(Duration(milliseconds: 10));
+
+        // Weight above threshold, flow near firmware exit.
+        scaleController.emitWeight(12.0);
+        emitPouringFrameWithFlow(0, 2.5);
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(
+          testDe1.requestedStates,
+          isNot(contains(MachineState.skipStep)),
+          reason:
+              'Flow near under-2.0 exit → defer to avoid racing firmware.',
+        );
+
+        // After max deferral frames (3), fires regardless.
+        scaleController.emitWeight(12.0);
+        emitPouringFrameWithFlow(0, 2.3);
+        async.elapse(Duration(milliseconds: 10));
+
+        scaleController.emitWeight(12.0);
+        emitPouringFrameWithFlow(0, 2.1);
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(
+          testDe1.requestedStates,
+          contains(MachineState.skipStep),
+          reason: 'Max deferral → fire.',
         );
 
         shotSequencer.dispose();
