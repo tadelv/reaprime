@@ -286,6 +286,20 @@ void main() {
       );
     }
 
+    void emitPouringFrameWithPressure(int profileFrame, double pressure) {
+      final current = testDe1.snapshotSubject.value;
+      testDe1.emitSnapshot(
+        current.copyWith(
+          state: const MachineStateSnapshot(
+            state: MachineState.espresso,
+            substate: MachineSubstate.pouring,
+          ),
+          profileFrame: profileFrame,
+          pressure: pressure,
+        ),
+      );
+    }
+
     test('disables SAW when scale disconnects during pouring', () {
       fakeAsync((async) {
         // Emit initial weight so withLatestFrom has a value to combine with
@@ -437,16 +451,18 @@ void main() {
       });
     });
 
-    test('mixed weight and firmware exit step does not send skipStep', () {
+    test('mixed step fires skipStep when firmware exit is far', () {
       fakeAsync((async) {
+        // Pressure exit at 9 bar, default snapshot pressure is 0 →
+        // distance 9.0 >> 1.5 bar proximity → arbiter says fire.
         profile = _profileWithSteps([
           _pressureStep(
-            name: 'mixed',
+            name: 'mixed-far',
             weight: 10,
             exit: const StepExitCondition(
               type: ExitType.pressure,
               condition: ExitCondition.over,
-              value: 2,
+              value: 9,
             ),
           ),
         ]);
@@ -474,10 +490,122 @@ void main() {
 
         expect(
           testDe1.requestedStates,
+          contains(MachineState.skipStep),
+          reason:
+              'Firmware exit is far from threshold (pressure 0, exit at 9) — '
+              'weight exit should fire immediately.',
+        );
+
+        shotSequencer.dispose();
+      });
+    });
+
+    test('mixed step defers skipStep when firmware exit is near', () {
+      fakeAsync((async) {
+        // Pressure exit at 5 bar. We'll emit snapshots with pressure 4.0
+        // (distance 1.0 < 1.5 proximity) → arbiter defers.
+        profile = _profileWithSteps([
+          _pressureStep(
+            name: 'mixed-near',
+            weight: 10,
+            exit: const StepExitCondition(
+              type: ExitType.pressure,
+              condition: ExitCondition.over,
+              value: 5,
+            ),
+          ),
+        ]);
+        scaleController.emitWeight(0.0);
+
+        final shotSequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          targetYield: 200.0,
+          bypassSAW: false,
+          blockOnNoScale: false,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+        );
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring(shotSequencer);
+        async.elapse(Duration(milliseconds: 10));
+
+        // Emit weight above step threshold with pressure near firmware exit.
+        scaleController.emitWeight(12.0);
+        emitPouringFrameWithPressure(0, 4.0);
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(
+          testDe1.requestedStates,
           isNot(contains(MachineState.skipStep)),
           reason:
-              'Mixed weight + firmware-exit steps are firmware-owned to avoid '
-              'a queued tablet skip racing with the firmware frame advance.',
+              'Firmware exit is near (pressure 4.0, exit at 5.0) — '
+              'should defer to avoid racing firmware.',
+        );
+
+        // After max deferral frames (3), fires regardless.
+        scaleController.emitWeight(12.0);
+        emitPouringFrameWithPressure(0, 4.2);
+        async.elapse(Duration(milliseconds: 10));
+
+        scaleController.emitWeight(12.0);
+        emitPouringFrameWithPressure(0, 4.4);
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(
+          testDe1.requestedStates,
+          contains(MachineState.skipStep),
+          reason:
+              'After max deferral (3 frames), weight exit fires regardless.',
+        );
+
+        shotSequencer.dispose();
+      });
+    });
+
+    test('mixed step skips deferral when firmware exit has value 0', () {
+      fakeAsync((async) {
+        // Exit value 0 is a no-op — arbiter treats it as weight-only.
+        profile = _profileWithSteps([
+          _pressureStep(
+            name: 'noop-exit',
+            weight: 10,
+            exit: const StepExitCondition(
+              type: ExitType.pressure,
+              condition: ExitCondition.over,
+              value: 0,
+            ),
+          ),
+        ]);
+        scaleController.emitWeight(0.0);
+
+        final shotSequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          targetYield: 200.0,
+          bypassSAW: false,
+          blockOnNoScale: false,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+        );
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring(shotSequencer);
+        async.elapse(Duration(milliseconds: 10));
+
+        scaleController.emitWeight(12.0);
+        emitPouringFrame(0);
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(
+          testDe1.requestedStates,
+          contains(MachineState.skipStep),
+          reason: 'Exit value 0 is a no-op — weight fires immediately.',
         );
 
         shotSequencer.dispose();
@@ -517,16 +645,18 @@ void main() {
       });
     });
 
-    test('mixed-exit suppression is frame-local', () {
+    test('mixed-exit deferral is frame-local', () {
       fakeAsync((async) {
+        // Frame 0: mixed step with near firmware exit → defers.
+        // Frame 1: pure weight step → fires immediately.
         profile = _profileWithSteps([
           _pressureStep(
-            name: 'firmware-owned',
+            name: 'near-exit',
             weight: 10,
             exit: const StepExitCondition(
               type: ExitType.pressure,
               condition: ExitCondition.over,
-              value: 2,
+              value: 5,
             ),
           ),
           _pressureStep(name: 'weight-owned', weight: 20),
@@ -549,8 +679,9 @@ void main() {
         driveToPouring(shotSequencer);
         async.elapse(Duration(milliseconds: 10));
 
+        // Frame 0: near firmware exit → defers
         scaleController.emitWeight(12.0);
-        emitPouringFrame(0);
+        emitPouringFrameWithPressure(0, 4.0);
         async.elapse(Duration(milliseconds: 10));
 
         expect(
@@ -558,11 +689,74 @@ void main() {
           isNot(contains(MachineState.skipStep)),
         );
 
+        // Frame 1: pure weight step → fires
         scaleController.emitWeight(22.0);
         emitPouringFrame(1);
         async.elapse(Duration(milliseconds: 10));
 
         expect(testDe1.requestedStates, contains(MachineState.skipStep));
+
+        shotSequencer.dispose();
+      });
+    });
+
+    test('firmware frame advance cancels pending deferral', () {
+      fakeAsync((async) {
+        // Two-step profile: frame 0 has mixed exit (near), frame 1 weight-only.
+        profile = _profileWithSteps([
+          _pressureStep(
+            name: 'near-exit',
+            weight: 10,
+            exit: const StepExitCondition(
+              type: ExitType.pressure,
+              condition: ExitCondition.over,
+              value: 5,
+            ),
+          ),
+          _pressureStep(name: 'next-step', weight: 50),
+        ]);
+        scaleController.emitWeight(0.0);
+
+        final shotSequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          targetYield: 200.0,
+          bypassSAW: false,
+          blockOnNoScale: false,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+        );
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring(shotSequencer);
+        async.elapse(Duration(milliseconds: 10));
+
+        // Frame 0: weight reached, near firmware exit → defers
+        scaleController.emitWeight(12.0);
+        emitPouringFrameWithPressure(0, 4.0);
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(
+          testDe1.requestedStates,
+          isNot(contains(MachineState.skipStep)),
+          reason: 'Deferred on frame 0',
+        );
+
+        // Firmware advances to frame 1 (firmware handled the exit itself).
+        // Weight 12.0 is below frame 1's weight threshold (50), so no skip.
+        scaleController.emitWeight(12.0);
+        emitPouringFrame(1);
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(
+          testDe1.requestedStates,
+          isNot(contains(MachineState.skipStep)),
+          reason:
+              'Frame 0 deferral cancelled by firmware advance. '
+              'Frame 1 weight not yet reached.',
+        );
 
         shotSequencer.dispose();
       });

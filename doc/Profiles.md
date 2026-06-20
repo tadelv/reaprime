@@ -11,10 +11,19 @@ The REA Profile data object definition lives in `lib/src/models/data/profile.dar
 Step transitions can be owned by either the DE1 firmware or the app. Firmware
 owns pressure/flow `exit` conditions because they are encoded into the profile
 sent to the machine. The app owns per-step `weight` exits because only the
-tablet sees the external scale. If a step defines both `weight` and `exit`, REA
-keeps the machine self-sufficient and lets firmware own that transition; the
-tablet will not send an additional `skipStep` for the same frame. To make
-weight own a step transition, remove the firmware `exit` from that step.
+tablet sees the external scale.
+
+If a step defines both `weight` and `exit`, either condition can trigger the
+transition. To avoid a race where the tablet's `skipStep` command arrives after
+firmware already advanced the frame (accidentally skipping the *next* step),
+the app checks proximity to the firmware exit threshold before acting:
+
+- **Far from threshold** — the app sends `skipStep` immediately (no race risk).
+- **Near threshold** — the app defers for up to 3 snapshot frames, checking
+  whether the sensor is trending toward the firmware exit. If firmware advances
+  the frame during this window, the app does nothing. If the deferral cap is
+  reached, the app fires `skipStep` regardless.
+- **Exit value ≤ 0** — treated as weight-only (no meaningful firmware exit).
 
 ## Key Capabilities
 
