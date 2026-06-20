@@ -3788,7 +3788,7 @@ paths:
     get:
       summary: Get recent log entries
       description: |
-      Returns the last N kilobytes of the app log file. Query parameter `kb` controls the size (default: 16).
+      Returns the last N kilobytes of the app log file, newest entries first. Query parameter `kb` controls the size (default: 16).
       tags: [System]
       parameters:
         - name: kb
@@ -3807,7 +3807,7 @@ paths:
   /api/v1/webview/logs:
     get:
       summary: Get WebView console logs
-      description: Returns console log messages forwarded from in-app WebViews.
+      description: Returns console log messages forwarded from in-app WebViews, newest entries first.
       tags: [System]
       responses:
         "200":

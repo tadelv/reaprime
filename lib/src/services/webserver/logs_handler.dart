@@ -4,6 +4,8 @@ part of '../webserver_service.dart';
 ///
 /// GET /api/v1/logs?kb=N — returns last N kilobytes of the log file.
 /// Without `kb`, returns the entire file.
+///
+/// Lines are served newest-first (reverse of the on-disk chronological order).
 class LogsHandler {
   final String _logFilePath;
 
@@ -33,7 +35,7 @@ class LogsHandler {
         await raf.setPosition(start);
         final data = await raf.read(bytes);
         return Response.ok(
-          String.fromCharCodes(data),
+          _reverseLogLines(String.fromCharCodes(data)),
           headers: {'content-type': 'text/plain'},
         );
       } finally {
@@ -43,8 +45,22 @@ class LogsHandler {
 
     final contents = await file.readAsString();
     return Response.ok(
-      contents,
+      _reverseLogLines(contents),
       headers: {'content-type': 'text/plain'},
     );
   }
+}
+
+/// Reverse the line order of [contents] so the newest log entries appear first.
+///
+/// Log files are written oldest-first; the REST log endpoints serve them
+/// newest-first for readability. Shared by [LogsHandler] and
+/// [WebViewLogsHandler], which are both `part of` the webserver library.
+///
+/// Uses [LineSplitter] so `\n`, `\r\n`, and `\r` terminators are handled and a
+/// trailing newline doesn't produce a leading blank line after reversal.
+String _reverseLogLines(String contents) {
+  final lines = const LineSplitter().convert(contents);
+  if (lines.isEmpty) return contents;
+  return '${lines.reversed.join('\n')}\n';
 }
