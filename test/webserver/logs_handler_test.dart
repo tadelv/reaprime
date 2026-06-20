@@ -99,6 +99,55 @@ void main() {
       final res = await get(handlerFor(logFile.path), '/api/v1/logs?kb=0');
       expect(res.statusCode, 400);
     });
+
+    test('?order=asc returns the original chronological order', () async {
+      logFile.writeAsStringSync('oldest\nmiddle\nnewest\n');
+      final res =
+          await get(handlerFor(logFile.path), '/api/v1/logs?order=asc');
+      expect(res.statusCode, 200);
+      expect(await res.readAsString(), 'oldest\nmiddle\nnewest\n');
+    });
+
+    test('?order=desc is the explicit default (newest-first)', () async {
+      logFile.writeAsStringSync('oldest\nmiddle\nnewest\n');
+      final res =
+          await get(handlerFor(logFile.path), '/api/v1/logs?order=desc');
+      expect(res.statusCode, 200);
+      expect(await res.readAsString(), 'newest\nmiddle\noldest\n');
+    });
+
+    test('?order is case-insensitive', () async {
+      logFile.writeAsStringSync('oldest\nnewest\n');
+      final res =
+          await get(handlerFor(logFile.path), '/api/v1/logs?order=ASC');
+      expect(res.statusCode, 200);
+      expect(await res.readAsString(), 'oldest\nnewest\n');
+    });
+
+    test('an unrecognized ?order value is rejected', () async {
+      logFile.writeAsStringSync('x\n');
+      final res =
+          await get(handlerFor(logFile.path), '/api/v1/logs?order=sideways');
+      expect(res.statusCode, 400);
+    });
+
+    test('?kb=N&order=asc returns the window in chronological order', () async {
+      final lines = [
+        for (var i = 0; i < 200; i++) 'line${i.toString().padLeft(4, '0')}',
+      ];
+      logFile.writeAsStringSync('${lines.join('\n')}\n');
+
+      final res =
+          await get(handlerFor(logFile.path), '/api/v1/logs?kb=1&order=asc');
+      final body = await res.readAsString();
+
+      expect(res.statusCode, 200);
+      // Newest line last (chronological), oldest dropped by the 1KB window.
+      expect(body.endsWith('line0199\n'), isTrue);
+      expect(body.contains('line0000'), isFalse);
+      expect(body.contains('line0150'), isTrue);
+      expect(body.indexOf('line0150'), lessThan(body.indexOf('line0199')));
+    });
   });
 
   group('WebViewLogsHandler GET /api/v1/webview/logs', () {
@@ -133,6 +182,31 @@ void main() {
           '/api/v1/webview/logs');
       expect(res.statusCode, 200);
       expect(await res.readAsString(), '');
+    });
+
+    test('?order=asc returns the original chronological order', () async {
+      final service = _StubWebViewLogService(
+        '[t1] [skin] [INFO] one\n'
+        '[t2] [skin] [INFO] two\n'
+        '[t3] [skin] [WARN] three\n',
+      );
+
+      final res =
+          await get(handlerFor(service), '/api/v1/webview/logs?order=asc');
+
+      expect(res.statusCode, 200);
+      expect(
+        await res.readAsString(),
+        '[t1] [skin] [INFO] one\n'
+        '[t2] [skin] [INFO] two\n'
+        '[t3] [skin] [WARN] three\n',
+      );
+    });
+
+    test('an unrecognized ?order value is rejected', () async {
+      final res = await get(handlerFor(_StubWebViewLogService('x\n')),
+          '/api/v1/webview/logs?order=sideways');
+      expect(res.statusCode, 400);
     });
   });
 }

@@ -5,7 +5,9 @@ part of '../webserver_service.dart';
 /// GET /api/v1/logs?kb=N — returns last N kilobytes of the log file.
 /// Without `kb`, returns the entire file.
 ///
-/// Lines are served newest-first (reverse of the on-disk chronological order).
+/// Lines are served newest-first by default. Pass `order=asc` to get the
+/// original on-disk chronological order (oldest first); `order=desc` is the
+/// explicit form of the default.
 class LogsHandler {
   final String _logFilePath;
 
@@ -19,6 +21,11 @@ class LogsHandler {
     final file = File(_logFilePath);
     if (!await file.exists()) {
       return Response.notFound('Log file not found');
+    }
+
+    final order = _parseLogOrder(request);
+    if (order == null) {
+      return Response.badRequest(body: "order must be 'asc' or 'desc'");
     }
 
     final kbParam = request.url.queryParameters['kb'];
@@ -35,7 +42,7 @@ class LogsHandler {
         await raf.setPosition(start);
         final data = await raf.read(bytes);
         return Response.ok(
-          _reverseLogLines(String.fromCharCodes(data)),
+          _orderLogLines(String.fromCharCodes(data), order),
           headers: {'content-type': 'text/plain'},
         );
       } finally {
@@ -45,17 +52,52 @@ class LogsHandler {
 
     final contents = await file.readAsString();
     return Response.ok(
-      _reverseLogLines(contents),
+      _orderLogLines(contents, order),
       headers: {'content-type': 'text/plain'},
     );
   }
 }
 
+/// Output line order for the log endpoints.
+enum _LogOrder {
+  /// Original on-disk order: oldest entries first.
+  ascending,
+
+  /// Newest entries first (the default).
+  descending,
+}
+
+/// Parse the optional `order` query parameter shared by the log endpoints.
+///
+/// Accepts `desc` (newest-first, the default when absent) or `asc`
+/// (oldest-first, the original on-disk order), case-insensitive. Returns `null`
+/// for an unrecognized value so the caller can reject it with `400`.
+_LogOrder? _parseLogOrder(Request request) {
+  final raw = request.url.queryParameters['order'];
+  if (raw == null) return _LogOrder.descending;
+  switch (raw.toLowerCase()) {
+    case 'asc':
+      return _LogOrder.ascending;
+    case 'desc':
+      return _LogOrder.descending;
+    default:
+      return null;
+  }
+}
+
+/// Apply [order] to raw, chronological log [contents].
+///
+/// [_LogOrder.ascending] returns the text unchanged; [_LogOrder.descending]
+/// reverses it to newest-first via [_reverseLogLines]. Shared by [LogsHandler]
+/// and [WebViewLogsHandler], which are both `part of` the webserver library.
+String _orderLogLines(String contents, _LogOrder order) {
+  return order == _LogOrder.ascending ? contents : _reverseLogLines(contents);
+}
+
 /// Reverse the line order of [contents] so the newest log entries appear first.
 ///
 /// Log files are written oldest-first; the REST log endpoints serve them
-/// newest-first for readability. Shared by [LogsHandler] and
-/// [WebViewLogsHandler], which are both `part of` the webserver library.
+/// newest-first by default for readability.
 ///
 /// Uses [LineSplitter] so `\n`, `\r\n`, and `\r` terminators are handled and a
 /// trailing newline doesn't produce a leading blank line after reversal.

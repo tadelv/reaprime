@@ -3797,6 +3797,13 @@ paths:
             type: integer
           description: |
           Number of kilobytes to return (default: 16)
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [desc, asc]
+            default: desc
+          description: Line order — desc (newest first, default) or asc (original chronological order).
       responses:
         "200":
           description: Recent log entries as plain text
@@ -3809,6 +3816,14 @@ paths:
       summary: Get WebView console logs
       description: Returns console log messages forwarded from in-app WebViews, newest entries first.
       tags: [System]
+      parameters:
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [desc, asc]
+            default: desc
+          description: Line order — desc (newest first, default) or asc (original chronological order).
       responses:
         "200":
           description: WebView console log entries

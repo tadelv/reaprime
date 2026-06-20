@@ -20,12 +20,17 @@ class WebViewLogsHandler {
 
   /// GET /api/v1/webview/logs
   /// Returns the current webview_console.log contents as plain text,
-  /// newest entries first.
+  /// newest entries first by default. Pass `order=asc` for the original
+  /// chronological order (`order=desc` is the explicit default).
   /// Mirrors the existing LogsHandler pattern for app logs.
   Future<Response> _handleGetLogs(Request request) async {
+    final order = _parseLogOrder(request);
+    if (order == null) {
+      return Response.badRequest(body: "order must be 'asc' or 'desc'");
+    }
     final contents = _webViewLogService.getContents();
     return Response.ok(
-      _reverseLogLines(contents),
+      _orderLogLines(contents, order),
       headers: {'content-type': 'text/plain'},
     );
   }
