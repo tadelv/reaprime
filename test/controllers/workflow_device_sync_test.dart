@@ -29,6 +29,23 @@ class _RecordingDe1 extends TestDe1 {
   }
 }
 
+/// Fails the first [failures] setProfile calls (simulating a BLE write timeout),
+/// then records subsequent ones.
+class _FlakyDe1 extends TestDe1 {
+  _FlakyDe1({this.failures = 1});
+  int failures;
+  final List<Profile> setProfileCalls = [];
+
+  @override
+  Future<void> setProfile(Profile profile) async {
+    if (failures > 0) {
+      failures--;
+      throw Exception('simulated BLE write timeout');
+    }
+    setProfileCalls.add(profile);
+  }
+}
+
 void main() {
   late WorkflowController workflow;
   late DeviceController deviceController;
@@ -105,6 +122,49 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
       expect(de1.setProfileCalls, isEmpty);
+    },
+  );
+
+  test(
+    'a failed setProfile is retried on the next workflow change',
+    () async {
+      // Build an isolated sync wired to a DE1 whose first upload fails.
+      final wf = WorkflowController();
+      final dc = DeviceController([MockDeviceDiscoveryService()]);
+      await dc.initialize();
+      final controller = De1Controller(controller: dc);
+      final flaky = _FlakyDe1(failures: 1);
+      await controller.connectToDe1(flaky);
+      flaky.emitShotSettings(De1ShotSettings(
+        steamSetting: 0,
+        targetSteamTemp: 150,
+        targetSteamDuration: 30,
+        targetHotWaterTemp: 75,
+        targetHotWaterVolume: 50,
+        targetHotWaterDuration: 30,
+        targetShotVolume: 36,
+        groupTemp: 94.0,
+      ));
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      final flakySync = WorkflowDeviceSync(
+        workflowController: wf,
+        de1Controller: controller,
+      );
+
+      // First push of the cleaning profile fails (timeout) — nothing recorded,
+      // and the profile is NOT marked pushed.
+      wf.setWorkflow(wf.currentWorkflow.copyWith(profile: _profile('Cleaning')));
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(flaky.setProfileCalls, isEmpty);
+
+      // Re-applying the SAME profile must RETRY (not skip as already-pushed),
+      // since the first upload never landed on the device.
+      wf.setWorkflow(wf.currentWorkflow.copyWith(profile: _profile('Cleaning')));
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(flaky.setProfileCalls.length, equals(1));
+      expect(flaky.setProfileCalls.single.title, equals('Cleaning'));
+
+      flakySync.dispose();
     },
   );
 
