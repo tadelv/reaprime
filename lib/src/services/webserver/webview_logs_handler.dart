@@ -19,12 +19,13 @@ class WebViewLogsHandler {
   }
 
   /// GET /api/v1/webview/logs
-  /// Returns the current webview_console.log contents as plain text.
+  /// Returns the current webview_console.log contents as plain text,
+  /// newest entries first.
   /// Mirrors the existing LogsHandler pattern for app logs.
   Future<Response> _handleGetLogs(Request request) async {
     final contents = _webViewLogService.getContents();
     return Response.ok(
-      contents,
+      _reverseLogLines(contents),
       headers: {'content-type': 'text/plain'},
     );
   }
