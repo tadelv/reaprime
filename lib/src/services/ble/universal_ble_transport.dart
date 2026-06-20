@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/models/device/transport/ble_timeout_exception.dart';
 import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/services/ble/ble_exception_mapper.dart';
 import 'package:rxdart/subjects.dart';
@@ -290,9 +291,27 @@ class UniversalBleTransport implements BLETransport {
         characteristicUUID,
         timeout: timeout
       );
+    } on TimeoutException {
+      // Fail fast (see write() — a read-timeout reconnect mid profile-upload
+      // would wedge the firmware the same way). Clear the stuck queue entry and
+      // let the plain timeout propagate.
+      _onOperationTimeout('read', '$serviceUUID/$characteristicUUID');
+      rethrow;
     } on UniversalBleException catch (e) {
       _handleGattError(e, 'read', '$serviceUUID/$characteristicUUID');
     }
+  }
+
+  /// universal_ble's internal operation queue throws a bare [TimeoutException]
+  /// (not a [UniversalBleException]) when a GATT op never completes — e.g. the
+  /// DE1 stops servicing ops on a flaky link. Clear the stuck queue entry so it
+  /// doesn't block (and time out) every following operation, then let the plain
+  /// timeout propagate. Do NOT convert it to a [BleTimeoutException]: that would
+  /// trigger a disconnect/reconnect+single-write retry, which corrupts an
+  /// in-flight profile upload (a stateful multi-write sequence).
+  void _onOperationTimeout(String operation, String path) {
+    _log.warning('GATT $operation($path) timed out — clearing BLE queue');
+    UniversalBle.clearQueue(_device.deviceId);
   }
 
   final Map<String, StreamSubscription<Uint8List>> _subscriptions = {};
@@ -343,6 +362,17 @@ class UniversalBleTransport implements BLETransport {
         withoutResponse: !withResponse,
         timeout: timeout
       );
+    } on TimeoutException {
+      // Fail fast — do NOT map this to a BleTimeoutException. Doing so routes it
+      // into the DE1 transport's reconnect-and-retry-this-one-write recovery,
+      // which is catastrophic mid profile-upload: a profile is a stateful
+      // multi-write sequence (header declares N frames, then each indexed
+      // frame, then a tail), and a disconnect/reconnect resets the firmware's
+      // receive state machine — leaving the DE1 stuck "receiving" (GHC purple)
+      // until reaprime restarts. Surfacing it as a plain timeout fails the whole
+      // upload, which WorkflowDeviceSync then re-drives cleanly from the header.
+      _onOperationTimeout('write', '$serviceUUID/$characteristicUUID');
+      rethrow;
     } on UniversalBleException catch (e) {
       _handleGattError(e, 'write', '$serviceUUID/$characteristicUUID');
     }
