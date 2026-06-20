@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
+import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
 import 'package:reaprime/src/models/errors.dart';
@@ -48,7 +49,7 @@ void main() {
 
     final testScale = TestScale();
     scaleController = TestScaleController(testScale);
-    final de1Handler = De1Handler(controller: controller, settingsController: settingsController, scaleController: scaleController);
+    final de1Handler = De1Handler(controller: controller, settingsController: settingsController, scaleController: scaleController, workflowController: WorkflowController());
     final app = Router().plus;
     de1Handler.addRoutes(app);
     handler = app.call;

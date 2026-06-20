@@ -563,6 +563,13 @@ class De1StateManager with WidgetsBindingObserver {
   void _startShotSequencer() {
     _logger.fine('Creating new ShotSequencer for tracking');
 
+    // Cleaning/calibration pulls have no yield to weigh, so the no-scale guard
+    // must not abort them — same carve-out the persistence path already makes.
+    final beverageType =
+        _workflowController.currentWorkflow.profile.beverageType;
+    final scalelessBeverage = beverageType == BeverageType.cleaning ||
+        beverageType == BeverageType.calibrate;
+
     _currentShotSequencer = ShotSequencer(
       scaleController: _scaleController,
       de1controller: _de1Controller,
@@ -571,7 +578,7 @@ class De1StateManager with WidgetsBindingObserver {
       targetYield:
           _workflowController.currentWorkflow.context?.targetYield ?? 0,
       bypassSAW: _settingsController.gatewayMode == GatewayMode.full,
-      blockOnNoScale: _settingsController.blockOnNoScale,
+      blockOnNoScale: _settingsController.blockOnNoScale && !scalelessBeverage,
       weightFlowMultiplier: _settingsController.weightFlowMultiplier,
       volumeFlowMultiplier: _settingsController.volumeFlowMultiplier,
     );

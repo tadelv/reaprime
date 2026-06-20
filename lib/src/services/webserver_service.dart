@@ -149,6 +149,7 @@ Future<void> startWebServer(
     controller: de1Controller,
     settingsController: settingsController,
     scaleController: scaleController,
+    workflowController: workflowController,
   );
   final scaleHandler = ScaleHandler(controller: scaleController);
   final deviceHandler = DevicesHandler(
