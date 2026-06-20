@@ -569,6 +569,11 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
 
       await widget.webUIStorage.downloadRemoteSkins();
 
+      // downloadRemoteSkins() re-scans the registry, so installedSkins now
+      // reflects any newly downloaded versions. Rebuild so the dropdown shows
+      // them without the user having to leave and re-enter the page (#370).
+      if (mounted) setState(() {});
+
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
