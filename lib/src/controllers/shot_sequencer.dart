@@ -4,6 +4,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/controllers/step_exit_arbiter.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
@@ -44,7 +45,8 @@ class ShotSequencer {
 
   // Skip step on weight specific
   List<int> skippedSteps = [];
-  final Set<int> _mixedExitWeightSuppressedFrames = {};
+  final StepExitArbiter _stepExitArbiter = StepExitArbiter();
+  int _lastProfileFrame = -1;
 
   // Volume counting state
   double _accumulatedVolume = 0.0;
@@ -315,7 +317,8 @@ class ShotSequencer {
           _settleSamples = 0;
           _prevStoppingFlow = null;
           skippedSteps.clear();
-          _mixedExitWeightSuppressedFrames.clear();
+          _stepExitArbiter.reset();
+          _lastProfileFrame = -1;
 
           if (_bypassSAW == false && scale != null && !_scaleLost) {
             _log.info(
@@ -365,7 +368,12 @@ class ShotSequencer {
               currentWeight + (weightFlow * _weightFlowMultiplier);
           final int profileFrame = machine.profileFrame;
 
-          _handleStepWeightExit(profileFrame, projectedWeight);
+          if (profileFrame != _lastProfileFrame) {
+            _stepExitArbiter.onFrameAdvanced(profileFrame);
+            _lastProfileFrame = profileFrame;
+          }
+
+          _handleStepWeightExit(profileFrame, projectedWeight, machine);
           if (!_machineHasAutonomousSAW &&
               targetYield > 0 &&
               projectedWeight >= targetYield) {
@@ -443,7 +451,11 @@ class ShotSequencer {
     _log.finest("State out: ${_state.name}");
   }
 
-  void _handleStepWeightExit(int profileFrame, double projectedWeight) {
+  void _handleStepWeightExit(
+    int profileFrame,
+    double projectedWeight,
+    MachineSnapshot machineSnapshot,
+  ) {
     if (profileFrame < 0 || profileFrame >= targetProfile.steps.length) {
       return;
     }
@@ -454,26 +466,30 @@ class ShotSequencer {
       return;
     }
 
-    if (step.exit != null) {
-      if (_mixedExitWeightSuppressedFrames.add(profileFrame)) {
-        _log.info(
-          "Step $profileFrame (${step.name}) has both weight and firmware "
-          "exit conditions. Firmware owns the frame transition; suppressing "
-          "tablet skipStep.",
-        );
-      }
-      return;
-    }
-
     if (skippedSteps.contains(profileFrame)) {
       return;
     }
 
-    if (projectedWeight >= stepExitWeight) {
-      _log.info("Step weight reached, moving on");
-      skippedSteps.add(profileFrame);
-      de1controller.connectedDe1().requestState(MachineState.skipStep);
+    if (projectedWeight < stepExitWeight) {
+      return;
     }
+
+    // Mixed step: consult the arbiter to avoid racing firmware.
+    if (step.exit != null) {
+      final verdict = _stepExitArbiter.evaluate(
+        profileFrame: profileFrame,
+        exit: step.exit!,
+        currentPressure: machineSnapshot.pressure,
+        currentFlow: machineSnapshot.flow,
+      );
+      if (verdict == StepExitVerdict.defer) {
+        return;
+      }
+    }
+
+    _log.info("Step weight reached, moving on");
+    skippedSteps.add(profileFrame);
+    de1controller.connectedDe1().requestState(MachineState.skipStep);
   }
 
   void _enterStopping(WeightSnapshot? scale) {
@@ -566,3 +582,8 @@ class ShotDecision {
 
   const ShotDecision({required this.reason, this.details});
 }
+
+
+
+
+
