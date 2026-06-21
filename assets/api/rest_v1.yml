@@ -4764,6 +4764,12 @@ components:
           format: double
           nullable: true
           example: 0.3
+        hotWaterFlowMultiplier:
+          description: Lookahead (in seconds) applied to scale weight flow when stopping hot water at weight (see stopHotWaterAtWeight). Separate from weightFlowMultiplier because hot water dispenses with a different pump/flow profile than espresso. Default is 0.3. Higher values stop earlier.
+          type: number
+          format: double
+          nullable: true
+          example: 0.3
         scalePowerMode:
           description: Automatic scale power management tied to machine state. Disabled means no automatic action. displayOff turns off scale display when machine sleeps (scales without display control will disconnect). disconnect disconnects scale completely when machine sleeps.
           type: string
@@ -4772,6 +4778,9 @@ components:
           example: "disabled"
         blockOnNoScale:
           description: When true, shots will be blocked from starting if no scale is connected.
+          type: boolean
+        stopHotWaterAtWeight:
+          description: When true (default) and a scale is connected, hot water dispensing tares the scale and stops at the configured hot-water volume target treated as grams. The machine's own volume/time stop remains a backstop. Ignored in full gateway mode (a skin owns the machine). Set false to use only the machine's native volume/time stop.
           type: boolean
         preferredMachineId:
           description: Device ID of the preferred machine for auto-connect on startup. When set, REA will automatically connect to this machine when it's discovered during device scan. Set to null to clear the preference.
@@ -4849,6 +4858,11 @@ components:
           type: number
           format: double
           example: 0.3
+        hotWaterFlowMultiplier:
+          description: Lookahead (in seconds) applied to scale weight flow when stopping hot water at weight (see stopHotWaterAtWeight). Separate from weightFlowMultiplier because hot water dispenses with a different pump/flow profile than espresso. Default is 0.3. Higher values stop earlier.
+          type: number
+          format: double
+          example: 0.3
         scalePowerMode:
           description: Automatic scale power management tied to machine state. Disabled means no automatic action. displayOff turns off scale display when machine sleeps (scales without display control will disconnect). disconnect disconnects scale completely when machine sleeps.
           type: string
@@ -4856,6 +4870,9 @@ components:
           example: "disabled"
         blockOnNoScale:
           description: When true, shots will be blocked from starting if no scale is connected.
+          type: boolean
+        stopHotWaterAtWeight:
+          description: When true (default) and a scale is connected, hot water dispensing tares the scale and stops at the configured hot-water volume target treated as grams. The machine's own volume/time stop remains a backstop. Ignored in full gateway mode (a skin owns the machine).
           type: boolean
         preferredMachineId:
           description: Device ID of the preferred machine for auto-connect on startup. Returns null if no preferred device is set.

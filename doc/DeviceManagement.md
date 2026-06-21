@@ -582,6 +582,44 @@ De1StateManager({
 - `_handleScalePowerManagement(MachineState)`: Manages scale sleep/wake/scan
 - `_triggerScaleScan()`: Initiates device scan with 30s timeout
 
+### Hot water stop-at-weight
+
+**Files:** `lib/src/controllers/hot_water_sequencer.dart` (wiring),
+`lib/src/controllers/hot_water_stop.dart` (pure decision logic).
+
+`HotWaterSequencer` is a long-lived service (created once in `main.dart`,
+alongside `SteamSequencer`) that brings the espresso stop-at-weight behaviour to
+hot water.
+
+Hot water is always started **externally** here (group-head controller, physical
+button, REST `PUT /api/v1/machine/state/hotWater`, or a skin) — the native UI
+never calls `requestState(MachineState.hotWater)`. So the sequencer *reacts* to
+the machine entering `hotWater`:
+
+1. **Arm + tare.** If `stopHotWaterAtWeight` is on, a scale is connected, the
+   gateway mode is not `full`, and the configured hot-water `volume` (treated as
+   grams) is positive, the scale is tared via `ScaleController.tare()` and the
+   monitor arms.
+2. **Monitor.** The tare is trusted only once the scale has actually been
+   *observed* to drop near zero (proof the tare applied) — guarding against a
+   stale pre-tare reading (e.g. a mug still on the platter) causing a false
+   early stop. If the tare never lands, the monitor simply never arms and the
+   machine's native stop takes over (fail-safe). Once confirmed and past the
+   settle window, the weight is projected a short time ahead
+   (`weight + weightFlow * hotWaterFlowMultiplier`, default 0.3 s lookahead) —
+   the same shape as `ShotSequencer`'s espresso stop-at-weight, but with its own
+   multiplier because hot water dispenses with a different pump/flow profile than
+   espresso.
+3. **Stop.** When the projection reaches the target, `requestState(idle)` is sent
+   once. The machine's own volume/time stop is left **unmodified** as a backstop
+   (so the no-scale and weight-never-climbs cases still end normally).
+4. **Disarm** when the machine leaves `hotWater`, disconnects, or the scale drops.
+
+In `full` gateway mode the sequencer stays inert — a skin owns the machine and
+would otherwise double-stop (mirrors `ShotSequencer`'s `bypassSAW`). Controlled
+by the `stopHotWaterAtWeight` setting (default `true`, exposed on
+`/api/v1/settings`).
+
 ---
 
 ## Connection Policy

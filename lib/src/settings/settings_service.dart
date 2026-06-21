@@ -22,10 +22,14 @@ abstract class SettingsService {
   Future<void> setWeightFlowMultiplier(double value);
   Future<double> volumeFlowMultiplier();
   Future<void> setVolumeFlowMultiplier(double value);
+  Future<double> hotWaterFlowMultiplier();
+  Future<void> setHotWaterFlowMultiplier(double value);
   Future<ScalePowerMode> scalePowerMode();
   Future<void> setScalePowerMode(ScalePowerMode mode);
   Future<bool> blockOnNoScale();
   Future<void> setBlockOnNoScale(bool value);
+  Future<bool> stopHotWaterAtWeight();
+  Future<void> setStopHotWaterAtWeight(bool value);
   Future<String?> preferredMachineId();
   Future<void> setPreferredMachineId(String? machineId);
   Future<String?> preferredScaleId();
@@ -159,6 +163,17 @@ class SharedPreferencesSettingsService extends SettingsService {
   }
 
   @override
+  Future<double> hotWaterFlowMultiplier() async {
+    return await prefs.getDouble(SettingsKeys.hotWaterFlowMultiplier.name) ??
+        0.3;
+  }
+
+  @override
+  Future<void> setHotWaterFlowMultiplier(double value) async {
+    await prefs.setDouble(SettingsKeys.hotWaterFlowMultiplier.name, value);
+  }
+
+  @override
   Future<ScalePowerMode> scalePowerMode() async {
     return ScalePowerModeFromString.fromString(
           await prefs.getString(SettingsKeys.scalePowerMode.name) ??
@@ -175,6 +190,16 @@ class SharedPreferencesSettingsService extends SettingsService {
   @override
   Future<void> setBlockOnNoScale(bool value) async {
     return await prefs.setBool(SettingsKeys.blockOnNoScale.name, value);
+  }
+
+  @override
+  Future<bool> stopHotWaterAtWeight() async {
+    return await prefs.getBool(SettingsKeys.stopHotWaterAtWeight.name) ?? true;
+  }
+
+  @override
+  Future<void> setStopHotWaterAtWeight(bool value) async {
+    return await prefs.setBool(SettingsKeys.stopHotWaterAtWeight.name, value);
   }
 
   @override
@@ -447,8 +472,10 @@ enum SettingsKeys {
   simulateDevices,
   weightFlowMultiplier,
   volumeFlowMultiplier,
+  hotWaterFlowMultiplier,
   scalePowerMode,
   blockOnNoScale,
+  stopHotWaterAtWeight,
   preferredMachineId,
   preferredScaleId,
   defaultSkinId,

@@ -13,8 +13,10 @@ class MockSettingsService extends SettingsService {
   Set<SimulatedDevicesTypes> _simulateDevices = {};
   double _weightFlowMultiplier = 1.0;
   double _volumeFlowMultiplier = 0.3;
+  double _hotWaterFlowMultiplier = 0.3;
   ScalePowerMode _scalePowerMode = ScalePowerMode.disabled;
   bool _blockOnNoScale = false;
+  bool _stopHotWaterAtWeight = true;
   String? _preferredMachineId;
   String? _preferredScaleId;
   String _defaultSkinId = 'streamline.js';
@@ -63,6 +65,11 @@ class MockSettingsService extends SettingsService {
   @override
   Future<void> setVolumeFlowMultiplier(double value) async => _volumeFlowMultiplier = value;
   @override
+  Future<double> hotWaterFlowMultiplier() async => _hotWaterFlowMultiplier;
+  @override
+  Future<void> setHotWaterFlowMultiplier(double value) async =>
+      _hotWaterFlowMultiplier = value;
+  @override
   Future<ScalePowerMode> scalePowerMode() async => _scalePowerMode;
   @override
   Future<void> setScalePowerMode(ScalePowerMode mode) async => _scalePowerMode = mode;
@@ -70,6 +77,11 @@ class MockSettingsService extends SettingsService {
   Future<bool> blockOnNoScale() async => _blockOnNoScale;
   @override
   Future<void> setBlockOnNoScale(bool value) async => _blockOnNoScale = value;
+  @override
+  Future<bool> stopHotWaterAtWeight() async => _stopHotWaterAtWeight;
+  @override
+  Future<void> setStopHotWaterAtWeight(bool value) async =>
+      _stopHotWaterAtWeight = value;
   @override
   Future<String?> preferredMachineId() async => _preferredMachineId;
   @override

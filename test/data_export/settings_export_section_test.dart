@@ -45,7 +45,9 @@ void main() {
       expect(settings['logLevel'], equals('INFO'));
       expect(settings['weightFlowMultiplier'], equals(1.0));
       expect(settings['volumeFlowMultiplier'], equals(0.3));
+      expect(settings['hotWaterFlowMultiplier'], equals(0.3));
       expect(settings['scalePowerMode'], equals('disabled'));
+      expect(settings['stopHotWaterAtWeight'], isTrue);
       expect(settings['automaticUpdateCheck'], isTrue);
       expect(settings['chargingMode'], equals('disabled'));
       expect(settings['nightModeEnabled'], isFalse);
@@ -85,12 +87,16 @@ void main() {
       await controller.updateGatewayMode(GatewayMode.full);
       await controller.setWeightFlowMultiplier(2.5);
       await controller.setNightModeEnabled(true);
+      await controller.setStopHotWaterAtWeight(false);
+      await controller.setHotWaterFlowMultiplier(0.5);
       final exported = await section.export();
 
       // Reset to defaults
       await controller.updateGatewayMode(GatewayMode.disabled);
       await controller.setWeightFlowMultiplier(1.0);
       await controller.setNightModeEnabled(false);
+      await controller.setStopHotWaterAtWeight(true);
+      await controller.setHotWaterFlowMultiplier(0.3);
 
       final result =
           await section.import(exported, ConflictStrategy.overwrite);
@@ -100,6 +106,8 @@ void main() {
       expect(controller.gatewayMode, equals(GatewayMode.full));
       expect(controller.weightFlowMultiplier, equals(2.5));
       expect(controller.nightModeEnabled, isTrue);
+      expect(controller.stopHotWaterAtWeight, isFalse);
+      expect(controller.hotWaterFlowMultiplier, equals(0.5));
     });
 
     test('imports device preferences', () async {
