@@ -140,7 +140,7 @@ All three steps are required, not optional.
 
 ### Storage
 
-Persistence uses Drift (SQLite) via `AppDatabase` for main data (shots, workflows, beans, grinders, settings). Profiles use a separate Hive key-value store through `HiveProfileStorageService`. DAOs in `daos/` subfolder, mappers in `mappers/`.
+Persistence uses Drift (SQLite) via `AppDatabase` for all main data (shots, workflows, beans, grinders, settings, and profiles). Profiles go through the `ProfileStorageService` interface, implemented by `DriftProfileStorageService` (→ `ProfileDao` → `ProfileRecords` table). DAOs in `daos/` subfolder, mappers in `mappers/`.
 
 **Ambiguous imports:** Domain models and Drift-generated code share class names (`ShotRecord`, `Workflow`, `ProfileRecord`). Use prefixed imports: `import '...shot_record.dart' as domain;` or `hide Workflow` on the database import.
 

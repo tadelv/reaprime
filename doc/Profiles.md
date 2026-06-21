@@ -15,7 +15,7 @@ The REA Profile data object definition lives in `lib/src/models/data/profile.dar
 - Content-based hash IDs for automatic deduplication across devices
 - Version tracking through parent-child relationships
 - Default profile protection (bundled profiles cannot be permanently deleted)
-- Pluggable storage backend (currently Hive, swappable to SQLite or others)
+- Pluggable storage backend (currently Drift/SQLite, swappable behind the `ProfileStorageService` interface)
 
 ## Architecture
 
@@ -30,8 +30,8 @@ The implementation follows REA's standard layered architecture with clear separa
 │  Storage Interface                  │  ← Abstract interface
 │  (ProfileStorageService)            │
 ├─────────────────────────────────────┤
-│  Storage Implementation             │  ← Concrete Hive implementation
-│  (HiveProfileStorageService)        │
+│  Storage Implementation             │  ← Drift/SQLite implementation
+│  (DriftProfileStorageService)       │
 └─────────────────────────────────────┘
 ```
 
@@ -52,14 +52,14 @@ The implementation follows REA's standard layered architecture with clear separa
 
 **ProfileStorageService** (`lib/src/services/storage/profile_storage_service.dart`)
 - Abstract interface defining all storage operations
-- Allows swapping implementations (Hive, SQLite, etc.)
+- Allows swapping implementations (Drift/SQLite, or others)
 - Methods: `store`, `get`, `getAll`, `update`, `delete`, `getByParentId`, `storeAll`, `count`
 
-**HiveProfileStorageService** (`lib/src/services/storage/hive_profile_storage.dart`)
-- Concrete implementation using Hive NoSQL storage
-- Box name: `'profiles'`
-- Fast key-value operations with filtering support
-- Batch operations for import/export
+**DriftProfileStorageService** (`lib/src/services/storage/drift_profile_storage.dart`)
+- Active implementation, backed by the shared Drift `AppDatabase` (SQLite)
+- Delegates to `ProfileDao` (`lib/src/services/database/daos/profile_dao.dart`) over the `ProfileRecords` table (`lib/src/services/database/tables/profile_tables.dart`)
+- Row shape via `ProfileMapper` (`lib/src/services/database/mappers/profile_mapper.dart`): `id`/`metadataHash`/`compoundHash`/`parentId`/`visibility`/`isDefault`/`createdAt`/`updatedAt` as columns, full profile stored in the `profileJson` column
+- Supports visibility filtering and batch import/export
 
 **ProfileController** (`lib/src/controllers/profile_controller.dart`)
 - Business logic and validation layer
