@@ -17,6 +17,7 @@ import 'package:reaprime/src/controllers/battery_controller.dart';
 import 'package:reaprime/src/controllers/bengle_probe_bridge.dart';
 import 'package:reaprime/src/controllers/bengle_saw_bridge.dart';
 import 'package:reaprime/src/controllers/bengle_steam_stop_bridge.dart';
+import 'package:reaprime/src/controllers/hot_water_sequencer.dart';
 import 'package:reaprime/src/controllers/steam_sequencer.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
@@ -404,6 +405,16 @@ void main(List<String> args) async {
     sensorController: sensorController,
     workflowController: workflowController,
     persistenceController: persistenceController,
+  );
+
+  // Tares the scale and stops hot-water dispensing at the configured volume
+  // target (treated as grams) when a scale is connected — the hot-water
+  // counterpart of the espresso stop-at-weight. See [[hot_water_sequencer]].
+  // ignore: unused_local_variable
+  final hotWaterSequencer = HotWaterSequencer(
+    de1Controller: de1Controller,
+    scaleController: scaleController,
+    settingsController: settingsController,
   );
   final WebUIService webUIService = WebUIService();
   final WebUIStorage webUIStorage = WebUIStorage(settingsController);

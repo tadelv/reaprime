@@ -76,6 +76,34 @@ void main() {
     });
   });
 
+  group('stopHotWaterAtWeight', () {
+    test('defaults to true', () {
+      expect(controller.stopHotWaterAtWeight, isTrue);
+    });
+
+    test('can be toggled off and persists', () async {
+      await controller.setStopHotWaterAtWeight(false);
+      expect(controller.stopHotWaterAtWeight, isFalse);
+      expect(await mockService.stopHotWaterAtWeight(), isFalse);
+    });
+  });
+
+  group('hotWaterFlowMultiplier', () {
+    test('defaults to 0.3, separate from weightFlowMultiplier (1.0)', () {
+      expect(controller.hotWaterFlowMultiplier, 0.3);
+      expect(controller.weightFlowMultiplier, 1.0);
+    });
+
+    test('can be set independently of the shot multiplier and persists',
+        () async {
+      await controller.setHotWaterFlowMultiplier(0.5);
+      expect(controller.hotWaterFlowMultiplier, 0.5);
+      expect(controller.weightFlowMultiplier, 1.0,
+          reason: 'shot multiplier is untouched');
+      expect(await mockService.hotWaterFlowMultiplier(), 0.5);
+    });
+  });
+
   group('themeMode', () {
     test('defaults to system', () {
       expect(controller.themeMode, ThemeMode.system);

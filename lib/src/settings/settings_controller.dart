@@ -33,9 +33,13 @@ class SettingsController with ChangeNotifier {
 
   double _volumeFlowMultiplier = 0.3;
 
+  double _hotWaterFlowMultiplier = 0.3;
+
   ScalePowerMode _scalePowerMode = ScalePowerMode.disconnect;
 
   bool _blockOnNoScale = false;
+
+  bool _stopHotWaterAtWeight = true;
 
   String? _preferredMachineId;
 
@@ -74,8 +78,10 @@ class SettingsController with ChangeNotifier {
   Set<SimulatedDevicesTypes> get simulatedDevices => _simulatedDevices;
   double get weightFlowMultiplier => _weightFlowMultiplier;
   double get volumeFlowMultiplier => _volumeFlowMultiplier;
+  double get hotWaterFlowMultiplier => _hotWaterFlowMultiplier;
   ScalePowerMode get scalePowerMode => _scalePowerMode;
   bool get blockOnNoScale => _blockOnNoScale;
+  bool get stopHotWaterAtWeight => _stopHotWaterAtWeight;
   String? get preferredMachineId => _preferredMachineId;
   String? get preferredScaleId => _preferredScaleId;
   String get defaultSkinId => _defaultSkinId;
@@ -108,8 +114,10 @@ class SettingsController with ChangeNotifier {
     _simulatedDevices = await _settingsService.simulateDevices();
     _weightFlowMultiplier = await _settingsService.weightFlowMultiplier();
     _volumeFlowMultiplier = await _settingsService.volumeFlowMultiplier();
+    _hotWaterFlowMultiplier = await _settingsService.hotWaterFlowMultiplier();
     _scalePowerMode = await _settingsService.scalePowerMode();
     _blockOnNoScale = await _settingsService.blockOnNoScale();
+    _stopHotWaterAtWeight = await _settingsService.stopHotWaterAtWeight();
     _preferredMachineId = await _settingsService.preferredMachineId();
     _preferredScaleId = await _settingsService.preferredScaleId();
     _defaultSkinId = await _settingsService.defaultSkinId();
@@ -239,6 +247,15 @@ class SettingsController with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setHotWaterFlowMultiplier(double value) async {
+    if (value == _hotWaterFlowMultiplier) {
+      return;
+    }
+    _hotWaterFlowMultiplier = value;
+    await _settingsService.setHotWaterFlowMultiplier(value);
+    notifyListeners();
+  }
+
   Future<void> setScalePowerMode(ScalePowerMode mode) async {
     if (mode == _scalePowerMode) {
       return;
@@ -254,6 +271,15 @@ class SettingsController with ChangeNotifier {
     }
     _blockOnNoScale = value;
     await _settingsService.setBlockOnNoScale(value);
+    notifyListeners();
+  }
+
+  Future<void> setStopHotWaterAtWeight(bool value) async {
+    if (value == _stopHotWaterAtWeight) {
+      return;
+    }
+    _stopHotWaterAtWeight = value;
+    await _settingsService.setStopHotWaterAtWeight(value);
     notifyListeners();
   }
 

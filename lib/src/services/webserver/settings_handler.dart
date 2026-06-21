@@ -24,8 +24,10 @@ class SettingsHandler {
       final logLevel = _controller.logLevel;
       final weightFlowMultiplier = _controller.weightFlowMultiplier;
       final volumeFlowMultiplier = _controller.volumeFlowMultiplier;
+      final hotWaterFlowMultiplier = _controller.hotWaterFlowMultiplier;
       final scalePowerMode = _controller.scalePowerMode.name;
       final blockOnNoScale = _controller.blockOnNoScale;
+      final stopHotWaterAtWeight = _controller.stopHotWaterAtWeight;
       final preferredMachineId = _controller.preferredMachineId;
       final preferredScaleId = _controller.preferredScaleId;
       final defaultSkinId = _controller.defaultSkinId;
@@ -36,8 +38,10 @@ class SettingsHandler {
         'logLevel': logLevel,
         'weightFlowMultiplier': weightFlowMultiplier,
         'volumeFlowMultiplier': volumeFlowMultiplier,
+        'hotWaterFlowMultiplier': hotWaterFlowMultiplier,
         'scalePowerMode': scalePowerMode,
         'blockOnNoScale': blockOnNoScale,
+        'stopHotWaterAtWeight': stopHotWaterAtWeight,
         'preferredMachineId': preferredMachineId,
         'preferredScaleId': preferredScaleId,
         'defaultSkinId': defaultSkinId,
@@ -98,6 +102,16 @@ class SettingsHandler {
           );
         }
       }
+      if (json.containsKey('hotWaterFlowMultiplier')) {
+        final value = json['hotWaterFlowMultiplier'];
+        if (value is num) {
+          await _controller.setHotWaterFlowMultiplier(value.toDouble());
+        } else {
+          return jsonBadRequest(
+            {'message': 'hotWaterFlowMultiplier must be a number'},
+          );
+        }
+      }
       if (json.containsKey('scalePowerMode')) {
         final ScalePowerMode? mode = ScalePowerModeFromString.fromString(
           json['scalePowerMode'],
@@ -117,6 +131,16 @@ class SettingsHandler {
         } else {
           return jsonBadRequest(
             {'message': 'blockOnNoScale must be a boolean'},
+          );
+        }
+      }
+      if (json.containsKey('stopHotWaterAtWeight')) {
+        final value = json['stopHotWaterAtWeight'];
+        if (value is bool) {
+          await _controller.setStopHotWaterAtWeight(value);
+        } else {
+          return jsonBadRequest(
+            {'message': 'stopHotWaterAtWeight must be a boolean'},
           );
         }
       }
