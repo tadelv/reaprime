@@ -96,5 +96,39 @@ void main() {
 
       expect(response.statusCode, 400);
     });
+
+    test('returns 400 (not 500) when steps is missing', () async {
+      final body = profileWithoutMetadata()..remove('steps');
+
+      final response = await postProfile({'profile': body});
+
+      expect(response.statusCode, 400);
+    });
+
+    test('returns 400 (not 500) when tank_temperature is missing', () async {
+      final body = profileWithoutMetadata()..remove('tank_temperature');
+
+      final response = await postProfile({'profile': body});
+
+      expect(response.statusCode, 400);
+    });
+
+    test('returns 400 (not 500) when target_volume_count_start is missing',
+        () async {
+      final body = profileWithoutMetadata()..remove('target_volume_count_start');
+
+      final response = await postProfile({'profile': body});
+
+      expect(response.statusCode, 400);
+    });
+
+    test('returns 400 (not 500) when a required number is unparseable',
+        () async {
+      final body = profileWithoutMetadata()..['tank_temperature'] = 'hot';
+
+      final response = await postProfile({'profile': body});
+
+      expect(response.statusCode, 400);
+    });
   });
 }

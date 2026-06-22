@@ -4408,9 +4408,13 @@ components:
       type: object
       required:
         - title
+        - steps
+        - target_volume_count_start
+        - tank_temperature
       properties:
         version:
           type: string
+          description: Optional; coerced to a string when present.
         title:
           type: string
           description: Required, non-empty. A missing or empty title is rejected with 400.
@@ -4423,8 +4427,10 @@ components:
         beverage_type:
           type: string
           enum: [espresso, calibrate, cleaning, manual, pourover]
+          description: Optional; defaults to `espresso` when omitted or unrecognized.
         steps:
           type: array
+          description: Required. May be empty, but the field must be present.
           items:
             $ref: '#/components/schemas/ProfileStep'
         target_volume:
@@ -4435,8 +4441,10 @@ components:
           nullable: true
         target_volume_count_start:
           type: integer
+          description: Required.
         tank_temperature:
           type: number
+          description: Required.
 
     ProfileStep:
       type: object
