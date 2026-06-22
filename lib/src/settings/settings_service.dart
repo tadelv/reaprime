@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_js/quickjs/ffi.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
+import 'package:reaprime/src/settings/feature_flags.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -72,6 +73,10 @@ abstract class SettingsService {
   Future<void> setAndroidWarningDismissed(bool value);
   Future<bool> enableSimulatedWebViews();
   Future<void> setEnableSimulatedWebViews(bool value);
+
+  // Feature flags
+  Future<bool?> featureFlag(FeatureFlag flag);
+  Future<void> setFeatureFlag(FeatureFlag flag, bool value);
 }
 
 /// SharedPreferences-backed implementation of [SettingsService].
@@ -437,6 +442,19 @@ class SharedPreferencesSettingsService extends SettingsService {
   @override
   Future<void> setEnableSimulatedWebViews(bool value) async {
     await prefs.setBool(SettingsKeys.enableSimulatedWebViews.name, value);
+  }
+
+  // Feature flags
+  static const _featureFlagPrefix = 'featureFlag';
+
+  @override
+  Future<bool?> featureFlag(FeatureFlag flag) async {
+    return await prefs.getBool('$_featureFlagPrefix.${flag.name}');
+  }
+
+  @override
+  Future<void> setFeatureFlag(FeatureFlag flag, bool value) async {
+    await prefs.setBool('$_featureFlagPrefix.${flag.name}', value);
   }
 }
 

@@ -347,6 +347,7 @@ void main() {
           blockOnNoScale: false,
           weightFlowMultiplier: 0.0,
           volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
         );
 
         async.elapse(Duration(milliseconds: 10));
@@ -401,6 +402,7 @@ void main() {
             blockOnNoScale: false,
             weightFlowMultiplier: 0.0,
             volumeFlowMultiplier: 0.0,
+            stepExitArbiterEnabled: true,
           );
 
           async.elapse(Duration(milliseconds: 10));
@@ -455,6 +457,7 @@ void main() {
           blockOnNoScale: false,
           weightFlowMultiplier: 0.0,
           volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
         );
 
         async.elapse(Duration(milliseconds: 10));
@@ -510,6 +513,7 @@ void main() {
           blockOnNoScale: false,
           weightFlowMultiplier: 0.0,
           volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
         );
 
         async.elapse(Duration(milliseconds: 10));
@@ -559,6 +563,7 @@ void main() {
           blockOnNoScale: false,
           weightFlowMultiplier: 0.0,
           volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
         );
 
         async.elapse(Duration(milliseconds: 10));
@@ -624,6 +629,7 @@ void main() {
           blockOnNoScale: false,
           weightFlowMultiplier: 0.0,
           volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
         );
 
         async.elapse(Duration(milliseconds: 10));
@@ -661,6 +667,7 @@ void main() {
           blockOnNoScale: false,
           weightFlowMultiplier: 0.0,
           volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
         );
 
         async.elapse(Duration(milliseconds: 10));
@@ -705,6 +712,7 @@ void main() {
           blockOnNoScale: false,
           weightFlowMultiplier: 0.0,
           volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
         );
 
         async.elapse(Duration(milliseconds: 10));
@@ -759,6 +767,7 @@ void main() {
           blockOnNoScale: false,
           weightFlowMultiplier: 0.0,
           volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
         );
 
         async.elapse(Duration(milliseconds: 10));
@@ -821,6 +830,7 @@ void main() {
           blockOnNoScale: false,
           weightFlowMultiplier: 0.0,
           volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
         );
 
         async.elapse(Duration(milliseconds: 10));
@@ -872,6 +882,7 @@ void main() {
           blockOnNoScale: false,
           weightFlowMultiplier: 0.0,
           volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
         );
 
         async.elapse(Duration(milliseconds: 10));
@@ -919,6 +930,7 @@ void main() {
           blockOnNoScale: false,
           weightFlowMultiplier: 0.0,
           volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
         );
 
         async.elapse(Duration(milliseconds: 10));
@@ -969,6 +981,7 @@ void main() {
           blockOnNoScale: false,
           weightFlowMultiplier: 0.0,
           volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
         );
 
         async.elapse(Duration(milliseconds: 10));
@@ -1028,6 +1041,7 @@ void main() {
           blockOnNoScale: false,
           weightFlowMultiplier: 0.0,
           volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
         );
 
         final states = <ShotState>[];
@@ -1085,6 +1099,7 @@ void main() {
             blockOnNoScale: false,
             weightFlowMultiplier: 0.0,
             volumeFlowMultiplier: 0.0,
+            stepExitArbiterEnabled: true,
           );
 
           final recorded = <ShotSnapshot>[];
@@ -1162,6 +1177,7 @@ void main() {
           blockOnNoScale: false,
           weightFlowMultiplier: 0.0,
           volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
         );
 
         final recorded = <ShotSnapshot>[];
@@ -1233,6 +1249,7 @@ void main() {
           blockOnNoScale: false,
           weightFlowMultiplier: 0.0,
           volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
         );
 
         final states = <ShotState>[];
@@ -1310,6 +1327,7 @@ void main() {
             blockOnNoScale: true,
             weightFlowMultiplier: 0.0,
             volumeFlowMultiplier: 0.0,
+            stepExitArbiterEnabled: true,
           );
 
           final decisions = <ShotDecision>[];
@@ -1361,6 +1379,7 @@ void main() {
             blockOnNoScale: false,
             weightFlowMultiplier: 0.0,
             volumeFlowMultiplier: 0.0,
+            stepExitArbiterEnabled: true,
           );
 
           final decisions = <ShotDecision>[];
@@ -1375,5 +1394,113 @@ void main() {
         });
       },
     );
+  });
+
+  group('ShotSequencer — step exit arbiter disabled', () {
+    late TestDe1 testDe1;
+    late TestScale testScale;
+    late _TestDe1Controller de1Controller;
+    late _TestScaleController scaleController;
+    late PersistenceController persistenceController;
+    late Profile profile;
+
+    setUp(() {
+      testDe1 = TestDe1();
+      testScale = TestScale();
+      de1Controller = _TestDe1Controller(testDe1);
+      scaleController = _TestScaleController(testScale);
+      persistenceController = PersistenceController(
+        storageService: _NullStorageService(),
+      );
+      profile = _profileWithSteps([
+        _pressureStep(
+          name: 'mixed-near',
+          weight: 10,
+          exit: const StepExitCondition(
+            type: ExitType.pressure,
+            condition: ExitCondition.over,
+            value: 5,
+          ),
+        ),
+      ]);
+    });
+
+    tearDown(() {
+      testDe1.dispose();
+      testScale.dispose();
+      scaleController.dispose();
+      persistenceController.dispose();
+    });
+
+    /// Drive the ShotSequencer state machine from idle → pouring.
+    void driveToPouring(ShotSequencer shotSequencer) {
+      testDe1.emitStateAndSubstate(
+        MachineState.espresso,
+        MachineSubstate.preparingForShot,
+      );
+      testDe1.emitStateAndSubstate(
+        MachineState.espresso,
+        MachineSubstate.pouring,
+      );
+    }
+
+    void emitPouringFrameWithPressure(int profileFrame, double pressure) {
+      final current = testDe1.snapshotSubject.value;
+      testDe1.emitSnapshot(
+        current.copyWith(
+          state: const MachineStateSnapshot(
+            state: MachineState.espresso,
+            substate: MachineSubstate.pouring,
+          ),
+          profileFrame: profileFrame,
+          pressure: pressure,
+        ),
+      );
+    }
+
+    test('fires skipStep immediately even when firmware exit is near', () {
+      fakeAsync((async) {
+        // Same scenario as the arbiter-enabled 'defer' test:
+        // pressure exit at 5 bar, emitting pressure 4.0 (near threshold).
+        // With the arbiter disabled, the weight exit should fire immediately
+        // without deferral — pre-fix behavior.
+        scaleController.emitWeight(0.0);
+
+        final shotSequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: profile,
+          targetYield: 200.0,
+          bypassSAW: false,
+          blockOnNoScale: false,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: false,
+        );
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring(shotSequencer);
+        async.elapse(Duration(milliseconds: 10));
+
+        // Weight exceeds step threshold (12 > 10)
+        scaleController.emitWeight(12.0);
+        // Pressure near threshold (4.0, exit at 5.0)
+        emitPouringFrameWithPressure(0, 4.0);
+        async.elapse(Duration(milliseconds: 10));
+
+        // With arbiter disabled, skipStep fires immediately despite
+        // being near the firmware exit threshold.
+        expect(
+          testDe1.requestedStates,
+          contains(MachineState.skipStep),
+          reason:
+              'With stepExitArbiter disabled, weight exit should fire '
+              'immediately even when near firmware threshold.',
+        );
+
+        shotSequencer.dispose();
+      });
+    });
   });
 }

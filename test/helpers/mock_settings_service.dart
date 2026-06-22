@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
+import 'package:reaprime/src/settings/feature_flags.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
@@ -37,6 +38,8 @@ class MockSettingsService extends SettingsService {
   bool _accountStepSeen = true; // skip account step in tests
   bool _androidWarningDismissed = true; // skip android warning in tests
   bool _enableSimulatedWebViews = false;
+
+  final Map<String, bool> _featureFlags = {};
 
   @override
   Future<ThemeMode> themeMode() async => _themeMode;
@@ -174,4 +177,12 @@ class MockSettingsService extends SettingsService {
   @override
   Future<void> setEnableSimulatedWebViews(bool value) async =>
       _enableSimulatedWebViews = value;
+
+  // Feature flags
+  @override
+  Future<bool?> featureFlag(FeatureFlag flag) async =>
+      _featureFlags[flag.name];
+  @override
+  Future<void> setFeatureFlag(FeatureFlag flag, bool value) async =>
+      _featureFlags[flag.name] = value;
 }

@@ -265,6 +265,7 @@ void main() {
           blockOnNoScale: false,
           weightFlowMultiplier: 0.0,
           volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
         );
 
         async.elapse(const Duration(milliseconds: 10));

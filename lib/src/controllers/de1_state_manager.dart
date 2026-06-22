@@ -18,6 +18,7 @@ import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
 import 'package:reaprime/src/realtime_steam_feature/realtime_steam_feature.dart';
 import 'package:reaprime/src/launcher/launcher_view.dart';
 import 'package:reaprime/src/services/account/decent_account_service.dart';
+import 'package:reaprime/src/settings/feature_flags.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
@@ -574,6 +575,8 @@ class De1StateManager with WidgetsBindingObserver {
       blockOnNoScale: _settingsController.blockOnNoScale,
       weightFlowMultiplier: _settingsController.weightFlowMultiplier,
       volumeFlowMultiplier: _settingsController.volumeFlowMultiplier,
+      stepExitArbiterEnabled: _settingsController
+          .isFeatureFlagEnabled(FeatureFlag.stepExitArbiter),
     );
 
     _currentShotSnapshots.clear();
