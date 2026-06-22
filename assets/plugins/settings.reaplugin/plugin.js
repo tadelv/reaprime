@@ -480,6 +480,25 @@ function createPlugin(host) {
                         </div>
                     </div>
                     <div class="setting-item">
+                        <label class="setting-label" for="stopHotWaterAtWeight">Stop Hot Water at Weight</label>
+                        <div class="setting-control">
+                            <select id="stopHotWaterAtWeight" aria-describedby="stopHotWaterAtWeight-desc">
+                                <option value="true" ${reaSettings.stopHotWaterAtWeight ? 'selected' : ''}>Enabled</option>
+                                <option value="false" ${!reaSettings.stopHotWaterAtWeight ? 'selected' : ''}>Disabled</option>
+                            </select>
+                            <span id="stopHotWaterAtWeight-desc" class="visually-hidden">When enabled and a scale is connected, hot water dispensing tares the scale and stops at the configured hot-water volume target (treated as grams). Ignored in full gateway mode.</span>
+                            <button class="btn btn-primary" onclick="updateReaSetting('stopHotWaterAtWeight', document.getElementById('stopHotWaterAtWeight').value === 'true')" aria-label="Save stop hot water at weight setting">Save</button>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label" for="hotWaterFlowMultiplier">Hot Water Flow Multiplier (s)</label>
+                        <div class="setting-control">
+                            <input type="number" id="hotWaterFlowMultiplier" value="${reaSettings.hotWaterFlowMultiplier !== undefined ? reaSettings.hotWaterFlowMultiplier : 0.3}" step="0.05" min="0" max="2" aria-describedby="hotWaterFlowMultiplier-desc">
+                            <span id="hotWaterFlowMultiplier-desc" class="visually-hidden">Look-ahead time in seconds for projected weight calculation when stopping hot water at weight. Separate from the espresso weight flow multiplier because hot water dispenses with a different pump/flow profile.</span>
+                            <button class="btn btn-primary" onclick="updateReaSetting('hotWaterFlowMultiplier', parseFloat(document.getElementById('hotWaterFlowMultiplier').value))" aria-label="Save hot water flow multiplier setting">Save</button>
+                        </div>
+                    </div>
+                    <div class="setting-item">
                         <label class="setting-label" for="preferredMachineId">Auto-Connect Device ID</label>
                         <div class="setting-control">
                             <input type="text" id="preferredMachineId" value="${escapeHtml(reaSettings.preferredMachineId)}" placeholder="None set" aria-describedby="preferredMachineId-desc" style="width: 200px;">
