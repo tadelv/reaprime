@@ -61,6 +61,26 @@ class WebUIService {
   String _path = "";
   String? _localIP;
 
+  /// Test seam: override in tests to simulate offline/no-WiFi without
+  /// touching the real platform channel. Returns null when no WiFi IP is
+  /// available (null-collapsed by [_resolveLocalIP]).
+  @visibleForTesting
+  static Future<String?> Function() resolveWifiIP =
+      NetworkInfo().getWifiIP;
+
+  /// Resolves the device's WiFi IP for the browser-hero card and QR code.
+  /// Must not block the critical path — falls back to "localhost" when the
+  /// platform call throws or the device is offline (gh#337).
+  Future<String> _resolveLocalIP() async {
+    try {
+      final ip = await resolveWifiIP();
+      if (ip != null && ip.isNotEmpty) return ip;
+    } catch (e) {
+      _log.warning('Failed to resolve WiFi IP, falling back to localhost', e);
+    }
+    return 'localhost';
+  }
+
   /// Overrides the skin source for the initialization step. Set from CLI flags
   /// (--skin-path) before the onboarding flow starts. Defaults to [SkinSource.registry].
   SkinOverride skinOverride = const SkinOverride.registry();
@@ -74,7 +94,7 @@ class WebUIService {
 
   Future<void> serveFolderAtPath(String path, {int port = 3000}) async {
     await _server?.close(force: true);
-    _localIP ??= await NetworkInfo().getWifiIP();
+    _localIP ??= await _resolveLocalIP();
 
     // 1. Get system temp directory
     // final documents = await getApplicationDocumentsDirectory();
