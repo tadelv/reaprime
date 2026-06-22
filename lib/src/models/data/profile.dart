@@ -44,11 +44,20 @@ class Profile extends Equatable {
       ];
 
   factory Profile.fromJson(Map<String, dynamic> json) {
+    // Title is the one metadata field a profile genuinely needs (display /
+    // identification). A missing or empty title is a client error → surfaced
+    // as an ArgumentError so handlers return 400 rather than an opaque 500.
+    final title = parseOptionalString(json['title']);
+    if (title == null || title.isEmpty) {
+      throw ArgumentError('Profile must have a non-empty "title"');
+    }
     return Profile(
-      version: json['version'],
-      title: json['title'],
-      notes: json['notes'],
-      author: json['author'],
+      version: parseOptionalString(json['version']),
+      title: title,
+      // notes/author are descriptive and commonly omitted — tolerate
+      // missing/null by defaulting to empty string.
+      notes: parseOptionalString(json['notes']) ?? '',
+      author: parseOptionalString(json['author']) ?? '',
       beverageType: _parseBeverageType(json['beverage_type']),
       steps: (json['steps'] as List)
           .map((step) => ProfileStep.fromJson(step))
