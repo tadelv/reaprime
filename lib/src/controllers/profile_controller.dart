@@ -69,21 +69,23 @@ class ProfileController {
           // Check if this profile already exists (by hash)
           final existing = await _storage.get(record.id);
           if (existing != null) {
-            // Same execution content. Refresh presentation fields
-            // (title/author/notes) when the bundled metadata changed, and
-            // (re)assert default+visible — a user may have imported this
-            // profile before it became a bundled default. Refreshing metadata
-            // is what lets curation edits (issue #242) reach existing installs,
-            // since metadata-only changes leave the content hash (id) unchanged.
+            // Same execution content. Re-assert `isDefault` (a user may have
+            // imported this profile before it became a bundled default) and
+            // refresh presentation fields (title/author/notes) when the bundled
+            // metadata changed — that's what lets curation edits (issue #242)
+            // reach existing installs, since metadata-only changes leave the
+            // content hash (id) unchanged.
+            //
+            // Visibility is deliberately PRESERVED (omitted from copyWith): a
+            // default the user hid must stay hidden across restarts. Previously
+            // this forced Visibility.visible, silently un-hiding it on every
+            // launch. Use POST /profiles/restore/{filename} to un-hide.
             final needsMetadataRefresh =
                 existing.metadataHash != record.metadataHash;
-            if (!existing.isDefault ||
-                existing.visibility != Visibility.visible ||
-                needsMetadataRefresh) {
+            if (!existing.isDefault || needsMetadataRefresh) {
               await _storage.update(existing.copyWith(
                 profile: profile,
                 isDefault: true,
-                visibility: Visibility.visible,
                 metadata: {'source': 'bundled', 'filename': filename},
               ));
               if (needsMetadataRefresh) {

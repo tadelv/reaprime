@@ -131,4 +131,43 @@ void main() {
     expect(storage.records[userProfile.id]!.visibility, Visibility.visible);
     expect(storage.records[userProfile.id]!.isDefault, isFalse);
   });
+
+  test('M3: a default the user hid stays hidden across a reseed', () async {
+    final storage = InMemoryProfileStorage();
+    final current = Profile.fromJson(await _bundledJson(_milkyFile));
+    final hidden = ProfileRecord.create(
+      profile: current,
+      isDefault: true,
+      metadata: {'source': 'bundled', 'filename': _milkyFile},
+    ).copyWith(visibility: Visibility.hidden);
+    await storage.store(hidden);
+
+    await ProfileController(storage: storage).initialize();
+
+    expect(storage.records[hidden.id]!.visibility, Visibility.hidden,
+        reason: 'a user-hidden default must not be un-hidden by the reseed');
+    expect(storage.records[hidden.id]!.isDefault, isTrue);
+  });
+
+  test('M3: a hidden default still gets curated metadata refreshed but stays hidden',
+      () async {
+    final storage = InMemoryProfileStorage();
+    // Same content as current milky (same id) but a stale title, and hidden.
+    final json = await _bundledJson(_milkyFile);
+    json['title'] = 'OLD STALE TITLE';
+    final hiddenStale = ProfileRecord.create(
+      profile: Profile.fromJson(json),
+      isDefault: true,
+      metadata: {'source': 'bundled', 'filename': _milkyFile},
+    ).copyWith(visibility: Visibility.hidden);
+    await storage.store(hiddenStale);
+
+    await ProfileController(storage: storage).initialize();
+
+    final refreshed = storage.records[hiddenStale.id]!;
+    expect(refreshed.profile.title, 'Flow profile for milky drinks',
+        reason: 'curation metadata refresh still applies to hidden defaults');
+    expect(refreshed.visibility, Visibility.hidden,
+        reason: 'refreshing metadata must not un-hide the profile');
+  });
 }
