@@ -368,6 +368,122 @@ void main() {
     );
   });
 
+  group('PUT /api/v1/workflow — parse errors (issue #338)', () {
+    test(
+      'invalid ExitType returns 400 instead of hanging forever',
+      () async {
+        await _settleHandler();
+
+        // Send a profile step with an invalid ExitType ('weight'
+        // is not a valid member of ExitType {pressure, flow}).
+        final future = put({
+          'profile': {
+            'steps': [
+              {
+                'name': 'p',
+                'pump': 'flow',
+                'transition': 'fast',
+                'flow': 2,
+                'temperature': 93,
+                'sensor': 'coffee',
+                'seconds': 10,
+                'volume': 0,
+                'exit': {
+                  'type': 'weight',
+                  'condition': 'over',
+                  'value': 36,
+                },
+              },
+            ],
+          },
+        });
+
+        // Wait for the debounce timer to fire and _applyPendingUpdate
+        // to run (or, pre-fix, to throw silently and hang).
+        await _settleHandler();
+
+        // With the fix, the completer is completed with a 400 response
+        // instead of never completing.
+        final response = await future;
+        expect(response.statusCode, equals(400));
+        final body = jsonDecode(await response.readAsString());
+        expect(body, isA<Map<String, dynamic>>());
+        expect(body['error'], equals('Invalid request'));
+        expect(body['message'], isNotNull);
+      },
+    );
+
+    test(
+      'after a failed parse, a subsequent valid PUT succeeds normally',
+      () async {
+        await _settleHandler();
+
+        // First: an invalid PUT that will fail to parse.
+        final badFuture = put({
+          'profile': {
+            'steps': [
+              {
+                'name': 'p',
+                'pump': 'flow',
+                'transition': 'fast',
+                'flow': 2,
+                'temperature': 93,
+                'sensor': 'coffee',
+                'seconds': 10,
+                'volume': 0,
+                'exit': {
+                  'type': 'weight',
+                  'condition': 'over',
+                  'value': 36,
+                },
+              },
+            ],
+          },
+        });
+        await _settleHandler();
+        final badResponse = await badFuture;
+        expect(badResponse.statusCode, equals(400));
+
+        // Second: a valid PUT that must work because _pendingMerge
+        // was cleared after the failure.
+        final goodFuture = put({
+          'steamSettings': {'duration': 25},
+        });
+        await _settleHandler();
+        final goodResponse = await goodFuture;
+        expect(goodResponse.statusCode, equals(200));
+        final goodBody = jsonDecode(await goodResponse.readAsString());
+        expect(
+          goodBody['steamSettings']['duration'],
+          equals(25),
+        );
+      },
+    );
+
+    test(
+      'empty profile title (Profile.fromJson ArgumentError) returns 400',
+      () async {
+        // Tests the interaction between the new Profile.fromJson
+        // validation (throws ArgumentError on empty title) and our
+        // catch block in _applyPendingUpdate. Without the catch,
+        // this ArgumentError would escape the fire-and-forget Timer
+        // callback and hang the request.
+        await _settleHandler();
+
+        final future = put({
+          'profile': {'title': ''},
+        });
+        await _settleHandler();
+
+        final response = await future;
+        expect(response.statusCode, equals(400));
+        final body = jsonDecode(await response.readAsString());
+        expect(body['error'], equals('Invalid request'));
+        expect(body['message'], isNotNull);
+      },
+    );
+  });
+
   group('PUT /api/v1/workflow — read-modify-write race', () {
     test(
       'multi-field PUT: final shot-settings write reflects BOTH changes',
