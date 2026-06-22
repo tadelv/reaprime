@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:network_info_plus/network_info_plus.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 
 void main() {
@@ -33,5 +36,56 @@ void main() {
   test('json-encodes the token (escapes quotes)', () {
     final out = injectProxyTokenScript('<head></head>', 'a"b');
     expect(out, contains(r'window.__REA_PROXY_TOKEN__="a\"b";'));
+  });
+
+  group('serveFolderAtPath offline', () {
+    late Directory tempDir;
+    late WebUIService service;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('webui_offline_test');
+      // Minimal content — shelf_io.serve needs something to serve.
+      await File('${tempDir.path}/index.html')
+          .writeAsString('<html><body>test</body></html>');
+      service = WebUIService();
+    });
+
+    tearDown(() async {
+      await service.stopServing();
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+      // Restore default behaviour so subsequent tests get real WiFi IP.
+      WebUIService.resolveWifiIP = NetworkInfo().getWifiIP;
+    });
+
+    test('falls back to localhost when getWifiIP throws (gh#337)', () async {
+      WebUIService.resolveWifiIP = () async =>
+          throw Exception('no wifi');
+
+      await service.serveFolderAtPath(tempDir.path);
+
+      expect(service.isServing, isTrue);
+      expect(service.deviceIp(), 'localhost');
+    });
+
+    test('falls back to localhost when getWifiIP returns null', () async {
+      WebUIService.resolveWifiIP = () async => null;
+
+      await service.serveFolderAtPath(tempDir.path);
+
+      expect(service.isServing, isTrue);
+      expect(service.deviceIp(), 'localhost');
+    });
+
+    test('falls back to localhost when getWifiIP returns empty string',
+        () async {
+      WebUIService.resolveWifiIP = () async => '';
+
+      await service.serveFolderAtPath(tempDir.path);
+
+      expect(service.isServing, isTrue);
+      expect(service.deviceIp(), 'localhost');
+    });
   });
 }
