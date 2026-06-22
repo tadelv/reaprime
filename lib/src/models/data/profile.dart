@@ -54,8 +54,8 @@ class Profile extends Equatable {
       throw ArgumentError('Profile must have a non-empty "title"');
     }
     final rawSteps = json['steps'];
-    if (rawSteps is! List) {
-      throw ArgumentError('Profile must have a "steps" array');
+    if (rawSteps is! List || rawSteps.isEmpty) {
+      throw ArgumentError('Profile must have a non-empty "steps" array');
     }
     if (json['tank_temperature'] == null) {
       throw ArgumentError('Profile must have "tank_temperature"');

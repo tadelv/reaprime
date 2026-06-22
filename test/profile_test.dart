@@ -92,6 +92,18 @@ class MockProfileStorage implements ProfileStorageService {
   }
 }
 
+/// A minimal valid step, for profiles that must round-trip through
+/// Profile.fromJson (which requires a non-empty steps array).
+ProfileStep _sampleStep() => ProfileStepPressure(
+      name: 'pour',
+      transition: TransitionType.fast,
+      volume: 100,
+      seconds: 30,
+      temperature: 93,
+      sensor: TemperatureSensor.coffee,
+      pressure: 9,
+    );
+
 void main() {
   // Ensure Hive is initialized for tests
   setUpAll(() async {
@@ -318,7 +330,7 @@ void main() {
         author: 'Test Author',
         notes: 'Testing JSON serialization',
         beverageType: BeverageType.espresso,
-        steps: [],
+        steps: [_sampleStep()],
         tankTemperature: 93.0,
         targetVolumeCountStart: 0,
       );
@@ -721,7 +733,7 @@ void main() {
         author: 'Test',
         notes: '',
         beverageType: BeverageType.espresso,
-        steps: [],
+        steps: [_sampleStep()],
         tankTemperature: 93.0,
         targetVolumeCountStart: 0,
       );
@@ -777,7 +789,18 @@ void main() {
           'notes': 'Some notes',
           'author': 'Someone',
           'beverage_type': 'espresso',
-          'steps': <dynamic>[],
+          'steps': <dynamic>[
+            {
+              'name': 'pour',
+              'pump': 'pressure',
+              'transition': 'fast',
+              'volume': 100,
+              'seconds': 30,
+              'temperature': 93,
+              'sensor': 'coffee',
+              'pressure': 9,
+            },
+          ],
           'tank_temperature': 93.0,
           'target_volume_count_start': 0,
         };
@@ -852,10 +875,17 @@ void main() {
       expect(() => Profile.fromJson(json), throwsArgumentError);
     });
 
-    test('allows an empty steps array', () {
+    test('throws ArgumentError when steps is empty', () {
+      final json = validJson()..['steps'] = <dynamic>[];
+
+      expect(() => Profile.fromJson(json), throwsArgumentError);
+    });
+
+    test('parses a non-empty steps array', () {
       final profile = Profile.fromJson(validJson());
 
-      expect(profile.steps, isEmpty);
+      expect(profile.steps, hasLength(1));
+      expect(profile.steps.first.name, equals('pour'));
     });
 
     test('throws ArgumentError when tank_temperature is missing', () {

@@ -4430,7 +4430,8 @@ components:
           description: Optional; defaults to `espresso` when omitted or unrecognized.
         steps:
           type: array
-          description: Required. May be empty, but the field must be present.
+          minItems: 1
+          description: Required and must contain at least one step.
           items:
             $ref: '#/components/schemas/ProfileStep'
         target_volume:

@@ -168,7 +168,18 @@ void main() {
           'author': 'Test',
           'notes': '',
           'beverage_type': 'espresso',
-          'steps': [],
+          'steps': [
+            {
+              'name': 'pour',
+              'pump': 'pressure',
+              'transition': 'fast',
+              'volume': 100,
+              'seconds': 30,
+              'temperature': 93,
+              'sensor': 'coffee',
+              'pressure': 9,
+            }
+          ],
           'tank_temperature': 0.0,
           'target_weight': 36.0,
           'target_volume': 0,
@@ -210,7 +221,18 @@ void main() {
           'author': 'Test',
           'notes': '',
           'beverage_type': 'espresso',
-          'steps': [],
+          'steps': [
+            {
+              'name': 'pour',
+              'pump': 'pressure',
+              'transition': 'fast',
+              'volume': 100,
+              'seconds': 30,
+              'temperature': 93,
+              'sensor': 'coffee',
+              'pressure': 9,
+            }
+          ],
           'tank_temperature': 0.0,
           'target_weight': 36.0,
           'target_volume': 0,
@@ -247,7 +269,18 @@ void main() {
           'author': 'Test',
           'notes': '',
           'beverage_type': 'espresso',
-          'steps': [],
+          'steps': [
+            {
+              'name': 'pour',
+              'pump': 'pressure',
+              'transition': 'fast',
+              'volume': 100,
+              'seconds': 30,
+              'temperature': 93,
+              'sensor': 'coffee',
+              'pressure': 9,
+            }
+          ],
           'tank_temperature': 0.0,
           'target_volume': 0,
           'target_volume_count_start': 0,
@@ -312,7 +345,18 @@ Map<String, dynamic> _workflowJson({Map<String, dynamic>? machine}) {
       'author': 'Test',
       'notes': '',
       'beverage_type': 'espresso',
-      'steps': [],
+      'steps': [
+            {
+              'name': 'pour',
+              'pump': 'pressure',
+              'transition': 'fast',
+              'volume': 100,
+              'seconds': 30,
+              'temperature': 93,
+              'sensor': 'coffee',
+              'pressure': 9,
+            }
+          ],
       'tank_temperature': 0.0,
       'target_weight': 36.0,
       'target_volume': 0,
