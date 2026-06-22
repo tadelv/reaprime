@@ -878,6 +878,22 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WorkflowRequest"
+        "400":
+          description: >
+            Invalid request body — the merged JSON failed to parse (e.g. an
+            invalid enum value, a missing required profile field, or an
+            unparseable number). The response body contains an `error` and
+            `message` field describing the validation failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal server error during DE1 side-effect writes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   # REA Shot history API
   /api/v1/shots:

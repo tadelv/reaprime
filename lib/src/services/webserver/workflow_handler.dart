@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/home_feature/forms/hot_water_form.dart';
@@ -13,6 +14,8 @@ import 'package:shelf_plus/shelf_plus.dart';
 class WorkflowHandler {
   final WorkflowController _controller;
   final De1Controller _de1controller;
+
+  static final _log = Logger('WorkflowHandler');
 
   Timer? _debounceTimer;
   Map<String, dynamic> _pendingMerge = {};
@@ -57,42 +60,72 @@ class WorkflowHandler {
     _pendingMerge = {};
     _pendingResponses.clear();
 
-    final oldWorkflow = _controller.currentWorkflow;
-    final currentJson = oldWorkflow.toJson();
-    final resultJson = deepMergeJson(currentJson, merge);
-    final updatedWorkflow = Workflow.fromJson(resultJson);
+    try {
+      final oldWorkflow = _controller.currentWorkflow;
+      final currentJson = oldWorkflow.toJson();
+      final resultJson = deepMergeJson(currentJson, merge);
+      final updatedWorkflow = Workflow.fromJson(resultJson);
 
-    _controller.setWorkflow(updatedWorkflow);
-    // Profile push is owned by WorkflowDeviceSync — it observes
-    // `setWorkflow` and uploads the profile if it changed. Keeping a
-    // second setProfile call here would race against that listener and
-    // write every BLE frame twice (see the profile-double-upload P0).
-    if (oldWorkflow.rinseData != updatedWorkflow.rinseData) {
-      await _de1controller.updateFlushSettings(updatedWorkflow.rinseData);
-    }
-    if (oldWorkflow.steamSettings != updatedWorkflow.steamSettings) {
-      await _de1controller.updateSteamSettings(
-        SteamFormSettings(
-          steamEnabled: updatedWorkflow.steamSettings.duration > 0,
-          targetTemp: updatedWorkflow.steamSettings.targetTemperature,
-          targetDuration: updatedWorkflow.steamSettings.duration,
-          targetFlow: updatedWorkflow.steamSettings.flow,
-        ),
-      );
-    }
-    if (oldWorkflow.hotWaterData != updatedWorkflow.hotWaterData) {
-      await _de1controller.updateHotWaterSettings(
-        HotWaterFormSettings(
-          targetTemperature: updatedWorkflow.hotWaterData.targetTemperature,
-          flow: updatedWorkflow.hotWaterData.flow,
-          volume: updatedWorkflow.hotWaterData.volume,
-          duration: updatedWorkflow.hotWaterData.duration,
-        ),
-      );
-    }
+      _controller.setWorkflow(updatedWorkflow);
+      // Profile push is owned by WorkflowDeviceSync — it observes
+      // `setWorkflow` and uploads the profile if it changed. Keeping a
+      // second setProfile call here would race against that listener and
+      // write every BLE frame twice (see the profile-double-upload P0).
+      if (oldWorkflow.rinseData != updatedWorkflow.rinseData) {
+        await _de1controller.updateFlushSettings(updatedWorkflow.rinseData);
+      }
+      if (oldWorkflow.steamSettings != updatedWorkflow.steamSettings) {
+        await _de1controller.updateSteamSettings(
+          SteamFormSettings(
+            steamEnabled: updatedWorkflow.steamSettings.duration > 0,
+            targetTemp: updatedWorkflow.steamSettings.targetTemperature,
+            targetDuration: updatedWorkflow.steamSettings.duration,
+            targetFlow: updatedWorkflow.steamSettings.flow,
+          ),
+        );
+      }
+      if (oldWorkflow.hotWaterData != updatedWorkflow.hotWaterData) {
+        await _de1controller.updateHotWaterSettings(
+          HotWaterFormSettings(
+            targetTemperature: updatedWorkflow.hotWaterData.targetTemperature,
+            flow: updatedWorkflow.hotWaterData.flow,
+            volume: updatedWorkflow.hotWaterData.volume,
+            duration: updatedWorkflow.hotWaterData.duration,
+          ),
+        );
+      }
 
-    for (final completer in responses) {
-      completer.complete(jsonOk(updatedWorkflow.toJson()));
+      for (final completer in responses) {
+        completer.complete(jsonOk(updatedWorkflow.toJson()));
+      }
+    } on ArgumentError catch (e) {
+      // Client sent a payload that fails validation (e.g. an invalid
+      // enum value like ExitType 'weight', or a missing required
+      // profile field). Return a clean 400 — matching the pattern in
+      // profile_handler.dart — so the HTTP request does not hang.
+      // _pendingMerge was already cleared above, so subsequent PUTs
+      // start from a clean slate.
+      for (final completer in responses) {
+        completer.complete(
+          jsonBadRequest({'error': 'Invalid request', 'message': '$e'}),
+        );
+      }
+    } on FormatException catch (e) {
+      for (final completer in responses) {
+        completer.complete(
+          jsonBadRequest({'error': 'Invalid request', 'message': '$e'}),
+        );
+      }
+    } catch (e, st) {
+      // Unexpected error — likely a server-side failure during DE1
+      // side-effects (BLE writes, controller updates). Log it and
+      // return 500 so the request still doesn't hang.
+      _log.severe('Error in _applyPendingUpdate', e, st);
+      for (final completer in responses) {
+        completer.complete(
+          jsonError({'error': 'Internal server error', 'message': '$e'}),
+        );
+      }
     }
   }
 }
