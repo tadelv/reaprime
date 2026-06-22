@@ -1204,7 +1204,10 @@ GET /api/v1/settings
   "logLevel": "INFO",
   "weightFlowMultiplier": 1.0,
   "volumeFlowMultiplier": 0.3,
+  "hotWaterFlowMultiplier": 0.3,
   "scalePowerMode": "disabled",
+  "blockOnNoScale": false,
+  "stopHotWaterAtWeight": true,
   "preferredMachineId": "F4:12:FA:5C:3D:8E"
 }
 ```
@@ -1215,7 +1218,10 @@ GET /api/v1/settings
 - `logLevel`: Log verbosity level
 - `weightFlowMultiplier`: Multiplier for projected weight calculation (default: 1.0)
 - `volumeFlowMultiplier`: Multiplier for projected volume calculation (default: 0.3)
+- `hotWaterFlowMultiplier`: Look-ahead seconds for projected weight when stopping hot water at weight (default: 0.3). Separate from `weightFlowMultiplier` because hot water dispenses with a different pump/flow profile
 - `scalePowerMode`: Automatic scale power management (`disabled`, `displayOff`, `disconnect`)
+- `blockOnNoScale`: When true, shots are blocked from starting if no scale is connected (default: false)
+- `stopHotWaterAtWeight`: When true and a scale is connected, hot water dispensing tares the scale and stops at the configured hot-water volume target treated as grams (default: true). Ignored in full gateway mode
 - `preferredMachineId`: Device ID for auto-connect on startup
 - `lowBatteryBrightnessLimit` (boolean): When enabled, caps brightness at 20 when battery drops below 30%
 
