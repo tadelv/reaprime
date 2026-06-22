@@ -4406,15 +4406,20 @@ components:
       example: preparingForShot
     Profile:
       type: object
+      required:
+        - title
       properties:
         version:
           type: string
         title:
           type: string
+          description: Required, non-empty. A missing or empty title is rejected with 400.
         notes:
           type: string
+          description: Optional; defaults to an empty string when omitted.
         author:
           type: string
+          description: Optional; defaults to an empty string when omitted.
         beverage_type:
           type: string
           enum: [espresso, calibrate, cleaning, manual, pourover]
