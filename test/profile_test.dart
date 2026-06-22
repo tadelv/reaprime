@@ -768,4 +768,76 @@ void main() {
       expect(record1.id, isNot(equals(record2.id)));
     });
   });
+
+  group('Profile.fromJson field tolerance', () {
+    // Minimal valid profile body; tests override / remove individual keys.
+    Map<String, dynamic> validJson() => {
+          'version': '2',
+          'title': 'Test',
+          'notes': 'Some notes',
+          'author': 'Someone',
+          'beverage_type': 'espresso',
+          'steps': <dynamic>[],
+          'tank_temperature': 93.0,
+          'target_volume_count_start': 0,
+        };
+
+    test('defaults notes and author to empty string when missing', () {
+      final json = validJson()
+        ..remove('notes')
+        ..remove('author');
+
+      final profile = Profile.fromJson(json);
+
+      expect(profile.notes, equals(''));
+      expect(profile.author, equals(''));
+      expect(profile.title, equals('Test'));
+    });
+
+    test('defaults notes and author to empty string when null', () {
+      final json = validJson()
+        ..['notes'] = null
+        ..['author'] = null;
+
+      final profile = Profile.fromJson(json);
+
+      expect(profile.notes, equals(''));
+      expect(profile.author, equals(''));
+    });
+
+    test('preserves provided notes, author, title and version', () {
+      final profile = Profile.fromJson(validJson());
+
+      expect(profile.version, equals('2'));
+      expect(profile.title, equals('Test'));
+      expect(profile.notes, equals('Some notes'));
+      expect(profile.author, equals('Someone'));
+    });
+
+    test('tolerates a missing version', () {
+      final json = validJson()..remove('version');
+
+      final profile = Profile.fromJson(json);
+
+      expect(profile.version, isNull);
+    });
+
+    test('throws ArgumentError when title is missing', () {
+      final json = validJson()..remove('title');
+
+      expect(() => Profile.fromJson(json), throwsArgumentError);
+    });
+
+    test('throws ArgumentError when title is null', () {
+      final json = validJson()..['title'] = null;
+
+      expect(() => Profile.fromJson(json), throwsArgumentError);
+    });
+
+    test('throws ArgumentError when title is empty', () {
+      final json = validJson()..['title'] = '';
+
+      expect(() => Profile.fromJson(json), throwsArgumentError);
+    });
+  });
 }
