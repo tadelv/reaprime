@@ -146,6 +146,8 @@ class ProfileHandler {
       return jsonCreated(record.toJson());
     } on ArgumentError catch (e) {
       return jsonBadRequest({'error': 'Invalid request', 'message': '$e'});
+    } on FormatException catch (e) {
+      return jsonBadRequest({'error': 'Invalid request', 'message': '$e'});
     } catch (e, st) {
       log.severe('Error in _handleCreate', e, st);
       return jsonError({'error': 'Internal server error', 'message': '$e'});
@@ -175,6 +177,8 @@ class ProfileHandler {
 
       return jsonOk(record.toJson());
     } on ArgumentError catch (e) {
+      return jsonBadRequest({'error': 'Invalid request', 'message': '$e'});
+    } on FormatException catch (e) {
       return jsonBadRequest({'error': 'Invalid request', 'message': '$e'});
     } catch (e, st) {
       log.severe('Error in _handleUpdate', e, st);

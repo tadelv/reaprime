@@ -839,5 +839,35 @@ void main() {
 
       expect(() => Profile.fromJson(json), throwsArgumentError);
     });
+
+    test('throws ArgumentError when steps is missing', () {
+      final json = validJson()..remove('steps');
+
+      expect(() => Profile.fromJson(json), throwsArgumentError);
+    });
+
+    test('throws ArgumentError when steps is not a list', () {
+      final json = validJson()..['steps'] = 'not-a-list';
+
+      expect(() => Profile.fromJson(json), throwsArgumentError);
+    });
+
+    test('allows an empty steps array', () {
+      final profile = Profile.fromJson(validJson());
+
+      expect(profile.steps, isEmpty);
+    });
+
+    test('throws ArgumentError when tank_temperature is missing', () {
+      final json = validJson()..remove('tank_temperature');
+
+      expect(() => Profile.fromJson(json), throwsArgumentError);
+    });
+
+    test('throws ArgumentError when target_volume_count_start is missing', () {
+      final json = validJson()..remove('target_volume_count_start');
+
+      expect(() => Profile.fromJson(json), throwsArgumentError);
+    });
   });
 }
