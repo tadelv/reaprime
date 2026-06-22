@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reaprime/src/settings/feature_flags.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
 
@@ -6,8 +7,10 @@ import 'package:reaprime/src/settings/settings_service.dart';
 class _SpySettingsService implements SettingsService {
   int setSimulatedDevicesCallCount = 0;
   int setEnableSimulatedWebViewsCallCount = 0;
+  int setFeatureFlagCallCount = 0;
   Set<SimulatedDevicesTypes> _simulatedDevices = {};
   bool _enableSimulatedWebViews = false;
+  final Map<String, bool?> _featureFlags = {};
   String? _preferredMachineId;
   String? _preferredScaleId;
 
@@ -24,6 +27,14 @@ class _SpySettingsService implements SettingsService {
   Future<void> setEnableSimulatedWebViews(bool value) async {
     setEnableSimulatedWebViewsCallCount++;
     _enableSimulatedWebViews = value;
+  }
+  // Feature flags
+  @override
+  Future<bool?> featureFlag(FeatureFlag flag) async => _featureFlags[flag.name];
+  @override
+  Future<void> setFeatureFlag(FeatureFlag flag, bool value) async {
+    setFeatureFlagCallCount++;
+    _featureFlags[flag.name] = value;
   }
   @override
   Future<String?> preferredMachineId() async => _preferredMachineId;
@@ -193,6 +204,61 @@ void main() {
       await controller.setEnableSimulatedWebViews(false);
 
       expect(spy.setEnableSimulatedWebViewsCallCount, 0);
+      expect(notified, isFalse);
+    });
+  });
+
+  group('SettingsController.setFeatureFlag', () {
+    test('returns default value when not yet stored', () {
+      final spy = _SpySettingsService();
+      final controller = SettingsController(spy);
+
+      // Without calling loadSettings, the in-memory map is empty.
+      // isFeatureFlagEnabled falls back to defaultFeatureFlagValues.
+      expect(
+        controller.isFeatureFlagEnabled(FeatureFlag.stepExitArbiter),
+        isTrue, // default is true
+      );
+    });
+
+    test('persists and updates the in-memory value', () async {
+      final spy = _SpySettingsService();
+      final controller = SettingsController(spy);
+
+      await controller.setFeatureFlag(FeatureFlag.stepExitArbiter, false);
+
+      expect(
+        controller.isFeatureFlagEnabled(FeatureFlag.stepExitArbiter),
+        isFalse,
+      );
+      expect(spy.setFeatureFlagCallCount, 1);
+    });
+
+    test('notifies listeners on change', () async {
+      final spy = _SpySettingsService();
+      final controller = SettingsController(spy);
+      var notified = false;
+      controller.addListener(() => notified = true);
+
+      await controller.setFeatureFlag(FeatureFlag.stepExitArbiter, false);
+
+      expect(notified, isTrue);
+    });
+
+    test('is a no-op when the value is unchanged', () async {
+      final spy = _SpySettingsService();
+      final controller = SettingsController(spy);
+
+      // Set to false first so the in-memory map has a value.
+      await controller.setFeatureFlag(FeatureFlag.stepExitArbiter, false);
+      spy.setFeatureFlagCallCount = 0; // reset counter
+      var notified = false;
+      controller.addListener(() => notified = true);
+
+      // Setting false again should be a no-op.
+      await controller.setFeatureFlag(FeatureFlag.stepExitArbiter, false);
+
+      expect(spy.setFeatureFlagCallCount, 0);
       expect(notified, isFalse);
     });
   });

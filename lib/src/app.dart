@@ -59,6 +59,7 @@ import 'package:reaprime/src/skin_selector/skin_selector_page.dart';
 import 'debug_feature/debug_item_details_view.dart';
 
 import 'debug_feature/debug_item_list_view.dart';
+import 'settings/feature_flags.dart';
 import 'settings/gateway_mode.dart';
 import 'settings/settings_controller.dart';
 import 'settings/settings_view.dart';
@@ -438,6 +439,8 @@ class _MyAppState extends State<MyApp> {
                               !scalelessBeverage,
                           weightFlowMultiplier: widget.settingsController.weightFlowMultiplier,
                           volumeFlowMultiplier: widget.settingsController.volumeFlowMultiplier,
+                          stepExitArbiterEnabled: widget.settingsController
+                              .isFeatureFlagEnabled(FeatureFlag.stepExitArbiter),
                         );
                       }
                       return RealtimeShotFeature(

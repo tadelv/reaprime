@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/settings/common.dart';
+import 'package:reaprime/src/settings/feature_flags.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:reaprime/src/debug_feature/debug_item_list_view.dart';
@@ -66,6 +67,47 @@ class AdvancedPage extends StatelessWidget {
                 label: 'Gateway Mode',
                 trailing: Text(_gatewayModeLabel(controller.gatewayMode)),
                 onTap: () => _showGatewayModePicker(context),
+              ),
+              const SettingsDivider(),
+
+              // Experimental Features
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Text(
+                  'Experimental Features',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: ShadSwitch(
+                  value: controller
+                      .isFeatureFlagEnabled(FeatureFlag.stepExitArbiter),
+                  onChanged: (v) async {
+                    await controller.setFeatureFlag(
+                      FeatureFlag.stepExitArbiter,
+                      v,
+                    );
+                  },
+                  label: const Text('Smart Step Advance'),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                ),
+                child: Text(
+                  'When a profile step has both a weight and firmware exit condition, '
+                  'defer the weight-based advance to avoid racing the DE1 and skipping '
+                  'a step. Disable if you experience unexpected step behavior.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ),
               const SettingsDivider(),
 

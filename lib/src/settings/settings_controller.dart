@@ -2,6 +2,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
+import 'package:reaprime/src/settings/feature_flags.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
@@ -69,6 +70,9 @@ class SettingsController with ChangeNotifier {
   bool _androidWarningDismissed = false;
   bool _enableSimulatedWebViews = false;
 
+  // Feature flags — loaded once at startup, hot-swappable at runtime.
+  final Map<FeatureFlag, bool> _featureFlags = {};
+
   TelemetryService? _telemetryService;
 
   // Allow Widgets to read the user's preferred ThemeMode.
@@ -101,6 +105,10 @@ class SettingsController with ChangeNotifier {
   bool get accountStepSeen => _accountStepSeen;
   bool get androidWarningDismissed => _androidWarningDismissed;
   bool get enableSimulatedWebViews => _enableSimulatedWebViews;
+
+  // Feature flags
+  bool isFeatureFlagEnabled(FeatureFlag flag) =>
+      _featureFlags[flag] ?? defaultFeatureFlagValues[flag]!;
 
   set telemetryService(TelemetryService service) => _telemetryService = service;
 
@@ -139,6 +147,12 @@ class SettingsController with ChangeNotifier {
         await _settingsService.androidWarningDismissed();
     _enableSimulatedWebViews =
         await _settingsService.enableSimulatedWebViews();
+
+    // Load feature flags
+    for (final flag in FeatureFlag.values) {
+      final stored = await _settingsService.featureFlag(flag);
+      _featureFlags[flag] = stored ?? defaultFeatureFlagValues[flag]!;
+    }
 
     // Sync telemetry consent to TelemetryService if it exists
     if (_telemetryService != null) {
@@ -430,6 +444,13 @@ class SettingsController with ChangeNotifier {
     if (value == _enableSimulatedWebViews) return;
     _enableSimulatedWebViews = value;
     await _settingsService.setEnableSimulatedWebViews(value);
+    notifyListeners();
+  }
+
+  Future<void> setFeatureFlag(FeatureFlag flag, bool value) async {
+    if (value == _featureFlags[flag]) return;
+    _featureFlags[flag] = value;
+    await _settingsService.setFeatureFlag(flag, value);
     notifyListeners();
   }
 }

@@ -24,6 +24,7 @@ class ShotSequencer {
   final bool _blockOnNoScale;
   final double _weightFlowMultiplier;
   final double _volumeFlowMultiplier;
+  final bool _stepExitArbiterEnabled;
 
   /// `true` when the connected machine runs its own autonomous SAW
   /// (currently only Bengle). The app's SAW loop must defer to FW to
@@ -87,14 +88,16 @@ class ShotSequencer {
     required bool blockOnNoScale,
     required double weightFlowMultiplier,
     required double volumeFlowMultiplier,
+    required bool stepExitArbiterEnabled,
   }) : _bypassSAW = bypassSAW,
        _blockOnNoScale = blockOnNoScale,
        _weightFlowMultiplier = weightFlowMultiplier,
        _volumeFlowMultiplier = volumeFlowMultiplier,
+       _stepExitArbiterEnabled = stepExitArbiterEnabled,
        _machineHasAutonomousSAW =
            de1controller.connectedDe1() is BengleInterface {
     _log.info(
-      "Initializing ShotSequencer (weightFlowMultiplier: $_weightFlowMultiplier, volumeFlowMultiplier: $_volumeFlowMultiplier, machineHasAutonomousSAW: $_machineHasAutonomousSAW)",
+      "Initializing ShotSequencer (weightFlowMultiplier: $_weightFlowMultiplier, volumeFlowMultiplier: $_volumeFlowMultiplier, machineHasAutonomousSAW: $_machineHasAutonomousSAW, stepExitArbiterEnabled: $_stepExitArbiterEnabled)",
     );
 
     // When the app won't tare (SAW bypass), trust the scale's readings as-is —
@@ -475,7 +478,7 @@ class ShotSequencer {
     }
 
     // Mixed step: consult the arbiter to avoid racing firmware.
-    if (step.exit != null) {
+    if (_stepExitArbiterEnabled && step.exit != null) {
       final verdict = _stepExitArbiter.evaluate(
         profileFrame: profileFrame,
         exit: step.exit!,
