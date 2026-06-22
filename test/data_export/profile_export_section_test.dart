@@ -101,7 +101,17 @@ Profile _makeProfile({
     author: 'Test Author',
     notes: 'Test notes',
     beverageType: BeverageType.espresso,
-    steps: [],
+    steps: [
+      ProfileStepPressure(
+        name: 'pour',
+        transition: TransitionType.fast,
+        volume: 100,
+        seconds: 30,
+        temperature: 93,
+        sensor: TemperatureSensor.coffee,
+        pressure: 9,
+      ),
+    ],
     tankTemperature: temperature,
     targetWeight: 36.0,
     targetVolumeCountStart: 0,

@@ -187,7 +187,17 @@ void main() {
         notes: 'line1\nline2\nline3',
         author: 'a',
         beverageType: BeverageType.espresso,
-        steps: const [],
+        steps: [
+          ProfileStepPressure(
+            name: 'pour',
+            transition: TransitionType.fast,
+            volume: 100,
+            seconds: 30,
+            temperature: 93,
+            sensor: TemperatureSensor.coffee,
+            pressure: 9,
+          ),
+        ],
         targetVolumeCountStart: 0,
         tankTemperature: 0,
       );

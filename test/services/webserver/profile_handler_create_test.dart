@@ -69,7 +69,18 @@ void main() {
         'version': '2',
         'title': 'Imported profile',
         'beverage_type': 'espresso',
-        'steps': <dynamic>[],
+        'steps': <dynamic>[
+          {
+            'name': 'pour',
+            'pump': 'pressure',
+            'transition': 'fast',
+            'volume': 100,
+            'seconds': 30,
+            'temperature': 93,
+            'sensor': 'coffee',
+            'pressure': 9,
+          },
+        ],
         'tank_temperature': 93.0,
         'target_volume_count_start': 0,
       };
@@ -91,6 +102,14 @@ void main() {
 
     test('returns 400 (not 500) when title is missing', () async {
       final body = profileWithoutMetadata()..remove('title');
+
+      final response = await postProfile({'profile': body});
+
+      expect(response.statusCode, 400);
+    });
+
+    test('returns 400 (not 500) when steps is empty', () async {
+      final body = profileWithoutMetadata()..['steps'] = <dynamic>[];
 
       final response = await postProfile({'profile': body});
 
