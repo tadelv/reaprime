@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
+import 'package:reaprime/src/skin_feature/skin_view.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -68,261 +69,338 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
 
   @override
   Widget build(BuildContext context) {
+    // The storage-permission affordance only exists for Android sideload builds.
+    final showStorageRow = Platform.isAndroid && !BuildInfo.appStore;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Web Interface')),
       body: SafeArea(
         top: false,
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 16,
-            children: [
-              // Skin selector card
-              ShadCard(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.web_outlined, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Active Skin',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Choose and manage your skins',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withValues(alpha: 0.7),
-                          ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildSkinSelector(),
-                    const SizedBox(height: 16),
-                    _buildStoragePermissionRow(),
-                  ],
+          child: ShadCard(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildHeader(),
+                const SizedBox(height: 16),
+                _buildSkinSelector(),
+                const SizedBox(height: 12),
+                // Primary, per-skin action: open the selected skin. Linux has no
+                // in-app WebView, so there it opens the external browser instead.
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _ActionButton(
+                    label: Platform.isLinux ? 'Open in Browser' : 'Go to skin',
+                    icon: Platform.isLinux ? Icons.open_in_browser : Icons.web,
+                    onPressed: _goToSkin,
+                  ),
                 ),
-              ),
-
-              // Server controls card
-              ShadCard(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.cloud_outlined, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Skin Server',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      widget.webUIService.isServing
-                          ? 'Skin server is running'
-                          : 'Skin server is stopped',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withValues(alpha: 0.7),
-                          ),
-                    ),
-                    const SizedBox(height: 16),
-                    if (!widget.webUIService.isServing)
-                      _ActionButton(
-                        label: 'Start Skin Server',
-                        icon: Icons.play_arrow,
-                        onPressed: _startSelectedSkin,
-                      )
-                    else
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          _ActionButton(
-                            label: 'Open in Browser',
-                            icon: Icons.open_in_browser,
-                            onPressed: _openWebUIInBrowser,
-                          ),
-                          _ActionButton.destructive(
-                            label: 'Stop Skin Server',
-                            icon: Icons.stop,
-                            onPressed: () async {
-                              await widget.webUIService.stopServing();
-                              setState(() {});
-                            },
-                          ),
-                        ],
-                      ),
-                    if (!BuildInfo.appStore) ...[
-                      const SizedBox(height: 12),
-                      _ActionButton.outline(
-                        label: 'Check for Skin Updates',
-                        icon: Icons.update,
-                        onPressed: () => _checkForSkinUpdates(context),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
+                if (showStorageRow) ...[
+                  const SizedBox(height: 16),
+                  _buildStoragePermissionRow(),
+                ],
+                const SizedBox(height: 16),
+                const Divider(height: 1),
+                const SizedBox(height: 12),
+                _buildServerFooter(),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
+  /// Card header: title/subtitle on the left, plus the library-wide "Check for
+  /// updates" action on the right (it refreshes *all* installed skins, not the
+  /// selected one, so it lives at the section level rather than next to the
+  /// per-skin "Go to skin" button).
+  Widget _buildHeader() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.web_outlined, size: 20),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Active Skin',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Choose and manage your skins',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (!BuildInfo.appStore) ...[
+          const SizedBox(width: 8),
+          _ActionButton.outline(
+            label: 'Check for updates',
+            icon: Icons.refresh,
+            size: ShadButtonSize.sm,
+            onPressed: () => _checkForSkinUpdates(context),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// Quiet footer for the niche skin-server controls (start/stop, open in an
+  /// external browser). De-emphasised vs. the primary actions above.
+  Widget _buildServerFooter() {
+    final serving = widget.webUIService.isServing;
+    final muted = Theme.of(
+      context,
+    ).colorScheme.onSurface.withValues(alpha: 0.7);
+
+    final status = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: serving ? Colors.green : muted,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            serving ? 'Skin server running' : 'Skin server stopped',
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: muted),
+          ),
+        ),
+      ],
+    );
+
+    final actions = <Widget>[];
+    if (serving) {
+      // On Linux the external browser is already the primary action above, so
+      // don't duplicate it here.
+      if (!Platform.isLinux) {
+        actions.add(
+          _ActionButton.ghost(
+            label: 'Open in browser',
+            icon: Icons.open_in_browser,
+            size: ShadButtonSize.sm,
+            foregroundColor: muted,
+            onPressed: () async {
+              await _openWebUIInBrowser();
+            },
+          ),
+        );
+      }
+      actions.add(
+        _ActionButton.ghost(
+          label: 'Stop server',
+          icon: Icons.stop,
+          size: ShadButtonSize.sm,
+          foregroundColor: ShadTheme.of(context).colorScheme.destructive,
+          onPressed: () async {
+            await widget.webUIService.stopServing();
+            if (mounted) setState(() {});
+          },
+        ),
+      );
+    } else {
+      actions.add(
+        _ActionButton.ghost(
+          label: 'Start server',
+          icon: Icons.play_arrow,
+          size: ShadButtonSize.sm,
+          foregroundColor: muted,
+          onPressed: _startSelectedSkin,
+        ),
+      );
+    }
+
+    // Status fills the left and pushes the niche controls flush to the right.
+    return Row(
+      children: [
+        Expanded(child: status),
+        const SizedBox(width: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: actions,
+        ),
+      ],
+    );
+  }
+
   Widget _buildSkinSelector() {
     final installedSkins = widget.webUIStorage.installedSkins;
 
-    return DropdownButton<String>(
-      isExpanded: true,
-      value: _selectedSkinId,
-      onChanged: (value) async {
-        if (value == null) return;
+    // Left-aligned and sized to its content (the widest item) rather than
+    // stretching across the card.
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          border: Border.all(color: ShadTheme.of(context).colorScheme.border),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            borderRadius: BorderRadius.circular(8),
+            value: _selectedSkinId,
+            onChanged: (value) async {
+              if (value == null) return;
 
-        setState(() => _selectedSkinId = value);
+              setState(() => _selectedSkinId = value);
 
-        if (value == _customSkinId) {
-          await _pickCustomSkinZip(context);
-        } else if (value == _liveEditSkinId) {
-          await _pickLiveEditFolder(context);
-        } else if (widget.webUIService.isServing) {
-          await _restartServerWithSkin(value);
-        }
-      },
-      items: [
-        ...installedSkins.map((skin) {
-          return DropdownMenuItem(
-            value: skin.id,
-            child: Row(
-              children: [
-                Icon(skin.isBundled ? Icons.verified : Icons.folder, size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(skin.name, overflow: TextOverflow.ellipsis),
-                ),
-                if (skin.version != null)
-                  Text(
-                    ' v${skin.version}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                if (!skin.isBundled && !BuildInfo.appStore)
-                  SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      iconSize: 16,
-                      tooltip: 'Remove ${skin.name}',
-                      icon: const Icon(Icons.delete_outline),
-                      onPressed: () async {
-                        // Close the dropdown first
-                        Navigator.of(context).pop();
-
-                        final confirmed = await showDialog<bool>(
-                          context: context,
-                          builder: (dialogContext) => AlertDialog(
-                            title: const Text('Remove skin?'),
-                            content: Text(
-                              'Remove "${skin.name}"? This cannot be undone.',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.of(dialogContext).pop(false),
-                                child: const Text('Cancel'),
-                              ),
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.of(dialogContext).pop(true),
-                                child: const Text('Remove'),
-                              ),
-                            ],
+              if (value == _customSkinId) {
+                await _pickCustomSkinZip(context);
+              } else if (value == _liveEditSkinId) {
+                await _pickLiveEditFolder(context);
+              } else if (widget.webUIService.isServing) {
+                await _restartServerWithSkin(value);
+              }
+            },
+            items: [
+              ...installedSkins.map((skin) {
+                return DropdownMenuItem(
+                  value: skin.id,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        skin.isBundled ? Icons.verified : Icons.folder,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(skin.name),
+                      if (skin.version != null) ...[
+                        const SizedBox(width: 6),
+                        Padding(
+                          // The smaller version text centres ~2px high next to the
+                          // name; nudge it down onto the name's baseline.
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            'v${skin.version}',
+                            style: Theme.of(context).textTheme.bodySmall,
                           ),
-                        );
-                        if (confirmed != true) return;
+                        ),
+                      ],
+                      if (!skin.isBundled && !BuildInfo.appStore) ...[
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: IconButton(
+                            padding: EdgeInsets.zero,
+                            iconSize: 16,
+                            tooltip: 'Remove ${skin.name}',
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () async {
+                              // Close the dropdown first
+                              Navigator.of(context).pop();
 
-                        try {
-                          await widget.webUIStorage.removeSkin(skin.id);
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                builder: (dialogContext) => AlertDialog(
+                                  title: const Text('Remove skin?'),
+                                  content: Text(
+                                    'Remove "${skin.name}"? This cannot be undone.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.of(
+                                        dialogContext,
+                                      ).pop(false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(dialogContext).pop(true),
+                                      child: const Text('Remove'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirmed != true) return;
 
-                          if (_selectedSkinId == skin.id) {
-                            _selectedSkinId =
-                                widget.webUIStorage.defaultSkin?.id;
-                            if (widget.webUIService.isServing) {
-                              await widget.webUIService.stopServing();
-                            }
-                          }
-                        } catch (e) {
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Failed to remove skin: $e'),
-                              ),
-                            );
-                          }
-                        }
+                              try {
+                                await widget.webUIStorage.removeSkin(skin.id);
 
-                        setState(() {});
-                      },
-                    ),
+                                if (_selectedSkinId == skin.id) {
+                                  _selectedSkinId =
+                                      widget.webUIStorage.defaultSkin?.id;
+                                  if (widget.webUIService.isServing) {
+                                    await widget.webUIService.stopServing();
+                                  }
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Failed to remove skin: $e',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              }
+
+                              setState(() {});
+                            },
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-              ],
-            ),
-          );
-        }),
-        if (!BuildInfo.appStore)
-          const DropdownMenuItem(
-            value: _customSkinId,
-            child: Row(
-              children: [
-                Icon(Icons.archive_outlined, size: 16),
-                SizedBox(width: 8),
-                Text('Install from .zip...'),
-              ],
-            ),
+                );
+              }),
+              if (!BuildInfo.appStore)
+                const DropdownMenuItem(
+                  value: _customSkinId,
+                  child: Row(
+                    children: [
+                      Icon(Icons.archive_outlined, size: 16),
+                      SizedBox(width: 8),
+                      Text('Install from .zip...'),
+                    ],
+                  ),
+                ),
+              if (!BuildInfo.appStore &&
+                  (Platform.isMacOS ||
+                      Platform.isLinux ||
+                      Platform.isWindows ||
+                      (Platform.isAndroid &&
+                          (_storagePermissionGranted ||
+                              _selectedSkinId == _liveEditSkinId))))
+                const DropdownMenuItem(
+                  value: _liveEditSkinId,
+                  child: Row(
+                    children: [
+                      Icon(Icons.folder_open, size: 16),
+                      SizedBox(width: 8),
+                      Text('Live-edit from folder...'),
+                    ],
+                  ),
+                ),
+            ],
           ),
-        if (!BuildInfo.appStore &&
-            (Platform.isMacOS ||
-                Platform.isLinux ||
-                Platform.isWindows ||
-                (Platform.isAndroid &&
-                    (_storagePermissionGranted ||
-                        _selectedSkinId == _liveEditSkinId))))
-          const DropdownMenuItem(
-            value: _liveEditSkinId,
-            child: Row(
-              children: [
-                Icon(Icons.folder_open, size: 16),
-                SizedBox(width: 8),
-                Text('Live-edit from folder...'),
-              ],
-            ),
-          ),
-      ],
+        ),
+      ),
     );
   }
 
@@ -560,6 +638,24 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
     );
   }
 
+  /// Opens the selected skin inside the app, starting the skin server first if
+  /// it isn't already running so the button works in a single tap. Linux has no
+  /// in-app WebView (the plugin is a no-op there), so it falls back to the
+  /// external browser — same policy as the home screen's "Open" button.
+  Future<void> _goToSkin() async {
+    if (!widget.webUIService.isServing) {
+      await _startSelectedSkin();
+    }
+    if (!widget.webUIService.isServing) return;
+    if (!mounted) return;
+
+    if (Platform.isLinux) {
+      await _openWebUIInBrowser();
+    } else {
+      await Navigator.of(context).pushNamed(SkinView.routeName);
+    }
+  }
+
   Future<void> _checkForSkinUpdates(BuildContext context) async {
     try {
       if (!context.mounted) return;
@@ -591,65 +687,89 @@ class _SkinSelectorPageState extends State<SkinSelectorPage>
   }
 }
 
+enum _ActionButtonVariant { primary, outline, ghost }
+
 /// Small helper for consistent action buttons in the skin selector.
 class _ActionButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final VoidCallback onPressed;
-  final bool isDestructive;
-  final bool isOutline;
+  final _ActionButtonVariant variant;
+  final ShadButtonSize? size;
+
+  /// Overrides the icon/text color — used to tint a ghost button (e.g. the
+  /// destructive "Stop server") without giving it a filled destructive style.
+  final Color? foregroundColor;
 
   const _ActionButton({
     required this.label,
     required this.icon,
     required this.onPressed,
-    this.isDestructive = false,
-    this.isOutline = false,
+    this.variant = _ActionButtonVariant.primary,
+    this.size,
+    this.foregroundColor,
   });
 
-  factory _ActionButton.destructive(
-      {required String label,
-      required IconData icon,
-      required VoidCallback onPressed}) {
+  factory _ActionButton.outline({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+    ShadButtonSize? size,
+  }) {
     return _ActionButton(
       label: label,
       icon: icon,
       onPressed: onPressed,
-      isDestructive: true,
+      variant: _ActionButtonVariant.outline,
+      size: size,
     );
   }
 
-  factory _ActionButton.outline(
-      {required String label,
-      required IconData icon,
-      required VoidCallback onPressed}) {
+  factory _ActionButton.ghost({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+    ShadButtonSize? size,
+    Color? foregroundColor,
+  }) {
     return _ActionButton(
       label: label,
       icon: icon,
       onPressed: onPressed,
-      isOutline: true,
+      variant: _ActionButtonVariant.ghost,
+      size: size,
+      foregroundColor: foregroundColor,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final button = isDestructive
-        ? ShadButton.destructive(
-            leading: Icon(icon, size: 16),
-            onPressed: onPressed,
-            child: Text(label),
-          )
-        : isOutline
-            ? ShadButton.outline(
-                leading: Icon(icon, size: 16),
-                onPressed: onPressed,
-                child: Text(label),
-              )
-            : ShadButton(
-                leading: Icon(icon, size: 16),
-                onPressed: onPressed,
-                child: Text(label),
-              );
+    final leading = Icon(icon, size: 16, color: foregroundColor);
+    final child = Text(
+      label,
+      style: foregroundColor != null ? TextStyle(color: foregroundColor) : null,
+    );
+
+    final ShadButton button = switch (variant) {
+      _ActionButtonVariant.outline => ShadButton.outline(
+        leading: leading,
+        onPressed: onPressed,
+        size: size,
+        child: child,
+      ),
+      _ActionButtonVariant.ghost => ShadButton.ghost(
+        leading: leading,
+        onPressed: onPressed,
+        size: size,
+        child: child,
+      ),
+      _ActionButtonVariant.primary => ShadButton(
+        leading: leading,
+        onPressed: onPressed,
+        size: size,
+        child: child,
+      ),
+    };
 
     return Semantics(
       button: true,
