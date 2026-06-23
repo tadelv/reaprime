@@ -50,7 +50,7 @@ class _FakeWebUIStorage extends Fake implements WebUIStorage {
 
 void main() {
   testWidgets(
-    'skins list refreshes to the new version after "Check for Skin Updates" '
+    'skins list refreshes to the new version after "Check for updates" '
     '(issue #370)',
     (tester) async {
       final storage = _FakeWebUIStorage('0.2.2');
@@ -74,7 +74,7 @@ void main() {
       expect(find.textContaining('0.2.2'), findsOneWidget);
       expect(find.textContaining('0.2.3'), findsNothing);
 
-      final updateButton = find.text('Check for Skin Updates');
+      final updateButton = find.text('Check for updates');
       await tester.ensureVisible(updateButton);
       await tester.tap(updateButton);
       await tester.pump(); // run the async handler + its setState
