@@ -3246,6 +3246,8 @@ http://<host>:8080/api/v1/plugins/settings.reaplugin/ui?backName=MySkin
 
 This shows "Back to MySkin" in the settings plugin's nav bar. When clicked, it navigates to `http://<host>:3000/?_=<timestamp>` (with cache busting). This allows skins to provide a "Settings" link that returns to the skin after configuration changes.
 
+**External links:** When a skin runs inside the embedded webview (mobile/desktop app), navigations to `localhost:3000` and the settings plugin load in place; any other `http`/`https` link opens in the **system browser** while the skin stays loaded. A plain `<a href="https://…">` works, but the in-app webview blocks `target="_blank"` popups (`javaScriptCanOpenWindowsAutomatically: false`), so for JS-driven links route through a delegated click handler — `window.open(url, '_blank')` with a `location.href` fallback — so the navigation reaches `shouldOverrideUrlLoading` and is handed off to the OS.
+
 **Server control endpoints:**
 
 | Method | Path | Description |
