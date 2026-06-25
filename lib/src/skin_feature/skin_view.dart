@@ -16,6 +16,36 @@ import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/skin_feature/simulated_webview_device.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+/// How the skin webview should treat a navigation target.
+enum SkinNavDecision {
+  /// Internal navigation — let the webview load it.
+  allow,
+
+  /// External http(s) link — open in the system browser, keep the skin loaded.
+  openExternal,
+
+  /// Anything else — refuse the navigation.
+  block,
+}
+
+/// Classifies a navigation target requested from within the skin webview.
+///
+/// Internal pages (localhost:3000 and the settings plugin) load in-place;
+/// external http/https links open in the OS browser; everything else is
+/// blocked. Pure so it can be unit-tested without a live webview.
+SkinNavDecision classifySkinNavigation(Uri? url) {
+  if (url == null) return SkinNavDecision.block;
+  final s = url.toString();
+  if (s.startsWith('http://localhost:3000') ||
+      s.contains('/api/v1/plugins/settings.reaplugin')) {
+    return SkinNavDecision.allow;
+  }
+  if (url.scheme == 'https' || url.scheme == 'http') {
+    return SkinNavDecision.openExternal;
+  }
+  return SkinNavDecision.block;
+}
+
 /// Displays the WebUI skin in a full-screen webview
 ///
 /// This view is only shown on mobile/desktop platforms (iOS, Android, macOS)
@@ -428,6 +458,20 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
     );
   }
 
+  /// Launches an external link from the skin in the OS browser. Failures are
+  /// logged only — the skin stays put, so a dead link is a no-op, not a crash.
+  Future<void> _launchExternal(Uri uri) async {
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        _log.warning('Cannot launch external URL: $uri');
+      }
+    } catch (e, st) {
+      _log.severe('Failed to launch external URL: $uri', e, st);
+    }
+  }
+
   Future<void> _openInExternalBrowser() async {
     final url = Uri.parse(
       'http://localhost:3000?_=${DateTime.now().millisecondsSinceEpoch}',
@@ -649,18 +693,20 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
         _log.warning('HTTP error - Status: ${errorResponse.statusCode}');
       },
       shouldOverrideUrlLoading: (controller, navigationAction) async {
-        final url = navigationAction.request.url.toString();
-
-        // Allow all navigation within localhost:3000
-        if (url.startsWith('http://localhost:3000') ||
-            url.contains('/api/v1/plugins/settings.reaplugin')) {
-          _log.fine('Allowing navigation to: $url');
-          return NavigationActionPolicy.ALLOW;
+        final uri = navigationAction.request.url;
+        switch (classifySkinNavigation(uri)) {
+          case SkinNavDecision.allow:
+            _log.fine('Allowing navigation to: $uri');
+            return NavigationActionPolicy.ALLOW;
+          case SkinNavDecision.openExternal:
+            // Open in the system browser and stay on the skin.
+            _log.info('Opening external link in system browser: $uri');
+            unawaited(_launchExternal(uri!));
+            return NavigationActionPolicy.CANCEL;
+          case SkinNavDecision.block:
+            _log.info('Blocking navigation to: $uri');
+            return NavigationActionPolicy.CANCEL;
         }
-
-        // Block external navigation
-        _log.info('Blocking navigation to: $url');
-        return NavigationActionPolicy.CANCEL;
       },
       onConsoleMessage: (controller, consoleMessage) {
         // Route to dedicated webview log service (file + stream)
