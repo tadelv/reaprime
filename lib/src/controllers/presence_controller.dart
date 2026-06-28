@@ -170,6 +170,22 @@ class PresenceController {
       _log.info('Machine went to sleep during keep-awake window, clearing');
       _keepAwakeUntil = null;
     }
+
+    // An activity (espresso/steam/hot water/flush/clean) just finished: restart
+    // the idle countdown so the machine gets a full sleep-timeout window from the
+    // END of the activity. Without this, the timer keeps running from the last
+    // heartbeat straight through a hands-off pull and can fire the instant the
+    // shot ends. The [_onSleepTimeout] active-state guard only covers the timer
+    // firing *during* the activity, not the seconds right after it returns to idle.
+    if (_settingsController.userPresenceEnabled &&
+        _isActiveState(_currentMachineState) &&
+        (newState == MachineState.idle || newState == MachineState.schedIdle)) {
+      _log.info(
+        'Activity ($_currentMachineState) ended, restarting sleep timer',
+      );
+      _resetSleepTimer();
+    }
+
     _currentMachineState = newState;
   }
 
