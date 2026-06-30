@@ -4105,6 +4105,56 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/v1/derek/answers/stream:
+    post:
+      summary: Relay to the Derek RAG assistant (streaming)
+      description: >
+        Forwards the request body verbatim to Derek's public answer endpoint
+        (`https://derek.decentespresso.com/api/answers/stream`) and pipes the
+        Server-Sent Events response straight back, unbuffered, so a browser
+        skin can render the answer as it streams.
+
+
+        Exists because Derek's server does not answer CORS preflight; routing
+        through Reaprime turns it into a same-API call the existing CORS
+        middleware handles. Derek is public knowledge-base data, so this route
+        needs no authentication. Request validation, rate limiting, and error
+        shapes are Derek's — the upstream status and body are relayed verbatim.
+      tags: [Account]
+      requestBody:
+        description: >
+          JSON answer request relayed verbatim to Derek. Only `query` is
+          required; remaining fields are optional source toggles. See the Derek
+          RAG API reference for the full field list.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                  description: The question to ask Derek.
+              additionalProperties: true
+            example:
+              query: "Which Decent Espresso machine should I buy for home?"
+              include_documents: true
+              include_videos: true
+      responses:
+        "200":
+          description: >
+            Server-Sent Events stream. Event types: `queue`, `phase`, `delta`
+            (draft answer text), `result` (final answer or snippet fallback),
+            `error`.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        default:
+          description: Upstream status and body relayed verbatim (e.g. Derek's
+            400 with a `detail.code`, or a 429 rate-limit).
+
 components:
   schemas:
     AppUpdateState:
