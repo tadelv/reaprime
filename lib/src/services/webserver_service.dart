@@ -102,6 +102,7 @@ part 'webserver/presence_handler.dart';
 part 'webserver/display_handler.dart';
 part 'webserver/account_handler.dart';
 part 'webserver/account_proxy_handler.dart';
+part 'webserver/derek_handler.dart';
 part 'webserver/update_handler.dart';
 
 const _corsExposedResponseHeaders = [
@@ -209,6 +210,8 @@ Future<void> startWebServer(
       ? null
       : AccountProxyHandler(proxy: decentProxyService, enableWrites: true);
 
+  final derekHandler = DerekHandler();
+
   final webViewLogsHandler = WebViewLogsHandler(
     webViewLogService: webViewLogService,
   );
@@ -298,6 +301,7 @@ Future<void> startWebServer(
       displayHandler,
       accountHandler,
       accountProxyHandler,
+      derekHandler,
       proxyTokenService,
       () => accountProxyCorsAllowedOrigins(webUIService),
       dataExportHandler,
@@ -339,6 +343,7 @@ Handler _init(
   DisplayHandler? displayHandler,
   AccountHandler? accountHandler,
   AccountProxyHandler? accountProxyHandler,
+  DerekHandler derekHandler,
   ProxyTokenService? proxyTokenService,
   Set<String> Function() accountProxyAllowedOrigins,
   DataExportHandler dataExportHandler,
@@ -381,6 +386,7 @@ Handler _init(
   if (accountProxyHandler != null) {
     accountProxyHandler.addRoutes(app);
   }
+  derekHandler.addRoutes(app);
   dataExportHandler.addRoutes(app);
   dataSyncHandler.addRoutes(app);
   if (beansHandler != null) {
