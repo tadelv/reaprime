@@ -78,6 +78,30 @@ class SensorController {
         ..._bridgeRegistered,
       };
 
+  /// Pick the sensor to drive steam stop or shot recording.
+  ///
+  /// Precedence (FR-M2/M3): bridge-registered match on [preferredId],
+  /// then any connected sensor with that id, then the first registered
+  /// sensor in [sensors] (discovered first, bridge-only entries after).
+  Sensor? resolvePreferred(String? preferredId) {
+    if (preferredId != null) {
+      final bridge = _bridgeRegistered[preferredId];
+      if (bridge != null) {
+        return bridge;
+      }
+      final preferred = sensors[preferredId];
+      if (preferred != null) {
+        return preferred;
+      }
+    }
+
+    final registered = sensors;
+    if (registered.isEmpty) {
+      return null;
+    }
+    return registered.values.first;
+  }
+
   void dispose() {
     _deviceStreamSubscription?.cancel();
     _deviceStreamSubscription = null;

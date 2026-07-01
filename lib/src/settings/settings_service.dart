@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_js/quickjs/ffi.dart';
+import 'package:reaprime/src/models/device/impl/combustion/combustion_constants.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/feature_flags.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
@@ -35,6 +36,12 @@ abstract class SettingsService {
   Future<void> setPreferredMachineId(String? machineId);
   Future<String?> preferredScaleId();
   Future<void> setPreferredScaleId(String? scaleId);
+  Future<String?> preferredSteamProbeId();
+  Future<void> setPreferredSteamProbeId(String? probeId);
+  Future<String?> preferredShotProbeId();
+  Future<void> setPreferredShotProbeId(String? probeId);
+  Future<String> combustionDefaultChannel();
+  Future<void> setCombustionDefaultChannel(String channel);
   Future<String> defaultSkinId();
   Future<void> setDefaultSkinId(String skinId);
   Future<bool> automaticUpdateCheck();
@@ -238,6 +245,45 @@ class SharedPreferencesSettingsService extends SettingsService {
     } else {
       await prefs.setString(SettingsKeys.preferredScaleId.name, scaleId);
     }
+  }
+
+  @override
+  Future<String?> preferredSteamProbeId() async {
+    return await prefs.getString(SettingsKeys.preferredSteamProbeId.name);
+  }
+
+  @override
+  Future<void> setPreferredSteamProbeId(String? probeId) async {
+    if (probeId == null) {
+      await prefs.remove(SettingsKeys.preferredSteamProbeId.name);
+    } else {
+      await prefs.setString(SettingsKeys.preferredSteamProbeId.name, probeId);
+    }
+  }
+
+  @override
+  Future<String?> preferredShotProbeId() async {
+    return await prefs.getString(SettingsKeys.preferredShotProbeId.name);
+  }
+
+  @override
+  Future<void> setPreferredShotProbeId(String? probeId) async {
+    if (probeId == null) {
+      await prefs.remove(SettingsKeys.preferredShotProbeId.name);
+    } else {
+      await prefs.setString(SettingsKeys.preferredShotProbeId.name, probeId);
+    }
+  }
+
+  @override
+  Future<String> combustionDefaultChannel() async {
+    return await prefs.getString(SettingsKeys.combustionDefaultChannel.name) ??
+        CombustionConstants.channelCore;
+  }
+
+  @override
+  Future<void> setCombustionDefaultChannel(String channel) async {
+    await prefs.setString(SettingsKeys.combustionDefaultChannel.name, channel);
   }
 
   @override
@@ -496,6 +542,9 @@ enum SettingsKeys {
   stopHotWaterAtWeight,
   preferredMachineId,
   preferredScaleId,
+  preferredSteamProbeId,
+  preferredShotProbeId,
+  combustionDefaultChannel,
   defaultSkinId,
   automaticUpdateCheck,
   lastUpdateCheckTime,
