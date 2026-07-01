@@ -111,5 +111,62 @@ void main() {
       expect(controller.sensors, contains('keep-1'),
           reason: 'unregister is a no-op on non-bridge entries');
     });
+
+    group('resolvePreferred', () {
+      test('returns bridge instance when preferred id collides (FR-M2)',
+          () async {
+        final discovered = _StubSensor('shared', label: 'discovered');
+        final bridge = _StubSensor('shared', label: 'bridge');
+
+        discovery.emit([discovered]);
+        await Future<void>.delayed(Duration.zero);
+        await controller.register(bridge);
+
+        expect(
+          controller.resolvePreferred('shared'),
+          same(bridge),
+          reason: 'bridge-registered sensor wins on deviceId collision',
+        );
+      });
+
+      test('returns explicitly preferred sensor when multiple present (FR-M1)',
+          () async {
+        final first = _StubSensor('probe-a', label: 'first');
+        final second = _StubSensor('probe-b', label: 'second');
+
+        discovery.emit([first, second]);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(controller.resolvePreferred('probe-b'), same(second));
+      });
+
+      test('falls back to first registered sensor when preferred unset (FR-M3)',
+          () async {
+        final first = _StubSensor('probe-a', label: 'first');
+        final second = _StubSensor('probe-b', label: 'second');
+
+        discovery.emit([first, second]);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(controller.resolvePreferred(null), same(first));
+      });
+
+      test(
+          'falls back to first registered sensor when preferred id missing (FR-M3)',
+          () async {
+        final first = _StubSensor('probe-a', label: 'first');
+        final second = _StubSensor('probe-b', label: 'second');
+
+        discovery.emit([first, second]);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(controller.resolvePreferred('missing'), same(first));
+      });
+
+      test('returns null when no sensors registered', () {
+        expect(controller.resolvePreferred(null), isNull);
+        expect(controller.resolvePreferred('any'), isNull);
+      });
+    });
   });
 }

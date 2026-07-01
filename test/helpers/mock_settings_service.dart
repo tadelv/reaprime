@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/models/device/impl/combustion/combustion_constants.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/feature_flags.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
@@ -20,6 +21,9 @@ class MockSettingsService extends SettingsService {
   bool _stopHotWaterAtWeight = true;
   String? _preferredMachineId;
   String? _preferredScaleId;
+  String? _preferredSteamProbeId;
+  String? _preferredShotProbeId;
+  String _combustionDefaultChannel = CombustionConstants.channelCore;
   String _defaultSkinId = 'streamline.js';
   bool _automaticUpdateCheck = true;
   DateTime? _lastUpdateCheckTime;
@@ -93,6 +97,21 @@ class MockSettingsService extends SettingsService {
   Future<String?> preferredScaleId() async => _preferredScaleId;
   @override
   Future<void> setPreferredScaleId(String? scaleId) async => _preferredScaleId = scaleId;
+  @override
+  Future<String?> preferredSteamProbeId() async => _preferredSteamProbeId;
+  @override
+  Future<void> setPreferredSteamProbeId(String? probeId) async =>
+      _preferredSteamProbeId = probeId;
+  @override
+  Future<String?> preferredShotProbeId() async => _preferredShotProbeId;
+  @override
+  Future<void> setPreferredShotProbeId(String? probeId) async =>
+      _preferredShotProbeId = probeId;
+  @override
+  Future<String> combustionDefaultChannel() async => _combustionDefaultChannel;
+  @override
+  Future<void> setCombustionDefaultChannel(String channel) async =>
+      _combustionDefaultChannel = channel;
   @override
   Future<String> defaultSkinId() async => _defaultSkinId;
   @override
