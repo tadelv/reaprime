@@ -87,6 +87,7 @@ class MockDe1 implements De1Interface, SimulatedDevice {
       _profileStepElapsedTime = 0.0;
       _espressoTickCount = 0;
       _pouringDoneTicks = 0;
+      _shotElapsedMs = 0.0;
       _fromFlowTarget = 0;
       _fromPressureTarget = 0;
     } else if (_currentState == MachineState.skipStep &&
@@ -204,6 +205,9 @@ class MockDe1 implements De1Interface, SimulatedDevice {
   double shotTime = 0.0;
   int _espressoTickCount = 0;
   int _pouringDoneTicks = 0;
+  // Total elapsed since the shot started (across steps), driving the puck
+  // saturation/erosion model and the cold-puck temperature dip.
+  double _shotElapsedMs = 0.0;
 
   MachineSnapshot _simulateEspresso() {
     MachineSubstate substate = _lastSnapshot.state.substate;
@@ -247,9 +251,15 @@ class MockDe1 implements De1Interface, SimulatedDevice {
     // Get current step
     final currentStep = _currentProfile!.steps[_currentProfileStepIndex];
 
-    // Check if we should move to next step
+    // Check if we should move to next step. Real firmware exits a step when its
+    // pressure/flow move-on condition is met, falling back to the step duration;
+    // without honouring the exit, a "move on at 4 bar" preinfusion would run its
+    // full fallback seconds and the shot would look nothing like a real pull.
+    // (Weight/volume exits are driven app-side via requestState(skipStep).)
     final stepDurationMs = currentStep.seconds * 1000;
-    if (_profileStepElapsedTime >= stepDurationMs && _pouringDoneTicks == 0) {
+    final exitMet = _stepExitConditionMet(currentStep);
+    if ((_profileStepElapsedTime >= stepDurationMs || exitMet) &&
+        _pouringDoneTicks == 0) {
       if (_currentProfileStepIndex < _currentProfile!.steps.length - 1) {
         // Capture current step targets as "from" for smooth transition interpolation.
         _captureFromTargets(currentStep);
@@ -270,31 +280,50 @@ class MockDe1 implements De1Interface, SimulatedDevice {
             ? min(_profileStepElapsedTime / stepDurationMs, 1.0)
             : 0.0;
 
-    // Calculate temperature movement toward target
+    _shotElapsedMs += 100;
+    final shotSecs = _shotElapsedMs / 1000.0;
+
+    // --- Puck resistance model ---------------------------------------------
+    // A fresh puck is porous: during preinfusion water passes with little
+    // resistance, so pressure stays low even at high fill flow. As it saturates
+    // and packs, resistance climbs to a peak a few seconds into the pour (flow
+    // falls out under a held pressure), then slowly erodes/channels so flow
+    // creeps back up. This single curve is what makes the coupling below read
+    // like a real shot instead of a pressure spike pinned at the ceiling.
+    const rDry = 0.10; // bar/(mL/s) — fresh, porous puck
+    const rPeak = 4.2; // fully packed
+    const rErode = 2.5; // after channeling
+    const peakSecs = 12.0; // time from shot start to peak resistance
+    const erodeSecs = 16.0; // erosion timescale past the peak
+    double resistance;
+    if (shotSecs <= peakSecs) {
+      // Slow early rise, steepening near breakthrough (cubic).
+      final s = shotSecs / peakSecs;
+      resistance = rDry + (rPeak - rDry) * s * s * s;
+    } else {
+      final e = min((shotSecs - peakSecs) / erodeSecs, 1.0);
+      resistance = rPeak - (rPeak - rErode) * e;
+    }
+
+    // --- Temperature: cold-puck dip, then recovery ---
+    // Group temp plunges ~16C when water first hits the cold puck (start of
+    // preinfusion) and recovers toward the step's target over a few seconds.
     final targetTemp = currentStep.temperature;
-    // Adjust heating rate based on step progress - slower near target
-    final heatingRate = 0.1 * (1.0 - stepProgress * 0.5);
-    final newMixTemp = _calculateTemperature(
-      current: _lastSnapshot.mixTemperature,
-      target: targetTemp,
-      rate: heatingRate, // degrees per 100ms
-    );
+    const dipMax = 16.0;
+    const dipTauSecs = 3.0;
+    // No dip during the ~0.5s prep phase (no water on the puck yet); once water
+    // contacts, the group plunges then recovers toward the setpoint.
+    final inPrep = _espressoTickCount < 5;
+    final contactSecs = max(0.0, shotSecs - 0.5);
+    final dip = inPrep ? 0.0 : dipMax * exp(-contactSecs / dipTauSecs);
+    final newGroupTemp = targetTemp - dip;
+    final newMixTemp = newGroupTemp - 1.0;
 
-    final newGroupTemp = _calculateTemperature(
-      current: _lastSnapshot.groupTemperature,
-      target: targetTemp,
-      rate: heatingRate,
-    );
-
-    // --- Flow → Pressure coupling model ---
-    // Constants (tuned for visual believability from shot history):
-    const baseResistance = 2.5; // bar/(mL/s) — pressure per unit flow
-    const resistanceGrowth = 0.3; // 30% increase over step (puck compression)
-    const flowResponseRate = 0.7; // per-tick convergence toward flow target
-    const pressureDamping = 0.3; // per-tick convergence toward pressure eq
-
-    // Resistance grows over step duration (puck compression).
-    final resistance = baseResistance * (1.0 + resistanceGrowth * stepProgress);
+    // --- Flow <-> pressure coupling ---
+    // Slower than before so flow/pressure ramp over ~1-2s like a real pump/puck
+    // rather than snapping to target in one tick.
+    const flowResponseRate = 0.35; // per-tick convergence toward flow target
+    const pressureDamping = 0.35; // per-tick convergence toward pressure eq
 
     // Determine flow/pressure targets from step type.
     double targetFlow;
@@ -319,19 +348,19 @@ class MockDe1 implements De1Interface, SimulatedDevice {
       targetPressure = 0.0;
     }
 
-    // Apply transition shaping: smooth interpolates target over step duration;
-    // fast uses step target immediately.
+    // Smooth transition ramps the step's CONTROLLED quantity from its value at
+    // step entry to the new target over the step. Only the controlled variable
+    // is ramped — ramping a pressure step's internal pump-max flow from 0 would
+    // collapse flow (and pressure) at every step boundary.
     if (currentStep.transition == TransitionType.smooth) {
-      targetFlow =
-          _fromFlowTarget + (targetFlow - _fromFlowTarget) * stepProgress;
-      targetPressure =
-          _fromPressureTarget +
-          (targetPressure - _fromPressureTarget) * stepProgress;
-      stepTargetFlow =
-          _fromFlowTarget + (stepTargetFlow - _fromFlowTarget) * stepProgress;
-      stepTargetPressure =
-          _fromPressureTarget +
-          (stepTargetPressure - _fromPressureTarget) * stepProgress;
+      if (currentStep is ProfileStepPressure) {
+        targetPressure =
+            _fromPressureTarget + (targetPressure - _fromPressureTarget) * stepProgress;
+        stepTargetPressure = targetPressure;
+      } else if (currentStep is ProfileStepFlow) {
+        targetFlow = _fromFlowTarget + (targetFlow - _fromFlowTarget) * stepProgress;
+        stepTargetFlow = targetFlow;
+      }
     }
 
     // Flow responds quickly (pump-driven).
@@ -345,12 +374,17 @@ class MockDe1 implements De1Interface, SimulatedDevice {
         _lastSnapshot.pressure +
         (unboundedPressure - _lastSnapshot.pressure) * pressureDamping;
 
-    // Pressure-step: clamp flow when pressure hits the step's ceiling.
+    // The pump can only move so much water — real DE1 flow tops out ~8 mL/s.
+    const pumpMaxFlow = 8.0;
+
+    // Pressure-step: hold the ceiling, letting flow fall out as the puck packs.
+    // On a fresh (low-resistance) puck the flow needed to reach a low target
+    // pressure would exceed the pump, so cap it — otherwise a 2 bar preinfusion
+    // reads an impossible ~20 mL/s.
     if (currentStep is ProfileStepPressure) {
       if (newPressure >= targetPressure) {
         newPressure = targetPressure;
-        // Flow rate that maintains target pressure against puck resistance.
-        newFlow = targetPressure / resistance;
+        newFlow = min(targetPressure / resistance, pumpMaxFlow);
       }
     }
 
@@ -359,11 +393,12 @@ class MockDe1 implements De1Interface, SimulatedDevice {
       newFlow = targetFlow;
     }
 
-    // Physical pressure ceiling (real DE1 max ~10.5 bar, cap at 12).
-    const physicalMaxPressure = 12.0;
+    // Physical pressure ceiling (real DE1 tops out ~11 bar; the puck model
+    // keeps a well-formed shot far below this).
+    const physicalMaxPressure = 11.0;
     if (newPressure > physicalMaxPressure) {
       newPressure = physicalMaxPressure;
-      newFlow = physicalMaxPressure / resistance;
+      newFlow = min(physicalMaxPressure / resistance, pumpMaxFlow);
     }
 
     _espressoTickCount++;
@@ -432,6 +467,20 @@ class MockDe1 implements De1Interface, SimulatedDevice {
       profileFrame: 0,
       steamTemperature: min(_lastSnapshot.steamTemperature + 1, 150),
     );
+  }
+
+  /// Whether the current step's pressure/flow move-on condition is satisfied by
+  /// the latest reading. Disabled placeholders (value <= 0, e.g. `flow under 0`)
+  /// never fire; weight/volume exits are handled app-side, not here.
+  bool _stepExitConditionMet(ProfileStep step) {
+    final exit = step.exit;
+    if (exit == null || exit.value <= 0) return false;
+    final reading = exit.type == ExitType.flow
+        ? _lastSnapshot.flow
+        : _lastSnapshot.pressure;
+    return exit.condition == ExitCondition.over
+        ? reading >= exit.value
+        : reading <= exit.value;
   }
 
   /// Snapshot the current step's targets so smooth transitions can interpolate from them.
