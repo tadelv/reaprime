@@ -8,6 +8,8 @@ import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
 import 'package:reaprime/src/models/device/impl/blackcoffee/blackcoffee_scale.dart';
 import 'package:reaprime/src/models/device/impl/bookoo/miniscale.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
+import 'package:reaprime/src/models/device/impl/combustion/combustion_constants.dart';
+import 'package:reaprime/src/models/device/impl/combustion/combustion_probe.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
 import 'package:reaprime/src/models/device/impl/difluid/difluid_r2_sensor.dart';
 import 'package:reaprime/src/models/device/impl/difluid/difluid_scale.dart';
@@ -384,6 +386,89 @@ void main() {
       );
 
       expect(device, isNull);
+    });
+  });
+
+  group('DeviceMatcher.serviceUuidsFor', () {
+    test('sensor list includes Combustion Probe Status UUID', () {
+      final uuids = DeviceMatcher.serviceUuidsFor(DeviceType.sensor);
+
+      expect(
+        uuids,
+        contains(CombustionConstants.probeStatusServiceUuid),
+      );
+    });
+  });
+
+  group('DeviceMatcher.matchFromScanMetadata', () {
+    late _MockBLETransport mockTransport;
+
+    setUp(() {
+      mockTransport = _MockBLETransport();
+    });
+
+    test('serial name with Combustion manufacturer ID matches CombustionProbe',
+        () async {
+      final device = await DeviceMatcher.matchFromScanMetadata(
+        transport: mockTransport,
+        advertisedName: '48291034',
+        manufacturerCompanyIds: [CombustionConstants.manufacturerCompanyId],
+      );
+
+      expect(device, isA<CombustionProbe>());
+    });
+
+    test('empty name with Combustion manufacturer ID matches CombustionProbe',
+        () async {
+      final device = await DeviceMatcher.matchFromScanMetadata(
+        transport: mockTransport,
+        advertisedName: '',
+        manufacturerCompanyIds: [CombustionConstants.manufacturerCompanyId],
+      );
+
+      expect(device, isA<CombustionProbe>());
+    });
+
+    test('Probe Status UUID in scan response matches CombustionProbe', () async {
+      final device = await DeviceMatcher.matchFromScanMetadata(
+        transport: mockTransport,
+        advertisedName: '',
+        serviceUuids: [CombustionConstants.probeStatusServiceUuid],
+      );
+
+      expect(device, isA<CombustionProbe>());
+    });
+
+    test('name rules take precedence over metadata', () async {
+      final device = await DeviceMatcher.matchFromScanMetadata(
+        transport: mockTransport,
+        advertisedName: 'Decent Scale',
+        manufacturerCompanyIds: [CombustionConstants.manufacturerCompanyId],
+        serviceUuids: [CombustionConstants.probeStatusServiceUuid],
+      );
+
+      expect(device, isA<DecentScale>());
+    });
+
+    test('returns null for unrelated manufacturer ID and service UUIDs',
+        () async {
+      final device = await DeviceMatcher.matchFromScanMetadata(
+        transport: mockTransport,
+        advertisedName: '',
+        manufacturerCompanyIds: [0x004C],
+        serviceUuids: ['0000180f-0000-1000-8000-00805f9b34fb'],
+      );
+
+      expect(device, isNull);
+    });
+
+    test('existing name matchers still work without metadata', () async {
+      final device = await DeviceMatcher.matchFromScanMetadata(
+        transport: mockTransport,
+        advertisedName: 'Difluid R2',
+      );
+
+      expect(device, isA<DifluidR2Sensor>());
     });
   });
 }
