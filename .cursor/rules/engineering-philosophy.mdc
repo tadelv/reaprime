@@ -1,0 +1,270 @@
+---
+description: Core engineering philosophy and values
+globs: ["**/*"]
+alwaysApply: false
+---
+
+# Engineering Philosophy
+
+**Design goals:** Priority is Safety, then Performance, then Developer Experience.
+
+## Core Beliefs
+
+### 1.1 Simplicity is a Feature (CRIT)
+
+**CRITICAL:** Every line of code is a liability. The best code is code you didn't write.
+
+❌ Bad: `class Service { func get() { return repo.get() } }` (unnecessary layer)
+✅ Good: Delete unnecessary layers, prefer deletion over addition
+⚠️ Why: Complexity kills maintainability, increases bugs, slows development
+🔧 Fix: Fight complexity; delete code that doesn't add value
+📍 See: `general-llm-anti-patterns.mdc` section 1.1 (Ghost Layer Prevention)
+
+**Detect:** Unnecessary abstractions, wrapper classes, code that adds no value
+
+---
+
+### 1.1a Simplicity is the Hardest Revision
+
+**CRITICAL:** Real simplicity comes from iteration and "throw one away," not from the first attempt.
+
+❌ Bad: Shipping first draft as "simple", no revision passes, assuming simple = quick
+✅ Good: Multiple passes to simplify; revise until design is minimal and clear
+⚠️ Why: First attempt is rarely simplest; iteration reveals the super idea that solves axes together
+🔧 Fix: Budget revision time; simplify after it works
+📍 See: `engineering-philosophy.mdc` section 1.3 (Make it Work, Make it Right, Make it Fast)
+
+**Detect:** One-pass "simple" solutions, no design revision, complexity defended as "good enough"
+
+---
+
+### 1.1b Zero Showstopper Policy
+
+**CRITICAL:** Don't ship known critical bugs or unbounded risks; fix showstoppers before merge.
+
+❌ Bad: Merging with known unbounded loops, unbounded queues, or critical correctness bugs "to fix later"
+✅ Good: Bounded loops/queues, fail-fast on limits, fix showstoppers in design or implementation before merge
+⚠️ Why: The second time may not transpire; shipping known critical debt undermines progress
+🔧 Fix: Enforce bounded iteration and fail-fast; resolve critical issues before merge
+📍 See: `general-llm-anti-patterns.mdc` section 2.4 (Bounded loops and queues)
+
+**Detect:** Unbounded loops or queues, known critical bugs deferred, merge with "we'll fix later" on showstoppers
+
+---
+
+### 1.2 Boring Technology Wins (CRIT)
+
+**CRITICAL:** Choose tools with decade-long track records over trendy alternatives.
+
+❌ Bad: `import "github.com/new-hot-framework"` (trendy, unproven)
+✅ Good: `import "net/http"` (standard library, battle-tested)
+⚠️ Why: Let others discover edge cases; proven tech reduces risk
+🔧 Fix: Prefer standard library, established tools, proven patterns
+📍 See: `general-llm-anti-patterns.mdc` section 0.4 (Resume-Driven Development)
+
+**Detect:** New frameworks for simple tasks, trendy databases, unproven tools
+
+---
+
+### 1.3 Make it Work, Make it Right, Make it Fast
+
+**CRITICAL:** Optimization order: functionality first, correctness second, performance last.
+
+❌ Bad: Premature optimization, complex solution before simple works
+✅ Good: Get it running, clean it up, optimize with data
+⚠️ Why: Premature optimization wastes time, adds complexity, optimizes wrong things
+🔧 Fix: Measure first, optimize hot paths only, use data to guide decisions
+📍 See: `general-llm-anti-patterns.mdc` section 0.3 (Hypothetical Futures)
+
+**Detect:** Optimization before profiling, complex solutions for unproven needs
+
+---
+
+### 1.4 Agent-Optimized Design (CRIT)
+
+**CRITICAL:** Design codebases for agent efficiency, not just human readability.
+
+❌ Bad: Code structure optimized only for human navigation, unclear file organization, inconsistent patterns, non-standard layouts
+✅ Good: Clear structure following conventions agents are trained on, consistent patterns, obvious file organization, standard project layouts (docs/, src/, tests/)
+⚠️ Why: Agents work faster and more accurately when codebase follows predictable patterns they're trained on; fighting model conventions wastes tokens and time
+🔧 Fix: Use standard project structures, consistent naming, clear separation of concerns, follow established patterns from training data
+📍 See: `general-llm-anti-patterns.mdc` section 9.1 (UI-First Development Anti-Pattern)
+
+**Detect:** Unclear project structure, inconsistent patterns, files in unexpected locations, non-standard layouts, custom patterns requiring explanation
+
+---
+
+### 1.5 Core Logic-First Development (CRIT)
+
+**CRITICAL:** Start new features by building core business logic/testable domain layer before UI/API layers.
+
+❌ Bad: Building UI/API first, complex web interface before core logic works, UI tightly coupled to business logic, SwiftUI views before domain layer
+✅ Good: Build core logic first (CLI, domain layer, or testable interfaces), verify logic works, then add UI/API layer, keep UI as thin layer over core
+⚠️ Why: Core logic layer is faster to build/test, agents can verify output directly, reduces complexity, enables faster iteration, clearer separation of concerns
+🔧 Fix: Always start with core logic/domain layer for new features; add UI/API only after logic is verified; for iOS/Swift: build Domain layer (Pure Swift) first, then Presentation layer (SwiftUI)
+
+**Exception:** Pure UI apps with minimal business logic may iterate rapidly between UI and logic.
+
+📍 See: `general-llm-anti-patterns.mdc` section 9.1, `swift-5-9-development-standards.mdc` section "Architectural Layers"
+
+**Detect:** Building UI before core logic, complex interfaces before domain layer, skipping testable logic layer, business logic embedded in UI layer, SwiftUI views importing SwiftData/MusicKit directly
+
+---
+
+### 1.6 Continuous Refactoring (CRIT)
+
+**CRITICAL:** Fix issues as they appear, don't defer to dedicated refactor days.
+
+❌ Bad: Deferring refactoring to "later", accumulating technical debt, waiting for dedicated refactor days, "we'll fix this later" patterns
+✅ Good: Fix issues immediately when noticed, refactor ad-hoc during development, address problems as they appear, refactor when prompts take too long
+⚠️ Why: Prevents debt accumulation, keeps codebase clean, easier to fix when context is fresh, reduces future effort, poor code quality slows agent work
+🔧 Fix: Address issues immediately when noticed, don't defer refactoring, fix problems during development, refactor when code quality impacts efficiency
+
+**Refactoring Triggers:**
+- Prompts taking longer than expected
+- Seeing complex/ugly code in agent stream
+- Code that confuses agents
+- Patterns that slow down development
+
+**Detect:** TODO comments for refactoring, deferred improvements, accumulating technical debt, ignoring agent inefficiency, waiting for dedicated refactor time
+
+---
+
+## Unix Philosophy
+
+| Principle | Detect |
+|-----------|--------|
+| Do one thing well | Multiple responsibilities, God objects |
+| Expect output to become input | Tight coupling, non-composable interfaces |
+| Fail fast, fail loudly | Silent failures, generic error handling |
+| Small is beautiful | Large files, complex modules |
+
+---
+
+## Beautiful Code Principles
+
+### 2.1 Intention-Revealing Names (CRIT)
+
+**CRITICAL:** Code should explain itself through names.
+
+❌ Bad: `func process(d Data)`, `var x int`
+✅ Good: `func validateGitHubWebhook(r *Request)`, `var requestCount int`
+⚠️ Why: Reduces need for comments, improves readability, self-documenting
+🔧 Fix: Use descriptive names, avoid abbreviations, match domain language
+
+**Detect:** Single-letter variables, abbreviations, unclear function names
+
+---
+
+### 2.1a Naming Conventions (Units and Alignment)
+
+**CRITICAL:** Put units or qualifiers last in names; use same-length related names for alignment.
+
+❌ Bad: `max_latency_ms`, `min_latency_ms` (qualifier first); `src` and `destination` (misaligned)
+✅ Good: `latency_ms_max`, `latency_ms_min` (grouping); `source` and `target` (same length, align in code)
+⚠️ Why: Qualifier-last groups related vars; same-length names line up and reduce symmetry bugs
+🔧 Fix: Put units/qualifiers last; choose related names with same character count where it helps readability
+📍 See: `engineering-philosophy.mdc` section 2.1 (Intention-Revealing Names)
+
+**Detect:** Qualifier-first naming (max_*), mismatched lengths for related pairs (src/dest), no units in names
+
+---
+
+### 2.2 Consistent Abstraction Levels
+
+**CRITICAL:** Don't mix high-level strategy with low-level tactics.
+
+❌ Bad: `func handle() { if err := db.Query(); err != nil { log.Fatal(err) } }` (mixes HTTP handling with DB details)
+✅ Good: Separate layers: handler → service → repository
+⚠️ Why: Violates SRP, hard to test, unclear responsibilities
+🔧 Fix: One abstraction level per function, separate concerns
+
+**Detect:** High-level functions with low-level details, mixed concerns
+
+---
+
+### 2.3 No Surprises
+
+**CRITICAL:** Functions must do exactly what their names say.
+
+❌ Bad: `func validate() { /* also saves to database */ }`
+✅ Good: `func validate() error` (only validates, no side effects)
+⚠️ Why: Surprises cause bugs, violate expectations, break trust
+🔧 Fix: Functions do one thing, match name to behavior, no hidden side effects
+
+**Detect:** Functions with side effects not in name, multiple responsibilities
+
+---
+
+### 2.4 Minimal Surface Area
+
+**CRITICAL:** Hide what doesn't need exposure.
+
+❌ Bad: `type Service struct { db *DB; cache *Cache; logger *Logger }` (all exported)
+✅ Good: `type Service struct { db *db; cache *cache; logger *logger }` (unexported)
+⚠️ Why: Reduces coupling, enables refactoring, clearer API
+🔧 Fix: Export only what's needed, use internal/ packages, hide implementation
+
+**Detect:** Exported fields that should be private, public APIs too large
+
+---
+
+### 2.5 Function Shape and Control Flow
+
+**CRITICAL:** Prefer small functions; centralize branching in the caller; keep leaf logic non-branchy ("push ifs up and fors down").
+
+❌ Bad: Leaf functions full of if/else; caller does only one thing; control flow scattered
+✅ Good: Parent handles all switch/if; leaf functions compute or transform without branching
+⚠️ Why: Centralized control flow is easier to reason about; leaf functions are testable and reusable
+🔧 Fix: Move conditionals to caller; extract non-branchy logic to helpers; one function owns control flow
+📍 See: `general-llm-anti-patterns.mdc` Category 1 (Architectural Anti-Patterns)
+
+**Detect:** Leaf functions with many branches, control flow duplicated across layers, callers that only forward
+
+---
+
+### 2.6 Always Say Why
+
+**CRITICAL:** Motivate decisions in comments and docs so readers can evaluate and comply.
+
+❌ Bad: Comments that only state what the code does; decisions with no rationale
+✅ Good: Brief "why" for non-obvious decisions; rationale in commit body and key comments
+⚠️ Why: Rationale increases understanding and adherence; shares criteria for evaluating the decision
+🔧 Fix: Add why for non-obvious choices; keep rationale brief; cross-ref documentation-policy for comment style
+📍 See: `documentation-policy.mdc` (Inline comments: say why and how)
+
+**Detect:** No rationale for non-obvious code, comments only describe what, decisions unexplained
+
+---
+
+### 2.7 Cooperative, Right-Sized Communication (CRIT)
+
+**CRITICAL:** Agent↔user and review prose (commits, PRs, status) is cooperative, right-sized, and answer-first. Complements §2.6 (code comments).
+
+❌ Bad: Essay answers to simple asks; buried lede; generic "done" without paths or verification status
+✅ Good: Outcome first; proportional depth; evidence or explicit "verification pending" with commands attempted
+⚠️ Why: Readers need the result and trust signal first; verbosity and under-answer both waste time
+🔧 Fix: Match information units to task; lead with answer; cross-ref cooperative communication rules for detail
+📍 See: `general-llm-anti-patterns.mdc` §9.6–9.8, `critical-rules-quick-reference.mdc` Cooperative Communication
+
+**Detect:** Long preamble before answer, one-liner when design tradeoffs requested, completion without paths/evidence
+
+---
+
+## Optimization Priorities
+
+| Priority | Detect |
+|----------|--------|
+| Readability | Complex code, unclear names, deep nesting |
+| Debuggability | Silent failures, no logging, unclear errors |
+| Operability | No health checks, no graceful shutdown, no metrics |
+| Simplicity | Complex solutions, over-engineering, premature abstraction
+
+**Performance from design:** Consider network, disk, memory, and CPU early; do back-of-the-envelope sketches for hot paths. The biggest performance wins come in the design phase. See `general-llm-anti-patterns.mdc` Category 2 (Performance Anti-Patterns).
+
+---
+
+## References
+
+- `general-llm-anti-patterns.mdc` - Related anti-patterns
+- Language-specific standards files for implementation details

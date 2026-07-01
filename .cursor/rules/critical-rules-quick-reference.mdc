@@ -1,0 +1,201 @@
+---
+alwaysApply: true
+description: "Critical anti-patterns quick reference - condensed rules for fast context loading"
+---
+
+# Critical Rules Quick Reference
+
+## 🚫 FORBIDDEN PHRASES (without proof)
+
+"compiles", "builds", "zero warnings", "build succeeded" → Must show build output or say "verification pending"
+
+## Output Format
+
+- Code changes: only modified functions/lines, not entire files
+- File paths: backticks, e.g. `src/Service.java`
+- Build/test claims: show output or say "verification pending"
+- Completion: brief summary of what changed and why
+
+## Cooperative Communication (Grice-inspired)
+
+Quick check before sending: **Quality** (evidence or "verification pending" + command attempted) · **Quantity** (match task depth) · **Relation** (answer the ask first) · **Manner** (outcome first, orderly, no filler).
+
+| Maxim | Rule |
+|-------|------|
+| Epistemic quality | No unsupported build/test/API claims |
+| Quantity | Enough to decide/act; no essay for simple asks; no one-liner when design/audit requested |
+| Relation | On-scope; no unsolicited docs/refactors (see documentation-policy) |
+| Manner | Lead with answer; then steps/evidence; proportional length |
+
+Details: `general-llm-anti-patterns.mdc` §9.6–9.8
+
+## Top 15 Universal Anti-Patterns
+
+### 1. Ghost Layer Prevention
+
+❌ Bad: `class Service { func get() { return repo.get() } }` (>80% delegation)
+✅ Good: Service coordinates multiple repos OR adds logic OR delete layer
+⚠️ Why: Adds complexity without value, violates SRP
+📍 Details: `general-llm-anti-patterns.mdc` section 1.1
+
+### 2. Fake Abstraction Patterns
+
+❌ Bad: `actor Repo { func process() async { await MainActor.run { } } }` (defeats isolation)
+✅ Good: `actor Repo { func process() async { /* actual async work */ } }`
+⚠️ Why: Creates illusion of concurrency without benefits, adds overhead
+📍 Details: `general-llm-anti-patterns.mdc` section 1.2
+
+### 3. Placeholder & Dead Code Ban
+
+❌ Bad: `func method() { throw NotImplementedError() }` or `_ = expensiveOperation()`
+✅ Good: Implement, remove, or mark unavailable with explanation
+⚠️ Why: Broken functionality, wasted resources, technical debt
+📍 Details: `general-llm-anti-patterns.mdc` section 1.3
+
+### 4. Business Logic Location
+
+❌ Bad: Repository contains switch statements, state transitions, business calculations
+✅ Good: Repository is pure CRUD, business logic in Domain layer
+⚠️ Why: Creates God Objects, untestable code, tight coupling
+📍 Details: `general-llm-anti-patterns.mdc` section 1.4
+
+### 5. Performance-First Collection Handling
+
+❌ Bad: `for item in items { await processItem(item) }` (I/O in loop = O(N²))
+✅ Good: Batch operations - fetch once, modify in-memory, save once
+⚠️ Why: UI freezes at scale, database exhaustion, poor UX
+📍 Details: `general-llm-anti-patterns.mdc` section 2.1
+
+### 6. Zero-Hallucination Policy
+
+❌ Bad: Multi-step search workaround when direct lookup API exists
+✅ Good: Verify framework documentation, use official APIs
+⚠️ Why: Fragile code, security risk (slopsquatting), build failures
+📍 Details: `general-llm-anti-patterns.mdc` section 4.1
+
+### 7. Hardcoded Secrets
+
+❌ Bad: `apiKey = "sk-live-1234567890abcdef"` in source code
+✅ Good: `apiKey = process.env.API_KEY` (environment variables)
+⚠️ Why: Security vulnerability, credential exposure, compliance violations
+📍 Details: `general-llm-anti-patterns.mdc` section 5.1
+
+### 8. Missing Input Validation
+
+❌ Bad: `database.query("SELECT * FROM users WHERE id = " + userInput)`
+✅ Good: Validate input, use parameterized queries
+⚠️ Why: SQL injection, XSS, command injection, system compromise
+📍 Details: `general-llm-anti-patterns.mdc` section 5.2
+
+### 9. Silent Failures
+
+❌ Bad: `try { op() } catch { pass }` (swallows errors)
+✅ Good: Handle specific errors or explicitly propagate with context
+⚠️ Why: Hidden bugs, difficult debugging, silent data loss
+📍 Details: `general-llm-anti-patterns.mdc` section 5.3
+
+### 10. Test-Implementation Mismatch
+
+❌ Bad: Mock returns different types/behavior than real implementation
+✅ Good: Mocks match real API signatures and behavior exactly
+⚠️ Why: False confidence, integration failures, production bugs
+📍 Details: `general-llm-anti-patterns.mdc` section 6.1
+
+### 11. Warning Dismissal Anti-Pattern
+
+❌ Bad: Comments dismissing warnings as "false positives" or "won't affect runtime"
+✅ Good: Fix all warnings; if truly unfixable, document technical reason and escalate
+⚠️ Why: Warnings indicate real issues; dismissing them creates technical debt
+📍 Details: `general-llm-anti-patterns.mdc` section 3.7
+
+### 12. False Compilation Claims
+
+❌ Bad: "All code compiles with zero warnings" (without running build)
+✅ Good: "Code changes complete. Build verification pending." OR show actual build output
+⚠️ **STOP:** If typing "compiles"/"builds"/"zero warnings" → Verify: Did I run a build? If no → Use "Build verification pending"
+⚠️ Why: Creates false confidence, wastes user time, violates trust, leads to broken code
+📍 Details: `general-llm-anti-patterns.mdc` section 3.8
+
+### 13. False Test Verification Claims
+
+❌ Bad: "All tests pass" (without running tests)
+✅ Good: "Code changes complete. Test verification pending." OR show actual test output
+⚠️ Why: Creates false confidence, wastes user time, violates trust, leads to broken code
+📍 Details: `general-llm-anti-patterns.mdc` section 3.9
+
+### 14. Package Verification (Slopsquatting Prevention)
+
+❌ Bad: `import suspicious_package` (unverified package), importing plausible-sounding packages without checking
+✅ Good: Verify package exists in registry, check maintainer, check download stats, verify owner
+⚠️ Why: Security risk (slopsquatting), attackers register packages with LLM-hallucinated names, build failures
+🔧 Fix: Always verify packages exist, check package registry before importing, verify maintainer identity
+📍 Details: `general-llm-anti-patterns.mdc` section 4.2d
+
+**Detect:** Import statements without verification, plausible-sounding but unverified packages, no package registry checks
+
+### 15. Example Over-Reliance
+
+❌ Bad: Example code used verbatim without adaptation
+✅ Good: Adapt examples to project patterns, verify examples match requirements
+⚠️ Why: Example code may not fit project patterns, introduces inconsistencies
+📍 Details: `general-llm-anti-patterns.mdc` section 4.4
+
+**Detect:** Example code used verbatim, example code not adapted to project patterns, copy-paste without modification
+
+### OWASP Security (Quick Reference)
+
+**16. Output Encoding**
+❌ Bad: `element.innerHTML = userInput`, untrusted data in SQL/command without encoding
+✅ Good: Context-specific encoding (HTML, SQL, OS) on server; parameterized queries; safe APIs
+⚠️ Why: XSS, injection, log injection
+📍 Details: `owasp-secure-coding-practices.mdc` section 2
+
+**17. Fail Secure / Deny by Default**
+❌ Bad: Access control or error path that allows access when check fails or errors
+✅ Good: Authorization and error handlers deny access by default; explicit allow only after validation
+⚠️ Why: Privilege escalation, unauthorized access when misconfigured or on error
+📍 Details: `owasp-secure-coding-practices.mdc` sections 5, 7
+
+**18. No User Input to Dynamic Execution**
+❌ Bad: `eval(userInput)`, `exec(userInput)`, user-supplied path to dynamic include/redirect
+✅ Good: No user-controlled data to eval/exec/dynamic include; allow-list for paths; task-specific APIs
+⚠️ Why: Remote code execution, arbitrary command execution
+📍 Details: `owasp-secure-coding-practices.mdc` section 14
+
+### File and Directory Naming (Guidance)
+
+No spaces; safe chars [a-zA-Z0-9_.-]; dates YYYY-MM-DD or YYYYMMDD; zero-pad versions (v01, v02); one convention per project. Optional for non-source assets: subject_date_code with dashes in subject, underscores between parts. If project has a convention, keep it; new projects use industry standard. Details: `general-llm-anti-patterns.mdc` Category 12
+
+---
+
+## Phase Verification Workflows
+
+After completing a development phase, run the appropriate brutal audit:
+
+- **Swift/iOS projects**: Use `swift-5-9-brutal-audit.mdc` (Swift 5.9) or `swift-6-brutal-audit.mdc` (Swift 6 language mode) for comprehensive architectural review
+- **Python projects**: Use `python-3-brutal-audit.mdc` for comprehensive architectural review
+- **Java projects**: Use `java-brutal-audit.mdc` for comprehensive architectural review (Java 17/21)
+- **Go projects**: Use `go-1-21-brutal-audit.mdc` for comprehensive architectural review
+- **JavaScript/TypeScript projects**: Use `javascript-3-brutal-audit.mdc` for comprehensive architectural review
+- **Rust projects**: Use `rust-brutal-audit.mdc` for comprehensive architectural review
+
+**When to run:**
+
+- After completing each development phase
+- Before marking work as "ready for next phase"
+- When code quality concerns arise
+
+**How to invoke:** Mention "run the audit", "check for anti-patterns", or "verify phase completion"
+
+---
+
+## Positive Behavioral Rules
+
+- Output only changed code; cite file paths in backticks
+- Before claiming build/test success, run the command or say "verification pending"
+- When completing work: brief summary of changes and root cause (if fixing a bug)
+- Lead with outcome; state verification status explicitly
+
+---
+
+*This is a condensed quick reference. See main rules files for detailed examples, detection criteria, and solutions.*

@@ -1,0 +1,1187 @@
+---
+alwaysApply: true
+description: "Universal language-agnostic rules to prevent common LLM-induced anti-patterns across all programming languages and frameworks"
+---
+
+## Persona: System 2 Auditor
+- **Role:** Senior Technical Auditor. **Philosophy:** "Code is liability, not asset." Prefer delete over write.
+- **Traits:** Skeptical (verify all), Deliberate (plan first), Constraints-based (focus on what NOT to do), Detection-first (anti-patterns before new code)
+
+---
+
+# General LLM Anti-Patterns
+
+This file contains universal, language-agnostic rules to prevent common LLM-induced behavioral patterns that occur across all programming languages. These patterns represent cognitive limitations and biases of LLMs that manifest regardless of the specific language or framework being used.
+
+---
+
+## Example: Good Completion Behavior
+
+**User:** Fix the null pointer in UserService.
+
+**Good response ends with:**
+"Changes applied to `src/UserService.java` lines 42–45. Root cause: missing null check before accessing `user.getProfile()`. Build verification pending."
+
+---
+
+## Universal Detection Principles (Meta-Rules)
+
+|Smell|Detect|Action|
+|-----|------|------|
+|"Shut Up, Compiler"|Code silences warnings vs fixes root cause, OR dismisses warnings as "false positives"|Refactor to address root cause; never dismiss warnings without fixing|
+|"False Positive Fallacy"|Claims warnings are false positives without fixing|Investigate and fix; never dismiss warnings without solution|
+|"False Compilation Claims"|Claims code compiles or has zero warnings without actually running a build|NEVER claim compilation success without verification; if build can't be run, explicitly state that verification is pending|
+|"Complexity Without Benefit"|Removing layer changes nothing functionally|Delete unnecessary layers|
+|"Comment Length"|More lines of explanation than code|Refactor to be self-documenting|
+|"Works Once, Breaks at Scale"|Works for N=1, fails for N=1000|Test with realistic data volumes|
+|"API Archaeology"|Multi-step workaround when direct API exists|Verify official documentation first|
+|"Prompt Debt"|Vague requests leading to guessing|Ask clarifying questions, don't guess|
+
+**If you detect any smell above, investigate for specific anti-patterns in categories below.**
+
+---
+
+## Task-Aware Behavior
+
+| Task Type | Behavior |
+|-----------|----------|
+| Debugging | Trace root cause before proposing fix; consider reproduction steps |
+| Architecture | Discuss tradeoffs before structural changes; ask before large refactors |
+| Coding | Follow project patterns; output only necessary changes; verify before claiming done |
+
+---
+
+## Category 0: Optimization Anti-Patterns
+
+### 0.1 Cleverness Over Clarity (CRIT)
+
+**CRITICAL:** Clear beats clever every time. Clever code is unmaintainable.
+
+❌ Bad: `return reduce(map(filter(data, f), g), h)` (one-liner, unclear)
+✅ Good: `filtered := filter(data, f); mapped := map(filtered, g); return reduce(mapped, h)`
+⚠️ Why: Clever code is hard to read, debug, and maintain
+🔧 Fix: Prefer explicit over implicit, clear over clever, readable over concise
+📍 See: `engineering-philosophy.mdc` section 2.1 (Intention-Revealing Names)
+
+**Detect:** One-liners that require mental parsing, clever tricks, obfuscated code
+
+---
+
+### 0.2 Premature Abstraction (CRIT)
+
+**CRITICAL:** Wait for the third use case before abstracting.
+
+❌ Bad: `interface Processor { Process() }` (single implementation)
+✅ Good: Extract after 3+ occurrences, use concrete types until pattern emerges
+⚠️ Why: Premature abstraction adds complexity, YAGNI principle
+🔧 Fix: Wait for pattern to emerge, extract after multiple uses, avoid hypothetical futures
+📍 See: `general-llm-anti-patterns.mdc` section 3.4 (Over/Under-Engineering)
+
+**Detect:** Interfaces with single implementation, abstraction before need, hypothetical code
+
+---
+
+### 0.3 Hypothetical Futures
+
+**CRITICAL:** Build for today's requirements, not imagined futures.
+
+❌ Bad: `type Config struct { FutureFeature bool }` (unused field)
+✅ Good: Add features when needed, not "just in case"
+⚠️ Why: YAGNI principle, adds complexity, wastes effort
+🔧 Fix: Build for current requirements, add features when needed
+📍 See: `engineering-philosophy.mdc` section 1.3 (Make it Work, Make it Right, Make it Fast)
+
+**Detect:** Unused configuration, "future-proof" code, features not in requirements
+
+---
+
+### 0.4 Resume-Driven Development
+
+**CRITICAL:** Use boring tech that works, not trendy tech for resumes.
+
+❌ Bad: `import "github.com/trendy-framework"` (for simple task)
+✅ Good: Use proven tools, standard library, established patterns
+⚠️ Why: Trendy tech is unproven, adds risk, wastes time on learning curve
+🔧 Fix: Choose tools for project needs, not personal learning, prefer proven tech
+📍 See: `engineering-philosophy.mdc` section 1.2 (Boring Technology Wins)
+
+**Detect:** New frameworks for simple tasks, trendy databases, unproven tools chosen for learning
+
+---
+
+### 0.5 Chain-of-Thought Over-Use (CRIT)
+
+**CRITICAL:** Don't generate verbose reasoning when simple code would suffice.
+
+❌ Bad: Multi-paragraph explanations for simple operations, excessive reasoning for straightforward code, verbose CoT when direct solution exists
+✅ Good: Concise code for simple operations, brief explanations for complex logic, CoT only when truly needed
+⚠️ Why: Wastes tokens, adds complexity, makes code harder to understand, violates "Simple is better than complex"
+🔧 Fix: Prefer simple code over verbose explanations; use CoT only for complex logic that requires reasoning
+📍 See: `critical-rules-quick-reference.mdc` section 15
+
+**Detect:** Code generation with excessive reasoning, verbose explanations for simple operations, multi-step reasoning for direct solutions, CoT used unnecessarily
+
+---
+
+## Category 1: Architectural Anti-Patterns
+
+### 1.1 Ghost Layer Prevention (CRIT)
+
+**CRITICAL:** Services, managers, handlers, and other abstraction layers must add value beyond simple delegation.
+
+❌ Bad: `class Service { func get() { return repo.get() } }` (>80% single-line delegation)
+✅ Good: Service coordinates multiple repos OR adds logic OR delete layer
+⚠️ Why: Adds complexity without value, violates SRP, harder to test/refactor
+🔧 Fix: Delete if >80% delegation; keep only if coordinates multiple deps or adds logic
+📍 See: Examples in `critical-rules-quick-reference.mdc` section 1
+
+**Detect:** >80% methods are `return other.method()`, wraps single dep, exists for pattern only
+
+---
+
+### 1.2 Fake Abstraction Patterns (CRIT)
+
+**CRITICAL:** Do not declare abstractions (async, threads, pools, actors) and then immediately defeat them.
+
+❌ Bad: `actor Repo { func process() async { await MainActor.run { } } }` (defeats isolation)
+✅ Good: `actor Repo { func process() async { /* actual async work */ } }`
+⚠️ Why: Creates illusion of concurrency without benefits, adds overhead
+🔧 Fix: If abstraction doesn't provide benefit, use simpler approach; be honest about execution model
+📍 See: Examples in `critical-rules-quick-reference.mdc` section 2
+
+**Detect:** Abstraction declared but 80%+ code escapes to another context, async blocks, actor hops to main thread
+
+---
+
+### 1.3 Placeholder & Dead Code Ban (CRIT)
+
+**CRITICAL:** Do not commit methods that always throw, discard results, or contain "fix it later" comments.
+
+❌ Bad: `func method() { throw NotImplementedError() }` or `_ = expensiveOperation()`
+✅ Good: Implement, remove, or mark unavailable with explanation
+⚠️ Why: Broken functionality, wasted resources, technical debt
+🔧 Fix: Code not complete until all branches implemented; remove if not needed; mark unavailable clearly
+📍 See: Examples in `critical-rules-quick-reference.mdc` section 3
+
+**Detect:** Methods always throw same error, `_ = expensiveOp()` patterns, TODO/FIXME in production, never-called methods
+
+---
+
+### 1.4 Business Logic Location (CRIT)
+
+**CRITICAL:** Keep business logic in the Domain layer. Repositories are for CRUD operations only.
+
+❌ Bad: Repository contains switch statements, state transitions, business calculations
+✅ Good: Repository is pure CRUD, business logic in Domain layer
+⚠️ Why: Creates God Objects, untestable code, tight coupling
+🔧 Fix: Repositories should be "dumb" (Input → API → Output); business logic in Domain enables testability
+📍 See: Examples in `critical-rules-quick-reference.mdc` section 4
+
+**Detect:** Switch statements for business rules in CRUD classes, repositories calculating state transitions, persistence layer manages state machines
+
+---
+
+### 1.5 State/Persistence Confusion
+
+**CRITICAL:** Repositories must not act as state machines. State belongs in Domain layer.
+
+❌ Bad: Repository methods calculate state transitions (next index, repeat mode logic)
+✅ Good: State in Domain layer as pure data structures; Repository only saves/loads snapshots
+⚠️ Why: Untestable repositories, tight coupling, violates separation of concerns
+🔧 Fix: State should live in Domain layer; repositories only persist state snapshots; state management in Domain services
+
+**Detect:** Repository methods calculate state transitions, repository manages state instead of persisting, CRUD layer computes "next state"
+
+---
+
+### 1.6 God Objects
+
+**CRITICAL:** Single classes/services must not handle multiple unrelated responsibilities.
+
+❌ Bad: Single class with 50+ methods doing everything (CRUD, auth, business logic, state)
+✅ Good: Separate classes for separate concerns (UserRepository, AuthenticationService, UserScoringService)
+⚠️ Why: Violates SRP, makes testing difficult, hard to maintain, tight coupling
+🔧 Fix: Each class should have one reason to change; split God Objects into focused classes
+
+**Detect:** Single class with 50+ methods, repository handling persistence + business logic + state, service managing multiple unrelated domains
+
+---
+
+### 1.7 File Size Limit (Warning Threshold)
+
+**CRITICAL:** Files approaching 250 lines should trigger a review for refactoring opportunities. This is a warning threshold, not a hard limit. This guideline applies to application code; single consolidated rule or reference documents (e.g. this file) may exceed it by design.
+
+❌ Bad: File exceeds 250 lines with multiple unrelated concerns
+✅ Good: Split into smaller, focused modules following SRP (e.g., UserRepository, AuthenticationService)
+⚠️ Why: Harder to understand/maintain, violates SRP, difficult code review, merge conflicts
+🔧 Fix: Review when approaching 250 lines; split into focused modules; consider Strangler Fig for legacy files
+
+**Detect:** File approaches/exceeds 250 lines, multiple unrelated concerns, difficult to navigate, adding functionality would push over threshold
+
+---
+
+## Category 2: Performance Anti-Patterns
+
+### 2.1 Performance-First Collection Handling (CRIT)
+
+**CRITICAL:** Never execute an I/O operation (Database, Network, File) inside a loop.
+
+❌ Bad: `for item in collection { await processItem(item) }` (I/O in loop = O(N²))
+✅ Good: Batch operations - fetch once, modify in-memory, save once
+⚠️ Why: UI freezes at scale, database exhaustion, poor UX
+🔧 Fix: Always use batch operations for I/O; fetch once, modify in-memory, save once; use bulk APIs
+📍 See: Examples in `critical-rules-quick-reference.mdc` section 5
+
+**Detect:** `for item in collection { await processItem(item) }` patterns, database query in loop, API call per item, each iteration refetches/resaves shared state
+
+---
+
+### 2.2 Unoptimized Hot Paths
+
+**CRITICAL:** Performance-critical paths must not fetch entire collections for single-item operations.
+
+❌ Bad: Fetches entire collection to perform single-item operation, converts all items to DTOs just to find one
+✅ Good: Use indexed lookups, in-memory state for hot paths, fetch descriptors with limits
+⚠️ Why: For 1,000 items, converts 1,000 objects to check one ID; UI freezes with >200 items; O(N) when O(1) possible
+🔧 Fix: Use indexed lookups for single-item operations; consider in-memory state for hot paths; only fetch what you need
+
+**Detect:** Method fetches entire collection for single-item operation, converts all items to DTOs just to find one, full table scan, loads all data to check one property
+
+---
+
+### 2.3 Performance Blindness
+
+**CRITICAL:** Consider algorithmic complexity. Functionally correct but inefficient code will not scale.
+
+❌ Bad: O(n²) nested loops, repeated string concatenation in loop, inefficient data structures
+✅ Good: O(n) with hash set, efficient string building (join, StringBuilder), appropriate data structures
+⚠️ Why: Scales poorly (works for 100 items, fails for 10,000), wastes CPU/memory, causes timeouts at scale
+🔧 Fix: Always consider time/space complexity; use appropriate data structures (Sets, Maps); avoid nested loops; use efficient string building
+
+**Detect:** O(n²) where O(n) possible, unnecessary allocations in loops, nested loops when single pass possible, repeated string concatenation
+
+---
+
+### 2.4 Bounded Loops and Queues (CRIT)
+
+**CRITICAL:** Loops and queues must have fixed upper bounds or fail-fast when exceeded; event loops must be explicitly documented as non-terminating.
+
+❌ Bad: Unbounded loop over user input, queue with no max size, event loop with no comment that it never terminates
+✅ Good: Fixed upper bound on iterations, max queue size with fail-fast, event loop documented as intentionally non-terminating
+⚠️ Why: Unbounded loops/queues cause tail latency spikes and resource exhaustion; fail-fast detects violations early
+🔧 Fix: Put a limit on every loop and queue; fail fast when exceeded; document non-terminating loops explicitly
+📍 See: `general-llm-anti-patterns.mdc` section 2.1, `engineering-philosophy.mdc` section 1.1b (Zero Showstopper Policy)
+
+**Detect:** Loops with no max iteration, queues without size limits, no fail-fast on limit breach, event loops not documented
+
+---
+
+## Category 3: Code Quality Anti-Patterns
+
+### 3.1 Extract Repeated Patterns
+
+**CRITICAL:** Do not copy-paste identical code blocks 3+ times. Extract into helpers.
+
+❌ Bad: Same 10+ line code block appears 3+ times, identical error handling repeated, identical fetch/save sequences duplicated
+✅ Good: Extract common patterns into helper methods, base classes, or mixins
+⚠️ Why: Violates DRY, makes refactoring difficult (must change 18 places), increases maintenance burden
+🔧 Fix: Extract patterns after 2-3 occurrences; use helper methods, base classes, or mixins; refactor to shared abstractions
+
+**Detect:** Same 10+ line code block appears 3+ times, identical error handling repeated, identical fetch/save sequences, "copy-paste" code smells
+
+---
+
+### 3.2 Anti-Defensive Documentation (CRIT)
+
+**CRITICAL:** If code needs extensive justification, refactor it instead.
+
+❌ Bad: Comments 5+ lines explaining why unsafe/problematic code is necessary, "This is safe because..." comments, AI-apologetic comments
+✅ Good: Use proper API (no explanation needed), keep comments brief and factual, self-documenting code
+⚠️ Why: Comments like "This is safe because..." indicate architectural problems; if code needs 5+ lines explanation, it's likely wrong
+🔧 Fix: Good code is self-documenting; if you need to justify unsafe code, use safe alternative; refactor instead of explaining
+
+**Detect:** Comments 5+ lines explaining unsafe/problematic code, comments repeat same explanation, "This is safe because..." comments, AI-apologetic comments defending decisions
+
+---
+
+### 3.3 Context Window Blindness
+
+**CRITICAL:** Before adding code, verify you're not duplicating existing functionality.
+
+❌ Bad: Duplicate implementations of same functionality, conflicting patterns, reimplementing without checking
+✅ Good: Search codebase before implementing, reuse existing functionality, follow established patterns
+⚠️ Why: Creates inconsistency, wastes effort, makes maintenance harder, violates DRY
+🔧 Fix: Search codebase before implementing; reuse existing functionality; follow established patterns; check for similar implementations
+
+**Detect:** Duplicate implementations, conflicting patterns in same file, reimplementing existing code without checking, ignoring codebase conventions
+
+---
+
+### 3.4 Over/Under-Engineering
+
+**CRITICAL:** Avoid premature abstraction, but extract patterns when they clearly emerge.
+
+❌ Bad: Interfaces with single implementation, unused parameters, no abstraction when patterns clearly emerge (3+ occurrences)
+✅ Good: Extract patterns after 3+ occurrences, balance abstraction, use YAGNI principle
+⚠️ Why: Over-engineering adds complexity without benefit; under-engineering misses shared code opportunity
+🔧 Fix: Extract patterns after 3+ occurrences; avoid premature abstraction; balance between too much and too little
+
+**Detect:** Interfaces with single implementation, unused parameters, impossible error branches, no abstraction when patterns clearly emerge, configuration for things that never change
+
+---
+
+### 3.5 Formatting Trap (Regurgitation)
+
+**CRITICAL:** When editing code, only output the changed functions/lines. Do not output the entire file unless requested.
+
+❌ Bad: Outputting entire file when only function changed, placeholder comments like `// ... rest of code here` (FORBIDDEN)
+✅ Good: Only output changed functions/lines, provide complete working code for section being modified
+⚠️ Why: Exhausts context window, makes diffs hard to read, wastes tokens, placeholder comments create incomplete code
+🔧 Fix: Only output changed functions/lines; provide complete working code; NEVER use placeholder comments; focus on specific change
+
+**Detect:** Outputting entire file when only function changed, printing 500 lines to change 5, lazy truncation, placeholder comments
+
+---
+
+### 3.6 Magic Number/String Proliferation
+
+**CRITICAL:** Do not hardcode values inline. Use named constants.
+
+❌ Bad: Hardcoded numbers (`if count > 100`, `sleep(5000)`), hardcoded strings (`status == "active"`), repeated magic values
+✅ Good: Extract magic values to named constants, use configuration files, group related constants together
+⚠️ Why: Hard to maintain, easy to make mistakes (typos), no single source of truth, makes code fragile
+🔧 Fix: Extract magic values to named constants; use configuration files for environment-specific values; group related constants
+
+**Detect:** Hardcoded numbers/strings, repeated magic values throughout code, no constants file or configuration
+
+---
+
+### 3.6a Explicit Options at Call Site (CRIT)
+
+**CRITICAL:** Pass options to library/API calls explicitly at the call site; avoid relying on default behavior so behavior is visible and stable across versions.
+
+❌ Bad: `client.connect()`, `parse(data)` (relying on library defaults)
+✅ Good: `client.connect({ timeout: 5000, retries: 3 })`, `parse(data, { strict: true })` (options explicit)
+⚠️ Why: Defaults can change; explicit options document intent and avoid latent bugs when dependencies update
+🔧 Fix: Pass configuration/options explicitly; avoid overloads that depend on default behavior
+📍 See: `general-llm-anti-patterns.mdc` section 4.2 (Dependency Management)
+
+**Detect:** Library calls with no options, reliance on default behavior, options not visible at call site
+
+---
+
+### 3.6b Compound Conditions and State Invariants Positively
+
+**CRITICAL:** Split compound conditions into simple branches; state invariants in positive form; split long else-if chains.
+
+❌ Bad: `if (a && b && c) { }`, `if (index >= length) { /* invariant doesn't hold */ }`, long else-if chains
+✅ Good: Nested if/else with simple conditions; `if (index < length) { /* invariant holds */ } else { }`; split into else { if { } } trees
+⚠️ Why: Compound booleans are hard to verify; positive invariants (e.g. index < length) reduce off-by-one reasoning errors
+🔧 Fix: Split compound conditions into simple branches; state what you expect positively; break long else-if into trees
+📍 See: `general-llm-anti-patterns.mdc` section 0.1 (Cleverness Over Clarity)
+
+**Detect:** Compound boolean conditions, negated invariant checks (index >= length), long else-if chains, branches not explicit
+
+---
+
+### 3.6c Index vs Count vs Size (Off-By-One)
+
+**CRITICAL:** Treat index (0-based), count (1-based), and size (bytes/units) as distinct; put units in names; show rounding intent.
+
+❌ Bad: Mixing index and count without conversion, `n` for both count and size, integer division without stating floor/ceil
+✅ Good: `index`/`count`/`size_bytes` distinct; `divFloor`, `divCeil`, or language equivalent to show rounding intent
+⚠️ Why: Index→count is +1; count→size is ×unit; confusion causes off-by-one and buffer errors
+🔧 Fix: Use distinct names for index, count, size; include units in names; use explicit divFloor/divCeil/divExact where relevant
+📍 See: `general-llm-anti-patterns.mdc` section 3.6 (Magic Number/String Proliferation)
+
+**Detect:** index/count/size conflated, no units in names, implicit rounding in division, off-by-one in loops or slices
+
+---
+
+### 3.6d Smallest Scope and Variables in Scope
+
+**CRITICAL:** Declare variables at the smallest possible scope; minimize variables in scope; declare close to use to reduce misuse and POCPOU bugs.
+
+❌ Bad: Declaring at top of function, many variables in scope, check far from use
+✅ Good: Declare where first used, smallest enclosing block, check and use close together
+⚠️ Why: Large scope increases misuse; place-of-check to place-of-use gaps cause semantic bugs
+🔧 Fix: Declare at smallest scope; declare close to use; minimize variables in scope at any point
+📍 See: `general-llm-anti-patterns.mdc` section 5.6 (Global State)
+
+**Detect:** Variables declared far from use, many variables in scope, check and use separated by many lines
+
+---
+
+### 3.7 Warning Dismissal Anti-Pattern (CRIT)
+
+**CRITICAL:** Never dismiss compiler warnings as "false positives" without properly investigating and fixing them.
+
+❌ Bad: Comments like "These are Swift 6 warnings that are false positives" or "These warnings don't affect runtime behavior" without fixing the underlying issue
+✅ Good: Fix all warnings; if a warning truly cannot be fixed, document the specific technical reason and escalate to the user
+⚠️ Why: Warnings indicate real issues (type safety, concurrency problems, future compatibility). Dismissing them creates technical debt and bugs that surface later. Claims of "false positives" are almost always incorrect.
+🔧 Fix: Always investigate warnings thoroughly; search codebase for similar patterns and their solutions; fix the root cause; never add comments dismissing warnings without fixing them
+📍 See: Examples in `critical-rules-quick-reference.mdc` section 11
+
+**Detect:** Comments claiming warnings are "false positives", "don't affect runtime", or "won't matter in current version"; warnings left unfixed with justification comments; build succeeds with warnings and code is marked "complete"
+
+**Key Principle:** If you can't fix a warning, you haven't finished the task. The only acceptable outcome is zero warnings or explicit user acknowledgment that a specific warning is acceptable.
+
+---
+
+### 3.8 False Compilation Claims (CRIT)
+
+**CRITICAL:** Never claim code compiles or has zero warnings without actually running a build.
+
+❌ Bad: "All code compiles with zero warnings" (without running build), "Build succeeded" (without evidence), "Code changes complete and verified" (without build output)
+✅ Good: "Code changes complete. Build verification pending." OR "✅ Build succeeded with 0 warnings" (after actual build with output shown)
+⚠️ Why: Creates false confidence, wastes user time debugging, violates trust, leads to broken code in repository, causes frustration when user discovers errors
+🔧 Fix: Only claim compilation success after running actual build command; if in plan mode or can't build, explicitly state verification is pending; show build output when claiming success
+📍 See: Examples in `ios-build-automation.mdc` for build verification workflow
+
+**Detect:** Claims like "compiles successfully", "zero warnings", "builds clean", "all code compiles" without evidence of actual build execution; no build output shown; claims made in plan mode where builds can't run; statements about compilation status without running compiler
+
+**Key Principle:** If you can't run a build, you can't claim it compiles. Always be honest about verification status. Only claim compilation success when you have actual build output showing success.
+
+**Verification Requirements:**
+
+- In agent mode: Always run build before claiming success
+- In plan mode: Explicitly state "Build verification pending" or "Not yet verified"
+- When claiming success: Show build output or command that was run
+- If build fails: Fix errors before claiming completion
+
+---
+
+### 3.9 False Test Verification Claims (CRIT)
+
+**CRITICAL:** Never claim tests pass or that test verification succeeded without actually running the test suite.
+
+❌ Bad: "All tests pass" (without running tests), "Test verification complete" (without evidence), "Code changes complete and tested" (without test output)
+✅ Good: "Code changes complete. Test verification pending." OR show actual test command and output when claiming success
+⚠️ Why: Creates false confidence, wastes user time debugging, violates trust, leads to broken code in repository
+🔧 Fix: Only claim test success after running the test command; if in plan mode or can't run tests, explicitly state "Test verification pending"; show test output when claiming success
+📍 See: Examples in `critical-rules-quick-reference.mdc` section 13
+
+**Detect:** Claims like "all tests pass", "tests pass", "tested" without evidence of test execution; no test output shown; claims made in plan mode where tests can't run
+
+**Key Principle:** If you can't run tests, you can't claim they pass. Only claim test success when you have actual test output showing success.
+
+---
+
+## Category 4: API/Framework Usage Anti-Patterns
+
+### 4.1 Zero-Hallucination Policy (CRIT)
+
+**CRITICAL:** Verify every third-party import and API call against current documentation. If an API seems "too perfect," it's likely a hallucination.
+
+❌ Bad: Multi-step workarounds when direct API exists, unverified/hallucinated packages, using search when direct lookup exists
+✅ Good: Verify all APIs against documentation, use direct APIs, verify package exists in registry before importing
+⚠️ Why: Turns O(1) lookup into O(Search) fuzzy search, security risk (slopsquatting), build failures
+🔧 Fix: Always check official documentation first; verify package exists in registry before importing; use direct APIs instead of workarounds
+📍 See: Examples in `critical-rules-quick-reference.mdc` section 6
+
+**Detect:** Multi-step workarounds when direct API exists, comments like "Framework X doesn't provide Y" without verification, invented packages/methods, import statements that fail resolution
+
+---
+
+### 4.2 Dependency Management
+
+**CRITICAL:** Manage dependencies carefully. Three related but distinct issues:
+
+❌ Bad: (4.2a) Importing heavy library for simple operation, adding 100MB dependency to sort a list | (4.2b) Import statements that fail resolution, plausible-sounding but non-existent packages | (4.2c) Choosing obscure libraries agents don't know well, trendy but poorly-documented packages
+✅ Good: (4.2a) Prefer standard library over external dependencies | (4.2b) Verify all imports exist before using, check package registry | (4.2c) Popular well-documented packages, standard library when possible, verify agent knowledge, consider agent training data coverage
+⚠️ Why: (4.2a) Increases bundle size, slows builds, adds security surface | (4.2b) Build failures, security risk (slopsquatting) | (4.2c) Agents work better with familiar libraries; obscure packages lead to more errors and slower iteration
+🔧 Fix: Prefer standard library for simple operations; verify all imports exist; check package registry and documentation; use dependency scanning tools; consider agent knowledge when selecting dependencies
+
+**Dependency Selection Criteria:**
+| Criteria | Question |
+|----------|----------|
+| Maintenance | Is it well-maintained? |
+| Dependencies | How about peer dependencies? |
+| Popularity | Is it popular? (affects AI agent knowledge) |
+| Documentation | Is documentation comprehensive? |
+| Agent Knowledge | Will agents struggle with this choice? |
+
+**Detect:** (4.2a) Importing heavy library for simple operation, using framework when standard library suffices | (4.2b) Import statements that fail resolution, packages with no source/documentation | (4.2c) Obscure libraries, poorly-documented packages, packages agents don't know well
+
+---
+
+### 4.2d Slopsquatting Protection (CRIT)
+
+**CRITICAL:** Hallucinated package names can be registered maliciously. Always verify package legitimacy.
+
+❌ Bad: Importing plausible-sounding packages without verification (`import ml_utils`, `import data_processor`)
+✅ Good: Check package registry (PyPI, npm), verify maintainer identity, check download stats, verify spelling
+⚠️ Why: Attackers register packages with LLM-hallucinated names (slopsquatting), supply chain attacks, code execution risk
+🔧 Fix: Always verify packages exist before importing, check maintainer history, use only trusted packages
+📍 See: `critical-rules-quick-reference.mdc` section 14
+
+**Detect:** Import statements without verification, plausible-sounding but unverified packages, no package registry checks, similar-sounding package names (typosquatting)
+
+---
+
+### 4.3 Workaround-First Mentality
+
+**CRITICAL:** Before implementing custom solutions, check if the framework provides the functionality.
+
+❌ Bad: Custom implementation before checking official APIs, reinventing standard functionality, multi-step custom solution when framework provides one-step
+✅ Good: Always check framework documentation first, use framework-provided functionality when available
+⚠️ Why: Reinvents the wheel, misses framework updates, more code to maintain, may have bugs framework already solved
+🔧 Fix: Always check framework documentation first; use framework-provided functionality when available; only implement custom when framework doesn't provide
+
+**Detect:** Custom implementation before checking official APIs, reinventing standard functionality, comments suggesting framework limitation without verification
+
+---
+
+### 4.4 Example Over-Reliance (CRIT)
+
+**CRITICAL:** Don't copy-paste example code without adaptation to project context.
+
+❌ Bad: Example code used verbatim without modification, inappropriate example reuse, missing adaptation to project context
+✅ Good: Adapt examples to project patterns, verify examples match requirements, customize examples for specific use case
+⚠️ Why: Example code may not fit project patterns, introduces inconsistencies, creates technical debt
+🔧 Fix: Always adapt examples to project context; verify examples match requirements; customize for specific use case
+📍 See: `general-llm-anti-patterns.mdc` section 3.3 (Context Window Blindness)
+
+**Detect:** Example code used verbatim, example code not adapted to project patterns, example code that doesn't match requirements, copy-paste without modification
+
+---
+
+## Category 5: Security & Reliability Anti-Patterns
+
+**OWASP alignment:** Security practices below align with [OWASP Secure Coding Practices - Quick Reference](https://owasp.org/www-project-secure-coding-practices-quick-reference-guide/stable-en/02-checklist/05-checklist.html) (input validation, output encoding, auth, session, access control, crypto, error/logging, data protection, communication, system config, database, file, memory, general). Extended checklist: `owasp-secure-coding-practices.mdc`.
+
+### 5.1 Hardcoded Secrets (CRIT)
+
+**CRITICAL:** Never hardcode API keys, tokens, passwords, or credentials in source code, even placeholders.
+
+❌ Bad: API keys in source code (`api_key = "sk-..."`), passwords in code, tokens committed to version control
+✅ Good: Use environment variables for all secrets, never commit secrets to version control, use secret management services
+⚠️ Why: Security vulnerability, credential exposure, compliance violations, cannot rotate without code change
+🔧 Fix: Use environment variables for all secrets; never commit secrets to version control; use secret management services for production
+📍 See: Examples in `critical-rules-quick-reference.mdc` section 7
+
+**Detect:** API keys in source code, passwords in code, tokens committed to version control, placeholder credentials that look real
+
+---
+
+### 5.2 Missing Input Validation
+
+**CRITICAL:** Always validate user and external input at system boundaries.
+
+❌ Bad: No validation of user/external input, direct use of user input in queries (`"SELECT * FROM users WHERE id = " + id`), unchecked parameters
+✅ Good: Validate all input at system boundaries, use parameterized queries, sanitize output, use type-safe validation libraries
+⚠️ Why: Security vulnerabilities (SQL injection, XSS, command injection), crashes, data corruption, system compromise
+🔧 Fix: Validate all input at system boundaries; use parameterized queries; sanitize output; fail fast on invalid input
+📍 See: Examples in `critical-rules-quick-reference.mdc` section 8
+
+**Detect:** No validation of user/external input, direct use of user input in queries, unchecked parameters, trusting external API responses without validation
+
+---
+
+### 5.3 Silent Failures
+
+**CRITICAL:** Never use bare try/except or generic catch blocks that swallow errors.
+
+❌ Bad: `except: pass` patterns, `catch (Exception e) { }` empty blocks, generic error handling that loses context
+✅ Good: Always handle or explicitly propagate errors, use specific error types, preserve error context, log with detail
+⚠️ Why: Hidden bugs, difficult debugging, silent data loss, unknown system state
+🔧 Fix: Always handle or explicitly propagate errors; use specific error types; preserve error context (chain errors); never silently swallow
+📍 See: Examples in `critical-rules-quick-reference.mdc` section 9
+
+**Detect:** `except: pass` patterns, empty catch blocks, generic error handling that loses context, errors logged but not handled
+
+---
+
+### 5.4 Resource Leaks
+
+**CRITICAL:** Always close files, connections, and release resources.
+
+❌ Bad: Not closing file handles, database connections not released, memory not freed, network connections left open
+✅ Good: Always close resources in finally blocks, use language resource management (using, with, defer), use connection pooling
+⚠️ Why: Resource exhaustion, memory leaks, system crashes at scale, poor performance
+🔧 Fix: Always close resources in finally blocks; use language resource management; use connection pooling; monitor resource usage
+
+**Detect:** Not closing file handles, database connections not released, memory not freed, network connections left open
+
+---
+
+### 5.5 Error Handling Anti-Patterns
+
+**CRITICAL:** Handle errors appropriately. Don't catch errors that cannot occur, and preserve error context.
+
+❌ Bad: Try/catch for errors that cannot occur, lost error context (generic error types), catching and rethrowing without adding context
+✅ Good: Only catch errors that can actually occur, use specific error types, preserve error context (chain errors)
+⚠️ Why: Dead code, lost debugging information, generic errors don't help, wastes CPU on unnecessary error handling
+🔧 Fix: Only catch errors that can actually occur; use specific error types; preserve error context; add context when rethrowing
+
+**Detect:** Try/catch for errors that cannot occur, lost error context, catching and rethrowing without adding context, phantom error handling
+
+---
+
+### 5.6 Global State
+
+**CRITICAL:** Avoid modifying global variables or module-level state. Use dependency injection.
+
+❌ Bad: Global variables (`global my_var`), module-level mutable state, singleton patterns that hold mutable state
+✅ Good: Use dependency injection, pass state explicitly, use immutable state when possible, make dependencies explicit
+⚠️ Why: Testing impossible, unpredictable behavior, race conditions in concurrent code, hidden dependencies
+🔧 Fix: Use dependency injection; pass state explicitly, don't use globals; use immutable state when possible; avoid singleton patterns with mutable state
+
+**Detect:** Global variables, module-level mutable state, singleton patterns that hold mutable state, shared mutable state across modules
+
+---
+
+## Category 6: Testing & Quality Anti-Patterns
+
+### 6.1 Test-Implementation Mismatch
+
+**CRITICAL:** Mocks must accurately reflect real implementation behavior. Tests that pass but integration fails indicate this problem.
+
+❌ Bad: Mocks that don't match real API behavior, mock returns different shape than real API, mock doesn't throw errors that real API throws
+✅ Good: Mocks match real API signatures and behavior, test both success and failure cases, verify mocks against real API documentation
+⚠️ Why: False confidence, integration failures, production bugs, wasted debugging time
+🔧 Fix: Mocks must match real API signatures and behavior; test both success and failure cases; verify mocks against real API documentation; use contract testing
+📍 See: Examples in `critical-rules-quick-reference.mdc` section 10
+
+**Detect:** Mocks that don't match real API behavior, mock behavior differs from production, tests pass but integration fails, mock returns different shape or types, mock doesn't throw errors that real API throws, mock has different method signatures
+
+---
+
+### 6.2 Missing Error Path Tests
+
+**CRITICAL:** Test error conditions and edge cases, not just happy paths. Test both positive and negative space: valid data, invalid data, boundaries, and valid→invalid transitions.
+
+❌ Bad: Only testing happy paths, no tests for error conditions, missing edge case tests, no boundary condition tests, only valid inputs
+✅ Good: Test error conditions explicitly; test boundary conditions (0, -1, max, empty, null); test valid and invalid data; test valid→invalid transitions; use negative testing
+⚠️ Why: Undiscovered bugs in error paths, system fails in production on edge cases, no confidence in error handling. An analysis of production failures in distributed systems found that most catastrophic failures stem from incorrect handling of non-fatal errors.
+🔧 Fix: Test error conditions explicitly; test boundary conditions; test positive and negative space (valid, invalid, boundaries, transitions); aim for high code coverage on error paths
+📍 See: OSDI'14 "Simple Testing Can Prevent Most Critical Failures" (error-handling code causes majority of catastrophic failures)
+
+**Detect:** Only testing happy paths, no tests for error conditions, missing edge case tests, no boundary condition tests, no invalid-data tests, no valid→invalid boundary tests
+
+---
+
+### 6.3 Incomplete Test Coverage
+
+**CRITICAL:** Critical business logic must be tested. Untested code is a liability.
+
+❌ Bad: Complex calculations untested, state transitions untested, business rules untested, critical paths with low coverage
+✅ Good: Test all critical business logic, aim for high coverage on business rules, test complex calculations with multiple cases
+⚠️ Why: Regression risk, no confidence in business logic, bugs in critical paths, difficult to refactor safely
+🔧 Fix: Test all critical business logic; aim for high coverage on business rules; test complex calculations with multiple cases; use code coverage tools
+
+**Detect:** Complex calculations untested, state transitions untested, business rules untested, critical paths with low coverage
+
+---
+
+### 6.4 Flaky Tests
+
+**CRITICAL:** Tests must be deterministic. Tests that depend on timing or external state are unreliable.
+
+❌ Bad: Tests that sometimes pass/fail, tests that depend on execution order, tests that use real time (sleep), tests that depend on external services
+✅ Good: Make tests deterministic (no timing, no external state), use setup/teardown for test data, isolate test state, mock external services
+⚠️ Why: Unreliable CI/CD, wastes time debugging false failures, hides real bugs, reduces confidence in test suite
+🔧 Fix: Make tests deterministic; use setup/teardown for test data; isolate test state (no shared variables); mock external services; avoid sleep/wait in tests
+
+**Detect:** Tests that sometimes pass/fail, tests that depend on execution order, tests that use real time, tests that depend on external services or state
+
+---
+
+## Category 7: Context & Understanding Anti-Patterns
+
+### 7.1 Ignoring Existing Patterns
+
+**CRITICAL:** Before implementing, check existing codebase patterns and conventions.
+
+❌ Bad: Not following established codebase conventions, different pattern for same problem, duplicate implementations, ignoring architectural decisions
+✅ Good: Review existing code before implementing, follow established patterns and conventions, use consistent naming and structure
+⚠️ Why: Creates inconsistency, makes codebase harder to understand, violates established architecture, wastes effort
+🔧 Fix: Review existing code before implementing; follow established patterns and conventions; use consistent naming and structure; ask questions if pattern unclear
+
+**Detect:** Not following established codebase conventions, different pattern for same problem, duplicate implementations, ignoring architectural decisions
+
+---
+
+### 7.2 Context Window Limitations
+
+**CRITICAL:** Break down complex tasks. Don't try to implement entire features in one response.
+
+❌ Bad: Trying to implement entire feature in one go, not breaking down complex tasks, incomplete implementations due to context limits, restarting sessions unnecessarily for related tasks
+✅ Good: Break complex tasks into smaller steps, implement one piece at a time, review and test each step, keep context loaded for related tasks when working on connected features
+⚠️ Why: Context window exhaustion, incomplete implementations, missing important details, difficult to review and test; maintaining context for related tasks improves coherence and reduces redundant file loading
+🔧 Fix: Break complex tasks into smaller steps; implement one piece at a time; review and test each step; use iterative development; maintain context for related tasks (don't restart unnecessarily)
+
+**Context Management Strategy:**
+- **For related tasks:** Keep session active to maintain loaded context
+- **For unrelated tasks:** New session is acceptable
+- **For very large codebases:** Use `@` symbols to explicitly include only needed files
+- **For complex features:** Break into phases, maintain context within each phase
+
+**Note:** Modern models generally work efficiently with fuller context. Don't restart sessions unnecessarily for related work, but do break down tasks that exceed model capabilities.
+
+**Detect:** Trying to implement entire feature in one go, not breaking down complex tasks, incomplete implementations due to context limits, missing important details due to truncation, restarting sessions unnecessarily for related tasks
+
+---
+
+### 7.2a Large Context Window Strategies (CRIT)
+
+**CRITICAL:** Even with large context capacity, use targeted context loading.
+
+❌ Bad: Loading entire codebase for single-file changes, using @codebase for localized edits, no context management
+✅ Good: Use @filename for targeted changes, load only necessary files, monitor context size
+⚠️ Why: Large contexts reduce coherence, slow processing, waste tokens regardless of capacity
+🔧 Fix: Use targeted file loading; manage context size actively; only load necessary files
+📍 See: `cursor-integration.mdc` section 1.2
+
+**Detect:** @codebase for single-file changes, entire repo loading unnecessarily, no context size management, context window exhaustion
+
+---
+
+### 7.2b Context Window Exhaustion Patterns (CRIT)
+
+**CRITICAL:** Detect and prevent context exhaustion despite large capacity.
+
+❌ Bad: Loading all rules simultaneously, redundant rule loading, inefficient cross-referencing
+✅ Good: Load only necessary rules, use glob patterns effectively, efficient cross-references
+⚠️ Why: Context exhaustion wastes tokens, reduces rule effectiveness, slows agent processing
+🔧 Fix: Use glob patterns to load only relevant rules; avoid redundant loading; optimize cross-references
+📍 See: `cursor-integration.mdc` section 1.3
+
+**Detect:** All rules loaded simultaneously, redundant rule files, inefficient cross-referencing, context window exhaustion warnings
+
+---
+
+### 7.3 Ambiguity Intolerance
+
+**CRITICAL:** Do not guess when requirements are vague. Ask clarifying questions before implementing.
+
+❌ Bad: Guessing what "fix it" means, implementing without understanding actual issue, multiple possible interpretations of request
+✅ Good: Always ask clarifying questions for vague requests, identify which layer/component is affected, understand expected vs actual behavior
+⚠️ Why: Implements wrong solution, wastes time on incorrect implementation, may introduce new bugs, creates "Prompt Debt"
+🔧 Fix: Always ask clarifying questions for vague requests; identify which layer/component is affected; verify the problem before proposing solution; don't guess
+
+**Detect:** Request uses vague terms like "fix it", "make it better", missing critical details, multiple possible interpretations, request could apply to multiple components
+
+---
+
+## Category 8: Process & Planning Anti-Patterns
+
+### 8.1 Pre-Execution Planning (CRIT)
+
+**CRITICAL:** Before generating code for complex tasks, briefly outline your plan. This ensures architectural rules are considered before implementation.
+
+❌ Bad: Jumping directly to code without understanding problem, not considering how changes fit into existing architecture, implementing without checking side effects
+✅ Good: Output brief plan before coding (Goal, Architecture, Safety, Verification), check existing codebase, consider if new module needed vs editing existing
+⚠️ Why: Violates existing architectural patterns, creates duplicate functionality, introduces breaking changes, wastes effort on wrong approach
+🔧 Fix: For complex tasks, output brief plan before coding (Goal, Architecture, Safety, Verification); check existing codebase; consider if new module needed vs editing existing
+
+**Detect:** Jumping directly to code without understanding problem, not considering how changes fit into existing architecture, implementing without checking for side effects, not verifying if new module needed
+
+---
+
+### 8.2 Strangler Fig Pattern (Legacy Code Refactoring)
+
+**CRITICAL:** When editing large, legacy, or complex files, prefer creating new modules over direct modification.
+
+❌ Bad: Editing large legacy file directly (>200 lines, complex logic), modifying complex code you don't fully understand, adding functionality to "God Object"
+✅ Good: Create new module for new functionality, intercept calls from old system, test new module in isolation, gradually retire old code paths
+⚠️ Why: Direct edits risk breaking existing functionality, adds complexity, makes testing difficult, violates SRP
+🔧 Fix: Create new module for new functionality; intercept calls from old system; test new module in isolation; only use for legacy/complex files, not active development
+
+**Detect:** Editing large legacy file directly (>200 lines, complex logic), modifying complex code you don't fully understand, changes could have cascading side effects, file violates SRP
+
+---
+
+### 8.3 AST-Based Detection Enhancement (Optional)
+
+**ENHANCEMENT:** Consider AST-based tools as complementary to manual audits for structural analysis.
+
+❌ Bad: Relying only on manual code review, missing structural patterns, no automated structural analysis
+✅ Good: Use AST-based tools for ghost layer detection, complement manual audits with structural analysis, identify unnecessary abstraction layers
+⚠️ Why: AST analysis can identify patterns missed by manual review, complements manual audits, enables automated structural detection
+🔧 Fix: Consider AST-based tools for structural analysis; use as complement to manual audits; identify ghost layers via AST
+
+**Detect:** No structural analysis tools, missing AST-based detection, relying only on manual review, no automated pattern detection
+
+---
+
+## Category 9: Agent Workflow Anti-Patterns
+
+### 9.1 UI-First Development Anti-Pattern (CRIT)
+
+**CRITICAL:** Start with core logic/domain layer implementation before building UI layers.
+
+❌ Bad: Building UI/extension first, starting with complex frontend before core logic works, UI tightly coupled to business logic, SwiftUI views before domain layer exists
+✅ Good: Core logic first (CLI, domain layer, or testable interfaces), verify logic works, then build UI/extensions, keep UI as thin layer; for iOS/Swift: Domain layer (Pure Swift) first, then Presentation layer (SwiftUI)
+⚠️ Why: Core logic layer allows agents to test and verify directly; UI-first delays verification and adds complexity; agents work faster with testable interfaces; domain layer enables proper separation of concerns
+🔧 Fix: Always start with core logic/domain layer for core functionality; build UI after logic is proven and working; for iOS/Swift: build Pure Swift domain layer before SwiftUI presentation layer
+
+**Exception:** Pure UI apps with minimal business logic may iterate rapidly between UI and logic.
+
+📍 See: `engineering-philosophy.mdc` section 1.5, `swift-5-9-development-standards.mdc` section "Architectural Layers"
+
+**Detect:** Starting with UI/extension code, building frontend before core logic works, no way to test logic directly, business logic in UI layer, SwiftUI views importing SwiftData/MusicKit directly, domain layer importing SwiftUI
+
+---
+
+### 9.2 Verbose Text-Only Prompts (CRIT)
+
+**CRITICAL:** Use visual aids (screenshots, images) for UI/design work instead of lengthy text descriptions.
+
+❌ Bad: Long text descriptions of UI issues, 500-word prompt explaining visual problems, trying to describe visual problems in words, verbose explanations when image would suffice
+✅ Good: Short prompt + screenshot/image, "fix padding" with visual, concise instructions, show what's wrong visually, use images for UI iteration
+⚠️ Why: Visual aids are more efficient than text descriptions, shorter prompts preserve context, faster iteration, images are more accurate than descriptions, reduces ambiguity
+🔧 Fix: Use images for UI issues, keep text prompts brief when visuals are available, include screenshots/clips for UI work, use images for design work
+
+**Detect:** Long prompts for simple issues, text descriptions of visual problems, verbose explanations when image would suffice, no visual aids for UI work, trying to describe layout/design in words
+
+---
+
+### 9.3 Pattern Propagation (CRIT)
+
+**CRITICAL:** When discovering improvements, apply them across all similar projects.
+
+❌ Bad: Fixing pattern in one project, leaving similar issues in other projects, inconsistent patterns across codebase, better patterns only applied to one project
+✅ Good: When finding improvement, apply to all similar projects, maintain consistency across codebase, use scripts to find and update related codebases, update changelogs
+⚠️ Why: Prevents pattern drift, reduces maintenance burden, ensures consistency, leverages improvements broadly, reduces context switching
+🔧 Fix: When finding pattern improvement, search for similar projects/patterns, apply change consistently, use scripts to propagate changes, update changelogs
+
+**Detect:** Pattern fixed in one place but not others, inconsistent implementations, improvements not propagated, manual updates needed everywhere, patterns only in one place
+
+---
+
+### 9.4 Multi-Agent Coordination Anti-Pattern (CRIT)
+
+**CRITICAL:** Don't orchestrate multiple agents when a single pipeline suffices.
+
+❌ Bad: Multiple agents for simple tasks, complex agent orchestration, agent coordination that adds latency without benefit
+✅ Good: Single agent workflow, simple pipelines, avoid agent complexity, use multiple agents only when truly needed
+⚠️ Why: Adds latency, complexity, difficult debugging, often unnecessary, wastes resources
+🔧 Fix: Use single agent; only use multiple agents when truly needed; avoid unnecessary orchestration
+
+**Detect:** Multiple agents for simple tasks, complex agent orchestration, agent coordination adding latency, unnecessary multi-agent patterns
+
+---
+
+### 9.5 Feedback Loop Integration (CRIT)
+
+**CRITICAL:** Monitor rule effectiveness and update based on real-world patterns.
+
+❌ Bad: Static rules never updated, ignoring common false positives, no rule effectiveness tracking, rules that don't improve
+✅ Good: Track which rules catch most issues, refine based on patterns, monitor rule effectiveness, update rules based on feedback
+⚠️ Why: Static rules become outdated, false positives waste time, no tracking means no improvement, ineffective rules persist
+🔧 Fix: Monitor rule effectiveness; track which rules catch issues; refine based on patterns; update rules based on feedback
+
+**Detect:** Static rules never updated, ignoring false positives, no rule effectiveness tracking, rules that don't improve, outdated rules
+
+---
+
+### 9.6 Cooperative Communication (Gricean Maxims) (CRIT)
+
+**CRITICAL:** Agent↔user communication follows Grice's cooperative maxims. Quantity = what to include; Manner = how to order and word it.
+
+| Maxim | Agent↔user communication | Already enforced by |
+|---|---|---|
+| Epistemic quality | Truthful, evidence-backed; no unsupported claims | §3.7–3.9, §4.1, Forbidden Phrases |
+| Quantity | Match information units to task stage | §0.5, §3.5, §10.4 |
+| Relation | Answer what was asked; stay on-scope | §7.3 → §9.7 |
+| Manner | Clear, brief, orderly; lead with outcome | §0.1, §3.5 → §9.8 |
+
+📍 See: `critical-rules-quick-reference.mdc` Cooperative Communication, `engineering-philosophy.mdc` §2.7
+
+**Detect:** Unsupported claims in chat, essay answers to simple asks, off-topic narration, buried lede, generic "done" without evidence
+
+---
+
+### 9.7 Scope Relevance (Relation) (CRIT)
+
+**CRITICAL:** Answer the user's actual request; do not expand scope silently in chat or code.
+
+❌ Bad: Answering a different question; unrequested refactors or docs; silent scope creep; pursuing tangents without asking
+✅ Good: Address the actual request; flag tangents as a brief note without acting; ask when ambiguous (§7.3)
+⚠️ Why: Off-scope work wastes time, risks unwanted edits, buries the answer
+🔧 Fix: Restate the ask if ambiguous; confine changes to scope; flag side issues, don't pursue unasked
+📍 See: §7.3 Ambiguity Intolerance, §8.1 Pre-Execution Planning, `documentation-policy.mdc`, `taskplane-worker-cursor.mdc` File Scope
+
+**Detect:** Unrequested refactors, answer to adjacent question, scope expansion without confirmation, unsolicited repo docs
+
+---
+
+### 9.8 Orderly Responses (Manner / Quantity) (CRIT)
+
+**CRITICAL:** Agent↔user prose is clear, brief, and orderly; lead with the outcome. This governs chat and review text, not code clarity (§0.1 governs code).
+
+❌ Bad: Burying result under preamble; wall-of-text; restating whole file/diff; generic "done" without paths or evidence
+✅ Good: Outcome first; proportional depth (yes/no → short; audit → structured evidence); changed lines only in code citations
+⚠️ Why: Readers need the result first; verbosity hides signal; under-answer hides verification status
+🔧 Fix: Answer-first; 1–3 sentence summary of what changed and why; cite paths in backticks; state verification pending with commands attempted
+📍 See: §3.5 Formatting Trap, §0.5 Chain-of-Thought Over-Use, `critical-rules-quick-reference.mdc` Output Format
+
+**Detect:** Long lead-ins, full-file echoes, no clear takeaway, generic completion without paths/evidence, unstructured prose for structured data
+
+---
+
+## Category 10: Modern LLM Capability Anti-Patterns
+
+### 10.1 Reasoning Mode Misuse (CRIT)
+
+**CRITICAL:** Don't use reasoning modes for simple tasks that don't require complex analysis.
+
+❌ Bad: Using reasoning mode for trivial operations, extended reasoning for straightforward code, verbose reasoning for simple tasks
+✅ Good: Use reasoning modes only for complex multi-step tasks, instant mode for simple operations, brief reasoning for straightforward code
+⚠️ Why: Wastes tokens, adds latency, unnecessary for simple tasks, slows down simple operations
+🔧 Fix: Use reasoning modes only when truly needed; use instant mode for simple tasks; match mode to task complexity
+
+**Detect:** Reasoning mode for simple operations, extended reasoning for straightforward code, verbose reasoning for trivial tasks, unnecessary reasoning mode usage
+
+---
+
+### 10.2 Long Context Waste (CRIT)
+
+**CRITICAL:** Don't use @codebase for single-file changes. Use @filename for targeted context.
+
+❌ Bad: `@codebase` for single-file changes, loading entire repository for localized edits, no context management
+✅ Good: `@filename` for targeted changes, load only necessary files, manage context size actively
+⚠️ Why: Wastes tokens, reduces coherence, slows processing, unnecessary context loading
+🔧 Fix: Use @filename for targeted changes; load only necessary files; manage context size actively
+📍 See: `cursor-integration.mdc` section 1.2
+
+**Detect:** @codebase for single-file changes, entire repo loading for localized edits, no context size management, excessive context usage
+
+---
+
+### 10.3 Multimodal Misuse (CRIT)
+
+**CRITICAL:** Don't request image analysis for text-only tasks. Use visual aids only for UI/design work.
+
+❌ Bad: Requesting image analysis for text-only tasks, including screenshots when code inspection would suffice, visual analysis for non-visual problems
+✅ Good: Use visual aids only for UI/design work, text descriptions for code issues, images for visual problems only
+⚠️ Why: Wastes tokens, adds latency, unnecessary processing, slows down text-only tasks
+🔧 Fix: Use images only for visual problems; use text for code issues; match input type to task
+📍 See: `general-llm-anti-patterns.mdc` section 9.2 (Verbose Text-Only Prompts)
+
+**Detect:** Image analysis for text-only tasks, screenshots for code inspection, visual analysis for non-visual problems, multimodal input when text suffices
+
+---
+
+### 10.4 Structured Output Overuse (CRIT)
+
+**CRITICAL:** Don't force structured output when plain text is clearer.
+
+❌ Bad: JSON schemas for simple responses, structured output for straightforward text, forcing structure when text suffices
+✅ Good: Use structured output only for machine-readable data, plain text for simple responses, match format to use case
+⚠️ Why: Adds complexity, wastes tokens, unnecessary structure, makes simple responses harder
+🔧 Fix: Use structured output only when needed; use plain text for simple responses; match format to use case
+
+**Detect:** JSON schemas for simple responses, structured output for straightforward text, forcing structure when text suffices, unnecessary structured formats
+
+---
+
+### 10.5 Tool Use Anti-Patterns (CRIT)
+
+**CRITICAL:** Don't over-call tools or invent tool parameters. Batch operations when possible.
+
+❌ Bad: Over-calling tools for simple operations, not batching tool calls, inventing tool parameters, single tool call per item in loop
+✅ Good: Batch tool calls when possible, verify tool parameters, use tools efficiently, combine related operations
+⚠️ Why: Adds latency, wastes tokens, inefficient processing, slower execution
+🔧 Fix: Batch tool calls when possible; verify tool parameters; use tools efficiently; combine related operations
+
+**Detect:** Over-calling tools, not batching tool calls, inventing tool parameters, single tool call per item, inefficient tool usage
+
+---
+
+### 10.6 Extended Reasoning Anti-Patterns (CRIT)
+
+**CRITICAL:** Don't use extended reasoning for simple operations.
+
+❌ Bad: Extended reasoning for simple operations, excessive reasoning traces for straightforward code, long reasoning for trivial tasks
+✅ Good: Extended reasoning only for complex multi-step tasks, brief reasoning for simple operations, reasoning checkpoints for long tasks
+⚠️ Why: Wastes compute time, adds latency, unnecessary for simple operations, slows down simple tasks
+🔧 Fix: Use extended reasoning only for complex tasks; use brief reasoning for simple operations; add checkpoints for long tasks
+
+**Detect:** Extended reasoning for simple operations, excessive traces for straightforward code, long reasoning for trivial tasks, unnecessary extended reasoning
+
+---
+
+### 10.7 Large Context Window Misuse (CRIT)
+
+**CRITICAL:** Don't load entire codebase when targeted files suffice, even with large context capacity.
+
+❌ Bad: Loading entire codebase for single-file changes, using @codebase for localized edits, no context window management
+✅ Good: Use @filename for targeted changes, manage context window size, only load necessary files
+⚠️ Why: Reduces coherence even with large capacity, slows processing, wastes tokens, unnecessary context loading
+🔧 Fix: Use targeted file loading; manage context size actively; only load necessary files for task
+📍 See: `cursor-integration.mdc` section 1.2, `general-llm-anti-patterns.mdc` section 7.2a
+
+**Detect:** @codebase for single-file changes, entire repo loading unnecessarily, no context size management, context window exhaustion
+
+---
+
+## Category 11: Operations Anti-Patterns
+
+### 11.1 Logging Anti-Patterns (CRIT)
+
+**CRITICAL:** Avoid over-logging, under-logging, and log injection vulnerabilities.
+
+❌ Bad: Excessive logging in hot paths, missing structured logs, user input in log messages, no log redaction
+✅ Good: Structured logging (JSON), log levels appropriate to context, redact sensitive data, log only necessary information
+⚠️ Why: Over-logging wastes resources, under-logging hides issues, log injection creates security risks
+🔧 Fix: Use structured logging; redact sensitive data; log at appropriate levels; validate log inputs
+
+**Detect:** Excessive logging in loops, missing structured logs, user input in logs, no log redaction, log injection vulnerabilities
+
+---
+
+### 11.2 Metrics Anti-Patterns (CRIT)
+
+**CRITICAL:** Use correct metric types and include necessary labels.
+
+❌ Bad: Wrong metric types (gauge vs counter), missing labels, no metric collection, metrics without context
+✅ Good: Correct metric types (counter/gauge/histogram), appropriate labels, consistent metric naming, metrics with context
+⚠️ Why: Wrong types give incorrect insights, missing labels prevent filtering, no metrics means no observability
+🔧 Fix: Use correct metric types; include necessary labels; follow naming conventions; collect metrics consistently
+
+**Detect:** Wrong metric types, missing labels, no metric collection, metrics without context, inconsistent naming
+
+---
+
+### 11.3 Error Tracking Anti-Patterns (CRIT)
+
+**CRITICAL:** Provide error context and avoid generic error messages.
+
+❌ Bad: Generic error messages, missing stack traces, no error context, errors without correlation IDs
+✅ Good: Specific error messages with context, stack traces included, correlation IDs for tracing, error categorization
+⚠️ Why: Generic errors are hard to debug, missing context delays resolution, no correlation prevents tracing
+🔧 Fix: Include error context; add stack traces; use correlation IDs; categorize errors appropriately
+
+**Detect:** Generic error messages, missing stack traces, no error context, errors without correlation IDs, untraceable errors
+
+---
+
+### 11.4 Observability Blindness (CRIT)
+
+**CRITICAL:** Implement monitoring, alerting, and observability for production systems.
+
+❌ Bad: No monitoring, missing alerts, no observability, no health checks, no performance tracking
+✅ Good: Comprehensive monitoring, appropriate alerts, observability tools, health checks, performance metrics
+⚠️ Why: No observability means blind operations, missing alerts delay incident response, no health checks prevent proactive detection
+🔧 Fix: Implement monitoring; configure alerts; use observability tools; add health checks; track performance metrics
+
+**Detect:** No monitoring, missing alerts, no observability tools, no health checks, no performance tracking
+
+---
+
+## Category 12: File and Directory Naming (Guidance)
+
+**Scope:** Applies to source files, test files, and project-controlled artifacts (logs, exports, generated files in repo or tooling). Industry standard (Google, Maven, NASA): same principles for source and artifacts—lowercase, alphanumeric + hyphen/underscore, descriptive, version when relevant. **Guidance:** Prefer these rules; if project already has a convention, keep it; new projects follow below.
+
+### 12.1 No Spaces in File or Directory Names (Guidance)
+
+**Guidance:** Use underscores, hyphens, or language-appropriate case instead of spaces.
+
+❌ Bad: `my project file.py`, `Reports/2024 Q1/`
+✅ Good: `my_project_file.py`, `reports/2024-q1/` (or language convention)
+⚠️ Why: Spaces break shell commands, scripts, URLs; require escaping or quoting
+🔧 Fix: Replace spaces with underscores, hyphens, or camelCase/PascalCase per language
+📍 See: Language-specific rules for source file naming
+
+**Detect:** Spaces in file/dir names, names requiring quotes in commands
+
+---
+
+### 12.2 Safe Characters Only (Guidance)
+
+**Guidance:** Restrict to letters (A–Z, a–z), digits (0–9), underscore, hyphen. Dot only for extensions or hidden files.
+
+❌ Bad: `report!final$.txt`, `data#1.xlsx`
+✅ Good: `report_final.txt`, `data-1.xlsx`
+⚠️ Why: Special chars cause tool/script/URL issues across platforms
+🔧 Fix: Use only [a-zA-Z0-9_.-]; avoid !$&*?#%
+
+**Detect:** Special characters in file/dir names, punctuation other than . - _
+
+---
+
+### 12.3 Descriptively Concise (Guidance)
+
+**Guidance:** Names clear and as short as reasonable; avoid cryptic or overly long.
+
+❌ Bad: `x.py`, `the_file_that_contains_the_user_authentication_logic.java`
+✅ Good: `auth_helper.py`, `UserAuthService.java`
+⚠️ Why: Unclear names waste time; excessive length hurts typing and readability
+🔧 Fix: Describe content/purpose in minimal words
+
+**Detect:** Single-letter or cryptic names, names over ~40 chars without clear benefit
+
+---
+
+### 12.4 Case and Consistency (Guidance)
+
+**Guidance:** Assume case sensitivity. Prefer lowercase unless language convention is PascalCase (e.g. Java/Swift source files). Use one convention per project.
+
+❌ Bad: `Report.PY` and `report.py` in same project, mixing camelCase and snake_case for same file type
+✅ Good: Lowercase for modules/dirs where language allows; match existing project convention
+⚠️ Why: Case-insensitive filesystems cause collisions; inconsistency annoys tooling and peers
+🔧 Fix: Prefer lowercase; follow existing project style; document convention
+
+**Detect:** Mixed casing for same artifact type, inconsistent word separators in one project
+
+---
+
+### 12.5 Dates in Names (Guidance)
+
+**Guidance:** Use YYYY-MM-DD or YYYYMMDD (with leading zeros) so lexicographic sort matches chronological order.
+
+❌ Bad: `report_12_1_2024.txt`, `log-3-15-2024`
+✅ Good: `report_2024-12-01.txt`, `log_20240315`
+⚠️ Why: MM-DD-YYYY or DD-MM-YYYY sorts incorrectly
+🔧 Fix: Year first, then month, then day; zero-pad month/day
+
+**Detect:** Dates in file names not in ISO order, missing leading zeros
+
+---
+
+### 12.6 Version Suffixes (Guidance)
+
+**Guidance:** Use zero-padded version numbers (e.g. v01, v02) so v10+ sorts correctly.
+
+❌ Bad: `draft_v1`, `draft_v2`, `draft_v10` (sorts v1, v10, v2)
+✅ Good: `draft_v01`, `draft_v02`, `draft_v10`
+⚠️ Why: Lexicographic sort puts v10 before v2 without zero-padding
+🔧 Fix: Zero-pad numeric suffixes (at least two digits if versions may reach 10+)
+
+**Detect:** Version numbers in names without zero-padding, sort order broken at v10+
+
+---
+
+### 12.7 Productivity Pattern for Non-Source Assets (Guidance)
+
+**Guidance:** For docs, exports, logs, or other non-source artifacts: optional three-part pattern **subject_date_code** (order flexible). Use **dashes** where spaces would go in subject; use **underscores** to separate the three parts. Code can be version (v01), initials, or draft/final.
+
+❌ Bad: `New Hire Process 12-1-24 v1.docx` (spaces, ambiguous date)
+✅ Good: `new-hire-process_20241201_V01.docx`, `20241201_report_DRAFT.pdf`
+⚠️ Why: Sortable, script-friendly, consistent with industry (descriptive + date + identifier)
+🔧 Fix: `subject-part-with-dashes_YYYYMMDD_CODE`; keep code segment distinct (e.g. caps for code)
+
+**Detect:** Multi-word subjects with spaces, dates not YYYYMMDD, no separator between subject/date/code
+
+---
+
+## Summary: Critical Rules
+
+These six patterns represent the most critical "making it work vs. making it right" violations:
+
+1. **Ghost Layer Prevention** - No pass-through services
+2. **Placeholder & Dead Code Ban** - No TODOs/FIXMEs in production
+3. **Performance-First Collection Handling** - No I/O in loops
+4. **Business Logic Location** - Keep domain pure
+5. **Zero-Hallucination Policy** - Verify all APIs
+6. **Hardcoded Secrets** - Use environment variables
+
+**Quick Ref:** Arch: Ghost layers, fake abstractions, dead code, logic leakage, state confusion, god objects, file size limit, Strangler Fig | Perf: O(N²), unoptimized hot paths, performance blindness | Quality: Duplication, defensive comments, context blindness, over/under-engineering, formatting, magic values, warning dismissal | API: Hallucination, dependency issues, workaround-first | Security: Hardcoded secrets, missing validation, silent failures, resource leaks, error handling, global state | Testing: Mock mismatches, missing error paths, incomplete coverage, flaky tests | Context: Ignoring patterns, context window limitations, ambiguity intolerance, large context strategies, exhaustion patterns | Process: Pre-execution planning, AST-based detection | Agent: UI-first, verbose prompts, pattern propagation, multi-agent coordination, feedback loops, cooperative communication (9.6–9.8) | Modern LLM: Reasoning mode misuse, long context waste, multimodal misuse, structured output overuse, tool use anti-patterns, extended reasoning, large context misuse | Operations: Logging anti-patterns, metrics anti-patterns, error tracking, observability blindness | File naming: no spaces, safe chars, dates YYYY-MM-DD, consistency, productivity pattern (subject_date_code)
+
+**For language-specific implementations:** See your project's language-specific anti-trap rules file for concrete detection patterns and code examples in your target language.
+
+---
+
+*This file consolidates patterns identified across multiple expert architectural audits and applies universally to LLM-driven development across all programming languages and frameworks.*

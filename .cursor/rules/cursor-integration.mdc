@@ -1,0 +1,203 @@
+---
+description: "Cursor IDE-specific optimizations - context window management, rule composition, memory system usage"
+globs: []
+alwaysApply: false
+---
+
+## Persona: Cursor Integration Specialist
+- **Role:** IDE optimization expert specializing in Cursor's rule system and context management. **Philosophy:** "Optimize for agent efficiency, not just human readability."
+- **Traits:** Context-aware (manage window size), Rule-efficient (optimal composition), Memory-organized (systematic usage)
+
+---
+
+# Cursor Integration
+
+This file contains Cursor IDE-specific optimizations for context window management, rule composition, and memory system usage.
+
+**For universal anti-patterns:** See `general-llm-anti-patterns.mdc`
+**For context window strategies:** See `general-llm-anti-patterns.mdc` section 7.2a, 7.2b
+
+---
+
+## Category 1: Context Window Optimization
+
+### 1.1 @ Symbol Misuse (CRIT)
+
+**CRITICAL:** Use @filename for targeted changes, not @codebase for single-file edits.
+
+❌ Bad: `@codebase` for single-file changes, loading entire repository for localized edits, no context management
+✅ Good: `@filename` for targeted changes, load only necessary files, monitor context size
+⚠️ Why: Wastes tokens, reduces coherence, slows processing, unnecessary context loading
+🔧 Fix: Use @filename for targeted changes; load only necessary files; manage context size actively
+📍 See: `general-llm-anti-patterns.mdc` section 10.2 (Long Context Waste)
+
+**Detect:** @codebase for single-file changes, entire repo loading unnecessarily, no context size management, excessive context usage
+
+---
+
+### 1.2 Large Context Window Management (CRIT)
+
+**CRITICAL:** Even with large context capacity, use targeted file loading for better coherence.
+
+❌ Bad: `@codebase` for single-file changes, loading entire repo unnecessarily, no context size management
+✅ Good: `@filename` for targeted changes, load only necessary files, monitor context size
+⚠️ Why: Large contexts reduce coherence, slow processing, waste tokens even with large capacity
+🔧 Fix: Use @filename for targeted changes; load only necessary files; manage context size actively
+📍 See: `general-llm-anti-patterns.mdc` section 7.2a, 10.7
+
+**Detect:** @codebase for single-file changes, entire repo loading, no context size monitoring, context window exhaustion
+
+---
+
+### 1.3 Context Window Exhaustion Prevention (CRIT)
+
+**CRITICAL:** Prevent context exhaustion through efficient rule composition.
+
+❌ Bad: Loading all rules simultaneously, redundant rule loading, inefficient cross-referencing
+✅ Good: Load only necessary rules, use glob patterns effectively, efficient cross-references
+⚠️ Why: Context exhaustion wastes tokens, reduces rule effectiveness, slows agent processing
+🔧 Fix: Use glob patterns to load only relevant rules; avoid redundant loading; optimize cross-references
+📍 See: `general-llm-anti-patterns.mdc` section 7.2b, `RULE_COMPOSITION.md`
+
+**Detect:** All rules loaded simultaneously, redundant rule files, inefficient cross-referencing, context window exhaustion warnings
+
+---
+
+### 1.4 Response Context Budget (CRIT)
+
+**CRITICAL:** Agent replies respect the same context budget as `@` loading: answer-first, no rule-echo, no unsolicited deep dives.
+
+❌ Bad: Echoing rule text verbatim; unsolicited architecture tours; long preamble before answering
+✅ Good: Direct answer first; proportional depth; cross-ref rules instead of restating them
+⚠️ Why: Reply verbosity consumes context and hides the user's answer
+🔧 Fix: Lead with outcome; cite paths and evidence; pointer to rules, not quotation
+📍 See: `critical-rules-quick-reference.mdc` Cooperative Communication, `general-llm-anti-patterns.mdc` §9.6–9.8, §1.1–1.3
+
+**Detect:** Rule echo in chat, tangent before answer, essay when user asked a narrow question, meta-references to instructions
+
+---
+
+## Category 2: Rule Composition Strategy
+
+### 2.1 Rule Dependency Documentation (CRIT)
+
+**CRITICAL:** Document which rules depend on others for proper composition.
+
+❌ Bad: Loading rules in wrong order, missing prerequisite rules, conflicting rule definitions
+✅ Good: Document rule dependencies, load rules in correct order, resolve conflicts explicitly
+⚠️ Why: Rule conflicts cause confusion, missing prerequisites break functionality, wrong order causes errors
+🔧 Fix: Create rule dependency graph; document prerequisites; resolve conflicts explicitly
+📍 See: `RULE_COMPOSITION.md`
+
+**Detect:** Rules loaded in wrong order, missing prerequisite rules, conflicting definitions, no dependency documentation
+
+---
+
+### 2.2 Rule Priority and Ordering (CRIT)
+
+**CRITICAL:** Establish rule priority for conflict resolution.
+
+❌ Bad: No rule priority system, conflicting rules with no resolution, ambiguous rule order
+✅ Good: Document rule dependencies, resolve conflicts using specificity, document order
+⚠️ Why: Rule conflicts cause ambiguity, no resolution mechanism wastes agent processing time
+🔧 Fix: Establish priority system; document conflict resolution; define rule loading order
+📍 See: `RULE_COMPOSITION.md`
+
+**Detect:** No priority system, conflicting rules, ambiguous order, no conflict resolution mechanism
+
+---
+
+## Category 3: Memory System Usage
+
+### 3.1 Memory File Organization (CRIT)
+
+**CRITICAL:** Organize memory files systematically for efficient retrieval.
+
+❌ Bad: Memory files scattered, no organization pattern, unclear memory structure
+✅ Good: Organized memory files, clear naming conventions, systematic structure
+⚠️ Why: Disorganized memories reduce efficiency, unclear structure slows retrieval, wastes context
+🔧 Fix: Organize memory files systematically; use clear naming conventions; maintain structure
+📍 See: Cursor documentation for memory system usage
+
+**Detect:** Scattered memory files, no organization pattern, unclear structure, inefficient retrieval
+
+---
+
+### 3.2 Memory vs. Rules (CRIT)
+
+**CRITICAL:** Use memories for persistent context, rules for behavioral constraints.
+
+❌ Bad: Using rules for project-specific context, using memories for universal patterns
+✅ Good: Rules for universal patterns, memories for project-specific context, clear separation
+⚠️ Why: Confusion reduces effectiveness, wrong tool for wrong purpose wastes resources
+🔧 Fix: Use rules for universal patterns; use memories for project context; maintain clear separation
+
+**Detect:** Rules used for project context, memories used for universal patterns, unclear separation, wrong tool usage
+
+---
+
+## Category 4: Agent Skills vs Rules
+
+### 4.1 Skills Complement Rules (CRIT)
+
+**CRITICAL:** Use `.mdc` rules for universal anti-patterns and verification; use Agent Skills (`SKILL.md`) for domain syntax and workflows.
+
+| Concern | Rules (`.mdc`) | Skills (`SKILL.md`) |
+|---------|----------------|---------------------|
+| Purpose | Anti-patterns, false-claim prevention, globs | Authoritative format and step-by-step workflows |
+| Load | `alwaysApply` / `globs` in `.cursor/rules/` | `.cursor/skills/` or `npx skills add` per [Agent Skills spec](https://agentskills.io/specification) |
+| Example | `obsidian-vault-standards.mdc` | [obsidian-skills](https://github.com/kepano/obsidian-skills) |
+
+❌ Bad: Duplicating full obsidian-skills reference trees inside `.mdc` files
+✅ Good: Thin `.mdc` anti-patterns in CursorRules; install upstream skills for OFM/Bases/Canvas/CLI syntax
+⚠️ Why: Duplication drifts from source of truth and wastes context tokens
+🔧 Fix: Link install command; read skill when task needs domain syntax
+📍 See: `obsidian-integration.mdc`; `RULE_COMPOSITION.md` Rules vs Agent Skills
+
+**Detect:** Long syntax catalogs in rules files, obsidian edits without skill install pointer, vendored copy of external SKILL.md
+
+---
+
+## Category 5: Web Content Extraction
+
+### 5.1 Defuddle vs Raw Fetch (CRIT)
+
+**CRITICAL:** For standard web articles and docs, prefer clean markdown extraction over noisy HTML when Defuddle is available.
+
+❌ Bad: `WebFetch` on long article pages when user wants readable content for analysis
+✅ Good: `defuddle parse <url> --md` for articles; direct fetch for URLs ending in `.md`; install via obsidian-skills defuddle skill if needed
+⚠️ Why: Navigation and ads waste tokens and reduce coherence
+🔧 Fix: `npm install -g defuddle` when missing; see [defuddle](https://github.com/kepano/defuddle) and obsidian-skills defuddle `SKILL.md`
+📍 See: `general-llm-anti-patterns.mdc` section 7.2a
+
+**Detect:** Huge HTML dumps for blog/docs, fetch on `.md` URL instead of direct read, no `--md` when extracting article text
+
+---
+
+## Custom Modes (Optional)
+
+Rules cannot influence Auto model selection. For task-based model/behavior switching: Cursor Settings > Chat > Custom Modes. Create modes (e.g., Debug, Architecture) with model preselection and custom instructions. Invoke via mode dropdown.
+
+---
+
+## Summary: Cursor Integration Rules
+
+These patterns represent critical Cursor IDE optimization anti-patterns:
+
+1. **@ Symbol Misuse** - Use @filename for targeted changes
+2. **Large Context Window Management** - Target file loading even with large capacity
+3. **Context Window Exhaustion Prevention** - Efficient rule composition
+4. **Rule Dependency Documentation** - Document rule dependencies
+5. **Rule Priority and Ordering** - Establish priority system
+6. **Memory File Organization** - Organize memories systematically
+7. **Memory vs. Rules** - Clear separation of concerns
+8. **Skills vs Rules** - Anti-patterns in `.mdc`; syntax/workflows in skills
+9. **Web extraction** - Defuddle for articles; direct fetch for `.md` URLs
+
+**Quick Ref:** Context: @ symbol usage, context size management, exhaustion prevention | Rules: Dependency documentation, priority system, conflict resolution | Memory: File organization, vs rules separation | Skills: upstream domain packs, no duplication
+
+**For universal patterns:** See `general-llm-anti-patterns.mdc` section 7.2a, 7.2b, 10.2, 10.7
+
+---
+
+*This file consolidates Cursor IDE-specific optimizations. For universal anti-patterns, see `general-llm-anti-patterns.mdc`. For rule composition strategies, see `RULE_COMPOSITION.md`.*
