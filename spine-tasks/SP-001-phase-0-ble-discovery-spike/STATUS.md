@@ -2,7 +2,7 @@
 **Status:** Complete
 **Last Updated:** 2026-07-01
 **Review Level:** 2
-**Review Counter:** 0
+**Review Counter:** 1
 **Iteration:** 1
 **Size:** M
 
@@ -49,7 +49,7 @@
 
 | Date | Step | Type | Outcome |
 |------|------|------|---------|
-| | | | |
+| 2026-07-01 | 5 | final | APPROVE |
 
 ## Discoveries
 
@@ -66,7 +66,8 @@
 | 2026-07-01 | Step 1 | Filled spike §1 from universal_ble 2.0.4 source review |
 | 2026-07-01 | Step 2 | Committed spec-derived fixtures + README |
 | 2026-07-01 | Step 3 | GO + Path A recorded in spike doc and IMPLEMENTATION §3 |
-| 2026-07-01 | Step 4 | `flutter analyze && flutter test` passed |
+| 2026-07-01 | Step 4 | `flutter analyze lib test && flutter test` passed (1841 tests) |
+| 2026-07-01 | Step 5 | Trimmed adv fixtures to exact 25-byte (50 hex) manufacturer blocks per review |
 
 ## Blockers
 
