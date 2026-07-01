@@ -6,6 +6,9 @@ import 'package:reaprime/src/models/device/impl/blackcoffee/blackcoffee_scale.da
 import 'package:reaprime/src/models/device/impl/bookoo/miniscale.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
+import 'package:reaprime/src/models/device/ble_service_identifier.dart';
+import 'package:reaprime/src/models/device/impl/combustion/combustion_constants.dart';
+import 'package:reaprime/src/models/device/impl/combustion/combustion_probe.dart';
 import 'package:reaprime/src/models/device/impl/decent_temp/temperature.dart';
 import 'package:reaprime/src/models/device/impl/difluid/difluid_r2_sensor.dart';
 import 'package:reaprime/src/models/device/impl/difluid/difluid_scale.dart';
@@ -45,8 +48,54 @@ class DeviceMatcher {
     DeviceType.sensor => [
       DecentTemp.serviceIdentifier.long,
       DifluidR2Sensor.serviceIdentifier.long,
+      CombustionProbe.serviceIdentifier.long,
     ],
   };
+
+  /// Matches a discovered peripheral using advertised name plus scan metadata.
+  ///
+  /// Name rules run first (same as [match]). When those miss, Combustion probes
+  /// are identified by manufacturer company ID [CombustionConstants.manufacturerCompanyId]
+  /// or the Probe Status service UUID in primary advertisement or scan response.
+  static Future<Device?> matchFromScanMetadata({
+    required BLETransport transport,
+    required String advertisedName,
+    Iterable<int> manufacturerCompanyIds = const [],
+    Iterable<String> serviceUuids = const [],
+  }) async {
+    final nameMatch = await match(
+      transport: transport,
+      advertisedName: advertisedName,
+    );
+    if (nameMatch != null) {
+      return nameMatch;
+    }
+
+    if (_matchesCombustionMetadata(
+      manufacturerCompanyIds: manufacturerCompanyIds,
+      serviceUuids: serviceUuids,
+    )) {
+      return CombustionProbe(transport: transport);
+    }
+
+    return null;
+  }
+
+  static bool _matchesCombustionMetadata({
+    required Iterable<int> manufacturerCompanyIds,
+    required Iterable<String> serviceUuids,
+  }) {
+    for (final companyId in manufacturerCompanyIds) {
+      if (companyId == CombustionConstants.manufacturerCompanyId) {
+        return true;
+      }
+    }
+
+    return _combustionServiceIdentifier.matchesAny(serviceUuids);
+  }
+
+  static final BleServiceIdentifier _combustionServiceIdentifier =
+      BleServiceIdentifier.long(CombustionConstants.probeStatusServiceUuid);
 
   static Future<Device?> match({
     required BLETransport transport,

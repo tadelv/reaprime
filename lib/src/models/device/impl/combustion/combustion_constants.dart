@@ -5,6 +5,10 @@ class CombustionConstants {
   CombustionConstants._();
 
   static const int manufacturerId = 0x09C7;
+
+  /// Alias used by discovery matching (SP-003).
+  static const int manufacturerCompanyId = manufacturerId;
+
   static const int productTypePredictiveProbe = 0x01;
 
   /// Full manufacturer-specific block including 2-byte vendor ID.
