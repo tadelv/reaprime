@@ -16,8 +16,12 @@ import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/sensor.dart';
+import 'package:reaprime/src/settings/gateway_mode.dart';
+import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
 import 'package:rxdart/rxdart.dart';
+
+import '../helpers/mock_settings_service.dart';
 
 class _EmptyDiscovery extends DeviceDiscoveryService {
   @override
@@ -90,7 +94,8 @@ class _BengleTestMachine extends _TestMachine implements BengleInterface {
 }
 
 class _TestSensor implements Sensor {
-  _TestSensor() : id = 'test-sensor';
+  _TestSensor({this.id = 'test-sensor'});
+
   final String id;
   @override
   String get deviceId => id;
@@ -101,9 +106,10 @@ class _TestSensor implements Sensor {
   final BehaviorSubject<Map<String, dynamic>> _data = BehaviorSubject();
   @override
   Stream<Map<String, dynamic>> get data => _data.stream;
+  final BehaviorSubject<ConnectionState> _connection =
+      BehaviorSubject.seeded(ConnectionState.connected);
   @override
-  Stream<ConnectionState> get connectionState =>
-      Stream.value(ConnectionState.connected);
+  Stream<ConnectionState> get connectionState => _connection.stream;
   @override
   SensorInfo get info => SensorInfo(
       name: name, vendor: 'test', dataChannels: const [], commands: const []);
@@ -115,6 +121,7 @@ class _TestSensor implements Sensor {
   Future<void> disconnect() async {}
   void emit(double celsius) =>
       _data.add({'timestamp': DateTime.now().toIso8601String(), 'temperature': celsius});
+  void setConnection(ConnectionState state) => _connection.add(state);
 }
 
 class _RecordingStorage implements StorageService {
@@ -214,7 +221,20 @@ void main() {
   late WorkflowController workflow;
   late PersistenceController persistence;
   late _RecordingStorage storage;
+  late MockSettingsService settingsService;
+  late SettingsController settings;
   late SteamSequencer sequencer;
+
+  Future<SteamSequencer> buildSequencer() async {
+    return SteamSequencer(
+      de1Controller: de1,
+      sensorController: sensors,
+      workflowController: workflow,
+      persistenceController: persistence,
+      settingsController: settings,
+      settingsService: settingsService,
+    );
+  }
 
   setUp(() async {
     de1 = _StubDe1Controller();
@@ -224,12 +244,10 @@ void main() {
     workflow = WorkflowController();
     storage = _RecordingStorage();
     persistence = PersistenceController(storageService: storage);
-    sequencer = SteamSequencer(
-      de1Controller: de1,
-      sensorController: sensors,
-      workflowController: workflow,
-      persistenceController: persistence,
-    );
+    settingsService = MockSettingsService();
+    settings = SettingsController(settingsService);
+    await settings.loadSettings();
+    sequencer = await buildSequencer();
   });
 
   tearDown(() async {
@@ -322,12 +340,7 @@ void main() {
         expect(storage.persisted, hasLength(1),
             reason: 'should persist on steam → $exitState');
         await sequencer.dispose();
-        sequencer = SteamSequencer(
-          de1Controller: de1,
-          sensorController: sensors,
-          workflowController: workflow,
-          persistenceController: persistence,
-        );
+        sequencer = await buildSequencer();
         m.dispose();
       }
     });
@@ -370,7 +383,8 @@ void main() {
       m.dispose();
     });
 
-    test('milkTemperature picks up first registered sensor', () async {
+    test('milkTemperature picks up first registered sensor when no preference',
+        () async {
       final probe = _TestSensor();
       await sensors.register(probe);
 
@@ -390,6 +404,31 @@ void main() {
       final last = storage.persisted.first.measurements.last;
       expect(last.milkTemperature, equals(55.0));
     });
+
+    test('milkTemperature uses preferred steam probe when set', () async {
+      final first = _TestSensor(id: 'probe-a');
+      final preferred = _TestSensor(id: 'probe-b');
+      await sensors.register(first);
+      await sensors.register(preferred);
+      await settingsService.setPreferredSteamProbeId('probe-b');
+
+      final m = _TestMachine();
+      de1.emit(m);
+      await settle();
+      m.emit(_snap(state: MachineState.steam));
+      await settle();
+      first.emit(40.0);
+      preferred.emit(58.0);
+      await settle();
+      m.emit(_snap(state: MachineState.steam));
+      await settle();
+      m.emit(_snap(state: MachineState.idle));
+      await settle();
+
+      expect(storage.persisted, hasLength(1));
+      final last = storage.persisted.first.measurements.last;
+      expect(last.milkTemperature, equals(58.0));
+    });
   });
 
   group('app-side stop', () {
@@ -408,7 +447,7 @@ void main() {
       m.dispose();
     });
 
-    test('requests idle when first sensor crosses target', () async {
+    test('requests idle when tracked sensor crosses target', () async {
       workflow.updateWorkflow(
         steamSettings: workflow.currentWorkflow.steamSettings
             .copyWith(stopAtTemperature: 60.0),
@@ -432,6 +471,56 @@ void main() {
       await settle();
 
       expect(m.requested, contains(MachineState.idle));
+      m.dispose();
+    });
+
+    test('does not stop after probe disconnect mid-steam', () async {
+      workflow.updateWorkflow(
+        steamSettings: workflow.currentWorkflow.steamSettings
+            .copyWith(stopAtTemperature: 60.0),
+      );
+      final probe = _TestSensor();
+      await sensors.register(probe);
+
+      final m = _TestMachine();
+      de1.emit(m);
+      await settle();
+
+      m.emit(_snap(state: MachineState.steam));
+      await settle();
+      probe.emit(40.0);
+      await settle();
+      probe.setConnection(ConnectionState.disconnected);
+      await settle();
+      probe.emit(70.0);
+      m.emit(_snap(state: MachineState.steam));
+      await settle();
+
+      expect(m.requested, isEmpty);
+      m.dispose();
+    });
+
+    test('does not stop in full gateway mode (skin owns the machine)',
+        () async {
+      await settings.updateGatewayMode(GatewayMode.full);
+      workflow.updateWorkflow(
+        steamSettings: workflow.currentWorkflow.steamSettings
+            .copyWith(stopAtTemperature: 60.0),
+      );
+      final probe = _TestSensor();
+      await sensors.register(probe);
+
+      final m = _TestMachine();
+      de1.emit(m);
+      await settle();
+
+      m.emit(_snap(state: MachineState.steam));
+      await settle();
+      probe.emit(65.0);
+      m.emit(_snap(state: MachineState.steam));
+      await settle();
+
+      expect(m.requested, isEmpty);
       m.dispose();
     });
   });
