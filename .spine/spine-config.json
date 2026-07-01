@@ -19,7 +19,7 @@
       "thinking": "high"
     },
     "reviewer": {
-      "model": "gemini-3.1-pro-preview [google]",
+      "model": "google/gemini-3.1-pro-preview",
       "thinking": "medium"
     },
     "supervisor": {
