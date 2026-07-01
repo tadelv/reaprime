@@ -395,7 +395,7 @@ void main() {
 
       expect(
         uuids,
-        contains(CombustionConstants.probeStatusServiceUuid),
+        contains(CombustionProbe.serviceIdentifier.long),
       );
     });
   });

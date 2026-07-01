@@ -46,7 +46,7 @@
     "cleanupWorktreesOnComplete": true
   },
   "dashboard": {
-    "port": 8109
+    "port": 8119
   },
   "gates": {
     "requireBeforeIntegrate": true,
@@ -71,7 +71,7 @@
       "TP-"
     ]
   },
-  "worktreeSetupHook": "",
+  "worktreeSetupHook": "scripts/spine-worktree-setup.sh",
   "worktreeSetupIgnorePaths": [],
   "referenceDocs": [
     "docs/constitution.md"
