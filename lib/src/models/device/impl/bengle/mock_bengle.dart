@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
@@ -78,17 +79,27 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
 
   // --- integrated scale ---
   // Synthesises weight by integrating MockDe1's simulated flow stream:
-  // weight = ∫ flow × extractionEfficiency dt, but only after
+  // extracted = ∫ flow × extractionEfficiency dt, but only after
   // profileFrame >= targetVolumeCountStart (preinfusion water is absorbed).
-  // BehaviorSubject so a late subscriber (e.g. WS client connecting
-  // mid-shot) immediately gets the current weight without waiting for
-  // the next flow sample. Closed on onDisconnect; existing subscribers
+  // The basket, screen and spouts hold back the first few mL, so the scale
+  // stays at ~0 for the first second or so of the pour, then climbs smoothly —
+  // matching a real shot's first-drops delay rather than rising the instant
+  // pouring starts. BehaviorSubject so a late subscriber (e.g. WS client
+  // connecting mid-shot) immediately gets the current weight without waiting
+  // for the next flow sample. Closed on onDisconnect; existing subscribers
   // receive `done`.
   static const double _extractionEfficiency = 0.80;
+  static const double _firstDropsMl = 2.0; // held back before drops hit the scale
+  // The basket fills before it drips steadily, so the high fill flow at pour
+  // start yields little liquid; extraction ramps to full over this window. This
+  // keeps early weight gain gradual instead of tracking the fill-flow spike.
+  static const double _saturationSecs = 2.5;
   int _tvs = 0; // cached targetVolumeCountStart
   final BehaviorSubject<ScaleSnapshot> _weight = BehaviorSubject();
   StreamSubscription<MachineSnapshot>? _flowSub;
-  double _accumulatedWeight = 0.0;
+  double _extractionElapsed = 0.0; // seconds spent in the extraction (pour) phase
+  double _extractedVolume = 0.0; // total extracted, incl. the held-back first drops
+  double _accumulatedWeight = 0.0; // what has actually reached the scale
   double _tareOffset = 0.0;
   DateTime? _lastSampleTime;
 
@@ -182,6 +193,8 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
       _ledState.add(const LedStripState());
     }
     await super.onConnect();
+    _extractionElapsed = 0.0;
+    _extractedVolume = 0.0;
     _accumulatedWeight = 0.0;
     _tareOffset = 0.0;
     _lastSampleTime = null;
@@ -196,9 +209,15 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
     if (last == null) return;
     final dtSec = now.difference(last).inMilliseconds / 1000.0;
     if (dtSec <= 0) return;
-    // Only accumulate weight after preinfusion frames (extraction phase).
+    // Only accumulate after preinfusion frames (extraction phase). Extraction
+    // ramps up as the basket saturates, and the scale reads what's left once the
+    // first-drops volume has filled — so weight lags the pour start, eases in
+    // rather than tracking the fill-flow spike, then rises smoothly with flow.
     if (s.profileFrame >= _tvs) {
-      _accumulatedWeight += s.flow * dtSec * _extractionEfficiency;
+      _extractionElapsed += dtSec;
+      final ramp = (_extractionElapsed / _saturationSecs).clamp(0.0, 1.0);
+      _extractedVolume += s.flow * dtSec * _extractionEfficiency * ramp;
+      _accumulatedWeight = max(0.0, _extractedVolume - _firstDropsMl);
     }
     _emit();
     _maybeTriggerSaw(s);
