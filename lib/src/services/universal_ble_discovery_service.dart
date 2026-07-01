@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 import 'package:reaprime/src/services/ble/universal_ble_transport.dart';
@@ -192,18 +193,27 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
     }
   }
 
+  /// Test hook for [_deviceScanned] without starting a platform BLE scan.
+  @visibleForTesting
+  Future<void> processScannedDeviceForTesting(BleDevice device) =>
+      _deviceScanned(device);
+
   Future<void> _deviceScanned(BleDevice device) async {
     _currentlyScanning.add(device.deviceId);
 
     try {
-      final name = device.name ?? '';
-      if (name.isEmpty) return;
-
       if (_devices.containsKey(device.deviceId.toString())) return;
 
-      final matchedDevice = await DeviceMatcher.match(
+      final name = device.name ?? '';
+      final manufacturerCompanyIds = device.manufacturerDataList
+          .map((entry) => entry.companyId);
+      final serviceUuids = device.services;
+
+      final matchedDevice = await DeviceMatcher.matchFromScanMetadata(
         transport: UniversalBleTransport(device: device),
         advertisedName: name,
+        manufacturerCompanyIds: manufacturerCompanyIds,
+        serviceUuids: serviceUuids,
       );
 
       if (matchedDevice != null) {
