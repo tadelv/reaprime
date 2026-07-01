@@ -41,7 +41,7 @@ Complete the Phase 0 spike in `SPIKE-universal-ble-discovery.md`: validate `univ
 | Field | Value |
 |-------|-------|
 | testCommand | `flutter analyze && flutter test` |
-| fileScopeMustChange | `doc/plans/combustion-probe/SPIKE-universal-ble-discovery.md` |
+| fileScopeMustChange | `test/fixtures/combustion/**` |
 | fileScopeMustNotChange | `lib/src/**` |
 | completionCriteria | Spike checklist complete; go/no-go recorded; hex fixtures committed if hardware available (or documented blocker with simulate-only path). |
 
