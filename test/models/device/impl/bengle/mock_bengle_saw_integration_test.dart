@@ -89,12 +89,14 @@ void main() {
       await bengle.setProfile(_sawProfile());
       await bengle.requestState(MachineState.espresso);
 
-      // Wait just past preparingForShot but still in preinfusion
-      await Future.delayed(const Duration(milliseconds: 700));
+      // Sample entirely within preinfusion (step0 is 1s; prep is the first
+      // ~0.5s). Weight is gated on profileFrame >= targetVolumeCountStart, so it
+      // must read ~0 for every preinfusion sample. Keep the window under 1s —
+      // sampling past the pour boundary would legitimately catch early extraction.
+      await Future.delayed(const Duration(milliseconds: 400));
 
-      // Preinfusion step is 1s. At 700ms we're still in step0 (preinfusion).
       final weights = await bengle.weightSnapshot
-          .take(5)
+          .take(3)
           .toList()
           .timeout(const Duration(seconds: 2));
 
