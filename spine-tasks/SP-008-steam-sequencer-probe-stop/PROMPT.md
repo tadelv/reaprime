@@ -102,3 +102,11 @@ Update SteamSequencer to use resolvePreferred for steam probe, add _probeLost on
 
 ## Amendments (Added During Execution)
 
+### Scope extension: `lib/main.dart`
+
+**Reason:** `SteamSequencer` requires `settingsController` and `settingsService` at construction time for OD-6 gateway gate and preferred-probe resolution. Wiring must happen in `main.dart` where both are instantiated.
+
+**Added to File Scope:**
+
+- `lib/main.dart` — extract shared `settingsService` and pass to `SettingsController` + `SteamSequencer`
+

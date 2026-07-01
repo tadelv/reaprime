@@ -61,6 +61,7 @@
 |------|-------|--------|
 | 2026-07-01 | Step 1–3 | Implemented resolvePreferred, _probeLost, gateway gate |
 | 2026-07-01 | REVISE fix | Extracted `settingsService` in `main.dart` so gateway gate + preferred probe wiring compile |
+| 2026-07-01 | REVISE fix | Added `lib/main.dart` scope amendment to PROMPT.md (file-scope violation) |
 
 ## Blockers
 
