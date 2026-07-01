@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/impl/bengle/mock_bengle.dart';
+import 'package:reaprime/src/models/device/impl/combustion/mock_combustion_probe.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
 import 'package:reaprime/src/models/device/impl/mock_scale/mock_scale.dart';
 import 'package:reaprime/src/models/device/impl/sensor/mock/mock_debug_port.dart';
@@ -61,9 +62,14 @@ class SimulatedDeviceService
     if (enabledDevices.contains(SimulatedDevicesTypes.sensor)) {
       _devices.putIfAbsent("MockSensorBasket", () => MockSensorBasket());
       _devices.putIfAbsent("MockDebugPort", () => MockDebugPort());
+      _devices.putIfAbsent(
+        "MockCombustionProbe",
+        () => MockCombustionProbe(),
+      );
     } else {
       _devices.remove("MockSensorBasket");
       _devices.remove("MockDebugPort");
+      _devices.remove("MockCombustionProbe");
     }
     _deviceStreamController.add(_devices.values.toList());
     notifyListeners();

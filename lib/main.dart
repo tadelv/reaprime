@@ -120,7 +120,8 @@ Future<void> _setSystemInfoKeys(TelemetryService telemetryService) async {
 
 /// Parses the `--dart-define=simulate=` flag value.
 /// Accepts "1" for all device types, or a comma-delimited list
-/// like "machine,scale" for selective simulation.
+/// like "machine,scale" for selective simulation. The `sensor` type
+/// includes MockSensorBasket, MockDebugPort, and MockCombustionProbe.
 Set<SimulatedDevicesTypes> _parseSimulateFlag(String value) {
   if (value == '1') {
     return SimulatedDevicesTypes.values.toSet();
