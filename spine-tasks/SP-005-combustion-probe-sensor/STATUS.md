@@ -1,5 +1,5 @@
-**Current Step:** Step 1: Not started
-**Status:** Ready
+**Current Step:** Complete
+**Status:** Done
 **Last Updated:** 2026-07-01
 **Review Level:** 2
 **Review Counter:** 0
@@ -10,37 +10,37 @@
 
 ## Step 1: Implement CombustionProbe skeleton
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] BleServiceIdentifier, manufacturerId, Sensor interface
-- [ ] onConnect registers adv listener; no GATT for MVP
+- [x] BleServiceIdentifier, manufacturerId, Sensor interface
+- [x] onConnect registers adv listener; no GATT for MVP
 
 ## Step 2: Wire protocol to data stream
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Map virtual core to temperature key per OD-1
-- [ ] Populate SensorInfo dataChannels for extended readings
+- [x] Map virtual core to temperature key per OD-1
+- [x] Populate SensorInfo dataChannels for extended readings
 
 ## Step 3: Unit tests with mock transport
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Adv payload produces expected temperature on BehaviorSubject
+- [x] Adv payload produces expected temperature on BehaviorSubject
 
 ## Step 4: Testing & Verification
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Run flutter test
-- [ ] Fix failures
+- [x] Run flutter test
+- [x] Fix failures
 
 ## Step 5: Completion Criteria
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] All steps complete
-- [ ] Documentation satisfied
+- [x] All steps complete
+- [x] Documentation satisfied
 
 ---
 
@@ -54,13 +54,14 @@
 
 | Date | Finding | Impact |
 |------|---------|--------|
-| | | |
+| 2026-07-01 | BLETransport has no adv stream yet; `CombustionAdvertisingTransport` interface defined in combustion_probe.dart for transport wiring | SP-006 or transport task must implement interface on UniversalBleTransport |
 
 ## Execution Log
 
 | Date | Event | Detail |
-|------|-------|--------|
-| | | |
+|------|------|--------|
+| 2026-07-01 | Implementation | CombustionProbe adv-only sensor + unit tests |
+| 2026-07-01 | Verification | `flutter test` passed |
 
 ## Blockers
 
@@ -70,3 +71,4 @@
 
 ## Notes
 
+- `CombustionAdvertisingTransport` is the capability hook for production adv streaming on UniversalBleTransport.
