@@ -69,6 +69,8 @@ Investigations:
 
 **Deliverable:** Completed spike doc with go/no-go for adv-only MVP.
 
+**SP-001 outcome (2026-07-01):** **GO** for advertising-only MVP via Path A (`matchFromScanMetadata`). `universal_ble` 2.0.4 (tadelv fork @ `6a5abe4`) exposes `BleDevice.manufacturerDataList`, `services`, and `serviceData` on Android and Apple; Android merges primary-advertisement and scan-response service UUIDs before the Dart callback. No `universal_ble` fork is required for discovery metadata. Spec-derived hex fixtures live under `test/fixtures/combustion/` until SP-018 replaces them with live DE1-tablet captures. Android DE1 live-scan and coexistence checks remain **not tested** in SP-001.
+
 ---
 
 ## 4. Combustion protocol notes
