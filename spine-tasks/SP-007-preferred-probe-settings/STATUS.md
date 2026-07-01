@@ -1,5 +1,5 @@
-**Current Step:** Step 1: Not started
-**Status:** Ready
+**Current Step:** Complete
+**Status:** Complete
 **Last Updated:** 2026-07-01
 **Review Level:** 2
 **Review Counter:** 0
@@ -10,35 +10,35 @@
 
 ## Step 1: Add settings keys
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Persist preferredSteamProbeId, preferredShotProbeId, combustionDefaultChannel
+- [x] Persist preferredSteamProbeId, preferredShotProbeId, combustionDefaultChannel
 
 ## Step 2: Implement resolvePreferred
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Bridge collision wins; then explicit ID; then first registered
+- [x] Bridge collision wins; then explicit ID; then first registered
 
 ## Step 3: Unit tests
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Multi-sensor scenarios per FR-M1/M2/M3
+- [x] Multi-sensor scenarios per FR-M1/M2/M3
 
 ## Step 4: Testing & Verification
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Run flutter test
-- [ ] Fix failures
+- [x] Run flutter test
+- [x] Fix failures
 
 ## Step 5: Completion Criteria
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] All steps complete
-- [ ] Documentation satisfied
+- [x] All steps complete
+- [x] Documentation satisfied
 
 ---
 
@@ -46,7 +46,8 @@
 
 | Date | Step | Type | Outcome |
 |------|------|------|---------|
-| | | | |
+| 2026-07-01 | 5 | code | APPROVE |
+| 2026-07-01 | 5 | final | PASS |
 
 ## Discoveries
 
@@ -57,8 +58,10 @@
 ## Execution Log
 
 | Date | Event | Detail |
-|------|-------|--------|
-| | | |
+|------|------|--------|
+| 2026-07-01 | Step 1–3 | Settings keys + resolvePreferred + unit tests |
+| 2026-07-01 | Step 4 | `flutter test test/controllers/sensor_controller_test.dart` — 10 passed |
+| 2026-07-01 | REVISE | Added `test/settings/preferred_probe_settings_test.dart` |
 
 ## Blockers
 
