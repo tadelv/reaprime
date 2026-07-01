@@ -301,16 +301,16 @@ flowchart TB
 
 ## 11. Open product decisions
 
-Engineering should resolve before or during implementation. Defaults are recommendations only.
+**Status: Resolved 2026-07-01** — defaults adopted for v1 implementation. See `spine-tasks/CONTEXT.md` for authoritative table.
 
-| ID | Decision | Options | Default recommendation |
-|----|----------|---------|------------------------|
-| OD-1 | Default `temperature` channel for steam | virtual core, T1 tip, user-selectable | virtual core for milk pitcher |
-| OD-2 | Default `temperature` channel for brew cup | T1 immersed, T8 ambient, virtual surface | T1 or instant-read tip |
-| OD-3 | Preferred probe storage | settings key, remembered device, workflow field | settings + optional remember like scale |
-| OD-4 | Advertising-only vs GATT for MVP | adv-only, GATT subscribe | advertising-only |
-| OD-5 | Shot UI placement | realtime shot overlay, gateway mode only, skin-only | realtime shot overlay + API for skins |
-| OD-6 | Gateway mode steam stop | inert when `gatewayMode == full`, always active | inert when full — matches [hot-water-stop](../archive/hot-water-stop-at-weight/design.md) precedent |
+| ID | Decision | **Resolved (v1)** |
+|----|----------|-------------------|
+| OD-1 | Default `temperature` channel for steam | Virtual core for milk pitcher |
+| OD-2 | Default `temperature` channel for brew cup | T1 (immersed tip) |
+| OD-3 | Preferred probe storage | Settings keys; optional remember-device later |
+| OD-4 | Advertising-only vs GATT for MVP | Advertising-only |
+| OD-5 | Shot UI placement | Realtime shot overlay + sensor WebSocket API for skins |
+| OD-6 | Gateway mode steam stop | Inert when `gatewayMode == full` |
 
 ---
 
