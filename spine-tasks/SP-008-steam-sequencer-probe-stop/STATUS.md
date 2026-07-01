@@ -60,7 +60,7 @@
 | Date | Event | Detail |
 |------|-------|--------|
 | 2026-07-01 | Step 1–3 | Implemented resolvePreferred, _probeLost, gateway gate |
-| 2026-07-01 | Step 4 | `flutter test test/controllers/steam_sequencer_test.dart` — 14/14 pass; full suite 1881 pass, 1 pre-existing fail (`webui_storage_bundled_test.dart` missing bundled_skins assets in worktree) |
+| 2026-07-01 | REVISE fix | Extracted `settingsService` in `main.dart` so gateway gate + preferred probe wiring compile |
 
 ## Blockers
 
