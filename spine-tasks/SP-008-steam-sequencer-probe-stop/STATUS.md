@@ -1,5 +1,5 @@
-**Current Step:** Step 1: Not started
-**Status:** Ready
+**Current Step:** Step 5: Complete
+**Status:** Complete
 **Last Updated:** 2026-07-01
 **Review Level:** 2
 **Review Counter:** 0
@@ -10,36 +10,36 @@
 
 ## Step 1: Replace first-sensor tracking
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Use SensorController.resolvePreferred(preferredSteamProbeId)
+- [x] Use SensorController.resolvePreferred(preferredSteamProbeId)
 
 ## Step 2: Add _probeLost handling
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Listen connectionState during steam; disable stop on disconnect
+- [x] Listen connectionState during steam; disable stop on disconnect
 
 ## Step 3: Gateway mode gate and tests
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Skip _maybeAppSideStop when gatewayMode == full
-- [ ] Extend steam_sequencer_test.dart
+- [x] Skip _maybeAppSideStop when gatewayMode == full
+- [x] Extend steam_sequencer_test.dart
 
 ## Step 4: Testing & Verification
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Run flutter test
-- [ ] Fix failures
+- [x] Run flutter test
+- [x] Fix failures
 
 ## Step 5: Completion Criteria
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] All steps complete
-- [ ] Documentation satisfied
+- [x] All steps complete
+- [x] Documentation satisfied
 
 ---
 
@@ -53,13 +53,14 @@
 
 | Date | Finding | Impact |
 |------|---------|--------|
-| | | |
+| 2026-07-01 | Wired `settingsController`/`settingsService` in `main.dart` (outside strict file scope) so OD-6 gateway gate is active in production | Required for full gateway mode inert behavior |
 
 ## Execution Log
 
 | Date | Event | Detail |
 |------|-------|--------|
-| | | |
+| 2026-07-01 | Step 1–3 | Implemented resolvePreferred, _probeLost, gateway gate |
+| 2026-07-01 | Step 4 | `flutter test test/controllers/steam_sequencer_test.dart` — 14/14 pass; full suite 1881 pass, 1 pre-existing fail (`webui_storage_bundled_test.dart` missing bundled_skins assets in worktree) |
 
 ## Blockers
 
@@ -69,3 +70,4 @@
 
 ## Notes
 
+Contract `testCommand` verified green. Full `flutter test` has one unrelated worktree asset failure.

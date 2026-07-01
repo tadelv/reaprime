@@ -406,6 +406,8 @@ void main(List<String> args) async {
     sensorController: sensorController,
     workflowController: workflowController,
     persistenceController: persistenceController,
+    settingsController: settingsController,
+    settingsService: settingsService,
   );
 
   // Tares the scale and stops hot-water dispensing at the configured volume

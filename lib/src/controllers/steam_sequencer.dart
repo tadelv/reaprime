@@ -10,9 +10,13 @@ import 'package:reaprime/src/models/data/steam_snapshot.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/impl/bengle/bengle_mmr.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/sensor.dart';
+import 'package:reaprime/src/settings/gateway_mode.dart';
+import 'package:reaprime/src/settings/settings_controller.dart';
+import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:uuid/uuid.dart';
 
 /// Long-lived service that records steaming sessions and orchestrates
@@ -23,8 +27,9 @@ import 'package:uuid/uuid.dart';
 ///
 /// **Today (FW not ready):**
 /// - Records persist via `PersistenceController.persistSteam`.
-/// - `SteamSnapshot.milkTemperature` is populated from the first
-///   sensor registered in `SensorController`. No probe is registered
+/// - `SteamSnapshot.milkTemperature` is populated from the preferred
+///   steam probe (`SettingsService.preferredSteamProbeId`) when set,
+///   otherwise the first registered sensor. No probe is registered
 ///   in production today, so the field is `null` in real recordings.
 /// - The stop-at-temperature path: the FW-autonomous branch is
 ///   gated on `BengleSteamMmr.stopAtTemperatureTarget.address != 0`,
@@ -38,10 +43,14 @@ class SteamSequencer {
     required SensorController sensorController,
     required WorkflowController workflowController,
     required PersistenceController persistenceController,
+    SettingsController? settingsController,
+    SettingsService? settingsService,
   })  : _de1 = de1Controller,
         _sensors = sensorController,
         _workflow = workflowController,
-        _persistence = persistenceController {
+        _persistence = persistenceController,
+        _settingsController = settingsController,
+        _settingsService = settingsService {
     _de1Sub = _de1.de1.listen(_onMachineChange);
   }
 
@@ -49,14 +58,18 @@ class SteamSequencer {
   final SensorController _sensors;
   final WorkflowController _workflow;
   final PersistenceController _persistence;
+  final SettingsController? _settingsController;
+  final SettingsService? _settingsService;
   final Logger _log = Logger('SteamSequencer');
 
   StreamSubscription<De1Interface?>? _de1Sub;
   StreamSubscription<MachineSnapshot>? _snapshotSub;
   StreamSubscription<Map<String, dynamic>>? _sensorSub;
+  StreamSubscription<device.ConnectionState>? _probeConnectionSub;
   De1Interface? _machine;
   Sensor? _trackedSensor;
   double? _latestSensorTemperature;
+  bool _probeLost = false;
 
   // Open record state.
   String? _openId;
@@ -129,31 +142,53 @@ class SteamSequencer {
     _openWorkflow = _workflow.currentWorkflow;
     _measurements.clear();
     _appSideStopRequested = false;
-    _trackFirstSensor();
+    _probeLost = false;
+    // ignore: discarded_futures
+    _trackPreferredSensor();
     _log.info('Steam record opened: $_openId');
   }
 
-  void _trackFirstSensor() {
+  Future<void> _trackPreferredSensor() async {
     _sensorSub?.cancel();
     _sensorSub = null;
+    await _probeConnectionSub?.cancel();
+    _probeConnectionSub = null;
     _trackedSensor = null;
     _latestSensorTemperature = null;
-    final entries = _sensors.sensors.entries;
-    if (entries.isEmpty) return;
-    final sensor = entries.first.value;
+
+    final settingsService = _settingsService;
+    final preferredId = settingsService != null
+        ? await settingsService.preferredSteamProbeId()
+        : null;
+    final sensor = _sensors.resolvePreferred(preferredId);
+    if (sensor == null) return;
+
     _trackedSensor = sensor;
+    _probeConnectionSub =
+        sensor.connectionState.listen(_onProbeConnectionState);
     _sensorSub = sensor.data.listen((payload) {
       final raw = payload['temperature'];
       if (raw is num) _latestSensorTemperature = raw.toDouble();
     });
   }
 
+  void _onProbeConnectionState(device.ConnectionState state) {
+    if (state == device.ConnectionState.connected) return;
+    if (_probeLost) return;
+    _probeLost = true;
+    _log.warning(
+      'Steam probe lost mid-session; app-side stop-at-temperature disabled',
+    );
+  }
+
   void _maybeAppSideStop(MachineSnapshot s) {
     if (_appSideStopRequested) return;
+    if (_settingsController?.gatewayMode == GatewayMode.full) return;
+    if (_probeLost) return;
     final wf = _openWorkflow ?? _workflow.currentWorkflow;
     final target = wf.steamSettings.stopAtTemperature;
     if (target <= 0) return;
-    final attached = _trackedSensor != null;
+    final attached = _trackedSensor != null && !_probeLost;
     if (useFwAutonomousStop(
         machine: _machine,
         probeAttached: attached,
@@ -204,8 +239,11 @@ class SteamSequencer {
     _appSideStopRequested = false;
     _sensorSub?.cancel();
     _sensorSub = null;
+    _probeConnectionSub?.cancel();
+    _probeConnectionSub = null;
     _trackedSensor = null;
     _latestSensorTemperature = null;
+    _probeLost = false;
   }
 
   Future<void> dispose() async {
@@ -215,5 +253,7 @@ class SteamSequencer {
     _snapshotSub = null;
     await _sensorSub?.cancel();
     _sensorSub = null;
+    await _probeConnectionSub?.cancel();
+    _probeConnectionSub = null;
   }
 }
