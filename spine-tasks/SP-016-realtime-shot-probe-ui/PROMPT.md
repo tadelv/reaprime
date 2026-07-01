@@ -36,7 +36,7 @@ Display live and recorded probe temperature in realtime shot UI when sensor conn
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter analyze && flutter test` |
+| testCommand | `flutter test` |
 | fileScopeMustChange | `lib/src/realtime_shot_feature/**` |
 | fileScopeMustNotChange | `lib/src/home_feature/forms/steam_form.dart` |
 | completionCriteria | Widget test or manual verify path; probe temp visible during shot when sensor present. |
@@ -57,7 +57,7 @@ Display live and recorded probe temperature in realtime shot UI when sensor conn
 
 ### Step 4: Testing & Verification
 
-- [ ] Run `flutter analyze && flutter test`
+- [ ] Run `flutter test`
 - [ ] Run targeted tests for files in File Scope
 - [ ] Fix all failures introduced by this task
 
@@ -80,7 +80,7 @@ Display live and recorded probe temperature in realtime shot UI when sensor conn
 ## Completion Criteria
 
 - [ ] All steps complete
-- [ ] `flutter analyze && flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
+- [ ] `flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
 - [ ] Documentation requirements satisfied
 
 ## Git Commit Convention

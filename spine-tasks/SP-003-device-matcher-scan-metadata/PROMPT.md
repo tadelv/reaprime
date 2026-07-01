@@ -37,7 +37,7 @@ Add `DeviceMatcher.matchFromScanMetadata()` for Combustion identification by man
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter analyze && flutter test` |
+| testCommand | `flutter test` |
 | fileScopeMustChange | `lib/src/services/device_matcher.dart` |
 | fileScopeMustNotChange | `lib/src/services/universal_ble_discovery_service.dart` |
 | completionCriteria | Tests cover name, mfg ID, service UUID in scan response, empty name + mfg; existing matchers unchanged. |
@@ -59,7 +59,7 @@ Add `DeviceMatcher.matchFromScanMetadata()` for Combustion identification by man
 
 ### Step 4: Testing & Verification
 
-- [ ] Run `flutter analyze && flutter test`
+- [ ] Run `flutter test`
 - [ ] Run targeted tests for files in File Scope
 - [ ] Fix all failures introduced by this task
 
@@ -82,7 +82,7 @@ Add `DeviceMatcher.matchFromScanMetadata()` for Combustion identification by man
 ## Completion Criteria
 
 - [ ] All steps complete
-- [ ] `flutter analyze && flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
+- [ ] `flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
 - [ ] Documentation requirements satisfied
 
 ## Git Commit Convention

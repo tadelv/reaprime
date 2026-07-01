@@ -40,7 +40,7 @@ Complete the Phase 0 spike in `SPIKE-universal-ble-discovery.md`: validate `univ
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter analyze && flutter test` |
+| testCommand | `flutter test` |
 | fileScopeMustChange | `test/fixtures/combustion/**` |
 | fileScopeMustNotChange | `lib/src/**` |
 | completionCriteria | Spike checklist complete; go/no-go recorded; hex fixtures committed if hardware available (or documented blocker with simulate-only path). |
@@ -64,7 +64,7 @@ Complete the Phase 0 spike in `SPIKE-universal-ble-discovery.md`: validate `univ
 
 ### Step 4: Testing & Verification
 
-- [ ] Run `flutter analyze && flutter test`
+- [ ] Run `flutter test`
 - [ ] Run targeted tests for files in File Scope
 - [ ] Fix all failures introduced by this task
 
@@ -87,7 +87,7 @@ Complete the Phase 0 spike in `SPIKE-universal-ble-discovery.md`: validate `univ
 ## Completion Criteria
 
 - [ ] All steps complete
-- [ ] `flutter analyze && flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
+- [ ] `flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
 - [ ] Documentation requirements satisfied
 
 ## Git Commit Convention

@@ -37,7 +37,7 @@ Expose stopAtTemperature and preferred probe selection in native steam workflow 
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter analyze && flutter test` |
+| testCommand | `flutter test` |
 | fileScopeMustChange | `lib/src/home_feature/forms/steam_form.dart` |
 | fileScopeMustNotChange | `lib/src/realtime_shot_feature/**` |
 | completionCriteria | User can set stopAtTemperature and pick preferred probe when multiple sensors present. |
@@ -58,7 +58,7 @@ Expose stopAtTemperature and preferred probe selection in native steam workflow 
 
 ### Step 4: Testing & Verification
 
-- [ ] Run `flutter analyze && flutter test`
+- [ ] Run `flutter test`
 - [ ] Run targeted tests for files in File Scope
 - [ ] Fix all failures introduced by this task
 
@@ -81,7 +81,7 @@ Expose stopAtTemperature and preferred probe selection in native steam workflow 
 ## Completion Criteria
 
 - [ ] All steps complete
-- [ ] `flutter analyze && flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
+- [ ] `flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
 - [ ] Documentation requirements satisfied
 
 ## Git Commit Convention

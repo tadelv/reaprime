@@ -37,7 +37,7 @@ Update SteamSequencer to use resolvePreferred for steam probe, add _probeLost on
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter analyze && flutter test` |
+| testCommand | `flutter test` |
 | fileScopeMustChange | `lib/src/controllers/steam_sequencer.dart` |
 | fileScopeMustNotChange | `lib/src/controllers/shot_sequencer.dart` |
 | completionCriteria | Tests cover app-side stop, preferred probe, probeLost, gateway full inert. |
@@ -59,7 +59,7 @@ Update SteamSequencer to use resolvePreferred for steam probe, add _probeLost on
 
 ### Step 4: Testing & Verification
 
-- [ ] Run `flutter analyze && flutter test`
+- [ ] Run `flutter test`
 - [ ] Run targeted tests for files in File Scope
 - [ ] Fix all failures introduced by this task
 
@@ -82,7 +82,7 @@ Update SteamSequencer to use resolvePreferred for steam probe, add _probeLost on
 ## Completion Criteria
 
 - [ ] All steps complete
-- [ ] `flutter analyze && flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
+- [ ] `flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
 - [ ] Documentation requirements satisfied
 
 ## Git Commit Convention

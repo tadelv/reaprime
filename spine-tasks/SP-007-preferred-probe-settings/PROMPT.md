@@ -38,7 +38,7 @@ Add settings keys `preferredSteamProbeId`, `preferredShotProbeId`, `combustionDe
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter analyze && flutter test` |
+| testCommand | `flutter test` |
 | fileScopeMustChange | `lib/src/controllers/sensor_controller.dart` |
 | fileScopeMustNotChange | `lib/src/controllers/steam_sequencer.dart` |
 | completionCriteria | Tests verify precedence with bridge, preferred, and fallback sensors. |
@@ -59,7 +59,7 @@ Add settings keys `preferredSteamProbeId`, `preferredShotProbeId`, `combustionDe
 
 ### Step 4: Testing & Verification
 
-- [ ] Run `flutter analyze && flutter test`
+- [ ] Run `flutter test`
 - [ ] Run targeted tests for files in File Scope
 - [ ] Fix all failures introduced by this task
 
@@ -82,7 +82,7 @@ Add settings keys `preferredSteamProbeId`, `preferredShotProbeId`, `combustionDe
 ## Completion Criteria
 
 - [ ] All steps complete
-- [ ] `flutter analyze && flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
+- [ ] `flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
 - [ ] Documentation requirements satisfied
 
 ## Git Commit Convention

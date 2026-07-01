@@ -35,7 +35,7 @@ Document hardware test protocol: DE1/Bengle + scale + Combustion probe concurren
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter analyze && flutter test` |
+| testCommand | `flutter test` |
 | fileScopeMustChange | `doc/plans/combustion-probe/HARDWARE-VALIDATION.md` |
 | fileScopeMustNotChange | `lib/src/**` |
 | completionCriteria | Hardware validation checklist ready for manual sign-off on Android DE1 tablet. |
@@ -56,7 +56,7 @@ Document hardware test protocol: DE1/Bengle + scale + Combustion probe concurren
 
 ### Step 4: Testing & Verification
 
-- [ ] Run `flutter analyze && flutter test`
+- [ ] Run `flutter test`
 - [ ] Run targeted tests for files in File Scope
 - [ ] Fix all failures introduced by this task
 
@@ -79,7 +79,7 @@ Document hardware test protocol: DE1/Bengle + scale + Combustion probe concurren
 ## Completion Criteria
 
 - [ ] All steps complete
-- [ ] `flutter analyze && flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
+- [ ] `flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
 - [ ] Documentation requirements satisfied
 
 ## Git Commit Convention

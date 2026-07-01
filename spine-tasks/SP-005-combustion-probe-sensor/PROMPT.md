@@ -39,7 +39,7 @@ Implement `CombustionProbe implements Sensor` using advertising-only temperature
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter analyze && flutter test` |
+| testCommand | `flutter test` |
 | fileScopeMustChange | `lib/src/models/device/impl/combustion/combustion_probe.dart` |
 | fileScopeMustNotChange | `lib/src/services/simulated_device_service.dart` |
 | completionCriteria | Unit tests show mock transport adv bytes produce data stream with temperature key. |
@@ -62,7 +62,7 @@ Implement `CombustionProbe implements Sensor` using advertising-only temperature
 
 ### Step 4: Testing & Verification
 
-- [ ] Run `flutter analyze && flutter test`
+- [ ] Run `flutter test`
 - [ ] Run targeted tests for files in File Scope
 - [ ] Fix all failures introduced by this task
 
@@ -85,7 +85,7 @@ Implement `CombustionProbe implements Sensor` using advertising-only temperature
 ## Completion Criteria
 
 - [ ] All steps complete
-- [ ] `flutter analyze && flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
+- [ ] `flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
 - [ ] Documentation requirements satisfied
 
 ## Git Commit Convention

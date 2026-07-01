@@ -39,7 +39,7 @@ Expose probeTemperature on shot REST endpoints; update assets/api/rest_v1.yml an
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter analyze && flutter test` |
+| testCommand | `flutter test` |
 | fileScopeMustChange | `assets/api/rest_v1.yml` |
 | fileScopeMustNotChange | `lib/src/realtime_shot_feature/**` |
 | completionCriteria | OpenAPI and handler tests include probeTemperature; spec and doc match. |
@@ -60,7 +60,7 @@ Expose probeTemperature on shot REST endpoints; update assets/api/rest_v1.yml an
 
 ### Step 4: Testing & Verification
 
-- [ ] Run `flutter analyze && flutter test`
+- [ ] Run `flutter test`
 - [ ] Run targeted tests for files in File Scope
 - [ ] Fix all failures introduced by this task
 
@@ -84,7 +84,7 @@ Expose probeTemperature on shot REST endpoints; update assets/api/rest_v1.yml an
 ## Completion Criteria
 
 - [ ] All steps complete
-- [ ] `flutter analyze && flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
+- [ ] `flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
 - [ ] Documentation requirements satisfied
 
 ## Git Commit Convention

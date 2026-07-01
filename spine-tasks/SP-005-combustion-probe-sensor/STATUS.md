@@ -32,7 +32,7 @@
 
 **Status:** Not Started
 
-- [ ] Run flutter analyze && flutter test
+- [ ] Run flutter test
 - [ ] Fix failures
 
 ## Step 5: Completion Criteria

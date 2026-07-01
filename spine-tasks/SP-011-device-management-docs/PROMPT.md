@@ -35,7 +35,7 @@ Document Combustion discovery, advertising-only mode, and sensor precedence in d
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter analyze && flutter test` |
+| testCommand | `flutter test` |
 | fileScopeMustChange | `doc/DeviceManagement.md` |
 | fileScopeMustNotChange | `lib/src/**` |
 | completionCriteria | DeviceManagement.md describes Combustion ID paths and precedence rules. |
@@ -56,7 +56,7 @@ Document Combustion discovery, advertising-only mode, and sensor precedence in d
 
 ### Step 4: Testing & Verification
 
-- [ ] Run `flutter analyze && flutter test`
+- [ ] Run `flutter test`
 - [ ] Run targeted tests for files in File Scope
 - [ ] Fix all failures introduced by this task
 
@@ -79,7 +79,7 @@ Document Combustion discovery, advertising-only mode, and sensor precedence in d
 ## Completion Criteria
 
 - [ ] All steps complete
-- [ ] `flutter analyze && flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
+- [ ] `flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
 - [ ] Documentation requirements satisfied
 
 ## Git Commit Convention

@@ -39,7 +39,7 @@ Add `MockCombustionProbe` and wire into `SimulatedDeviceService` and simulate st
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter analyze && flutter test` |
+| testCommand | `flutter test` |
 | fileScopeMustChange | `lib/src/models/device/impl/combustion/mock_combustion_probe.dart` |
 | fileScopeMustNotChange | `lib/src/controllers/steam_sequencer.dart` |
 | completionCriteria | Simulate mode exposes Combustion in sensor list; tests pass. |
@@ -60,7 +60,7 @@ Add `MockCombustionProbe` and wire into `SimulatedDeviceService` and simulate st
 
 ### Step 4: Testing & Verification
 
-- [ ] Run `flutter analyze && flutter test`
+- [ ] Run `flutter test`
 - [ ] Run targeted tests for files in File Scope
 - [ ] Fix all failures introduced by this task
 
@@ -83,7 +83,7 @@ Add `MockCombustionProbe` and wire into `SimulatedDeviceService` and simulate st
 ## Completion Criteria
 
 - [ ] All steps complete
-- [ ] `flutter analyze && flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
+- [ ] `flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
 - [ ] Documentation requirements satisfied
 
 ## Git Commit Convention

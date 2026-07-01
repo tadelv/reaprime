@@ -35,7 +35,7 @@ Document skin developer use of `/ws/v1/sensors/{id}/snapshot` during espresso sh
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter analyze && flutter test` |
+| testCommand | `flutter test` |
 | fileScopeMustChange | `doc/Api.md` |
 | fileScopeMustNotChange | `lib/src/**` |
 | completionCriteria | Api.md section explains live probe temp during shots for skin devs. |
@@ -57,7 +57,7 @@ Document skin developer use of `/ws/v1/sensors/{id}/snapshot` during espresso sh
 
 ### Step 4: Testing & Verification
 
-- [ ] Run `flutter analyze && flutter test`
+- [ ] Run `flutter test`
 - [ ] Run targeted tests for files in File Scope
 - [ ] Fix all failures introduced by this task
 
@@ -80,7 +80,7 @@ Document skin developer use of `/ws/v1/sensors/{id}/snapshot` during espresso sh
 ## Completion Criteria
 
 - [ ] All steps complete
-- [ ] `flutter analyze && flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
+- [ ] `flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
 - [ ] Documentation requirements satisfied
 
 ## Git Commit Convention

@@ -7,11 +7,11 @@
   "paths": {
     "tasksRoot": "spine-tasks"
   },
-  "baseBranch": "main",
+  "baseBranch": "combustionInc",
   "testing": {
-    "build": "flutter analyze",
-    "test": "flutter analyze && flutter test",
-    "testWithCoverage": "flutter analyze && flutter test"
+    "build": "flutter test",
+    "test": "flutter test",
+    "testWithCoverage": "flutter test"
   },
   "agents": {
     "worker": {

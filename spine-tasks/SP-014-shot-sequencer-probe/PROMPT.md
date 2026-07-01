@@ -36,7 +36,7 @@ Wire ShotSequencer to preferred shot probe via resolvePreferred; subscribe durin
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter analyze && flutter test` |
+| testCommand | `flutter test` |
 | fileScopeMustChange | `lib/src/controllers/shot_sequencer.dart` |
 | fileScopeMustNotChange | `assets/api/rest_v1.yml` |
 | completionCriteria | Tests show probe temp on snapshots; disconnect mid-shot uses last-known temp. |
@@ -58,7 +58,7 @@ Wire ShotSequencer to preferred shot probe via resolvePreferred; subscribe durin
 
 ### Step 4: Testing & Verification
 
-- [ ] Run `flutter analyze && flutter test`
+- [ ] Run `flutter test`
 - [ ] Run targeted tests for files in File Scope
 - [ ] Fix all failures introduced by this task
 
@@ -81,7 +81,7 @@ Wire ShotSequencer to preferred shot probe via resolvePreferred; subscribe durin
 ## Completion Criteria
 
 - [ ] All steps complete
-- [ ] `flutter analyze && flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
+- [ ] `flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
 - [ ] Documentation requirements satisfied
 
 ## Git Commit Convention

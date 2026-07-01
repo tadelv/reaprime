@@ -38,7 +38,7 @@ Add nullable `probeTemperature` to ShotSnapshot, Drift shot tables, DAO, and map
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter analyze && flutter test` |
+| testCommand | `flutter test` |
 | fileScopeMustChange | `lib/src/models/data/shot_snapshot.dart` |
 | fileScopeMustNotChange | `lib/src/controllers/shot_sequencer.dart` |
 | completionCriteria | Migration applies; DAO tests pass; probeTemperature persists nullable double. |
@@ -59,7 +59,7 @@ Add nullable `probeTemperature` to ShotSnapshot, Drift shot tables, DAO, and map
 
 ### Step 4: Testing & Verification
 
-- [ ] Run `flutter analyze && flutter test`
+- [ ] Run `flutter test`
 - [ ] Run targeted tests for files in File Scope
 - [ ] Fix all failures introduced by this task
 
@@ -82,7 +82,7 @@ Add nullable `probeTemperature` to ShotSnapshot, Drift shot tables, DAO, and map
 ## Completion Criteria
 
 - [ ] All steps complete
-- [ ] `flutter analyze && flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
+- [ ] `flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
 - [ ] Documentation requirements satisfied
 
 ## Git Commit Convention

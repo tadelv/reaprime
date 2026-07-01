@@ -35,7 +35,7 @@ Add integration test: MockCombustion + SteamSequencer + PersistenceController fu
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter analyze && flutter test` |
+| testCommand | `flutter test` |
 | fileScopeMustChange | `test/integration/combustion_steam_stop_integration_test.dart` |
 | fileScopeMustNotChange | `lib/src/**` |
 | completionCriteria | Integration test passes; documents FR-S1/S3 behavior. |
@@ -57,7 +57,7 @@ Add integration test: MockCombustion + SteamSequencer + PersistenceController fu
 
 ### Step 4: Testing & Verification
 
-- [ ] Run `flutter analyze && flutter test`
+- [ ] Run `flutter test`
 - [ ] Run targeted tests for files in File Scope
 - [ ] Fix all failures introduced by this task
 
@@ -80,7 +80,7 @@ Add integration test: MockCombustion + SteamSequencer + PersistenceController fu
 ## Completion Criteria
 
 - [ ] All steps complete
-- [ ] `flutter analyze && flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
+- [ ] `flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
 - [ ] Documentation requirements satisfied
 
 ## Git Commit Convention

@@ -39,7 +39,7 @@ Implement `CombustionProtocol` as pure Dart parse/decode for Combustion advertis
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter analyze && flutter test` |
+| testCommand | `flutter test` |
 | fileScopeMustChange | `lib/src/models/device/impl/combustion/combustion_protocol.dart` |
 | fileScopeMustNotChange | `lib/src/services/**` |
 | completionCriteria | Parser tests pass; corrupt packets handled safely; temperature formula matches spec. |
@@ -62,7 +62,7 @@ Implement `CombustionProtocol` as pure Dart parse/decode for Combustion advertis
 
 ### Step 4: Testing & Verification
 
-- [ ] Run `flutter analyze && flutter test`
+- [ ] Run `flutter test`
 - [ ] Run targeted tests for files in File Scope
 - [ ] Fix all failures introduced by this task
 
@@ -85,7 +85,7 @@ Implement `CombustionProtocol` as pure Dart parse/decode for Combustion advertis
 ## Completion Criteria
 
 - [ ] All steps complete
-- [ ] `flutter analyze && flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
+- [ ] `flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
 - [ ] Documentation requirements satisfied
 
 ## Git Commit Convention

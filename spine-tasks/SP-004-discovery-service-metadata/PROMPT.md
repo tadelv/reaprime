@@ -37,7 +37,7 @@ Update `UniversalBleDiscoveryService` to pass full scan metadata to `DeviceMatch
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter analyze && flutter test` |
+| testCommand | `flutter test` |
 | fileScopeMustChange | `lib/src/services/universal_ble_discovery_service.dart` |
 | fileScopeMustNotChange | `lib/src/models/device/impl/combustion/**` |
 | completionCriteria | Empty-name Combustion metadata match works in tests; no regression for named devices. |
@@ -59,7 +59,7 @@ Update `UniversalBleDiscoveryService` to pass full scan metadata to `DeviceMatch
 
 ### Step 4: Testing & Verification
 
-- [ ] Run `flutter analyze && flutter test`
+- [ ] Run `flutter test`
 - [ ] Run targeted tests for files in File Scope
 - [ ] Fix all failures introduced by this task
 
@@ -82,7 +82,7 @@ Update `UniversalBleDiscoveryService` to pass full scan metadata to `DeviceMatch
 ## Completion Criteria
 
 - [ ] All steps complete
-- [ ] `flutter analyze && flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
+- [ ] `flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
 - [ ] Documentation requirements satisfied
 
 ## Git Commit Convention

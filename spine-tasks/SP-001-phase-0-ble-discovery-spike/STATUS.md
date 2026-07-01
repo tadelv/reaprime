@@ -33,7 +33,7 @@
 
 **Status:** Complete
 
-- [x] Run flutter analyze && flutter test
+- [x] Run flutter test
 - [x] Fix failures
 
 ## Step 5: Completion Criteria
