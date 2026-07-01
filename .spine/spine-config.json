@@ -1,0 +1,81 @@
+{
+  "configVersion": 1,
+  "project": {
+    "name": "reaprime",
+    "description": "Decent.app Flutter gateway for DE1/Bengle machines and peripherals"
+  },
+  "paths": {
+    "tasksRoot": "spine-tasks"
+  },
+  "baseBranch": "main",
+  "testing": {
+    "build": "flutter analyze",
+    "test": "flutter analyze && flutter test",
+    "testWithCoverage": "flutter analyze && flutter test"
+  },
+  "agents": {
+    "worker": {
+      "model": "cursor/auto",
+      "thinking": "high"
+    },
+    "reviewer": {
+      "model": "cursor/auto",
+      "thinking": "medium"
+    },
+    "supervisor": {
+      "model": "inherit",
+      "thinking": "off"
+    }
+  },
+  "lanes": {
+    "maxParallel": 3,
+    "queueExcess": true,
+    "workerBackend": "subprocess",
+    "workerOutputMaxBytes": 262144,
+    "workerOutputTailLines": 200,
+    "retainWorkerOutputOnSuccess": false,
+    "streamWorkerOutputLive": false,
+    "workerLiveLogMaxBytes": 262144,
+    "stallTimeoutMinutes": 120,
+    "stallGraceAfterProgressMinutes": 30,
+    "heartbeatIntervalMinutes": 10,
+    "progressSnapshotIntervalMinutes": 2,
+    "checkpointWarningMinutes": 10,
+    "extendGraceOnFileScope": false,
+    "autoCommitOnStall": false,
+    "cleanupWorktreesOnComplete": true
+  },
+  "dashboard": {
+    "port": 8109
+  },
+  "gates": {
+    "requireBeforeIntegrate": true,
+    "collectBuildEvidence": true,
+    "collectTestEvidence": true
+  },
+  "review": {
+    "requireFinalVerdict": true,
+    "maxFinalAttempts": 3
+  },
+  "handoff": {
+    "path": ".spine/handoff.md",
+    "autoWriteOn": []
+  },
+  "metrics": {
+    "enabled": true,
+    "path": ".spine/run-metrics.jsonl"
+  },
+  "contract": {
+    "mode": "required",
+    "legacyTaskIdPrefixes": [
+      "TP-"
+    ]
+  },
+  "worktreeSetupHook": "",
+  "worktreeSetupIgnorePaths": [],
+  "referenceDocs": [
+    "docs/constitution.md"
+  ],
+  "standards": [],
+  "neverLoad": []
+}

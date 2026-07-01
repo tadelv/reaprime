@@ -75,10 +75,11 @@ pubspec_overrides.yaml
 .superpowers/
 
 # pi-spine runtime
+.spine/**
+!.spine/spine-config.json
 .spine/runtime/
 .spine/batch-state.json
 .spine/batch-history.json
 .spine/run-metrics.jsonl
 .worktrees/
 .specify/
-.spine/
