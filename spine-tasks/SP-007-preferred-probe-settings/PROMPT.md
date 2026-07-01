@@ -38,7 +38,7 @@ Add settings keys `preferredSteamProbeId`, `preferredShotProbeId`, `combustionDe
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter test` |
+| testCommand | `flutter test test/controllers/sensor_controller_test.dart` |
 | fileScopeMustChange | `lib/src/controllers/sensor_controller.dart` |
 | fileScopeMustNotChange | `lib/src/controllers/steam_sequencer.dart` |
 | completionCriteria | Tests verify precedence with bridge, preferred, and fallback sensors. |

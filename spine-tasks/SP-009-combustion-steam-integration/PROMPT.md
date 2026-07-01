@@ -35,7 +35,7 @@ Add integration test: MockCombustion + SteamSequencer + PersistenceController fu
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter test` |
+| testCommand | `flutter test test/integration/combustion_steam_stop_integration_test.dart` |
 | fileScopeMustChange | `test/integration/combustion_steam_stop_integration_test.dart` |
 | fileScopeMustNotChange | `lib/src/**` |
 | completionCriteria | Integration test passes; documents FR-S1/S3 behavior. |

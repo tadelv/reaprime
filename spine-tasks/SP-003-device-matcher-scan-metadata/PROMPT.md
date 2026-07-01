@@ -37,7 +37,7 @@ Add `DeviceMatcher.matchFromScanMetadata()` for Combustion identification by man
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter test` |
+| testCommand | `flutter test test/unit/services/device_matcher_test.dart` |
 | fileScopeMustChange | `lib/src/services/device_matcher.dart` |
 | fileScopeMustNotChange | `lib/src/services/universal_ble_discovery_service.dart` |
 | completionCriteria | Tests cover name, mfg ID, service UUID in scan response, empty name + mfg; existing matchers unchanged. |

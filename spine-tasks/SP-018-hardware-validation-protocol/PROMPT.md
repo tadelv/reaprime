@@ -35,7 +35,7 @@ Document hardware test protocol: DE1/Bengle + scale + Combustion probe concurren
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter test` |
+| testCommand | `true` |
 | fileScopeMustChange | `doc/plans/combustion-probe/HARDWARE-VALIDATION.md` |
 | fileScopeMustNotChange | `lib/src/**` |
 | completionCriteria | Hardware validation checklist ready for manual sign-off on Android DE1 tablet. |

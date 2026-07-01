@@ -38,7 +38,7 @@ Add nullable `probeTemperature` to ShotSnapshot, Drift shot tables, DAO, and map
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter test` |
+| testCommand | `flutter test test/database/shot_dao_test.dart test/models/shot_annotations_test.dart` |
 | fileScopeMustChange | `lib/src/models/data/shot_snapshot.dart` |
 | fileScopeMustNotChange | `lib/src/controllers/shot_sequencer.dart` |
 | completionCriteria | Migration applies; DAO tests pass; probeTemperature persists nullable double. |

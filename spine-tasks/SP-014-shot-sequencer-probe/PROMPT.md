@@ -36,7 +36,7 @@ Wire ShotSequencer to preferred shot probe via resolvePreferred; subscribe durin
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter test` |
+| testCommand | `flutter test test/controllers/shot_sequencer_test.dart` |
 | fileScopeMustChange | `lib/src/controllers/shot_sequencer.dart` |
 | fileScopeMustNotChange | `assets/api/rest_v1.yml` |
 | completionCriteria | Tests show probe temp on snapshots; disconnect mid-shot uses last-known temp. |

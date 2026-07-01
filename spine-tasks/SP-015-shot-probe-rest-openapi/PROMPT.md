@@ -39,7 +39,7 @@ Expose probeTemperature on shot REST endpoints; update assets/api/rest_v1.yml an
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter test` |
+| testCommand | `flutter test test/webserver/shots_handler_test.dart` |
 | fileScopeMustChange | `assets/api/rest_v1.yml` |
 | fileScopeMustNotChange | `lib/src/realtime_shot_feature/**` |
 | completionCriteria | OpenAPI and handler tests include probeTemperature; spec and doc match. |

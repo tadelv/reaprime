@@ -36,7 +36,7 @@ Display live and recorded probe temperature in realtime shot UI when sensor conn
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter test` |
+| testCommand | `flutter test test/realtime_shot_feature/` |
 | fileScopeMustChange | `lib/src/realtime_shot_feature/**` |
 | fileScopeMustNotChange | `lib/src/home_feature/forms/steam_form.dart` |
 | completionCriteria | Widget test or manual verify path; probe temp visible during shot when sensor present. |

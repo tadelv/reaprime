@@ -35,7 +35,7 @@ Document skin developer use of `/ws/v1/sensors/{id}/snapshot` during espresso sh
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter test` |
+| testCommand | `true` |
 | fileScopeMustChange | `doc/Api.md` |
 | fileScopeMustNotChange | `lib/src/**` |
 | completionCriteria | Api.md section explains live probe temp during shots for skin devs. |

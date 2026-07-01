@@ -35,7 +35,7 @@ Document Combustion discovery, advertising-only mode, and sensor precedence in d
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter test` |
+| testCommand | `true` |
 | fileScopeMustChange | `doc/DeviceManagement.md` |
 | fileScopeMustNotChange | `lib/src/**` |
 | completionCriteria | DeviceManagement.md describes Combustion ID paths and precedence rules. |

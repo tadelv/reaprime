@@ -39,7 +39,7 @@ Implement `CombustionProtocol` as pure Dart parse/decode for Combustion advertis
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter test` |
+| testCommand | `flutter test test/models/device/impl/combustion/combustion_protocol_test.dart` |
 | fileScopeMustChange | `lib/src/models/device/impl/combustion/combustion_protocol.dart` |
 | fileScopeMustNotChange | `lib/src/services/**` |
 | completionCriteria | Parser tests pass; corrupt packets handled safely; temperature formula matches spec. |

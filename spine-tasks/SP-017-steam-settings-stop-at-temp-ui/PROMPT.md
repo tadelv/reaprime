@@ -37,7 +37,7 @@ Expose stopAtTemperature and preferred probe selection in native steam workflow 
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter test` |
+| testCommand | `flutter test test/home_feature/` |
 | fileScopeMustChange | `lib/src/home_feature/forms/steam_form.dart` |
 | fileScopeMustNotChange | `lib/src/realtime_shot_feature/**` |
 | completionCriteria | User can set stopAtTemperature and pick preferred probe when multiple sensors present. |

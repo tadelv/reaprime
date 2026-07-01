@@ -36,7 +36,7 @@ Create `.agents/skills/decent-app/scenarios/combustion-probe-steam-stop.md` E2E 
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter test` |
+| testCommand | `true` |
 | fileScopeMustChange | `.agents/skills/decent-app/scenarios/combustion-probe-steam-stop.md` |
 | fileScopeMustNotChange | `lib/src/**` |
 | completionCriteria | Scenario doc complete; sb-dev smoke steps documented with expected curl/websocat output. |

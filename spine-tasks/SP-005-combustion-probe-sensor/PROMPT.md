@@ -39,7 +39,7 @@ Implement `CombustionProbe implements Sensor` using advertising-only temperature
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter test` |
+| testCommand | `flutter test test/models/device/impl/combustion/combustion_probe_test.dart` |
 | fileScopeMustChange | `lib/src/models/device/impl/combustion/combustion_probe.dart` |
 | fileScopeMustNotChange | `lib/src/services/simulated_device_service.dart` |
 | completionCriteria | Unit tests show mock transport adv bytes produce data stream with temperature key. |

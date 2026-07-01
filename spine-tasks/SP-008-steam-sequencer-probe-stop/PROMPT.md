@@ -37,7 +37,7 @@ Update SteamSequencer to use resolvePreferred for steam probe, add _probeLost on
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter test` |
+| testCommand | `flutter test test/controllers/steam_sequencer_test.dart` |
 | fileScopeMustChange | `lib/src/controllers/steam_sequencer.dart` |
 | fileScopeMustNotChange | `lib/src/controllers/shot_sequencer.dart` |
 | completionCriteria | Tests cover app-side stop, preferred probe, probeLost, gateway full inert. |

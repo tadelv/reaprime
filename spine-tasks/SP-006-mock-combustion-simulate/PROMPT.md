@@ -39,7 +39,7 @@ Add `MockCombustionProbe` and wire into `SimulatedDeviceService` and simulate st
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter test` |
+| testCommand | `flutter test test/services/simulated_device_service_test.dart` |
 | fileScopeMustChange | `lib/src/models/device/impl/combustion/mock_combustion_probe.dart` |
 | fileScopeMustNotChange | `lib/src/controllers/steam_sequencer.dart` |
 | completionCriteria | Simulate mode exposes Combustion in sensor list; tests pass. |

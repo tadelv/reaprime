@@ -37,7 +37,7 @@ Update `UniversalBleDiscoveryService` to pass full scan metadata to `DeviceMatch
 
 | Field | Value |
 |-------|-------|
-| testCommand | `flutter test` |
+| testCommand | `flutter test test/services/universal_ble_discovery_service_test.dart` |
 | fileScopeMustChange | `lib/src/services/universal_ble_discovery_service.dart` |
 | fileScopeMustNotChange | `lib/src/models/device/impl/combustion/**` |
 | completionCriteria | Empty-name Combustion metadata match works in tests; no regression for named devices. |
