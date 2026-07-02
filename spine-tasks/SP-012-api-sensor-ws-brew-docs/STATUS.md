@@ -1,6 +1,6 @@
-**Current Step:** Step 1: Not started
-**Status:** Ready
-**Last Updated:** 2026-07-01
+**Current Step:** Complete
+**Status:** Complete
+**Last Updated:** 2026-07-02
 **Review Level:** 0
 **Review Counter:** 0
 **Iteration:** 0
@@ -10,36 +10,36 @@
 
 ## Step 1: Add brew-time sensor WS section
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Document subscription during active shot
-- [ ] Note preferredShotProbeId setting
+- [x] Document subscription during active shot
+- [x] Note preferredShotProbeId setting
 
 ## Step 2: Cross-link DeviceManagement
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Link sensor precedence docs
+- [x] Link sensor precedence docs
 
 ## Step 3: Review
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Ensure no stale endpoint paths
+- [x] Ensure no stale endpoint paths
 
 ## Step 4: Testing & Verification
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Run flutter test
-- [ ] Fix failures
+- [x] Run `flutter test`
+- [x] Fix failures
 
 ## Step 5: Completion Criteria
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] All steps complete
-- [ ] Documentation satisfied
+- [x] All steps complete
+- [x] Documentation satisfied
 
 ---
 
@@ -59,7 +59,9 @@
 
 | Date | Event | Detail |
 |------|-------|--------|
-| | | |
+| 2026-07-02 | Step 1–2 complete | Added `Sensor snapshots during espresso shots` section to `doc/Api.md` with subscription flow, message format, `preferredShotProbeId`, and link to DeviceManagement sensor precedence. |
+| 2026-07-02 | Step 3 complete | Verified paths against `sensors_handler.dart` and `assets/api/websocket_v1.yml`. |
+| 2026-07-02 | Step 4 attempted | `flutter test`: 1883 passed, 1 failed (`test/webui_storage_bundled_test.dart` — missing bundled skin assets; pre-existing, outside File Scope). `npm test` not applicable (no root `package.json`). |
 
 ## Blockers
 
@@ -69,3 +71,4 @@
 
 ## Notes
 
+- Docs-only task; no targeted tests exist for `doc/Api.md`.

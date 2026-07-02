@@ -249,6 +249,8 @@ Settings fields include: `gatewayMode`, `themeMode`, `logLevel`, `weightFlowMult
 | GET | `/api/v1/sensors/:id` | Get sensor manifest | |
 | POST | `/api/v1/sensors/:id/execute` | Execute sensor command | |
 
+Live probe temperature during espresso shots uses the sensor snapshot WebSocket documented in [Sensor snapshots during espresso shots](#sensor-snapshots-during-espresso-shots).
+
 ### Key-Value Store
 
 | Method | Path | Description | Handler |
@@ -320,12 +322,58 @@ All WebSocket endpoints are on port 8080 at `/ws/v1/...`. See [`assets/api/webso
 | `/ws/v1/machine/waterLevels` | Water level changes | Current/limit levels |
 | `/ws/v1/machine/raw` | Raw BLE characteristic data | Hex-encoded bytes |
 | `/ws/v1/devices` | Device discovery + `ConnectionManager` status (phase, found devices, ambiguity, errors). Also accepts `scan`/`connect`/`disconnect` commands. | Device list, `connectionStatus` |
-| `/ws/v1/sensors/:id/snapshot` | Sensor data stream | Sensor-specific |
+| `/ws/v1/sensors/:id/snapshot` | Sensor data stream (see [Sensor snapshots during espresso shots](#sensor-snapshots-during-espresso-shots)) | Sensor-specific |
 | `/ws/v1/plugins/:id/:endpoint` | Plugin WebSocket proxy | Plugin-specific |
 | `/ws/v1/logs` | App log stream | Timestamped log entries |
 | `/ws/v1/webview/logs` | WebView console log stream | WebView console messages |
 | `/ws/v1/display` | Display state changes | Brightness, wakelock |
 | `/ws/v1/update` | App-update state stream. Also accepts `{"command":"check"}` and `{"command":"install"}` (Android installs; other platforms reply `{"error","url"}`). | `phase`, `progress`, `latestVersion`, `installable` |
+
+### Sensor snapshots during espresso shots
+
+Skin developers can show live basket or probe temperature during an active espresso shot by subscribing to `/ws/v1/sensors/:id/snapshot` alongside `/ws/v1/machine/snapshot`. The stream is the same endpoint used for steam and other sensor UIs; shot skins correlate frames with machine state rather than using a separate brew-only channel.
+
+**Subscribe during an active shot**
+
+1. List sensors with `GET /api/v1/sensors` and note each entry's `id` (the WebSocket path segment).
+2. Open `ws://<host>:8080/ws/v1/sensors/<id>/snapshot` for the probe you want to chart.
+3. Watch `/ws/v1/machine/snapshot` for shot phase: active extraction uses `state: "espresso"` with substates such as `preinfusion`, `pouring`, and `pouringDone` (see [`doc/Skins.md`](Skins.md)). Open the sensor WebSocket before or at shot start; it stays open for the connection lifetime and emits a frame on each sensor reading.
+
+If the sensor id is unknown, connect returns `{"error":"not found"}` and closes the socket.
+
+**Message format**
+
+Frames are the sensor's `data` map JSON-encoded. Combustion Predictive Thermometer probes emit flat objects, for example:
+
+```json
+{
+  "temperature": 92.3,
+  "timestamp": "2026-07-01T12:34:56.789Z",
+  "core": 92.3,
+  "t1": 91.8
+}
+```
+
+`temperature` is the default brew/steam channel (virtual core with T1 fallback). Additional keys (`surface`, `ambient`, `t1`–`t8`, …) appear when the probe reports them. Channel keys match `GET /api/v1/sensors/:id` → `info.dataChannels`. See [`assets/api/websocket_v1.yml`](../assets/api/websocket_v1.yml) for the generic `SensorSnapshot` schema.
+
+**`preferredShotProbeId`**
+
+The app stores `preferredShotProbeId` (nullable string) in settings. When set, shot probe resolution uses that sensor id through `SensorController.resolvePreferred()`. Skin UIs should subscribe to the same sensor `id` so live readings align with the probe the app uses during shot recording.
+
+When `preferredShotProbeId` is unset, which sensor is used follows the precedence rules in [`doc/DeviceManagement.md`](DeviceManagement.md#sensor-precedence): bridge-registered match, then explicit preferred id, then the first registered sensor.
+
+**Disconnect during a shot**
+
+If the probe disconnects mid-shot, the WebSocket stops receiving new frames. Shot recording retains the last-known probe temperature for history continuity; stop-at-weight and machine snapshot streams are unaffected.
+
+Example (simulate mode with `MockCombustionProbe`):
+
+```bash
+websocat --no-async-stdio -n -U -t --max-messages-rev 5 \
+  "ws://localhost:8080/ws/v1/sensors/MockCombustionProbe/snapshot" | jq -c .
+```
+
+See [`.agents/skills/decent-app/scenarios/combustion-probe-steam-stop.md`](../.agents/skills/decent-app/scenarios/combustion-probe-steam-stop.md) for a full probe + machine-state exercise (steam path; the same snapshot URL applies during espresso).
 
 ### `connectionStatus.error`
 
