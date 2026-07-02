@@ -3,7 +3,13 @@ import 'dart:convert';
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/models/data/shot_record.dart' as domain;
+import 'package:reaprime/src/models/data/shot_snapshot.dart';
+import 'package:reaprime/src/models/data/workflow.dart' as domain_workflow;
+import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/services/database/database.dart';
+import 'package:reaprime/src/services/database/mappers/shot_mapper.dart';
 
 void main() {
   late AppDatabase db;
@@ -281,6 +287,134 @@ void main() {
       final decoded = jsonDecode(shot!.measurementsJson) as List;
       expect(decoded, hasLength(1));
       expect((decoded.first as Map)['machine']['pressure'], 9.0);
+    });
+  });
+
+  group('ShotDao - probeTemperature', () {
+    MachineSnapshot machineSnapshot() => MachineSnapshot(
+          timestamp: DateTime.parse('2024-01-15T10:30:01Z'),
+          state: const MachineStateSnapshot(
+            state: MachineState.espresso,
+            substate: MachineSubstate.pouring,
+          ),
+          flow: 2.0,
+          pressure: 9.0,
+          targetFlow: 2.0,
+          targetPressure: 9.0,
+          mixTemperature: 92.0,
+          groupTemperature: 92.0,
+          targetMixTemperature: 92.0,
+          targetGroupTemperature: 92.0,
+          profileFrame: 0,
+          steamTemperature: 0,
+        );
+
+    Map<String, dynamic> workflowJson() => {
+          'id': 'wf-1',
+          'name': 'Test',
+          'description': '',
+          'profile': {
+            'title': 'Test Profile',
+            'author': 'Test',
+            'notes': '',
+            'beverage_type': 'espresso',
+            'steps': [
+              {
+                'name': 'pour',
+                'pump': 'pressure',
+                'transition': 'fast',
+                'volume': 100,
+                'seconds': 30,
+                'temperature': 93,
+                'sensor': 'coffee',
+                'pressure': 9,
+              },
+            ],
+            'tank_temperature': 93.0,
+            'target_weight': 36.0,
+            'target_volume_count_start': 0,
+            'version': '2',
+          },
+          'steamSettings': {
+            'targetTemperature': 150,
+            'duration': 50,
+            'flow': 0.8,
+          },
+          'hotWaterData': {
+            'targetTemperature': 90,
+            'duration': 15,
+            'volume': 100,
+            'flow': 4.0,
+          },
+          'rinseData': {'targetTemperature': 90, 'duration': 10, 'flow': 6.0},
+        };
+
+    test('migration-on-read: legacy measurements without probeTemperature',
+        () async {
+      final legacyMeasurements = [
+        {
+          'machine': machineSnapshot().toJson(),
+          'volume': 40.0,
+        },
+      ];
+
+      await db.shotDao.insertShot(ShotRecordsCompanion(
+        id: const Value('shot-legacy'),
+        timestamp: Value(DateTime.parse('2024-01-15T10:30:00Z')),
+        workflowJson: Value(workflowJson()),
+        measurementsJson: Value(jsonEncode(legacyMeasurements)),
+      ));
+
+      final row = await db.shotDao.getShotById('shot-legacy');
+      final record = ShotMapper.fromRow(row!);
+      expect(record.measurements, hasLength(1));
+      expect(record.measurements.first.probeTemperature, isNull);
+      expect(record.measurements.first.volume, equals(40.0));
+    });
+
+    test('round-trips shot with probeTemperature via ShotMapper', () async {
+      final record = domain.ShotRecord(
+        id: 'shot-probe',
+        timestamp: DateTime.parse('2024-01-15T10:30:00Z'),
+        workflow: domain_workflow.Workflow.fromJson(workflowJson()),
+        measurements: [
+          ShotSnapshot(
+            machine: machineSnapshot(),
+            probeTemperature: 93.2,
+          ),
+          ShotSnapshot(
+            machine: machineSnapshot(),
+            probeTemperature: 94.1,
+          ),
+        ],
+      );
+
+      await db.shotDao.insertShot(ShotMapper.toCompanion(record));
+      final row = await db.shotDao.getShotById('shot-probe');
+      final restored = ShotMapper.fromRow(row!);
+
+      expect(restored.measurements, hasLength(2));
+      expect(restored.measurements.first.probeTemperature, equals(93.2));
+      expect(restored.measurements.last.probeTemperature, equals(94.1));
+    });
+
+    test('round-trips shot without probeTemperature via ShotMapper', () async {
+      final record = domain.ShotRecord(
+        id: 'shot-no-probe',
+        timestamp: DateTime.parse('2024-01-15T10:30:00Z'),
+        workflow: domain_workflow.Workflow.fromJson(workflowJson()),
+        measurements: [
+          ShotSnapshot(machine: machineSnapshot()),
+        ],
+      );
+
+      await db.shotDao.insertShot(ShotMapper.toCompanion(record));
+      final row = await db.shotDao.getShotById('shot-no-probe');
+      final restored = ShotMapper.fromRow(row!);
+
+      expect(restored.measurements.single.probeTemperature, isNull);
+      final decoded = jsonDecode(row.measurementsJson) as List;
+      expect((decoded.single as Map)['probeTemperature'], isNull);
     });
   });
 }
