@@ -6,13 +6,28 @@ class ShotSnapshot {
   final WeightSnapshot? scale;
   final double? volume;
 
-  ShotSnapshot({required this.machine, this.scale, this.volume});
+  /// Combustion probe reading in Celsius (T1 / immersed tip per OD-2).
+  /// `null` when no probe was active for this sample.
+  final double? probeTemperature;
 
-  ShotSnapshot copyWith({MachineSnapshot? machine, WeightSnapshot? scale, double? volume}) {
+  ShotSnapshot({
+    required this.machine,
+    this.scale,
+    this.volume,
+    this.probeTemperature,
+  });
+
+  ShotSnapshot copyWith({
+    MachineSnapshot? machine,
+    WeightSnapshot? scale,
+    double? volume,
+    double? probeTemperature,
+  }) {
     return ShotSnapshot(
       machine: machine ?? this.machine,
       scale: scale ?? this.scale,
       volume: volume ?? this.volume,
+      probeTemperature: probeTemperature ?? this.probeTemperature,
     );
   }
 
@@ -21,6 +36,7 @@ class ShotSnapshot {
       "machine": machine.toJson(),
       "scale": scale?.toJson(),
       "volume": volume,
+      "probeTemperature": probeTemperature,
     };
   }
 
@@ -29,7 +45,8 @@ class ShotSnapshot {
       machine: MachineSnapshot.fromJson(json["machine"]),
       scale:
           json['scale'] != null ? WeightSnapshot.fromJson(json["scale"]) : null,
-      volume: json['volume'] as double?,
+      volume: (json['volume'] as num?)?.toDouble(),
+      probeTemperature: (json['probeTemperature'] as num?)?.toDouble(),
     );
   }
 }
