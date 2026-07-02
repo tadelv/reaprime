@@ -46,6 +46,8 @@ class SettingsController with ChangeNotifier {
 
   String? _preferredScaleId;
 
+  String? _preferredSteamProbeId;
+
   String _defaultSkinId = 'streamline.js';
 
   bool _automaticUpdateCheck = true;
@@ -88,6 +90,7 @@ class SettingsController with ChangeNotifier {
   bool get stopHotWaterAtWeight => _stopHotWaterAtWeight;
   String? get preferredMachineId => _preferredMachineId;
   String? get preferredScaleId => _preferredScaleId;
+  String? get preferredSteamProbeId => _preferredSteamProbeId;
   String get defaultSkinId => _defaultSkinId;
   bool get automaticUpdateCheck => _automaticUpdateCheck;
   bool get telemetryConsent => _telemetryConsent;
@@ -128,6 +131,7 @@ class SettingsController with ChangeNotifier {
     _stopHotWaterAtWeight = await _settingsService.stopHotWaterAtWeight();
     _preferredMachineId = await _settingsService.preferredMachineId();
     _preferredScaleId = await _settingsService.preferredScaleId();
+    _preferredSteamProbeId = await _settingsService.preferredSteamProbeId();
     _defaultSkinId = await _settingsService.defaultSkinId();
     _automaticUpdateCheck = await _settingsService.automaticUpdateCheck();
     _telemetryConsent = await _settingsService.telemetryConsent();
@@ -312,6 +316,15 @@ class SettingsController with ChangeNotifier {
     }
     _preferredScaleId = scaleId;
     await _settingsService.setPreferredScaleId(scaleId);
+    notifyListeners();
+  }
+
+  Future<void> setPreferredSteamProbeId(String? probeId) async {
+    if (probeId == _preferredSteamProbeId) {
+      return;
+    }
+    _preferredSteamProbeId = probeId;
+    await _settingsService.setPreferredSteamProbeId(probeId);
     notifyListeners();
   }
 
