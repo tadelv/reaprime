@@ -1,6 +1,6 @@
-**Current Step:** Step 1: Not started
-**Status:** Ready
-**Last Updated:** 2026-07-01
+**Current Step:** Step 5: Complete
+**Status:** Complete
+**Last Updated:** 2026-07-02
 **Review Level:** 2
 **Review Counter:** 0
 **Iteration:** 0
@@ -10,36 +10,36 @@
 
 ## Step 1: Resolve and subscribe to preferred probe
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Use preferredShotProbeId from settings
+- [x] Use preferredShotProbeId from settings
 
 ## Step 2: Populate ShotSnapshot.probeTemperature
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Track latest reading each frame
+- [x] Track latest reading each frame
 
 ## Step 3: _probeLost and tests
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Continue recording with last-known on disconnect
-- [ ] Extend shot_sequencer_test.dart
+- [x] Continue recording with last-known on disconnect
+- [x] Extend shot_sequencer_test.dart
 
 ## Step 4: Testing & Verification
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Run flutter test
-- [ ] Fix failures
+- [x] Run flutter test
+- [x] Fix failures
 
 ## Step 5: Completion Criteria
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] All steps complete
-- [ ] Documentation satisfied
+- [x] All steps complete
+- [x] Documentation satisfied
 
 ---
 
@@ -53,13 +53,15 @@
 
 | Date | Finding | Impact |
 |------|---------|--------|
-| | | |
+| 2026-07-02 | Optional `sensorController`/`settingsService` params preserve existing callers; production wiring deferred outside file scope | Callers must pass deps for live probe recording |
+| 2026-07-02 | Full `flutter test` has 1 pre-existing failure: `webui_storage_bundled_test.dart` (missing `assets/bundled_skins/`) | Unrelated to SP-014; contract test passes 23/23 |
 
 ## Execution Log
 
 | Date | Event | Detail |
 |------|-------|--------|
-| | | |
+| 2026-07-02 | Step 1–3 | Probe resolve/subscribe, probeTemperature on snapshots, _probeLost |
+| 2026-07-02 | Step 4 | `flutter test test/controllers/shot_sequencer_test.dart` — 23 passed |
 
 ## Blockers
 
@@ -69,3 +71,4 @@
 
 ## Notes
 
+- Mirrors SteamSequencer probe pattern: `resolvePreferred(preferredShotProbeId)`, data subscription, connectionState `_probeLost`.

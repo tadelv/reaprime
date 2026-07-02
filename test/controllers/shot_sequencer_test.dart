@@ -6,6 +6,7 @@ import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/controllers/sensor_controller.dart';
 import 'package:reaprime/src/controllers/shot_sequencer.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
@@ -17,9 +18,11 @@ import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/device/sensor.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
 import 'package:rxdart/rxdart.dart';
 
+import '../helpers/mock_settings_service.dart';
 import '../helpers/test_de1.dart';
 import '../helpers/test_scale.dart';
 
@@ -244,6 +247,68 @@ ProfileStepFlow _flowStep({
     sensor: TemperatureSensor.coffee,
     flow: 4,
   );
+}
+
+class _ProbeTestSensor implements Sensor {
+  _ProbeTestSensor({this.id = 'test-probe'});
+
+  final String id;
+
+  @override
+  String get deviceId => id;
+
+  @override
+  String get name => 'ProbeTestSensor';
+
+  @override
+  DeviceType get type => DeviceType.sensor;
+
+  final BehaviorSubject<Map<String, dynamic>> _data = BehaviorSubject();
+
+  @override
+  Stream<Map<String, dynamic>> get data => _data.stream;
+
+  final BehaviorSubject<ConnectionState> _connection =
+      BehaviorSubject.seeded(ConnectionState.connected);
+
+  @override
+  Stream<ConnectionState> get connectionState => _connection.stream;
+
+  @override
+  SensorInfo get info => SensorInfo(
+    name: name,
+    vendor: 'test',
+    dataChannels: const [],
+    commands: const [],
+  );
+
+  @override
+  Future<Map<String, dynamic>> execute(
+    String command,
+    Map<String, dynamic>? params,
+  ) async => const {};
+
+  @override
+  Future<void> onConnect() async {}
+
+  @override
+  Future<void> disconnect() async {}
+
+  void emitTemperature(double celsius) {
+    _data.add({
+      'timestamp': DateTime(2026, 1, 15, 8, 0).toIso8601String(),
+      'temperature': celsius,
+    });
+  }
+
+  void simulateDisconnect() {
+    _connection.add(ConnectionState.disconnected);
+  }
+
+  void dispose() {
+    _data.close();
+    _connection.close();
+  }
 }
 
 void main() {
@@ -1501,6 +1566,180 @@ void main() {
 
         shotSequencer.dispose();
       });
+    });
+  });
+
+  group('ShotSequencer — probe subscription', () {
+    late TestDe1 testDe1;
+    late TestScale testScale;
+    late _TestDe1Controller de1Controller;
+    late _TestScaleController scaleController;
+    late PersistenceController persistenceController;
+    late SensorController sensorController;
+    late MockSettingsService settingsService;
+    late Profile profile;
+
+    setUp(() {
+      testDe1 = TestDe1();
+      testScale = TestScale();
+      de1Controller = _TestDe1Controller(testDe1);
+      scaleController = _TestScaleController(testScale);
+      persistenceController = PersistenceController(
+        storageService: _NullStorageService(),
+      );
+      sensorController = SensorController(
+        controller: DeviceController([_FakeDiscoveryService()]),
+      );
+      settingsService = MockSettingsService();
+      profile = _simpleProfile();
+    });
+
+    tearDown(() {
+      testDe1.dispose();
+      testScale.dispose();
+      scaleController.dispose();
+      persistenceController.dispose();
+    });
+
+    void driveToPouring() {
+      testDe1.emitStateAndSubstate(
+        MachineState.espresso,
+        MachineSubstate.preparingForShot,
+      );
+      testDe1.emitStateAndSubstate(
+        MachineState.espresso,
+        MachineSubstate.pouring,
+      );
+    }
+
+    ShotSequencer buildSequencer() {
+      return ShotSequencer(
+        scaleController: scaleController,
+        de1controller: de1Controller,
+        persistenceController: persistenceController,
+        sensorController: sensorController,
+        settingsService: settingsService,
+        targetProfile: profile,
+        targetYield: 100.0,
+        bypassSAW: false,
+        blockOnNoScale: false,
+        weightFlowMultiplier: 0.0,
+        volumeFlowMultiplier: 0.0,
+        stepExitArbiterEnabled: true,
+      );
+    }
+
+    Future<void> settle() async {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    test('records probeTemperature on shot snapshots', () async {
+      final probe = _ProbeTestSensor();
+      await sensorController.register(probe);
+
+      scaleController.emitWeight(0.0);
+      final shotSequencer = buildSequencer();
+      final recorded = <ShotSnapshot>[];
+      shotSequencer.shotData.listen(recorded.add);
+
+      await settle();
+      driveToPouring();
+      await settle();
+
+      probe.emitTemperature(62.5);
+      await settle();
+      testDe1.emitStateAndSubstate(
+        MachineState.espresso,
+        MachineSubstate.pouring,
+      );
+      await settle();
+
+      probe.emitTemperature(64.0);
+      await settle();
+      testDe1.emitStateAndSubstate(
+        MachineState.espresso,
+        MachineSubstate.pouring,
+      );
+      await settle();
+
+      expect(
+        recorded.map((s) => s.probeTemperature).whereType<double>().toList(),
+        containsAll([62.5, 64.0]),
+      );
+
+      probe.dispose();
+      shotSequencer.dispose();
+    });
+
+    test('uses preferred shot probe when set', () async {
+      final first = _ProbeTestSensor(id: 'probe-a');
+      final preferred = _ProbeTestSensor(id: 'probe-b');
+      await sensorController.register(first);
+      await sensorController.register(preferred);
+      await settingsService.setPreferredShotProbeId('probe-b');
+
+      scaleController.emitWeight(0.0);
+      final shotSequencer = buildSequencer();
+      final recorded = <ShotSnapshot>[];
+      shotSequencer.shotData.listen(recorded.add);
+
+      await settle();
+      driveToPouring();
+      await settle();
+
+      first.emitTemperature(40.0);
+      preferred.emitTemperature(58.0);
+      await settle();
+      testDe1.emitStateAndSubstate(
+        MachineState.espresso,
+        MachineSubstate.pouring,
+      );
+      await settle();
+
+      expect(recorded.last.probeTemperature, equals(58.0));
+      expect(recorded.last.probeTemperature, isNot(equals(40.0)));
+
+      first.dispose();
+      preferred.dispose();
+      shotSequencer.dispose();
+    });
+
+    test('keeps last-known probeTemperature after disconnect mid-shot', () async {
+      final probe = _ProbeTestSensor();
+      await sensorController.register(probe);
+
+      scaleController.emitWeight(0.0);
+      final shotSequencer = buildSequencer();
+      final recorded = <ShotSnapshot>[];
+      shotSequencer.shotData.listen(recorded.add);
+
+      await settle();
+      driveToPouring();
+      await settle();
+
+      probe.emitTemperature(62.5);
+      await settle();
+      testDe1.emitStateAndSubstate(
+        MachineState.espresso,
+        MachineSubstate.pouring,
+      );
+      await settle();
+
+      probe.simulateDisconnect();
+      await settle();
+
+      probe.emitTemperature(99.0);
+      await settle();
+      testDe1.emitStateAndSubstate(
+        MachineState.espresso,
+        MachineSubstate.pouring,
+      );
+      await settle();
+
+      expect(recorded.last.probeTemperature, equals(62.5));
+
+      probe.dispose();
+      shotSequencer.dispose();
     });
   });
 }
