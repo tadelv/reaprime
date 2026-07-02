@@ -403,7 +403,7 @@ After reading this handoff, produce:
 2. Task breakdown mapped to [§13](#13-tdd-implementation-sequence)
 3. Resolution of PRD open decisions OD-1 through OD-6
 4. DB migration plan for `ShotSnapshot.probeTemperature`
-5. Hardware test protocol (wake-from-sleep + concurrent DE1/scale/probe)
+5. Hardware test protocol (wake-from-sleep + concurrent DE1/scale/probe) — [HARDWARE-VALIDATION.md](HARDWARE-VALIDATION.md)
 6. E2E scenario file at `.agents/skills/decent-app/scenarios/combustion-probe-steam-stop.md`
 
 ---
@@ -475,6 +475,7 @@ Each step: failing test → implement → green → commit. Tree stays green thr
 - [ ] Native UI for `stopAtTemperature`
 - [ ] `assets/api/rest_v1.yml` and `doc/Api.md` updated
 - [ ] `doc/DeviceManagement.md` updated
+- [ ] Hardware validation sign-off on Android DE1 tablet — [HARDWARE-VALIDATION.md](HARDWARE-VALIDATION.md) (concurrent DE1/scale/probe, wake-from-sleep, stop-at-temp latency)
 
 ### Post-ship documentation (required)
 
