@@ -130,6 +130,16 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
             ),
           ),
           Spacer(),
+          if (_shotSnapshots.lastOrNull?.probeTemperature != null) ...[
+            SizedBox(
+              width: 150,
+              child: Text(
+                "PT: ${_shotSnapshots.lastOrNull!.probeTemperature!.toStringAsFixed(1)}℃",
+                style: TextStyle(color: Colors.orange),
+              ),
+            ),
+            Spacer(),
+          ],
           if (_shotSnapshots.lastOrNull?.scale != null)
             SizedBox(
               width: 150,

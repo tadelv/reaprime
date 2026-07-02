@@ -1,6 +1,6 @@
-**Current Step:** Step 1: Not started
-**Status:** Ready
-**Last Updated:** 2026-07-01
+**Current Step:** Step 5: Completion Criteria
+**Status:** Complete
+**Last Updated:** 2026-07-02
 **Review Level:** 2
 **Review Counter:** 0
 **Iteration:** 0
@@ -10,35 +10,35 @@
 
 ## Step 1: Subscribe to preferred probe in UI layer
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Use existing sensor streams; avoid duplicating ShotSequencer logic in UI
+- [x] Use existing sensor streams; avoid duplicating ShotSequencer logic in UI
 
 ## Step 2: Display live probe temp overlay
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Show Celsius when data available; hide when absent
+- [x] Show Celsius when data available; hide when absent
 
 ## Step 3: Widget test
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Mock sensor stream shows temperature label
+- [x] Mock sensor stream shows temperature label
 
 ## Step 4: Testing & Verification
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Run flutter test
-- [ ] Fix failures
+- [x] Run flutter test
+- [x] Fix failures
 
 ## Step 5: Completion Criteria
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] All steps complete
-- [ ] Documentation satisfied
+- [x] All steps complete
+- [x] Documentation satisfied
 
 ---
 
@@ -52,13 +52,13 @@
 
 | Date | Finding | Impact |
 |------|---------|--------|
-| | | |
+| 2026-07-02 | UI reads `ShotSnapshot.probeTemperature` from existing `shotData` stream — no separate sensor subscription needed | Simpler than PROMPT Step 1 implied |
 
 ## Execution Log
 
 | Date | Event | Detail |
 |------|-------|--------|
-| | | |
+| 2026-07-02 | REVISE fix | Cleaned test imports; added shared_preferences_platform_interface dev_dep for analyze gate |
 
 ## Blockers
 
@@ -68,3 +68,4 @@
 
 ## Notes
 
+Probe display uses `ShotSequencer.shotData` snapshots (SP-014) — UI does not subscribe to `SensorController` directly.

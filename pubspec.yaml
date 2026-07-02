@@ -155,6 +155,9 @@ dev_dependencies:
   # present transitively via url_launcher; declared so the test imports resolve.
   plugin_platform_interface: ^2.1.8
   url_launcher_platform_interface: ^2.3.2
+  # Test-only: in-memory SharedPreferencesAsync for settings/widget tests.
+  # Present transitively via shared_preferences; declared so test imports resolve.
+  shared_preferences_platform_interface: ^2.4.2
   hive_ce_generator: ^1.10.0
   drift_dev: ^2.24.0
   build_runner: ^2.4.0
