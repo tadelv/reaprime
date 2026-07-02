@@ -3820,6 +3820,16 @@ paths:
             enum: [desc, asc]
             default: desc
           description: Line order — desc (newest first, default) or asc (original chronological order).
+        - name: rotated
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: |
+          When true (`1`/`true`/`yes`), also include the rotated log files
+          (`log.txt.1`, `log.txt.2`, …), stitched in chronological order —
+          oldest rotation first, live file last — before `kb` and `order` are
+          applied. Default returns only the live log file.
       responses:
         "200":
           description: Recent log entries as plain text

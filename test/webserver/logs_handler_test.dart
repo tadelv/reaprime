@@ -148,6 +148,93 @@ void main() {
       expect(body.contains('line0150'), isTrue);
       expect(body.indexOf('line0150'), lessThan(body.indexOf('line0199')));
     });
+
+    group('?rotated', () {
+      // Rotation naming (RotatingFileAppender): log.txt is newest, log.txt.1
+      // is older, log.txt.2 older still. Within each file, lines are
+      // oldest-first.
+      void writeRotationSet() {
+        File('${logFile.path}.2').writeAsStringSync('r2a\nr2b\n');
+        File('${logFile.path}.1').writeAsStringSync('r1a\nr1b\n');
+        logFile.writeAsStringSync('base_a\nbase_b\n');
+      }
+
+      test('is off by default — only the live file is returned', () async {
+        writeRotationSet();
+        final res = await get(handlerFor(logFile.path), '/api/v1/logs');
+        expect(await res.readAsString(), 'base_b\nbase_a\n');
+      });
+
+      test('=1&order=asc stitches all files oldest rotation first', () async {
+        writeRotationSet();
+        final res = await get(
+            handlerFor(logFile.path), '/api/v1/logs?rotated=1&order=asc');
+        expect(res.statusCode, 200);
+        expect(
+          await res.readAsString(),
+          'r2a\nr2b\nr1a\nr1b\nbase_a\nbase_b\n',
+        );
+      });
+
+      test('=1 default order is newest-first across all files', () async {
+        writeRotationSet();
+        final res =
+            await get(handlerFor(logFile.path), '/api/v1/logs?rotated=1');
+        expect(
+          await res.readAsString(),
+          'base_b\nbase_a\nr1b\nr1a\nr2b\nr2a\n',
+        );
+      });
+
+      test('=1 with no rotated files present falls back to the live file',
+          () async {
+        logFile.writeAsStringSync('only_a\nonly_b\n');
+        final res = await get(
+            handlerFor(logFile.path), '/api/v1/logs?rotated=1&order=asc');
+        expect(await res.readAsString(), 'only_a\nonly_b\n');
+      });
+
+      test('=1 stops probing at the first missing rotation', () async {
+        // .1 and .3 exist but .2 does not — .3 must not be picked up.
+        File('${logFile.path}.3').writeAsStringSync('r3\n');
+        File('${logFile.path}.1').writeAsStringSync('r1\n');
+        logFile.writeAsStringSync('base\n');
+        final res = await get(
+            handlerFor(logFile.path), '/api/v1/logs?rotated=1&order=asc');
+        expect(await res.readAsString(), 'r1\nbase\n');
+      });
+
+      test('=1&kb=N windows the tail across file boundaries', () async {
+        // Each file is 1000 bytes ("lineNNNN\n" = 9 bytes x ~111). Ask for a
+        // window that spans the live file and reaches into log.txt.1.
+        String block(String prefix) => [
+              for (var i = 0; i < 111; i++)
+                '$prefix${i.toString().padLeft(4, '0')}',
+            ].join('\n');
+        File('${logFile.path}.1').writeAsStringSync('${block("old")}\n');
+        logFile.writeAsStringSync('${block("new")}\n');
+
+        final res = await get(
+            handlerFor(logFile.path), '/api/v1/logs?rotated=1&kb=1&order=asc');
+        final body = await res.readAsString();
+
+        expect(res.statusCode, 200);
+        // The newest line survives and sits last (chronological).
+        expect(body.endsWith('new0110\n'), isTrue);
+        // The oldest rotated lines fall outside the 1KB window.
+        expect(body.contains('old0000'), isFalse);
+        // The window reaches back into the rotated file.
+        expect(body.contains('old0110'), isTrue);
+        expect(body.indexOf('old0110'), lessThan(body.indexOf('new0000')));
+      });
+
+      test('an unrecognized ?rotated value is rejected', () async {
+        logFile.writeAsStringSync('x\n');
+        final res = await get(
+            handlerFor(logFile.path), '/api/v1/logs?rotated=maybe');
+        expect(res.statusCode, 400);
+      });
+    });
   });
 
   group('WebViewLogsHandler GET /api/v1/webview/logs', () {
