@@ -1,6 +1,6 @@
-**Current Step:** Step 1: Not started
-**Status:** Ready
-**Last Updated:** 2026-07-01
+**Current Step:** Step 5: Completion Criteria
+**Status:** Complete
+**Last Updated:** 2026-07-02
 **Review Level:** 2
 **Review Counter:** 0
 **Iteration:** 0
@@ -10,35 +10,35 @@
 
 ## Step 1: Update rest_v1.yml ShotSnapshot schema
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Add nullable probeTemperature double Celsius
+- [x] Add nullable probeTemperature double Celsius
 
 ## Step 2: Update shots handler serialization
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Include field in GET/POST responses
+- [x] Include field in GET/POST responses
 
 ## Step 3: Update doc/Api.md and handler tests
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Same commit as yml change
+- [x] Same commit as yml change
 
 ## Step 4: Testing & Verification
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Run flutter test
-- [ ] Fix failures
+- [x] Run flutter test
+- [x] Fix failures
 
 ## Step 5: Completion Criteria
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] All steps complete
-- [ ] Documentation satisfied
+- [x] All steps complete
+- [x] Documentation satisfied
 
 ---
 
@@ -52,13 +52,13 @@
 
 | Date | Finding | Impact |
 |------|---------|--------|
-| | | |
+| 2026-07-02 | Handler unchanged — ShotSnapshot.toJson() already serializes probeTemperature | Step 2 is verification-only |
 
 ## Execution Log
 
 | Date | Event | Detail |
 |------|-------|--------|
-| | | |
+| 2026-07-02 | Steps 1–5 | OpenAPI, Api.md, handler tests; full suite 1896 passed |
 
 ## Blockers
 
@@ -68,3 +68,4 @@
 
 ## Notes
 
+Handler uses shot.toJson() / updatedShot.toJson() which delegates to ShotSnapshot.toJson() — no handler code changes required.
