@@ -1,5 +1,5 @@
-**Current Step:** Step 1: Not started
-**Status:** Ready
+**Current Step:** Step 2: Run sb-dev smoke
+**Status:** In Progress
 **Last Updated:** 2026-07-01
 **Review Level:** 2
 **Review Counter:** 0
@@ -10,10 +10,10 @@
 
 ## Step 1: Author E2E scenario markdown
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Mirror Bengle milk-probe scenario structure
-- [ ] Include simulate startup, sensors GET, workflow PUT, steam WS, steams/latest
+- [x] Mirror Bengle milk-probe scenario structure
+- [x] Include simulate startup, sensors GET, workflow PUT, steam WS, steams/latest
 
 ## Step 2: Run sb-dev smoke
 
