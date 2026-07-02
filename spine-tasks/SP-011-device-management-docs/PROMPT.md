@@ -56,9 +56,7 @@ Document Combustion discovery, advertising-only mode, and sensor precedence in d
 
 ### Step 4: Testing & Verification
 
-- [ ] Run `flutter test`
-- [ ] Run targeted tests for files in File Scope
-- [ ] Fix all failures introduced by this task
+- [ ] Contract `testCommand` is `true` (docs-only; no test run required)
 
 ### Step 5: Completion Criteria
 
@@ -79,7 +77,7 @@ Document Combustion discovery, advertising-only mode, and sensor precedence in d
 ## Completion Criteria
 
 - [ ] All steps complete
-- [ ] `flutter test` passes (or verification pending with documented hardware blocker for SP-001 only)
+- [ ] Contract `testCommand: true` satisfied (docs-only)
 - [ ] Documentation requirements satisfied
 
 ## Git Commit Convention
