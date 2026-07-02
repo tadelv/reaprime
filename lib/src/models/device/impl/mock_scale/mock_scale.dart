@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
+import 'package:reaprime/src/models/device/impl/simulated_shot_weight_model.dart';
+import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/simulated_device.dart';
 import 'package:rxdart/subjects.dart';
@@ -42,7 +45,7 @@ class MockScale implements Scale, SimulatedDevice {
 
   @override
   Future<void> tare() async {
-    _weight = 0;
+    _model.tare();
   }
 
   @override
@@ -57,7 +60,16 @@ class MockScale implements Scale, SimulatedDevice {
   final StreamController<ScaleSnapshot> _snapshotStream =
       StreamController.broadcast();
 
-  double _weight = 0;
+  // Weight follows the simulated machine's flow (when one is attached via
+  // [attachMachine]) through the shared shot-weight model, so a simulated
+  // shot produces a believable curve: nothing at idle, first-drops lag,
+  // then weight tracking flow. Without a machine the scale reads a flat ~0.
+  // Emission adds a hair of load-cell jitter on top of the model's reading.
+  static const double _jitterGrams = 0.03;
+  final SimulatedShotWeightModel _model = SimulatedShotWeightModel();
+  final Random _random = Random();
+  MockDe1? _machine;
+  StreamSubscription<MachineSnapshot>? _machineSub;
   final Stopwatch _timerStopwatch = Stopwatch();
   Duration? _frozenTimerValue;
   bool _timerRunning = false;
@@ -68,22 +80,39 @@ class MockScale implements Scale, SimulatedDevice {
     _startEmission();
   }
 
+  /// Follow [machine]'s simulated flow so the weight responds to its shots.
+  /// Idempotent for the same machine; switches cleanly to a new one.
+  void attachMachine(MockDe1 machine) {
+    if (identical(machine, _machine)) return;
+    _machineSub?.cancel();
+    _machine = machine;
+    _machineSub = machine.currentSnapshot.listen((s) {
+      _model
+        ..targetVolumeCountStart = machine.targetVolumeCountStart
+        ..ingest(s);
+    });
+  }
+
+  /// Stop following the machine. The reading freezes at its current value.
+  void detachMachine() {
+    _machineSub?.cancel();
+    _machineSub = null;
+    _machine = null;
+  }
+
   void _startEmission() {
     _emissionTimer?.cancel();
     _emissionTimer = Timer.periodic(Duration(milliseconds: 200), (_) {
       if (_stalled) return;
-      _weight += 1.1 * Random().nextDouble();
-      if (_weight > 100) {
-        _weight = 0;
-      }
       Duration? timerValue;
       if (_timerRunning) {
         timerValue = _timerStopwatch.elapsed;
       } else if (_frozenTimerValue != null) {
         timerValue = _frozenTimerValue;
       }
+      final jitter = (_random.nextDouble() - 0.5) * 2 * _jitterGrams;
       _snapshotStream.add(ScaleSnapshot(
-          weight: _weight,
+          weight: _model.weight + jitter,
           timestamp: DateTime.now(),
           batteryLevel: 100,
           timerValue: timerValue));
@@ -105,6 +134,7 @@ class MockScale implements Scale, SimulatedDevice {
     _stalled = true;
     _emissionTimer?.cancel();
     _emissionTimer = null;
+    detachMachine();
     _connectionSubject.add(ConnectionState.disconnected);
   }
 

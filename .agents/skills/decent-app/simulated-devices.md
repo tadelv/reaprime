@@ -15,6 +15,8 @@ Registered in `lib/src/services/simulated_device_service.dart`:
 
 The internal id (left column) is what you pass to `preferredMachineId` / `preferredScaleId` dart-defines and to `sb-dev`'s `--connect-machine` / `--connect-scale` flags — case-sensitive. The REST `name` is what you match on when reading `/api/v1/devices`.
 
+**Scale weight synthesis.** `MockScale`'s weight follows the simulated machine's flow — `SimulatedDeviceService` wires it to the enabled mock machine on every scan. At idle it reads a flat ~0 (with a hair of load-cell jitter); during a simulated espresso shot the weight lags the pour start (preinfusion absorbed, first-drops holdback, ramp-in) and then tracks flow 1:1; hot water lands in the cup directly. The same model (`lib/src/models/device/impl/simulated_shot_weight_model.dart`) drives `MockBengle`'s integrated scale. With no mock machine enabled the scale just sits at ~0 — it no longer self-generates a climbing weight, so weight-based flows (SAW, shot timers) only trigger when the machine actually pours.
+
 ## Auto-connect fast-path
 
 `sb-dev start --connect-machine MockDe1 --connect-scale MockScale` translates to:
