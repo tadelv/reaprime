@@ -4,18 +4,23 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/controllers/sensor_controller.dart';
 import 'package:reaprime/src/controllers/step_exit_arbiter.dart';
+import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
+import 'package:reaprime/src/models/device/sensor.dart';
 import 'package:rxdart/rxdart.dart';
 
 class ShotSequencer {
   final De1Controller de1controller;
   final ScaleController scaleController;
   final PersistenceController persistenceController;
+  final SensorController? _sensorController;
+  final SettingsService? _settingsService;
   final Profile targetProfile;
 
   final Logger _log = Logger("ShotSequencer");
@@ -82,6 +87,8 @@ class ShotSequencer {
     required this.scaleController,
     required this.de1controller,
     required this.persistenceController,
+    SensorController? sensorController,
+    SettingsService? settingsService,
     required this.targetProfile,
     required this.targetYield,
     required bool bypassSAW,
@@ -89,7 +96,9 @@ class ShotSequencer {
     required double weightFlowMultiplier,
     required double volumeFlowMultiplier,
     required bool stepExitArbiterEnabled,
-  }) : _bypassSAW = bypassSAW,
+  }) : _sensorController = sensorController,
+       _settingsService = settingsService,
+       _bypassSAW = bypassSAW,
        _blockOnNoScale = blockOnNoScale,
        _weightFlowMultiplier = weightFlowMultiplier,
        _volumeFlowMultiplier = volumeFlowMultiplier,
@@ -179,6 +188,7 @@ class ShotSequencer {
     _log.fine("dispose");
     _snapshotSubscription?.cancel();
     _scaleConnectionSubscription?.cancel();
+    _cancelProbeTracking();
     _rawShotDataStream.close();
     _shotDataStream.close();
     _decisionStream.close();
@@ -231,6 +241,56 @@ class ShotSequencer {
   bool _scaleTared = false;
   StreamSubscription<device.ConnectionState>? _scaleConnectionSubscription;
 
+  Sensor? _trackedSensor;
+  double? _latestProbeTemperature;
+  bool _probeLost = false;
+  StreamSubscription<Map<String, dynamic>>? _sensorSub;
+  StreamSubscription<device.ConnectionState>? _probeConnectionSub;
+
+  Future<void> _trackPreferredProbe() async {
+    final sensors = _sensorController;
+    if (sensors == null) return;
+
+    _cancelProbeTracking();
+    _latestProbeTemperature = null;
+    _probeLost = false;
+
+    final settingsService = _settingsService;
+    final preferredId = settingsService != null
+        ? await settingsService.preferredShotProbeId()
+        : null;
+    final sensor = sensors.resolvePreferred(preferredId);
+    if (sensor == null) return;
+
+    _trackedSensor = sensor;
+    _probeConnectionSub =
+        sensor.connectionState.listen(_onProbeConnectionState);
+    _sensorSub = sensor.data.listen((payload) {
+      if (_probeLost) return;
+      final raw = payload['temperature'];
+      if (raw is num) _latestProbeTemperature = raw.toDouble();
+    });
+  }
+
+  void _onProbeConnectionState(device.ConnectionState state) {
+    if (state == device.ConnectionState.connected) return;
+    if (_probeLost) return;
+    if (_state == ShotState.idle || _state == ShotState.finished) return;
+    _probeLost = true;
+    _log.warning(
+      'Shot probe disconnected during shot (state: ${_state.name}). '
+      'Continuing with last-known probe temperature.',
+    );
+  }
+
+  void _cancelProbeTracking() {
+    _sensorSub?.cancel();
+    _sensorSub = null;
+    _probeConnectionSub?.cancel();
+    _probeConnectionSub = null;
+    _trackedSensor = null;
+  }
+
   void _processSnapshot(ShotSnapshot snapshot) {
     _log.finest("Processing snapshot");
 
@@ -252,11 +312,14 @@ class ShotSequencer {
 
     // Update volume calculation
     final snapshotWithVolume = _updateVolume(snapshot);
+    final snapshotWithProbe = snapshotWithVolume.copyWith(
+      probeTemperature: _latestProbeTemperature,
+    );
 
-    _rawShotDataStream.add(snapshotWithVolume);
-    _handleStateTransition(snapshotWithVolume);
+    _rawShotDataStream.add(snapshotWithProbe);
+    _handleStateTransition(snapshotWithProbe);
     if (dataCollectionEnabled) {
-      _shotDataStream.add(snapshotWithVolume);
+      _shotDataStream.add(snapshotWithProbe);
     }
   }
 
@@ -322,6 +385,9 @@ class ShotSequencer {
           skippedSteps.clear();
           _stepExitArbiter.reset();
           _lastProfileFrame = -1;
+
+          // ignore: discarded_futures
+          _trackPreferredProbe();
 
           if (_bypassSAW == false && scale != null && !_scaleLost) {
             _log.info(
@@ -506,6 +572,9 @@ class ShotSequencer {
     _state = _trustedFinalYield != null
         ? ShotState.stopping
         : ShotState.finished;
+    if (_state == ShotState.finished) {
+      _cancelProbeTracking();
+    }
     _stateStream.add(_state);
   }
 
@@ -567,6 +636,7 @@ class ShotSequencer {
   }
 
   void _finishStopping() {
+    _cancelProbeTracking();
     _state = ShotState.finished;
     _stateStream.add(_state);
   }
