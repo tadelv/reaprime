@@ -58,7 +58,7 @@
 
 | Date | Event | Detail |
 |------|-------|--------|
-| 2026-07-02 | Implementation | Added PT overlay in `_shotStats`; widget tests in `test/realtime_shot_feature/` |
+| 2026-07-02 | REVISE fix | Cleaned test imports; added shared_preferences_platform_interface dev_dep for analyze gate |
 
 ## Blockers
 

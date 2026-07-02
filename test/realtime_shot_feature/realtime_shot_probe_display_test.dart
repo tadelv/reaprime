@@ -11,12 +11,9 @@ import 'package:reaprime/src/controllers/shot_sequencer.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
-import 'package:reaprime/src/models/data/shot_snapshot.dart';
 import 'package:reaprime/src/models/data/steam_record.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
-import 'package:reaprime/src/models/device/device.dart' hide ConnectionState;
-import 'package:reaprime/src/models/device/device.dart' as device
-    show ConnectionState, Device, DeviceDiscoveryService, DeviceType;
+import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart' as device_scale;
@@ -33,9 +30,9 @@ import '../helpers/mock_settings_service.dart';
 import '../helpers/test_de1.dart';
 import '../helpers/test_scale.dart';
 
-class _FakeDiscoveryService extends DeviceDiscoveryService {
+class _FakeDiscoveryService extends device.DeviceDiscoveryService {
   @override
-  Stream<List<Device>> get devices => const Stream.empty();
+  Stream<List<device.Device>> get devices => const Stream.empty();
 
   @override
   Future<void> initialize() async {}
@@ -161,18 +158,14 @@ class _NullStorageService implements StorageService {
 }
 
 class _ProbeTestSensor implements Sensor {
-  _ProbeTestSensor({this.id = 'test-probe'});
-
-  final String id;
-
   @override
-  String get deviceId => id;
+  String get deviceId => 'test-probe';
 
   @override
   String get name => 'ProbeTestSensor';
 
   @override
-  DeviceType get type => DeviceType.sensor;
+  device.DeviceType get type => device.DeviceType.sensor;
 
   final BehaviorSubject<Map<String, dynamic>> _data = BehaviorSubject();
 
