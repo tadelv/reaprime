@@ -1,5 +1,5 @@
-**Current Step:** Step 4: In progress
-**Status:** In Progress
+**Current Step:** Step 4: Blocked
+**Status:** Blocked
 **Last Updated:** 2026-07-01
 **Review Level:** 0
 **Review Counter:** 0
@@ -28,9 +28,9 @@
 
 ## Step 4: Testing & Verification
 
-**Status:** In Progress
+**Status:** Blocked
 
-- [ ] Run flutter test
+- [x] Run flutter test
 - [ ] Fix failures
 
 ## Step 5: Completion Criteria
@@ -61,12 +61,14 @@
 | 2026-07-01 | Step 1 complete | Added Combustion discovery documentation covering manufacturer ID, Probe Status UUID, advertising-only mode, and empty-name scan metadata matching. |
 | 2026-07-01 | Step 2 complete | Documented FR-M3 sensor precedence and tied it to `SensorController.resolvePreferred()` and `preferredSteamProbeId`. |
 | 2026-07-01 | Step 3 complete | Cross-checked the doc against `DeviceMatcher`, `SensorController`, `SteamSequencer`, and sensor-controller coverage tests from Phase 1. |
+| 2026-07-01 | Step 4 attempted | Ran `flutter test` and `flutter analyze`; verification is blocked by pre-existing failures outside File Scope. |
 
 ## Blockers
 
 | Date | Blocker | Resolution |
 |------|---------|------------|
-| | | |
+| 2026-07-01 | `flutter test` failed in `test/webui_storage_bundled_test.dart` because bundled skin assets are missing from this worktree; `flutter analyze` also reports pre-existing missing asset directories and generated-package warnings. | Unresolved in this task because the failures are outside File Scope and not introduced by the documentation change. |
 
 ## Notes
 
+- `npm test` was not run because the repo root has no `package.json`; the only `package.json` is under `packages/dye2-plugin/`, while the task packet's required verification command is `flutter test`.
