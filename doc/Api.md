@@ -101,6 +101,12 @@ reaches `connected`.
 
 ### Shots
 
+Recorded espresso sessions. `GET` and `PUT` `/api/v1/shots/:id` include
+full `measurements` arrays; list and latest endpoints omit measurements for
+performance. Each `ShotSnapshot` may include `probeTemperature` (nullable
+double, °C) — the combustion probe reading (T1 / immersed tip per OD-2) at
+that sample. `null` when no probe was active for the sample.
+
 | Method | Path | Description | Handler |
 |--------|------|-------------|---------|
 | GET | `/api/v1/shots` | Paginated list with filtering | `shots_handler.dart` |
