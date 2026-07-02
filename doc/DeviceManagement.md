@@ -131,6 +131,18 @@ Discovery services use name-based matching via `DeviceMatcher` to create appropr
 - Service verification happens during `onConnect()` using `BleServiceIdentifier`
 - DiFluid R2 reflectometers are matched separately from DiFluid scales by advertised name and the R2 BLE service UUID, then exposed as `Sensor` devices with a `measure` command
 
+#### Combustion probe discovery
+
+Combustion Predictive Thermometer probes add a second identification path beyond the normal name rules because some probes advertise with a serial-style name or no name at all.
+
+- **Manufacturer company ID:** `0x09C7`
+- **Probe Status service UUID:** `00000100-CAAB-3792-3D44-97AE51C1407A`
+- **Primary mode:** advertising-only sensor updates; MVP does not require a persistent GATT session
+
+`DeviceMatcher.matchFromScanMetadata()` still tries the regular name rules first. If those miss, it inspects scan metadata from the primary advertisement and scan response. A probe is accepted when either the manufacturer company ID matches `0x09C7` or the Probe Status service UUID is present. This allows empty-name advertisements to surface as a `CombustionProbe` instead of being dropped by the name-only path.
+
+For filtered sensor scans, `DeviceMatcher.serviceUuidsFor(DeviceType.sensor)` also includes the Combustion Probe Status UUID so Android background-throttled scans still have a service-based discovery path.
+
 ### Service Lifecycle
 
 1. **Initialization:** `service.initialize()`

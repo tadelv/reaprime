@@ -1,5 +1,5 @@
-**Current Step:** Step 1: Not started
-**Status:** Ready
+**Current Step:** Step 2: In progress
+**Status:** In Progress
 **Last Updated:** 2026-07-01
 **Review Level:** 0
 **Review Counter:** 0
@@ -10,13 +10,13 @@
 
 ## Step 1: Add Combustion discovery section
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Manufacturer ID, service UUID, empty-name behavior
+- [x] Manufacturer ID, service UUID, empty-name behavior
 
 ## Step 2: Document sensor precedence
 
-**Status:** Not Started
+**Status:** In Progress
 
 - [ ] bridge > preferred > first registered per FR-M3
 
@@ -58,7 +58,7 @@
 
 | Date | Event | Detail |
 |------|-------|--------|
-| | | |
+| 2026-07-01 | Step 1 complete | Added Combustion discovery documentation covering manufacturer ID, Probe Status UUID, advertising-only mode, and empty-name scan metadata matching. |
 
 ## Blockers
 
