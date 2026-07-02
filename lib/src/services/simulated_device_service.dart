@@ -65,6 +65,19 @@ class SimulatedDeviceService
       _devices.remove("MockSensorBasket");
       _devices.remove("MockDebugPort");
     }
+    // Wire the standalone scale to the simulated machine so its weight
+    // follows the simulated shot (flow integration) instead of drifting on
+    // its own. Runs every scan: attachMachine is idempotent, and this picks
+    // up a machine that gets enabled after the scale.
+    final scale = _devices["MockScale"];
+    if (scale is MockScale) {
+      final machine = _devices["MockDe1"] ?? _devices["MockBengle"];
+      if (machine is MockDe1) {
+        scale.attachMachine(machine);
+      } else {
+        scale.detachMachine();
+      }
+    }
     _deviceStreamController.add(_devices.values.toList());
     notifyListeners();
     scanCount++;

@@ -1,9 +1,25 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/bengle/mock_bengle.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
+import 'package:reaprime/src/models/device/impl/mock_scale/mock_scale.dart';
+import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/services/simulated_device_service.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
+
+Profile _pourProfile() => Profile(
+      version: '1.0', title: 'pour', notes: '', author: 'test',
+      beverageType: BeverageType.espresso,
+      targetVolumeCountStart: 0, tankTemperature: 92.0,
+      steps: [
+        ProfileStepFlow(
+          name: 'pour', flow: 4.0, seconds: 30, temperature: 92,
+          sensor: TemperatureSensor.coffee, transition: TransitionType.fast,
+          volume: 0,
+        ),
+      ],
+    );
 
 void main() {
   group('SimulatedDeviceService', () {
@@ -92,6 +108,72 @@ void main() {
       final scaleAfter = second.firstWhere((d) => d.deviceId == 'MockScale');
       expect(await scaleAfter.connectionState.first, ConnectionState.connected,
           reason: 'rescan replaced the connected scale with a discovered one');
+    });
+
+    test('wires MockScale weight to the MockDe1 simulation, even when the '
+        'machine is enabled after the scale', () async {
+      final service = SimulatedDeviceService();
+
+      // Scale first — no machine to follow yet.
+      service.enabledDevices = {SimulatedDevicesTypes.scale};
+      await service.scanForDevices();
+
+      // Machine enabled later; the rescan must attach the existing scale.
+      service.enabledDevices = {
+        SimulatedDevicesTypes.machine,
+        SimulatedDevicesTypes.scale,
+      };
+      final emission = service.devices.first;
+      await service.scanForDevices();
+      final devices = await emission;
+
+      final de1 =
+          devices.firstWhere((d) => d.deviceId == 'MockDe1') as MockDe1;
+      final scale =
+          devices.firstWhere((d) => d.deviceId == 'MockScale') as MockScale;
+
+      await de1.onConnect();
+      await scale.onConnect();
+      await de1.setProfile(_pourProfile());
+
+      // Idle machine: the scale must read ~0, not drift upward on its own.
+      final idle = await scale.currentSnapshot.first
+          .timeout(const Duration(seconds: 2));
+      expect(idle.weight.abs(), lessThan(0.2),
+          reason: 'no weight before the shot starts');
+
+      await de1.requestState(MachineState.espresso);
+      await Future.delayed(const Duration(seconds: 4));
+      await de1.requestState(MachineState.idle);
+
+      final snapshot = await scale.currentSnapshot.first
+          .timeout(const Duration(seconds: 2));
+      expect(snapshot.weight, greaterThan(1.0),
+          reason: 'the simulated scale must follow the simulated shot');
+
+      scale.simulateDisconnect();
+      await de1.disconnect();
+    });
+
+    test('MockScale stays flat at ~0 when no machine is enabled', () async {
+      final service = SimulatedDeviceService();
+      service.enabledDevices = {SimulatedDevicesTypes.scale};
+
+      final emission = service.devices.first;
+      await service.scanForDevices();
+      final devices = await emission;
+      final scale =
+          devices.firstWhere((d) => d.deviceId == 'MockScale') as MockScale;
+      await scale.onConnect();
+
+      final samples = await scale.currentSnapshot
+          .take(5)
+          .toList()
+          .timeout(const Duration(seconds: 5));
+      for (final s in samples) {
+        expect(s.weight.abs(), lessThan(0.2));
+      }
+      scale.simulateDisconnect();
     });
 
     test('removes MockBengle when bengle becomes disabled', () async {

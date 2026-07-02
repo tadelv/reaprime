@@ -11,7 +11,7 @@ import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/simulated_device.dart';
 import 'package:rxdart/subjects.dart';
 
-// steam and hotWater are placeholders for future simulation modes.
+// steam is a placeholder for a future simulation mode.
 // ignore: unused_field
 enum _SimulationType { espresso, steam, hotWater, idle }
 
@@ -52,6 +52,10 @@ class MockDe1 implements De1Interface, SimulatedDevice {
   double _profileStepElapsedTime = 0.0; // in milliseconds
   double _profileTargetTemperature = 94.0; // Default if no profile
   int _targetVolumeCountStart = 0;
+
+  /// First profile frame that counts toward the shot volume/weight — earlier
+  /// frames are preinfusion. Simulated scales gate weight accumulation on it.
+  int get targetVolumeCountStart => _targetVolumeCountStart;
   // Smooth transition interpolation: targets at step entry.
   double _fromFlowTarget = 0;
   double _fromPressureTarget = 0;
@@ -90,6 +94,9 @@ class MockDe1 implements De1Interface, SimulatedDevice {
       _shotElapsedMs = 0.0;
       _fromFlowTarget = 0;
       _fromPressureTarget = 0;
+    } else if (_currentState == MachineState.hotWater) {
+      _simulationType = _SimulationType.hotWater;
+      _hotWaterElapsedMs = 0.0;
     } else if (_currentState == MachineState.skipStep &&
         _simulationType == _SimulationType.espresso &&
         _currentProfile != null) {
@@ -145,6 +152,9 @@ class MockDe1 implements De1Interface, SimulatedDevice {
       switch (_simulationType) {
         case _SimulationType.espresso:
           newSnapshot = _simulateEspresso();
+          break;
+        case _SimulationType.hotWater:
+          newSnapshot = _simulateHotWater();
           break;
         case _SimulationType.idle:
           if (DateTime.now().difference(lastIdleSnapshot).inMilliseconds <
@@ -444,6 +454,53 @@ class MockDe1 implements De1Interface, SimulatedDevice {
     );
   }
 
+  double _hotWaterElapsedMs = 0.0;
+
+  /// Simulated hot-water dispense: flow converges to the configured
+  /// hot-water flow and runs until the configured duration elapses (or an
+  /// external `requestState(idle)` — e.g. the app's weight-based stop —
+  /// ends it). No volume-based auto-stop: like the real DE1 as this app
+  /// drives it, weight stops are the app's job, not the machine's.
+  MachineSnapshot _simulateHotWater() {
+    _hotWaterElapsedMs += 100;
+    final settings = _shotSettingsController.value;
+    if (_hotWaterElapsedMs >= settings.targetHotWaterDuration * 1000) {
+      _simulationType = _SimulationType.idle;
+      _currentState = MachineState.idle;
+    }
+    final done = _currentState != MachineState.hotWater;
+    final targetTemp = settings.targetHotWaterTemp.toDouble();
+    final targetFlow = done ? 0.0 : _hotWaterFlow;
+    final newFlow =
+        _lastSnapshot.flow + (targetFlow - _lastSnapshot.flow) * 0.35;
+    return MachineSnapshot(
+      timestamp: DateTime.now(),
+      state: MachineStateSnapshot(
+        state: _currentState,
+        substate: done ? MachineSubstate.idle : MachineSubstate.pouring,
+      ),
+      flow: newFlow,
+      // Open path to the spout: only a little back-pressure, scaling with flow.
+      pressure: newFlow * 0.25,
+      targetFlow: targetFlow,
+      targetPressure: 0,
+      mixTemperature: _calculateTemperature(
+        current: _lastSnapshot.mixTemperature,
+        target: targetTemp,
+        rate: 2.0,
+      ),
+      groupTemperature: _calculateTemperature(
+        current: _lastSnapshot.groupTemperature,
+        target: targetTemp,
+        rate: 2.0,
+      ),
+      targetMixTemperature: targetTemp,
+      targetGroupTemperature: targetTemp,
+      profileFrame: 0,
+      steamTemperature: _lastSnapshot.steamTemperature,
+    );
+  }
+
   MachineSnapshot _fallbackEspressoSimulation(MachineSubstate substate) {
     return MachineSnapshot(
       timestamp: DateTime.now(),
@@ -586,7 +643,7 @@ class MockDe1 implements De1Interface, SimulatedDevice {
   @override
   Future<void> setRefillLevel(int newRefillLevel) async {}
 
-  final StreamController<De1ShotSettings> _shotSettingsController =
+  final BehaviorSubject<De1ShotSettings> _shotSettingsController =
       BehaviorSubject.seeded(
         De1ShotSettings(
           steamSetting: 0,

@@ -68,9 +68,12 @@ void main() {
     final machine = MockDe1();
     await de1Controller.connectToDe1(machine);
     final scale = MockScale();
+    // Same wiring SimulatedDeviceService applies: the scale's weight follows
+    // the machine's dispense flow.
+    scale.attachMachine(machine);
     await scaleController.connectToScale(scale);
 
-    // Small target so the ramping MockScale reaches it quickly.
+    // Small target (5 g at 2 mL/s) so the dispense reaches it quickly.
     await de1Controller.updateHotWaterSettings(HotWaterFormSettings(
       targetTemperature: 85,
       flow: 2.0,
