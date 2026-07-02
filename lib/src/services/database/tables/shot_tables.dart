@@ -19,6 +19,10 @@ class ShotRecords extends Table {
   RealColumn get enjoyment => real().nullable()();
   TextColumn get espressoNotes => text().nullable()();
 
+  /// Why the shot ended (ShotDecisionReason.name, open set). Added in schema
+  /// v4; null for shots recorded before then or not sequenced by the app.
+  TextColumn get stopReason => text().nullable()();
+
   // Full JSON blobs for complex nested data
   TextColumn get workflowJson =>
       text().map(const JsonMapConverter())();

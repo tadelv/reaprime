@@ -58,6 +58,22 @@ channels:
     messages:
       machineRawMessage:
         $ref: '#/components/messages/MachineRawMessage'
+  ShotState:
+    description: >
+      Shot state + decision feed from the app's shot sequencer: state
+      transitions (idle/preheating/pouring/stopping/finished), why a profile
+      step advanced (app-issued weight skip vs firmware-natural), and why the
+      shot stopped (target weight/volume, API/app command, machine-reported
+      end, error, disconnect). One event type multiplexes all frames,
+      discriminated by `event`. On connect the server replays the latest
+      frame (an idle frame between shots), so clients can attach once and
+      wait — the socket is not gated on a connected machine. Note the feed
+      reflects app-side sequencing only: in full gateway mode (backgrounded)
+      no sequencer runs and the feed stays idle.
+    address: ws/v1/machine/shotState
+    messages:
+      shotStateEvent:
+        $ref: '#/components/messages/ShotStateEvent'
   SensorSnapshot:
     description: Real-time sensor snapshot updates for a specific sensor.
     address: ws/v1/sensors/{id}/snapshot
@@ -148,6 +164,10 @@ operations:
     action: receive
     channel:
       $ref: '#/channels/WaterLevels'
+  shotState:
+    action: receive
+    channel:
+      $ref: '#/channels/ShotState'
   scaleSnapshot:
     action: receive
     channel:
@@ -246,6 +266,11 @@ components:
       title: Machine Raw BLE Message
       payload:
         $ref: '#/components/schemas/De1RawMessage'
+    ShotStateEvent:
+      name: ShotStateEvent
+      title: Shot state / decision event
+      payload:
+        $ref: '#/components/schemas/ShotStateEvent'
     SensorSnapshot:
       name: SensorSnapshot
       title: Sensor Snapshot
@@ -413,6 +438,94 @@ components:
         status:
           type: string
           enum: [connected, disconnected]
+    ShotStateEvent:
+      type: object
+      description: >
+        One frame on ws/v1/machine/shotState. Every frame carries the current
+        shot phase and machine context so any single frame gives a coherent
+        view; `decision` is non-null only for decision/terminal frames.
+      required:
+        [event, timestamp, state, scaleConnected, scaleLost,
+         machineHasAutonomousSAW]
+      properties:
+        event:
+          type: string
+          enum: [state, decision, terminal]
+        timestamp:
+          type: string
+          description: >
+            ISO8601 timestamp of the machine snapshot that drove the event
+            (matching the timestamps on ws/v1/machine/snapshot, so decisions
+            can be time-aligned with telemetry). Wall clock only when no
+            snapshot context exists (e.g. the idle re-seed after a
+            disconnect).
+        shotId:
+          type: string
+          nullable: true
+          description: >
+            Stable id for the shot, equal to the persisted ShotRecord id when
+            the shot is saved. Null between shots.
+        state:
+          type: string
+          enum: [idle, preheating, pouring, stopping, finished]
+          description: Current shot phase as tracked by the sequencer.
+        machineState:
+          type: string
+          nullable: true
+          description: MachineState name from the latest machine snapshot.
+        machineSubstate:
+          type: string
+          nullable: true
+        profileFrame:
+          type: integer
+          nullable: true
+          description: 0-based profile frame index from the latest snapshot.
+        scaleConnected:
+          type: boolean
+        scaleLost:
+          type: boolean
+          description: >
+            True once the scale dropped mid-shot. Sticky for the remainder of
+            the shot — stop-at-weight stays disabled even if scaleConnected
+            flips back.
+        machineHasAutonomousSAW:
+          type: boolean
+          description: >
+            True when the machine firmware runs its own stop-at-weight
+            (Bengle) — the final target-yield stop is then firmware-side and
+            reported as machineEnded.
+        decision:
+          type: object
+          nullable: true
+          description: Present on decision/terminal frames only.
+          properties:
+            kind:
+              type: string
+              enum: [advance, stop, abort, terminal, finalize]
+              description: >
+                advance = profile moved to the next step; stop = pour ended;
+                abort = shot blocked before it ran; terminal = abnormal end
+                (error/disconnect); finalize = post-stop settling window
+                closed (not why the shot stopped).
+            reason:
+              type: string
+              description: >
+                OPEN SET — tolerate unknown values from newer builds. Known:
+                targetWeight, targetVolume, apiStop, appStop, machineEnded,
+                profileAdvance, profileSkip, noScale, error, disconnected,
+                stoppingBackstop.
+            details:
+              type: string
+              nullable: true
+              description: Human-readable explanation.
+            data:
+              type: object
+              nullable: true
+              additionalProperties: true
+              description: >
+                Reason-specific numeric context (e.g. targetYield /
+                projectedWeight for targetWeight, frame / stepExitWeight for
+                profileSkip).
     MachineSnapshot:
       type: object
       properties:

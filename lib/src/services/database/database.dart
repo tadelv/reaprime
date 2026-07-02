@@ -44,7 +44,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration {
@@ -61,6 +61,9 @@ class AppDatabase extends _$AppDatabase {
         if (from < 3) {
           await m.createTable(steamRecords);
           await _createSteamIndices();
+        }
+        if (from < 4) {
+          await m.addColumn(shotRecords, shotRecords.stopReason);
         }
       },
       beforeOpen: (details) async {

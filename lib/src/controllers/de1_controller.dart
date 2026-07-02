@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/connection/connection_timings.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/home_feature/forms/hot_water_form.dart';
 import 'package:reaprime/src/home_feature/forms/steam_form.dart';
+import 'package:reaprime/src/models/data/shot_state_event.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
@@ -57,6 +59,69 @@ class De1Controller {
   );
 
   Stream<RinseData> get rinseData => _rinseStream.stream;
+
+  /// Live shot state + decision feed, backing `/ws/v1/machine/shotState`.
+  ///
+  /// De1StateManager forwards each per-shot ShotSequencer's state transitions
+  /// and decisions into here via [publishShotEvent] — the sequencer itself is
+  /// recreated every shot and its streams close on dispose, so this long-lived
+  /// subject is what WebSocket clients subscribe to. Seeded with an idle frame
+  /// so a late joiner never replays a stale mid-shot frame from a previous
+  /// shot.
+  final BehaviorSubject<ShotStateEvent> _shotStateSubject =
+      BehaviorSubject.seeded(ShotStateEvent.idle());
+
+  Stream<ShotStateEvent> get shotState => _shotStateSubject.stream;
+  ShotStateEvent get currentShotState => _shotStateSubject.value;
+
+  /// WS-frame trail at FINE; the per-decision INFO/WARNING line is emitted
+  /// once by ShotSequencer under the same logger name — don't log it twice.
+  static final Logger _shotStateLog = Logger('ShotState');
+
+  void publishShotEvent(ShotStateEvent event) {
+    _shotStateLog.fine(
+      '[shot ${event.shotId ?? '-'}] ${event.event}: ${event.state.name}'
+      '${event.decision != null ? ' (${event.decision!.reason.name})' : ''}',
+    );
+    if (!_shotStateSubject.isClosed) {
+      _shotStateSubject.add(event);
+    }
+  }
+
+  /// Pre-declared stop intent, so the sequencer can attribute a
+  /// machine-reported shot end to the command that caused it. The REST state
+  /// handler and the in-app Stop button record intent just before issuing
+  /// `requestState(idle)`; when the resulting `pouringDone` arrives the
+  /// sequencer consumes it. Anything older than [_stopIntentWindow] is stale —
+  /// a leftover stamp from an unrelated request must not label a later,
+  /// natural shot end.
+  static const Duration _stopIntentWindow = Duration(seconds: 5);
+  ShotDecisionReason? _pendingStopIntent;
+  DateTime? _pendingStopIntentAt;
+
+  void recordStopIntent(ShotDecisionReason reason) {
+    assert(
+      reason == ShotDecisionReason.apiStop ||
+          reason == ShotDecisionReason.appStop,
+      'stop intent must name a command source (apiStop/appStop)',
+    );
+    _pendingStopIntent = reason;
+    _pendingStopIntentAt = clock.now();
+  }
+
+  /// Returns the pending intent if one was recorded within [window], and
+  /// clears it either way — an intent is attributed at most once.
+  ShotDecisionReason? consumeStopIntent({
+    Duration window = _stopIntentWindow,
+  }) {
+    final intent = _pendingStopIntent;
+    final at = _pendingStopIntentAt;
+    _pendingStopIntent = null;
+    _pendingStopIntentAt = null;
+    if (intent == null || at == null) return null;
+    if (clock.now().difference(at) > window) return null;
+    return intent;
+  }
 
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   bool _dataInitialized = false;
@@ -368,6 +433,7 @@ class De1Controller {
     if (!_steamDataController.isClosed) _steamDataController.close();
     if (!_hotWaterDataController.isClosed) _hotWaterDataController.close();
     if (!_rinseStream.isClosed) _rinseStream.close();
+    if (!_shotStateSubject.isClosed) _shotStateSubject.close();
   }
 }
 

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
@@ -12,7 +13,10 @@ import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_annotations.dart';
 import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
+import 'package:reaprime/src/models/data/shot_state_event.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
+import 'package:reaprime/src/models/device/bengle_interface.dart';
+import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/realtime_shot_feature/realtime_shot_feature.dart';
 import 'package:reaprime/src/realtime_steam_feature/realtime_steam_feature.dart';
@@ -49,6 +53,14 @@ class De1StateManager with WidgetsBindingObserver {
   StreamSubscription<ShotState>? _shotStateSubscription;
   StreamSubscription<ShotSnapshot>? _shotSnapshotsSubscription;
   StreamSubscription<ShotDecision>? _shotDecisionSubscription;
+
+  /// Stable id for the tracked shot, minted when the sequencer is created so
+  /// the live `/ws/v1/machine/shotState` frames and the eventually persisted
+  /// ShotRecord.id match — clients can correlate the stream to the saved shot.
+  String? _currentShotId;
+
+  /// Latest machine snapshot, kept so shotState frames carry machine context.
+  MachineSnapshot? _latestSnapshot;
 
   bool _isRealtimeFeatureActive = false;
   final List<ShotSnapshot> _currentShotSnapshots = [];
@@ -250,6 +262,7 @@ class De1StateManager with WidgetsBindingObserver {
   /// Handles machine snapshot updates and triggers appropriate actions
   /// based on the machine state and gateway mode.
   void _handleSnapshot(MachineSnapshot snapshot) {
+    _latestSnapshot = snapshot;
     final gatewayMode = _settingsController.gatewayMode;
     final currentState = snapshot.state.state;
     final currentSubstate = snapshot.state.substate;
@@ -587,6 +600,7 @@ class De1StateManager with WidgetsBindingObserver {
     );
 
     _currentShotSnapshots.clear();
+    _currentShotId = Uuid().v4();
 
     // Listen to shot snapshots
     _shotSnapshotsSubscription = _currentShotSequencer!.shotData.listen((
@@ -595,8 +609,17 @@ class De1StateManager with WidgetsBindingObserver {
       _currentShotSnapshots.add(snapshot);
     });
 
-    // Listen to shot state changes
+    // Listen to shot state changes. Every transition is forwarded onto the
+    // long-lived De1Controller.shotState feed (the sequencer itself is
+    // per-shot; its streams close on dispose).
     _shotStateSubscription = _currentShotSequencer!.state.listen((state) {
+      // The sequencer's state stream is seeded `idle` and replays it on
+      // subscribe (pre-start). The wire contract is "idle ⇒ between shots,
+      // shotId null", and the between-shots idle frame is published by
+      // _cleanupShotSequencer with a null shotId — so skip idle here.
+      if (state != ShotState.idle) {
+        _publishShotStateFrame(state);
+      }
       if (state == ShotState.finished) {
         _logger.fine('Shot finished, cleaning up ShotSequencer');
         _persistShotIfNeeded();
@@ -604,19 +627,76 @@ class De1StateManager with WidgetsBindingObserver {
       }
     });
 
-    // A blocking decision (e.g. blockOnNoScale) means no shot ran — tear down
-    // without persisting so the next shot can start tracking.
+    // Forward every decision to the shotState feed. An abort decision
+    // (blockOnNoScale, or a stop before the pour began) means no real shot
+    // ran — tear down without persisting so the next shot can start tracking.
+    // The abort decision is itself the terminal signal, so suppress the
+    // teardown terminal frame to avoid a duplicate.
     _shotDecisionSubscription = _currentShotSequencer!.decisions.listen((
       decision,
     ) {
-      if (decision.reason == ShotDecisionReason.noScale) {
+      _publishShotDecisionFrame(decision);
+      if (decision.kind == ShotDecisionKind.abort) {
         _logger.info(
-          'Shot blocked (${decision.reason.name}), cleaning up '
+          'Shot aborted (${decision.reason.name}), cleaning up '
           'ShotSequencer without persisting',
         );
-        _cleanupShotSequencer();
+        _cleanupShotSequencer(emitTerminal: false);
       }
     });
+  }
+
+  bool get _isScaleConnected =>
+      _scaleController.currentConnectionState ==
+      device.ConnectionState.connected;
+
+  /// Publishes a state frame for the tracked shot onto
+  /// De1Controller.shotState.
+  ///
+  /// Frames are stamped with the triggering machine snapshot's timestamp (not
+  /// publish time) so clients can align them with `/ws/v1/machine/snapshot`
+  /// telemetry — the event describes that snapshot's moment, and publish time
+  /// lags it by a variable processing delay.
+  void _publishShotStateFrame(ShotState state) {
+    final sequencer = _currentShotSequencer;
+    _de1Controller.publishShotEvent(
+      ShotStateEvent(
+        event: 'state',
+        timestamp: _latestSnapshot?.timestamp ?? clock.now(),
+        shotId: _currentShotId,
+        state: state,
+        machineState: _latestSnapshot?.state.state,
+        machineSubstate: _latestSnapshot?.state.substate,
+        profileFrame: _latestSnapshot?.profileFrame,
+        scaleConnected: _isScaleConnected,
+        scaleLost: sequencer?.scaleLost ?? false,
+        machineHasAutonomousSAW: sequencer?.machineHasAutonomousSAW ?? false,
+      ),
+    );
+  }
+
+  /// Publishes a decision (or terminal) frame for the tracked shot onto
+  /// De1Controller.shotState. Stamped with the triggering snapshot's
+  /// timestamp — see [_publishShotStateFrame].
+  void _publishShotDecisionFrame(ShotDecision decision) {
+    final sequencer = _currentShotSequencer;
+    _de1Controller.publishShotEvent(
+      ShotStateEvent(
+        event: decision.kind == ShotDecisionKind.terminal
+            ? 'terminal'
+            : 'decision',
+        timestamp: _latestSnapshot?.timestamp ?? clock.now(),
+        shotId: _currentShotId,
+        state: sequencer?.currentState ?? ShotState.idle,
+        machineState: _latestSnapshot?.state.state,
+        machineSubstate: _latestSnapshot?.state.substate,
+        profileFrame: _latestSnapshot?.profileFrame,
+        scaleConnected: _isScaleConnected,
+        scaleLost: sequencer?.scaleLost ?? false,
+        machineHasAutonomousSAW: sequencer?.machineHasAutonomousSAW ?? false,
+        decision: decision,
+      ),
+    );
   }
 
   /// Persists the shot if it's not a cleaning or calibration shot.
@@ -652,10 +732,13 @@ class De1StateManager with WidgetsBindingObserver {
 
     _persistenceController.persistShot(
       ShotRecord(
-        id: Uuid().v4(),
+        // Same id the live shotState frames carried, so clients can correlate
+        // the stream they watched to the saved record.
+        id: _currentShotId ?? Uuid().v4(),
         timestamp: startTime,
         measurements: measurements,
         workflow: workflow,
+        stopReason: _currentShotSequencer!.finalStopReason?.name,
         // Pre-fill what a fresh shot can know: actual yield from the scale
         // trace and actual dose defaulted to the planned dose (de1app parity).
         annotations: ShotAnnotations.deriveForFinishedShot(
@@ -668,8 +751,36 @@ class De1StateManager with WidgetsBindingObserver {
   }
 
   /// Cleans up the current ShotSequencer and all associated subscriptions.
-  void _cleanupShotSequencer() {
+  ///
+  /// Terminal-frame contract: when the sequencer is torn down mid-shot with no
+  /// decision of its own (machine disconnect, manager dispose) and
+  /// [emitTerminal] is true, a `terminal/disconnected` frame is published
+  /// first — the sequencer's own streams close silently on dispose, and
+  /// without this shotState clients would hang on a stale `pouring` frame.
+  /// The abort path passes `emitTerminal: false` because the abort decision it
+  /// already emitted is the terminal signal. The feed is re-seeded with an
+  /// idle frame either way.
+  void _cleanupShotSequencer({bool emitTerminal = true}) {
     _logger.fine('Cleaning up ShotSequencer');
+
+    final sequencer = _currentShotSequencer;
+    final midShot = emitTerminal &&
+        sequencer != null &&
+        sequencer.currentState != ShotState.idle &&
+        sequencer.currentState != ShotState.finished;
+    if (midShot) {
+      _logger.warning(
+        'ShotSequencer torn down mid-shot '
+        '(${sequencer.currentState.name}) — publishing terminal frame',
+      );
+      _publishShotDecisionFrame(
+        const ShotDecision(
+          kind: ShotDecisionKind.terminal,
+          reason: ShotDecisionReason.disconnected,
+          details: 'Shot tracking torn down mid-shot',
+        ),
+      );
+    }
 
     _shotStateSubscription?.cancel();
     _shotStateSubscription = null;
@@ -684,6 +795,39 @@ class De1StateManager with WidgetsBindingObserver {
     _currentShotSequencer = null;
 
     _currentShotSnapshots.clear();
+
+    if (_currentShotId != null) {
+      _currentShotId = null;
+      _publishIdleFrame();
+    }
+  }
+
+  /// Re-seeds the shotState feed with an idle (between-shots) frame carrying
+  /// the real resting scale/machine context, so a client attaching between
+  /// shots sees accurate `scaleConnected`/`machineHasAutonomousSAW` rather
+  /// than the bare `ShotStateEvent.idle()` defaults.
+  void _publishIdleFrame() {
+    _de1Controller.publishShotEvent(
+      ShotStateEvent(
+        event: 'state',
+        timestamp: clock.now(),
+        state: ShotState.idle,
+        machineState: _latestSnapshot?.state.state,
+        machineSubstate: _latestSnapshot?.state.substate,
+        scaleConnected: _isScaleConnected,
+        machineHasAutonomousSAW: _machineHasAutonomousSAW,
+      ),
+    );
+  }
+
+  /// Whether the connected machine runs its own stop-at-weight (Bengle).
+  /// Static capability, so it holds between shots too.
+  bool get _machineHasAutonomousSAW {
+    try {
+      return _de1Controller.connectedDe1() is BengleInterface;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Disposes all subscriptions and cleans up resources.

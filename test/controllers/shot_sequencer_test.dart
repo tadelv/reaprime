@@ -1503,4 +1503,597 @@ void main() {
       });
     });
   });
+
+  group('ShotSequencer — decision stream', () {
+    late TestDe1 testDe1;
+    late TestScale testScale;
+    late _TestDe1Controller de1Controller;
+    late _TestScaleController scaleController;
+    late PersistenceController persistenceController;
+
+    setUp(() {
+      testDe1 = TestDe1();
+      testScale = TestScale();
+      de1Controller = _TestDe1Controller(testDe1);
+      scaleController = _TestScaleController(testScale);
+      persistenceController = PersistenceController(
+        storageService: _NullStorageService(),
+      );
+    });
+
+    tearDown(() {
+      testDe1.dispose();
+      testScale.dispose();
+      scaleController.dispose();
+      persistenceController.dispose();
+    });
+
+    ShotSequencer makeSequencer({
+      Profile? profile,
+      double targetYield = 36.0,
+      double volumeFlowMultiplier = 0.0,
+    }) {
+      return ShotSequencer(
+        scaleController: scaleController,
+        de1controller: de1Controller,
+        persistenceController: persistenceController,
+        targetProfile: profile ?? _simpleProfile(),
+        targetYield: targetYield,
+        bypassSAW: false,
+        blockOnNoScale: false,
+        weightFlowMultiplier: 0.0,
+        volumeFlowMultiplier: volumeFlowMultiplier,
+        stepExitArbiterEnabled: true,
+      );
+    }
+
+    void driveToPouring() {
+      testDe1.emitStateAndSubstate(
+        MachineState.espresso,
+        MachineSubstate.preparingForShot,
+      );
+      testDe1.emitStateAndSubstate(
+        MachineState.espresso,
+        MachineSubstate.pouring,
+      );
+    }
+
+    void emitPouringFrame(int profileFrame, {double flow = 0}) {
+      final current = testDe1.snapshotSubject.value;
+      testDe1.emitSnapshot(
+        current.copyWith(
+          state: const MachineStateSnapshot(
+            state: MachineState.espresso,
+            substate: MachineSubstate.pouring,
+          ),
+          profileFrame: profileFrame,
+          flow: flow,
+        ),
+      );
+    }
+
+    test('target weight stop emits stop/targetWeight and latches it as the '
+        'final stop reason', () {
+      fakeAsync((async) {
+        scaleController.emitWeight(0.0);
+        final sequencer = makeSequencer();
+        final decisions = <ShotDecision>[];
+        sequencer.decisions.listen(decisions.add);
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring();
+        async.elapse(Duration(milliseconds: 10));
+
+        scaleController.emitWeight(40.0);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouring,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        final stop = decisions.singleWhere(
+          (d) => d.reason == ShotDecisionReason.targetWeight,
+        );
+        expect(stop.kind, ShotDecisionKind.stop);
+        expect(stop.data?['targetYield'], 36.0);
+        expect(sequencer.finalStopReason, ShotDecisionReason.targetWeight);
+        expect(testDe1.requestedStates, contains(MachineState.idle));
+
+        sequencer.dispose();
+      });
+    });
+
+    test('target volume stop emits stop/targetVolume when no scale weighs '
+        'the shot', () {
+      fakeAsync((async) {
+        scaleController.simulateDisconnect();
+        final profile = Profile(
+          version: '2',
+          title: 'Volume Profile',
+          notes: '',
+          author: 'test',
+          beverageType: BeverageType.espresso,
+          targetVolumeCountStart: 0,
+          tankTemperature: 0,
+          targetWeight: 0,
+          targetVolume: 50,
+          steps: [
+            ProfileStepPressure(
+              name: 'step1',
+              transition: TransitionType.fast,
+              volume: 0,
+              seconds: 30,
+              temperature: 93,
+              sensor: TemperatureSensor.coffee,
+              pressure: 9,
+            ),
+          ],
+        );
+        final sequencer = makeSequencer(
+          profile: profile,
+          volumeFlowMultiplier: 1.0,
+        );
+        final decisions = <ShotDecision>[];
+        sequencer.decisions.listen(decisions.add);
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring();
+        async.elapse(Duration(milliseconds: 10));
+
+        // Projected volume = accumulated (0) + flow (60) * multiplier (1.0)
+        // = 60ml > 50ml target.
+        emitPouringFrame(0, flow: 60);
+        async.elapse(Duration(milliseconds: 10));
+
+        final stop = decisions.singleWhere(
+          (d) => d.reason == ShotDecisionReason.targetVolume,
+        );
+        expect(stop.kind, ShotDecisionKind.stop);
+        expect(sequencer.finalStopReason, ShotDecisionReason.targetVolume);
+        expect(testDe1.requestedStates, contains(MachineState.idle));
+
+        sequencer.dispose();
+      });
+    });
+
+    test('machine-reported end without any recorded intent emits '
+        'stop/machineEnded', () {
+      fakeAsync((async) {
+        scaleController.emitWeight(0.0);
+        final sequencer = makeSequencer();
+        final decisions = <ShotDecision>[];
+        sequencer.decisions.listen(decisions.add);
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring();
+        async.elapse(Duration(milliseconds: 10));
+
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouringDone,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        final stop = decisions.singleWhere(
+          (d) => d.kind == ShotDecisionKind.stop,
+        );
+        expect(stop.reason, ShotDecisionReason.machineEnded);
+        expect(sequencer.finalStopReason, ShotDecisionReason.machineEnded);
+
+        sequencer.dispose();
+      });
+    });
+
+    test('a recent REST stop intent attributes the stop to apiStop', () {
+      fakeAsync((async) {
+        scaleController.emitWeight(0.0);
+        final sequencer = makeSequencer();
+        final decisions = <ShotDecision>[];
+        sequencer.decisions.listen(decisions.add);
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring();
+        async.elapse(Duration(milliseconds: 10));
+
+        de1Controller.recordStopIntent(ShotDecisionReason.apiStop);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouringDone,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        final stop = decisions.singleWhere(
+          (d) => d.kind == ShotDecisionKind.stop,
+        );
+        expect(stop.reason, ShotDecisionReason.apiStop);
+        expect(sequencer.finalStopReason, ShotDecisionReason.apiStop);
+
+        sequencer.dispose();
+      });
+    });
+
+    test('a recent app-UI stop intent attributes the stop to appStop', () {
+      fakeAsync((async) {
+        scaleController.emitWeight(0.0);
+        final sequencer = makeSequencer();
+        final decisions = <ShotDecision>[];
+        sequencer.decisions.listen(decisions.add);
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring();
+        async.elapse(Duration(milliseconds: 10));
+
+        de1Controller.recordStopIntent(ShotDecisionReason.appStop);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouringDone,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(
+          decisions.singleWhere((d) => d.kind == ShotDecisionKind.stop).reason,
+          ShotDecisionReason.appStop,
+        );
+
+        sequencer.dispose();
+      });
+    });
+
+    test('a stale stop intent falls back to machineEnded', () {
+      fakeAsync((async) {
+        scaleController.emitWeight(0.0);
+        final sequencer = makeSequencer();
+        final decisions = <ShotDecision>[];
+        sequencer.decisions.listen(decisions.add);
+
+        async.elapse(Duration(milliseconds: 10));
+        de1Controller.recordStopIntent(ShotDecisionReason.apiStop);
+        async.elapse(Duration(seconds: 6));
+
+        driveToPouring();
+        async.elapse(Duration(milliseconds: 10));
+
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouringDone,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(
+          decisions.singleWhere((d) => d.kind == ShotDecisionKind.stop).reason,
+          ShotDecisionReason.machineEnded,
+          reason: 'an intent recorded long before the shot end must not be '
+              'attributed to it',
+        );
+
+        sequencer.dispose();
+      });
+    });
+
+    test('app-issued step weight exit emits advance/profileSkip and no '
+        'profileAdvance for the same frame', () {
+      fakeAsync((async) {
+        final profile = _profileWithSteps([
+          _pressureStep(name: 'first', weight: 10),
+          _pressureStep(name: 'second'),
+        ]);
+        scaleController.emitWeight(0.0);
+        final sequencer = makeSequencer(profile: profile, targetYield: 200);
+        final decisions = <ShotDecision>[];
+        sequencer.decisions.listen(decisions.add);
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring();
+        async.elapse(Duration(milliseconds: 10));
+
+        scaleController.emitWeight(12.0);
+        emitPouringFrame(0);
+        async.elapse(Duration(milliseconds: 10));
+
+        final skip = decisions.singleWhere(
+          (d) => d.reason == ShotDecisionReason.profileSkip,
+        );
+        expect(skip.kind, ShotDecisionKind.advance);
+        expect(skip.data?['frame'], 0);
+        expect(testDe1.requestedStates, contains(MachineState.skipStep));
+
+        // Firmware acknowledges the skip by advancing to frame 1 — the vacated
+        // frame was app-skipped, so no firmware-natural advance is reported.
+        scaleController.emitWeight(12.0);
+        emitPouringFrame(1);
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(
+          decisions.where(
+            (d) => d.reason == ShotDecisionReason.profileAdvance,
+          ),
+          isEmpty,
+          reason: 'an app-skipped frame must not double-report as a '
+              'firmware-natural advance',
+        );
+
+        sequencer.dispose();
+      });
+    });
+
+    test('firmware-natural frame advance emits advance/profileAdvance', () {
+      fakeAsync((async) {
+        final profile = _profileWithSteps([
+          _pressureStep(name: 'first'),
+          _pressureStep(name: 'second'),
+        ]);
+        scaleController.emitWeight(0.0);
+        final sequencer = makeSequencer(profile: profile, targetYield: 200);
+        final decisions = <ShotDecision>[];
+        sequencer.decisions.listen(decisions.add);
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring();
+        async.elapse(Duration(milliseconds: 10));
+
+        emitPouringFrame(0);
+        async.elapse(Duration(milliseconds: 10));
+        emitPouringFrame(1);
+        async.elapse(Duration(milliseconds: 10));
+
+        final advance = decisions.singleWhere(
+          (d) => d.reason == ShotDecisionReason.profileAdvance,
+        );
+        expect(advance.kind, ShotDecisionKind.advance);
+        expect(advance.data?['fromFrame'], 0);
+        expect(advance.data?['toFrame'], 1);
+
+        sequencer.dispose();
+      });
+    });
+
+    test('a multi-frame jump reports one advance per vacated frame', () {
+      fakeAsync((async) {
+        final profile = _profileWithSteps([
+          _pressureStep(name: 'a'),
+          _pressureStep(name: 'b'),
+          _pressureStep(name: 'c'),
+        ]);
+        scaleController.emitWeight(0.0);
+        final sequencer = makeSequencer(profile: profile, targetYield: 200);
+        final decisions = <ShotDecision>[];
+        sequencer.decisions.listen(decisions.add);
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring();
+        async.elapse(Duration(milliseconds: 10));
+
+        emitPouringFrame(0);
+        async.elapse(Duration(milliseconds: 10));
+        emitPouringFrame(2);
+        async.elapse(Duration(milliseconds: 10));
+
+        final advances = decisions
+            .where((d) => d.reason == ShotDecisionReason.profileAdvance)
+            .toList();
+        expect(advances, hasLength(2));
+        expect(advances[0].data?['fromFrame'], 0);
+        expect(advances[1].data?['fromFrame'], 1);
+
+        // A frame regression (out-of-order sample) must be ignored.
+        emitPouringFrame(1);
+        async.elapse(Duration(milliseconds: 10));
+        expect(
+          decisions.where(
+            (d) => d.reason == ShotDecisionReason.profileAdvance,
+          ),
+          hasLength(2),
+        );
+
+        sequencer.dispose();
+      });
+    });
+
+    test('machine error mid-shot emits terminal/error and finishes the shot',
+        () {
+      fakeAsync((async) {
+        scaleController.emitWeight(0.0);
+        final sequencer = makeSequencer();
+        final decisions = <ShotDecision>[];
+        final states = <ShotState>[];
+        sequencer.decisions.listen(decisions.add);
+        sequencer.state.listen(states.add);
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring();
+        async.elapse(Duration(milliseconds: 10));
+
+        testDe1.emitStateAndSubstate(
+          MachineState.error,
+          MachineSubstate.idle,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        final terminal = decisions.singleWhere(
+          (d) => d.kind == ShotDecisionKind.terminal,
+        );
+        expect(terminal.reason, ShotDecisionReason.error);
+        expect(sequencer.finalStopReason, ShotDecisionReason.error);
+        expect(states, contains(ShotState.finished));
+
+        sequencer.dispose();
+      });
+    });
+
+    test('stopping backstop emits finalize/stoppingBackstop and preserves '
+        'the stop trigger as final reason', () {
+      fakeAsync((async) {
+        scaleController.emitWeight(0.0);
+        final sequencer = makeSequencer();
+        final decisions = <ShotDecision>[];
+        final states = <ShotState>[];
+        sequencer.decisions.listen(decisions.add);
+        sequencer.state.listen(states.add);
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring();
+        async.elapse(Duration(milliseconds: 10));
+
+        // SAW stop — yield latched, shot enters the stopping window.
+        scaleController.emitWeight(40.0);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouring,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        // A noisy scale never settles (flow stays above the settle
+        // threshold and decays, so no spike or removal either).
+        scaleController.emitWeight(40.0, weightFlow: 1.0);
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouringDone,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        async.elapse(Duration(seconds: 5));
+
+        final finalize = decisions.singleWhere(
+          (d) => d.kind == ShotDecisionKind.finalize,
+        );
+        expect(finalize.reason, ShotDecisionReason.stoppingBackstop);
+        expect(
+          sequencer.finalStopReason,
+          ShotDecisionReason.targetWeight,
+          reason: 'the backstop closes the settling window; it is not why '
+              'the shot stopped',
+        );
+        expect(states, contains(ShotState.finished));
+
+        sequencer.dispose();
+      });
+    });
+
+    test('abort during preheat (machine leaves espresso before the pour) '
+        'emits an abort decision and never reaches finished', () {
+      fakeAsync((async) {
+        scaleController.emitWeight(0.0);
+        final sequencer = makeSequencer();
+        final decisions = <ShotDecision>[];
+        final states = <ShotState>[];
+        sequencer.decisions.listen(decisions.add);
+        sequencer.state.listen(states.add);
+
+        async.elapse(Duration(milliseconds: 10));
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.preparingForShot,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        // Machine aborts back to idle before first drops.
+        testDe1.emitStateAndSubstate(MachineState.idle, MachineSubstate.idle);
+        async.elapse(Duration(milliseconds: 10));
+
+        final abort = decisions.singleWhere(
+          (d) => d.kind == ShotDecisionKind.abort,
+        );
+        expect(abort.reason, ShotDecisionReason.machineEnded);
+        expect(
+          states,
+          isNot(contains(ShotState.finished)),
+          reason: 'an aborted preheat is torn down by the manager, not '
+              'persisted via the finished path',
+        );
+
+        sequencer.dispose();
+      });
+    });
+
+    test('a preheat abort with a recorded app-stop intent is attributed to '
+        'appStop', () {
+      fakeAsync((async) {
+        scaleController.emitWeight(0.0);
+        final sequencer = makeSequencer();
+        final decisions = <ShotDecision>[];
+        sequencer.decisions.listen(decisions.add);
+
+        async.elapse(Duration(milliseconds: 10));
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.preparingForShot,
+        );
+        async.elapse(Duration(milliseconds: 10));
+
+        de1Controller.recordStopIntent(ShotDecisionReason.appStop);
+        testDe1.emitStateAndSubstate(MachineState.idle, MachineSubstate.idle);
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(
+          decisions.singleWhere((d) => d.kind == ShotDecisionKind.abort).reason,
+          ShotDecisionReason.appStop,
+        );
+
+        sequencer.dispose();
+      });
+    });
+
+    test('a frame regression then recovery does not double-report the '
+        'advance', () {
+      fakeAsync((async) {
+        final profile = _profileWithSteps([
+          _pressureStep(name: 'a'),
+          _pressureStep(name: 'b'),
+        ]);
+        scaleController.emitWeight(0.0);
+        final sequencer = makeSequencer(profile: profile, targetYield: 200);
+        final decisions = <ShotDecision>[];
+        sequencer.decisions.listen(decisions.add);
+
+        async.elapse(Duration(milliseconds: 10));
+        driveToPouring();
+        async.elapse(Duration(milliseconds: 10));
+
+        // frames 0 -> 1 -> (glitch) 0 -> 1
+        for (final frame in [0, 1, 0, 1]) {
+          emitPouringFrame(frame);
+          async.elapse(Duration(milliseconds: 10));
+        }
+
+        expect(
+          decisions.where(
+            (d) => d.reason == ShotDecisionReason.profileAdvance,
+          ),
+          hasLength(1),
+          reason: 'a BLE frame reorder must not re-emit an advance already '
+              'reported',
+        );
+
+        sequencer.dispose();
+      });
+    });
+
+    test('blockOnNoScale abort carries kind abort', () {
+      fakeAsync((async) {
+        scaleController.simulateDisconnect();
+
+        final sequencer = ShotSequencer(
+          scaleController: scaleController,
+          de1controller: de1Controller,
+          persistenceController: persistenceController,
+          targetProfile: _simpleProfile(),
+          targetYield: 36.0,
+          bypassSAW: false,
+          blockOnNoScale: true,
+          weightFlowMultiplier: 0.0,
+          volumeFlowMultiplier: 0.0,
+          stepExitArbiterEnabled: true,
+        );
+
+        final decisions = <ShotDecision>[];
+        sequencer.decisions.listen(decisions.add);
+        async.elapse(Duration(milliseconds: 10));
+
+        expect(decisions.single.kind, ShotDecisionKind.abort);
+        expect(decisions.single.reason, ShotDecisionReason.noScale);
+
+        sequencer.dispose();
+      });
+    });
+  });
 }

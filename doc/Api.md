@@ -319,6 +319,7 @@ All WebSocket endpoints are on port 8080 at `/ws/v1/...`. See [`assets/api/webso
 | `/ws/v1/machine/shotSettings` | Shot settings changes | Target temp, volume, weight |
 | `/ws/v1/machine/waterLevels` | Water level changes | Current/limit levels |
 | `/ws/v1/machine/raw` | Raw BLE characteristic data | Hex-encoded bytes |
+| `/ws/v1/machine/shotState` | Shot sequencer state + decision feed: why a step advanced, why the shot stopped. Replays the latest frame on connect; idle between shots; not gated on a connected machine. | `event` (`state`\|`decision`\|`terminal`), `shotId`, shot phase, machine context, `decision {kind, reason, details, data}` |
 | `/ws/v1/devices` | Device discovery + `ConnectionManager` status (phase, found devices, ambiguity, errors). Also accepts `scan`/`connect`/`disconnect` commands. | Device list, `connectionStatus` |
 | `/ws/v1/sensors/:id/snapshot` | Sensor data stream | Sensor-specific |
 | `/ws/v1/plugins/:id/:endpoint` | Plugin WebSocket proxy | Plugin-specific |
@@ -326,6 +327,47 @@ All WebSocket endpoints are on port 8080 at `/ws/v1/...`. See [`assets/api/webso
 | `/ws/v1/webview/logs` | WebView console log stream | WebView console messages |
 | `/ws/v1/display` | Display state changes | Brightness, wakelock |
 | `/ws/v1/update` | App-update state stream. Also accepts `{"command":"check"}` and `{"command":"install"}` (Android installs; other platforms reply `{"error","url"}`). | `phase`, `progress`, `latestVersion`, `installable` |
+
+### `shotState` events
+
+`/ws/v1/machine/shotState` streams the app's shot-sequencer decisions as a single event type
+discriminated by `event`. Every frame carries the current shot phase (`state`) and machine context,
+so a late joiner gets a coherent view from any single frame; `decision` is non-null only on
+`decision`/`terminal` frames.
+
+```json
+{
+  "event": "decision",
+  "timestamp": "2026-06-17T10:32:18.903Z",
+  "shotId": "a1b2c3d4-...",
+  "state": "pouring",
+  "machineState": "espresso",
+  "machineSubstate": "pouring",
+  "profileFrame": 2,
+  "scaleConnected": true,
+  "scaleLost": false,
+  "machineHasAutonomousSAW": false,
+  "decision": {
+    "kind": "stop",
+    "reason": "targetWeight",
+    "details": "Target weight 36.0g reached (projected: 36.4). Stopping shot.",
+    "data": {"targetYield": 36.0, "projectedWeight": 36.4}
+  }
+}
+```
+
+- `shotId` equals the persisted `ShotRecord.id`, so the stream can be correlated to the saved shot.
+  The final stop reason is also persisted on the record as `stopReason`.
+- `decision.reason` is an **open set** — tolerate unknown values. Known reasons: `targetWeight`,
+  `targetVolume` (app-side targets), `profileSkip` (app-issued weight skip), `profileAdvance`
+  (firmware-natural step exit), `apiStop` / `appStop` (stop command attributed to a REST client /
+  the in-app Stop button), `machineEnded` (GHC stop or natural profile completion —
+  indistinguishable), `noScale` (blocked by `blockOnNoScale`), `error` / `disconnected` (abnormal
+  endings, `event: "terminal"`), `stoppingBackstop` (post-stop settling window closed by the safety
+  timer; never the stop reason itself).
+- Coverage: the feed reflects app-side sequencing only. In full gateway mode with the app
+  backgrounded no sequencer runs (the feed stays `idle`), and on machines with autonomous
+  stop-at-weight (Bengle) the final yield stop is firmware-side and reported as `machineEnded`.
 
 ### `connectionStatus.error`
 
