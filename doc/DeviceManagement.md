@@ -413,6 +413,21 @@ sensor is connected, skins can call the `measure` command through the existing
 Sensors API and read TDS, temperature, refractive index, and status values from
 the sensor data stream.
 
+### Sensor precedence
+
+`SensorController` merges discovered sensors with bridge-registered adapters such as the Bengle milk probe bridge. The selection rule for steam stop and shot recording is:
+
+1. `bridge-registered` sensor matching the preferred sensor id
+2. Any other sensor matching the preferred sensor id
+3. The first registered sensor
+
+This is the documented FR-M3 order: `bridge-registered > preferred > first registered`.
+
+Two details matter in practice:
+
+- If a discovered sensor and a bridge adapter share the same `deviceId`, the bridge-registered instance wins because it carries the richer live signal for that source.
+- `SteamSequencer` reads `preferredSteamProbeId` from settings and passes it through `SensorController.resolvePreferred()`, so the precedence rule is enforced at runtime rather than only in UI settings.
+
 ### RememberedDevicesController
 
 **File:** `lib/src/controllers/remembered_devices_controller.dart`

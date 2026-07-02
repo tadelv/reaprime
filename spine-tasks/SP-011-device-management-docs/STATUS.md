@@ -1,4 +1,4 @@
-**Current Step:** Step 2: In progress
+**Current Step:** Step 3: In progress
 **Status:** In Progress
 **Last Updated:** 2026-07-01
 **Review Level:** 0
@@ -16,13 +16,13 @@
 
 ## Step 2: Document sensor precedence
 
-**Status:** In Progress
+**Status:** Complete
 
-- [ ] bridge > preferred > first registered per FR-M3
+- [x] bridge > preferred > first registered per FR-M3
 
 ## Step 3: Review for accuracy
 
-**Status:** Not Started
+**Status:** In Progress
 
 - [ ] Cross-check against implemented code from Phase 1 tasks
 
@@ -59,6 +59,7 @@
 | Date | Event | Detail |
 |------|-------|--------|
 | 2026-07-01 | Step 1 complete | Added Combustion discovery documentation covering manufacturer ID, Probe Status UUID, advertising-only mode, and empty-name scan metadata matching. |
+| 2026-07-01 | Step 2 complete | Documented FR-M3 sensor precedence and tied it to `SensorController.resolvePreferred()` and `preferredSteamProbeId`. |
 
 ## Blockers
 
