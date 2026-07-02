@@ -5283,6 +5283,13 @@ components:
           format: double
           nullable: true
           description: Accumulated volume in milliliters (ml) since shot start, calculated by integrating machine flow over time. Only counted from profile frame specified in targetVolumeCountStart.
+        probeTemperature:
+          type: number
+          format: double
+          nullable: true
+          description: >
+            Combustion probe reading in °C (T1 / immersed tip per OD-2) at
+            this sample. `null` when no probe was active for this sample.
 
     SteamSnapshot:
       type: object
