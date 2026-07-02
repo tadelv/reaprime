@@ -94,6 +94,10 @@ class De1Handler {
       sws.webSocketHandler(_handleWaterLevels),
     );
     app.get('/ws/v1/machine/raw', sws.webSocketHandler(_handleRawSocket));
+    app.get(
+      '/ws/v1/machine/shotState',
+      sws.webSocketHandler(_handleShotState),
+    );
 
     app.get('/api/v1/machine/ledStrip', (Request _) async {
       return withDe1((de1) async {
@@ -406,7 +410,18 @@ class De1Handler {
           'type': 'block_no_scale',
         });
       }
+      // Record the intent only for an idle request that (a) targets an
+      // active tracked shot — shotState is non-idle only during an espresso
+      // shot, never during steam/hot-water/flush — and (b) whose BLE write
+      // actually succeeded, so a failed stop can't mislabel a later natural
+      // end. This lets the ShotSequencer attribute the stop to apiStop
+      // instead of the ambiguous machineEnded bucket.
+      final stoppingActiveShot = requestState == MachineState.idle &&
+          _controller.currentShotState.state != ShotState.idle;
       await de1.requestState(requestState);
+      if (stoppingActiveShot) {
+        _controller.recordStopIntent(ShotDecisionReason.apiStop);
+      }
       return jsonOk(null);
     });
   }
@@ -431,6 +446,29 @@ class De1Handler {
       await de1.updateShotSettings(settings);
       return jsonOk(null);
     });
+  }
+
+  /// Streams the shot state + decision feed (see ShotStateEvent). Unlike the
+  /// machine-gated sockets this one is NOT behind a connected DE1 — the feed
+  /// lives on De1Controller and idles between shots, so clients can attach
+  /// once and wait.
+  Future<void> _handleShotState(
+    WebSocketChannel socket,
+    String? protocol,
+  ) async {
+    log.fine("handling shotState websocket connection");
+    var sub = _controller.shotState.listen((event) {
+      try {
+        socket.sink.add(jsonEncode(event.toJson()));
+      } catch (e, st) {
+        log.severe("failed to send shotState event: ", e, st);
+      }
+    });
+    socket.stream.listen(
+      (e) {},
+      onDone: () => sub.cancel(),
+      onError: (e, st) => sub.cancel(),
+    );
   }
 
   Future<void> _handleSnapshot(

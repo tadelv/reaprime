@@ -7,10 +7,16 @@ import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/step_exit_arbiter.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/data/shot_snapshot.dart';
+import 'package:reaprime/src/models/data/shot_state_event.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:rxdart/rxdart.dart';
+
+// The shot-state vocabulary lived here before it gained wire serialization;
+// re-export so existing importers keep working.
+export 'package:reaprime/src/models/data/shot_state_event.dart'
+    show ShotState, ShotDecision, ShotDecisionKind, ShotDecisionReason;
 
 class ShotSequencer {
   final De1Controller de1controller;
@@ -48,6 +54,11 @@ class ShotSequencer {
   List<int> skippedSteps = [];
   final StepExitArbiter _stepExitArbiter = StepExitArbiter();
   int _lastProfileFrame = -1;
+
+  /// Highest profile frame reported so far this shot, for one-shot
+  /// `profileAdvance` emission that survives BLE frame reordering. See
+  /// [_trackFrameAdvance].
+  int _maxFrameSeen = -1;
 
   // Volume counting state
   double _accumulatedVolume = 0.0;
@@ -112,14 +123,10 @@ class ShotSequencer {
       // The sequencer is created reactively, after the machine has already
       // entered espresso (incl. GHC / physical starts), so "block" means abort
       // the shot in progress and publish the reason rather than prevent it.
-      _log.warning(
-        "blockOnNoScale enabled and no scale connected — aborting shot",
-      );
-      _decisionStream.add(
-        const ShotDecision(
-          reason: ShotDecisionReason.noScale,
-          details: 'No scale connected, blocking shot',
-        ),
+      _emitDecision(
+        ShotDecisionKind.abort,
+        ShotDecisionReason.noScale,
+        details: 'No scale connected, blocking shot',
       );
       de1controller
           .connectedDe1()
@@ -209,6 +216,55 @@ class ShotSequencer {
   /// constructor (e.g. the blockOnNoScale abort).
   final BehaviorSubject<ShotDecision> _decisionStream = BehaviorSubject();
   Stream<ShotDecision> get decisions => _decisionStream.stream;
+
+  /// Dedicated logger for the decision trail: one consistent, greppable line
+  /// per decision, regardless of who owns this sequencer (De1StateManager or
+  /// a route-constructed instance). The per-site `_log.info` lines this
+  /// replaces were deleted — do not re-add them, or every decision double-logs.
+  static final Logger _decisionLog = Logger('ShotState');
+
+  /// The reason the shot stopped, retained for persistence onto the
+  /// ShotRecord. Set by the stop/abort/terminal decision sites; `finalize`
+  /// decisions (e.g. the stopping backstop) never overwrite it — they close
+  /// the settling window, they are not why the shot stopped.
+  ShotDecisionReason? _finalStopReason;
+  ShotDecisionReason? get finalStopReason => _finalStopReason;
+
+  /// Current shot phase — lets the owner distinguish a natural finish from a
+  /// mid-shot teardown (disconnect) without subscribing to [state].
+  ShotState get currentState => _state;
+
+  bool get scaleLost => _scaleLost;
+  bool get machineHasAutonomousSAW => _machineHasAutonomousSAW;
+
+  /// Emits a decision on [decisions] and writes the single consolidated log
+  /// line. Abort/terminal log at WARNING (abnormal endings, telemetry-worthy
+  /// and rare); finalize at FINE (window bookkeeping); the rest at INFO.
+  void _emitDecision(
+    ShotDecisionKind kind,
+    ShotDecisionReason reason, {
+    String? details,
+    Map<String, dynamic>? data,
+  }) {
+    final message =
+        '${kind.name}/${reason.name}: ${details ?? ''}'
+        '${data != null ? ' $data' : ''}';
+    switch (kind) {
+      case ShotDecisionKind.abort:
+      case ShotDecisionKind.terminal:
+        _decisionLog.warning(message);
+      case ShotDecisionKind.finalize:
+        _decisionLog.fine(message);
+      case ShotDecisionKind.advance:
+      case ShotDecisionKind.stop:
+        _decisionLog.info(message);
+    }
+    if (!_decisionStream.isClosed) {
+      _decisionStream.add(
+        ShotDecision(kind: kind, reason: reason, details: details, data: data),
+      );
+    }
+  }
 
   DateTime _shotStartTime = DateTime.now();
   DateTime get shotStartTime => _shotStartTime;
@@ -304,6 +360,29 @@ class ShotSequencer {
     );
 
     _log.finest("State in: ${_state.name}");
+
+    // Terminal arm: a machine fault ends the shot from any active phase.
+    // Without this the sequencer would sit in `pouring` forever — the DE1
+    // reports MachineState.error, not espresso/pouringDone, so the regular
+    // stop detection below never fires.
+    if (machine.state.state == MachineState.error &&
+        _state != ShotState.idle &&
+        _state != ShotState.finished) {
+      _finalStopReason ??= ShotDecisionReason.error;
+      _emitDecision(
+        ShotDecisionKind.terminal,
+        ShotDecisionReason.error,
+        details:
+            'Machine entered error state (${machine.state.substate.name})',
+        data: {'substate': machine.state.substate.name},
+      );
+      _volumeCountingActive = false;
+      dataCollectionEnabled = false;
+      _state = ShotState.finished;
+      _stateStream.add(_state);
+      return;
+    }
+
     switch (_state) {
       case ShotState.idle:
         if (machine.state.state == MachineState.espresso &&
@@ -322,6 +401,8 @@ class ShotSequencer {
           skippedSteps.clear();
           _stepExitArbiter.reset();
           _lastProfileFrame = -1;
+          _maxFrameSeen = -1;
+          _finalStopReason = null;
 
           if (_bypassSAW == false && scale != null && !_scaleLost) {
             _log.info(
@@ -339,6 +420,25 @@ class ShotSequencer {
         break;
 
       case ShotState.preheating:
+        // Abort arm: the machine left espresso before the pour began (GHC /
+        // app / REST stop during preheat, or a mode change). End the shot as
+        // an abort so De1StateManager tears the sequencer down — otherwise it
+        // sits in `preheating` forever, hangs the shotState feed on a stale
+        // frame, and gets recycled into the next espresso/steam/hot-water
+        // session. A steam session (De1SubState.steaming also maps to the
+        // `pouring` substate) is caught here by the state check, not the
+        // substate check below.
+        if (machine.state.state != MachineState.espresso) {
+          final intent = de1controller.consumeStopIntent();
+          // No _finalStopReason: an aborted shot is never persisted — the
+          // abort decision itself carries the reason to the feed.
+          _emitDecision(
+            ShotDecisionKind.abort,
+            intent ?? ShotDecisionReason.machineEnded,
+            details: 'Shot aborted during preheat, before the pour began',
+          );
+          break;
+        }
         if (machine.state.substate == MachineSubstate.preinfusion ||
             machine.state.substate == MachineSubstate.pouring) {
           if (_bypassSAW == false && scale != null && !_scaleLost) {
@@ -364,24 +464,32 @@ class ShotSequencer {
         break;
 
       case ShotState.pouring:
+        _trackFrameAdvance(machine.profileFrame);
         if (_bypassSAW == false && scale != null && !_scaleLost) {
           double currentWeight = scale.weight;
           double weightFlow = scale.weightFlow;
           double projectedWeight =
               currentWeight + (weightFlow * _weightFlowMultiplier);
-          final int profileFrame = machine.profileFrame;
 
-          if (profileFrame != _lastProfileFrame) {
-            _stepExitArbiter.onFrameAdvanced(profileFrame);
-            _lastProfileFrame = profileFrame;
-          }
-
-          _handleStepWeightExit(profileFrame, projectedWeight, machine);
+          _handleStepWeightExit(
+            machine.profileFrame,
+            projectedWeight,
+            machine,
+          );
           if (!_machineHasAutonomousSAW &&
               targetYield > 0 &&
               projectedWeight >= targetYield) {
-            _log.info(
-              "Target weight ${targetYield}g reached (projected: $projectedWeight). Stopping shot.",
+            _finalStopReason = ShotDecisionReason.targetWeight;
+            _emitDecision(
+              ShotDecisionKind.stop,
+              ShotDecisionReason.targetWeight,
+              details:
+                  'Target weight ${targetYield}g reached '
+                  '(projected: $projectedWeight). Stopping shot.',
+              data: {
+                'targetYield': targetYield,
+                'projectedWeight': projectedWeight,
+              },
             );
             de1controller.connectedDe1().requestState(
               MachineState.idle,
@@ -398,8 +506,17 @@ class ShotSequencer {
           final projectedVolume =
               _accumulatedVolume + (machine.flow * _volumeFlowMultiplier);
           if (projectedVolume > targetProfile.targetVolume!) {
-            _log.info(
-              "Target volume ${targetProfile.targetVolume}ml reached (projected: $projectedVolume). Stopping shot.",
+            _finalStopReason = ShotDecisionReason.targetVolume;
+            _emitDecision(
+              ShotDecisionKind.stop,
+              ShotDecisionReason.targetVolume,
+              details:
+                  'Target volume ${targetProfile.targetVolume}ml reached '
+                  '(projected: $projectedVolume). Stopping shot.',
+              data: {
+                'targetVolume': targetProfile.targetVolume,
+                'projectedVolume': projectedVolume,
+              },
             );
             de1controller.connectedDe1().requestState(
               MachineState.idle,
@@ -410,6 +527,27 @@ class ShotSequencer {
         }
         if (machine.state.substate == MachineSubstate.pouringDone ||
             machine.state.substate == MachineSubstate.idle) {
+          // The machine reported the end without an app-side target firing.
+          // If a stop command recently passed through this app (REST client
+          // or the in-app Stop button), attribute it to that source; the
+          // unmarked remainder is the GHC or natural profile completion,
+          // indistinguishable from the substate stream alone.
+          final intent = de1controller.consumeStopIntent();
+          final reason = intent ?? ShotDecisionReason.machineEnded;
+          _finalStopReason ??= reason;
+          _emitDecision(
+            ShotDecisionKind.stop,
+            reason,
+            details: switch (reason) {
+              ShotDecisionReason.apiStop =>
+                'Shot stopped via REST API request',
+              ShotDecisionReason.appStop =>
+                'Shot stopped from the app UI',
+              _ =>
+                'Machine reported shot end '
+                    '(${machine.state.substate.name})',
+            },
+          );
           _enterStopping(scale);
         }
         break;
@@ -435,8 +573,13 @@ class ShotSequencer {
         // / spike event. Guarantee the shot still finalizes.
         _stoppingStateFuture ??= Future.delayed(_stoppingBackstop, () {
           if (_state == ShotState.stopping) {
-            _log.info(
-              "Stopping backstop fired. Final volume: ${_accumulatedVolume}ml",
+            _emitDecision(
+              ShotDecisionKind.finalize,
+              ShotDecisionReason.stoppingBackstop,
+              details:
+                  'Stopping backstop fired. '
+                  'Final volume: ${_accumulatedVolume}ml',
+              data: {'finalVolume': _accumulatedVolume},
             );
             _finishStopping();
           }
@@ -452,6 +595,43 @@ class ShotSequencer {
         break;
     }
     _log.finest("State out: ${_state.name}");
+  }
+
+  /// Tracks profile-frame changes during pouring and reports firmware-natural
+  /// advances (frames the app did NOT skip) as `profileAdvance` decisions.
+  ///
+  /// `skippedSteps` records the *vacated* frame at the moment the app
+  /// requests a skip, so an increment whose previous frame is in that set is
+  /// the firmware acknowledging our skip — already reported as `profileSkip`.
+  /// The frame index is a raw byte off the BLE shot sample with no
+  /// monotonicity guarantee, so advances are emitted against a high-water
+  /// mark ([_maxFrameSeen]): a jump >1 reports each vacated frame once, and a
+  /// regression followed by recovery does not re-report frames already
+  /// emitted. The arbiter still tracks the true current frame separately.
+  void _trackFrameAdvance(int profileFrame) {
+    if (profileFrame != _lastProfileFrame) {
+      _stepExitArbiter.onFrameAdvanced(profileFrame);
+      _lastProfileFrame = profileFrame;
+    }
+    if (_maxFrameSeen < 0) {
+      _maxFrameSeen = profileFrame;
+      return;
+    }
+    if (profileFrame <= _maxFrameSeen) {
+      return;
+    }
+    for (var frame = _maxFrameSeen; frame < profileFrame; frame++) {
+      if (skippedSteps.contains(frame)) {
+        continue;
+      }
+      _emitDecision(
+        ShotDecisionKind.advance,
+        ShotDecisionReason.profileAdvance,
+        details: 'Firmware advanced from frame $frame to ${frame + 1}',
+        data: {'fromFrame': frame, 'toFrame': frame + 1},
+      );
+    }
+    _maxFrameSeen = profileFrame;
   }
 
   void _handleStepWeightExit(
@@ -490,7 +670,18 @@ class ShotSequencer {
       }
     }
 
-    _log.info("Step weight reached, moving on");
+    _emitDecision(
+      ShotDecisionKind.advance,
+      ShotDecisionReason.profileSkip,
+      details:
+          'Step weight ${stepExitWeight}g reached '
+          '(projected: $projectedWeight), skipping frame $profileFrame',
+      data: {
+        'frame': profileFrame,
+        'stepExitWeight': stepExitWeight,
+        'projectedWeight': projectedWeight,
+      },
+    );
     skippedSteps.add(profileFrame);
     de1controller.connectedDe1().requestState(MachineState.skipStep);
   }
@@ -572,19 +763,9 @@ class ShotSequencer {
   }
 }
 
-enum ShotState { idle, preheating, pouring, stopping, finished }
-
-/// Why the sequencer made a decision (currently only shot-stop reasons).
-/// [noScale] corresponds to the REST `block_no_scale` error type; keep the two
-/// vocabularies aligned when this gains wire serialization for `/ws/v1/shotState`.
-enum ShotDecisionReason { noScale }
-
-class ShotDecision {
-  final ShotDecisionReason reason;
-  final String? details;
-
-  const ShotDecision({required this.reason, this.details});
-}
+// ShotState, ShotDecision, ShotDecisionKind and ShotDecisionReason moved to
+// lib/src/models/data/shot_state_event.dart (re-exported above) when the
+// decision stream gained wire serialization for /ws/v1/machine/shotState.
 
 
 

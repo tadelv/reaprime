@@ -10,6 +10,15 @@ class ShotRecord {
   final Workflow workflow;
   final ShotAnnotations? annotations;
 
+  /// Why the shot ended, as decided by the ShotSequencer
+  /// (`ShotDecisionReason.name`, e.g. `targetWeight`, `machineEnded`).
+  /// Machine-derived and immutable — deliberately NOT part of
+  /// [ShotAnnotations], which holds user-entered tasting metadata. Stored as
+  /// an open string: newer builds may persist reasons this build doesn't
+  /// know, and they must survive round-trips. Null for legacy shots and for
+  /// shots the app didn't sequence (e.g. full gateway mode, backgrounded).
+  final String? stopReason;
+
   // Legacy fields kept for backward compatibility during migration.
   final String? _shotNotes;
   final Map<String, dynamic>? _metadata;
@@ -20,6 +29,7 @@ class ShotRecord {
     required this.measurements,
     required this.workflow,
     this.annotations,
+    this.stopReason,
     String? shotNotes,
     Map<String, dynamic>? metadata,
   })  : _shotNotes = shotNotes ?? annotations?.espressoNotes,
@@ -39,6 +49,7 @@ class ShotRecord {
       "measurements": measurements.map((e) => e.toJson()).toList(),
       "workflow": workflow.toJson(),
       if (annotations != null) "annotations": annotations!.toJson(),
+      if (stopReason != null) "stopReason": stopReason,
       // Write legacy fields too for backward compat with older app versions
       if (_shotNotes != null) "shotNotes": _shotNotes,
       if (_metadata != null) "metadata": _metadata,
@@ -52,6 +63,7 @@ class ShotRecord {
       "timestamp": timestamp.toIso8601String(),
       "workflow": workflow.toJson(),
       if (annotations != null) "annotations": annotations!.toJson(),
+      if (stopReason != null) "stopReason": stopReason,
       if (_shotNotes != null) "shotNotes": _shotNotes,
       if (_metadata != null) "metadata": _metadata,
     };
@@ -74,6 +86,7 @@ class ShotRecord {
           .toList(),
       workflow: Workflow.fromJson(json["workflow"]),
       annotations: ann,
+      stopReason: json["stopReason"] as String?,
       // Still parse legacy fields for backward compat with old callers
       shotNotes: json["shotNotes"] as String?,
       metadata: json["metadata"] as Map<String, dynamic>?,
@@ -92,6 +105,7 @@ class ShotRecord {
     List<ShotSnapshot>? measurements,
     Workflow? workflow,
     ShotAnnotations? annotations,
+    String? stopReason,
     String? shotNotes,
     Map<String, dynamic>? metadata,
   }) {
@@ -101,6 +115,7 @@ class ShotRecord {
       measurements: measurements ?? this.measurements,
       workflow: workflow ?? this.workflow,
       annotations: annotations ?? this.annotations,
+      stopReason: stopReason ?? this.stopReason,
       shotNotes: shotNotes ?? _shotNotes,
       metadata: metadata ?? _metadata,
     );

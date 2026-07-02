@@ -28,6 +28,7 @@ class ShotMapper {
       measurements: measurements,
       workflow: workflow,
       annotations: annotations,
+      stopReason: row.stopReason,
     );
   }
 
@@ -50,6 +51,7 @@ class ShotMapper {
       targetYield: Value(ctx?.targetYield),
       enjoyment: Value(record.annotations?.enjoyment),
       espressoNotes: Value(record.annotations?.espressoNotes),
+      stopReason: Value(record.stopReason),
 
       // Full JSON blobs
       workflowJson: Value(record.workflow.toJson()),

@@ -5258,6 +5258,19 @@ components:
             $ref: "#/components/schemas/ShotSnapshot"
         workflow:
           $ref: "#/components/schemas/WorkflowRequest"
+        stopReason:
+          type: string
+          nullable: true
+          description: |
+            Why the shot ended, as decided by the app's shot sequencer.
+            OPEN SET — clients must tolerate unknown values from newer builds.
+            Known persisted values: targetWeight, targetVolume, apiStop,
+            appStop, machineEnded, error. (Aborted shots — no scale, or a stop
+            before the pour began — and mid-shot disconnects are not persisted
+            at all; their reasons appear only on the /ws/v1/machine/shotState
+            feed.) Null for legacy shots and shots the app did not sequence
+            (e.g. full gateway mode while backgrounded).
+          example: targetWeight
         shotNotes:
           type: string
           nullable: true
@@ -5319,6 +5332,13 @@ components:
               type: object
               nullable: true
               additionalProperties: true
+        stopReason:
+          type: string
+          nullable: true
+          description: |
+            Why the shot ended (open set — tolerate unknown values).
+            See ShotRecord.stopReason.
+          example: targetWeight
         shotNotes:
           type: string
           nullable: true
