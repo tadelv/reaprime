@@ -1,6 +1,6 @@
-**Current Step:** Step 1: Not started
-**Status:** Ready
-**Last Updated:** 2026-07-01
+**Current Step:** Step 5: Completion Criteria
+**Status:** Complete
+**Last Updated:** 2026-07-02
 **Review Level:** 2
 **Review Counter:** 0
 **Iteration:** 0
@@ -10,35 +10,35 @@
 
 ## Step 1: Extend domain ShotSnapshot
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Add probeTemperature nullable double with JSON serialization
+- [x] Add probeTemperature nullable double with JSON serialization
 
 ## Step 2: Drift migration and DAO
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Add column; update mapper; migration test
+- [x] Add column; update mapper; migration test
 
 ## Step 3: DAO round-trip tests
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Save/load shot with and without probeTemperature
+- [x] Save/load shot with and without probeTemperature
 
 ## Step 4: Testing & Verification
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] Run flutter test
-- [ ] Fix failures
+- [x] Run flutter test
+- [x] Fix failures
 
 ## Step 5: Completion Criteria
 
-**Status:** Not Started
+**Status:** Complete
 
-- [ ] All steps complete
-- [ ] Documentation satisfied
+- [x] All steps complete
+- [x] Documentation satisfied
 
 ---
 
@@ -52,13 +52,15 @@
 
 | Date | Finding | Impact |
 |------|---------|--------|
-| | | |
+| 2026-07-02 | probeTemperature stored in measurementsJson (per SteamSnapshot.milkTemperature); no SQL column needed | Migration-on-read via ShotSnapshot.fromJson; ShotMapper unchanged |
 
 ## Execution Log
 
 | Date | Event | Detail |
 |------|-------|--------|
-| | | |
+| 2026-07-02 | Step 1 | Added probeTemperature to ShotSnapshot |
+| 2026-07-02 | Steps 2-3 | DAO migration-on-read + ShotMapper round-trip tests |
+| 2026-07-02 | Step 4 | Contract tests pass; full suite 1890 pass / 1 pre-existing bundled_skins symlink failure |
 
 ## Blockers
 
@@ -68,3 +70,5 @@
 
 ## Notes
 
+- `assets/api/rest_v1.yml` deferred to SP-015 (REST/OpenAPI scope).
+- Full `flutter test`: one pre-existing failure in `test/webui_storage_bundled_test.dart` (broken `assets/bundled_skins` symlink in worktree).
