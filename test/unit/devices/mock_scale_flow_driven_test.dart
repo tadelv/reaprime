@@ -35,6 +35,25 @@ void main() {
       scale.simulateDisconnect();
     });
 
+    test('idle reading is rock steady, not flickering', () async {
+      // Real scale firmware stability-filters its output: at rest the
+      // reported weight locks to one value instead of broadcasting raw
+      // load-cell noise. Skins render the stream verbatim, so a flickering
+      // idle reading (0.0 / -0.0) is a simulator bug, not a skin bug.
+      final scale = MockScale();
+      final samples = await scale.currentSnapshot
+          .take(8)
+          .toList()
+          .timeout(const Duration(seconds: 5));
+      final first = samples.first.weight;
+      for (final s in samples) {
+        expect(s.weight, equals(first),
+            reason: 'reading must hold perfectly still at rest');
+      }
+      expect(first.abs(), lessThan(0.1));
+      scale.simulateDisconnect();
+    });
+
     test('weight follows the simulated shot when a machine is attached',
         () async {
       final de1 = MockDe1();

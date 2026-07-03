@@ -46,6 +46,8 @@ class MockScale implements Scale, SimulatedDevice {
   @override
   Future<void> tare() async {
     _model.tare();
+    // Real scales report an exact 0.0 right after tare.
+    _emittedWeight = 0.0;
   }
 
   @override
@@ -64,8 +66,15 @@ class MockScale implements Scale, SimulatedDevice {
   // [attachMachine]) through the shared shot-weight model, so a simulated
   // shot produces a believable curve: nothing at idle, first-drops lag,
   // then weight tracking flow. Without a machine the scale reads a flat ~0.
-  // Emission adds a hair of load-cell jitter on top of the model's reading.
+  //
+  // Like real scale firmware, the emitted stream is stability-filtered:
+  // while the underlying weight is at rest the reported value holds
+  // perfectly still (no raw load-cell noise broadcast to clients); only a
+  // change past the deadband — water landing in the cup, a tare — moves
+  // the reading, and each movement carries a hair of load-cell jitter.
   static const double _jitterGrams = 0.03;
+  static const double _stabilityDeadband = 0.05;
+  double _emittedWeight = 0.0;
   final SimulatedShotWeightModel _model = SimulatedShotWeightModel();
   final Random _random = Random();
   MockDe1? _machine;
@@ -110,9 +119,13 @@ class MockScale implements Scale, SimulatedDevice {
       } else if (_frozenTimerValue != null) {
         timerValue = _frozenTimerValue;
       }
-      final jitter = (_random.nextDouble() - 0.5) * 2 * _jitterGrams;
+      final weight = _model.weight;
+      if ((weight - _emittedWeight).abs() >= _stabilityDeadband) {
+        final jitter = (_random.nextDouble() - 0.5) * 2 * _jitterGrams;
+        _emittedWeight = weight + jitter;
+      }
       _snapshotStream.add(ScaleSnapshot(
-          weight: _model.weight + jitter,
+          weight: _emittedWeight,
           timestamp: DateTime.now(),
           batteryLevel: 100,
           timerValue: timerValue));
