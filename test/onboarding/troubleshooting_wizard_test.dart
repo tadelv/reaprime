@@ -203,6 +203,50 @@ void main() {
         final visibleIds = steps.where((s) => s.shouldShow()).map((s) => s.id);
         expect(visibleIds, ['machine_power', 'other_apps']);
       });
+
+      test(
+          'bluetooth step shouldShow returns true on iOS with unauthorized state',
+          () {
+        final steps = troubleshootingSteps(
+          adapterState: AdapterState.unauthorized,
+          isIOS: true,
+        );
+        final btStep = steps.firstWhere((s) => s.id == 'bluetooth');
+        expect(btStep.shouldShow(), isTrue);
+      });
+
+      test('bluetooth step shows permission title when unauthorized', () {
+        final steps = troubleshootingSteps(
+          adapterState: AdapterState.unauthorized,
+          isIOS: true,
+        );
+        final btStep = steps.firstWhere((s) => s.id == 'bluetooth');
+        expect(btStep.title, 'Bluetooth Permission Required');
+      });
+
+      test(
+          'bluetooth step shows permission description when unauthorized', () {
+        final steps = troubleshootingSteps(
+          adapterState: AdapterState.unauthorized,
+          isIOS: true,
+        );
+        final btStep = steps.firstWhere((s) => s.id == 'bluetooth');
+        expect(
+          btStep.description,
+          contains('Settings > Privacy & Security > Bluetooth'),
+        );
+      });
+
+      test(
+          'bluetooth step shows generic title when adapter is not unauthorized',
+          () {
+        final steps = troubleshootingSteps(
+          adapterState: AdapterState.poweredOff,
+          isIOS: true,
+        );
+        final btStep = steps.firstWhere((s) => s.id == 'bluetooth');
+        expect(btStep.title, 'Is Bluetooth enabled?');
+      });
     });
 
     testWidgets('shows description text for machine step', (tester) async {

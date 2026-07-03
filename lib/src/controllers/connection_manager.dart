@@ -218,8 +218,20 @@ class ConnectionManager {
           message: 'Bluetooth is turned off.',
           suggestion: 'Turn Bluetooth on to scan for devices.',
         ));
+      } else if (state == AdapterState.unauthorized) {
+        _emit(ConnectionError(
+          kind: ConnectionErrorKind.bluetoothPermissionDenied,
+          severity: ConnectionErrorSeverity.error,
+          timestamp: DateTime.now().toUtc(),
+          message: 'Bluetooth permission was denied.',
+          suggestion:
+              'Go to Settings > Privacy & Security > Bluetooth and enable '
+              'permission for Decent.app.',
+        ));
       } else if (state == AdapterState.poweredOn &&
-          currentStatus.error?.kind == ConnectionErrorKind.adapterOff) {
+          (currentStatus.error?.kind == ConnectionErrorKind.adapterOff ||
+              currentStatus.error?.kind ==
+                  ConnectionErrorKind.bluetoothPermissionDenied)) {
         _clearError();
       }
     });
