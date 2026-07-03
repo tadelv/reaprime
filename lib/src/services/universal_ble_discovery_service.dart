@@ -50,7 +50,20 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
     // versa. Mirrors flutter_blue_plus' per-connection serialization.
     UniversalBle.queueType = QueueType.perDevice;
 
-    final initialState = await UniversalBle.getBluetoothAvailabilityState();
+    var initialState = await UniversalBle.getBluetoothAvailabilityState();
+
+    // iOS with bluetooth-central background mode: universal_ble returns
+    // `unknown` without creating CBCentralManager when permission is
+    // .notDetermined, to avoid triggering the permission prompt during
+    // background state-restoration launches. Force-create the manager
+    // here so the system permission dialog appears on first foreground
+    // launch and the availability stream resolves to the real state.
+    if (Platform.isIOS && initialState == AvailabilityState.unknown) {
+      log.info('iOS adapter state is unknown; requesting BLE permissions');
+      await UniversalBle.requestPermissions();
+      initialState = await UniversalBle.getBluetoothAvailabilityState();
+    }
+
     _adapterStateSubject.add(_mapAvailabilityState(initialState));
 
     UniversalBle.availabilityStream.listen((state) {
@@ -71,6 +84,8 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
         return AdapterState.poweredOff;
       case AvailabilityState.unsupported:
         return AdapterState.unavailable;
+      case AvailabilityState.unauthorized:
+        return AdapterState.unauthorized;
       default:
         return AdapterState.unknown;
     }
