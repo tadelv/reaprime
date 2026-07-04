@@ -18,6 +18,7 @@ import 'package:reaprime/src/plugins/plugin_loader_service.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/services/account/decent_account_service.dart';
 import 'package:reaprime/src/settings/advanced_page.dart';
+import 'package:reaprime/src/settings/steam_workflow_settings_page.dart';
 import 'package:reaprime/src/settings/data_management_page.dart';
 import 'package:reaprime/src/settings/device_management_page.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
@@ -203,6 +204,11 @@ class LauncherView extends StatelessWidget {
           label: 'Plugins',
           route: '/plugins',
         ),
+      _Destination(
+        icon: LucideIcons.thermometer,
+        label: 'Steam',
+        route: SteamWorkflowSettingsPage.routeName,
+      ),
       _Destination(
         icon: LucideIcons.wrench,
         label: 'Advanced',

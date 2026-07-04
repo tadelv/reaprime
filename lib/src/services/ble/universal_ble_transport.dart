@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'dart:typed_data';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
+import 'package:reaprime/src/models/device/impl/combustion/combustion_probe.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/models/device/transport/ble_timeout_exception.dart';
 import 'package:reaprime/src/models/errors.dart';
@@ -10,7 +11,7 @@ import 'package:reaprime/src/services/ble/ble_exception_mapper.dart';
 import 'package:rxdart/subjects.dart';
 import 'package:universal_ble/universal_ble.dart';
 
-class UniversalBleTransport implements BLETransport {
+class UniversalBleTransport implements BLETransport, CombustionAdvertisingTransport {
   final BleDevice _device;
 
   late Logger _log;
@@ -18,6 +19,22 @@ class UniversalBleTransport implements BLETransport {
   final BehaviorSubject<device.ConnectionState> _connectionStateSubject = BehaviorSubject.seeded(
     device.ConnectionState.discovered,
   );
+
+  final StreamController<Uint8List> _manufacturerDataController =
+      StreamController<Uint8List>.broadcast();
+
+  @override
+  Stream<Uint8List> get manufacturerDataStream =>
+      _manufacturerDataController.stream;
+
+  /// Feed manufacturer advertising data from scan results into this transport.
+  /// Called by the discovery service when subsequent scan advertisements arrive
+  /// for an already-discovered device.
+  void addManufacturerData(Uint8List data) {
+    if (!_manufacturerDataController.isClosed) {
+      _manufacturerDataController.add(data);
+    }
+  }
 
   StreamSubscription? _connectionStateSubscription;
 
@@ -403,6 +420,9 @@ class UniversalBleTransport implements BLETransport {
       await sub.cancel();
     }
     _subscriptions.clear();
+    if (!_manufacturerDataController.isClosed) {
+      _manufacturerDataController.close();
+    }
     if (!_connectionStateSubject.isClosed) {
       _connectionStateSubject.close();
     }

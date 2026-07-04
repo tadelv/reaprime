@@ -17,8 +17,11 @@ import 'settings_service.dart';
 class SettingsController with ChangeNotifier {
   SettingsController(this._settingsService);
 
-  // Make SettingsService a private variable so it is not used directly.
   final SettingsService _settingsService;
+
+  /// Exposes the underlying service for controllers that need async
+  /// preference reads (e.g. ShotSequencer probe resolution).
+  SettingsService get settingsService => _settingsService;
 
   // Make ThemeMode a private variable so it is not updated directly without
   // also persisting the changes with the SettingsService.

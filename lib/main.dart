@@ -596,6 +596,7 @@ void main(List<String> args) async {
         deviceController: deviceController,
         de1Controller: de1Controller,
         scaleController: scaleController,
+        sensorController: sensorController,
         workflowController: workflowController,
         persistenceController: persistenceController,
         pluginLoaderService: pluginService,
@@ -833,6 +834,7 @@ class AppRoot extends StatefulWidget {
   final DeviceController deviceController;
   final De1Controller de1Controller;
   final ScaleController scaleController;
+  final SensorController? sensorController;
   final WorkflowController workflowController;
   final PersistenceController persistenceController;
   final PluginLoaderService pluginLoaderService;
@@ -857,6 +859,7 @@ class AppRoot extends StatefulWidget {
     required this.deviceController,
     required this.de1Controller,
     required this.scaleController,
+    this.sensorController,
     required this.workflowController,
     required this.persistenceController,
     required this.pluginLoaderService,
@@ -924,6 +927,7 @@ class _AppRootState extends State<AppRoot> {
         deviceController: widget.deviceController,
         de1Controller: widget.de1Controller,
         scaleController: widget.scaleController,
+        sensorController: widget.sensorController,
         workflowController: widget.workflowController,
         persistenceController: widget.persistenceController,
         pluginLoaderService: widget.pluginLoaderService,

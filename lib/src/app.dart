@@ -12,6 +12,7 @@ import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_state_manager.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/presence_controller.dart';
+import 'package:reaprime/src/controllers/sensor_controller.dart';
 import 'package:reaprime/src/controllers/presence_navigator_observer.dart';
 import 'package:reaprime/src/controllers/shot_sequencer.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
@@ -55,6 +56,7 @@ import 'package:reaprime/src/settings/data_management_page.dart';
 import 'package:reaprime/src/settings/device_management_page.dart';
 import 'package:reaprime/src/settings/advanced_page.dart';
 import 'package:reaprime/src/settings/plugins_settings_view.dart';
+import 'package:reaprime/src/settings/steam_workflow_settings_page.dart';
 import 'package:reaprime/src/skin_selector/skin_selector_page.dart';
 import 'debug_feature/debug_item_details_view.dart';
 
@@ -82,6 +84,7 @@ class MyApp extends StatefulWidget {
     required this.deviceController,
     required this.de1Controller,
     required this.scaleController,
+    this.sensorController,
     required this.workflowController,
     required this.persistenceController,
     required this.pluginLoaderService,
@@ -105,6 +108,7 @@ class MyApp extends StatefulWidget {
   final DeviceController deviceController;
   final De1Controller de1Controller;
   final ScaleController scaleController;
+  final SensorController? sensorController;
   final WorkflowController workflowController;
   final PersistenceController persistenceController;
   final PluginLoaderService pluginLoaderService;
@@ -222,6 +226,7 @@ class _MyAppState extends State<MyApp> {
         oldWidget.de1Controller != widget.de1Controller ||
         oldWidget.connectionManager != widget.connectionManager ||
         oldWidget.scaleController != widget.scaleController ||
+        oldWidget.sensorController != widget.sensorController ||
         oldWidget.workflowController != widget.workflowController ||
         oldWidget.persistenceController != widget.persistenceController) {
       _de1StateManager?.dispose();
@@ -237,6 +242,7 @@ class _MyAppState extends State<MyApp> {
       workflowController: widget.workflowController,
       persistenceController: widget.persistenceController,
       settingsController: widget.settingsController,
+      sensorController: widget.sensorController,
       connectionManager: widget.connectionManager,
       accountService: widget.decentAccountService,
       navigatorKey: NavigationService.navigatorKey,
@@ -426,6 +432,8 @@ class _MyAppState extends State<MyApp> {
                           scaleController: widget.scaleController,
                           de1controller: widget.de1Controller,
                           persistenceController: widget.persistenceController,
+                          sensorController: widget.sensorController,
+                          settingsService: widget.settingsController.settingsService,
                           targetProfile:
                               widget.workflowController.currentWorkflow.profile,
                           targetYield:
@@ -505,6 +513,13 @@ class _MyAppState extends State<MyApp> {
                     case AdvancedPage.routeName:
                       return AdvancedPage(
                         controller: widget.settingsController,
+                      );
+                    case SteamWorkflowSettingsPage.routeName:
+                      return SteamWorkflowSettingsPage(
+                        workflowController: widget.workflowController,
+                        de1Controller: widget.de1Controller,
+                        sensorController: widget.sensorController!,
+                        settingsController: widget.settingsController,
                       );
                     case AccountPage.routeName:
                       if (widget.decentAccountService == null) {

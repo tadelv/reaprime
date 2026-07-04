@@ -6,6 +6,7 @@ import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
+import 'package:reaprime/src/controllers/sensor_controller.dart';
 import 'package:reaprime/src/controllers/shot_sequencer.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
@@ -38,6 +39,7 @@ class De1StateManager with WidgetsBindingObserver {
   final WorkflowController _workflowController;
   final PersistenceController _persistenceController;
   final SettingsController _settingsController;
+  final SensorController? _sensorController;
   final ConnectionManager _connectionManager;
   final DecentAccountService? _accountService;
   final GlobalKey<NavigatorState> _navigatorKey;
@@ -77,6 +79,7 @@ class De1StateManager with WidgetsBindingObserver {
     required WorkflowController workflowController,
     required PersistenceController persistenceController,
     required SettingsController settingsController,
+    SensorController? sensorController,
     required ConnectionManager connectionManager,
     DecentAccountService? accountService,
     required GlobalKey<NavigatorState> navigatorKey,
@@ -85,6 +88,7 @@ class De1StateManager with WidgetsBindingObserver {
        _workflowController = workflowController,
        _persistenceController = persistenceController,
        _settingsController = settingsController,
+       _sensorController = sensorController,
        _connectionManager = connectionManager,
        _accountService = accountService,
        _navigatorKey = navigatorKey,
@@ -575,6 +579,8 @@ class De1StateManager with WidgetsBindingObserver {
       scaleController: _scaleController,
       de1controller: _de1Controller,
       persistenceController: _persistenceController,
+      sensorController: _sensorController,
+      settingsService: _settingsController.settingsService,
       targetProfile: _workflowController.currentWorkflow.profile,
       targetYield:
           _workflowController.currentWorkflow.context?.targetYield ?? 0,

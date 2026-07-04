@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:reaprime/src/models/adapter_state.dart';
+import 'package:reaprime/src/models/device/impl/combustion/combustion_constants.dart';
 import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 import 'package:reaprime/src/services/ble/universal_ble_transport.dart';
 import 'package:reaprime/src/services/device_matcher.dart';
@@ -15,6 +16,7 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
   UniversalBleDiscoveryService();
 
   final Map<String, Device> _devices = {};
+  final Map<String, UniversalBleTransport> _transports = {};
 
   final log = logging.Logger("UniversalBleDeviceService");
 
@@ -217,15 +219,20 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
     _currentlyScanning.add(device.deviceId);
 
     try {
-      if (_devices.containsKey(device.deviceId.toString())) return;
+      final existingDevice = _devices[device.deviceId.toString()];
+      if (existingDevice != null) {
+        _forwardAdvertisingData(existingDevice, device);
+        return;
+      }
 
       final name = device.name ?? '';
       final manufacturerCompanyIds = device.manufacturerDataList
           .map((entry) => entry.companyId);
       final serviceUuids = device.services;
 
+      final transport = UniversalBleTransport(device: device);
       final matchedDevice = await DeviceMatcher.matchFromScanMetadata(
-        transport: UniversalBleTransport(device: device),
+        transport: transport,
         advertisedName: name,
         manufacturerCompanyIds: manufacturerCompanyIds,
         serviceUuids: serviceUuids,
@@ -233,6 +240,7 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
 
       if (matchedDevice != null) {
         _devices[device.deviceId.toString()] = matchedDevice;
+        _transports[device.deviceId.toString()] = transport;
         _deviceStreamController.add(_devices.values.toList());
         log.fine("found new device: ${device.name}");
 
@@ -241,12 +249,26 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
             .listen((connectionState) {
               if (connectionState == ConnectionState.disconnected) {
                 _devices.remove(device.deviceId.toString());
+                _transports.remove(device.deviceId.toString());
                 _deviceStreamController.add(_devices.values.toList());
               }
             });
       }
     } finally {
       _currentlyScanning.remove(device.deviceId);
+    }
+  }
+
+  /// Forward Combustion manufacturer advertising data to an already-discovered
+  /// device's transport so the probe receives ongoing temperature updates.
+  void _forwardAdvertisingData(Device existingDevice, BleDevice scanResult) {
+    if (existingDevice.type != DeviceType.sensor) return;
+    final transport = _transports[scanResult.deviceId.toString()];
+    if (transport == null) return;
+    for (final mfgData in scanResult.manufacturerDataList) {
+      if (mfgData.companyId == CombustionConstants.manufacturerCompanyId) {
+        transport.addManufacturerData(mfgData.payload);
+      }
     }
   }
 }

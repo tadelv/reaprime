@@ -278,8 +278,8 @@ class ShotSequencer {
     if (_state == ShotState.idle || _state == ShotState.finished) return;
     _probeLost = true;
     _log.warning(
-      'Shot probe disconnected during shot (state: ${_state.name}). '
-      'Continuing with last-known probe temperature.',
+      'Shot probe "${_trackedSensor?.name}" disconnected during shot '
+      '(state: ${_state.name}). Continuing with last-known probe temperature.',
     );
   }
 

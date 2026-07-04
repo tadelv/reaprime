@@ -28,7 +28,7 @@
     }
   },
   "lanes": {
-    "maxParallel": 3,
+    "maxParallel": 2,
     "queueExcess": true,
     "workerBackend": "subprocess",
     "workerOutputMaxBytes": 262144,
