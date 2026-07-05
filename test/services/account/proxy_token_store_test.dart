@@ -58,7 +58,10 @@ void main() {
     expect(loaded[0].label, 'laptop');
     expect(loaded[0].scopes, {ProxyTokenService.scopeAccountProxy});
     expect(loaded[0].createdAt, created);
-    expect(loaded[1].scopes, contains(ProxyTokenService.scopeAccountProxyWrite));
+    expect(
+      loaded[1].scopes,
+      contains(ProxyTokenService.scopeAccountProxyWrite),
+    );
   });
 
   test('save overwrites the previous set', () async {

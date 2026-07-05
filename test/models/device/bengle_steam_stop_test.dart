@@ -30,20 +30,24 @@ void main() {
       expect(BengleSteamMmr.stopAtTemperatureTarget.address, 0x00000000);
     });
 
-    test('setStopAtTemperatureTarget caches locally and does not write MMR',
-        () async {
-      transport.writes.clear();
-      await bengle.setStopAtTemperatureTarget(65.0);
+    test(
+      'setStopAtTemperatureTarget caches locally and does not write MMR',
+      () async {
+        transport.writes.clear();
+        await bengle.setStopAtTemperatureTarget(65.0);
 
-      final mmrWrites = transport.writes
-          .where((w) => w.characteristicUUID == Endpoint.writeToMMR.uuid)
-          .toList();
-      expect(mmrWrites, isEmpty,
-          reason: 'FW slot is stubbed — no MMR write should hit the wire');
+        final mmrWrites = transport.writes
+            .where((w) => w.characteristicUUID == Endpoint.writeToMMR.uuid)
+            .toList();
+        expect(
+          mmrWrites,
+          isEmpty,
+          reason: 'FW slot is stubbed — no MMR write should hit the wire',
+        );
 
-      expect(
-          await bengle.getStopAtTemperatureTarget(), closeTo(65.0, 1e-6));
-    });
+        expect(await bengle.getStopAtTemperatureTarget(), closeTo(65.0, 1e-6));
+      },
+    );
 
     test('setStopAtTemperatureTarget clamps to 0..80', () async {
       await bengle.setStopAtTemperatureTarget(120.0);
@@ -53,15 +57,16 @@ void main() {
       expect(await bengle.getStopAtTemperatureTarget(), 0.0);
     });
 
-    test('stopAtTemperatureTarget stream emits cached value to subscribers',
-        () async {
-      await bengle.setStopAtTemperatureTarget(55.0);
-      final value = await bengle.stopAtTemperatureTarget.first;
-      expect(value, 55.0);
-    });
+    test(
+      'stopAtTemperatureTarget stream emits cached value to subscribers',
+      () async {
+        await bengle.setStopAtTemperatureTarget(55.0);
+        final value = await bengle.stopAtTemperatureTarget.first;
+        expect(value, 55.0);
+      },
+    );
 
-    test('probeAttached stays false on real Bengle (FW signal TBD)',
-        () async {
+    test('probeAttached stays false on real Bengle (FW signal TBD)', () async {
       final value = await bengle.probeAttached.first;
       expect(value, isFalse);
     });

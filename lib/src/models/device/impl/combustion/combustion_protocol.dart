@@ -67,9 +67,7 @@ class CombustionProtocol {
     final bytes = _asUint8List(data);
     const logRangeSizeBytes = 8;
     const minimumSizeBytes =
-        logRangeSizeBytes +
-        CombustionConstants.rawTemperatureDataSizeBytes +
-        2;
+        logRangeSizeBytes + CombustionConstants.rawTemperatureDataSizeBytes + 2;
     if (bytes.length < minimumSizeBytes) {
       return null;
     }

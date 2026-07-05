@@ -37,8 +37,7 @@ class DisconnectSupervisor {
   final void Function()? _onScaleDisconnected;
 
   De1Interface? _latestDe1;
-  device.ConnectionState _latestScaleState =
-      device.ConnectionState.discovered;
+  device.ConnectionState _latestScaleState = device.ConnectionState.discovered;
   String? _lastKnownMachineId;
 
   StreamSubscription<De1Interface?>? _machineSub;
@@ -57,18 +56,18 @@ class DisconnectSupervisor {
     void Function()? onMachineDisconnected,
     void Function()? onScaleConnected,
     void Function()? onScaleDisconnected,
-  })  : _machineStream = machineStream,
-        _scaleStream = scaleStream,
-        _statusPublisher = statusPublisher,
-        _expectations = expectations,
-        _isConnectingMachine = isConnectingMachine,
-        _isConnectingScale = isConnectingScale,
-        _scaleLastConnectedId = scaleLastConnectedId,
-        _preferredScaleId = preferredScaleId,
-        _onMachineConnected = onMachineConnected,
-        _onMachineDisconnected = onMachineDisconnected,
-        _onScaleConnected = onScaleConnected,
-        _onScaleDisconnected = onScaleDisconnected {
+  }) : _machineStream = machineStream,
+       _scaleStream = scaleStream,
+       _statusPublisher = statusPublisher,
+       _expectations = expectations,
+       _isConnectingMachine = isConnectingMachine,
+       _isConnectingScale = isConnectingScale,
+       _scaleLastConnectedId = scaleLastConnectedId,
+       _preferredScaleId = preferredScaleId,
+       _onMachineConnected = onMachineConnected,
+       _onMachineDisconnected = onMachineDisconnected,
+       _onScaleConnected = onScaleConnected,
+       _onScaleDisconnected = onScaleDisconnected {
     _start();
   }
 
@@ -146,15 +145,17 @@ class DisconnectSupervisor {
       _log.fine('Machine $deviceId: expected disconnect, suppressing error');
       return;
     }
-    _statusPublisher.emitError(ConnectionError(
-      kind: ConnectionErrorKind.machineDisconnected,
-      severity: ConnectionErrorSeverity.error,
-      timestamp: DateTime.now().toUtc(),
-      deviceId: deviceId,
-      message: 'Machine disconnected unexpectedly.',
-      suggestion:
-          'Check the machine is powered on and in range, then reconnect.',
-    ));
+    _statusPublisher.emitError(
+      ConnectionError(
+        kind: ConnectionErrorKind.machineDisconnected,
+        severity: ConnectionErrorSeverity.error,
+        timestamp: DateTime.now().toUtc(),
+        deviceId: deviceId,
+        message: 'Machine disconnected unexpectedly.',
+        suggestion:
+            'Check the machine is powered on and in range, then reconnect.',
+      ),
+    );
   }
 
   bool _handleScaleDisconnect(String deviceId) {
@@ -162,16 +163,18 @@ class DisconnectSupervisor {
       _log.fine('Scale $deviceId: expected disconnect, suppressing error');
       return false;
     }
-    _statusPublisher.emitError(ConnectionError(
-      kind: ConnectionErrorKind.scaleDisconnected,
-      severity: ConnectionErrorSeverity.error,
-      timestamp: DateTime.now().toUtc(),
-      deviceId: deviceId,
-      message: 'Scale disconnected unexpectedly.',
-      suggestion:
-          'The scale may have powered off or moved out of range. '
-          'Wake the scale and reconnect.',
-    ));
+    _statusPublisher.emitError(
+      ConnectionError(
+        kind: ConnectionErrorKind.scaleDisconnected,
+        severity: ConnectionErrorSeverity.error,
+        timestamp: DateTime.now().toUtc(),
+        deviceId: deviceId,
+        message: 'Scale disconnected unexpectedly.',
+        suggestion:
+            'The scale may have powered off or moved out of range. '
+            'Wake the scale and reconnect.',
+      ),
+    );
     return true;
   }
 

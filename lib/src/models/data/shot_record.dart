@@ -22,8 +22,8 @@ class ShotRecord {
     this.annotations,
     String? shotNotes,
     Map<String, dynamic>? metadata,
-  })  : _shotNotes = shotNotes ?? annotations?.espressoNotes,
-        _metadata = metadata ?? annotations?.extras;
+  }) : _shotNotes = shotNotes ?? annotations?.espressoNotes,
+       _metadata = metadata ?? annotations?.extras;
 
   /// Synthesized from annotations when available, otherwise from legacy field.
   @Deprecated('Use annotations?.espressoNotes instead')

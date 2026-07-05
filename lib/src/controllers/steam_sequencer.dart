@@ -45,12 +45,12 @@ class SteamSequencer {
     required PersistenceController persistenceController,
     SettingsController? settingsController,
     SettingsService? settingsService,
-  })  : _de1 = de1Controller,
-        _sensors = sensorController,
-        _workflow = workflowController,
-        _persistence = persistenceController,
-        _settingsController = settingsController,
-        _settingsService = settingsService {
+  }) : _de1 = de1Controller,
+       _sensors = sensorController,
+       _workflow = workflowController,
+       _persistence = persistenceController,
+       _settingsController = settingsController,
+       _settingsService = settingsService {
     _de1Sub = _de1.de1.listen(_onMachineChange);
   }
 
@@ -103,8 +103,7 @@ class SteamSequencer {
     if (identical(_machine, machine)) return;
     if (_machine != null && isRecording) {
       // Mid-steam disconnect → discard the in-flight record.
-      _log.warning(
-          'Machine changed mid-steam; discarding incomplete record');
+      _log.warning('Machine changed mid-steam; discarding incomplete record');
       _discard();
     }
     await _snapshotSub?.cancel();
@@ -124,10 +123,12 @@ class SteamSequencer {
     }
 
     if (isRecording) {
-      _measurements.add(SteamSnapshot(
-        machine: s,
-        milkTemperature: _latestSensorTemperature,
-      ));
+      _measurements.add(
+        SteamSnapshot(
+          machine: s,
+          milkTemperature: _latestSensorTemperature,
+        ),
+      );
       _maybeAppSideStop(s);
     }
 
@@ -164,8 +165,9 @@ class SteamSequencer {
     if (sensor == null) return;
 
     _trackedSensor = sensor;
-    _probeConnectionSub =
-        sensor.connectionState.listen(_onProbeConnectionState);
+    _probeConnectionSub = sensor.connectionState.listen(
+      _onProbeConnectionState,
+    );
     _sensorSub = sensor.data.listen((payload) {
       final raw = payload['temperature'];
       if (raw is num) _latestSensorTemperature = raw.toDouble();
@@ -190,9 +192,10 @@ class SteamSequencer {
     if (target <= 0) return;
     final attached = _trackedSensor != null && !_probeLost;
     if (useFwAutonomousStop(
-        machine: _machine,
-        probeAttached: attached,
-        stopAtTemperature: target)) {
+      machine: _machine,
+      probeAttached: attached,
+      stopAtTemperature: target,
+    )) {
       return;
     }
     final temp = _latestSensorTemperature;
@@ -222,8 +225,10 @@ class SteamSequencer {
       workflow: wf,
     );
     _resetOpenState();
-    _log.info('Steam record finalized: ${record.id} '
-        '(${record.measurements.length} frames)');
+    _log.info(
+      'Steam record finalized: ${record.id} '
+      '(${record.measurements.length} frames)',
+    );
     await _persistence.persistSteam(record);
   }
 

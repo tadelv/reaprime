@@ -66,13 +66,19 @@ void main() {
 
       final firstMachine = first.firstWhere((d) => d.deviceId == 'MockDe1');
       final secondMachine = second.firstWhere((d) => d.deviceId == 'MockDe1');
-      expect(identical(firstMachine, secondMachine), isTrue,
-          reason: 'rescan must not replace the existing MockDe1 instance');
+      expect(
+        identical(firstMachine, secondMachine),
+        isTrue,
+        reason: 'rescan must not replace the existing MockDe1 instance',
+      );
 
       final firstScale = first.firstWhere((d) => d.deviceId == 'MockScale');
       final secondScale = second.firstWhere((d) => d.deviceId == 'MockScale');
-      expect(identical(firstScale, secondScale), isTrue,
-          reason: 'rescan must not replace the existing MockScale instance');
+      expect(
+        identical(firstScale, secondScale),
+        isTrue,
+        reason: 'rescan must not replace the existing MockScale instance',
+      );
     });
 
     test('keeps a connected device connected across a rescan', () async {
@@ -92,8 +98,11 @@ void main() {
       await service.scanForDevices();
       final second = await secondEmission;
       final scaleAfter = second.firstWhere((d) => d.deviceId == 'MockScale');
-      expect(await scaleAfter.connectionState.first, ConnectionState.connected,
-          reason: 'rescan replaced the connected scale with a discovered one');
+      expect(
+        await scaleAfter.connectionState.first,
+        ConnectionState.connected,
+        reason: 'rescan replaced the connected scale with a discovered one',
+      );
     });
 
     test('emits MockCombustionProbe when sensor is enabled', () async {
@@ -107,42 +116,50 @@ void main() {
       expect(devices.whereType<MockCombustionProbe>(), hasLength(1));
     });
 
-    test('does not emit MockCombustionProbe when only machine is enabled',
-        () async {
-      final service = SimulatedDeviceService();
-      service.enabledDevices = {SimulatedDevicesTypes.machine};
+    test(
+      'does not emit MockCombustionProbe when only machine is enabled',
+      () async {
+        final service = SimulatedDeviceService();
+        service.enabledDevices = {SimulatedDevicesTypes.machine};
 
-      final emission = service.devices.first;
-      await service.scanForDevices();
-      final devices = await emission;
+        final emission = service.devices.first;
+        await service.scanForDevices();
+        final devices = await emission;
 
-      expect(devices.whereType<MockCombustionProbe>(), isEmpty);
-    });
+        expect(devices.whereType<MockCombustionProbe>(), isEmpty);
+      },
+    );
 
-    test('MockCombustionProbe exposes controllable temperature stream', () async {
-      final service = SimulatedDeviceService();
-      service.enabledDevices = {SimulatedDevicesTypes.sensor};
+    test(
+      'MockCombustionProbe exposes controllable temperature stream',
+      () async {
+        final service = SimulatedDeviceService();
+        service.enabledDevices = {SimulatedDevicesTypes.sensor};
 
-      final emission = service.devices.first;
-      await service.scanForDevices();
-      final devices = await emission;
-      final probe = devices.whereType<MockCombustionProbe>().single;
+        final emission = service.devices.first;
+        await service.scanForDevices();
+        final devices = await emission;
+        final probe = devices.whereType<MockCombustionProbe>().single;
 
-      final readings = <Map<String, dynamic>>[];
-      final sub = probe.data.listen(readings.add);
-      await probe.onConnect();
-      probe.setTemperature(65.5, core: 62.5, t1: 60.0);
-      await Future<void>.delayed(Duration.zero);
-      await sub.cancel();
-      await probe.disconnect();
+        final readings = <Map<String, dynamic>>[];
+        final sub = probe.data.listen(readings.add);
+        await probe.onConnect();
+        probe.setTemperature(65.5, core: 62.5, t1: 60.0);
+        await Future<void>.delayed(Duration.zero);
+        await sub.cancel();
+        await probe.disconnect();
 
-      expect(readings, isNotEmpty);
-      expect(
-        readings.last[CombustionConstants.channelTemperature],
-        closeTo(62.5, 0.0001),
-      );
-      expect(readings.last[CombustionConstants.channelT1], closeTo(60.0, 0.0001));
-    });
+        expect(readings, isNotEmpty);
+        expect(
+          readings.last[CombustionConstants.channelTemperature],
+          closeTo(62.5, 0.0001),
+        );
+        expect(
+          readings.last[CombustionConstants.channelT1],
+          closeTo(60.0, 0.0001),
+        );
+      },
+    );
 
     test('removes MockBengle when bengle becomes disabled', () async {
       final service = SimulatedDeviceService();

@@ -45,7 +45,7 @@ class _TestDe1Controller extends De1Controller {
   final TestDe1 testDe1;
 
   _TestDe1Controller(this.testDe1)
-      : super(controller: DeviceController([_FakeDiscoveryService()]));
+    : super(controller: DeviceController([_FakeDiscoveryService()]));
 
   @override
   De1Interface connectedDe1() => testDe1;
@@ -60,8 +60,9 @@ class _TestScaleController extends ScaleController {
   final BehaviorSubject<WeightSnapshot> _weight = BehaviorSubject();
 
   _TestScaleController(this.testScale)
-      : _connectionState =
-          BehaviorSubject.seeded(device.ConnectionState.disconnected);
+    : _connectionState = BehaviorSubject.seeded(
+        device.ConnectionState.disconnected,
+      );
 
   @override
   Stream<device.ConnectionState> get connectionState => _connectionState.stream;
@@ -121,8 +122,7 @@ class _NullStorageService implements StorageService {
     String? profileTitle,
     String? search,
     bool ascending = false,
-  }) async =>
-      [];
+  }) async => [];
   @override
   Future<int> countShots({
     String? grinderId,
@@ -133,8 +133,7 @@ class _NullStorageService implements StorageService {
     String? coffeeRoaster,
     String? profileTitle,
     String? search,
-  }) async =>
-      0;
+  }) async => 0;
   @override
   Future<ShotRecord?> getLatestShot() async => null;
   @override
@@ -180,18 +179,17 @@ class _ProbeTestSensor implements Sensor {
 
   @override
   SensorInfo get info => SensorInfo(
-        name: name,
-        vendor: 'test',
-        dataChannels: const [],
-        commands: const [],
-      );
+    name: name,
+    vendor: 'test',
+    dataChannels: const [],
+    commands: const [],
+  );
 
   @override
   Future<Map<String, dynamic>> execute(
     String command,
     Map<String, dynamic>? params,
-  ) async =>
-      const {};
+  ) async => const {};
 
   @override
   Future<void> onConnect() async {}
@@ -321,8 +319,9 @@ void main() {
       await tester.pump();
     }
 
-    testWidgets('shows probe temperature when sensor data is present',
-        (tester) async {
+    testWidgets('shows probe temperature when sensor data is present', (
+      tester,
+    ) async {
       await pumpFeature(tester);
 
       await tester.runAsync(() async {
@@ -342,8 +341,9 @@ void main() {
       expect(find.textContaining('PT: 93.5'), findsOneWidget);
     });
 
-    testWidgets('hides probe temperature when sensor data is absent',
-        (tester) async {
+    testWidgets('hides probe temperature when sensor data is absent', (
+      tester,
+    ) async {
       await pumpFeature(tester);
 
       await tester.runAsync(() async {

@@ -8,12 +8,12 @@ class BleServiceIdentifier {
   );
 
   BleServiceIdentifier.short(String uuid16bit)
-      : _short = _validateShort(uuid16bit),
-        _long = null;
+    : _short = _validateShort(uuid16bit),
+      _long = null;
 
   BleServiceIdentifier.long(String uuid128bit)
-      : _short = null,
-        _long = _validateLong(uuid128bit);
+    : _short = null,
+      _long = _validateLong(uuid128bit);
 
   factory BleServiceIdentifier.parse(String uuid) {
     if (_shortPattern.hasMatch(uuid)) {
@@ -22,23 +22,21 @@ class BleServiceIdentifier {
       return BleServiceIdentifier.long(uuid);
     }
     throw ArgumentError(
-        'UUID must be 4 hex chars or xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx: $uuid');
+      'UUID must be 4 hex chars or xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx: $uuid',
+    );
   }
 
   BleServiceIdentifier.both(String? short, String? long)
-      : _short =
-            short != null && short.isNotEmpty ? _validateShort(short) : null,
-        _long = long != null && long.isNotEmpty ? _validateLong(long) : null {
+    : _short = short != null && short.isNotEmpty ? _validateShort(short) : null,
+      _long = long != null && long.isNotEmpty ? _validateLong(long) : null {
     if (_short == null && _long == null) {
-      throw ArgumentError(
-          'At least one UUID (short or long) must be provided');
+      throw ArgumentError('At least one UUID (short or long) must be provided');
     }
   }
 
   static String _validateShort(String uuid) {
     if (!_shortPattern.hasMatch(uuid)) {
-      throw ArgumentError(
-          'Short UUID must be exactly 4 hex characters: $uuid');
+      throw ArgumentError('Short UUID must be exactly 4 hex characters: $uuid');
     }
     return uuid.toLowerCase();
   }
@@ -46,7 +44,8 @@ class BleServiceIdentifier {
   static String _validateLong(String uuid) {
     if (!_longPattern.hasMatch(uuid)) {
       throw ArgumentError(
-          'Long UUID must match pattern xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx: $uuid');
+        'Long UUID must match pattern xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx: $uuid',
+      );
     }
     return uuid.toLowerCase();
   }

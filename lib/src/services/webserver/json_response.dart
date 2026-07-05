@@ -5,9 +5,9 @@ import 'package:shelf/shelf.dart';
 const _jsonHeaders = {'Content-Type': 'application/json'};
 
 Response jsonOk(Object? data) => Response.ok(
-      jsonEncode(data),
-      headers: _jsonHeaders,
-    );
+  jsonEncode(data),
+  headers: _jsonHeaders,
+);
 
 /// Like [jsonOk], but adds a strong `ETag` derived from the encoded body and
 /// honours `If-None-Match` from the request — returns `304 Not Modified` with
@@ -21,8 +21,7 @@ Response jsonOkConditional(Request request, Object? data) {
   final etag = '"$digest"';
 
   final ifNoneMatch = request.headers['if-none-match']?.trim();
-  if (ifNoneMatch != null &&
-      (ifNoneMatch == '*' || ifNoneMatch == etag)) {
+  if (ifNoneMatch != null && (ifNoneMatch == '*' || ifNoneMatch == etag)) {
     return Response.notModified(headers: {'ETag': etag});
   }
 
@@ -33,70 +32,70 @@ Response jsonOkConditional(Request request, Object? data) {
 }
 
 Response jsonCreated(Object? data) => Response(
-      201,
-      body: jsonEncode(data),
-      headers: _jsonHeaders,
-    );
+  201,
+  body: jsonEncode(data),
+  headers: _jsonHeaders,
+);
 
 Response jsonAccepted([Object? data]) => Response(
-      202,
-      body: data != null ? jsonEncode(data) : null,
-      headers: _jsonHeaders,
-    );
+  202,
+  body: data != null ? jsonEncode(data) : null,
+  headers: _jsonHeaders,
+);
 
 Response jsonMultiStatus(Object? data) => Response(
-      207,
-      body: jsonEncode(data),
-      headers: _jsonHeaders,
-    );
+  207,
+  body: jsonEncode(data),
+  headers: _jsonHeaders,
+);
 
 Response jsonBadRequest(Object? data) => Response.badRequest(
-      body: jsonEncode(data),
-      headers: _jsonHeaders,
-    );
+  body: jsonEncode(data),
+  headers: _jsonHeaders,
+);
 
 Response jsonForbidden(Object? data) => Response(
-      403,
-      body: jsonEncode(data),
-      headers: _jsonHeaders,
-    );
+  403,
+  body: jsonEncode(data),
+  headers: _jsonHeaders,
+);
 
 Response jsonUnauthorized(Object? data) => Response(
-      401,
-      body: jsonEncode(data),
-      headers: _jsonHeaders,
-    );
+  401,
+  body: jsonEncode(data),
+  headers: _jsonHeaders,
+);
 
 Response jsonNotFound(Object? data) => Response.notFound(
-      jsonEncode(data),
-      headers: _jsonHeaders,
-    );
+  jsonEncode(data),
+  headers: _jsonHeaders,
+);
 
 Response jsonConflict(Object? data) => Response(
-      409,
-      body: jsonEncode(data),
-      headers: _jsonHeaders,
-    );
+  409,
+  body: jsonEncode(data),
+  headers: _jsonHeaders,
+);
 
 Response jsonError(Object? data) => Response.internalServerError(
-      body: jsonEncode(data),
-      headers: _jsonHeaders,
-    );
+  body: jsonEncode(data),
+  headers: _jsonHeaders,
+);
 
 Response jsonNotImplemented(Object? data) => Response(
-      501,
-      body: jsonEncode(data),
-      headers: _jsonHeaders,
-    );
+  501,
+  body: jsonEncode(data),
+  headers: _jsonHeaders,
+);
 
 Response jsonBadGateway(Object? data) => Response(
-      502,
-      body: jsonEncode(data),
-      headers: _jsonHeaders,
-    );
+  502,
+  body: jsonEncode(data),
+  headers: _jsonHeaders,
+);
 
 Response jsonServiceUnavailable(Object? data) => Response(
-      503,
-      body: jsonEncode(data),
-      headers: _jsonHeaders,
-    );
+  503,
+  body: jsonEncode(data),
+  headers: _jsonHeaders,
+);

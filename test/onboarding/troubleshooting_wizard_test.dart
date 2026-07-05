@@ -13,17 +13,19 @@ void main() {
 
   group('TroubleshootingWizard', () {
     testWidgets('shows "machine powered on?" as first step', (tester) async {
-      await tester.pumpWidget(buildApp(
-        child: Builder(
-          builder: (context) => ShadButton(
-            onPressed: () => showTroubleshootingWizard(
-              context: context,
-              adapterState: AdapterState.poweredOn,
+      await tester.pumpWidget(
+        buildApp(
+          child: Builder(
+            builder: (context) => ShadButton(
+              onPressed: () => showTroubleshootingWizard(
+                context: context,
+                adapterState: AdapterState.poweredOn,
+              ),
+              child: const Text('Open'),
             ),
-            child: const Text('Open'),
           ),
         ),
-      ));
+      );
       await tester.pump();
 
       await tester.tap(find.text('Open'));
@@ -35,47 +37,52 @@ void main() {
     });
 
     testWidgets(
-        'advances to "other apps" step after confirming machine is on (non-iOS)',
-        (tester) async {
-      await tester.pumpWidget(buildApp(
-        child: Builder(
-          builder: (context) => ShadButton(
-            onPressed: () => showTroubleshootingWizard(
-              context: context,
-              adapterState: AdapterState.poweredOn,
+      'advances to "other apps" step after confirming machine is on (non-iOS)',
+      (tester) async {
+        await tester.pumpWidget(
+          buildApp(
+            child: Builder(
+              builder: (context) => ShadButton(
+                onPressed: () => showTroubleshootingWizard(
+                  context: context,
+                  adapterState: AdapterState.poweredOn,
+                ),
+                child: const Text('Open'),
+              ),
             ),
-            child: const Text('Open'),
           ),
-        ),
-      ));
-      await tester.pump();
+        );
+        await tester.pump();
 
-      await tester.tap(find.text('Open'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+        await tester.tap(find.text('Open'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
 
-      // Tap "Yes, it's on" to advance
-      await tester.tap(find.text("Yes, it's on"));
-      await tester.pump();
+        // Tap "Yes, it's on" to advance
+        await tester.tap(find.text("Yes, it's on"));
+        await tester.pump();
 
-      // On non-iOS, Bluetooth step is skipped, goes to "other apps"
-      expect(find.text('Is another app connected?'), findsOneWidget);
-      expect(find.text("I've closed other apps"), findsOneWidget);
-    });
+        // On non-iOS, Bluetooth step is skipped, goes to "other apps"
+        expect(find.text('Is another app connected?'), findsOneWidget);
+        expect(find.text("I've closed other apps"), findsOneWidget);
+      },
+    );
 
     testWidgets('skips Bluetooth step on non-iOS', (tester) async {
       // Even when adapter is off, non-iOS platforms skip the BT step
-      await tester.pumpWidget(buildApp(
-        child: Builder(
-          builder: (context) => ShadButton(
-            onPressed: () => showTroubleshootingWizard(
-              context: context,
-              adapterState: AdapterState.poweredOff,
+      await tester.pumpWidget(
+        buildApp(
+          child: Builder(
+            builder: (context) => ShadButton(
+              onPressed: () => showTroubleshootingWizard(
+                context: context,
+                adapterState: AdapterState.poweredOff,
+              ),
+              child: const Text('Open'),
             ),
-            child: const Text('Open'),
           ),
         ),
-      ));
+      );
       await tester.pump();
 
       await tester.tap(find.text('Open'));
@@ -94,17 +101,19 @@ void main() {
     });
 
     testWidgets('dismisses dialog on final step confirmation', (tester) async {
-      await tester.pumpWidget(buildApp(
-        child: Builder(
-          builder: (context) => ShadButton(
-            onPressed: () => showTroubleshootingWizard(
-              context: context,
-              adapterState: AdapterState.poweredOn,
+      await tester.pumpWidget(
+        buildApp(
+          child: Builder(
+            builder: (context) => ShadButton(
+              onPressed: () => showTroubleshootingWizard(
+                context: context,
+                adapterState: AdapterState.poweredOn,
+              ),
+              child: const Text('Open'),
             ),
-            child: const Text('Open'),
           ),
         ),
-      ));
+      );
       await tester.pump();
 
       await tester.tap(find.text('Open'));
@@ -145,26 +154,28 @@ void main() {
       });
 
       test(
-          'bluetooth step shouldShow returns true on iOS with adapter not powered on',
-          () {
-        final steps = troubleshootingSteps(
-          adapterState: AdapterState.poweredOff,
-          isIOS: true,
-        );
-        final btStep = steps.firstWhere((s) => s.id == 'bluetooth');
-        expect(btStep.shouldShow(), isTrue);
-      });
+        'bluetooth step shouldShow returns true on iOS with adapter not powered on',
+        () {
+          final steps = troubleshootingSteps(
+            adapterState: AdapterState.poweredOff,
+            isIOS: true,
+          );
+          final btStep = steps.firstWhere((s) => s.id == 'bluetooth');
+          expect(btStep.shouldShow(), isTrue);
+        },
+      );
 
       test(
-          'bluetooth step shouldShow returns false on iOS with adapter powered on',
-          () {
-        final steps = troubleshootingSteps(
-          adapterState: AdapterState.poweredOn,
-          isIOS: true,
-        );
-        final btStep = steps.firstWhere((s) => s.id == 'bluetooth');
-        expect(btStep.shouldShow(), isFalse);
-      });
+        'bluetooth step shouldShow returns false on iOS with adapter powered on',
+        () {
+          final steps = troubleshootingSteps(
+            adapterState: AdapterState.poweredOn,
+            isIOS: true,
+          );
+          final btStep = steps.firstWhere((s) => s.id == 'bluetooth');
+          expect(btStep.shouldShow(), isFalse);
+        },
+      );
 
       test('system_bt step shouldShow returns true on macOS', () {
         final steps = troubleshootingSteps(
@@ -205,15 +216,16 @@ void main() {
       });
 
       test(
-          'bluetooth step shouldShow returns true on iOS with unauthorized state',
-          () {
-        final steps = troubleshootingSteps(
-          adapterState: AdapterState.unauthorized,
-          isIOS: true,
-        );
-        final btStep = steps.firstWhere((s) => s.id == 'bluetooth');
-        expect(btStep.shouldShow(), isTrue);
-      });
+        'bluetooth step shouldShow returns true on iOS with unauthorized state',
+        () {
+          final steps = troubleshootingSteps(
+            adapterState: AdapterState.unauthorized,
+            isIOS: true,
+          );
+          final btStep = steps.firstWhere((s) => s.id == 'bluetooth');
+          expect(btStep.shouldShow(), isTrue);
+        },
+      );
 
       test('bluetooth step shows permission title when unauthorized', () {
         final steps = troubleshootingSteps(
@@ -224,8 +236,7 @@ void main() {
         expect(btStep.title, 'Bluetooth Permission Required');
       });
 
-      test(
-          'bluetooth step shows permission description when unauthorized', () {
+      test('bluetooth step shows permission description when unauthorized', () {
         final steps = troubleshootingSteps(
           adapterState: AdapterState.unauthorized,
           isIOS: true,
@@ -238,29 +249,32 @@ void main() {
       });
 
       test(
-          'bluetooth step shows generic title when adapter is not unauthorized',
-          () {
-        final steps = troubleshootingSteps(
-          adapterState: AdapterState.poweredOff,
-          isIOS: true,
-        );
-        final btStep = steps.firstWhere((s) => s.id == 'bluetooth');
-        expect(btStep.title, 'Is Bluetooth enabled?');
-      });
+        'bluetooth step shows generic title when adapter is not unauthorized',
+        () {
+          final steps = troubleshootingSteps(
+            adapterState: AdapterState.poweredOff,
+            isIOS: true,
+          );
+          final btStep = steps.firstWhere((s) => s.id == 'bluetooth');
+          expect(btStep.title, 'Is Bluetooth enabled?');
+        },
+      );
     });
 
     testWidgets('shows description text for machine step', (tester) async {
-      await tester.pumpWidget(buildApp(
-        child: Builder(
-          builder: (context) => ShadButton(
-            onPressed: () => showTroubleshootingWizard(
-              context: context,
-              adapterState: AdapterState.poweredOn,
+      await tester.pumpWidget(
+        buildApp(
+          child: Builder(
+            builder: (context) => ShadButton(
+              onPressed: () => showTroubleshootingWizard(
+                context: context,
+                adapterState: AdapterState.poweredOn,
+              ),
+              child: const Text('Open'),
             ),
-            child: const Text('Open'),
           ),
         ),
-      ));
+      );
       await tester.pump();
 
       await tester.tap(find.text('Open'));
@@ -276,17 +290,19 @@ void main() {
     });
 
     testWidgets('shows description text for other apps step', (tester) async {
-      await tester.pumpWidget(buildApp(
-        child: Builder(
-          builder: (context) => ShadButton(
-            onPressed: () => showTroubleshootingWizard(
-              context: context,
-              adapterState: AdapterState.poweredOn,
+      await tester.pumpWidget(
+        buildApp(
+          child: Builder(
+            builder: (context) => ShadButton(
+              onPressed: () => showTroubleshootingWizard(
+                context: context,
+                adapterState: AdapterState.poweredOn,
+              ),
+              child: const Text('Open'),
             ),
-            child: const Text('Open'),
           ),
         ),
-      ));
+      );
       await tester.pump();
 
       await tester.tap(find.text('Open'));

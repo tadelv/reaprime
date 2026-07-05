@@ -27,8 +27,9 @@ import 'package:rxdart/rxdart.dart';
 ///
 /// See: doc/plans/comms-harden.md #1, doc/plans/comms-phase-0-1.md PR 2.
 class _RecordingSerialTransport extends SerialTransport {
-  final _connState =
-      BehaviorSubject<ConnectionState>.seeded(ConnectionState.connected);
+  final _connState = BehaviorSubject<ConnectionState>.seeded(
+    ConnectionState.connected,
+  );
   final List<String> writes = [];
 
   /// If set, the call whose zero-based index matches this value throws
@@ -101,25 +102,33 @@ void main() {
     });
 
     test(
-        'retry with the same profile after a failed upload triggers a fresh send',
-        () async {
-      // Fail the very first write (the header).
-      transport.failIndexOnce = 0;
-      await expectLater(
-        () => de1.setProfile(profile),
-        throwsA(isA<Exception>()),
-      );
-      final writesAfterFailure = transport.writes.length;
-      expect(writesAfterFailure, 1,
-          reason: 'only the header write reached the transport before the throw');
+      'retry with the same profile after a failed upload triggers a fresh send',
+      () async {
+        // Fail the very first write (the header).
+        transport.failIndexOnce = 0;
+        await expectLater(
+          () => de1.setProfile(profile),
+          throwsA(isA<Exception>()),
+        );
+        final writesAfterFailure = transport.writes.length;
+        expect(
+          writesAfterFailure,
+          1,
+          reason:
+              'only the header write reached the transport before the throw',
+        );
 
-      // Retry with the same profile. On the pre-fix code this is a silent
-      // no-op; on the fixed code it re-runs the full send.
-      await de1.setProfile(profile);
+        // Retry with the same profile. On the pre-fix code this is a silent
+        // no-op; on the fixed code it re-runs the full send.
+        await de1.setProfile(profile);
 
-      expect(transport.writes.length, greaterThan(writesAfterFailure),
-          reason: 'retry must re-upload after a prior failed attempt');
-    });
+        expect(
+          transport.writes.length,
+          greaterThan(writesAfterFailure),
+          reason: 'retry must re-upload after a prior failed attempt',
+        );
+      },
+    );
 
     test('repeated call after a successful upload is a no-op', () async {
       await de1.setProfile(profile);
@@ -127,8 +136,11 @@ void main() {
       expect(writesAfterSuccess, greaterThan(0));
 
       await de1.setProfile(profile);
-      expect(transport.writes.length, writesAfterSuccess,
-          reason: 'identical upload on successful cache must short-circuit');
+      expect(
+        transport.writes.length,
+        writesAfterSuccess,
+        reason: 'identical upload on successful cache must short-circuit',
+      );
     });
 
     test('different profile always uploads', () async {
@@ -138,8 +150,11 @@ void main() {
       final other = profile.copyWith(title: 'Different Profile');
       await de1.setProfile(other);
 
-      expect(transport.writes.length, greaterThan(writesAfterFirst),
-          reason: 'different profile must upload even after a prior success');
+      expect(
+        transport.writes.length,
+        greaterThan(writesAfterFirst),
+        reason: 'different profile must upload even after a prior success',
+      );
     });
   });
 }

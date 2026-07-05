@@ -5,16 +5,18 @@ import 'package:logging/logging.dart';
 
 /// Service for installing APK files on Android
 class ApkInstaller {
-  static const MethodChannel _channel = MethodChannel('com.reaprime.updater/apk_installer');
+  static const MethodChannel _channel = MethodChannel(
+    'com.reaprime.updater/apk_installer',
+  );
   final Logger _log = Logger('ApkInstaller');
 
   /// Install an APK file using the system package installer
-  /// 
+  ///
   /// This will open the Android package installer dialog for the user to confirm
   /// installation. On Android 8.0+, this requires REQUEST_INSTALL_PACKAGES permission.
-  /// 
+  ///
   /// [apkPath] - Absolute path to the APK file to install
-  /// 
+  ///
   /// Returns true if the installation was triggered successfully
   Future<bool> installApk(String apkPath) async {
     if (!Platform.isAndroid) {
@@ -23,7 +25,7 @@ class ApkInstaller {
 
     try {
       _log.info('Installing APK from $apkPath');
-      
+
       final bool? result = await _channel.invokeMethod('installApk', {
         'apkPath': apkPath,
       });
@@ -36,9 +38,9 @@ class ApkInstaller {
   }
 
   /// Check if the app has permission to install packages
-  /// 
+  ///
   /// On Android 8.0+, apps need REQUEST_INSTALL_PACKAGES permission
-  /// 
+  ///
   /// Returns true if permission is granted
   Future<bool> canInstallPackages() async {
     if (!Platform.isAndroid) {
@@ -55,7 +57,7 @@ class ApkInstaller {
   }
 
   /// Request permission to install packages
-  /// 
+  ///
   /// This will open the system settings page where the user can grant permission
   Future<void> requestInstallPermission() async {
     if (!Platform.isAndroid) {

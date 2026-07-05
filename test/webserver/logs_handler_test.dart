@@ -51,14 +51,16 @@ void main() {
       expect(await res.readAsString(), 'newest\nmiddle\noldest\n');
     });
 
-    test('does not produce a leading blank line from a trailing newline',
-        () async {
-      logFile.writeAsStringSync('a\nb\nc\n');
-      final res = await get(handlerFor(logFile.path), '/api/v1/logs');
-      final body = await res.readAsString();
-      expect(body, 'c\nb\na\n');
-      expect(body.startsWith('\n'), isFalse);
-    });
+    test(
+      'does not produce a leading blank line from a trailing newline',
+      () async {
+        logFile.writeAsStringSync('a\nb\nc\n');
+        final res = await get(handlerFor(logFile.path), '/api/v1/logs');
+        final body = await res.readAsString();
+        expect(body, 'c\nb\na\n');
+        expect(body.startsWith('\n'), isFalse);
+      },
+    );
 
     test('empty file yields an empty body (not a blank line)', () async {
       logFile.writeAsStringSync('');
@@ -68,8 +70,10 @@ void main() {
     });
 
     test('missing file returns 404', () async {
-      final res =
-          await get(handlerFor('${tmpDir.path}/nope.txt'), '/api/v1/logs');
+      final res = await get(
+        handlerFor('${tmpDir.path}/nope.txt'),
+        '/api/v1/logs',
+      );
       expect(res.statusCode, 404);
     });
 
@@ -102,32 +106,34 @@ void main() {
 
     test('?order=asc returns the original chronological order', () async {
       logFile.writeAsStringSync('oldest\nmiddle\nnewest\n');
-      final res =
-          await get(handlerFor(logFile.path), '/api/v1/logs?order=asc');
+      final res = await get(handlerFor(logFile.path), '/api/v1/logs?order=asc');
       expect(res.statusCode, 200);
       expect(await res.readAsString(), 'oldest\nmiddle\nnewest\n');
     });
 
     test('?order=desc is the explicit default (newest-first)', () async {
       logFile.writeAsStringSync('oldest\nmiddle\nnewest\n');
-      final res =
-          await get(handlerFor(logFile.path), '/api/v1/logs?order=desc');
+      final res = await get(
+        handlerFor(logFile.path),
+        '/api/v1/logs?order=desc',
+      );
       expect(res.statusCode, 200);
       expect(await res.readAsString(), 'newest\nmiddle\noldest\n');
     });
 
     test('?order is case-insensitive', () async {
       logFile.writeAsStringSync('oldest\nnewest\n');
-      final res =
-          await get(handlerFor(logFile.path), '/api/v1/logs?order=ASC');
+      final res = await get(handlerFor(logFile.path), '/api/v1/logs?order=ASC');
       expect(res.statusCode, 200);
       expect(await res.readAsString(), 'oldest\nnewest\n');
     });
 
     test('an unrecognized ?order value is rejected', () async {
       logFile.writeAsStringSync('x\n');
-      final res =
-          await get(handlerFor(logFile.path), '/api/v1/logs?order=sideways');
+      final res = await get(
+        handlerFor(logFile.path),
+        '/api/v1/logs?order=sideways',
+      );
       expect(res.statusCode, 400);
     });
 
@@ -137,8 +143,10 @@ void main() {
       ];
       logFile.writeAsStringSync('${lines.join('\n')}\n');
 
-      final res =
-          await get(handlerFor(logFile.path), '/api/v1/logs?kb=1&order=asc');
+      final res = await get(
+        handlerFor(logFile.path),
+        '/api/v1/logs?kb=1&order=asc',
+      );
       final body = await res.readAsString();
 
       expect(res.statusCode, 200);
@@ -164,8 +172,7 @@ void main() {
         '[t3] [skin] [WARN] three\n',
       );
 
-      final res =
-          await get(handlerFor(service), '/api/v1/webview/logs');
+      final res = await get(handlerFor(service), '/api/v1/webview/logs');
 
       expect(res.statusCode, 200);
       expect(res.headers['content-type'], 'text/plain');
@@ -178,8 +185,10 @@ void main() {
     });
 
     test('empty log yields an empty body', () async {
-      final res = await get(handlerFor(_StubWebViewLogService('')),
-          '/api/v1/webview/logs');
+      final res = await get(
+        handlerFor(_StubWebViewLogService('')),
+        '/api/v1/webview/logs',
+      );
       expect(res.statusCode, 200);
       expect(await res.readAsString(), '');
     });
@@ -191,8 +200,10 @@ void main() {
         '[t3] [skin] [WARN] three\n',
       );
 
-      final res =
-          await get(handlerFor(service), '/api/v1/webview/logs?order=asc');
+      final res = await get(
+        handlerFor(service),
+        '/api/v1/webview/logs?order=asc',
+      );
 
       expect(res.statusCode, 200);
       expect(
@@ -204,8 +215,10 @@ void main() {
     });
 
     test('an unrecognized ?order value is rejected', () async {
-      final res = await get(handlerFor(_StubWebViewLogService('x\n')),
-          '/api/v1/webview/logs?order=sideways');
+      final res = await get(
+        handlerFor(_StubWebViewLogService('x\n')),
+        '/api/v1/webview/logs?order=sideways',
+      );
       expect(res.statusCode, 400);
     });
   });

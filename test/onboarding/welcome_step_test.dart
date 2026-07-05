@@ -12,14 +12,16 @@ void main() {
     });
 
     testWidgets('displays welcome copy', (tester) async {
-      final controller = OnboardingController(steps: [
-        createWelcomeStep(),
-        OnboardingStep(
-          id: 'next',
-          shouldShow: () async => true,
-          builder: (_) => const SizedBox(),
-        ),
-      ]);
+      final controller = OnboardingController(
+        steps: [
+          createWelcomeStep(),
+          OnboardingStep(
+            id: 'next',
+            shouldShow: () async => true,
+            builder: (_) => const SizedBox(),
+          ),
+        ],
+      );
       await controller.initialize();
 
       await tester.pumpWidget(
@@ -49,14 +51,16 @@ void main() {
     });
 
     testWidgets('Get Started button advances controller', (tester) async {
-      final controller = OnboardingController(steps: [
-        createWelcomeStep(),
-        OnboardingStep(
-          id: 'next',
-          shouldShow: () async => true,
-          builder: (_) => const SizedBox(),
-        ),
-      ]);
+      final controller = OnboardingController(
+        steps: [
+          createWelcomeStep(),
+          OnboardingStep(
+            id: 'next',
+            shouldShow: () async => true,
+            builder: (_) => const SizedBox(),
+          ),
+        ],
+      );
       await controller.initialize();
 
       await tester.pumpWidget(

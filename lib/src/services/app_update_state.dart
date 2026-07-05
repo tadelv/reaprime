@@ -84,13 +84,13 @@ class AppUpdateState {
   }
 
   Map<String, dynamic> toJson() => {
-        'phase': phase.name,
-        'currentVersion': currentVersion,
-        'latestVersion': latestVersion,
-        'releaseNotes': releaseNotes,
-        'releaseUrl': releaseUrl,
-        'installable': installable,
-        'progress': progress,
-        'error': error,
-      };
+    'phase': phase.name,
+    'currentVersion': currentVersion,
+    'latestVersion': latestVersion,
+    'releaseNotes': releaseNotes,
+    'releaseUrl': releaseUrl,
+    'installable': installable,
+    'progress': progress,
+    'error': error,
+  };
 }

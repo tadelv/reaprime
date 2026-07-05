@@ -33,8 +33,9 @@ class BeansHandler {
     try {
       final includeArchived =
           req.url.queryParameters['includeArchived'] == 'true';
-      final beans =
-          await _storage.getAllBeans(includeArchived: includeArchived);
+      final beans = await _storage.getAllBeans(
+        includeArchived: includeArchived,
+      );
       return jsonOkConditional(req, beans.map((b) => b.toJson()).toList());
     } catch (e, st) {
       _log.severe('Error getting beans', e, st);
@@ -137,8 +138,10 @@ class BeansHandler {
     try {
       final includeArchived =
           req.url.queryParameters['includeArchived'] == 'true';
-      final batches = await _storage.getBatchesForBean(beanId,
-          includeArchived: includeArchived);
+      final batches = await _storage.getBatchesForBean(
+        beanId,
+        includeArchived: includeArchived,
+      );
       return jsonOkConditional(req, batches.map((b) => b.toJson()).toList());
     } catch (e, st) {
       _log.severe('Error getting batches for bean $beanId', e, st);

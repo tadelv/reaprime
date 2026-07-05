@@ -36,21 +36,23 @@ class DevicesStateAggregator {
     required ConnectionManager connectionManager,
     RememberedDevicesController? rememberedController,
     String? Function()? preferredScaleId,
-  })  : _controller = controller,
-        _batteryController = batteryController,
-        _connectionManager = connectionManager,
-        _rememberedController = rememberedController,
-        _preferredScaleId = preferredScaleId {
+  }) : _controller = controller,
+       _batteryController = batteryController,
+       _connectionManager = connectionManager,
+       _rememberedController = rememberedController,
+       _preferredScaleId = preferredScaleId {
     _start();
   }
 
   void _start() {
     // Subscribe to device list changes (skip initial BehaviorSubject replay;
     // initial state is sent via the seeded emitState below)
-    _subscriptions.add(_controller.deviceStream.skip(1).listen((devices) {
-      _updateDeviceSubscriptions(devices);
-      _emitState();
-    }));
+    _subscriptions.add(
+      _controller.deviceStream.skip(1).listen((devices) {
+        _updateDeviceSubscriptions(devices);
+        _emitState();
+      }),
+    );
 
     // Subscribe to scanning state changes (skip initial replay)
     _subscriptions.add(
@@ -89,8 +91,9 @@ class DevicesStateAggregator {
     final currentIds = devices.map((d) => d.deviceId).toSet();
 
     // Remove subscriptions for devices no longer in the list
-    final staleIds =
-        _deviceStateSubs.keys.where((id) => !currentIds.contains(id)).toList();
+    final staleIds = _deviceStateSubs.keys
+        .where((id) => !currentIds.contains(id))
+        .toList();
     for (final id in staleIds) {
       _deviceStateSubs.remove(id)?.$2.cancel();
     }
@@ -108,8 +111,7 @@ class DevicesStateAggregator {
       }
       // New device or replacement: subscribe (skip initial replay — the
       // current state is already captured by _buildSnapshot)
-      final sub =
-          device.connectionState.skip(1).listen((_) => _emitState());
+      final sub = device.connectionState.skip(1).listen((_) => _emitState());
       _deviceStateSubs[device.deviceId] = (device, sub);
     }
   }
@@ -149,27 +151,30 @@ class DevicesStateAggregator {
       'scanning': _controller.isScanning,
     };
     if (_batteryController?.currentChargingState != null) {
-      snapshot['charging'] =
-          _batteryController!.currentChargingState!.toJson();
+      snapshot['charging'] = _batteryController!.currentChargingState!.toJson();
     }
     final cs = _connectionManager.currentStatus;
     snapshot['connectionStatus'] = {
       'phase': cs.phase.name,
       'foundMachines': cs.foundMachines
-          .map((m) => {
-                'name': m.name,
-                'id': m.deviceId,
-                'state': 'discovered',
-                'type': DeviceType.machine.name,
-              })
+          .map(
+            (m) => {
+              'name': m.name,
+              'id': m.deviceId,
+              'state': 'discovered',
+              'type': DeviceType.machine.name,
+            },
+          )
           .toList(),
       'foundScales': cs.foundScales
-          .map((s) => {
-                'name': s.name,
-                'id': s.deviceId,
-                'state': 'discovered',
-                'type': DeviceType.scale.name,
-              })
+          .map(
+            (s) => {
+              'name': s.name,
+              'id': s.deviceId,
+              'state': 'discovered',
+              'type': DeviceType.scale.name,
+            },
+          )
           .toList(),
       'pendingAmbiguity': cs.pendingAmbiguity?.name,
       'error': cs.error?.toJson(),
@@ -205,17 +210,17 @@ class DevicesHandler {
     required ConnectionManager connectionManager,
     RememberedDevicesController? rememberedController,
     String? Function()? preferredScaleId,
-  })  : _controller = controller,
-        _connectionManager = connectionManager,
-        _rememberedController = rememberedController,
-        _preferredScaleId = preferredScaleId,
-        _aggregator = DevicesStateAggregator(
-          controller: controller,
-          batteryController: batteryController,
-          connectionManager: connectionManager,
-          rememberedController: rememberedController,
-          preferredScaleId: preferredScaleId,
-        );
+  }) : _controller = controller,
+       _connectionManager = connectionManager,
+       _rememberedController = rememberedController,
+       _preferredScaleId = preferredScaleId,
+       _aggregator = DevicesStateAggregator(
+         controller: controller,
+         batteryController: batteryController,
+         connectionManager: connectionManager,
+         rememberedController: rememberedController,
+         preferredScaleId: preferredScaleId,
+       );
 
   void dispose() {
     _aggregator.dispose();
@@ -234,7 +239,8 @@ class DevicesHandler {
       final bool quickScan =
           req.requestedUri.queryParametersAll["quick"]?.firstOrNull == "true";
       final bool connect =
-          req.requestedUri.queryParametersAll["connect"]?.firstOrNull != "false";
+          req.requestedUri.queryParametersAll["connect"]?.firstOrNull !=
+          "false";
       log.info("running scan, quick = $quickScan, connect = $connect");
       if (connect) {
         if (quickScan) {
@@ -309,7 +315,9 @@ class DevicesHandler {
       // The feature is wired in normal operation; a null controller means it's
       // unavailable, not that the server broke — 503, not 500, so it doesn't
       // pollute error monitoring.
-      return jsonServiceUnavailable({'error': 'remembered devices not available'});
+      return jsonServiceUnavailable({
+        'error': 'remembered devices not available',
+      });
     }
     final deviceId = await _extractDeviceId(req);
     if (deviceId == null) {
@@ -422,11 +430,14 @@ class DevicesHandler {
       case 'connect':
         final deviceId = data['deviceId'] as String?;
         if (deviceId == null) {
-          socket.sink.add(jsonEncode({'error': 'Missing "deviceId" for connect'}));
+          socket.sink.add(
+            jsonEncode({'error': 'Missing "deviceId" for connect'}),
+          );
           return;
         }
-        final device =
-            _controller.devices.firstWhereOrNull((e) => e.deviceId == deviceId);
+        final device = _controller.devices.firstWhereOrNull(
+          (e) => e.deviceId == deviceId,
+        );
         if (device == null) {
           socket.sink.add(jsonEncode({'error': 'Device not found: $deviceId'}));
           return;
@@ -438,12 +449,14 @@ class DevicesHandler {
       case 'disconnect':
         final deviceId = data['deviceId'] as String?;
         if (deviceId == null) {
-          socket.sink
-              .add(jsonEncode({'error': 'Missing "deviceId" for disconnect'}));
+          socket.sink.add(
+            jsonEncode({'error': 'Missing "deviceId" for disconnect'}),
+          );
           return;
         }
-        final device =
-            _controller.devices.firstWhereOrNull((e) => e.deviceId == deviceId);
+        final device = _controller.devices.firstWhereOrNull(
+          (e) => e.deviceId == deviceId,
+        );
         if (device == null) {
           socket.sink.add(jsonEncode({'error': 'Device not found: $deviceId'}));
           return;
@@ -494,31 +507,31 @@ class DeviceListEntry {
 
   /// A currently-present device, with its real connection state.
   DeviceListEntry.live(Device device, ConnectionState state)
-      : this._(
-          id: device.deviceId,
-          name: device.name,
-          type: device.type,
-          state: state,
-          available: true,
-        );
+    : this._(
+        id: device.deviceId,
+        name: device.name,
+        type: device.type,
+        state: state,
+        available: true,
+      );
 
   /// A remembered device that isn't currently present.
   DeviceListEntry.remembered(RememberedDevice r)
-      : this._(
-          id: r.id,
-          name: r.name,
-          type: r.type,
-          state: ConnectionState.disconnected,
-          available: false,
-        );
+    : this._(
+        id: r.id,
+        name: r.name,
+        type: r.type,
+        state: ConnectionState.disconnected,
+        available: false,
+      );
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'id': id,
-        'state': state.name,
-        'type': type.name,
-        'available': available,
-      };
+    'name': name,
+    'id': id,
+    'state': state.name,
+    'type': type.name,
+    'available': available,
+  };
 }
 
 /// Builds the API device list: currently-present devices (`available: true`)
@@ -556,4 +569,3 @@ Future<List<Map<String, dynamic>>> buildAvailabilityDeviceList(
   });
   return entries.map((e) => e.toJson()).toList();
 }
-

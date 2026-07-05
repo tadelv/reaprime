@@ -48,13 +48,16 @@ class SensorBasket implements Sensor {
     }
     _log.info("on connect");
     await _transport.connect();
-    _transportSubscription =
-        _transport.readStream.listen(onData, onError: (error) {
-      _log.warning("transport error", error);
-      disconnect();
-    }, onDone: () {
-      disconnect();
-    });
+    _transportSubscription = _transport.readStream.listen(
+      onData,
+      onError: (error) {
+        _log.warning("transport error", error);
+        disconnect();
+      },
+      onDone: () {
+        disconnect();
+      },
+    );
     _connectionSubject.add(ConnectionState.connected);
   }
 
@@ -87,7 +90,9 @@ class SensorBasket implements Sensor {
 
   @override
   Future<Map<String, dynamic>> execute(
-      String commandId, Map<String, dynamic>? parameters) async {
+    String commandId,
+    Map<String, dynamic>? parameters,
+  ) async {
     if (commandId == 'tare') {
       await _transport.writeCommand('tare');
       return {'status': 'ok'};
@@ -96,19 +101,24 @@ class SensorBasket implements Sensor {
   }
 
   @override
-  SensorInfo get info =>
-      SensorInfo(name: "SensorBasket", vendor: "DecentEspresso", dataChannels: [
-        DataChannel(key: "timestamp", type: "string"),
-        DataChannel(key: "temperature", type: "number", unit: "°C"),
-        DataChannel(key: "pressure", type: "number", unit: "Bar"),
-        DataChannel(key: "weight", type: "number", unit: "g"),
-        DataChannel(key: "weightFlow", type: "number", unit: "g/s"),
-      ], commands: [
-        CommandDescriptor(
-            id: 'tare',
-            name: 'Tare',
-            description: 'Tare sensor scale',
-            paramsSchema: null,
-            resultsSchema: null)
-      ]);
+  SensorInfo get info => SensorInfo(
+    name: "SensorBasket",
+    vendor: "DecentEspresso",
+    dataChannels: [
+      DataChannel(key: "timestamp", type: "string"),
+      DataChannel(key: "temperature", type: "number", unit: "°C"),
+      DataChannel(key: "pressure", type: "number", unit: "Bar"),
+      DataChannel(key: "weight", type: "number", unit: "g"),
+      DataChannel(key: "weightFlow", type: "number", unit: "g/s"),
+    ],
+    commands: [
+      CommandDescriptor(
+        id: 'tare',
+        name: 'Tare',
+        description: 'Tare sensor scale',
+        paramsSchema: null,
+        resultsSchema: null,
+      ),
+    ],
+  );
 }

@@ -15,8 +15,9 @@ class EurekaScale implements Scale {
       BleServiceIdentifier.short('fff1');
   static final BleServiceIdentifier commandCharacteristic =
       BleServiceIdentifier.short('fff2');
-  static final BleServiceIdentifier batteryService =
-      BleServiceIdentifier.short('180f');
+  static final BleServiceIdentifier batteryService = BleServiceIdentifier.short(
+    '180f',
+  );
   static final BleServiceIdentifier batteryCharacteristic =
       BleServiceIdentifier.short('2a19');
 
@@ -64,9 +65,9 @@ class EurekaScale implements Scale {
       disconnectSub = _transport.connectionState
           .where((state) => state == ConnectionState.disconnected)
           .listen((_) {
-        _connectionStateController.add(ConnectionState.disconnected);
-        disconnectSub?.cancel();
-      });
+            _connectionStateController.add(ConnectionState.disconnected);
+            disconnectSub?.cancel();
+          });
 
       final services = await _transport.discoverServices();
       if (!serviceIdentifier.matchesAny(services)) {
@@ -156,12 +157,19 @@ class EurekaScale implements Scale {
   }
 
   Future<void> _registerNotifications() async {
-    await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
+    await _transport.subscribe(
+      serviceIdentifier.long,
+      dataCharacteristic.long,
+      _parseNotification,
+    );
   }
 
   void _readBattery() async {
     try {
-      final data = await _transport.read(batteryService.long, batteryCharacteristic.long);
+      final data = await _transport.read(
+        batteryService.long,
+        batteryCharacteristic.long,
+      );
       if (data.isNotEmpty) {
         _batteryLevel = data[0];
       }

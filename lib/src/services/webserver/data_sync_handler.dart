@@ -41,8 +41,8 @@ class DataSyncHandler {
   DataSyncHandler({
     required DataExportHandler exportHandler,
     required http.Client httpClient,
-  })  : _exportHandler = exportHandler,
-        _httpClient = httpClient;
+  }) : _exportHandler = exportHandler,
+       _httpClient = httpClient;
 
   void addRoutes(RouterPlus app) {
     app.post('/api/v1/data/sync', _handleSync);
@@ -88,8 +88,7 @@ class DataSyncHandler {
     if (modeStr == null) {
       return jsonBadRequest({
         'error': 'Missing required field',
-        'message':
-            '"mode" is required. Valid values: pull, push, two_way',
+        'message': '"mode" is required. Valid values: pull, push, two_way',
       });
     }
 
@@ -241,7 +240,8 @@ class DataSyncHandler {
     if (error is TimeoutException) {
       return {
         'error': 'Target unreachable',
-        'message': 'Request timed out after ${_requestTimeout.inSeconds} seconds',
+        'message':
+            'Request timed out after ${_requestTimeout.inSeconds} seconds',
       };
     }
     return {

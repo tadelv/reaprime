@@ -13,17 +13,11 @@ class SkinOverride {
   final SkinSource source;
   final String? value;
 
-  const SkinOverride.registry()
-      : source = SkinSource.registry,
-        value = null;
+  const SkinOverride.registry() : source = SkinSource.registry, value = null;
 
-  const SkinOverride.path(String path)
-      : source = SkinSource.path,
-        value = path;
+  const SkinOverride.path(String path) : source = SkinSource.path, value = path;
 
-  const SkinOverride.id(String skinId)
-      : source = SkinSource.id,
-        value = skinId;
+  const SkinOverride.id(String skinId) : source = SkinSource.id, value = skinId;
 }
 
 enum SkinSource {
@@ -65,8 +59,7 @@ class WebUIService {
   /// touching the real platform channel. Returns null when no WiFi IP is
   /// available (null-collapsed by [_resolveLocalIP]).
   @visibleForTesting
-  static Future<String?> Function() resolveWifiIP =
-      NetworkInfo().getWifiIP;
+  static Future<String?> Function() resolveWifiIP = NetworkInfo().getWifiIP;
 
   /// Resolves the device's WiFi IP for the browser-hero card and QR code.
   /// Must not block the critical path — falls back to "localhost" when the
@@ -88,7 +81,6 @@ class WebUIService {
   /// Current account-proxy skin token, set from `ProxyTokenService.skinToken`.
   /// Injected into served HTML so skins can call the proxy. Null = no injection.
   String? skinProxyToken;
-
 
   // WebUI server methods
 
@@ -207,8 +199,8 @@ class WebUIService {
   }
 
   String deviceIp() {
-      return _localIP ?? "";
-    }
+    return _localIP ?? "";
+  }
 
   String serverPath() {
     return _path;

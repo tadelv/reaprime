@@ -52,9 +52,9 @@ class HDSWifi implements Scale, TransportHandoffScale {
     required WebSocketTransportFactory transportFactory,
     Duration recognitionTimeout = const Duration(seconds: 4),
     Duration watchdogInterval = const Duration(seconds: 4),
-  })  : _transportFactory = transportFactory,
-        _recognitionTimeout = recognitionTimeout,
-        _watchdogInterval = watchdogInterval {
+  }) : _transportFactory = transportFactory,
+       _recognitionTimeout = recognitionTimeout,
+       _watchdogInterval = watchdogInterval {
     // `package:logging` rejects names ending in '.'; hosts are normalized
     // upstream, but strip a trailing dot defensively so a stray FQDN can't
     // crash construction.
@@ -183,11 +183,13 @@ class HDSWifi implements Scale, TransportHandoffScale {
         _batteryLevel = frame.batteryPercent!;
       }
       if (frame.hasWeight) {
-        _snapshot.add(ScaleSnapshot(
-          timestamp: DateTime.now(),
-          weight: frame.grams!,
-          batteryLevel: _batteryLevel,
-        ));
+        _snapshot.add(
+          ScaleSnapshot(
+            timestamp: DateTime.now(),
+            weight: frame.grams!,
+            batteryLevel: _batteryLevel,
+          ),
+        );
       }
       if (frame.isPowerOff) {
         _log.info('scale reported power_off');
@@ -217,9 +219,10 @@ class HDSWifi implements Scale, TransportHandoffScale {
       _ticksSinceFrame++;
       if (_ticksSinceFrame >= _stallTicks) {
         _reportLost(
-            gen,
-            'watchdog: no frames for '
-            '${_watchdogInterval.inMilliseconds * _ticksSinceFrame}ms');
+          gen,
+          'watchdog: no frames for '
+          '${_watchdogInterval.inMilliseconds * _ticksSinceFrame}ms',
+        );
       }
     });
   }

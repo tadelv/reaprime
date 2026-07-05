@@ -15,7 +15,7 @@ import 'package:rxdart/rxdart.dart';
 /// (transport disconnected) vs. the no-op-reconnect path (already connected).
 class _Fake extends BLETransport {
   _Fake(ConnectionState initial)
-      : _connState = BehaviorSubject<ConnectionState>.seeded(initial);
+    : _connState = BehaviorSubject<ConnectionState>.seeded(initial);
 
   final BehaviorSubject<ConnectionState> _connState;
 
@@ -40,12 +40,20 @@ class _Fake extends BLETransport {
       Uint8List(20);
   @override
   Future<void> subscribe(
-      String s, String c, void Function(Uint8List) cb) async {}
+    String s,
+    String c,
+    void Function(Uint8List) cb,
+  ) async {}
   @override
   Future<void> setTransportPriority(bool prioritized) async {}
   @override
-  Future<void> write(String s, String c, Uint8List data,
-      {bool withResponse = true, Duration? timeout}) async {}
+  Future<void> write(
+    String s,
+    String c,
+    Uint8List data, {
+    bool withResponse = true,
+    Duration? timeout,
+  }) async {}
   @override
   Future<void> dispose() async {}
 }
@@ -66,16 +74,22 @@ void main() {
 
   test('records DuplicateBleSubscription when connect runs on an '
       'already-connected transport', () async {
-    final transport = UnifiedDe1Transport(transport: _Fake(
-      ConnectionState.connected,
-    ));
+    final transport = UnifiedDe1Transport(
+      transport: _Fake(
+        ConnectionState.connected,
+      ),
+    );
 
     await transport.connect();
 
-    final hits =
-        records.where((r) => r.error is DuplicateBleSubscription).toList();
-    expect(hits.length, 1,
-        reason: 'no-op reconnect should record exactly one non-fatal');
+    final hits = records
+        .where((r) => r.error is DuplicateBleSubscription)
+        .toList();
+    expect(
+      hits.length,
+      1,
+      reason: 'no-op reconnect should record exactly one non-fatal',
+    );
 
     // Privacy: the recorded error is forwarded to Crashlytics unscrubbed, so
     // it must carry an anonymized id, never the raw device id / MAC.
@@ -84,11 +98,12 @@ void main() {
     expect(err.toString(), isNot(contains('fake-id')));
   });
 
-  test('does not record on a first connect (transport disconnected)',
-      () async {
-    final transport = UnifiedDe1Transport(transport: _Fake(
-      ConnectionState.disconnected,
-    ));
+  test('does not record on a first connect (transport disconnected)', () async {
+    final transport = UnifiedDe1Transport(
+      transport: _Fake(
+        ConnectionState.disconnected,
+      ),
+    );
 
     await transport.connect();
 

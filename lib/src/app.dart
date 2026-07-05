@@ -144,62 +144,65 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _initializeDe1StateManager();
-    _onboardingController = OnboardingController(steps: [
-      createAndroidWarningStep(
-        settingsController: widget.settingsController,
-      ),
-      OnboardingStep(
-        id: 'welcome',
-        shouldShow: () async =>
-            !widget.settingsController.onboardingCompleted,
-        builder: createWelcomeStep().builder,
-      ),
-      if (widget.decentAccountService != null)
-        createLoginStep(
-          accountService: widget.decentAccountService!,
+    _onboardingController = OnboardingController(
+      steps: [
+        createAndroidWarningStep(
           settingsController: widget.settingsController,
         ),
-      createPermissionsStep(
-        de1Controller: widget.de1Controller,
-      ),
-      createInitializationStep(
-        deviceController: widget.deviceController,
-        de1Controller: widget.de1Controller,
-        pluginLoaderService: widget.pluginLoaderService,
-        webUIStorage: widget.webUIStorage,
-        webUIService: widget.webUIService,
-      ),
-      if (widget.profileStorageService != null &&
-          widget.beanStorage != null &&
-          widget.grinderStorage != null)
         OnboardingStep(
-          id: 'import',
+          id: 'welcome',
           shouldShow: () async =>
               !widget.settingsController.onboardingCompleted,
-          builder: createImportStep(
-            storageService: widget.persistenceController.storageService,
-            profileStorageService: widget.profileStorageService!,
-            beanStorageService: widget.beanStorage!,
-            grinderStorageService: widget.grinderStorage!,
-            settingsController: widget.settingsController,
-            persistenceController: widget.persistenceController,
-            workflowController: widget.workflowController,
-          ).builder,
+          builder: createWelcomeStep().builder,
         ),
-      createScanStep(
-        connectionManager: widget.connectionManager,
-        deviceController: widget.deviceController,
-        settingsController: widget.settingsController,
-        scanStateGuardian: widget.scanStateGuardian,
-        directConnect: widget.directConnect,
-        onSkipToDashboard: () {
-          NavigationService.navigatorKey.currentState?.pushNamedAndRemoveUntil(
-            LauncherView.routeName,
-            (_) => false,
-          );
-        },
-      ),
-    ]);
+        if (widget.decentAccountService != null)
+          createLoginStep(
+            accountService: widget.decentAccountService!,
+            settingsController: widget.settingsController,
+          ),
+        createPermissionsStep(
+          de1Controller: widget.de1Controller,
+        ),
+        createInitializationStep(
+          deviceController: widget.deviceController,
+          de1Controller: widget.de1Controller,
+          pluginLoaderService: widget.pluginLoaderService,
+          webUIStorage: widget.webUIStorage,
+          webUIService: widget.webUIService,
+        ),
+        if (widget.profileStorageService != null &&
+            widget.beanStorage != null &&
+            widget.grinderStorage != null)
+          OnboardingStep(
+            id: 'import',
+            shouldShow: () async =>
+                !widget.settingsController.onboardingCompleted,
+            builder: createImportStep(
+              storageService: widget.persistenceController.storageService,
+              profileStorageService: widget.profileStorageService!,
+              beanStorageService: widget.beanStorage!,
+              grinderStorageService: widget.grinderStorage!,
+              settingsController: widget.settingsController,
+              persistenceController: widget.persistenceController,
+              workflowController: widget.workflowController,
+            ).builder,
+          ),
+        createScanStep(
+          connectionManager: widget.connectionManager,
+          deviceController: widget.deviceController,
+          settingsController: widget.settingsController,
+          scanStateGuardian: widget.scanStateGuardian,
+          directConnect: widget.directConnect,
+          onSkipToDashboard: () {
+            NavigationService.navigatorKey.currentState
+                ?.pushNamedAndRemoveUntil(
+                  LauncherView.routeName,
+                  (_) => false,
+                );
+          },
+        ),
+      ],
+    );
     _onboardingController.initialize();
     _resolveDegradedAndroid();
   }
@@ -267,13 +270,16 @@ class _MyAppState extends State<MyApp> {
 
     // WebView supported on iOS, Android, macOS, Windows. Degraded Android
     // (SDK < 31) is steered to the browser, so don't auto-open the skin there.
-    final supportedPlatforms = Platform.isIOS ||
+    final supportedPlatforms =
+        Platform.isIOS ||
         Platform.isAndroid ||
         Platform.isMacOS ||
         Platform.isWindows;
     if (!supportedPlatforms || _degradedAndroid) {
-      _log.info('Skin not auto-opened (unsupported platform or degraded '
-          'Android) — launcher shows the browser hero card.');
+      _log.info(
+        'Skin not auto-opened (unsupported platform or degraded '
+        'Android) — launcher shows the browser hero card.',
+      );
       return;
     }
 
@@ -322,10 +328,10 @@ class _MyAppState extends State<MyApp> {
     // Foreground service is now started in main.dart for Android
 
     final body = ScaffoldMessenger(
-        child: ListenableBuilder(
-          listenable: widget.settingsController,
-          builder: (BuildContext context, Widget? child) {
-            return ShadApp(
+      child: ListenableBuilder(
+        listenable: widget.settingsController,
+        builder: (BuildContext context, Widget? child) {
+          return ShadApp(
             // Providing a restorationScopeId allows the Navigator built by the
             // MaterialApp to restore the navigation stack when a user leaves and
             // returns to the app after it has been killed while running in the
@@ -349,7 +355,7 @@ class _MyAppState extends State<MyApp> {
             //
             // The appTitle is defined in .arb files found in the localization
             // directory.
-          onGenerateTitle: (BuildContext context) => "Decent.app",
+            onGenerateTitle: (BuildContext context) => "Decent.app",
             // Define a light and dark color theme. Then, read the user's
             // preferred ThemeMode (light, dark, or system default) from the
             // SettingsController to display the correct theme.
@@ -365,7 +371,9 @@ class _MyAppState extends State<MyApp> {
 
             navigatorKey: NavigationService.navigatorKey,
             navigatorObservers: [
-              PresenceNavigatorObserver(presenceController: widget.presenceController),
+              PresenceNavigatorObserver(
+                presenceController: widget.presenceController,
+              ),
             ],
             // Define a function to handle named routes in order to support
             // Flutter web url navigation and deep linking.
@@ -424,16 +432,20 @@ class _MyAppState extends State<MyApp> {
                         shotSequencer = args;
                       } else {
                         final beverageType = widget
-                            .workflowController.currentWorkflow.profile.beverageType;
+                            .workflowController
+                            .currentWorkflow
+                            .profile
+                            .beverageType;
                         final scalelessBeverage =
                             beverageType == BeverageType.cleaning ||
-                                beverageType == BeverageType.calibrate;
+                            beverageType == BeverageType.calibrate;
                         shotSequencer = ShotSequencer(
                           scaleController: widget.scaleController,
                           de1controller: widget.de1Controller,
                           persistenceController: widget.persistenceController,
                           sensorController: widget.sensorController,
-                          settingsService: widget.settingsController.settingsService,
+                          settingsService:
+                              widget.settingsController.settingsService,
                           targetProfile:
                               widget.workflowController.currentWorkflow.profile,
                           targetYield:
@@ -441,14 +453,22 @@ class _MyAppState extends State<MyApp> {
                                   .workflowController
                                   .currentWorkflow
                                   .context
-                                  ?.targetYield ?? 0,
-                          bypassSAW: widget.settingsController.gatewayMode == GatewayMode.full,
-                          blockOnNoScale: widget.settingsController.blockOnNoScale &&
+                                  ?.targetYield ??
+                              0,
+                          bypassSAW:
+                              widget.settingsController.gatewayMode ==
+                              GatewayMode.full,
+                          blockOnNoScale:
+                              widget.settingsController.blockOnNoScale &&
                               !scalelessBeverage,
-                          weightFlowMultiplier: widget.settingsController.weightFlowMultiplier,
-                          volumeFlowMultiplier: widget.settingsController.volumeFlowMultiplier,
+                          weightFlowMultiplier:
+                              widget.settingsController.weightFlowMultiplier,
+                          volumeFlowMultiplier:
+                              widget.settingsController.volumeFlowMultiplier,
                           stepExitArbiterEnabled: widget.settingsController
-                              .isFeatureFlagEnabled(FeatureFlag.stepExitArbiter),
+                              .isFeatureFlagEnabled(
+                                FeatureFlag.stepExitArbiter,
+                              ),
                         );
                       }
                       return RealtimeShotFeature(
@@ -524,7 +544,9 @@ class _MyAppState extends State<MyApp> {
                     case AccountPage.routeName:
                       if (widget.decentAccountService == null) {
                         return Scaffold(
-                          body: Center(child: Text('Account service not available')),
+                          body: Center(
+                            child: Text('Account service not available'),
+                          ),
                         );
                       }
                       return AccountPage(
@@ -561,11 +583,3 @@ class _MyAppState extends State<MyApp> {
     return body;
   }
 }
-
-
-
-
-
-
-
-

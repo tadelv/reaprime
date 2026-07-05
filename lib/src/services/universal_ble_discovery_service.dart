@@ -74,7 +74,9 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
     });
 
     if (initialState != AvailabilityState.poweredOn) {
-      log.warning("Bluetooth not supported on this platform, state: ${initialState.name}");
+      log.warning(
+        "Bluetooth not supported on this platform, state: ${initialState.name}",
+      );
     }
   }
 
@@ -226,8 +228,9 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
       }
 
       final name = device.name ?? '';
-      final manufacturerCompanyIds = device.manufacturerDataList
-          .map((entry) => entry.companyId);
+      final manufacturerCompanyIds = device.manufacturerDataList.map(
+        (entry) => entry.companyId,
+      );
       final serviceUuids = device.services;
 
       final transport = UniversalBleTransport(device: device);

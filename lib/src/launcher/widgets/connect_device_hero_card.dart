@@ -22,8 +22,11 @@ class ConnectDeviceHeroCard extends StatelessWidget {
           Row(
             spacing: 8,
             children: [
-              Icon(LucideIcons.bluetooth,
-                  size: 20, color: theme.colorScheme.primary),
+              Icon(
+                LucideIcons.bluetooth,
+                size: 20,
+                color: theme.colorScheme.primary,
+              ),
               Text('Connect your machine', style: theme.textTheme.h4),
             ],
           ),

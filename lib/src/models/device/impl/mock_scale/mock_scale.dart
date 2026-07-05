@@ -82,11 +82,14 @@ class MockScale implements Scale, SimulatedDevice {
       } else if (_frozenTimerValue != null) {
         timerValue = _frozenTimerValue;
       }
-      _snapshotStream.add(ScaleSnapshot(
+      _snapshotStream.add(
+        ScaleSnapshot(
           weight: _weight,
           timestamp: DateTime.now(),
           batteryLevel: 100,
-          timerValue: timerValue));
+          timerValue: timerValue,
+        ),
+      );
     });
   }
 

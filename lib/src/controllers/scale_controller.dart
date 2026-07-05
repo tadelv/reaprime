@@ -63,7 +63,9 @@ class ScaleController {
         }
       } catch (e) {
         log.warning(
-            'Failed to disconnect previous scale ${previous.deviceId}', e);
+          'Failed to disconnect previous scale ${previous.deviceId}',
+          e,
+        );
       }
     }
     _scaleSnapshot = scale.currentSnapshot.listen(_processSnapshot);
@@ -173,7 +175,8 @@ class ScaleController {
 
     // Suppress the flow transient a tare introduces until the smoothing window
     // has cleared the discontinuity. Weight itself stays truthful throughout.
-    final settling = _flowSettleUntil != null &&
+    final settling =
+        _flowSettleUntil != null &&
         snapshot.timestamp.isBefore(_flowSettleUntil!);
 
     _weightSnapshotController.add(

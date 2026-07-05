@@ -139,7 +139,8 @@ class SettingsController with ChangeNotifier {
     _automaticUpdateCheck = await _settingsService.automaticUpdateCheck();
     _telemetryConsent = await _settingsService.telemetryConsent();
     _telemetryPromptShown = await _settingsService.telemetryPromptShown();
-    _telemetryConsentDialogShown = await _settingsService.telemetryConsentDialogShown();
+    _telemetryConsentDialogShown = await _settingsService
+        .telemetryConsentDialogShown();
     _chargingMode = await _settingsService.chargingMode();
     _nightModeEnabled = await _settingsService.nightModeEnabled();
     _nightModeSleepTime = await _settingsService.nightModeSleepTime();
@@ -147,13 +148,12 @@ class SettingsController with ChangeNotifier {
     _userPresenceEnabled = await _settingsService.userPresenceEnabled();
     _sleepTimeoutMinutes = await _settingsService.sleepTimeoutMinutes();
     _wakeSchedules = await _settingsService.wakeSchedules();
-    _lowBatteryBrightnessLimit = await _settingsService.lowBatteryBrightnessLimit();
+    _lowBatteryBrightnessLimit = await _settingsService
+        .lowBatteryBrightnessLimit();
     _onboardingCompleted = await _settingsService.onboardingCompleted();
     _accountStepSeen = await _settingsService.accountStepSeen();
-    _androidWarningDismissed =
-        await _settingsService.androidWarningDismissed();
-    _enableSimulatedWebViews =
-        await _settingsService.enableSimulatedWebViews();
+    _androidWarningDismissed = await _settingsService.androidWarningDismissed();
+    _enableSimulatedWebViews = await _settingsService.enableSimulatedWebViews();
 
     // Load feature flags
     for (final flag in FeatureFlag.values) {
@@ -223,7 +223,10 @@ class SettingsController with ChangeNotifier {
   }
 
   Future<void> setSimulatedDevices(Set<SimulatedDevicesTypes> value) async {
-    if (const SetEquality<SimulatedDevicesTypes>().equals(value, _simulatedDevices)) {
+    if (const SetEquality<SimulatedDevicesTypes>().equals(
+      value,
+      _simulatedDevices,
+    )) {
       return;
     }
     _simulatedDevices = value;
@@ -243,10 +246,12 @@ class SettingsController with ChangeNotifier {
   /// on app restart.
   void enableSimulatedDevicesForSession(Set<SimulatedDevicesTypes> devices) {
     _simulatedDevices = devices;
-    _preferredMachineId =
-        devices.contains(SimulatedDevicesTypes.machine) ? 'MockDe1' : null;
-    _preferredScaleId =
-        devices.contains(SimulatedDevicesTypes.scale) ? 'MockScale' : null;
+    _preferredMachineId = devices.contains(SimulatedDevicesTypes.machine)
+        ? 'MockDe1'
+        : null;
+    _preferredScaleId = devices.contains(SimulatedDevicesTypes.scale)
+        ? 'MockScale'
+        : null;
     notifyListeners();
   }
 
@@ -285,7 +290,7 @@ class SettingsController with ChangeNotifier {
     await _settingsService.setScalePowerMode(mode);
     notifyListeners();
   }
-  
+
   Future<void> setBlockOnNoScale(bool value) async {
     if (value == _blockOnNoScale) {
       return;
@@ -470,6 +475,3 @@ class SettingsController with ChangeNotifier {
     notifyListeners();
   }
 }
-
-
-

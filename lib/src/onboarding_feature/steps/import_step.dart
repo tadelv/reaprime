@@ -20,7 +20,6 @@ import 'package:reaprime/src/services/storage/storage_service.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 
-
 enum _ImportPhase {
   pickSource,
   copying, // Android SAF: copying files from external storage to app cache
@@ -89,7 +88,11 @@ class _ImportStepViewState extends State<_ImportStepView> {
   final _log = Logger('ImportStep');
   _ImportPhase _phase = _ImportPhase.pickSource;
   ScanResult? _scanResult;
-  ImportProgress _progress = const ImportProgress(current: 0, total: 0, phase: '');
+  ImportProgress _progress = const ImportProgress(
+    current: 0,
+    total: 0,
+    phase: '',
+  );
   int _shotsProcessed = 0;
   int _profilesImported = 0;
   int _beansCreated = 0;
@@ -196,7 +199,9 @@ class _ImportStepViewState extends State<_ImportStepView> {
         final responseBody = await response.transform(utf8.decoder).join();
 
         if (response.statusCode != 200) {
-          throw Exception('Server returned ${response.statusCode}: $responseBody');
+          throw Exception(
+            'Server returned ${response.statusCode}: $responseBody',
+          );
         }
 
         final responseJson = jsonDecode(responseBody) as Map<String, dynamic>;
@@ -325,76 +330,79 @@ class _ImportStepViewState extends State<_ImportStepView> {
     return Scaffold(
       body: switch (_phase) {
         _ImportPhase.pickSource => ImportSourcePicker(
-            onDe1appFolderSelected: _onFolderSelected,
-            onZipFileSelected: _onZipSelected,
-            onSkip: _onComplete,
-          ),
+          onDe1appFolderSelected: _onFolderSelected,
+          onZipFileSelected: _onZipSelected,
+          onSkip: _onComplete,
+        ),
         _ImportPhase.copying => Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              spacing: 16,
-              children: [
-                if (_filesToCopy > 0)
-                  Semantics(
-                    label: 'Copying files from selected folder',
-                    child: SizedBox(
-                      width: 200,
-                      child: LinearProgressIndicator(
-                        value: _filesCopied / _filesToCopy,
-                      ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 16,
+            children: [
+              if (_filesToCopy > 0)
+                Semantics(
+                  label: 'Copying files from selected folder',
+                  child: SizedBox(
+                    width: 200,
+                    child: LinearProgressIndicator(
+                      value: _filesCopied / _filesToCopy,
                     ),
-                  )
-                else
-                  Semantics(
-                    label: 'Preparing import',
-                    child: CircularProgressIndicator(),
                   ),
+                )
+              else
                 Semantics(
-                  liveRegion: _filesToCopy == 0 ||
-                      _filesCopied == _filesToCopy ||
-                      (_filesToCopy > 0 &&
-                          _filesCopied % (_filesToCopy ~/ 4).clamp(1, _filesToCopy) == 0),
-                  child: Text(
-                    _filesToCopy > 0
-                        ? 'Copying files... $_filesCopied / $_filesToCopy'
-                        : 'Preparing import...',
-                  ),
-                ),
-              ],
-            ),
-          ),
-        _ImportPhase.scanning => Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              spacing: 16,
-              children: [
-                Semantics(
-                  label: 'Scanning folder',
+                  label: 'Preparing import',
                   child: CircularProgressIndicator(),
                 ),
-                Semantics(
-                  liveRegion: true,
-                  child: const Text('Scanning folder...'),
+              Semantics(
+                liveRegion:
+                    _filesToCopy == 0 ||
+                    _filesCopied == _filesToCopy ||
+                    (_filesToCopy > 0 &&
+                        _filesCopied %
+                                (_filesToCopy ~/ 4).clamp(1, _filesToCopy) ==
+                            0),
+                child: Text(
+                  _filesToCopy > 0
+                      ? 'Copying files... $_filesCopied / $_filesToCopy'
+                      : 'Preparing import...',
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+        ),
+        _ImportPhase.scanning => Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 16,
+            children: [
+              Semantics(
+                label: 'Scanning folder',
+                child: CircularProgressIndicator(),
+              ),
+              Semantics(
+                liveRegion: true,
+                child: const Text('Scanning folder...'),
+              ),
+            ],
+          ),
+        ),
         _ImportPhase.summary => ImportSummaryView(
-            scanResult: _scanResult!,
-            onImportAll: _onImportAll,
-            onCancel: _onCancelFromSummary,
-          ),
+          scanResult: _scanResult!,
+          onImportAll: _onImportAll,
+          onCancel: _onCancelFromSummary,
+        ),
         _ImportPhase.importing => ImportProgressView(
-            progress: _progress,
-            shotsImported: _shotsProcessed,
-            profilesImported: _profilesImported,
-            beansCreated: _beansCreated,
-            grindersCreated: _grindersCreated,
-          ),
+          progress: _progress,
+          shotsImported: _shotsProcessed,
+          profilesImported: _profilesImported,
+          beansCreated: _beansCreated,
+          grindersCreated: _grindersCreated,
+        ),
         _ImportPhase.result => ImportResultView(
-            result: _importResult!,
-            onContinue: _onComplete,
-          ),
+          result: _importResult!,
+          onContinue: _onComplete,
+        ),
       },
     );
   }

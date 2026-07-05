@@ -53,29 +53,28 @@ void main() {
   });
 
   Widget host() => ShadApp(
-        home: Builder(
-          builder: (context) => Scaffold(
-            body: Center(
-              child: ElevatedButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => LauncherScanPage(
-                      connectionManager: connectionManager,
-                      deviceController: deviceController,
-                      settingsController: settingsController,
-                      scanStateGuardian: guardian,
-                    ),
-                  ),
+    home: Builder(
+      builder: (context) => Scaffold(
+        body: Center(
+          child: ElevatedButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => LauncherScanPage(
+                  connectionManager: connectionManager,
+                  deviceController: deviceController,
+                  settingsController: settingsController,
+                  scanStateGuardian: guardian,
                 ),
-                child: const Text('open'),
               ),
             ),
+            child: const Text('open'),
           ),
         ),
-      );
+      ),
+    ),
+  );
 
-  testWidgets('pops back to launcher when phase reaches ready',
-      (tester) async {
+  testWidgets('pops back to launcher when phase reaches ready', (tester) async {
     await tester.pumpWidget(host());
     await tester.tap(find.text('open'));
     await tester.pump();
@@ -84,7 +83,8 @@ void main() {
     expect(find.byType(LauncherScanPage), findsOneWidget);
 
     connectionManager.emitStatus(
-        const ConnectionStatus(phase: ConnectionPhase.ready));
+      const ConnectionStatus(phase: ConnectionPhase.ready),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byType(LauncherScanPage), findsNothing);
@@ -99,11 +99,13 @@ void main() {
 
     // Drive to the device-picker state, which exposes the exit ('Cancel')
     // affordance, then tap it.
-    connectionManager.emitStatus(const ConnectionStatus(
-      phase: ConnectionPhase.idle,
-      foundMachines: [],
-      pendingAmbiguity: AmbiguityReason.machinePicker,
-    ));
+    connectionManager.emitStatus(
+      const ConnectionStatus(
+        phase: ConnectionPhase.idle,
+        foundMachines: [],
+        pendingAmbiguity: AmbiguityReason.machinePicker,
+      ),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Cancel'));

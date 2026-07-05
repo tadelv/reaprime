@@ -80,8 +80,11 @@ class _RecordingTelemetry implements TelemetryService {
   Future<void> initialize() async {}
 
   @override
-  Future<void> recordError(Object error, StackTrace? stackTrace,
-      {bool fatal = false}) async {}
+  Future<void> recordError(
+    Object error,
+    StackTrace? stackTrace, {
+    bool fatal = false,
+  }) async {}
 
   @override
   Future<void> log(String message) async {}
@@ -126,79 +129,95 @@ class _FakeDevice implements Device {
 }
 
 void main() {
-  group('DeviceController.scanForDevices partial failures (comms-harden #22)',
-      () {
-    test(
-      'one service throwing does not torpedo the scan — '
-      'devices from succeeding services are still returned',
-      () async {
-        final failing =
-            _FailingDiscoveryService(const PermissionDeniedException('denied'));
-        final succeeding = _QuietDiscoveryService(
-          _FakeDevice(
-            deviceId: 'D9:11:0B:E6:9F:86',
-            name: 'DE1',
-            type: DeviceType.machine,
-          ),
-        );
+  group(
+    'DeviceController.scanForDevices partial failures (comms-harden #22)',
+    () {
+      test(
+        'one service throwing does not torpedo the scan — '
+        'devices from succeeding services are still returned',
+        () async {
+          final failing = _FailingDiscoveryService(
+            const PermissionDeniedException('denied'),
+          );
+          final succeeding = _QuietDiscoveryService(
+            _FakeDevice(
+              deviceId: 'D9:11:0B:E6:9F:86',
+              name: 'DE1',
+              type: DeviceType.machine,
+            ),
+          );
 
-        final controller = DeviceController([failing, succeeding]);
-        await controller.initialize();
+          final controller = DeviceController([failing, succeeding]);
+          await controller.initialize();
 
-        final result = await controller.scanForDevices();
+          final result = await controller.scanForDevices();
 
-        expect(result.matchedDevices, hasLength(1),
-            reason: 'succeeding service must still yield its device');
-        expect(result.matchedDevices.first.deviceId, 'D9:11:0B:E6:9F:86');
-        expect(result.failedServices, hasLength(1),
-            reason: 'failing service must be surfaced in failedServices');
-        expect(result.failedServices.first.error,
-            isA<PermissionDeniedException>());
-        expect(result.failedServices.first.serviceName,
-            contains('FailingDiscoveryService'));
-        expect(result.terminationReason, ScanTerminationReason.completed);
-      },
-    );
+          expect(
+            result.matchedDevices,
+            hasLength(1),
+            reason: 'succeeding service must still yield its device',
+          );
+          expect(result.matchedDevices.first.deviceId, 'D9:11:0B:E6:9F:86');
+          expect(
+            result.failedServices,
+            hasLength(1),
+            reason: 'failing service must be surfaced in failedServices',
+          );
+          expect(
+            result.failedServices.first.error,
+            isA<PermissionDeniedException>(),
+          );
+          expect(
+            result.failedServices.first.serviceName,
+            contains('FailingDiscoveryService'),
+          );
+          expect(result.terminationReason, ScanTerminationReason.completed);
+        },
+      );
 
-    test(
-      'all services failing yields a ScanResult with empty matched + '
-      'populated failedServices (no top-level throw)',
-      () async {
-        final a = _FailingDiscoveryService(Exception('adapter-off'));
-        final b = _FailingDiscoveryService(const PermissionDeniedException());
+      test(
+        'all services failing yields a ScanResult with empty matched + '
+        'populated failedServices (no top-level throw)',
+        () async {
+          final a = _FailingDiscoveryService(Exception('adapter-off'));
+          final b = _FailingDiscoveryService(const PermissionDeniedException());
 
-        final controller = DeviceController([a, b]);
-        await controller.initialize();
+          final controller = DeviceController([a, b]);
+          await controller.initialize();
 
-        final result = await controller.scanForDevices();
+          final result = await controller.scanForDevices();
 
-        expect(result.matchedDevices, isEmpty);
-        expect(result.failedServices, hasLength(2));
-      },
-    );
+          expect(result.matchedDevices, isEmpty);
+          expect(result.failedServices, hasLength(2));
+        },
+      );
 
-    test(
-      'concurrent scanForDevices calls share one in-flight scan',
-      () async {
-        final service = _QuietDiscoveryService(
-          _FakeDevice(
-            deviceId: 'id-1',
-            name: 'D1',
-            type: DeviceType.machine,
-          ),
-        );
-        final controller = DeviceController([service]);
-        await controller.initialize();
+      test(
+        'concurrent scanForDevices calls share one in-flight scan',
+        () async {
+          final service = _QuietDiscoveryService(
+            _FakeDevice(
+              deviceId: 'id-1',
+              name: 'D1',
+              type: DeviceType.machine,
+            ),
+          );
+          final controller = DeviceController([service]);
+          await controller.initialize();
 
-        final first = controller.scanForDevices();
-        final second = controller.scanForDevices();
+          final first = controller.scanForDevices();
+          final second = controller.scanForDevices();
 
-        expect(identical(first, second), isTrue,
-            reason: 'second concurrent call must share the in-flight Future');
-        await first;
-      },
-    );
-  });
+          expect(
+            identical(first, second),
+            isTrue,
+            reason: 'second concurrent call must share the in-flight Future',
+          );
+          await first;
+        },
+      );
+    },
+  );
 
   group('devices getter caching (comms-harden #28)', () {
     test(
@@ -219,15 +238,21 @@ void main() {
 
         final first = controller.devices;
         final second = controller.devices;
-        expect(identical(first, second), isTrue,
-            reason: 'cache should return the same instance on a hot call');
+        expect(
+          identical(first, second),
+          isTrue,
+          reason: 'cache should return the same instance on a hot call',
+        );
 
         service.emit(const []);
         await Future<void>.delayed(Duration.zero);
 
         final afterMutation = controller.devices;
-        expect(identical(first, afterMutation), isFalse,
-            reason: 'cache must rebuild after a device-list mutation');
+        expect(
+          identical(first, afterMutation),
+          isFalse,
+          reason: 'cache must rebuild after a device-list mutation',
+        );
       },
     );
   });
@@ -267,10 +292,14 @@ void main() {
         service.emit([a, b]);
         await Future<void>.delayed(Duration.zero);
 
-        expect(telemetry.customKeys,
-            contains('reconnection_duration_${b.deviceId}'));
-        expect(telemetry.customKeys,
-            isNot(contains('reconnection_duration_${a.deviceId}')));
+        expect(
+          telemetry.customKeys,
+          contains('reconnection_duration_${b.deviceId}'),
+        );
+        expect(
+          telemetry.customKeys,
+          isNot(contains('reconnection_duration_${a.deviceId}')),
+        );
       },
     );
 
@@ -301,8 +330,10 @@ void main() {
         service.emit([afterFirmware]);
         await Future<void>.delayed(Duration.zero);
 
-        expect(telemetry.customKeys,
-            contains('reconnection_duration_${before.deviceId}'));
+        expect(
+          telemetry.customKeys,
+          contains('reconnection_duration_${before.deviceId}'),
+        );
       },
     );
 

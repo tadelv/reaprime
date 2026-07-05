@@ -37,19 +37,24 @@ void main() {
       expect(BengleScaleMmr.stopAtWeightTarget.address, 0x00000000);
     });
 
-    test('setStopAtWeightTarget caches locally and does not write MMR',
-        () async {
-      transport.writes.clear();
-      await bengle.setStopAtWeightTarget(30.0);
+    test(
+      'setStopAtWeightTarget caches locally and does not write MMR',
+      () async {
+        transport.writes.clear();
+        await bengle.setStopAtWeightTarget(30.0);
 
-      final mmrWrites = transport.writes
-          .where((w) => w.characteristicUUID == Endpoint.writeToMMR.uuid)
-          .toList();
-      expect(mmrWrites, isEmpty,
-          reason: 'FW slot is stubbed — no MMR write should hit the wire');
+        final mmrWrites = transport.writes
+            .where((w) => w.characteristicUUID == Endpoint.writeToMMR.uuid)
+            .toList();
+        expect(
+          mmrWrites,
+          isEmpty,
+          reason: 'FW slot is stubbed — no MMR write should hit the wire',
+        );
 
-      expect(await bengle.getStopAtWeightTarget(), closeTo(30.0, 1e-6));
-    });
+        expect(await bengle.getStopAtWeightTarget(), closeTo(30.0, 1e-6));
+      },
+    );
 
     test('setStopAtWeightTarget clamps to 0..500', () async {
       await bengle.setStopAtWeightTarget(1000.0);
@@ -59,11 +64,13 @@ void main() {
       expect(await bengle.getStopAtWeightTarget(), 0.0);
     });
 
-    test('stopAtWeightTarget stream emits cached value to subscribers',
-        () async {
-      await bengle.setStopAtWeightTarget(42.0);
-      final value = await bengle.stopAtWeightTarget.first;
-      expect(value, 42.0);
-    });
+    test(
+      'stopAtWeightTarget stream emits cached value to subscribers',
+      () async {
+        await bengle.setStopAtWeightTarget(42.0);
+        final value = await bengle.stopAtWeightTarget.first;
+        expect(value, 42.0);
+      },
+    );
   });
 }

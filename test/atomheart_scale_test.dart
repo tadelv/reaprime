@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/device/impl/atomheart/atomheart_scale.dart';
 
-
 void main() {
   group('AtomheartScale timer parsing', () {
     test('parseFrame extracts timer from BLE frame', () {
@@ -50,7 +49,18 @@ void main() {
     });
 
     test('parseFrame returns null for invalid XOR checksum', () {
-      final data = [0x57, 0xDC, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF]; // Bad XOR
+      final data = [
+        0x57,
+        0xDC,
+        0x05,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0xFF,
+      ]; // Bad XOR
       expect(AtomheartScale.parseFrame(data), isNull);
     });
   });

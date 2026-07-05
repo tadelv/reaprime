@@ -37,8 +37,7 @@ class DeviceController implements DeviceScanner {
       BehaviorSubject.seeded(AdapterState.unknown);
 
   @override
-  Stream<AdapterState> get adapterStateStream =>
-      _adapterStateStream.stream;
+  Stream<AdapterState> get adapterStateStream => _adapterStateStream.stream;
 
   @override
   AdapterState get currentAdapterState => _adapterStateStream.value;
@@ -259,8 +258,7 @@ class DeviceController implements DeviceScanner {
     // will produce the authoritative list when it completes.
     if (!isScanning) {
       // Detect disconnections: devices that were in previous update but not in current
-      final disconnectedIds =
-          _previousDeviceIds.difference(currentDeviceIds);
+      final disconnectedIds = _previousDeviceIds.difference(currentDeviceIds);
       for (var deviceId in disconnectedIds) {
         _disconnectedAt[deviceId] = DateTime.now();
         final name = _deviceNamesById[deviceId] ?? deviceId;
@@ -274,7 +272,8 @@ class DeviceController implements DeviceScanner {
           final duration = DateTime.now().difference(disconnectedTime);
           final name = _deviceNamesById[deviceId] ?? deviceId;
           _log.info(
-              "Device $name ($deviceId) reconnected after ${duration.inSeconds}s");
+            "Device $name ($deviceId) reconnected after ${duration.inSeconds}s",
+          );
 
           // Set telemetry custom key with reconnection duration
           _telemetryService?.setCustomKey(

@@ -25,18 +25,17 @@ final _machine = MachineSnapshot(
 );
 
 ShotSnapshot _snap(double? weight) => ShotSnapshot(
-      machine: _machine,
-      scale: weight == null
-          ? null
-          : WeightSnapshot(
-              timestamp: DateTime(2026, 6, 5),
-              weight: weight,
-              weightFlow: 0.0,
-            ),
-    );
+  machine: _machine,
+  scale: weight == null
+      ? null
+      : WeightSnapshot(
+          timestamp: DateTime(2026, 6, 5),
+          weight: weight,
+          weightFlow: 0.0,
+        ),
+);
 
-List<ShotSnapshot> _trace(List<double?> weights) =>
-    weights.map(_snap).toList();
+List<ShotSnapshot> _trace(List<double?> weights) => weights.map(_snap).toList();
 
 void main() {
   group('ShotAnnotations.finalScaleWeight', () {
@@ -62,8 +61,10 @@ void main() {
     });
 
     test('is null when no scale was recording', () {
-      expect(ShotAnnotations.finalScaleWeight(_trace([null, null, null])),
-          isNull);
+      expect(
+        ShotAnnotations.finalScaleWeight(_trace([null, null, null])),
+        isNull,
+      );
     });
 
     test('is null for an empty measurement list', () {

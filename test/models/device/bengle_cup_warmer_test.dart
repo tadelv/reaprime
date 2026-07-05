@@ -55,17 +55,20 @@ void main() {
       },
     );
 
-    test('getCupWarmerTemperature reads a scaled uint32 back from the wire', () async {
-      // Pre-queue a 50.0 °C scaled uint32 response at the matSetPoint address.
-      final bytes = ByteData(4)..setUint32(0, 500, Endian.little);
-      transport.queueMmrResponseRaw(
-        BengleMmr.matSetPoint,
-        List<int>.generate(4, (i) => bytes.getUint8(i)),
-      );
+    test(
+      'getCupWarmerTemperature reads a scaled uint32 back from the wire',
+      () async {
+        // Pre-queue a 50.0 °C scaled uint32 response at the matSetPoint address.
+        final bytes = ByteData(4)..setUint32(0, 500, Endian.little);
+        transport.queueMmrResponseRaw(
+          BengleMmr.matSetPoint,
+          List<int>.generate(4, (i) => bytes.getUint8(i)),
+        );
 
-      final result = await bengle.getCupWarmerTemperature();
-      expect(result, closeTo(50.0, 1e-6));
-    });
+        final result = await bengle.getCupWarmerTemperature();
+        expect(result, closeTo(50.0, 1e-6));
+      },
+    );
 
     test('setCupWarmerTemperature clamps over-range writes', () async {
       transport.writes.clear();

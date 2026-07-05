@@ -32,13 +32,12 @@ class RememberedDevicesController {
     required Stream<RememberedDevice?> machineConnections,
     required Stream<RememberedDevice?> scaleConnections,
     required SettingsService settings,
-  })  : _machineConnections = machineConnections,
-        _scaleConnections = scaleConnections,
-        _settings = settings;
+  }) : _machineConnections = machineConnections,
+       _scaleConnections = scaleConnections,
+       _settings = settings;
 
   /// Current remembered devices.
-  List<RememberedDevice> get remembered =>
-      List.unmodifiable(_registry.values);
+  List<RememberedDevice> get remembered => List.unmodifiable(_registry.values);
 
   /// Emits the remembered list whenever it changes.
   Stream<List<RememberedDevice>> get changes => _changes.stream;
@@ -58,22 +57,31 @@ class RememberedDevicesController {
     final stored = RememberedDevice.storedCount(raw);
     if (stored > loaded.length) {
       _log.warning(
-          'dropped ${stored - loaded.length} unreadable remembered record(s)');
+        'dropped ${stored - loaded.length} unreadable remembered record(s)',
+      );
     }
     _log.info('loaded ${_registry.length} remembered device(s)');
     _emit();
     // SEVERE, not warning: the scale mapper narrows its catch to the benign
     // DeviceNotConnectedException race, so anything reaching here is a genuine
     // upstream defect, not an expected condition.
-    _subs.add(_machineConnections.listen(
-      (d) { if (d != null) unawaited(_rememberFromStream(d)); },
-      onError: (e, st) =>
-          _log.severe('machine connection stream error', e, st),
-    ));
-    _subs.add(_scaleConnections.listen(
-      (d) { if (d != null) unawaited(_rememberFromStream(d)); },
-      onError: (e, st) => _log.severe('scale connection stream error', e, st),
-    ));
+    _subs.add(
+      _machineConnections.listen(
+        (d) {
+          if (d != null) unawaited(_rememberFromStream(d));
+        },
+        onError: (e, st) =>
+            _log.severe('machine connection stream error', e, st),
+      ),
+    );
+    _subs.add(
+      _scaleConnections.listen(
+        (d) {
+          if (d != null) unawaited(_rememberFromStream(d));
+        },
+        onError: (e, st) => _log.severe('scale connection stream error', e, st),
+      ),
+    );
   }
 
   /// `_remember` for the un-awaited stream path. A persist failure is already
@@ -127,7 +135,8 @@ class RememberedDevicesController {
   Future<void> _persist() async {
     try {
       await _settings.setRememberedDevices(
-          RememberedDevice.encodeList(_registry.values));
+        RememberedDevice.encodeList(_registry.values),
+      );
     } catch (e, st) {
       // A persist failure means the in-memory registry changed but the change
       // won't survive a restart. Surface it loudly rather than dropping it

@@ -40,8 +40,9 @@ typedef FakeBleWrite = ({
 ///   `Endpoint.requestedState` back into a [MachineState] for
 ///   readable assertions.
 class FakeBleTransport extends BLETransport {
-  final _connState =
-      BehaviorSubject<ConnectionState>.seeded(ConnectionState.connected);
+  final _connState = BehaviorSubject<ConnectionState>.seeded(
+    ConnectionState.connected,
+  );
 
   /// Subscribe callbacks keyed by characteristic UUID.
   final Map<String, void Function(Uint8List)> subscribers = {};
@@ -121,8 +122,11 @@ class FakeBleTransport extends BLETransport {
   Future<List<String>> discoverServices() async => [de1ServiceUUID];
 
   @override
-  Future<Uint8List> read(String serviceUUID, String characteristicUUID,
-      {Duration? timeout}) async {
+  Future<Uint8List> read(
+    String serviceUUID,
+    String characteristicUUID, {
+    Duration? timeout,
+  }) async {
     final q = _readQueue[characteristicUUID];
     if (q != null && q.isNotEmpty) return q.removeFirst();
     // 20-byte zero buffer matches MMR/state response width; tolerated by
@@ -131,8 +135,11 @@ class FakeBleTransport extends BLETransport {
   }
 
   @override
-  Future<void> subscribe(String serviceUUID, String characteristicUUID,
-      void Function(Uint8List) callback) async {
+  Future<void> subscribe(
+    String serviceUUID,
+    String characteristicUUID,
+    void Function(Uint8List) callback,
+  ) async {
     subscribers[characteristicUUID] = callback;
   }
 
@@ -141,8 +148,12 @@ class FakeBleTransport extends BLETransport {
 
   @override
   Future<void> write(
-      String serviceUUID, String characteristicUUID, Uint8List data,
-      {bool withResponse = true, Duration? timeout}) async {
+    String serviceUUID,
+    String characteristicUUID,
+    Uint8List data, {
+    bool withResponse = true,
+    Duration? timeout,
+  }) async {
     writes.add((
       characteristicUUID: characteristicUUID,
       data: data,

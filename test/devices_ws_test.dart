@@ -118,9 +118,11 @@ void main() {
 
       // Wait for a state message that includes our device
       final state = await messages
-          .where((msg) =>
-              msg.containsKey('devices') &&
-              (msg['devices'] as List).isNotEmpty)
+          .where(
+            (msg) =>
+                msg.containsKey('devices') &&
+                (msg['devices'] as List).isNotEmpty,
+          )
           .first
           .timeout(Duration(seconds: 2));
 
@@ -147,9 +149,11 @@ void main() {
 
       // Wait for a state message with the new device
       final update = await messages
-          .where((msg) =>
-              msg.containsKey('devices') &&
-              (msg['devices'] as List).isNotEmpty)
+          .where(
+            (msg) =>
+                msg.containsKey('devices') &&
+                (msg['devices'] as List).isNotEmpty,
+          )
           .first
           .timeout(Duration(seconds: 2));
 
@@ -170,9 +174,11 @@ void main() {
 
       // Wait for initial state with one device
       await messages
-          .where((msg) =>
-              msg.containsKey('devices') &&
-              (msg['devices'] as List).isNotEmpty)
+          .where(
+            (msg) =>
+                msg.containsKey('devices') &&
+                (msg['devices'] as List).isNotEmpty,
+          )
           .first
           .timeout(Duration(seconds: 2));
 
@@ -181,9 +187,10 @@ void main() {
 
       // Wait for update with empty list
       final update = await messages
-          .where((msg) =>
-              msg.containsKey('devices') &&
-              (msg['devices'] as List).isEmpty)
+          .where(
+            (msg) =>
+                msg.containsKey('devices') && (msg['devices'] as List).isEmpty,
+          )
           .first
           .timeout(Duration(seconds: 2));
 
@@ -277,9 +284,11 @@ void main() {
 
       // Wait for initial state with device
       await messages
-          .where((msg) =>
-              msg.containsKey('devices') &&
-              (msg['devices'] as List).isNotEmpty)
+          .where(
+            (msg) =>
+                msg.containsKey('devices') &&
+                (msg['devices'] as List).isNotEmpty,
+          )
           .first
           .timeout(Duration(seconds: 2));
 
@@ -322,9 +331,11 @@ void main() {
 
       // Wait for initial state with device
       await messages
-          .where((msg) =>
-              msg.containsKey('devices') &&
-              (msg['devices'] as List).isNotEmpty)
+          .where(
+            (msg) =>
+                msg.containsKey('devices') &&
+                (msg['devices'] as List).isNotEmpty,
+          )
           .first
           .timeout(Duration(seconds: 2));
 
@@ -348,10 +359,12 @@ void main() {
 
       // Wait for initial state showing connected
       await messages
-          .where((msg) =>
-              msg.containsKey('devices') &&
-              (msg['devices'] as List).isNotEmpty &&
-              (msg['devices'] as List)[0]['state'] == 'connected')
+          .where(
+            (msg) =>
+                msg.containsKey('devices') &&
+                (msg['devices'] as List).isNotEmpty &&
+                (msg['devices'] as List)[0]['state'] == 'connected',
+          )
           .first
           .timeout(Duration(seconds: 2));
 
@@ -360,10 +373,12 @@ void main() {
 
       // WebSocket should receive an update with the new state
       final update = await messages
-          .where((msg) =>
-              msg.containsKey('devices') &&
-              (msg['devices'] as List).isNotEmpty &&
-              (msg['devices'] as List)[0]['state'] == 'disconnected')
+          .where(
+            (msg) =>
+                msg.containsKey('devices') &&
+                (msg['devices'] as List).isNotEmpty &&
+                (msg['devices'] as List)[0]['state'] == 'disconnected',
+          )
           .first
           .timeout(Duration(seconds: 2));
 
@@ -381,18 +396,21 @@ void main() {
 
       // Wait for initial state with device
       await messages
-          .where((msg) =>
-              msg.containsKey('devices') &&
-              (msg['devices'] as List).isNotEmpty)
+          .where(
+            (msg) =>
+                msg.containsKey('devices') &&
+                (msg['devices'] as List).isNotEmpty,
+          )
           .first
           .timeout(Duration(seconds: 2));
 
       // Remove device
       mockDiscovery.removeDevice('scale-1');
       await messages
-          .where((msg) =>
-              msg.containsKey('devices') &&
-              (msg['devices'] as List).isEmpty)
+          .where(
+            (msg) =>
+                msg.containsKey('devices') && (msg['devices'] as List).isEmpty,
+          )
           .first
           .timeout(Duration(seconds: 2));
 
@@ -406,10 +424,12 @@ void main() {
 
       // Should see the new device with discovered state
       final update = await messages
-          .where((msg) =>
-              msg.containsKey('devices') &&
-              (msg['devices'] as List).isNotEmpty &&
-              (msg['devices'] as List)[0]['state'] == 'discovered')
+          .where(
+            (msg) =>
+                msg.containsKey('devices') &&
+                (msg['devices'] as List).isNotEmpty &&
+                (msg['devices'] as List)[0]['state'] == 'discovered',
+          )
           .first
           .timeout(Duration(seconds: 2));
 
@@ -419,10 +439,12 @@ void main() {
       scale2.setConnectionState(ConnectionState.connected);
 
       final connected = await messages
-          .where((msg) =>
-              msg.containsKey('devices') &&
-              (msg['devices'] as List).isNotEmpty &&
-              (msg['devices'] as List)[0]['state'] == 'connected')
+          .where(
+            (msg) =>
+                msg.containsKey('devices') &&
+                (msg['devices'] as List).isNotEmpty &&
+                (msg['devices'] as List)[0]['state'] == 'connected',
+          )
           .first
           .timeout(Duration(seconds: 2));
 
@@ -441,16 +463,20 @@ void main() {
 
       // Set up futures BEFORE triggering the action to avoid missing events
       final deviceAdded1 = messages1
-          .where((msg) =>
-              msg.containsKey('devices') &&
-              (msg['devices'] as List).isNotEmpty)
+          .where(
+            (msg) =>
+                msg.containsKey('devices') &&
+                (msg['devices'] as List).isNotEmpty,
+          )
           .first
           .timeout(Duration(seconds: 2));
 
       final deviceAdded2 = messages2
-          .where((msg) =>
-              msg.containsKey('devices') &&
-              (msg['devices'] as List).isNotEmpty)
+          .where(
+            (msg) =>
+                msg.containsKey('devices') &&
+                (msg['devices'] as List).isNotEmpty,
+          )
           .first
           .timeout(Duration(seconds: 2));
 
@@ -467,18 +493,22 @@ void main() {
 
       // Set up futures for the state change BEFORE triggering it
       final stateChanged1 = messages1
-          .where((msg) =>
-              msg.containsKey('devices') &&
-              (msg['devices'] as List).isNotEmpty &&
-              (msg['devices'] as List)[0]['state'] == 'disconnected')
+          .where(
+            (msg) =>
+                msg.containsKey('devices') &&
+                (msg['devices'] as List).isNotEmpty &&
+                (msg['devices'] as List)[0]['state'] == 'disconnected',
+          )
           .first
           .timeout(Duration(seconds: 2));
 
       final stateChanged2 = messages2
-          .where((msg) =>
-              msg.containsKey('devices') &&
-              (msg['devices'] as List).isNotEmpty &&
-              (msg['devices'] as List)[0]['state'] == 'disconnected')
+          .where(
+            (msg) =>
+                msg.containsKey('devices') &&
+                (msg['devices'] as List).isNotEmpty &&
+                (msg['devices'] as List)[0]['state'] == 'disconnected',
+          )
           .first
           .timeout(Duration(seconds: 2));
 

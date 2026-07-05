@@ -66,7 +66,8 @@ void main() {
         expect(
           observedEmits.length,
           equals(1),
-          reason: 'nudge re-emits are gone and `.distinct()` on the '
+          reason:
+              'nudge re-emits are gone and `.distinct()` on the '
               'getter collapses firmware echoes — only the actual '
               'updateShotSettings write should reach the WS stream',
         );
@@ -109,7 +110,8 @@ void main() {
         expect(
           observedEmits.length,
           equals(2),
-          reason: '1 steam write + 1 hot-water write. Regression guard:'
+          reason:
+              '1 steam write + 1 hot-water write. Regression guard:'
               ' nudge leaks or race-induced duplicates would push this '
               'higher.',
         );
@@ -134,13 +136,15 @@ void main() {
         expect(
           observedEmits,
           isEmpty,
-          reason: 'flow is not part of the shotSettings characteristic, '
+          reason:
+              'flow is not part of the shotSettings characteristic, '
               'so setSteamFlow must not cause a shotSettings emit',
         );
         expect(
           steamDataEmits.map((s) => s.flow).toList(),
           contains(3.3),
-          reason: 'steamData subscribers must receive the new flow so '
+          reason:
+              'steamData subscribers must receive the new flow so '
               'UI (status tile, live slider) refreshes',
         );
 

@@ -43,8 +43,9 @@ class ShotSnapshot {
   factory ShotSnapshot.fromJson(Map<String, dynamic> json) {
     return ShotSnapshot(
       machine: MachineSnapshot.fromJson(json["machine"]),
-      scale:
-          json['scale'] != null ? WeightSnapshot.fromJson(json["scale"]) : null,
+      scale: json['scale'] != null
+          ? WeightSnapshot.fromJson(json["scale"])
+          : null,
       volume: (json['volume'] as num?)?.toDouble(),
       probeTemperature: (json['probeTemperature'] as num?)?.toDouble(),
     );

@@ -11,10 +11,14 @@ void main() {
         UsbDeviceModel.de1: [a],
         UsbDeviceModel.bengle: [b],
       };
-      expect(matchUsbDevice(table, vid: a.$1, pid: a.$2),
-          equals(UsbDeviceModel.de1));
-      expect(matchUsbDevice(table, vid: b.$1, pid: b.$2),
-          equals(UsbDeviceModel.bengle));
+      expect(
+        matchUsbDevice(table, vid: a.$1, pid: a.$2),
+        equals(UsbDeviceModel.de1),
+      );
+      expect(
+        matchUsbDevice(table, vid: b.$1, pid: b.$2),
+        equals(UsbDeviceModel.bengle),
+      );
     });
 
     test('returns null for an unknown pair', () {
@@ -38,8 +42,10 @@ void main() {
       const table = {
         UsbDeviceModel.de1: [a, c],
       };
-      expect(matchUsbDevice(table, vid: c.$1, pid: c.$2),
-          equals(UsbDeviceModel.de1));
+      expect(
+        matchUsbDevice(table, vid: c.$1, pid: c.$2),
+        equals(UsbDeviceModel.de1),
+      );
     });
   });
 

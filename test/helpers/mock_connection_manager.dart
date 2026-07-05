@@ -24,7 +24,7 @@ class FakeDe1 implements De1Interface {
       Stream.value(dev.ConnectionState.connected);
 
   FakeDe1({this.deviceId = 'fake-de1', String? name})
-      : name = name ?? 'DE1-$deviceId';
+    : name = name ?? 'DE1-$deviceId';
 
   @override
   Stream<MachineSnapshot> get currentSnapshot => const Stream.empty();

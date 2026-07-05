@@ -31,10 +31,10 @@ void main() {
   });
 
   Widget harness() => MaterialApp(
-        home: Scaffold(
-          body: AccountTokensSection(controller: controller),
-        ),
-      );
+    home: Scaffold(
+      body: AccountTokensSection(controller: controller),
+    ),
+  );
 
   testWidgets('create -> show once -> list, then revoke', (tester) async {
     await tester.pumpWidget(harness());
@@ -44,10 +44,12 @@ void main() {
     await tester.tap(find.byKey(const Key('create-token')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'laptop');
-    await tester.tap(find.descendant(
-      of: find.byType(AlertDialog),
-      matching: find.text('Create'),
-    ));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Create'),
+      ),
+    );
     await tester.pumpAndSettle();
 
     // Token is shown once, and it's a real registered token.
@@ -75,8 +77,9 @@ void main() {
     expect(service.validate(tokenValue), isNull);
   });
 
-  testWidgets('create with write toggle mints a write-scoped token',
-      (tester) async {
+  testWidgets('create with write toggle mints a write-scoped token', (
+    tester,
+  ) async {
     await tester.pumpWidget(harness());
 
     await tester.tap(find.byKey(const Key('create-token')));
@@ -84,10 +87,12 @@ void main() {
     await tester.enterText(find.byType(TextField), 'writer');
     await tester.tap(find.byKey(const Key('token-write-toggle')));
     await tester.pumpAndSettle();
-    await tester.tap(find.descendant(
-      of: find.byType(AlertDialog),
-      matching: find.text('Create'),
-    ));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Create'),
+      ),
+    );
     await tester.pumpAndSettle();
 
     final shown = tester.widget<SelectableText>(

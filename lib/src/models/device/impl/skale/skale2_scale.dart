@@ -23,8 +23,9 @@ class Skale2Scale implements Scale {
       BleServiceIdentifier.short('ef80');
   static final BleServiceIdentifier buttonCharacteristic =
       BleServiceIdentifier.short('ef82');
-  static final BleServiceIdentifier batteryService =
-      BleServiceIdentifier.short('180f');
+  static final BleServiceIdentifier batteryService = BleServiceIdentifier.short(
+    '180f',
+  );
   static final BleServiceIdentifier batteryCharacteristic =
       BleServiceIdentifier.short('2a19');
 
@@ -72,9 +73,9 @@ class Skale2Scale implements Scale {
       disconnectSub = _transport.connectionState
           .where((state) => state == ConnectionState.disconnected)
           .listen((_) {
-        _connectionStateController.add(ConnectionState.disconnected);
-        disconnectSub?.cancel();
-      });
+            _connectionStateController.add(ConnectionState.disconnected);
+            disconnectSub?.cancel();
+          });
 
       final services = await _transport.discoverServices();
       if (!serviceIdentifier.matchesAny(services)) {

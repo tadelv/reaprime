@@ -162,31 +162,29 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
                     const SizedBox(width: 8),
                     PopupMenuButton<String>(
                       icon: Icon(LucideIcons.ellipsisVertical),
-                      onSelected:
-                          (value) =>
-                              _handlePluginAction(context, value, plugin.id),
-                      itemBuilder:
-                          (context) => [
-                            PopupMenuItem<String>(
-                              value: isLoaded ? 'unload' : 'load',
-                              child: Text(isLoaded ? 'Unload' : 'Load'),
-                            ),
-                            const PopupMenuItem<String>(
-                              value: 'settings',
-                              child: Text('Settings'),
-                            ),
-                            const PopupMenuItem<String>(
-                              value: 'reload',
-                              child: Text('Reload'),
-                            ),
-                            const PopupMenuItem<String>(
-                              value: 'remove',
-                              child: Text(
-                                'Remove',
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            ),
-                          ],
+                      onSelected: (value) =>
+                          _handlePluginAction(context, value, plugin.id),
+                      itemBuilder: (context) => [
+                        PopupMenuItem<String>(
+                          value: isLoaded ? 'unload' : 'load',
+                          child: Text(isLoaded ? 'Unload' : 'Load'),
+                        ),
+                        const PopupMenuItem<String>(
+                          value: 'settings',
+                          child: Text('Settings'),
+                        ),
+                        const PopupMenuItem<String>(
+                          value: 'reload',
+                          child: Text('Reload'),
+                        ),
+                        const PopupMenuItem<String>(
+                          value: 'remove',
+                          child: Text(
+                            'Remove',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -205,18 +203,17 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
                   Wrap(
                     spacing: 8,
                     runSpacing: 4,
-                    children:
-                        plugin.permissions
-                            .map(
-                              (permission) => Chip(
-                                label: Text(permission.wireName),
-                                backgroundColor:
-                                    Theme.of(context).colorScheme.tertiary,
-                                labelStyle:
-                                    Theme.of(context).textTheme.labelSmall,
-                              ),
-                            )
-                            .toList(),
+                    children: plugin.permissions
+                        .map(
+                          (permission) => Chip(
+                            label: Text(permission.wireName),
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.tertiary,
+                            labelStyle: Theme.of(context).textTheme.labelSmall,
+                          ),
+                        )
+                        .toList(),
                   ),
                 ],
               ),
@@ -273,18 +270,17 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 ShadButton.secondary(
-                  onPressed:
-                      () => _handlePluginAction(
-                        context,
-                        isLoaded ? 'unload' : 'load',
-                        plugin.id,
-                      ),
+                  onPressed: () => _handlePluginAction(
+                    context,
+                    isLoaded ? 'unload' : 'load',
+                    plugin.id,
+                  ),
                   child: Text(isLoaded ? 'Unload' : 'Load'),
                 ),
                 const SizedBox(width: 8),
                 ShadButton(
-                  onPressed:
-                      () => _handlePluginAction(context, 'settings', plugin.id),
+                  onPressed: () =>
+                      _handlePluginAction(context, 'settings', plugin.id),
                   child: const Text('Settings'),
                 ),
               ],
@@ -414,26 +410,25 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
   ) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Remove Plugin'),
-            content: Text(
-              'Are you sure you want to remove plugin "$pluginId"?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text(
-                  'Remove',
-                  style: TextStyle(color: Colors.red),
-                ),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Plugin'),
+        content: Text(
+          'Are you sure you want to remove plugin "$pluginId"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
           ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Remove',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
     );
 
     if (confirmed == true) {
@@ -476,179 +471,174 @@ class _PluginsSettingsViewState extends State<PluginsSettingsView> {
 
     await showDialog<void>(
       context: context,
-      builder:
-          (context) => StatefulBuilder(
-            builder: (context, setState) {
-              return AlertDialog(
-                title: Text('${manifest.name} Settings'),
-                content: SizedBox(
-                  width: double.maxFinite,
-                  child: ListView(
-                    shrinkWrap: true,
-                    children:
-                        settingsSchema.entries.map((entry) {
-                          final key = entry.key;
-                          final schema = entry.value;
-                          final currentValue = newSettings[key];
-                          final defaultValue = schema['default'];
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Text('${manifest.name} Settings'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView(
+                shrinkWrap: true,
+                children: settingsSchema.entries.map((entry) {
+                  final key = entry.key;
+                  final schema = entry.value;
+                  final currentValue = newSettings[key];
+                  final defaultValue = schema['default'];
 
-                          // Helper function to get display value
-                          String getDisplayValue(dynamic value) {
-                            if (value == null) return '';
-                            return value.toString();
-                          }
+                  // Helper function to get display value
+                  String getDisplayValue(dynamic value) {
+                    if (value == null) return '';
+                    return value.toString();
+                  }
 
-                          // Helper function to parse value based on type
-                          dynamic parseValue(String value, String type) {
-                            if (type == 'number') {
-                              return num.tryParse(value);
-                            }
-                            return value;
-                          }
+                  // Helper function to parse value based on type
+                  dynamic parseValue(String value, String type) {
+                    if (type == 'number') {
+                      return num.tryParse(value);
+                    }
+                    return value;
+                  }
 
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  key,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                if (schema['description'] != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 8),
-                                    child: Text(
-                                      schema['description']!,
-                                      style: TextStyle(
-                                        color: Colors.grey[600],
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
-                                const SizedBox(height: 4),
-                                if (schema['type'] == 'boolean')
-                                  Row(
-                                    children: [
-                                      ShadSwitch(
-                                        value:
-                                            currentValue ??
-                                            defaultValue ??
-                                            false,
-                                        onChanged: (value) {
-                                          setState(() {
-                                            newSettings[key] = value;
-                                          });
-                                        },
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        currentValue ?? defaultValue ?? false
-                                            ? 'Enabled'
-                                            : 'Disabled',
-                                        style: const TextStyle(fontSize: 14),
-                                      ),
-                                    ],
-                                  )
-                                else if (schema['type'] == 'number')
-                                  ShadInput(
-                                    placeholder: Text('Enter a number...'),
-                                    initialValue: getDisplayValue(
-                                      currentValue ?? defaultValue,
-                                    ),
-                                    keyboardType: TextInputType.number,
-                                    onChanged: (value) {
-                                      final parsedValue = parseValue(
-                                        value,
-                                        'number',
-                                      );
-                                      if (parsedValue != null) {
-                                        setState(() {
-                                          newSettings[key] = parsedValue;
-                                        });
-                                      }
-                                    },
-                                  )
-                                else if (schema['secure'] == true)
-                                  ShadInput(
-                                    placeholder: Text('Enter secure value...'),
-                                    initialValue: getDisplayValue(
-                                      currentValue ?? defaultValue,
-                                    ),
-                                    onChanged: (value) {
-                                      setState(() {
-                                        newSettings[key] = value;
-                                      });
-                                    },
-                                    obscureText: true,
-                                  )
-                                else
-                                  ShadInput(
-                                    placeholder: Text('Enter value...'),
-                                    initialValue: getDisplayValue(
-                                      currentValue ?? defaultValue,
-                                    ),
-                                    onChanged: (value) {
-                                      setState(() {
-                                        newSettings[key] = value;
-                                      });
-                                    },
-                                  ),
-                                const SizedBox(height: 4),
-                                if (defaultValue != null)
-                                  Text(
-                                    'Default: ${getDisplayValue(defaultValue)}',
-                                    style: TextStyle(
-                                      color: Colors.grey[500],
-                                      fontSize: 11,
-                                      fontStyle: FontStyle.italic,
-                                    ),
-                                  ),
-                              ],
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          key,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        if (schema['description'] != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              schema['description']!,
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 12,
+                              ),
                             ),
-                          );
-                        }).toList(),
-                  ),
-                ),
-                actions: [
-                  ShadButton.secondary(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel'),
-                  ),
-                  ShadButton(
-                    onPressed: () async {
-                      try {
-                        await widget.pluginLoaderService.savePluginSettings(
-                          pluginId,
-                          newSettings,
-                        );
-                        if (context.mounted == false) {
-                          return;
-                        }
-                        _showSnackBar(context, 'Settings saved');
-                        Navigator.pop(context);
-                      } catch (e, st) {
-                        Logger(
-                          'PluginsSettingsView',
-                        ).warning('Failed to save settings', e, st);
-                        if (context.mounted) {
-                          _showSnackBar(
-                            context,
-                            'Failed to save settings: $e',
-                            isError: true,
-                          );
-                        }
-                      }
-                    },
-                    child: const Text('Save'),
-                  ),
-                ],
-              );
-            },
-          ),
+                          ),
+                        const SizedBox(height: 4),
+                        if (schema['type'] == 'boolean')
+                          Row(
+                            children: [
+                              ShadSwitch(
+                                value: currentValue ?? defaultValue ?? false,
+                                onChanged: (value) {
+                                  setState(() {
+                                    newSettings[key] = value;
+                                  });
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                currentValue ?? defaultValue ?? false
+                                    ? 'Enabled'
+                                    : 'Disabled',
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            ],
+                          )
+                        else if (schema['type'] == 'number')
+                          ShadInput(
+                            placeholder: Text('Enter a number...'),
+                            initialValue: getDisplayValue(
+                              currentValue ?? defaultValue,
+                            ),
+                            keyboardType: TextInputType.number,
+                            onChanged: (value) {
+                              final parsedValue = parseValue(
+                                value,
+                                'number',
+                              );
+                              if (parsedValue != null) {
+                                setState(() {
+                                  newSettings[key] = parsedValue;
+                                });
+                              }
+                            },
+                          )
+                        else if (schema['secure'] == true)
+                          ShadInput(
+                            placeholder: Text('Enter secure value...'),
+                            initialValue: getDisplayValue(
+                              currentValue ?? defaultValue,
+                            ),
+                            onChanged: (value) {
+                              setState(() {
+                                newSettings[key] = value;
+                              });
+                            },
+                            obscureText: true,
+                          )
+                        else
+                          ShadInput(
+                            placeholder: Text('Enter value...'),
+                            initialValue: getDisplayValue(
+                              currentValue ?? defaultValue,
+                            ),
+                            onChanged: (value) {
+                              setState(() {
+                                newSettings[key] = value;
+                              });
+                            },
+                          ),
+                        const SizedBox(height: 4),
+                        if (defaultValue != null)
+                          Text(
+                            'Default: ${getDisplayValue(defaultValue)}',
+                            style: TextStyle(
+                              color: Colors.grey[500],
+                              fontSize: 11,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            actions: [
+              ShadButton.secondary(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ShadButton(
+                onPressed: () async {
+                  try {
+                    await widget.pluginLoaderService.savePluginSettings(
+                      pluginId,
+                      newSettings,
+                    );
+                    if (context.mounted == false) {
+                      return;
+                    }
+                    _showSnackBar(context, 'Settings saved');
+                    Navigator.pop(context);
+                  } catch (e, st) {
+                    Logger(
+                      'PluginsSettingsView',
+                    ).warning('Failed to save settings', e, st);
+                    if (context.mounted) {
+                      _showSnackBar(
+                        context,
+                        'Failed to save settings: $e',
+                        isError: true,
+                      );
+                    }
+                  }
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 

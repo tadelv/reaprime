@@ -33,7 +33,9 @@ void main() {
     });
 
     test('SensorInfo declares temperature and extended channels', () {
-      final keys = probe.info.dataChannels.map((channel) => channel.key).toList();
+      final keys = probe.info.dataChannels
+          .map((channel) => channel.key)
+          .toList();
 
       expect(keys, contains(CombustionConstants.channelTemperature));
       expect(keys, contains(CombustionConstants.channelCore));
@@ -52,36 +54,39 @@ void main() {
       expect(await probe.connectionState.first, ConnectionState.connected);
     });
 
-    test('adv payload produces temperature on data stream (virtual core)', () async {
-      final readings = <Map<String, dynamic>>[];
-      final sub = probe.data.listen(readings.add);
+    test(
+      'adv payload produces temperature on data stream (virtual core)',
+      () async {
+        final readings = <Map<String, dynamic>>[];
+        final sub = probe.data.listen(readings.add);
 
-      await probe.onConnect();
-      transport.emitManufacturerData(
-        _manufacturerBlock(
-          temperatureData: _encodeThermistorField([
-            _rawFromCelsius(10),
-            _rawFromCelsius(20),
-            _rawFromCelsius(62.5),
-            _rawFromCelsius(40),
-            _rawFromCelsius(50),
-            _rawFromCelsius(60),
-            _rawFromCelsius(70),
-            _rawFromCelsius(80),
-          ]),
-          batteryVirtualByte: (2 << 1),
-        ),
-      );
+        await probe.onConnect();
+        transport.emitManufacturerData(
+          _manufacturerBlock(
+            temperatureData: _encodeThermistorField([
+              _rawFromCelsius(10),
+              _rawFromCelsius(20),
+              _rawFromCelsius(62.5),
+              _rawFromCelsius(40),
+              _rawFromCelsius(50),
+              _rawFromCelsius(60),
+              _rawFromCelsius(70),
+              _rawFromCelsius(80),
+            ]),
+            batteryVirtualByte: (2 << 1),
+          ),
+        );
 
-      await Future<void>.delayed(Duration.zero);
-      await sub.cancel();
+        await Future<void>.delayed(Duration.zero);
+        await sub.cancel();
 
-      expect(readings, isNotEmpty);
-      expect(readings.single['temperature'], closeTo(62.5, 0.0001));
-      expect(readings.single['core'], closeTo(62.5, 0.0001));
-      expect(readings.single['t3'], closeTo(62.5, 0.0001));
-      expect(readings.single['timestamp'], isA<String>());
-    });
+        expect(readings, isNotEmpty);
+        expect(readings.single['temperature'], closeTo(62.5, 0.0001));
+        expect(readings.single['core'], closeTo(62.5, 0.0001));
+        expect(readings.single['t3'], closeTo(62.5, 0.0001));
+        expect(readings.single['timestamp'], isA<String>());
+      },
+    );
 
     test('parses adv_normal_1 fixture through data stream', () async {
       final readings = <Map<String, dynamic>>[];
@@ -143,8 +148,7 @@ class _MockCombustionTransport extends BLETransport
   }
 
   @override
-  Future<ConnectionState> getConnectionState() async =>
-      _connectionState.value;
+  Future<ConnectionState> getConnectionState() async => _connectionState.value;
 
   @override
   Future<void> connect() async {
@@ -174,8 +178,7 @@ class _MockCombustionTransport extends BLETransport
     String serviceUUID,
     String characteristicUUID, {
     Duration? timeout,
-  }) async =>
-      Uint8List(0);
+  }) async => Uint8List(0);
 
   @override
   Future<void> subscribe(

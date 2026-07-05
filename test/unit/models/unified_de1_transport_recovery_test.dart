@@ -20,8 +20,9 @@ class _RecoveryFakeTransport extends BLETransport {
 
   final bool reconnectSucceeds;
 
-  final _connState =
-      BehaviorSubject<ConnectionState>.seeded(ConnectionState.connected);
+  final _connState = BehaviorSubject<ConnectionState>.seeded(
+    ConnectionState.connected,
+  );
 
   int writeCount = 0;
   int connectCount = 0;
@@ -64,14 +65,22 @@ class _RecoveryFakeTransport extends BLETransport {
 
   @override
   Future<void> subscribe(
-      String s, String c, void Function(Uint8List) cb) async {}
+    String s,
+    String c,
+    void Function(Uint8List) cb,
+  ) async {}
 
   @override
   Future<void> setTransportPriority(bool prioritized) async {}
 
   @override
-  Future<void> write(String s, String c, Uint8List data,
-      {bool withResponse = true, Duration? timeout}) async {
+  Future<void> write(
+    String s,
+    String c,
+    Uint8List data, {
+    bool withResponse = true,
+    Duration? timeout,
+  }) async {
     writeCount++;
     // First write times out -> triggers recovery. The retry succeeds.
     if (writeCount == 1) {
@@ -85,8 +94,7 @@ class _RecoveryFakeTransport extends BLETransport {
 
 void main() {
   group('UnifiedDe1Transport timeout recovery', () {
-    test(
-        'successful reconnect after timeout does not surface disconnected '
+    test('successful reconnect after timeout does not surface disconnected '
         'to upstream', () async {
       final fake = _RecoveryFakeTransport(reconnectSucceeds: true);
       addTearDown(fake.dispose);
@@ -111,25 +119,27 @@ void main() {
       expect(seen, isNot(contains(ConnectionState.disconnected)));
     });
 
-    test('failed reconnect after timeout surfaces disconnected to upstream',
-        () async {
-      final fake = _RecoveryFakeTransport(reconnectSucceeds: false);
-      addTearDown(fake.dispose);
-      final unified = UnifiedDe1Transport(transport: fake);
+    test(
+      'failed reconnect after timeout surfaces disconnected to upstream',
+      () async {
+        final fake = _RecoveryFakeTransport(reconnectSucceeds: false);
+        addTearDown(fake.dispose);
+        final unified = UnifiedDe1Transport(transport: fake);
 
-      final seen = <ConnectionState>[];
-      final sub = unified.connectionState.listen(seen.add);
-      addTearDown(sub.cancel);
+        final seen = <ConnectionState>[];
+        final sub = unified.connectionState.listen(seen.add);
+        addTearDown(sub.cancel);
 
-      // Recovery fails -> the original timeout propagates.
-      await expectLater(
-        unified.write(Endpoint.requestedState, Uint8List.fromList([0x02])),
-        throwsA(isA<BleTimeoutException>()),
-      );
-      await Future<void>.delayed(Duration.zero);
+        // Recovery fails -> the original timeout propagates.
+        await expectLater(
+          unified.write(Endpoint.requestedState, Uint8List.fromList([0x02])),
+          throwsA(isA<BleTimeoutException>()),
+        );
+        await Future<void>.delayed(Duration.zero);
 
-      // The genuine disconnect (recovery gave up) reaches upstream.
-      expect(seen, contains(ConnectionState.disconnected));
-    });
+        // The genuine disconnect (recovery gave up) reaches upstream.
+        expect(seen, contains(ConnectionState.disconnected));
+      },
+    );
   });
 }

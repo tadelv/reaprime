@@ -86,7 +86,7 @@ class _BengleDe1Controller extends De1Controller {
   final _TestBengle bengle;
 
   _BengleDe1Controller(this.bengle)
-      : super(controller: DeviceController([_FakeDiscoveryService()]));
+    : super(controller: DeviceController([_FakeDiscoveryService()]));
 
   @override
   De1Interface connectedDe1() => bengle;
@@ -101,7 +101,7 @@ class _TestScaleController extends ScaleController {
   final BehaviorSubject<WeightSnapshot> _weight = BehaviorSubject();
 
   _TestScaleController(this.testScale)
-      : _connectionState = BehaviorSubject.seeded(ConnectionState.connected);
+    : _connectionState = BehaviorSubject.seeded(ConnectionState.connected);
 
   @override
   Stream<ConnectionState> get connectionState => _connectionState.stream;
@@ -119,11 +119,13 @@ class _TestScaleController extends ScaleController {
   }
 
   void emitWeight(double weight, {double weightFlow = 0.0}) {
-    _weight.add(WeightSnapshot(
-      timestamp: DateTime(2026, 1, 15, 8, 0),
-      weight: weight,
-      weightFlow: weightFlow,
-    ));
+    _weight.add(
+      WeightSnapshot(
+        timestamp: DateTime(2026, 1, 15, 8, 0),
+        weight: weight,
+        weightFlow: weightFlow,
+      ),
+    );
   }
 
   @override
@@ -164,8 +166,7 @@ class _NullStorageService implements StorageService {
     String? profileTitle,
     String? search,
     bool ascending = false,
-  }) async =>
-      [];
+  }) async => [];
   @override
   Future<int> countShots({
     String? grinderId,
@@ -176,8 +177,7 @@ class _NullStorageService implements StorageService {
     String? coffeeRoaster,
     String? profileTitle,
     String? search,
-  }) async =>
-      0;
+  }) async => 0;
   @override
   Future<ShotRecord?> getLatestShot() async => null;
   @override
@@ -202,104 +202,109 @@ class _NullStorageService implements StorageService {
 }
 
 Profile _simpleProfile() => Profile(
-      version: '2',
-      title: 'T',
-      notes: '',
-      author: 'test',
-      beverageType: BeverageType.espresso,
-      targetVolumeCountStart: 0,
-      tankTemperature: 0,
-      targetWeight: 36,
-      steps: [
-        ProfileStepPressure(
-          name: 'step1',
-          transition: TransitionType.fast,
-          volume: 0,
-          seconds: 30,
-          temperature: 93,
-          sensor: TemperatureSensor.coffee,
-          pressure: 9,
-        ),
-      ],
-    );
+  version: '2',
+  title: 'T',
+  notes: '',
+  author: 'test',
+  beverageType: BeverageType.espresso,
+  targetVolumeCountStart: 0,
+  tankTemperature: 0,
+  targetWeight: 36,
+  steps: [
+    ProfileStepPressure(
+      name: 'step1',
+      transition: TransitionType.fast,
+      volume: 0,
+      seconds: 30,
+      temperature: 93,
+      sensor: TemperatureSensor.coffee,
+      pressure: 9,
+    ),
+  ],
+);
 
 void main() {
-  group('ShotSequencer bypasses app-side SAW when machine is BengleInterface',
-      () {
-    late _TestBengle bengle;
-    late _BengleDe1Controller de1Controller;
-    late TestScale testScale;
-    late _TestScaleController scaleController;
-    late PersistenceController persistence;
-    late Profile profile;
+  group(
+    'ShotSequencer bypasses app-side SAW when machine is BengleInterface',
+    () {
+      late _TestBengle bengle;
+      late _BengleDe1Controller de1Controller;
+      late TestScale testScale;
+      late _TestScaleController scaleController;
+      late PersistenceController persistence;
+      late Profile profile;
 
-    setUp(() {
-      bengle = _TestBengle();
-      de1Controller = _BengleDe1Controller(bengle);
-      testScale = TestScale();
-      scaleController = _TestScaleController(testScale);
-      persistence =
-          PersistenceController(storageService: _NullStorageService());
-      profile = _simpleProfile();
-    });
-
-    tearDown(() {
-      bengle.dispose();
-      testScale.dispose();
-      scaleController.dispose();
-      persistence.dispose();
-    });
-
-    test('does not request idle even when projected weight exceeds target',
-        () {
-      fakeAsync((async) {
-        scaleController.emitWeight(0.0);
-
-        final shot = ShotSequencer(
-          scaleController: scaleController,
-          de1controller: de1Controller,
-          persistenceController: persistence,
-          targetProfile: profile,
-          targetYield: 30.0,
-          bypassSAW: false,
-          blockOnNoScale: false,
-          weightFlowMultiplier: 0.0,
-          volumeFlowMultiplier: 0.0,
-          stepExitArbiterEnabled: true,
+      setUp(() {
+        bengle = _TestBengle();
+        de1Controller = _BengleDe1Controller(bengle);
+        testScale = TestScale();
+        scaleController = _TestScaleController(testScale);
+        persistence = PersistenceController(
+          storageService: _NullStorageService(),
         );
-
-        async.elapse(const Duration(milliseconds: 10));
-
-        // idle → preheating
-        bengle.emitStateAndSubstate(
-          MachineState.espresso,
-          MachineSubstate.preparingForShot,
-        );
-        // preheating → pouring
-        bengle.emitStateAndSubstate(
-          MachineState.espresso,
-          MachineSubstate.pouring,
-        );
-        async.elapse(const Duration(milliseconds: 10));
-
-        // Weight blows past the target. App SAW would normally fire.
-        scaleController.emitWeight(40.0);
-        bengle.emitStateAndSubstate(
-          MachineState.espresso,
-          MachineSubstate.pouring,
-        );
-        async.elapse(const Duration(milliseconds: 10));
-
-        expect(
-          bengle.requestedStates,
-          isEmpty,
-          reason:
-              'BengleInterface machine runs autonomous SAW; ShotSequencer '
-              'must not double-stop the shot',
-        );
-
-        shot.dispose();
+        profile = _simpleProfile();
       });
-    });
-  });
+
+      tearDown(() {
+        bengle.dispose();
+        testScale.dispose();
+        scaleController.dispose();
+        persistence.dispose();
+      });
+
+      test(
+        'does not request idle even when projected weight exceeds target',
+        () {
+          fakeAsync((async) {
+            scaleController.emitWeight(0.0);
+
+            final shot = ShotSequencer(
+              scaleController: scaleController,
+              de1controller: de1Controller,
+              persistenceController: persistence,
+              targetProfile: profile,
+              targetYield: 30.0,
+              bypassSAW: false,
+              blockOnNoScale: false,
+              weightFlowMultiplier: 0.0,
+              volumeFlowMultiplier: 0.0,
+              stepExitArbiterEnabled: true,
+            );
+
+            async.elapse(const Duration(milliseconds: 10));
+
+            // idle → preheating
+            bengle.emitStateAndSubstate(
+              MachineState.espresso,
+              MachineSubstate.preparingForShot,
+            );
+            // preheating → pouring
+            bengle.emitStateAndSubstate(
+              MachineState.espresso,
+              MachineSubstate.pouring,
+            );
+            async.elapse(const Duration(milliseconds: 10));
+
+            // Weight blows past the target. App SAW would normally fire.
+            scaleController.emitWeight(40.0);
+            bengle.emitStateAndSubstate(
+              MachineState.espresso,
+              MachineSubstate.pouring,
+            );
+            async.elapse(const Duration(milliseconds: 10));
+
+            expect(
+              bengle.requestedStates,
+              isEmpty,
+              reason:
+                  'BengleInterface machine runs autonomous SAW; ShotSequencer '
+                  'must not double-stop the shot',
+            );
+
+            shot.dispose();
+          });
+        },
+      );
+    },
+  );
 }

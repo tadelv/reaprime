@@ -6,7 +6,7 @@ class WorkflowExportSection implements DataExportSection {
   final WorkflowController _controller;
 
   WorkflowExportSection({required WorkflowController controller})
-      : _controller = controller;
+    : _controller = controller;
 
   @override
   String get filename => 'workflow.json';

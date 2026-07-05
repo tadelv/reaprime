@@ -19,9 +19,10 @@ abstract interface class CombustionAdvertisingTransport {
 
 /// Advertising-only Combustion Predictive Thermometer sensor.
 class CombustionProbe implements Sensor {
-  static final BleServiceIdentifier serviceIdentifier = BleServiceIdentifier.long(
-    CombustionConstants.probeStatusServiceUuid,
-  );
+  static final BleServiceIdentifier serviceIdentifier =
+      BleServiceIdentifier.long(
+        CombustionConstants.probeStatusServiceUuid,
+      );
 
   static const int manufacturerId = CombustionConstants.manufacturerId;
 
@@ -118,15 +119,18 @@ class CombustionProbe implements Sensor {
     _connectionState.add(ConnectionState.connecting);
     try {
       await _advertisementSub?.cancel();
-      _advertisementSub =
-          (advTransport as CombustionAdvertisingTransport)
-              .manufacturerDataStream
-              .listen(
-        _handleManufacturerData,
-        onError: (Object error, StackTrace stackTrace) {
-          _log.warning('Combustion advertisement stream error', error, stackTrace);
-        },
-      );
+      _advertisementSub = (advTransport as CombustionAdvertisingTransport)
+          .manufacturerDataStream
+          .listen(
+            _handleManufacturerData,
+            onError: (Object error, StackTrace stackTrace) {
+              _log.warning(
+                'Combustion advertisement stream error',
+                error,
+                stackTrace,
+              );
+            },
+          );
       _listening = true;
       _connectionState.add(ConnectionState.connected);
     } catch (e, st) {
@@ -180,7 +184,11 @@ class CombustionProbe implements Sensor {
       'timestamp': reading.timestamp.toIso8601String(),
     };
 
-    _putIfNotNull(snapshot, CombustionConstants.channelCore, reading.virtualCore);
+    _putIfNotNull(
+      snapshot,
+      CombustionConstants.channelCore,
+      reading.virtualCore,
+    );
     _putIfNotNull(
       snapshot,
       CombustionConstants.channelSurface,

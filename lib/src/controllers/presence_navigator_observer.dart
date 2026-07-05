@@ -5,7 +5,7 @@ class PresenceNavigatorObserver extends NavigatorObserver {
   final PresenceController _presenceController;
 
   PresenceNavigatorObserver({required PresenceController presenceController})
-      : _presenceController = presenceController;
+    : _presenceController = presenceController;
 
   @override
   void didPush(Route route, Route? previousRoute) {

@@ -41,7 +41,9 @@ class _WaterLevelsFormState extends State<WaterLevelsForm> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Refill level: ${settings.refillLevel.toStringAsFixed(1)}mm"),
+                Text(
+                  "Refill level: ${settings.refillLevel.toStringAsFixed(1)}mm",
+                ),
                 ShadSlider(
                   initialValue: settings.refillLevel.toDouble(),
                   min: 0,
@@ -66,7 +68,7 @@ class _WaterLevelsFormState extends State<WaterLevelsForm> {
             onPressed: () {
               widget.apply(settings);
             },
-          )
+          ),
         ],
       ),
     );

@@ -13,8 +13,7 @@ void main() {
   group('skin_sources.json asset', () {
     test('can be loaded and parsed as a list of source configs', () async {
       // Load the real asset bundled in the project
-      final configString =
-          await rootBundle.loadString('skin_sources.json');
+      final configString = await rootBundle.loadString('skin_sources.json');
       final sources = (jsonDecode(configString) as List)
           .cast<Map<String, dynamic>>();
 
@@ -61,10 +60,10 @@ void main() {
 
   group('bundled_skins manifest', () {
     test('manifest.json can be loaded and contains skin IDs', () async {
-      final manifestString = await rootBundle
-          .loadString('assets/bundled_skins/manifest.json');
-      final skinIds =
-          (jsonDecode(manifestString) as List).cast<String>();
+      final manifestString = await rootBundle.loadString(
+        'assets/bundled_skins/manifest.json',
+      );
+      final skinIds = (jsonDecode(manifestString) as List).cast<String>();
 
       expect(skinIds, isNotEmpty);
       for (final id in skinIds) {

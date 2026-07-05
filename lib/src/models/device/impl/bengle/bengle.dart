@@ -49,8 +49,9 @@ class Bengle extends UnifiedDe1
   // another MMR slot).
   final BehaviorSubject<double> _stopAtTempTarget =
       BehaviorSubject<double>.seeded(0.0);
-  final BehaviorSubject<bool> _probeAttached =
-      BehaviorSubject<bool>.seeded(false);
+  final BehaviorSubject<bool> _probeAttached = BehaviorSubject<bool>.seeded(
+    false,
+  );
   final PublishSubject<double> _probeTemperature = PublishSubject<double>();
   int _stopAtTempStubWarningsEmitted = 0;
 
@@ -72,7 +73,8 @@ class Bengle extends UnifiedDe1
     final addr = BengleSteamMmr.stopAtTemperatureTarget;
     if (addr.address == 0x00000000) {
       _logStopAtTempStubOnce(
-          'setStopAtTemperatureTarget($clamped) ignored. Awaiting FW.');
+        'setStopAtTemperatureTarget($clamped) ignored. Awaiting FW.',
+      );
       return;
     }
     await writeMmrScaled(addr, clamped);

@@ -11,8 +11,9 @@ class DriftBeanStorageService implements BeanStorageService {
 
   @override
   Future<List<domain.Bean>> getAllBeans({bool includeArchived = false}) async {
-    final rows =
-        await _db.beanDao.getAllBeans(includeArchived: includeArchived);
+    final rows = await _db.beanDao.getAllBeans(
+      includeArchived: includeArchived,
+    );
     return rows.map(BeanMapper.fromRow).toList();
   }
 
@@ -45,16 +46,22 @@ class DriftBeanStorageService implements BeanStorageService {
   }
 
   @override
-  Future<List<domain.BeanBatch>> getBatchesForBean(String beanId,
-      {bool includeArchived = false}) async {
-    final rows = await _db.beanDao.getBatchesForBean(beanId,
-        includeArchived: includeArchived);
+  Future<List<domain.BeanBatch>> getBatchesForBean(
+    String beanId, {
+    bool includeArchived = false,
+  }) async {
+    final rows = await _db.beanDao.getBatchesForBean(
+      beanId,
+      includeArchived: includeArchived,
+    );
     return rows.map(BeanMapper.batchFromRow).toList();
   }
 
   @override
-  Stream<List<domain.BeanBatch>> watchBatchesForBean(String beanId,
-      {bool includeArchived = false}) {
+  Stream<List<domain.BeanBatch>> watchBatchesForBean(
+    String beanId, {
+    bool includeArchived = false,
+  }) {
     return _db.beanDao
         .watchBatchesForBean(beanId, includeArchived: includeArchived)
         .map((rows) => rows.map(BeanMapper.batchFromRow).toList());

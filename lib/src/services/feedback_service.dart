@@ -24,8 +24,8 @@ class FeedbackService {
   FeedbackService({
     required String githubToken,
     String repo = 'tadelv/reaprime',
-  })  : _githubToken = githubToken,
-        _repo = repo;
+  }) : _githubToken = githubToken,
+       _repo = repo;
 
   /// Whether the service is configured with a valid token
   bool get isConfigured => _githubToken.isNotEmpty;
@@ -96,7 +96,9 @@ class FeedbackService {
   String _collectSystemInfo() {
     final info = StringBuffer();
     info.writeln('**System Information:**');
-    info.writeln('- App Version: ${BuildInfo.version} (build ${BuildInfo.buildNumber})');
+    info.writeln(
+      '- App Version: ${BuildInfo.version} (build ${BuildInfo.buildNumber})',
+    );
     info.writeln('- Commit: ${BuildInfo.commitShort}');
     info.writeln('- Branch: ${BuildInfo.branch}');
     info.writeln('- Platform: ${Platform.operatingSystem}');
@@ -353,8 +355,7 @@ class FeedbackService {
   /// Used as a fallback when GitHub submission fails, so users can
   /// save the report and share it manually.
   Future<String> generateHtmlReport(FeedbackRequest request) async {
-    final systemInfo =
-        request.includeSystemInfo ? _collectSystemInfo() : '';
+    final systemInfo = request.includeSystemInfo ? _collectSystemInfo() : '';
     String? logContent;
     String? webViewLogContent;
     if (request.includeLogs) {
@@ -395,7 +396,9 @@ class FeedbackService {
     );
 
     html.writeln('<h2>Description</h2>');
-    html.writeln('<p>${_escapeHtml(request.description).replaceAll('\n', '<br>')}</p>');
+    html.writeln(
+      '<p>${_escapeHtml(request.description).replaceAll('\n', '<br>')}</p>',
+    );
 
     if (systemInfo.isNotEmpty) {
       html.writeln('<h2>System Information</h2><ul>');
@@ -463,8 +466,8 @@ class FeedbackService {
 
   /// Common auth headers for GitHub API requests
   Map<String, String> get _authHeaders => {
-        'Authorization': 'token $_githubToken',
-        'Accept': 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json',
-      };
+    'Authorization': 'token $_githubToken',
+    'Accept': 'application/vnd.github.v3+json',
+    'Content-Type': 'application/json',
+  };
 }

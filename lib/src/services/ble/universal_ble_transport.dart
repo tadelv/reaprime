@@ -11,14 +11,16 @@ import 'package:reaprime/src/services/ble/ble_exception_mapper.dart';
 import 'package:rxdart/subjects.dart';
 import 'package:universal_ble/universal_ble.dart';
 
-class UniversalBleTransport implements BLETransport, CombustionAdvertisingTransport {
+class UniversalBleTransport
+    implements BLETransport, CombustionAdvertisingTransport {
   final BleDevice _device;
 
   late Logger _log;
 
-  final BehaviorSubject<device.ConnectionState> _connectionStateSubject = BehaviorSubject.seeded(
-    device.ConnectionState.discovered,
-  );
+  final BehaviorSubject<device.ConnectionState> _connectionStateSubject =
+      BehaviorSubject.seeded(
+        device.ConnectionState.discovered,
+      );
 
   final StreamController<Uint8List> _manufacturerDataController =
       StreamController<Uint8List>.broadcast();
@@ -59,25 +61,25 @@ class UniversalBleTransport implements BLETransport, CombustionAdvertisingTransp
   // Android post-connect settle duration. The Android BLE stack needs
   // a brief period after connectGatt reports success before service
   // discovery works reliably (particularly on older tablet SoCs).
-  static const Duration _androidPostConnectDelay =
-      Duration(milliseconds: 200);
+  static const Duration _androidPostConnectDelay = Duration(milliseconds: 200);
 
   @override
   Future<void> connect() async {
     // Use connectionUpdateStream (from our universal_ble fork) to get
     // native disconnect reason codes (GATT error, HCI status) — the
     // standard connectionStream only emits bool.
-    _connectionStateSubscription = UniversalBle.connectionUpdateStream(
-      _device.deviceId,
-    ).listen((update) {
-      if (update.isConnected) {
-        _connectionStateSubject.add(device.ConnectionState.connected);
-      } else {
-        final reason = update.error ?? 'unknown';
-        _log.warning('Transport disconnected: $reason');
-        _connectionStateSubject.add(device.ConnectionState.disconnected);
-      }
-    });
+    _connectionStateSubscription =
+        UniversalBle.connectionUpdateStream(
+          _device.deviceId,
+        ).listen((update) {
+          if (update.isConnected) {
+            _connectionStateSubject.add(device.ConnectionState.connected);
+          } else {
+            final reason = update.error ?? 'unknown';
+            _log.warning('Transport disconnected: $reason');
+            _connectionStateSubject.add(device.ConnectionState.disconnected);
+          }
+        });
     if (_isLinux) {
       await _connectBlueZ();
       return;
@@ -184,7 +186,11 @@ class UniversalBleTransport implements BLETransport, CombustionAdvertisingTransp
     UniversalBleErrorCode.deviceDisconnected,
   };
 
-  Never _handleGattError(UniversalBleException e, String operation, String path) {
+  Never _handleGattError(
+    UniversalBleException e,
+    String operation,
+    String path,
+  ) {
     if (_goneDeviceCodes.contains(e.code)) {
       _log.warning('GATT $operation($path) failed — device gone: ${e.code}');
       _connectionStateSubject.add(device.ConnectionState.disconnected);
@@ -217,8 +223,7 @@ class UniversalBleTransport implements BLETransport, CombustionAdvertisingTransp
       BleConnectionState.connected => device.ConnectionState.connected,
       BleConnectionState.connecting => device.ConnectionState.connecting,
       BleConnectionState.disconnecting ||
-      BleConnectionState.disconnected =>
-        device.ConnectionState.disconnected,
+      BleConnectionState.disconnected => device.ConnectionState.disconnected,
     };
   }
 
@@ -300,13 +305,17 @@ class UniversalBleTransport implements BLETransport, CombustionAdvertisingTransp
   String get name => _device.name ?? "Unknown";
 
   @override
-  Future<Uint8List> read(String serviceUUID, String characteristicUUID, {Duration? timeout}) async {
+  Future<Uint8List> read(
+    String serviceUUID,
+    String characteristicUUID, {
+    Duration? timeout,
+  }) async {
     try {
       return await UniversalBle.read(
         _device.deviceId,
         serviceUUID,
         characteristicUUID,
-        timeout: timeout
+        timeout: timeout,
       );
     } on TimeoutException {
       // Fail fast (see write() — a read-timeout reconnect mid profile-upload
@@ -377,7 +386,7 @@ class UniversalBleTransport implements BLETransport, CombustionAdvertisingTransp
         BleUuidParser.string(characteristicUUID),
         data,
         withoutResponse: !withResponse,
-        timeout: timeout
+        timeout: timeout,
       );
     } on TimeoutException {
       // Fail fast — do NOT map this to a BleTimeoutException. Doing so routes it

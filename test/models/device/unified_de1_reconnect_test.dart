@@ -24,8 +24,9 @@ import 'package:rxdart/rxdart.dart';
 /// cycle through the same instance.
 
 class _QuietSerialTransport extends SerialTransport {
-  final _connState =
-      BehaviorSubject<ConnectionState>.seeded(ConnectionState.connected);
+  final _connState = BehaviorSubject<ConnectionState>.seeded(
+    ConnectionState.connected,
+  );
 
   @override
   String get id => 'reconnect-test-de1';
@@ -62,9 +63,7 @@ class _QuietSerialTransport extends SerialTransport {
 
 void main() {
   group('UnifiedDe1 reconnect (comms-harden #3)', () {
-    test(
-        'initRawStream is idempotent — calling it twice does not throw',
-        () {
+    test('initRawStream is idempotent — calling it twice does not throw', () {
       final transport = _QuietSerialTransport();
       final de1 = UnifiedDe1(transport: transport);
 

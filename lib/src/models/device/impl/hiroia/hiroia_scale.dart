@@ -58,9 +58,9 @@ class HiroiaScale implements Scale {
       disconnectSub = _transport.connectionState
           .where((state) => state == ConnectionState.disconnected)
           .listen((_) {
-        _connectionStateController.add(ConnectionState.disconnected);
-        disconnectSub?.cancel();
-      });
+            _connectionStateController.add(ConnectionState.disconnected);
+            disconnectSub?.cancel();
+          });
 
       final services = await _transport.discoverServices();
       if (!serviceIdentifier.matchesAny(services)) {
@@ -113,7 +113,11 @@ class HiroiaScale implements Scale {
   }
 
   Future<void> _registerNotifications() async {
-    await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
+    await _transport.subscribe(
+      serviceIdentifier.long,
+      dataCharacteristic.long,
+      _parseNotification,
+    );
   }
 
   /// Send toggle unit command to switch the scale back to grams

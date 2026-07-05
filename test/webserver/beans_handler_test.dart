@@ -43,16 +43,20 @@ class MockBeanStorageService implements BeanStorageService {
   }
 
   @override
-  Future<List<BeanBatch>> getBatchesForBean(String beanId,
-      {bool includeArchived = false}) async {
+  Future<List<BeanBatch>> getBatchesForBean(
+    String beanId, {
+    bool includeArchived = false,
+  }) async {
     final filtered = batches.where((b) => b.beanId == beanId);
     if (includeArchived) return filtered.toList();
     return filtered.where((b) => !b.archived).toList();
   }
 
   @override
-  Stream<List<BeanBatch>> watchBatchesForBean(String beanId,
-      {bool includeArchived = false}) {
+  Stream<List<BeanBatch>> watchBatchesForBean(
+    String beanId, {
+    bool includeArchived = false,
+  }) {
     throw UnimplementedError();
   }
 
@@ -82,10 +86,9 @@ class MockBeanStorageService implements BeanStorageService {
     final idx = batches.indexWhere((b) => b.id == batchId);
     if (idx >= 0) {
       final batch = batches[idx];
-      final remaining =
-          ((batch.weightRemaining ?? batch.weight ?? 0) - amount)
-              .clamp(0.0, double.infinity)
-              .toDouble();
+      final remaining = ((batch.weightRemaining ?? batch.weight ?? 0) - amount)
+          .clamp(0.0, double.infinity)
+          .toDouble();
       batches[idx] = batch.copyWith(weightRemaining: remaining);
     }
   }
@@ -249,11 +252,13 @@ void main() {
       expect(etag, isNot(empty.headers['etag']));
 
       // Re-request with the same ETag → 304, no body
-      final cached = await handler(Request(
-        'GET',
-        Uri.parse('http://localhost/api/v1/beans'),
-        headers: {'If-None-Match': etag!},
-      ));
+      final cached = await handler(
+        Request(
+          'GET',
+          Uri.parse('http://localhost/api/v1/beans'),
+          headers: {'If-None-Match': etag!},
+        ),
+      );
       expect(cached.statusCode, 304);
       expect(cached.headers['etag'], etag);
       expect(await cached.readAsString(), isEmpty);
@@ -276,10 +281,8 @@ void main() {
       expect(body, isEmpty);
 
       // With includeArchived=true
-      final archivedRes =
-          await sendGet('/api/v1/beans?includeArchived=true');
-      final archivedBody =
-          jsonDecode(await archivedRes.readAsString()) as List;
+      final archivedRes = await sendGet('/api/v1/beans?includeArchived=true');
+      final archivedBody = jsonDecode(await archivedRes.readAsString()) as List;
       expect(archivedBody, hasLength(1));
     });
   });

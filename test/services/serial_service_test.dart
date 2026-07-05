@@ -42,7 +42,8 @@ void main() {
         expect(
           first,
           isEmpty,
-          reason: 'DeviceController seeds its per-service device map from '
+          reason:
+              'DeviceController seeds its per-service device map from '
               'the first emission — a silent stream stalls the controller',
         );
       },

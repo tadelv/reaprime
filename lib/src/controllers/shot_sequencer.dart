@@ -263,8 +263,9 @@ class ShotSequencer {
     if (sensor == null) return;
 
     _trackedSensor = sensor;
-    _probeConnectionSub =
-        sensor.connectionState.listen(_onProbeConnectionState);
+    _probeConnectionSub = sensor.connectionState.listen(
+      _onProbeConnectionState,
+    );
     _sensorSub = sensor.data.listen((payload) {
       if (_probeLost) return;
       final raw = payload['temperature'];
@@ -655,8 +656,3 @@ class ShotDecision {
 
   const ShotDecision({required this.reason, this.details});
 }
-
-
-
-
-

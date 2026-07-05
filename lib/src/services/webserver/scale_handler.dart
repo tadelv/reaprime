@@ -6,7 +6,7 @@ class ScaleHandler {
   final Logger _log = Logger("Scale handler");
 
   ScaleHandler({required ScaleController controller})
-      : _controller = controller;
+    : _controller = controller;
 
   void addRoutes(RouterPlus app) {
     app.put('/api/v1/scale/<command>', (request, command) async {
@@ -49,7 +49,10 @@ class ScaleHandler {
     app.get('/ws/v1/scale/snapshot', sws.webSocketHandler(_handleSnapshot));
   }
 
-  Future<void> _handleSnapshot(WebSocketChannel socket, String? protocol) async {
+  Future<void> _handleSnapshot(
+    WebSocketChannel socket,
+    String? protocol,
+  ) async {
     _log.fine("handling websocket connection");
 
     StreamSubscription<WeightSnapshot>? snapshotSub;

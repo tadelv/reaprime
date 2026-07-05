@@ -20,8 +20,8 @@ class BengleMilkProbe implements Sensor {
   BengleMilkProbe({
     required BengleInterface bengle,
     String? deviceId,
-  })  : _bengle = bengle,
-        _deviceId = deviceId ?? '${_machineDeviceId(bengle)}-milkprobe';
+  }) : _bengle = bengle,
+       _deviceId = deviceId ?? '${_machineDeviceId(bengle)}-milkprobe';
 
   static String _machineDeviceId(BengleInterface bengle) =>
       (bengle as Device).deviceId;
@@ -52,18 +52,20 @@ class BengleMilkProbe implements Sensor {
 
   @override
   SensorInfo get info => SensorInfo(
-        name: name,
-        vendor: 'DecentEspresso',
-        dataChannels: [
-          DataChannel(key: 'timestamp', type: 'string'),
-          DataChannel(key: 'temperature', type: 'number', unit: '°C'),
-        ],
-        commands: const [],
-      );
+    name: name,
+    vendor: 'DecentEspresso',
+    dataChannels: [
+      DataChannel(key: 'timestamp', type: 'string'),
+      DataChannel(key: 'temperature', type: 'number', unit: '°C'),
+    ],
+    commands: const [],
+  );
 
   @override
   Future<Map<String, dynamic>> execute(
-      String commandId, Map<String, dynamic>? parameters) async {
+    String commandId,
+    Map<String, dynamic>? parameters,
+  ) async {
     // No commands exposed today.
     return const {};
   }
@@ -72,9 +74,9 @@ class BengleMilkProbe implements Sensor {
   Future<void> onConnect() async {
     _attachedSub = _bengle.probeAttached.listen((attached) {
       if (_connectionState.isClosed) return;
-      _connectionState.add(attached
-          ? ConnectionState.connected
-          : ConnectionState.disconnected);
+      _connectionState.add(
+        attached ? ConnectionState.connected : ConnectionState.disconnected,
+      );
     });
     _tempSub = _bengle.probeTemperature.listen((celsius) {
       if (_data.isClosed) return;

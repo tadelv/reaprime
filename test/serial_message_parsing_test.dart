@@ -40,26 +40,29 @@ void main() {
     test('incomplete message at end of buffer does NOT match', () {
       const buffer = '[M]0A0';
       final matches = messagePattern.allMatches(buffer).toList();
-      expect(matches, isEmpty,
-          reason:
-              'Partial message with no terminator should not match');
+      expect(
+        matches,
+        isEmpty,
+        reason: 'Partial message with no terminator should not match',
+      );
     });
 
-    test('complete message followed by partial does not match the partial',
-        () {
+    test('complete message followed by partial does not match the partial', () {
       const buffer = '[M]0A0B0C\n[N]0C0';
       final matches = messagePattern.allMatches(buffer).toList();
       expect(matches, hasLength(1));
       expect(matches[0].group(1), equals('[M]0A0B0C'));
     });
 
-    test('complete message followed by partial separated by [ does not match the partial',
-        () {
-      const buffer = '[M]0A0B0C[N]0C0';
-      final matches = messagePattern.allMatches(buffer).toList();
-      expect(matches, hasLength(1));
-      expect(matches[0].group(1), equals('[M]0A0B0C'));
-    });
+    test(
+      'complete message followed by partial separated by [ does not match the partial',
+      () {
+        const buffer = '[M]0A0B0C[N]0C0';
+        final matches = messagePattern.allMatches(buffer).toList();
+        expect(matches, hasLength(1));
+        expect(matches[0].group(1), equals('[M]0A0B0C'));
+      },
+    );
   });
 
   group('hexToBytes', () {

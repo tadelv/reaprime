@@ -51,7 +51,7 @@ class ScanOrchestrator {
   final DeviceScanner _scanner;
   final StatusPublisher _statusPublisher;
   final Future<void> Function(De1Interface, ScanReportBuilder)
-      _connectMachineTracked;
+  _connectMachineTracked;
   final Future<void> Function(Scale, ScanReportBuilder) _connectScaleTracked;
   final bool Function() _isMachineConnected;
   final bool Function() _isScaleConnected;
@@ -60,17 +60,17 @@ class ScanOrchestrator {
     required DeviceScanner scanner,
     required StatusPublisher statusPublisher,
     required Future<void> Function(De1Interface, ScanReportBuilder)
-        connectMachineTracked,
+    connectMachineTracked,
     required Future<void> Function(Scale, ScanReportBuilder)
-        connectScaleTracked,
+    connectScaleTracked,
     required bool Function() isMachineConnected,
     required bool Function() isScaleConnected,
-  })  : _scanner = scanner,
-        _statusPublisher = statusPublisher,
-        _connectMachineTracked = connectMachineTracked,
-        _connectScaleTracked = connectScaleTracked,
-        _isMachineConnected = isMachineConnected,
-        _isScaleConnected = isScaleConnected;
+  }) : _scanner = scanner,
+       _statusPublisher = statusPublisher,
+       _connectMachineTracked = connectMachineTracked,
+       _connectScaleTracked = connectScaleTracked,
+       _isMachineConnected = isMachineConnected,
+       _isScaleConnected = isScaleConnected;
 
   /// Publish `phase: scanning`, set up the early-connect watcher,
   /// run the scan, wait for early connects, and return a snapshot
@@ -169,18 +169,20 @@ class ScanOrchestrator {
     _statusPublisher.publish(
       _statusPublisher.current.copyWith(phase: ConnectionPhase.idle),
     );
-    _statusPublisher.emitError(ConnectionError(
-      kind: kind,
-      severity: ConnectionErrorSeverity.error,
-      timestamp: DateTime.now().toUtc(),
-      message: kind == ConnectionErrorKind.bluetoothPermissionDenied
-          ? 'Bluetooth permission was denied.'
-          : 'Failed to start Bluetooth scan.',
-      suggestion: kind == ConnectionErrorKind.bluetoothPermissionDenied
-          ? 'Grant Bluetooth permission in system settings and retry.'
-          : 'Check that Bluetooth is enabled and retry.',
-      details: {'exception': e.toString()},
-    ));
+    _statusPublisher.emitError(
+      ConnectionError(
+        kind: kind,
+        severity: ConnectionErrorSeverity.error,
+        timestamp: DateTime.now().toUtc(),
+        message: kind == ConnectionErrorKind.bluetoothPermissionDenied
+            ? 'Bluetooth permission was denied.'
+            : 'Failed to start Bluetooth scan.',
+        suggestion: kind == ConnectionErrorKind.bluetoothPermissionDenied
+            ? 'Grant Bluetooth permission in system settings and retry.'
+            : 'Check that Bluetooth is enabled and retry.',
+        details: {'exception': e.toString()},
+      ),
+    );
   }
 
   void _clearStickyScanError() {

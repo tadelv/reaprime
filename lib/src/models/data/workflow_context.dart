@@ -44,11 +44,9 @@ class WorkflowContext {
   });
 
   double? get ratio =>
-      (targetDoseWeight != null &&
-              targetDoseWeight != 0 &&
-              targetYield != null)
-          ? targetYield! / targetDoseWeight!
-          : null;
+      (targetDoseWeight != null && targetDoseWeight != 0 && targetYield != null)
+      ? targetYield! / targetDoseWeight!
+      : null;
 
   /// Deserializes from the `context` JSON object within a Workflow.
   /// Legacy field migration (doseData/grinderData/coffeeData) is handled
@@ -152,7 +150,8 @@ class WorkflowContext {
   }
 
   @override
-  String toString() => 'WorkflowContext('
+  String toString() =>
+      'WorkflowContext('
       'dose: $targetDoseWeight→$targetYield, '
       'grinder: $grinderModel/$grinderSetting, '
       'coffee: $coffeeName by $coffeeRoaster)';
@@ -176,19 +175,23 @@ class WorkflowContext {
 
   @override
   int get hashCode => Object.hash(
-        targetDoseWeight,
-        targetYield,
-        grinderId,
-        grinderModel,
-        grinderSetting,
-        beanBatchId,
-        coffeeName,
-        coffeeRoaster,
-        finalBeverageType,
-        baristaName,
-        drinkerName,
-        extras == null ? null : Object.hashAll(extras!.entries.map((e) => Object.hash(e.key, e.value))),
-      );
+    targetDoseWeight,
+    targetYield,
+    grinderId,
+    grinderModel,
+    grinderSetting,
+    beanBatchId,
+    coffeeName,
+    coffeeRoaster,
+    finalBeverageType,
+    baristaName,
+    drinkerName,
+    extras == null
+        ? null
+        : Object.hashAll(
+            extras!.entries.map((e) => Object.hash(e.key, e.value)),
+          ),
+  );
 }
 
 bool _mapEquals(Map<String, dynamic>? a, Map<String, dynamic>? b) {

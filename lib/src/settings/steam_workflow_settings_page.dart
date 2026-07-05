@@ -44,8 +44,7 @@ class _SteamWorkflowSettingsPageState extends State<SteamWorkflowSettingsPage> {
       final machineSettings = await widget.de1Controller.steamSettings();
       final workflowSteam =
           widget.workflowController.currentWorkflow.steamSettings;
-      final preferredProbeId =
-          widget.settingsController.preferredSteamProbeId;
+      final preferredProbeId = widget.settingsController.preferredSteamProbeId;
 
       if (!mounted) {
         return;
@@ -86,8 +85,9 @@ class _SteamWorkflowSettingsPageState extends State<SteamWorkflowSettingsPage> {
   Future<void> _apply(SteamFormSettings settings) async {
     final updatedSteam = settings.toSteamSettings();
     widget.workflowController.updateWorkflow(steamSettings: updatedSteam);
-    await widget.settingsController
-        .setPreferredSteamProbeId(settings.preferredProbeId);
+    await widget.settingsController.setPreferredSteamProbeId(
+      settings.preferredProbeId,
+    );
     await widget.de1Controller.updateSteamSettings(settings);
 
     if (!mounted) {

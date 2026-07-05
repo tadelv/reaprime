@@ -20,8 +20,12 @@ class TelemetryReportQueue {
   static const int maxCapacity = 10;
 
   /// Callback to send a report
-  final Future<void> Function(Object error, StackTrace? stackTrace,
-      {bool fatal}) _sendCallback;
+  final Future<void> Function(
+    Object error,
+    StackTrace? stackTrace, {
+    bool fatal,
+  })
+  _sendCallback;
 
   /// Internal queue of pending reports
   final List<_ReportEntry> _queue = [];

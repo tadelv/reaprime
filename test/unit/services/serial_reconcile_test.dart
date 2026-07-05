@@ -7,9 +7,12 @@ TrackedPortSnapshot _port(
   bool hds = false,
   bool present = true,
   ConnectionState state = ConnectionState.connected,
-}) =>
-    TrackedPortSnapshot(
-        path: path, isHdsSerial: hds, present: present, state: state);
+}) => TrackedPortSnapshot(
+  path: path,
+  isHdsSerial: hds,
+  present: present,
+  state: state,
+);
 
 void main() {
   group('planSerialReconcile — liveness gate', () {
@@ -17,14 +20,13 @@ void main() {
       required bool explicit,
       required int tick,
       int everyN = 3,
-    }) =>
-        planSerialReconcile(
-          explicitScan: explicit,
-          livenessTick: tick,
-          livenessEveryN: everyN,
-          tracked: const [],
-          hdsPaths: const {},
-        );
+    }) => planSerialReconcile(
+      explicitScan: explicit,
+      livenessTick: tick,
+      livenessEveryN: everyN,
+      tracked: const [],
+      hdsPaths: const {},
+    );
 
     test('an explicit scan is always a liveness pass', () {
       expect(plan(explicit: true, tick: 1).livenessPass, isTrue);
@@ -40,20 +42,23 @@ void main() {
   });
 
   group('planSerialReconcile — liveness releases', () {
-    test('releases a discovered (not-connected) HDS, keeps a connected one', () {
-      final p = planSerialReconcile(
-        explicitScan: true, // liveness pass
-        livenessTick: 1,
-        livenessEveryN: 3,
-        tracked: [
-          _port('/off', hds: true, state: ConnectionState.discovered),
-          _port('/live', hds: true, state: ConnectionState.connected),
-        ],
-        hdsPaths: {'/off', '/live'},
-      );
-      expect(p.release, {'/off'});
-      expect(p.reap, isEmpty, reason: 'a released path is not also reaped');
-    });
+    test(
+      'releases a discovered (not-connected) HDS, keeps a connected one',
+      () {
+        final p = planSerialReconcile(
+          explicitScan: true, // liveness pass
+          livenessTick: 1,
+          livenessEveryN: 3,
+          tracked: [
+            _port('/off', hds: true, state: ConnectionState.discovered),
+            _port('/live', hds: true, state: ConnectionState.connected),
+          ],
+          hdsPaths: {'/off', '/live'},
+        );
+        expect(p.release, {'/off'});
+        expect(p.reap, isEmpty, reason: 'a released path is not also reaped');
+      },
+    );
 
     test('does NOT release a CONNECTING HDS (would dispose mid-connect)', () {
       final p = planSerialReconcile(
@@ -81,17 +86,22 @@ void main() {
       expect(p.release, isEmpty);
     });
 
-    test('does not release a non-HDS device (it is reaped if disconnected)', () {
-      final p = planSerialReconcile(
-        explicitScan: true,
-        livenessTick: 1,
-        livenessEveryN: 3,
-        tracked: [_port('/de1', hds: false, state: ConnectionState.disconnected)],
-        hdsPaths: const {},
-      );
-      expect(p.release, isEmpty);
-      expect(p.reap, {'/de1'});
-    });
+    test(
+      'does not release a non-HDS device (it is reaped if disconnected)',
+      () {
+        final p = planSerialReconcile(
+          explicitScan: true,
+          livenessTick: 1,
+          livenessEveryN: 3,
+          tracked: [
+            _port('/de1', hds: false, state: ConnectionState.disconnected),
+          ],
+          hdsPaths: const {},
+        );
+        expect(p.release, isEmpty);
+        expect(p.reap, {'/de1'});
+      },
+    );
   });
 
   group('planSerialReconcile — reap + suppression', () {
@@ -112,7 +122,9 @@ void main() {
         explicitScan: false,
         livenessTick: 1,
         livenessEveryN: 3,
-        tracked: [_port('/s', present: true, state: ConnectionState.disconnected)],
+        tracked: [
+          _port('/s', present: true, state: ConnectionState.disconnected),
+        ],
         hdsPaths: const {},
       );
       expect(p.reap, {'/s'});
@@ -126,7 +138,14 @@ void main() {
         explicitScan: false,
         livenessTick: 1,
         livenessEveryN: 3,
-        tracked: [_port('/gone', hds: true, present: false, state: ConnectionState.connected)],
+        tracked: [
+          _port(
+            '/gone',
+            hds: true,
+            present: false,
+            state: ConnectionState.connected,
+          ),
+        ],
         hdsPaths: {'/gone'},
       );
       expect(p.reap, {'/gone'});
@@ -135,8 +154,7 @@ void main() {
       expect(p.hdsForget, {'/gone'});
     });
 
-    test(
-        'a liveness pass lifts HDS suppression, but a same-pass present '
+    test('a liveness pass lifts HDS suppression, but a same-pass present '
         'self-disconnected HDS nets to suppressed (add wins)', () {
       final p = planSerialReconcile(
         explicitScan: true, // liveness pass
@@ -146,7 +164,12 @@ void main() {
           // present + disconnected HDS → released first (not connected), so it
           // won't reach the reap branch. Use a NON-HDS present self-disconnect
           // that is also (artificially) in hdsPaths to exercise the net.
-          _port('/x', hds: false, present: true, state: ConnectionState.disconnected),
+          _port(
+            '/x',
+            hds: false,
+            present: true,
+            state: ConnectionState.disconnected,
+          ),
         ],
         hdsPaths: {'/x', '/other'},
       );
@@ -195,37 +218,63 @@ void main() {
   group('serialPortMatchesCandidate', () {
     test('rejects Bluetooth transport', () {
       expect(
-          serialPortMatchesCandidate(
-              name: 'cu.usbmodem1', transport: 'Bluetooth'),
-          isFalse);
+        serialPortMatchesCandidate(
+          name: 'cu.usbmodem1',
+          transport: 'Bluetooth',
+        ),
+        isFalse,
+      );
     });
     test('accepts known productNames', () {
       expect(
-          serialPortMatchesCandidate(
-              name: 'COM5', transport: 'USB', productName: 'DE1'),
-          isTrue);
+        serialPortMatchesCandidate(
+          name: 'COM5',
+          transport: 'USB',
+          productName: 'DE1',
+        ),
+        isTrue,
+      );
       expect(
-          serialPortMatchesCandidate(
-              name: 'whatever',
-              transport: 'Unknown',
-              productName: 'Half Decent Scale'),
-          isTrue);
+        serialPortMatchesCandidate(
+          name: 'whatever',
+          transport: 'Unknown',
+          productName: 'Half Decent Scale',
+        ),
+        isTrue,
+      );
     });
     test('accepts unix usb-serial port names', () {
-      for (final n in ['cu.usbmodem1', 'ttyACM0', 'ttyUSB0', 'cu.wchusbserial']) {
-        expect(serialPortMatchesCandidate(name: n, transport: 'USB'), isTrue,
-            reason: n);
+      for (final n in [
+        'cu.usbmodem1',
+        'ttyACM0',
+        'ttyUSB0',
+        'cu.wchusbserial',
+      ]) {
+        expect(
+          serialPortMatchesCandidate(name: n, transport: 'USB'),
+          isTrue,
+          reason: n,
+        );
       }
     });
     test('accepts a USB COM port, rejects a non-USB COM port', () {
-      expect(serialPortMatchesCandidate(name: 'COM3', transport: 'USB'), isTrue);
       expect(
-          serialPortMatchesCandidate(name: 'COM3', transport: 'Native'), isFalse);
+        serialPortMatchesCandidate(name: 'COM3', transport: 'USB'),
+        isTrue,
+      );
+      expect(
+        serialPortMatchesCandidate(name: 'COM3', transport: 'Native'),
+        isFalse,
+      );
     });
     test('rejects an unrelated port', () {
       expect(
-          serialPortMatchesCandidate(name: 'cu.Bluetooth-Incoming', transport: 'Native'),
-          isFalse);
+        serialPortMatchesCandidate(
+          name: 'cu.Bluetooth-Incoming',
+          transport: 'Native',
+        ),
+        isFalse,
+      );
     });
   });
 }

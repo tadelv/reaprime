@@ -18,7 +18,9 @@ void main() {
 
   setUp(() async {
     db = AppDatabase(NativeDatabase.memory());
-    persistence = PersistenceController(storageService: DriftStorageService(db));
+    persistence = PersistenceController(
+      storageService: DriftStorageService(db),
+    );
     final steamsHandler = SteamsHandler(controller: persistence);
     final app = Router().plus;
     steamsHandler.addRoutes(app);
@@ -47,11 +49,11 @@ void main() {
       handler(Request('DELETE', Uri.parse('http://localhost$path')));
 
   SteamRecord makeRecord(String id) => SteamRecord(
-        id: id,
-        timestamp: DateTime.utc(2026, 5, 18, 12, 0, 0),
-        measurements: const [],
-        workflow: WorkflowController().currentWorkflow,
-      );
+    id: id,
+    timestamp: DateTime.utc(2026, 5, 18, 12, 0, 0),
+    measurements: const [],
+    workflow: WorkflowController().currentWorkflow,
+  );
 
   group('SteamsHandler', () {
     test('GET /api/v1/steams returns empty list', () async {
@@ -61,20 +63,22 @@ void main() {
       expect(body, isEmpty);
     });
 
-    test('GET /api/v1/steams returns persisted records (no measurements)',
-        () async {
-      await persistence.persistSteam(makeRecord('s1'));
-      await persistence.persistSteam(makeRecord('s2'));
+    test(
+      'GET /api/v1/steams returns persisted records (no measurements)',
+      () async {
+        await persistence.persistSteam(makeRecord('s1'));
+        await persistence.persistSteam(makeRecord('s2'));
 
-      final response = await sendGet('/api/v1/steams');
-      expect(response.statusCode, 200);
-      final body = jsonDecode(await response.readAsString()) as List;
-      expect(body, hasLength(2));
-      for (final entry in body) {
-        expect(entry, isA<Map>());
-        expect((entry as Map).containsKey('measurements'), isFalse);
-      }
-    });
+        final response = await sendGet('/api/v1/steams');
+        expect(response.statusCode, 200);
+        final body = jsonDecode(await response.readAsString()) as List;
+        expect(body, hasLength(2));
+        for (final entry in body) {
+          expect(entry, isA<Map>());
+          expect((entry as Map).containsKey('measurements'), isFalse);
+        }
+      },
+    );
 
     test('GET /api/v1/steams/ids returns ids', () async {
       await persistence.persistSteam(makeRecord('s1'));
@@ -83,16 +87,21 @@ void main() {
       expect(body, contains('s1'));
     });
 
-    test('GET /api/v1/steams/latest returns the most recent record',
-        () async {
-      await persistence.persistSteam(makeRecord('s1').copyWith(
-          timestamp: DateTime.utc(2026, 5, 18, 11, 0, 0)));
-      await persistence.persistSteam(makeRecord('s2').copyWith(
-          timestamp: DateTime.utc(2026, 5, 18, 13, 0, 0)));
+    test('GET /api/v1/steams/latest returns the most recent record', () async {
+      await persistence.persistSteam(
+        makeRecord(
+          's1',
+        ).copyWith(timestamp: DateTime.utc(2026, 5, 18, 11, 0, 0)),
+      );
+      await persistence.persistSteam(
+        makeRecord(
+          's2',
+        ).copyWith(timestamp: DateTime.utc(2026, 5, 18, 13, 0, 0)),
+      );
 
       final response = await sendGet('/api/v1/steams/latest');
-      final body = jsonDecode(await response.readAsString())
-          as Map<String, dynamic>;
+      final body =
+          jsonDecode(await response.readAsString()) as Map<String, dynamic>;
       expect(body['id'], equals('s2'));
     });
 
@@ -100,8 +109,8 @@ void main() {
       await persistence.persistSteam(makeRecord('s1'));
       final response = await sendGet('/api/v1/steams/s1');
       expect(response.statusCode, 200);
-      final body = jsonDecode(await response.readAsString())
-          as Map<String, dynamic>;
+      final body =
+          jsonDecode(await response.readAsString()) as Map<String, dynamic>;
       expect(body['id'], equals('s1'));
     });
 
@@ -116,8 +125,8 @@ void main() {
         'annotations': ShotAnnotations(espressoNotes: 'silky').toJson(),
       });
       expect(response.statusCode, 200);
-      final body = jsonDecode(await response.readAsString())
-          as Map<String, dynamic>;
+      final body =
+          jsonDecode(await response.readAsString()) as Map<String, dynamic>;
       expect(body['annotations']['espressoNotes'], equals('silky'));
     });
 

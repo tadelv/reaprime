@@ -103,7 +103,7 @@ class _RinseFormState extends State<RinseForm> {
             onPressed: () {
               widget.apply(settings);
             },
-          )
+          ),
         ],
       ),
     );

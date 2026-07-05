@@ -83,8 +83,9 @@ void main() {
       'FR-S1/S3: stop-at-temperature requests idle and persists milkTemperature',
       () async {
         workflow.updateWorkflow(
-          steamSettings: workflow.currentWorkflow.steamSettings
-              .copyWith(stopAtTemperature: 60.0),
+          steamSettings: workflow.currentWorkflow.steamSettings.copyWith(
+            stopAtTemperature: 60.0,
+          ),
         );
 
         final machine = MockDe1();
@@ -108,10 +109,14 @@ void main() {
         final record = await storage.getLatestSteam();
         expect(record, isNotNull);
         expect(record!.measurements, isNotEmpty);
-        final withTemp =
-            record.measurements.where((m) => m.milkTemperature != null);
-        expect(withTemp, isNotEmpty,
-            reason: 'FR-S3: milkTemperature populated from probe');
+        final withTemp = record.measurements.where(
+          (m) => m.milkTemperature != null,
+        );
+        expect(
+          withTemp,
+          isNotEmpty,
+          reason: 'FR-S3: milkTemperature populated from probe',
+        );
         expect(withTemp.last.milkTemperature, closeTo(62.0, 0.1));
 
         await probe.disconnect();
@@ -119,41 +124,45 @@ void main() {
       },
     );
 
-    test('probe disconnect mid-steam does not false-stop at temperature',
-        () async {
-      workflow.updateWorkflow(
-        steamSettings: workflow.currentWorkflow.steamSettings
-            .copyWith(stopAtTemperature: 60.0),
-      );
+    test(
+      'probe disconnect mid-steam does not false-stop at temperature',
+      () async {
+        workflow.updateWorkflow(
+          steamSettings: workflow.currentWorkflow.steamSettings.copyWith(
+            stopAtTemperature: 60.0,
+          ),
+        );
 
-      final machine = MockDe1();
-      await de1Controller.connectToDe1(machine);
+        final machine = MockDe1();
+        await de1Controller.connectToDe1(machine);
 
-      final probe = MockCombustionProbe();
-      await probe.onConnect();
-      await sensors.register(probe);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+        final probe = MockCombustionProbe();
+        await probe.onConnect();
+        await sensors.register(probe);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      await machine.requestState(MachineState.steam);
-      await waitForState(machine, MachineState.steam);
+        await machine.requestState(MachineState.steam);
+        await waitForState(machine, MachineState.steam);
 
-      probe.setTemperature(40.0);
-      await Future<void>.delayed(const Duration(milliseconds: 300));
+        probe.setTemperature(40.0);
+        await Future<void>.delayed(const Duration(milliseconds: 300));
 
-      await probe.disconnect();
-      await Future<void>.delayed(const Duration(milliseconds: 200));
+        await probe.disconnect();
+        await Future<void>.delayed(const Duration(milliseconds: 200));
 
-      final snapshot = await machine.currentSnapshot.first;
-      expect(
-        snapshot.state.state,
-        MachineState.steam,
-        reason: 'probeLost must disable app-side stop; machine stays steaming',
-      );
+        final snapshot = await machine.currentSnapshot.first;
+        expect(
+          snapshot.state.state,
+          MachineState.steam,
+          reason:
+              'probeLost must disable app-side stop; machine stays steaming',
+        );
 
-      await machine.requestState(MachineState.idle);
-      await waitForState(machine, MachineState.idle);
+        await machine.requestState(MachineState.idle);
+        await waitForState(machine, MachineState.idle);
 
-      await machine.disconnect();
-    });
+        await machine.disconnect();
+      },
+    );
   });
 }

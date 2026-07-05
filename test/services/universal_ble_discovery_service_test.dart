@@ -25,24 +25,27 @@ void main() {
       return devicesSeen.future;
     }
 
-    test('empty name with Combustion manufacturer ID discovers sensor', () async {
-      final devices = await processAndAwaitDevices(
-        BleDevice(
-          deviceId: 'combustion-probe-1',
-          name: '',
-          manufacturerDataList: [
-            ManufacturerData(
-              CombustionConstants.manufacturerCompanyId,
-              Uint8List(0),
-            ),
-          ],
-        ),
-      );
+    test(
+      'empty name with Combustion manufacturer ID discovers sensor',
+      () async {
+        final devices = await processAndAwaitDevices(
+          BleDevice(
+            deviceId: 'combustion-probe-1',
+            name: '',
+            manufacturerDataList: [
+              ManufacturerData(
+                CombustionConstants.manufacturerCompanyId,
+                Uint8List(0),
+              ),
+            ],
+          ),
+        );
 
-      expect(devices, hasLength(1));
-      expect(devices.single, isA<CombustionProbe>());
-      expect(devices.single.deviceId, 'combustion-probe-1');
-    });
+        expect(devices, hasLength(1));
+        expect(devices.single, isA<CombustionProbe>());
+        expect(devices.single.deviceId, 'combustion-probe-1');
+      },
+    );
 
     test('empty name without Combustion metadata is ignored', () async {
       var emissionCount = 0;

@@ -322,30 +322,26 @@ class $BeansTable extends Beans with TableInfo<$BeansTable, Bean> {
   Bean map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return Bean(
-      id:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.string,
-            data['${effectivePrefix}id'],
-          )!,
-      roaster:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.string,
-            data['${effectivePrefix}roaster'],
-          )!,
-      name:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.string,
-            data['${effectivePrefix}name'],
-          )!,
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      roaster: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}roaster'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
       species: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}species'],
       ),
-      decaf:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.bool,
-            data['${effectivePrefix}decaf'],
-          )!,
+      decaf: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}decaf'],
+      )!,
       decafProcess: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}decaf_process'],
@@ -382,21 +378,18 @@ class $BeansTable extends Beans with TableInfo<$BeansTable, Bean> {
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
-      archived:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.bool,
-            data['${effectivePrefix}archived'],
-          )!,
-      createdAt:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.dateTime,
-            data['${effectivePrefix}created_at'],
-          )!,
-      updatedAt:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.dateTime,
-            data['${effectivePrefix}updated_at'],
-          )!,
+      archived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}archived'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
       extras: $BeansTable.$converterextras.fromSql(
         attachedDatabase.typeMapping.read(
           DriftSqlType.string,
@@ -510,44 +503,40 @@ class Bean extends DataClass implements Insertable<Bean> {
       id: Value(id),
       roaster: Value(roaster),
       name: Value(name),
-      species:
-          species == null && nullToAbsent
-              ? const Value.absent()
-              : Value(species),
+      species: species == null && nullToAbsent
+          ? const Value.absent()
+          : Value(species),
       decaf: Value(decaf),
-      decafProcess:
-          decafProcess == null && nullToAbsent
-              ? const Value.absent()
-              : Value(decafProcess),
-      country:
-          country == null && nullToAbsent
-              ? const Value.absent()
-              : Value(country),
-      region:
-          region == null && nullToAbsent ? const Value.absent() : Value(region),
-      producer:
-          producer == null && nullToAbsent
-              ? const Value.absent()
-              : Value(producer),
-      variety:
-          variety == null && nullToAbsent
-              ? const Value.absent()
-              : Value(variety),
-      altitude:
-          altitude == null && nullToAbsent
-              ? const Value.absent()
-              : Value(altitude),
-      processing:
-          processing == null && nullToAbsent
-              ? const Value.absent()
-              : Value(processing),
-      notes:
-          notes == null && nullToAbsent ? const Value.absent() : Value(notes),
+      decafProcess: decafProcess == null && nullToAbsent
+          ? const Value.absent()
+          : Value(decafProcess),
+      country: country == null && nullToAbsent
+          ? const Value.absent()
+          : Value(country),
+      region: region == null && nullToAbsent
+          ? const Value.absent()
+          : Value(region),
+      producer: producer == null && nullToAbsent
+          ? const Value.absent()
+          : Value(producer),
+      variety: variety == null && nullToAbsent
+          ? const Value.absent()
+          : Value(variety),
+      altitude: altitude == null && nullToAbsent
+          ? const Value.absent()
+          : Value(altitude),
+      processing: processing == null && nullToAbsent
+          ? const Value.absent()
+          : Value(processing),
+      notes: notes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notes),
       archived: Value(archived),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
-      extras:
-          extras == null && nullToAbsent ? const Value.absent() : Value(extras),
+      extras: extras == null && nullToAbsent
+          ? const Value.absent()
+          : Value(extras),
     );
   }
 
@@ -644,17 +633,17 @@ class Bean extends DataClass implements Insertable<Bean> {
       name: data.name.present ? data.name.value : this.name,
       species: data.species.present ? data.species.value : this.species,
       decaf: data.decaf.present ? data.decaf.value : this.decaf,
-      decafProcess:
-          data.decafProcess.present
-              ? data.decafProcess.value
-              : this.decafProcess,
+      decafProcess: data.decafProcess.present
+          ? data.decafProcess.value
+          : this.decafProcess,
       country: data.country.present ? data.country.value : this.country,
       region: data.region.present ? data.region.value : this.region,
       producer: data.producer.present ? data.producer.value : this.producer,
       variety: data.variety.present ? data.variety.value : this.variety,
       altitude: data.altitude.present ? data.altitude.value : this.altitude,
-      processing:
-          data.processing.present ? data.processing.value : this.processing,
+      processing: data.processing.present
+          ? data.processing.value
+          : this.processing,
       notes: data.notes.present ? data.notes.value : this.notes,
       archived: data.archived.present ? data.archived.value : this.archived,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
@@ -1389,16 +1378,14 @@ class $BeanBatchesTable extends BeanBatches
   BeanBatche map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return BeanBatche(
-      id:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.string,
-            data['${effectivePrefix}id'],
-          )!,
-      beanId:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.string,
-            data['${effectivePrefix}bean_id'],
-          )!,
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      beanId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}bean_id'],
+      )!,
       roastDate: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}roast_date'],
@@ -1451,30 +1438,26 @@ class $BeanBatchesTable extends BeanBatches
         DriftSqlType.dateTime,
         data['${effectivePrefix}unfreeze_date'],
       ),
-      frozen:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.bool,
-            data['${effectivePrefix}frozen'],
-          )!,
-      archived:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.bool,
-            data['${effectivePrefix}archived'],
-          )!,
+      frozen: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}frozen'],
+      )!,
+      archived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}archived'],
+      )!,
       notes: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
-      createdAt:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.dateTime,
-            data['${effectivePrefix}created_at'],
-          )!,
-      updatedAt:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.dateTime,
-            data['${effectivePrefix}updated_at'],
-          )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
       extras: $BeanBatchesTable.$converterextras.fromSql(
         attachedDatabase.typeMapping.read(
           DriftSqlType.string,
@@ -1601,62 +1584,55 @@ class BeanBatche extends DataClass implements Insertable<BeanBatche> {
     return BeanBatchesCompanion(
       id: Value(id),
       beanId: Value(beanId),
-      roastDate:
-          roastDate == null && nullToAbsent
-              ? const Value.absent()
-              : Value(roastDate),
-      roastLevel:
-          roastLevel == null && nullToAbsent
-              ? const Value.absent()
-              : Value(roastLevel),
-      harvestDate:
-          harvestDate == null && nullToAbsent
-              ? const Value.absent()
-              : Value(harvestDate),
-      qualityScore:
-          qualityScore == null && nullToAbsent
-              ? const Value.absent()
-              : Value(qualityScore),
-      price:
-          price == null && nullToAbsent ? const Value.absent() : Value(price),
-      currency:
-          currency == null && nullToAbsent
-              ? const Value.absent()
-              : Value(currency),
-      weight:
-          weight == null && nullToAbsent ? const Value.absent() : Value(weight),
-      weightRemaining:
-          weightRemaining == null && nullToAbsent
-              ? const Value.absent()
-              : Value(weightRemaining),
-      buyDate:
-          buyDate == null && nullToAbsent
-              ? const Value.absent()
-              : Value(buyDate),
-      openDate:
-          openDate == null && nullToAbsent
-              ? const Value.absent()
-              : Value(openDate),
-      bestBeforeDate:
-          bestBeforeDate == null && nullToAbsent
-              ? const Value.absent()
-              : Value(bestBeforeDate),
-      freezeDate:
-          freezeDate == null && nullToAbsent
-              ? const Value.absent()
-              : Value(freezeDate),
-      unfreezeDate:
-          unfreezeDate == null && nullToAbsent
-              ? const Value.absent()
-              : Value(unfreezeDate),
+      roastDate: roastDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(roastDate),
+      roastLevel: roastLevel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(roastLevel),
+      harvestDate: harvestDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(harvestDate),
+      qualityScore: qualityScore == null && nullToAbsent
+          ? const Value.absent()
+          : Value(qualityScore),
+      price: price == null && nullToAbsent
+          ? const Value.absent()
+          : Value(price),
+      currency: currency == null && nullToAbsent
+          ? const Value.absent()
+          : Value(currency),
+      weight: weight == null && nullToAbsent
+          ? const Value.absent()
+          : Value(weight),
+      weightRemaining: weightRemaining == null && nullToAbsent
+          ? const Value.absent()
+          : Value(weightRemaining),
+      buyDate: buyDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(buyDate),
+      openDate: openDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(openDate),
+      bestBeforeDate: bestBeforeDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bestBeforeDate),
+      freezeDate: freezeDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(freezeDate),
+      unfreezeDate: unfreezeDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(unfreezeDate),
       frozen: Value(frozen),
       archived: Value(archived),
-      notes:
-          notes == null && nullToAbsent ? const Value.absent() : Value(notes),
+      notes: notes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notes),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
-      extras:
-          extras == null && nullToAbsent ? const Value.absent() : Value(extras),
+      extras: extras == null && nullToAbsent
+          ? const Value.absent()
+          : Value(extras),
     );
   }
 
@@ -1749,12 +1725,14 @@ class BeanBatche extends DataClass implements Insertable<BeanBatche> {
     price: price.present ? price.value : this.price,
     currency: currency.present ? currency.value : this.currency,
     weight: weight.present ? weight.value : this.weight,
-    weightRemaining:
-        weightRemaining.present ? weightRemaining.value : this.weightRemaining,
+    weightRemaining: weightRemaining.present
+        ? weightRemaining.value
+        : this.weightRemaining,
     buyDate: buyDate.present ? buyDate.value : this.buyDate,
     openDate: openDate.present ? openDate.value : this.openDate,
-    bestBeforeDate:
-        bestBeforeDate.present ? bestBeforeDate.value : this.bestBeforeDate,
+    bestBeforeDate: bestBeforeDate.present
+        ? bestBeforeDate.value
+        : this.bestBeforeDate,
     freezeDate: freezeDate.present ? freezeDate.value : this.freezeDate,
     unfreezeDate: unfreezeDate.present ? unfreezeDate.value : this.unfreezeDate,
     frozen: frozen ?? this.frozen,
@@ -1769,33 +1747,32 @@ class BeanBatche extends DataClass implements Insertable<BeanBatche> {
       id: data.id.present ? data.id.value : this.id,
       beanId: data.beanId.present ? data.beanId.value : this.beanId,
       roastDate: data.roastDate.present ? data.roastDate.value : this.roastDate,
-      roastLevel:
-          data.roastLevel.present ? data.roastLevel.value : this.roastLevel,
-      harvestDate:
-          data.harvestDate.present ? data.harvestDate.value : this.harvestDate,
-      qualityScore:
-          data.qualityScore.present
-              ? data.qualityScore.value
-              : this.qualityScore,
+      roastLevel: data.roastLevel.present
+          ? data.roastLevel.value
+          : this.roastLevel,
+      harvestDate: data.harvestDate.present
+          ? data.harvestDate.value
+          : this.harvestDate,
+      qualityScore: data.qualityScore.present
+          ? data.qualityScore.value
+          : this.qualityScore,
       price: data.price.present ? data.price.value : this.price,
       currency: data.currency.present ? data.currency.value : this.currency,
       weight: data.weight.present ? data.weight.value : this.weight,
-      weightRemaining:
-          data.weightRemaining.present
-              ? data.weightRemaining.value
-              : this.weightRemaining,
+      weightRemaining: data.weightRemaining.present
+          ? data.weightRemaining.value
+          : this.weightRemaining,
       buyDate: data.buyDate.present ? data.buyDate.value : this.buyDate,
       openDate: data.openDate.present ? data.openDate.value : this.openDate,
-      bestBeforeDate:
-          data.bestBeforeDate.present
-              ? data.bestBeforeDate.value
-              : this.bestBeforeDate,
-      freezeDate:
-          data.freezeDate.present ? data.freezeDate.value : this.freezeDate,
-      unfreezeDate:
-          data.unfreezeDate.present
-              ? data.unfreezeDate.value
-              : this.unfreezeDate,
+      bestBeforeDate: data.bestBeforeDate.present
+          ? data.bestBeforeDate.value
+          : this.bestBeforeDate,
+      freezeDate: data.freezeDate.present
+          ? data.freezeDate.value
+          : this.freezeDate,
+      unfreezeDate: data.unfreezeDate.present
+          ? data.unfreezeDate.value
+          : this.unfreezeDate,
       frozen: data.frozen.present ? data.frozen.value : this.frozen,
       archived: data.archived.present ? data.archived.value : this.archived,
       notes: data.notes.present ? data.notes.value : this.notes,
@@ -2480,16 +2457,14 @@ class $GrindersTable extends Grinders with TableInfo<$GrindersTable, Grinder> {
   Grinder map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return Grinder(
-      id:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.string,
-            data['${effectivePrefix}id'],
-          )!,
-      model:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.string,
-            data['${effectivePrefix}model'],
-          )!,
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      model: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}model'],
+      )!,
       burrs: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}burrs'],
@@ -2506,16 +2481,14 @@ class $GrindersTable extends Grinders with TableInfo<$GrindersTable, Grinder> {
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
-      archived:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.bool,
-            data['${effectivePrefix}archived'],
-          )!,
-      settingType:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.string,
-            data['${effectivePrefix}setting_type'],
-          )!,
+      archived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}archived'],
+      )!,
+      settingType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}setting_type'],
+      )!,
       settingValues: $GrindersTable.$convertersettingValues.fromSql(
         attachedDatabase.typeMapping.read(
           DriftSqlType.string,
@@ -2538,16 +2511,14 @@ class $GrindersTable extends Grinders with TableInfo<$GrindersTable, Grinder> {
         DriftSqlType.double,
         data['${effectivePrefix}rpm_big_step'],
       ),
-      createdAt:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.dateTime,
-            data['${effectivePrefix}created_at'],
-          )!,
-      updatedAt:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.dateTime,
-            data['${effectivePrefix}updated_at'],
-          )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
       extras: $GrindersTable.$converterextras.fromSql(
         attachedDatabase.typeMapping.read(
           DriftSqlType.string,
@@ -2653,44 +2624,40 @@ class Grinder extends DataClass implements Insertable<Grinder> {
     return GrindersCompanion(
       id: Value(id),
       model: Value(model),
-      burrs:
-          burrs == null && nullToAbsent ? const Value.absent() : Value(burrs),
-      burrSize:
-          burrSize == null && nullToAbsent
-              ? const Value.absent()
-              : Value(burrSize),
-      burrType:
-          burrType == null && nullToAbsent
-              ? const Value.absent()
-              : Value(burrType),
-      notes:
-          notes == null && nullToAbsent ? const Value.absent() : Value(notes),
+      burrs: burrs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(burrs),
+      burrSize: burrSize == null && nullToAbsent
+          ? const Value.absent()
+          : Value(burrSize),
+      burrType: burrType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(burrType),
+      notes: notes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notes),
       archived: Value(archived),
       settingType: Value(settingType),
-      settingValues:
-          settingValues == null && nullToAbsent
-              ? const Value.absent()
-              : Value(settingValues),
-      settingSmallStep:
-          settingSmallStep == null && nullToAbsent
-              ? const Value.absent()
-              : Value(settingSmallStep),
-      settingBigStep:
-          settingBigStep == null && nullToAbsent
-              ? const Value.absent()
-              : Value(settingBigStep),
-      rpmSmallStep:
-          rpmSmallStep == null && nullToAbsent
-              ? const Value.absent()
-              : Value(rpmSmallStep),
-      rpmBigStep:
-          rpmBigStep == null && nullToAbsent
-              ? const Value.absent()
-              : Value(rpmBigStep),
+      settingValues: settingValues == null && nullToAbsent
+          ? const Value.absent()
+          : Value(settingValues),
+      settingSmallStep: settingSmallStep == null && nullToAbsent
+          ? const Value.absent()
+          : Value(settingSmallStep),
+      settingBigStep: settingBigStep == null && nullToAbsent
+          ? const Value.absent()
+          : Value(settingBigStep),
+      rpmSmallStep: rpmSmallStep == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rpmSmallStep),
+      rpmBigStep: rpmBigStep == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rpmBigStep),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
-      extras:
-          extras == null && nullToAbsent ? const Value.absent() : Value(extras),
+      extras: extras == null && nullToAbsent
+          ? const Value.absent()
+          : Value(extras),
     );
   }
 
@@ -2767,14 +2734,15 @@ class Grinder extends DataClass implements Insertable<Grinder> {
     notes: notes.present ? notes.value : this.notes,
     archived: archived ?? this.archived,
     settingType: settingType ?? this.settingType,
-    settingValues:
-        settingValues.present ? settingValues.value : this.settingValues,
-    settingSmallStep:
-        settingSmallStep.present
-            ? settingSmallStep.value
-            : this.settingSmallStep,
-    settingBigStep:
-        settingBigStep.present ? settingBigStep.value : this.settingBigStep,
+    settingValues: settingValues.present
+        ? settingValues.value
+        : this.settingValues,
+    settingSmallStep: settingSmallStep.present
+        ? settingSmallStep.value
+        : this.settingSmallStep,
+    settingBigStep: settingBigStep.present
+        ? settingBigStep.value
+        : this.settingBigStep,
     rpmSmallStep: rpmSmallStep.present ? rpmSmallStep.value : this.rpmSmallStep,
     rpmBigStep: rpmBigStep.present ? rpmBigStep.value : this.rpmBigStep,
     createdAt: createdAt ?? this.createdAt,
@@ -2790,26 +2758,24 @@ class Grinder extends DataClass implements Insertable<Grinder> {
       burrType: data.burrType.present ? data.burrType.value : this.burrType,
       notes: data.notes.present ? data.notes.value : this.notes,
       archived: data.archived.present ? data.archived.value : this.archived,
-      settingType:
-          data.settingType.present ? data.settingType.value : this.settingType,
-      settingValues:
-          data.settingValues.present
-              ? data.settingValues.value
-              : this.settingValues,
-      settingSmallStep:
-          data.settingSmallStep.present
-              ? data.settingSmallStep.value
-              : this.settingSmallStep,
-      settingBigStep:
-          data.settingBigStep.present
-              ? data.settingBigStep.value
-              : this.settingBigStep,
-      rpmSmallStep:
-          data.rpmSmallStep.present
-              ? data.rpmSmallStep.value
-              : this.rpmSmallStep,
-      rpmBigStep:
-          data.rpmBigStep.present ? data.rpmBigStep.value : this.rpmBigStep,
+      settingType: data.settingType.present
+          ? data.settingType.value
+          : this.settingType,
+      settingValues: data.settingValues.present
+          ? data.settingValues.value
+          : this.settingValues,
+      settingSmallStep: data.settingSmallStep.present
+          ? data.settingSmallStep.value
+          : this.settingSmallStep,
+      settingBigStep: data.settingBigStep.present
+          ? data.settingBigStep.value
+          : this.settingBigStep,
+      rpmSmallStep: data.rpmSmallStep.present
+          ? data.rpmSmallStep.value
+          : this.rpmSmallStep,
+      rpmBigStep: data.rpmBigStep.present
+          ? data.rpmBigStep.value
+          : this.rpmBigStep,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       extras: data.extras.present ? data.extras.value : this.extras,
@@ -3254,26 +3220,28 @@ class $ShotRecordsTable extends ShotRecords
   );
   @override
   late final GeneratedColumnWithTypeConverter<Map<String, dynamic>, String>
-  workflowJson = GeneratedColumn<String>(
-    'workflow_json',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  ).withConverter<Map<String, dynamic>>(
-    $ShotRecordsTable.$converterworkflowJson,
-  );
+  workflowJson =
+      GeneratedColumn<String>(
+        'workflow_json',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      ).withConverter<Map<String, dynamic>>(
+        $ShotRecordsTable.$converterworkflowJson,
+      );
   @override
   late final GeneratedColumnWithTypeConverter<Map<String, dynamic>?, String>
-  annotationsJson = GeneratedColumn<String>(
-    'annotations_json',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  ).withConverter<Map<String, dynamic>?>(
-    $ShotRecordsTable.$converterannotationsJson,
-  );
+  annotationsJson =
+      GeneratedColumn<String>(
+        'annotations_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      ).withConverter<Map<String, dynamic>?>(
+        $ShotRecordsTable.$converterannotationsJson,
+      );
   static const VerificationMeta _measurementsJsonMeta = const VerificationMeta(
     'measurementsJson',
   );
@@ -3439,16 +3407,14 @@ class $ShotRecordsTable extends ShotRecords
   ShotRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return ShotRecord(
-      id:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.string,
-            data['${effectivePrefix}id'],
-          )!,
-      timestamp:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.dateTime,
-            data['${effectivePrefix}timestamp'],
-          )!,
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      timestamp: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}timestamp'],
+      )!,
       profileTitle: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}profile_title'],
@@ -3505,11 +3471,10 @@ class $ShotRecordsTable extends ShotRecords
           data['${effectivePrefix}annotations_json'],
         ),
       ),
-      measurementsJson:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.string,
-            data['${effectivePrefix}measurements_json'],
-          )!,
+      measurementsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}measurements_json'],
+      )!,
     );
   }
 
@@ -3615,55 +3580,43 @@ class ShotRecord extends DataClass implements Insertable<ShotRecord> {
     return ShotRecordsCompanion(
       id: Value(id),
       timestamp: Value(timestamp),
-      profileTitle:
-          profileTitle == null && nullToAbsent
-              ? const Value.absent()
-              : Value(profileTitle),
-      grinderId:
-          grinderId == null && nullToAbsent
-              ? const Value.absent()
-              : Value(grinderId),
-      grinderModel:
-          grinderModel == null && nullToAbsent
-              ? const Value.absent()
-              : Value(grinderModel),
-      grinderSetting:
-          grinderSetting == null && nullToAbsent
-              ? const Value.absent()
-              : Value(grinderSetting),
-      beanBatchId:
-          beanBatchId == null && nullToAbsent
-              ? const Value.absent()
-              : Value(beanBatchId),
-      coffeeName:
-          coffeeName == null && nullToAbsent
-              ? const Value.absent()
-              : Value(coffeeName),
-      coffeeRoaster:
-          coffeeRoaster == null && nullToAbsent
-              ? const Value.absent()
-              : Value(coffeeRoaster),
-      targetDoseWeight:
-          targetDoseWeight == null && nullToAbsent
-              ? const Value.absent()
-              : Value(targetDoseWeight),
-      targetYield:
-          targetYield == null && nullToAbsent
-              ? const Value.absent()
-              : Value(targetYield),
-      enjoyment:
-          enjoyment == null && nullToAbsent
-              ? const Value.absent()
-              : Value(enjoyment),
-      espressoNotes:
-          espressoNotes == null && nullToAbsent
-              ? const Value.absent()
-              : Value(espressoNotes),
+      profileTitle: profileTitle == null && nullToAbsent
+          ? const Value.absent()
+          : Value(profileTitle),
+      grinderId: grinderId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(grinderId),
+      grinderModel: grinderModel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(grinderModel),
+      grinderSetting: grinderSetting == null && nullToAbsent
+          ? const Value.absent()
+          : Value(grinderSetting),
+      beanBatchId: beanBatchId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(beanBatchId),
+      coffeeName: coffeeName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coffeeName),
+      coffeeRoaster: coffeeRoaster == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coffeeRoaster),
+      targetDoseWeight: targetDoseWeight == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetDoseWeight),
+      targetYield: targetYield == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetYield),
+      enjoyment: enjoyment == null && nullToAbsent
+          ? const Value.absent()
+          : Value(enjoyment),
+      espressoNotes: espressoNotes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(espressoNotes),
       workflowJson: Value(workflowJson),
-      annotationsJson:
-          annotationsJson == null && nullToAbsent
-              ? const Value.absent()
-              : Value(annotationsJson),
+      annotationsJson: annotationsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(annotationsJson),
       measurementsJson: Value(measurementsJson),
     );
   }
@@ -3744,73 +3697,70 @@ class ShotRecord extends DataClass implements Insertable<ShotRecord> {
     profileTitle: profileTitle.present ? profileTitle.value : this.profileTitle,
     grinderId: grinderId.present ? grinderId.value : this.grinderId,
     grinderModel: grinderModel.present ? grinderModel.value : this.grinderModel,
-    grinderSetting:
-        grinderSetting.present ? grinderSetting.value : this.grinderSetting,
+    grinderSetting: grinderSetting.present
+        ? grinderSetting.value
+        : this.grinderSetting,
     beanBatchId: beanBatchId.present ? beanBatchId.value : this.beanBatchId,
     coffeeName: coffeeName.present ? coffeeName.value : this.coffeeName,
-    coffeeRoaster:
-        coffeeRoaster.present ? coffeeRoaster.value : this.coffeeRoaster,
-    targetDoseWeight:
-        targetDoseWeight.present
-            ? targetDoseWeight.value
-            : this.targetDoseWeight,
+    coffeeRoaster: coffeeRoaster.present
+        ? coffeeRoaster.value
+        : this.coffeeRoaster,
+    targetDoseWeight: targetDoseWeight.present
+        ? targetDoseWeight.value
+        : this.targetDoseWeight,
     targetYield: targetYield.present ? targetYield.value : this.targetYield,
     enjoyment: enjoyment.present ? enjoyment.value : this.enjoyment,
-    espressoNotes:
-        espressoNotes.present ? espressoNotes.value : this.espressoNotes,
+    espressoNotes: espressoNotes.present
+        ? espressoNotes.value
+        : this.espressoNotes,
     workflowJson: workflowJson ?? this.workflowJson,
-    annotationsJson:
-        annotationsJson.present ? annotationsJson.value : this.annotationsJson,
+    annotationsJson: annotationsJson.present
+        ? annotationsJson.value
+        : this.annotationsJson,
     measurementsJson: measurementsJson ?? this.measurementsJson,
   );
   ShotRecord copyWithCompanion(ShotRecordsCompanion data) {
     return ShotRecord(
       id: data.id.present ? data.id.value : this.id,
       timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
-      profileTitle:
-          data.profileTitle.present
-              ? data.profileTitle.value
-              : this.profileTitle,
+      profileTitle: data.profileTitle.present
+          ? data.profileTitle.value
+          : this.profileTitle,
       grinderId: data.grinderId.present ? data.grinderId.value : this.grinderId,
-      grinderModel:
-          data.grinderModel.present
-              ? data.grinderModel.value
-              : this.grinderModel,
-      grinderSetting:
-          data.grinderSetting.present
-              ? data.grinderSetting.value
-              : this.grinderSetting,
-      beanBatchId:
-          data.beanBatchId.present ? data.beanBatchId.value : this.beanBatchId,
-      coffeeName:
-          data.coffeeName.present ? data.coffeeName.value : this.coffeeName,
-      coffeeRoaster:
-          data.coffeeRoaster.present
-              ? data.coffeeRoaster.value
-              : this.coffeeRoaster,
-      targetDoseWeight:
-          data.targetDoseWeight.present
-              ? data.targetDoseWeight.value
-              : this.targetDoseWeight,
-      targetYield:
-          data.targetYield.present ? data.targetYield.value : this.targetYield,
+      grinderModel: data.grinderModel.present
+          ? data.grinderModel.value
+          : this.grinderModel,
+      grinderSetting: data.grinderSetting.present
+          ? data.grinderSetting.value
+          : this.grinderSetting,
+      beanBatchId: data.beanBatchId.present
+          ? data.beanBatchId.value
+          : this.beanBatchId,
+      coffeeName: data.coffeeName.present
+          ? data.coffeeName.value
+          : this.coffeeName,
+      coffeeRoaster: data.coffeeRoaster.present
+          ? data.coffeeRoaster.value
+          : this.coffeeRoaster,
+      targetDoseWeight: data.targetDoseWeight.present
+          ? data.targetDoseWeight.value
+          : this.targetDoseWeight,
+      targetYield: data.targetYield.present
+          ? data.targetYield.value
+          : this.targetYield,
       enjoyment: data.enjoyment.present ? data.enjoyment.value : this.enjoyment,
-      espressoNotes:
-          data.espressoNotes.present
-              ? data.espressoNotes.value
-              : this.espressoNotes,
-      workflowJson:
-          data.workflowJson.present
-              ? data.workflowJson.value
-              : this.workflowJson,
-      annotationsJson:
-          data.annotationsJson.present
-              ? data.annotationsJson.value
-              : this.annotationsJson,
-      measurementsJson:
-          data.measurementsJson.present
-              ? data.measurementsJson.value
-              : this.measurementsJson,
+      espressoNotes: data.espressoNotes.present
+          ? data.espressoNotes.value
+          : this.espressoNotes,
+      workflowJson: data.workflowJson.present
+          ? data.workflowJson.value
+          : this.workflowJson,
+      annotationsJson: data.annotationsJson.present
+          ? data.annotationsJson.value
+          : this.annotationsJson,
+      measurementsJson: data.measurementsJson.present
+          ? data.measurementsJson.value
+          : this.measurementsJson,
     );
   }
 
@@ -4133,26 +4083,28 @@ class $SteamRecordsTable extends SteamRecords
   );
   @override
   late final GeneratedColumnWithTypeConverter<Map<String, dynamic>, String>
-  workflowJson = GeneratedColumn<String>(
-    'workflow_json',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  ).withConverter<Map<String, dynamic>>(
-    $SteamRecordsTable.$converterworkflowJson,
-  );
+  workflowJson =
+      GeneratedColumn<String>(
+        'workflow_json',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      ).withConverter<Map<String, dynamic>>(
+        $SteamRecordsTable.$converterworkflowJson,
+      );
   @override
   late final GeneratedColumnWithTypeConverter<Map<String, dynamic>?, String>
-  annotationsJson = GeneratedColumn<String>(
-    'annotations_json',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  ).withConverter<Map<String, dynamic>?>(
-    $SteamRecordsTable.$converterannotationsJson,
-  );
+  annotationsJson =
+      GeneratedColumn<String>(
+        'annotations_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      ).withConverter<Map<String, dynamic>?>(
+        $SteamRecordsTable.$converterannotationsJson,
+      );
   static const VerificationMeta _measurementsJsonMeta = const VerificationMeta(
     'measurementsJson',
   );
@@ -4217,16 +4169,14 @@ class $SteamRecordsTable extends SteamRecords
   SteamRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return SteamRecord(
-      id:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.string,
-            data['${effectivePrefix}id'],
-          )!,
-      timestamp:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.dateTime,
-            data['${effectivePrefix}timestamp'],
-          )!,
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      timestamp: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}timestamp'],
+      )!,
       workflowJson: $SteamRecordsTable.$converterworkflowJson.fromSql(
         attachedDatabase.typeMapping.read(
           DriftSqlType.string,
@@ -4239,11 +4189,10 @@ class $SteamRecordsTable extends SteamRecords
           data['${effectivePrefix}annotations_json'],
         ),
       ),
-      measurementsJson:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.string,
-            data['${effectivePrefix}measurements_json'],
-          )!,
+      measurementsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}measurements_json'],
+      )!,
     );
   }
 
@@ -4295,10 +4244,9 @@ class SteamRecord extends DataClass implements Insertable<SteamRecord> {
       id: Value(id),
       timestamp: Value(timestamp),
       workflowJson: Value(workflowJson),
-      annotationsJson:
-          annotationsJson == null && nullToAbsent
-              ? const Value.absent()
-              : Value(annotationsJson),
+      annotationsJson: annotationsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(annotationsJson),
       measurementsJson: Value(measurementsJson),
     );
   }
@@ -4344,26 +4292,24 @@ class SteamRecord extends DataClass implements Insertable<SteamRecord> {
     id: id ?? this.id,
     timestamp: timestamp ?? this.timestamp,
     workflowJson: workflowJson ?? this.workflowJson,
-    annotationsJson:
-        annotationsJson.present ? annotationsJson.value : this.annotationsJson,
+    annotationsJson: annotationsJson.present
+        ? annotationsJson.value
+        : this.annotationsJson,
     measurementsJson: measurementsJson ?? this.measurementsJson,
   );
   SteamRecord copyWithCompanion(SteamRecordsCompanion data) {
     return SteamRecord(
       id: data.id.present ? data.id.value : this.id,
       timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
-      workflowJson:
-          data.workflowJson.present
-              ? data.workflowJson.value
-              : this.workflowJson,
-      annotationsJson:
-          data.annotationsJson.present
-              ? data.annotationsJson.value
-              : this.annotationsJson,
-      measurementsJson:
-          data.measurementsJson.present
-              ? data.measurementsJson.value
-              : this.measurementsJson,
+      workflowJson: data.workflowJson.present
+          ? data.workflowJson.value
+          : this.workflowJson,
+      annotationsJson: data.annotationsJson.present
+          ? data.annotationsJson.value
+          : this.annotationsJson,
+      measurementsJson: data.measurementsJson.present
+          ? data.measurementsJson.value
+          : this.measurementsJson,
     );
   }
 
@@ -4575,22 +4521,20 @@ class $WorkflowsTable extends Workflows
   Workflow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return Workflow(
-      id:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.string,
-            data['${effectivePrefix}id'],
-          )!,
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
       workflowJson: $WorkflowsTable.$converterworkflowJson.fromSql(
         attachedDatabase.typeMapping.read(
           DriftSqlType.string,
           data['${effectivePrefix}workflow_json'],
         )!,
       ),
-      updatedAt:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.dateTime,
-            data['${effectivePrefix}updated_at'],
-          )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
     );
   }
 
@@ -4668,10 +4612,9 @@ class Workflow extends DataClass implements Insertable<Workflow> {
   Workflow copyWithCompanion(WorkflowsCompanion data) {
     return Workflow(
       id: data.id.present ? data.id.value : this.id,
-      workflowJson:
-          data.workflowJson.present
-              ? data.workflowJson.value
-              : this.workflowJson,
+      workflowJson: data.workflowJson.present
+          ? data.workflowJson.value
+          : this.workflowJson,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -4875,26 +4818,28 @@ class $ProfileRecordsTable extends ProfileRecords
   );
   @override
   late final GeneratedColumnWithTypeConverter<Map<String, dynamic>, String>
-  profileJson = GeneratedColumn<String>(
-    'profile_json',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  ).withConverter<Map<String, dynamic>>(
-    $ProfileRecordsTable.$converterprofileJson,
-  );
+  profileJson =
+      GeneratedColumn<String>(
+        'profile_json',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      ).withConverter<Map<String, dynamic>>(
+        $ProfileRecordsTable.$converterprofileJson,
+      );
   @override
   late final GeneratedColumnWithTypeConverter<Map<String, dynamic>?, String>
-  metadata = GeneratedColumn<String>(
-    'metadata',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  ).withConverter<Map<String, dynamic>?>(
-    $ProfileRecordsTable.$convertermetadata,
-  );
+  metadata =
+      GeneratedColumn<String>(
+        'metadata',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      ).withConverter<Map<String, dynamic>?>(
+        $ProfileRecordsTable.$convertermetadata,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -4990,45 +4935,38 @@ class $ProfileRecordsTable extends ProfileRecords
   ProfileRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return ProfileRecord(
-      id:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.string,
-            data['${effectivePrefix}id'],
-          )!,
-      metadataHash:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.string,
-            data['${effectivePrefix}metadata_hash'],
-          )!,
-      compoundHash:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.string,
-            data['${effectivePrefix}compound_hash'],
-          )!,
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      metadataHash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}metadata_hash'],
+      )!,
+      compoundHash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}compound_hash'],
+      )!,
       parentId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}parent_id'],
       ),
-      visibility:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.string,
-            data['${effectivePrefix}visibility'],
-          )!,
-      isDefault:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.bool,
-            data['${effectivePrefix}is_default'],
-          )!,
-      createdAt:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.dateTime,
-            data['${effectivePrefix}created_at'],
-          )!,
-      updatedAt:
-          attachedDatabase.typeMapping.read(
-            DriftSqlType.dateTime,
-            data['${effectivePrefix}updated_at'],
-          )!,
+      visibility: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}visibility'],
+      )!,
+      isDefault: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_default'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
       profileJson: $ProfileRecordsTable.$converterprofileJson.fromSql(
         attachedDatabase.typeMapping.read(
           DriftSqlType.string,
@@ -5109,19 +5047,17 @@ class ProfileRecord extends DataClass implements Insertable<ProfileRecord> {
       id: Value(id),
       metadataHash: Value(metadataHash),
       compoundHash: Value(compoundHash),
-      parentId:
-          parentId == null && nullToAbsent
-              ? const Value.absent()
-              : Value(parentId),
+      parentId: parentId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(parentId),
       visibility: Value(visibility),
       isDefault: Value(isDefault),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       profileJson: Value(profileJson),
-      metadata:
-          metadata == null && nullToAbsent
-              ? const Value.absent()
-              : Value(metadata),
+      metadata: metadata == null && nullToAbsent
+          ? const Value.absent()
+          : Value(metadata),
     );
   }
 
@@ -5188,22 +5124,22 @@ class ProfileRecord extends DataClass implements Insertable<ProfileRecord> {
   ProfileRecord copyWithCompanion(ProfileRecordsCompanion data) {
     return ProfileRecord(
       id: data.id.present ? data.id.value : this.id,
-      metadataHash:
-          data.metadataHash.present
-              ? data.metadataHash.value
-              : this.metadataHash,
-      compoundHash:
-          data.compoundHash.present
-              ? data.compoundHash.value
-              : this.compoundHash,
+      metadataHash: data.metadataHash.present
+          ? data.metadataHash.value
+          : this.metadataHash,
+      compoundHash: data.compoundHash.present
+          ? data.compoundHash.value
+          : this.compoundHash,
       parentId: data.parentId.present ? data.parentId.value : this.parentId,
-      visibility:
-          data.visibility.present ? data.visibility.value : this.visibility,
+      visibility: data.visibility.present
+          ? data.visibility.value
+          : this.visibility,
       isDefault: data.isDefault.present ? data.isDefault.value : this.isDefault,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
-      profileJson:
-          data.profileJson.present ? data.profileJson.value : this.profileJson,
+      profileJson: data.profileJson.present
+          ? data.profileJson.value
+          : this.profileJson,
       metadata: data.metadata.present ? data.metadata.value : this.metadata,
     );
   }
@@ -5846,12 +5782,12 @@ class $$BeansTableTableManager
         TableManagerState(
           db: db,
           table: table,
-          createFilteringComposer:
-              () => $$BeansTableFilterComposer($db: db, $table: table),
-          createOrderingComposer:
-              () => $$BeansTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer:
-              () => $$BeansTableAnnotationComposer($db: db, $table: table),
+          createFilteringComposer: () =>
+              $$BeansTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BeansTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BeansTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
@@ -5932,16 +5868,14 @@ class $$BeansTableTableManager
                 extras: extras,
                 rowid: rowid,
               ),
-          withReferenceMapper:
-              (p0) =>
-                  p0
-                      .map(
-                        (e) => (
-                          e.readTable(table),
-                          $$BeansTableReferences(db, table, e),
-                        ),
-                      )
-                      .toList(),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$BeansTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
           prefetchHooksCallback: ({beanBatchesRefs = false}) {
             return PrefetchHooks(
               db: db,
@@ -5954,16 +5888,13 @@ class $$BeansTableTableManager
                       currentTable: table,
                       referencedTable: $$BeansTableReferences
                           ._beanBatchesRefsTable(db),
-                      managerFromTypedResult:
-                          (p0) =>
-                              $$BeansTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).beanBatchesRefs,
-                      referencedItemsForCurrentItem:
-                          (item, referencedItems) =>
-                              referencedItems.where((e) => e.beanId == item.id),
+                      managerFromTypedResult: (p0) => $$BeansTableReferences(
+                        db,
+                        table,
+                        p0,
+                      ).beanBatchesRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.beanId == item.id),
                       typedResults: items,
                     ),
                 ];
@@ -6460,13 +6391,12 @@ class $$BeanBatchesTableTableManager
         TableManagerState(
           db: db,
           table: table,
-          createFilteringComposer:
-              () => $$BeanBatchesTableFilterComposer($db: db, $table: table),
-          createOrderingComposer:
-              () => $$BeanBatchesTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer:
-              () =>
-                  $$BeanBatchesTableAnnotationComposer($db: db, $table: table),
+          createFilteringComposer: () =>
+              $$BeanBatchesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BeanBatchesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BeanBatchesTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
@@ -6563,52 +6493,50 @@ class $$BeanBatchesTableTableManager
                 extras: extras,
                 rowid: rowid,
               ),
-          withReferenceMapper:
-              (p0) =>
-                  p0
-                      .map(
-                        (e) => (
-                          e.readTable(table),
-                          $$BeanBatchesTableReferences(db, table, e),
-                        ),
-                      )
-                      .toList(),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$BeanBatchesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
           prefetchHooksCallback: ({beanId = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [],
-              addJoins: <
-                T extends TableManagerState<
-                  dynamic,
-                  dynamic,
-                  dynamic,
-                  dynamic,
-                  dynamic,
-                  dynamic,
-                  dynamic,
-                  dynamic,
-                  dynamic,
-                  dynamic,
-                  dynamic
-                >
-              >(state) {
-                if (beanId) {
-                  state =
-                      state.withJoin(
-                            currentTable: table,
-                            currentColumn: table.beanId,
-                            referencedTable: $$BeanBatchesTableReferences
-                                ._beanIdTable(db),
-                            referencedColumn:
-                                $$BeanBatchesTableReferences
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (beanId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.beanId,
+                                referencedTable: $$BeanBatchesTableReferences
+                                    ._beanIdTable(db),
+                                referencedColumn: $$BeanBatchesTableReferences
                                     ._beanIdTable(db)
                                     .id,
-                          )
-                          as T;
-                }
+                              )
+                              as T;
+                    }
 
-                return state;
-              },
+                    return state;
+                  },
               getPrefetchedDataCallback: (items) async {
                 return [];
               },
@@ -6950,12 +6878,12 @@ class $$GrindersTableTableManager
         TableManagerState(
           db: db,
           table: table,
-          createFilteringComposer:
-              () => $$GrindersTableFilterComposer($db: db, $table: table),
-          createOrderingComposer:
-              () => $$GrindersTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer:
-              () => $$GrindersTableAnnotationComposer($db: db, $table: table),
+          createFilteringComposer: () =>
+              $$GrindersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$GrindersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$GrindersTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
@@ -7032,16 +6960,14 @@ class $$GrindersTableTableManager
                 extras: extras,
                 rowid: rowid,
               ),
-          withReferenceMapper:
-              (p0) =>
-                  p0
-                      .map(
-                        (e) => (
-                          e.readTable(table),
-                          BaseReferences(db, table, e),
-                        ),
-                      )
-                      .toList(),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  BaseReferences(db, table, e),
+                ),
+              )
+              .toList(),
           prefetchHooksCallback: null,
         ),
       );
@@ -7399,13 +7325,12 @@ class $$ShotRecordsTableTableManager
         TableManagerState(
           db: db,
           table: table,
-          createFilteringComposer:
-              () => $$ShotRecordsTableFilterComposer($db: db, $table: table),
-          createOrderingComposer:
-              () => $$ShotRecordsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer:
-              () =>
-                  $$ShotRecordsTableAnnotationComposer($db: db, $table: table),
+          createFilteringComposer: () =>
+              $$ShotRecordsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ShotRecordsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ShotRecordsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
@@ -7484,16 +7409,14 @@ class $$ShotRecordsTableTableManager
                 measurementsJson: measurementsJson,
                 rowid: rowid,
               ),
-          withReferenceMapper:
-              (p0) =>
-                  p0
-                      .map(
-                        (e) => (
-                          e.readTable(table),
-                          BaseReferences(db, table, e),
-                        ),
-                      )
-                      .toList(),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  BaseReferences(db, table, e),
+                ),
+              )
+              .toList(),
           prefetchHooksCallback: null,
         ),
       );
@@ -7671,13 +7594,12 @@ class $$SteamRecordsTableTableManager
         TableManagerState(
           db: db,
           table: table,
-          createFilteringComposer:
-              () => $$SteamRecordsTableFilterComposer($db: db, $table: table),
-          createOrderingComposer:
-              () => $$SteamRecordsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer:
-              () =>
-                  $$SteamRecordsTableAnnotationComposer($db: db, $table: table),
+          createFilteringComposer: () =>
+              $$SteamRecordsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SteamRecordsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SteamRecordsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
@@ -7712,16 +7634,14 @@ class $$SteamRecordsTableTableManager
                 measurementsJson: measurementsJson,
                 rowid: rowid,
               ),
-          withReferenceMapper:
-              (p0) =>
-                  p0
-                      .map(
-                        (e) => (
-                          e.readTable(table),
-                          BaseReferences(db, table, e),
-                        ),
-                      )
-                      .toList(),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  BaseReferences(db, table, e),
+                ),
+              )
+              .toList(),
           prefetchHooksCallback: null,
         ),
       );
@@ -7856,12 +7776,12 @@ class $$WorkflowsTableTableManager
         TableManagerState(
           db: db,
           table: table,
-          createFilteringComposer:
-              () => $$WorkflowsTableFilterComposer($db: db, $table: table),
-          createOrderingComposer:
-              () => $$WorkflowsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer:
-              () => $$WorkflowsTableAnnotationComposer($db: db, $table: table),
+          createFilteringComposer: () =>
+              $$WorkflowsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$WorkflowsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$WorkflowsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
@@ -7886,16 +7806,14 @@ class $$WorkflowsTableTableManager
                 updatedAt: updatedAt,
                 rowid: rowid,
               ),
-          withReferenceMapper:
-              (p0) =>
-                  p0
-                      .map(
-                        (e) => (
-                          e.readTable(table),
-                          BaseReferences(db, table, e),
-                        ),
-                      )
-                      .toList(),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  BaseReferences(db, table, e),
+                ),
+              )
+              .toList(),
           prefetchHooksCallback: null,
         ),
       );
@@ -8149,13 +8067,12 @@ class $$ProfileRecordsTableTableManager
         TableManagerState(
           db: db,
           table: table,
-          createFilteringComposer:
-              () => $$ProfileRecordsTableFilterComposer($db: db, $table: table),
-          createOrderingComposer:
-              () =>
-                  $$ProfileRecordsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer:
-              () => $$ProfileRecordsTableAnnotationComposer(
+          createFilteringComposer: () =>
+              $$ProfileRecordsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ProfileRecordsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ProfileRecordsTableAnnotationComposer(
                 $db: db,
                 $table: table,
               ),
@@ -8211,16 +8128,14 @@ class $$ProfileRecordsTableTableManager
                 metadata: metadata,
                 rowid: rowid,
               ),
-          withReferenceMapper:
-              (p0) =>
-                  p0
-                      .map(
-                        (e) => (
-                          e.readTable(table),
-                          BaseReferences(db, table, e),
-                        ),
-                      )
-                      .toList(),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  BaseReferences(db, table, e),
+                ),
+              )
+              .toList(),
           prefetchHooksCallback: null,
         ),
       );

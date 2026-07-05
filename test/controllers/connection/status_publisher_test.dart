@@ -4,11 +4,11 @@ import 'package:reaprime/src/controllers/connection_error.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 
 ConnectionError _err(String kind) => ConnectionError(
-      kind: kind,
-      severity: ConnectionErrorSeverity.error,
-      timestamp: DateTime(2026, 4, 21, 12, 0),
-      message: 'test',
-    );
+  kind: kind,
+  severity: ConnectionErrorSeverity.error,
+  timestamp: DateTime(2026, 4, 21, 12, 0),
+  message: 'test',
+);
 
 void main() {
   group('StatusPublisher', () {
@@ -46,9 +46,11 @@ void main() {
     test('sticky errors survive a publish that leaves error null', () {
       pub.emitError(_err(ConnectionErrorKind.bluetoothPermissionDenied));
       pub.publish(pub.current.copyWith(phase: ConnectionPhase.idle));
-      expect(pub.current.error?.kind,
-          ConnectionErrorKind.bluetoothPermissionDenied,
-          reason: 'sticky error must be preserved across phase transitions');
+      expect(
+        pub.current.error?.kind,
+        ConnectionErrorKind.bluetoothPermissionDenied,
+        reason: 'sticky error must be preserved across phase transitions',
+      );
     });
 
     test('transient errors get stripped when moving into a clearing phase', () {
@@ -56,25 +58,32 @@ void main() {
       // Caller re-publishes current status (preserves error via copyWith)
       // while transitioning into `scanning`, a clearing phase.
       pub.publish(pub.current.copyWith(phase: ConnectionPhase.scanning));
-      expect(pub.current.error, isNull,
-          reason:
-              're-published transient error should be stripped on clearing-phase transition');
+      expect(
+        pub.current.error,
+        isNull,
+        reason:
+            're-published transient error should be stripped on clearing-phase transition',
+      );
     });
 
-    test('a NEW transient error is not stripped on clearing-phase transition',
-        () {
-      pub.publish(pub.current.copyWith(phase: ConnectionPhase.idle));
-      pub.publish(pub.current.copyWith(
-        phase: ConnectionPhase.ready,
-        error: () => _err(ConnectionErrorKind.scaleConnectFailed),
-      ));
-      // Under current semantics (matching the pre-refactor behaviour)
-      // a brand-new error passed atomically with a clearing-phase
-      // transition is also stripped. Keep this test pinning that
-      // behaviour; when we move to unified emission in a later phase,
-      // the assertion will flip.
-      expect(pub.current.error, isNull);
-    });
+    test(
+      'a NEW transient error is not stripped on clearing-phase transition',
+      () {
+        pub.publish(pub.current.copyWith(phase: ConnectionPhase.idle));
+        pub.publish(
+          pub.current.copyWith(
+            phase: ConnectionPhase.ready,
+            error: () => _err(ConnectionErrorKind.scaleConnectFailed),
+          ),
+        );
+        // Under current semantics (matching the pre-refactor behaviour)
+        // a brand-new error passed atomically with a clearing-phase
+        // transition is also stripped. Keep this test pinning that
+        // behaviour; when we move to unified emission in a later phase,
+        // the assertion will flip.
+        expect(pub.current.error, isNull);
+      },
+    );
 
     test('clearError drops sticky errors explicitly', () {
       pub.emitError(_err(ConnectionErrorKind.adapterOff));

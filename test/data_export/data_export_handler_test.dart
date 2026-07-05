@@ -54,8 +54,7 @@ class FailingExportSection implements DataExportSection {
   Future<SectionImportResult> import(
     dynamic data,
     ConflictStrategy strategy,
-  ) async =>
-      throw Exception('Import failed');
+  ) async => throw Exception('Import failed');
 }
 
 void main() {
@@ -69,22 +68,28 @@ void main() {
       filename: 'profiles.json',
       exportData: {
         'profiles': [
-          {'id': 'p1', 'name': 'Default'}
-        ]
+          {'id': 'p1', 'name': 'Default'},
+        ],
       },
-      importResult:
-          const SectionImportResult(imported: 1, skipped: 0, warnings: []),
+      importResult: const SectionImportResult(
+        imported: 1,
+        skipped: 0,
+        warnings: [],
+      ),
     );
 
     shotsSection = MockExportSection(
       filename: 'shots.json',
       exportData: {
         'shots': [
-          {'id': 's1', 'timestamp': '2024-01-01'}
-        ]
+          {'id': 's1', 'timestamp': '2024-01-01'},
+        ],
       },
-      importResult:
-          const SectionImportResult(imported: 2, skipped: 1, warnings: []),
+      importResult: const SectionImportResult(
+        imported: 2,
+        skipped: 1,
+        warnings: [],
+      ),
     );
 
     handler = DataExportHandler(
@@ -125,21 +130,23 @@ void main() {
 
   group('DataExportHandler', () {
     group('GET /api/v1/data/export', () {
-      test('returns ZIP with correct content-type and Content-Disposition',
-          () async {
-        final response = await sendGet('/api/v1/data/export');
+      test(
+        'returns ZIP with correct content-type and Content-Disposition',
+        () async {
+          final response = await sendGet('/api/v1/data/export');
 
-        expect(response.statusCode, 200);
-        expect(response.headers['content-type'], 'application/zip');
-        expect(
-          response.headers['content-disposition'],
-          startsWith('attachment; filename="decent_export_'),
-        );
-        expect(
-          response.headers['content-disposition'],
-          endsWith('.zip"'),
-        );
-      });
+          expect(response.statusCode, 200);
+          expect(response.headers['content-type'], 'application/zip');
+          expect(
+            response.headers['content-disposition'],
+            startsWith('attachment; filename="decent_export_'),
+          );
+          expect(
+            response.headers['content-disposition'],
+            endsWith('.zip"'),
+          );
+        },
+      );
 
       test('ZIP contains metadata.json with correct fields', () async {
         final response = await sendGet('/api/v1/data/export');
@@ -149,8 +156,9 @@ void main() {
         final metadataFile = archive.findFile('metadata.json');
         expect(metadataFile, isNotNull);
 
-        final metadata = jsonDecode(utf8.decode(metadataFile!.content))
-            as Map<String, dynamic>;
+        final metadata =
+            jsonDecode(utf8.decode(metadataFile!.content))
+                as Map<String, dynamic>;
         expect(metadata['formatVersion'], 1);
         expect(metadata.containsKey('appVersion'), isTrue);
         expect(metadata.containsKey('commitSha'), isTrue);
@@ -179,35 +187,36 @@ void main() {
         expect(shotsData['shots'], isList);
       });
 
-      test('continues exporting other sections when one section fails',
-          () async {
-        final failingSection =
-            FailingExportSection(filename: 'failing.json');
-        final goodSection = MockExportSection(
-          filename: 'good.json',
-          exportData: {'data': 'ok'},
-        );
+      test(
+        'continues exporting other sections when one section fails',
+        () async {
+          final failingSection = FailingExportSection(filename: 'failing.json');
+          final goodSection = MockExportSection(
+            filename: 'good.json',
+            exportData: {'data': 'ok'},
+          );
 
-        final handlerWithFailure = DataExportHandler(
-          sections: [failingSection, goodSection],
-        );
+          final handlerWithFailure = DataExportHandler(
+            sections: [failingSection, goodSection],
+          );
 
-        final app = Router().plus;
-        handlerWithFailure.addRoutes(app);
-        final testHandler = app.call;
+          final app = Router().plus;
+          handlerWithFailure.addRoutes(app);
+          final testHandler = app.call;
 
-        final response = await testHandler(
-          Request('GET', Uri.parse('http://localhost/api/v1/data/export')),
-        );
+          final response = await testHandler(
+            Request('GET', Uri.parse('http://localhost/api/v1/data/export')),
+          );
 
-        expect(response.statusCode, 200);
-        final bytes = await response.read().expand((b) => b).toList();
-        final archive = ZipDecoder().decodeBytes(bytes);
+          expect(response.statusCode, 200);
+          final bytes = await response.read().expand((b) => b).toList();
+          final archive = ZipDecoder().decodeBytes(bytes);
 
-        // Should have metadata + good section (failing section skipped)
-        expect(archive.findFile('good.json'), isNotNull);
-        expect(archive.findFile('failing.json'), isNull);
-      });
+          // Should have metadata + good section (failing section skipped)
+          expect(archive.findFile('good.json'), isNotNull);
+          expect(archive.findFile('failing.json'), isNull);
+        },
+      );
     });
 
     group('POST /api/v1/data/import', () {
@@ -216,18 +225,17 @@ void main() {
           'metadata.json': {'formatVersion': 1, 'platform': 'macos'},
           'profiles.json': {
             'profiles': [
-              {'id': 'p1'}
-            ]
+              {'id': 'p1'},
+            ],
           },
           'shots.json': {
             'shots': [
-              {'id': 's1'}
-            ]
+              {'id': 's1'},
+            ],
           },
         });
 
-        final response =
-            await sendPost('/api/v1/data/import', body: zipBytes);
+        final response = await sendPost('/api/v1/data/import', body: zipBytes);
 
         expect(response.statusCode, 200);
         final body =
@@ -303,8 +311,7 @@ void main() {
           'metadata.json': {'formatVersion': 999, 'platform': 'macos'},
         });
 
-        final response =
-            await sendPost('/api/v1/data/import', body: zipBytes);
+        final response = await sendPost('/api/v1/data/import', body: zipBytes);
 
         expect(response.statusCode, 400);
         final body = jsonDecode(await response.readAsString());
@@ -317,8 +324,7 @@ void main() {
           'profiles.json': {'profiles': []},
         });
 
-        final response =
-            await sendPost('/api/v1/data/import', body: zipBytes);
+        final response = await sendPost('/api/v1/data/import', body: zipBytes);
 
         expect(response.statusCode, 200);
         expect(profileSection.importCalled, isTrue);
@@ -331,8 +337,7 @@ void main() {
           // No shots.json
         });
 
-        final response =
-            await sendPost('/api/v1/data/import', body: zipBytes);
+        final response = await sendPost('/api/v1/data/import', body: zipBytes);
 
         expect(response.statusCode, 200);
         final body = jsonDecode(await response.readAsString());
@@ -342,8 +347,7 @@ void main() {
       });
 
       test('reports errors when a section import fails', () async {
-        final failingSection =
-            FailingExportSection(filename: 'failing.json');
+        final failingSection = FailingExportSection(filename: 'failing.json');
         final handlerWithFailure = DataExportHandler(
           sections: [failingSection],
         );
@@ -399,13 +403,13 @@ void main() {
           'metadata.json': {'formatVersion': 1, 'platform': 'macos'},
           'profiles.json': {
             'profiles': [
-              {'id': 'p1'}
-            ]
+              {'id': 'p1'},
+            ],
           },
           'shots.json': {
             'shots': [
-              {'id': 's1'}
-            ]
+              {'id': 's1'},
+            ],
           },
         });
 
@@ -425,13 +429,13 @@ void main() {
           'metadata.json': {'formatVersion': 1, 'platform': 'macos'},
           'profiles.json': {
             'profiles': [
-              {'id': 'p1'}
-            ]
+              {'id': 'p1'},
+            ],
           },
           'shots.json': {
             'shots': [
-              {'id': 's1'}
-            ]
+              {'id': 's1'},
+            ],
           },
         });
 

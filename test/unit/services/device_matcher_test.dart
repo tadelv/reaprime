@@ -407,37 +407,44 @@ void main() {
       mockTransport = _MockBLETransport();
     });
 
-    test('serial name with Combustion manufacturer ID matches CombustionProbe',
-        () async {
-      final device = await DeviceMatcher.matchFromScanMetadata(
-        transport: mockTransport,
-        advertisedName: '48291034',
-        manufacturerCompanyIds: [CombustionConstants.manufacturerCompanyId],
-      );
+    test(
+      'serial name with Combustion manufacturer ID matches CombustionProbe',
+      () async {
+        final device = await DeviceMatcher.matchFromScanMetadata(
+          transport: mockTransport,
+          advertisedName: '48291034',
+          manufacturerCompanyIds: [CombustionConstants.manufacturerCompanyId],
+        );
 
-      expect(device, isA<CombustionProbe>());
-    });
+        expect(device, isA<CombustionProbe>());
+      },
+    );
 
-    test('empty name with Combustion manufacturer ID matches CombustionProbe',
-        () async {
-      final device = await DeviceMatcher.matchFromScanMetadata(
-        transport: mockTransport,
-        advertisedName: '',
-        manufacturerCompanyIds: [CombustionConstants.manufacturerCompanyId],
-      );
+    test(
+      'empty name with Combustion manufacturer ID matches CombustionProbe',
+      () async {
+        final device = await DeviceMatcher.matchFromScanMetadata(
+          transport: mockTransport,
+          advertisedName: '',
+          manufacturerCompanyIds: [CombustionConstants.manufacturerCompanyId],
+        );
 
-      expect(device, isA<CombustionProbe>());
-    });
+        expect(device, isA<CombustionProbe>());
+      },
+    );
 
-    test('Probe Status UUID in scan response matches CombustionProbe', () async {
-      final device = await DeviceMatcher.matchFromScanMetadata(
-        transport: mockTransport,
-        advertisedName: '',
-        serviceUuids: [CombustionConstants.probeStatusServiceUuid],
-      );
+    test(
+      'Probe Status UUID in scan response matches CombustionProbe',
+      () async {
+        final device = await DeviceMatcher.matchFromScanMetadata(
+          transport: mockTransport,
+          advertisedName: '',
+          serviceUuids: [CombustionConstants.probeStatusServiceUuid],
+        );
 
-      expect(device, isA<CombustionProbe>());
-    });
+        expect(device, isA<CombustionProbe>());
+      },
+    );
 
     test('name rules take precedence over metadata', () async {
       final device = await DeviceMatcher.matchFromScanMetadata(
@@ -450,17 +457,19 @@ void main() {
       expect(device, isA<DecentScale>());
     });
 
-    test('returns null for unrelated manufacturer ID and service UUIDs',
-        () async {
-      final device = await DeviceMatcher.matchFromScanMetadata(
-        transport: mockTransport,
-        advertisedName: '',
-        manufacturerCompanyIds: [0x004C],
-        serviceUuids: ['0000180f-0000-1000-8000-00805f9b34fb'],
-      );
+    test(
+      'returns null for unrelated manufacturer ID and service UUIDs',
+      () async {
+        final device = await DeviceMatcher.matchFromScanMetadata(
+          transport: mockTransport,
+          advertisedName: '',
+          manufacturerCompanyIds: [0x004C],
+          serviceUuids: ['0000180f-0000-1000-8000-00805f9b34fb'],
+        );
 
-      expect(device, isNull);
-    });
+        expect(device, isNull);
+      },
+    );
 
     test('existing name matchers still work without metadata', () async {
       final device = await DeviceMatcher.matchFromScanMetadata(

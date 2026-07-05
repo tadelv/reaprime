@@ -68,7 +68,7 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
                 if (!_steamActive && isMachineSteaming) {
                   _steamSnapshots.clear();
                 }
-                
+
                 _steamActive = isMachineSteaming;
               }
 
@@ -124,8 +124,10 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
       });
 
       // Update steam duration
-      final currentSettings =
-          await _de1Controller.connectedDe1().shotSettings.first;
+      final currentSettings = await _de1Controller
+          .connectedDe1()
+          .shotSettings
+          .first;
       await _de1Controller.connectedDe1().updateShotSettings(
         currentSettings.copyWith(targetSteamDuration: _steamDuration),
       );
@@ -156,7 +158,9 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
               Row(
                 spacing: 16.0,
                 children: [
-                SizedBox(width: 16.0,),
+                  SizedBox(
+                    width: 16.0,
+                  ),
                   _countdownBar(context),
                   _steamControls(context),
                   _flowSlider(context),
@@ -164,7 +168,11 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
               ),
               Row(
                 spacing: 16.0,
-                children: [_durationControls(context), Spacer(), _actionButtons(context)],
+                children: [
+                  _durationControls(context),
+                  Spacer(),
+                  _actionButtons(context),
+                ],
               ),
             ],
           ),
@@ -256,7 +264,7 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
     return Flexible(
       flex: 3,
       child: Column(
-      spacing: 12.0,
+        spacing: 12.0,
         children: [
           Text(
             'Steam Flow: ${_steamFlow.toStringAsFixed(1)} ml/s',
@@ -292,38 +300,35 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           ShadButton.outline(
-            onPressed:
-                _steamActive
-                    ? null
-                    : () {
-                      setState(() {
-                        _steamDuration = 15;
-                      });
-                    },
+            onPressed: _steamActive
+                ? null
+                : () {
+                    setState(() {
+                      _steamDuration = 15;
+                    });
+                  },
             child: const Text('15s'),
           ),
           const SizedBox(width: 8),
           ShadButton.outline(
-            onPressed:
-                _steamActive
-                    ? null
-                    : () {
-                      setState(() {
-                        _steamDuration = 30;
-                      });
-                    },
+            onPressed: _steamActive
+                ? null
+                : () {
+                    setState(() {
+                      _steamDuration = 30;
+                    });
+                  },
             child: const Text('30s'),
           ),
           const SizedBox(width: 8),
           ShadButton.outline(
-            onPressed:
-                _steamActive
-                    ? null
-                    : () {
-                      setState(() {
-                        _steamDuration = 60;
-                      });
-                    },
+            onPressed: _steamActive
+                ? null
+                : () {
+                    setState(() {
+                      _steamDuration = 60;
+                    });
+                  },
             child: const Text('60s'),
           ),
           const SizedBox(width: 16),
@@ -351,4 +356,3 @@ class _RealtimeSteamFeatureState extends State<RealtimeSteamFeature> {
     );
   }
 }
-

@@ -30,8 +30,9 @@ class StatusPublisher {
     ConnectionPhase.ready,
   };
 
-  final BehaviorSubject<ConnectionStatus> _subject =
-      BehaviorSubject.seeded(const ConnectionStatus());
+  final BehaviorSubject<ConnectionStatus> _subject = BehaviorSubject.seeded(
+    const ConnectionStatus(),
+  );
 
   Stream<ConnectionStatus> get stream => _subject.stream;
   ConnectionStatus get current => _subject.value;
@@ -81,7 +82,8 @@ class StatusPublisher {
   /// `info` instead of `severe`/`warning` — keeping them out of the
   /// Crashlytics forwarder while preserving them in the file log.
   void emitError(ConnectionError err) {
-    final msg = 'emit error: kind=${err.kind} message=${err.message} '
+    final msg =
+        'emit error: kind=${err.kind} message=${err.message} '
         'deviceId=${err.deviceId}';
     if (ConnectionErrorKind.sticky.contains(err.kind)) {
       _log.info(msg);

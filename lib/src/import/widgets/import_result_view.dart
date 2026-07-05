@@ -59,7 +59,9 @@ class _ImportResultViewState extends State<ImportResultView> {
                     ),
                   ),
                   Text(
-                    hasErrors ? 'Import Complete (with issues)' : 'Import Complete',
+                    hasErrors
+                        ? 'Import Complete (with issues)'
+                        : 'Import Complete',
                     style: theme.textTheme.h4,
                     textAlign: TextAlign.center,
                   ),
@@ -76,44 +78,52 @@ class _ImportResultViewState extends State<ImportResultView> {
                   children: [
                     _ResultRow(
                       icon: LucideIcons.coffee,
-                      label: '${result.shotsImported} shot${result.shotsImported == 1 ? '' : 's'} imported',
+                      label:
+                          '${result.shotsImported} shot${result.shotsImported == 1 ? '' : 's'} imported',
                     ),
                     if (result.shotsSkipped > 0)
                       _ResultRow(
                         icon: LucideIcons.skipForward,
-                        label: '${result.shotsSkipped} shot${result.shotsSkipped == 1 ? '' : 's'} skipped',
+                        label:
+                            '${result.shotsSkipped} shot${result.shotsSkipped == 1 ? '' : 's'} skipped',
                         muted: true,
                       ),
                     _ResultRow(
                       icon: LucideIcons.fileText,
-                      label: '${result.profilesImported} profile${result.profilesImported == 1 ? '' : 's'} imported',
+                      label:
+                          '${result.profilesImported} profile${result.profilesImported == 1 ? '' : 's'} imported',
                     ),
                     if (result.profilesSkipped > 0)
                       _ResultRow(
                         icon: LucideIcons.skipForward,
-                        label: '${result.profilesSkipped} profile${result.profilesSkipped == 1 ? '' : 's'} skipped',
+                        label:
+                            '${result.profilesSkipped} profile${result.profilesSkipped == 1 ? '' : 's'} skipped',
                         muted: true,
                       ),
                     if (result.beansCreated > 0)
                       _ResultRow(
                         icon: LucideIcons.bean,
-                        label: '${result.beansCreated} coffee${result.beansCreated == 1 ? '' : 's'} added',
+                        label:
+                            '${result.beansCreated} coffee${result.beansCreated == 1 ? '' : 's'} added',
                       ),
                     if (result.beansSkipped > 0)
                       _ResultRow(
                         icon: LucideIcons.skipForward,
-                        label: '${result.beansSkipped} coffee${result.beansSkipped == 1 ? '' : 's'} skipped',
+                        label:
+                            '${result.beansSkipped} coffee${result.beansSkipped == 1 ? '' : 's'} skipped',
                         muted: true,
                       ),
                     if (result.grindersCreated > 0)
                       _ResultRow(
                         icon: LucideIcons.settings,
-                        label: '${result.grindersCreated} grinder${result.grindersCreated == 1 ? '' : 's'} added',
+                        label:
+                            '${result.grindersCreated} grinder${result.grindersCreated == 1 ? '' : 's'} added',
                       ),
                     if (result.grindersSkipped > 0)
                       _ResultRow(
                         icon: LucideIcons.skipForward,
-                        label: '${result.grindersSkipped} grinder${result.grindersSkipped == 1 ? '' : 's'} skipped',
+                        label:
+                            '${result.grindersSkipped} grinder${result.grindersSkipped == 1 ? '' : 's'} skipped',
                         muted: true,
                       ),
                     if (result.settingsApplied)
@@ -124,7 +134,8 @@ class _ImportResultViewState extends State<ImportResultView> {
                     if (hasErrors)
                       _ResultRow(
                         icon: LucideIcons.circleX,
-                        label: '${result.errors.length} error${result.errors.length == 1 ? '' : 's'}',
+                        label:
+                            '${result.errors.length} error${result.errors.length == 1 ? '' : 's'}',
                         destructive: true,
                       ),
                   ],
@@ -175,7 +186,9 @@ class _ImportResultViewState extends State<ImportResultView> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               spacing: 6,
-                              children: result.errors.map((e) => _ErrorItem(error: e)).toList(),
+                              children: result.errors
+                                  .map((e) => _ErrorItem(error: e))
+                                  .toList(),
                             ),
                           ),
                         ),
@@ -275,7 +288,9 @@ class _ImportResultViewState extends State<ImportResultView> {
     buf.writeln('  Beans skipped:     ${result.beansSkipped}');
     buf.writeln('  Grinders created:  ${result.grindersCreated}');
     buf.writeln('  Grinders skipped:  ${result.grindersSkipped}');
-    buf.writeln('  Settings applied:  ${result.settingsApplied ? 'yes' : 'no'}');
+    buf.writeln(
+      '  Settings applied:  ${result.settingsApplied ? 'yes' : 'no'}',
+    );
     buf.writeln('  Errors:            ${result.errors.length}');
     if (result.errors.isNotEmpty) {
       buf.writeln();
@@ -310,9 +325,11 @@ class _ResultRow extends StatelessWidget {
     final color = destructive
         ? theme.colorScheme.destructive
         : muted
-            ? theme.colorScheme.mutedForeground
-            : null;
-    final style = muted || destructive ? theme.textTheme.muted : theme.textTheme.p;
+        ? theme.colorScheme.mutedForeground
+        : null;
+    final style = muted || destructive
+        ? theme.textTheme.muted
+        : theme.textTheme.p;
     final effectiveStyle = color != null ? style.copyWith(color: color) : style;
 
     return MergeSemantics(

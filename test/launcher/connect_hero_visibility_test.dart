@@ -53,17 +53,17 @@ void main() {
   });
 
   Widget buildLauncher() => ShadApp(
-        home: LauncherView(
-          de1Controller: de1Controller,
-          scaleController: scaleController,
-          webUIService: webUIService,
-          pluginLoaderService: pluginLoaderService,
-          connectionManager: connectionManager,
-          deviceController: DeviceController([]),
-          settingsController: settingsController,
-          scanStateGuardian: guardian,
-        ),
-      );
+    home: LauncherView(
+      de1Controller: de1Controller,
+      scaleController: scaleController,
+      webUIService: webUIService,
+      pluginLoaderService: pluginLoaderService,
+      connectionManager: connectionManager,
+      deviceController: DeviceController([]),
+      settingsController: settingsController,
+      scanStateGuardian: guardian,
+    ),
+  );
 
   testWidgets('hero shows when no machine connected', (tester) async {
     tester.view.physicalSize = const Size(1200, 900);

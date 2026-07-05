@@ -31,17 +31,17 @@ class Profile extends Equatable {
 
   @override
   List<Object?> get props => [
-        version,
-        title,
-        notes,
-        author,
-        beverageType,
-        steps,
-        targetVolume,
-        targetWeight,
-        targetVolumeCountStart,
-        tankTemperature
-      ];
+    version,
+    title,
+    notes,
+    author,
+    beverageType,
+    steps,
+    targetVolume,
+    targetWeight,
+    targetVolumeCountStart,
+    tankTemperature,
+  ];
 
   factory Profile.fromJson(Map<String, dynamic> json) {
     // Fields a profile genuinely needs to be displayed and executed. A missing
@@ -168,9 +168,9 @@ class StepLimiter extends Equatable {
 
   @override
   List<Object?> get props => [
-        value,
-        range,
-      ];
+    value,
+    range,
+  ];
 }
 
 abstract class ProfileStep extends Equatable {
@@ -289,17 +289,17 @@ class ProfileStepPressure extends ProfileStep {
 
   @override
   List<Object?> get props => [
-        name,
-        transition,
-        exit,
-        volume,
-        seconds,
-        weight,
-        temperature,
-        sensor,
-        pressure,
-        limiter,
-      ];
+    name,
+    transition,
+    exit,
+    volume,
+    seconds,
+    weight,
+    temperature,
+    sensor,
+    pressure,
+    limiter,
+  ];
 }
 
 class ProfileStepFlow extends ProfileStep {
@@ -361,31 +361,32 @@ class ProfileStepFlow extends ProfileStep {
   @override
   ProfileStep copyWith({double? temperature}) {
     return ProfileStepFlow(
-        name: name,
-        transition: transition,
-        exit: exit,
-        volume: volume,
-        seconds: seconds,
-        weight: weight,
-        temperature: temperature ?? this.temperature,
-        sensor: sensor,
-        flow: flow,
-        limiter: limiter);
+      name: name,
+      transition: transition,
+      exit: exit,
+      volume: volume,
+      seconds: seconds,
+      weight: weight,
+      temperature: temperature ?? this.temperature,
+      sensor: sensor,
+      flow: flow,
+      limiter: limiter,
+    );
   }
 
   @override
   List<Object?> get props => [
-        name,
-        transition,
-        exit,
-        volume,
-        seconds,
-        weight,
-        temperature,
-        sensor,
-        flow,
-        limiter,
-      ];
+    name,
+    transition,
+    exit,
+    volume,
+    seconds,
+    weight,
+    temperature,
+    sensor,
+    flow,
+    limiter,
+  ];
 }
 
 class StepExitCondition extends Equatable {
@@ -413,9 +414,8 @@ class StepExitCondition extends Equatable {
 
   @override
   List<Object?> get props => [
-        type,
-        condition,
-        value,
-      ];
+    type,
+    condition,
+    value,
+  ];
 }
-

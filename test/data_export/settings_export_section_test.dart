@@ -98,8 +98,7 @@ void main() {
       await controller.setStopHotWaterAtWeight(true);
       await controller.setHotWaterFlowMultiplier(0.3);
 
-      final result =
-          await section.import(exported, ConflictStrategy.overwrite);
+      final result = await section.import(exported, ConflictStrategy.overwrite);
 
       expect(result.errors, isEmpty);
       expect(result.imported, greaterThan(0));
@@ -120,8 +119,7 @@ void main() {
         },
       };
 
-      final result =
-          await section.import(data, ConflictStrategy.overwrite);
+      final result = await section.import(data, ConflictStrategy.overwrite);
 
       expect(result.errors, isEmpty);
       expect(controller.preferredMachineId, equals('DE1-XYZ'));
@@ -135,12 +133,13 @@ void main() {
         'devicePreferences': <String, dynamic>{},
       };
 
-      final result =
-          await section.import(data, ConflictStrategy.overwrite);
+      final result = await section.import(data, ConflictStrategy.overwrite);
 
       expect(result.errors, isEmpty);
-      expect(controller.wakeSchedules,
-          equals('[{"time": 420, "enabled": true}]'));
+      expect(
+        controller.wakeSchedules,
+        equals('[{"time": 420, "enabled": true}]'),
+      );
     });
 
     test('reports errors for invalid enum values', () async {
@@ -153,8 +152,7 @@ void main() {
         'devicePreferences': <String, dynamic>{},
       };
 
-      final result =
-          await section.import(data, ConflictStrategy.overwrite);
+      final result = await section.import(data, ConflictStrategy.overwrite);
 
       expect(result.errors, hasLength(2));
       expect(result.errors[0], contains('Invalid gatewayMode'));
@@ -179,8 +177,7 @@ void main() {
         },
       };
 
-      final result =
-          await section.import(data, ConflictStrategy.overwrite);
+      final result = await section.import(data, ConflictStrategy.overwrite);
 
       expect(result.errors, isEmpty);
       expect(result.imported, equals(1));
@@ -203,8 +200,7 @@ void main() {
       // Reset
       await controller.loadSettings();
 
-      final result =
-          await section.import(exported, ConflictStrategy.overwrite);
+      final result = await section.import(exported, ConflictStrategy.overwrite);
 
       expect(result.errors, isEmpty);
       expect(controller.gatewayMode, equals(GatewayMode.tracking));

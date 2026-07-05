@@ -11,7 +11,7 @@ class SteamsHandler {
   final Logger _log = Logger('SteamsHandler');
 
   SteamsHandler({required PersistenceController controller})
-      : _controller = controller;
+    : _controller = controller;
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/steams', _getSteams);
@@ -79,8 +79,9 @@ class SteamsHandler {
       final json = jsonDecode(body) as Map<String, dynamic>;
 
       if (json['id'] != null && json['id'] != id) {
-        return jsonBadRequest(
-            {'error': 'ID in path does not match ID in body'});
+        return jsonBadRequest({
+          'error': 'ID in path does not match ID in body',
+        });
       }
 
       final existing = await _controller.storageService.getSteam(id);
@@ -90,8 +91,9 @@ class SteamsHandler {
 
       ShotAnnotations? annotations = existing.annotations;
       if (json['annotations'] != null) {
-        annotations =
-            ShotAnnotations.fromJson(json['annotations'] as Map<String, dynamic>);
+        annotations = ShotAnnotations.fromJson(
+          json['annotations'] as Map<String, dynamic>,
+        );
       }
 
       final updated = existing.copyWith(annotations: annotations);

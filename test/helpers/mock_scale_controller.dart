@@ -43,8 +43,7 @@ class MockScaleController extends ScaleController {
   }
 
   @override
-  Stream<ConnectionState> get connectionState =>
-      connectionStateSubject.stream;
+  Stream<ConnectionState> get connectionState => connectionStateSubject.stream;
 
   @override
   Future<void> connectToScale(Scale scale) async {

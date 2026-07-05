@@ -158,8 +158,8 @@ class _SteamFormState extends State<SteamForm> {
                           setState(() {
                             steamSettings.stopAtTemperature = val
                                 ? (steamSettings.stopAtTemperature > 0
-                                    ? steamSettings.stopAtTemperature
-                                    : _defaultStopAtTemperature)
+                                      ? steamSettings.stopAtTemperature
+                                      : _defaultStopAtTemperature)
                                 : 0.0;
                           });
                         }
@@ -226,8 +226,7 @@ class _SteamFormState extends State<SteamForm> {
             },
             selectedOptionBuilder: (context, value) {
               final match = options.where((o) => o.deviceId == value);
-              final label =
-                  match.isEmpty ? value : match.first.label;
+              final label = match.isEmpty ? value : match.first.label;
               return Text(label);
             },
             options: options

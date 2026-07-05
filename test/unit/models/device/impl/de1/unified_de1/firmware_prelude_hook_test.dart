@@ -68,19 +68,28 @@ void main() {
         // Expected: erase wait blocks for 10s.
       }
 
-      expect(de1.hookCalled, isTrue,
-          reason: 'beforeFirmwareUpload hook was not invoked '
-              'by the FW upload path');
+      expect(
+        de1.hookCalled,
+        isTrue,
+        reason:
+            'beforeFirmwareUpload hook was not invoked '
+            'by the FW upload path',
+      );
 
       // The hook must fire AFTER requestState(sleeping) — i.e., at least
       // one write to Endpoint.requestedState must have landed on the
       // wire before hookCalled flipped.
-      expect(de1.writeCountAtHook, greaterThan(preFwWrites),
-          reason: 'hook fired before requestState(sleeping) wrote to wire');
+      expect(
+        de1.writeCountAtHook,
+        greaterThan(preFwWrites),
+        reason: 'hook fired before requestState(sleeping) wrote to wire',
+      );
       final fwPreludeWrites = transport.writes.sublist(preFwWrites);
-      expect(fwPreludeWrites.first.characteristicUUID,
-          Endpoint.requestedState.uuid,
-          reason: 'first FW-path write must be requestState(sleeping)');
+      expect(
+        fwPreludeWrites.first.characteristicUUID,
+        Endpoint.requestedState.uuid,
+        reason: 'first FW-path write must be requestState(sleeping)',
+      );
     });
   });
 }

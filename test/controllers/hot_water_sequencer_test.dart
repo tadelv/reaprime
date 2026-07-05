@@ -27,13 +27,17 @@ class _EmptyDiscovery extends DeviceDiscoveryService {
 
 class _StubDe1Controller extends De1Controller {
   _StubDe1Controller({HotWaterData? hotWater})
-      : _de1subj = BehaviorSubject.seeded(null),
-        _hw = BehaviorSubject.seeded(
-          hotWater ??
-              HotWaterData(
-                  targetTemperature: 85, duration: 35, volume: 30, flow: 2.0),
-        ),
-        super(controller: DeviceController([_EmptyDiscovery()]));
+    : _de1subj = BehaviorSubject.seeded(null),
+      _hw = BehaviorSubject.seeded(
+        hotWater ??
+            HotWaterData(
+              targetTemperature: 85,
+              duration: 35,
+              volume: 30,
+              flow: 2.0,
+            ),
+      ),
+      super(controller: DeviceController([_EmptyDiscovery()]));
 
   final BehaviorSubject<De1Interface?> _de1subj;
   final BehaviorSubject<HotWaterData> _hw;
@@ -49,7 +53,7 @@ class _StubDe1Controller extends De1Controller {
 
 class _StubScaleController extends ScaleController {
   _StubScaleController({ConnectionState initial = ConnectionState.connected})
-      : _conn = BehaviorSubject.seeded(initial);
+    : _conn = BehaviorSubject.seeded(initial);
 
   final BehaviorSubject<WeightSnapshot> _weights = BehaviorSubject();
   final BehaviorSubject<ConnectionState> _conn;
@@ -67,11 +71,13 @@ class _StubScaleController extends ScaleController {
   }
 
   void emitWeight(double weight, {double flow = 0, DateTime? at}) {
-    _weights.add(WeightSnapshot(
-      timestamp: at ?? DateTime.now(),
-      weight: weight,
-      weightFlow: flow,
-    ));
+    _weights.add(
+      WeightSnapshot(
+        timestamp: at ?? DateTime.now(),
+        weight: weight,
+        weightFlow: flow,
+      ),
+    );
   }
 
   void setConnection(ConnectionState s) => _conn.add(s);
@@ -118,8 +124,10 @@ class _TestMachine implements De1Interface {
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 
-MachineSnapshot _snap(MachineState state,
-    {MachineSubstate substate = MachineSubstate.pouring}) {
+MachineSnapshot _snap(
+  MachineState state, {
+  MachineSubstate substate = MachineSubstate.pouring,
+}) {
   return MachineSnapshot(
     timestamp: DateTime.now(),
     state: MachineStateSnapshot(state: state, substate: substate),
@@ -171,19 +179,21 @@ void main() {
   });
 
   group('arming', () {
-    test('tares the scale and arms on entering hotWater when eligible',
-        () async {
-      await build();
-      final m = _TestMachine();
-      de1.emitMachine(m);
-      await settle();
-      m.emit(_snap(MachineState.hotWater));
-      await settle();
+    test(
+      'tares the scale and arms on entering hotWater when eligible',
+      () async {
+        await build();
+        final m = _TestMachine();
+        de1.emitMachine(m);
+        await settle();
+        m.emit(_snap(MachineState.hotWater));
+        await settle();
 
-      expect(scale.tareCount, 1);
-      expect(sequencer.isArmed, isTrue);
-      m.dispose();
-    });
+        expect(scale.tareCount, 1);
+        expect(sequencer.isArmed, isTrue);
+        m.dispose();
+      },
+    );
 
     test('does not arm when the setting is off', () async {
       await settings.setStopHotWaterAtWeight(false);
@@ -226,8 +236,12 @@ void main() {
 
     test('does not arm when the target volume is zero', () async {
       de1 = _StubDe1Controller(
-        hotWater:
-            HotWaterData(targetTemperature: 85, duration: 35, volume: 0, flow: 2),
+        hotWater: HotWaterData(
+          targetTemperature: 85,
+          duration: 35,
+          volume: 0,
+          flow: 2,
+        ),
       );
       await build();
       final m = _TestMachine();
@@ -282,33 +296,38 @@ void main() {
       m.dispose();
     });
 
-    test('waits for the post-tare zero before stopping (stale pre-tare weight)',
-        () async {
-      // The cup is still on the platter and the physical tare lags: the scale
-      // keeps reporting the pre-tare weight (>= target) past the time window.
-      // The monitor must NOT false-stop until it has seen the weight settle low.
-      await build();
-      final m = _TestMachine();
-      de1.emitMachine(m);
-      await settle();
-      m.emit(_snap(MachineState.hotWater));
-      await settle();
+    test(
+      'waits for the post-tare zero before stopping (stale pre-tare weight)',
+      () async {
+        // The cup is still on the platter and the physical tare lags: the scale
+        // keeps reporting the pre-tare weight (>= target) past the time window.
+        // The monitor must NOT false-stop until it has seen the weight settle low.
+        await build();
+        final m = _TestMachine();
+        de1.emitMachine(m);
+        await settle();
+        m.emit(_snap(MachineState.hotWater));
+        await settle();
 
-      clock = clock.add(const Duration(seconds: 1)); // window elapsed
-      scale.emitWeight(50, flow: 0, at: clock); // stale pre-tare cup weight
-      await settle();
-      expect(m.requested, isEmpty,
-          reason: 'must not stop on an unconfirmed (pre-tare) reading');
+        clock = clock.add(const Duration(seconds: 1)); // window elapsed
+        scale.emitWeight(50, flow: 0, at: clock); // stale pre-tare cup weight
+        await settle();
+        expect(
+          m.requested,
+          isEmpty,
+          reason: 'must not stop on an unconfirmed (pre-tare) reading',
+        );
 
-      // Tare finally lands — scale drops to zero, then water climbs to target.
-      scale.emitWeight(0, flow: 0, at: clock);
-      await settle();
-      clock = clock.add(const Duration(milliseconds: 200));
-      scale.emitWeight(30, flow: 0, at: clock);
-      await settle();
-      expect(m.requested, contains(MachineState.idle));
-      m.dispose();
-    });
+        // Tare finally lands — scale drops to zero, then water climbs to target.
+        scale.emitWeight(0, flow: 0, at: clock);
+        await settle();
+        clock = clock.add(const Duration(milliseconds: 200));
+        scale.emitWeight(30, flow: 0, at: clock);
+        await settle();
+        expect(m.requested, contains(MachineState.idle));
+        m.dispose();
+      },
+    );
 
     test('only requests idle once', () async {
       await build();

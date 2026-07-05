@@ -57,10 +57,10 @@ class FelicitaArc implements Scale {
       disconnectSub = _transport.connectionState
           .where((state) => state == ConnectionState.disconnected)
           .listen((_) {
-        _connectionStateController.add(ConnectionState.disconnected);
-        disconnectSub?.cancel();
-        _notificationsSubscription?.cancel();
-      });
+            _connectionStateController.add(ConnectionState.disconnected);
+            disconnectSub?.cancel();
+            _notificationsSubscription?.cancel();
+          });
 
       final services = await _transport.discoverServices();
       if (!serviceIdentifier.matchesAny(services)) {
@@ -95,7 +95,7 @@ class FelicitaArc implements Scale {
     await _transport.write(
       serviceIdentifier.long,
       dataCharacteristic.long,
-      writeData
+      writeData,
     );
   }
 
@@ -116,7 +116,11 @@ class FelicitaArc implements Scale {
   StreamSubscription<Uint8List>? _notificationsSubscription;
 
   Future<void> _registerNotifications() async {
-    await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
+    await _transport.subscribe(
+      serviceIdentifier.long,
+      dataCharacteristic.long,
+      _parseNotification,
+    );
   }
 
   static const int minBattLevel = 129;
@@ -147,16 +151,28 @@ class FelicitaArc implements Scale {
 
   @override
   Future<void> startTimer() async {
-    await _transport.write(serviceIdentifier.long, dataCharacteristic.long, Uint8List.fromList([0x52]));
+    await _transport.write(
+      serviceIdentifier.long,
+      dataCharacteristic.long,
+      Uint8List.fromList([0x52]),
+    );
   }
 
   @override
   Future<void> stopTimer() async {
-    await _transport.write(serviceIdentifier.long, dataCharacteristic.long, Uint8List.fromList([0x53]));
+    await _transport.write(
+      serviceIdentifier.long,
+      dataCharacteristic.long,
+      Uint8List.fromList([0x53]),
+    );
   }
 
   @override
   Future<void> resetTimer() async {
-    await _transport.write(serviceIdentifier.long, dataCharacteristic.long, Uint8List.fromList([0x43]));
+    await _transport.write(
+      serviceIdentifier.long,
+      dataCharacteristic.long,
+      Uint8List.fromList([0x43]),
+    );
   }
 }

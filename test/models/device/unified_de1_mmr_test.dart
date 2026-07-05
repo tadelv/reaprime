@@ -26,8 +26,9 @@ import 'package:rxdart/rxdart.dart';
 /// See: doc/plans/comms-harden.md #2, doc/plans/comms-phase-0-1.md PR 3.
 
 class _QuietSerialTransport extends SerialTransport {
-  final _connState =
-      BehaviorSubject<ConnectionState>.seeded(ConnectionState.connected);
+  final _connState = BehaviorSubject<ConnectionState>.seeded(
+    ConnectionState.connected,
+  );
 
   @override
   String get id => 'quiet-serial-de1';

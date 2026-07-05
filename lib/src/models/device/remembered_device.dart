@@ -23,10 +23,10 @@ class RememberedDevice {
   // gets written to and read from storage (see [fromJson]), so renaming a
   // `DeviceType` value would silently orphan every stored record of that type.
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'type': type.name,
-      };
+    'id': id,
+    'name': name,
+    'type': type.name,
+  };
 
   /// Whether [other] carries the same display metadata (name + type). Identity
   /// (`==`) is id-only, so the registry uses this to detect a metadata change on
@@ -45,7 +45,10 @@ class RememberedDevice {
     // with any other empty-id entry under id-only equality.
     if (device.deviceId.isEmpty) return null;
     return RememberedDevice(
-        id: device.deviceId, name: device.name, type: device.type);
+      id: device.deviceId,
+      name: device.name,
+      type: device.type,
+    );
   }
 
   /// Parse one record. Returns null for malformed input, an empty id, or an
@@ -58,8 +61,7 @@ class RememberedDevice {
     if (id is! String || id.isEmpty || name is! String || typeName is! String) {
       return null;
     }
-    final type =
-        DeviceType.values.firstWhereOrNull((t) => t.name == typeName);
+    final type = DeviceType.values.firstWhereOrNull((t) => t.name == typeName);
     if (type == null) return null;
     return RememberedDevice(id: id, name: name, type: type);
   }
@@ -99,8 +101,7 @@ class RememberedDevice {
 
   /// Identity is the device id (one remembered entry per device).
   @override
-  bool operator ==(Object other) =>
-      other is RememberedDevice && other.id == id;
+  bool operator ==(Object other) => other is RememberedDevice && other.id == id;
 
   @override
   int get hashCode => id.hashCode;

@@ -30,7 +30,9 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
   void initState() {
     super.initState();
     _devices = widget.deviceController.devices;
-    _deviceSubscription = widget.deviceController.deviceStream.listen((devices) {
+    _deviceSubscription = widget.deviceController.deviceStream.listen((
+      devices,
+    ) {
       if (mounted) {
         setState(() => _devices = devices);
       }
@@ -117,8 +119,8 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
                 child: Text(
                   title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
@@ -138,17 +140,19 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
               child: Text(
                 'No $emptyLabel currently known. Connect to devices first, then return here to set a preference.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontStyle: FontStyle.italic,
-                    ),
+                  fontStyle: FontStyle.italic,
+                ),
               ),
             )
           else
-            ...devices.map((device) => _buildDeviceRadio(
-                  name: device.name,
-                  subtitle: _truncatedId(device.deviceId),
-                  isSelected: selectedId == device.deviceId,
-                  onTap: () => onSelected(device.deviceId),
-                )),
+            ...devices.map(
+              (device) => _buildDeviceRadio(
+                name: device.name,
+                subtitle: _truncatedId(device.deviceId),
+                isSelected: selectedId == device.deviceId,
+                onTap: () => onSelected(device.deviceId),
+              ),
+            ),
         ],
       ),
     );
@@ -168,11 +172,15 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
         child: Row(
           children: [
             Icon(
-              isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+              isSelected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
               size: 20,
               color: isSelected
                   ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                  : Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.6),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -182,8 +190,10 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
                   Text(
                     name,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        ),
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
                   ),
                   Text(
                     subtitle,

@@ -6,8 +6,7 @@ import '../../helpers/fake_ble_transport.dart';
 
 void main() {
   group('Firmware upload tuning', () {
-    test('UnifiedDe1 default batch pause is non-zero on serial transport',
-        () {
+    test('UnifiedDe1 default batch pause is non-zero on serial transport', () {
       // Default DE1: serial path needs UART backpressure pauses to avoid
       // overrunning the SPI flash writer. Anything >0 keeps that intact.
       final de1 = UnifiedDe1(transport: FakeBleTransport());

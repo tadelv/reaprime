@@ -95,14 +95,14 @@ class MockProfileStorage implements ProfileStorageService {
 /// A minimal valid step, for profiles that must round-trip through
 /// Profile.fromJson (which requires a non-empty steps array).
 ProfileStep _sampleStep() => ProfileStepPressure(
-      name: 'pour',
-      transition: TransitionType.fast,
-      volume: 100,
-      seconds: 30,
-      temperature: 93,
-      sensor: TemperatureSensor.coffee,
-      pressure: 9,
-    );
+  name: 'pour',
+  transition: TransitionType.fast,
+  volume: 100,
+  seconds: 30,
+  temperature: 93,
+  sensor: TemperatureSensor.coffee,
+  pressure: 9,
+);
 
 void main() {
   // Ensure Hive is initialized for tests
@@ -127,10 +127,10 @@ void main() {
 
       final profile2 = Profile(
         version: '2',
-        title: 'Different Title',  // Metadata different
+        title: 'Different Title', // Metadata different
         author: 'Author 2',
         notes: 'Different notes',
-        beverageType: BeverageType.espresso,  // Execution fields same
+        beverageType: BeverageType.espresso, // Execution fields same
         steps: [],
         tankTemperature: 93.0,
         targetWeight: 36.0,
@@ -165,7 +165,7 @@ void main() {
         notes: '',
         beverageType: BeverageType.espresso,
         steps: [],
-        tankTemperature: 94.0,  // Different temperature
+        tankTemperature: 94.0, // Different temperature
         targetVolumeCountStart: 0,
       );
 
@@ -315,10 +315,10 @@ void main() {
 
       // Same profile hash (execution fields)
       expect(record1.id, equals(record2.id));
-      
+
       // Different metadata hash
       expect(record1.metadataHash, isNot(equals(record2.metadataHash)));
-      
+
       // Different compound hash
       expect(record1.compoundHash, isNot(equals(record2.compoundHash)));
     });
@@ -375,10 +375,10 @@ void main() {
 
       // Different profile hash due to temperature change
       expect(updated.id, isNot(equals(original.id)));
-      
+
       // Metadata hash unchanged (title/author/notes same)
       expect(updated.metadataHash, equals(original.metadataHash));
-      
+
       // Compound hash changed (profile hash changed)
       expect(updated.compoundHash, isNot(equals(original.compoundHash)));
     });
@@ -439,7 +439,7 @@ void main() {
       expect(record1.id, equals(record2.id));
 
       await storage.store(record1);
-      
+
       // Storing record2 overwrites record1 (same ID)
       await storage.store(record2);
 
@@ -470,7 +470,7 @@ void main() {
             notes: '',
             beverageType: BeverageType.espresso,
             steps: [],
-            tankTemperature: 94.0,  // Different to get different hash
+            tankTemperature: 94.0, // Different to get different hash
             targetVolumeCountStart: 0,
           ),
           isDefault: false,
@@ -525,7 +525,7 @@ void main() {
       final childProfile = parentProfile.copyWith(tankTemperature: 94.0);
       final child = ProfileRecord.create(
         profile: childProfile,
-        parentId: parent.id,  // Reference parent
+        parentId: parent.id, // Reference parent
         isDefault: false,
       );
 
@@ -616,22 +616,22 @@ void main() {
       );
 
       final original = ProfileRecord.create(profile: profile, isDefault: false);
-      
+
       // Update only metadata fields
       final updatedProfile = profile.copyWith(
         title: 'New Title',
         author: 'New Author',
         notes: 'New notes',
       );
-      
+
       final updated = original.copyWith(profile: updatedProfile);
 
       // Same profile ID (execution fields unchanged)
       expect(updated.id, equals(original.id));
-      
+
       // Different metadata hash
       expect(updated.metadataHash, isNot(equals(original.metadataHash)));
-      
+
       // Different compound hash
       expect(updated.compoundHash, isNot(equals(original.compoundHash)));
     });
@@ -649,17 +649,17 @@ void main() {
       );
 
       final original = ProfileRecord.create(profile: profile, isDefault: false);
-      
+
       // Update execution field
       final updatedProfile = profile.copyWith(tankTemperature: 94.0);
       final updated = original.copyWith(profile: updatedProfile);
 
       // Different profile ID (execution field changed)
       expect(updated.id, isNot(equals(original.id)));
-      
+
       // Same metadata hash (metadata unchanged)
       expect(updated.metadataHash, equals(original.metadataHash));
-      
+
       // Different compound hash
       expect(updated.compoundHash, isNot(equals(original.compoundHash)));
     });
@@ -677,7 +677,7 @@ void main() {
       );
 
       final original = ProfileRecord.create(profile: profile, isDefault: false);
-      
+
       // Update both
       final updatedProfile = profile.copyWith(
         title: 'Updated',
@@ -720,7 +720,7 @@ void main() {
 
       // Same functional profile → same ID
       expect(record1.id, equals(record2.id));
-      
+
       // Can detect they're different presentations
       expect(record1.metadataHash, isNot(equals(record2.metadataHash)));
       expect(record1.compoundHash, isNot(equals(record2.compoundHash)));
@@ -739,7 +739,7 @@ void main() {
       );
 
       final original = ProfileRecord.create(profile: profile, isDefault: false);
-      
+
       // Serialize and deserialize
       final json = original.toJson();
       final deserialized = ProfileRecord.fromJson(json);
@@ -767,7 +767,7 @@ void main() {
         title: 'Test',
         author: 'Test',
         notes: '',
-        beverageType: BeverageType.pourover,  // Different beverage type
+        beverageType: BeverageType.pourover, // Different beverage type
         steps: [],
         tankTemperature: 93.0,
         targetVolumeCountStart: 0,
@@ -784,26 +784,26 @@ void main() {
   group('Profile.fromJson field tolerance', () {
     // Minimal valid profile body; tests override / remove individual keys.
     Map<String, dynamic> validJson() => {
-          'version': '2',
-          'title': 'Test',
-          'notes': 'Some notes',
-          'author': 'Someone',
-          'beverage_type': 'espresso',
-          'steps': <dynamic>[
-            {
-              'name': 'pour',
-              'pump': 'pressure',
-              'transition': 'fast',
-              'volume': 100,
-              'seconds': 30,
-              'temperature': 93,
-              'sensor': 'coffee',
-              'pressure': 9,
-            },
-          ],
-          'tank_temperature': 93.0,
-          'target_volume_count_start': 0,
-        };
+      'version': '2',
+      'title': 'Test',
+      'notes': 'Some notes',
+      'author': 'Someone',
+      'beverage_type': 'espresso',
+      'steps': <dynamic>[
+        {
+          'name': 'pour',
+          'pump': 'pressure',
+          'transition': 'fast',
+          'volume': 100,
+          'seconds': 30,
+          'temperature': 93,
+          'sensor': 'coffee',
+          'pressure': 9,
+        },
+      ],
+      'tank_temperature': 93.0,
+      'target_volume_count_start': 0,
+    };
 
     test('defaults notes and author to empty string when missing', () {
       final json = validJson()

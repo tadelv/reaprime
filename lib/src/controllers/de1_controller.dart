@@ -21,34 +21,36 @@ class De1Controller {
   De1Interface? _de1;
   final Logger _log = Logger("De1Controller");
 
-  final BehaviorSubject<De1Interface?> _de1Controller =
-      BehaviorSubject.seeded(null);
+  final BehaviorSubject<De1Interface?> _de1Controller = BehaviorSubject.seeded(
+    null,
+  );
 
   Stream<De1Interface?> get de1 => _de1Controller.stream;
 
   final BehaviorSubject<SteamSettings> _steamDataController =
-      BehaviorSubject.seeded(SteamSettings(
-    targetTemperature: 0,
-    flow: 0,
-    duration: 0,
-  ));
+      BehaviorSubject.seeded(
+        SteamSettings(
+          targetTemperature: 0,
+          flow: 0,
+          duration: 0,
+        ),
+      );
 
-  Stream<SteamSettings> get steamData =>
-      _steamDataController.stream;
+  Stream<SteamSettings> get steamData => _steamDataController.stream;
 
   final BehaviorSubject<HotWaterData> _hotWaterDataController =
-      BehaviorSubject.seeded(HotWaterData(
-    targetTemperature: 0,
-    flow: 0,
-    duration: 0,
-    volume: 0,
-  ));
-
-  Stream<HotWaterData> get hotWaterData =>
-      _hotWaterDataController.stream;
-
-  final BehaviorSubject<RinseData> _rinseStream =
       BehaviorSubject.seeded(
+        HotWaterData(
+          targetTemperature: 0,
+          flow: 0,
+          duration: 0,
+          volume: 0,
+        ),
+      );
+
+  Stream<HotWaterData> get hotWaterData => _hotWaterDataController.stream;
+
+  final BehaviorSubject<RinseData> _rinseStream = BehaviorSubject.seeded(
     RinseData(
       duration: 5,
       targetTemperature: 90,
@@ -71,15 +73,15 @@ class De1Controller {
   int _connectionGeneration = 0;
 
   De1Controller({required DeviceController controller})
-      : _deviceController = controller {
+    : _deviceController = controller {
     _log.info("checking ${_deviceController.devices}");
   }
 
   Future<void> connectToDe1(De1Interface de1Interface) async {
     if (de1Interface == _de1) {
-        _log.fine("trying to connect to existing de1, exit early");
-        return;
-      }
+      _log.fine("trying to connect to existing de1, exit early");
+      return;
+    }
     _onDisconnect(); // just in case
     _log.fine("found de1, connecting");
     try {
@@ -144,19 +146,23 @@ class De1Controller {
 
   Future<void> _initializeData() async {
     if (_dataInitialized) {
-      _log.warning("Data already initialized, skipping (this should only happen once!)");
+      _log.warning(
+        "Data already initialized, skipping (this should only happen once!)",
+      );
       return;
     }
     _log.info("Initializing DE1 data for the first time");
     _dataInitialized = true;
-    
+
     await connectedDe1().shotSettings.first.then(_shotSettingsUpdate);
     _subscriptions.add(
       connectedDe1().shotSettings.listen(
-            _shotSettingsUpdate,
-          ),
+        _shotSettingsUpdate,
+      ),
     );
-    _log.info("Created shotSettings listener, total subscriptions: ${_subscriptions.length}");
+    _log.info(
+      "Created shotSettings listener, total subscriptions: ${_subscriptions.length}",
+    );
     await _setDe1Defaults();
   }
 
@@ -168,31 +174,34 @@ class De1Controller {
     // bails out cleanly (comms-harden #5).
     _shotSettingsDebounce?.cancel();
     final generation = _connectionGeneration;
-    _shotSettingsDebounce = Timer(ConnectionTimings.shotSettingsDebounce, () async {
-      if (generation != _connectionGeneration || _de1 == null) {
-        _log.fine(
-          'Shot settings debounce fired after disconnect '
-          '(gen=$generation, current=$_connectionGeneration) — skipping',
-        );
-        return;
-      }
-      _log.info('Processing shot settings update (debounced)');
-      try {
-        await _processShotSettingsUpdate(data);
-      } on DeviceNotConnectedException catch (e) {
-        // Defence in depth: device may have disconnected between the
-        // generation check above and any of the awaits in the body.
-        _log.fine('Shot settings update aborted by disconnect: $e');
-      } on MmrTimeoutException catch (e) {
-        // An MMR read inside the readback can time out if the BLE
-        // adapter drops mid-sequence. That's functionally the same as
-        // a disconnect — don't escalate to a fatal crash.
-        _log.warning(
-          'Shot settings update MMR read timed out '
-          '(treating as disconnect): $e',
-        );
-      }
-    });
+    _shotSettingsDebounce = Timer(
+      ConnectionTimings.shotSettingsDebounce,
+      () async {
+        if (generation != _connectionGeneration || _de1 == null) {
+          _log.fine(
+            'Shot settings debounce fired after disconnect '
+            '(gen=$generation, current=$_connectionGeneration) — skipping',
+          );
+          return;
+        }
+        _log.info('Processing shot settings update (debounced)');
+        try {
+          await _processShotSettingsUpdate(data);
+        } on DeviceNotConnectedException catch (e) {
+          // Defence in depth: device may have disconnected between the
+          // generation check above and any of the awaits in the body.
+          _log.fine('Shot settings update aborted by disconnect: $e');
+        } on MmrTimeoutException catch (e) {
+          // An MMR read inside the readback can time out if the BLE
+          // adapter drops mid-sequence. That's functionally the same as
+          // a disconnect — don't escalate to a fatal crash.
+          _log.warning(
+            'Shot settings update MMR read timed out '
+            '(treating as disconnect): $e',
+          );
+        }
+      },
+    );
   }
 
   Future<void> _processShotSettingsUpdate(De1ShotSettings data) async {
@@ -217,11 +226,13 @@ class De1Controller {
       var flow = await connectedDe1().getFlushFlow();
       var time = await connectedDe1().getFlushTimeout();
       var temp = await connectedDe1().getFlushTemperature();
-      _rinseStream.add(RinseData(
-        flow: flow,
-        duration: time.toInt(),
-        targetTemperature: temp.toInt(),
-      ));
+      _rinseStream.add(
+        RinseData(
+          flow: flow,
+          duration: time.toInt(),
+          targetTemperature: temp.toInt(),
+        ),
+      );
     }
   }
 
@@ -258,15 +269,19 @@ class De1Controller {
   Future<void> updateSteamSettings(SteamFormSettings settings) async {
     De1ShotSettings shotSettings = await connectedDe1().shotSettings.first;
     await connectedDe1().setSteamFlow(settings.targetFlow);
-    await connectedDe1().updateShotSettings(shotSettings.copyWith(
-      targetSteamTemp: settings.steamEnabled ? settings.targetTemp : 0,
-      targetSteamDuration: settings.targetDuration,
-    ));
-    _steamDataController.add(SteamSettings(
-      targetTemperature: settings.steamEnabled ? settings.targetTemp : 0,
-      duration: settings.targetDuration,
-      flow: settings.targetFlow,
-    ));
+    await connectedDe1().updateShotSettings(
+      shotSettings.copyWith(
+        targetSteamTemp: settings.steamEnabled ? settings.targetTemp : 0,
+        targetSteamDuration: settings.targetDuration,
+      ),
+    );
+    _steamDataController.add(
+      SteamSettings(
+        targetTemperature: settings.steamEnabled ? settings.targetTemp : 0,
+        duration: settings.targetDuration,
+        flow: settings.targetFlow,
+      ),
+    );
   }
 
   Future<HotWaterFormSettings> hotWaterSettings() async {
@@ -286,24 +301,30 @@ class De1Controller {
   Future<void> updateHotWaterSettings(HotWaterFormSettings settings) async {
     await connectedDe1().setHotWaterFlow(settings.flow);
     await connectedDe1().shotSettings.first.then((s) async {
-      await connectedDe1().updateShotSettings(s.copyWith(
+      await connectedDe1().updateShotSettings(
+        s.copyWith(
           targetHotWaterTemp: settings.targetTemperature,
           targetHotWaterVolume: settings.volume,
-          targetHotWaterDuration: settings.duration));
+          targetHotWaterDuration: settings.duration,
+        ),
+      );
     });
-    _hotWaterDataController.add(HotWaterData(
-      targetTemperature: settings.targetTemperature,
-      duration: settings.duration,
-      volume: settings.volume,
-      flow: settings.flow,
-    ));
+    _hotWaterDataController.add(
+      HotWaterData(
+        targetTemperature: settings.targetTemperature,
+        duration: settings.duration,
+        volume: settings.volume,
+        flow: settings.flow,
+      ),
+    );
   }
 
   Future<void> updateFlushSettings(RinseData settings) async {
     await connectedDe1().setFlushTimeout(settings.duration.toDouble());
     await connectedDe1().setFlushFlow(settings.flow);
-    await connectedDe1()
-        .setFlushTemperature(settings.targetTemperature.toDouble());
+    await connectedDe1().setFlushTemperature(
+      settings.targetTemperature.toDouble(),
+    );
 
     _rinseStream.add(settings);
   }
@@ -318,11 +339,13 @@ class De1Controller {
     await connectedDe1().setSteamFlow(newFlow);
     final current = _steamDataController.valueOrNull;
     if (current != null) {
-      _steamDataController.add(SteamSettings(
-        targetTemperature: current.targetTemperature,
-        duration: current.duration,
-        flow: newFlow,
-      ));
+      _steamDataController.add(
+        SteamSettings(
+          targetTemperature: current.targetTemperature,
+          duration: current.duration,
+          flow: newFlow,
+        ),
+      );
     }
   }
 
@@ -330,12 +353,14 @@ class De1Controller {
     await connectedDe1().setHotWaterFlow(newFlow);
     final current = _hotWaterDataController.valueOrNull;
     if (current != null) {
-      _hotWaterDataController.add(HotWaterData(
-        targetTemperature: current.targetTemperature,
-        duration: current.duration,
-        volume: current.volume,
-        flow: newFlow,
-      ));
+      _hotWaterDataController.add(
+        HotWaterData(
+          targetTemperature: current.targetTemperature,
+          duration: current.duration,
+          volume: current.volume,
+          flow: newFlow,
+        ),
+      );
     }
   }
 
@@ -343,11 +368,13 @@ class De1Controller {
     await connectedDe1().setFlushFlow(newFlow);
     final current = _rinseStream.valueOrNull;
     if (current != null) {
-      _rinseStream.add(RinseData(
-        targetTemperature: current.targetTemperature,
-        duration: current.duration,
-        flow: newFlow,
-      ));
+      _rinseStream.add(
+        RinseData(
+          targetTemperature: current.targetTemperature,
+          duration: current.duration,
+          flow: newFlow,
+        ),
+      );
     }
   }
 
@@ -370,4 +397,3 @@ class De1Controller {
     if (!_rinseStream.isClosed) _rinseStream.close();
   }
 }
-

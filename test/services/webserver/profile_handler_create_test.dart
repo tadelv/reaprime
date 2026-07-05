@@ -14,14 +14,16 @@ class _StubStorage implements ProfileStorageService {
   @override
   Future<void> initialize() async {}
   @override
-  Future<void> store(ProfileRecord record) async => _records[record.id] = record;
+  Future<void> store(ProfileRecord record) async =>
+      _records[record.id] = record;
   @override
   Future<ProfileRecord?> get(String id) async => _records[id];
   @override
   Future<List<ProfileRecord>> getAll({Visibility? visibility}) async =>
       _records.values.toList();
   @override
-  Future<void> update(ProfileRecord record) async => _records[record.id] = record;
+  Future<void> update(ProfileRecord record) async =>
+      _records[record.id] = record;
   @override
   Future<void> delete(String id) async => _records.remove(id);
   @override
@@ -66,24 +68,24 @@ void main() {
 
   // Minimal profile that omits the optional metadata strings (notes/author).
   Map<String, dynamic> profileWithoutMetadata() => {
-        'version': '2',
-        'title': 'Imported profile',
-        'beverage_type': 'espresso',
-        'steps': <dynamic>[
-          {
-            'name': 'pour',
-            'pump': 'pressure',
-            'transition': 'fast',
-            'volume': 100,
-            'seconds': 30,
-            'temperature': 93,
-            'sensor': 'coffee',
-            'pressure': 9,
-          },
-        ],
-        'tank_temperature': 93.0,
-        'target_volume_count_start': 0,
-      };
+    'version': '2',
+    'title': 'Imported profile',
+    'beverage_type': 'espresso',
+    'steps': <dynamic>[
+      {
+        'name': 'pour',
+        'pump': 'pressure',
+        'transition': 'fast',
+        'volume': 100,
+        'seconds': 30,
+        'temperature': 93,
+        'sensor': 'coffee',
+        'pressure': 9,
+      },
+    ],
+    'tank_temperature': 93.0,
+    'target_volume_count_start': 0,
+  };
 
   group('POST /api/v1/profiles', () {
     test('creates a profile when notes and author are omitted', () async {
@@ -92,8 +94,8 @@ void main() {
       final response = await postProfile({'profile': profileWithoutMetadata()});
 
       expect(response.statusCode, 201);
-      final record = jsonDecode(await response.readAsString())
-          as Map<String, dynamic>;
+      final record =
+          jsonDecode(await response.readAsString()) as Map<String, dynamic>;
       final profile = record['profile'] as Map<String, dynamic>;
       expect(profile['notes'], equals(''));
       expect(profile['author'], equals(''));
@@ -132,22 +134,27 @@ void main() {
       expect(response.statusCode, 400);
     });
 
-    test('returns 400 (not 500) when target_volume_count_start is missing',
-        () async {
-      final body = profileWithoutMetadata()..remove('target_volume_count_start');
+    test(
+      'returns 400 (not 500) when target_volume_count_start is missing',
+      () async {
+        final body = profileWithoutMetadata()
+          ..remove('target_volume_count_start');
 
-      final response = await postProfile({'profile': body});
+        final response = await postProfile({'profile': body});
 
-      expect(response.statusCode, 400);
-    });
+        expect(response.statusCode, 400);
+      },
+    );
 
-    test('returns 400 (not 500) when a required number is unparseable',
-        () async {
-      final body = profileWithoutMetadata()..['tank_temperature'] = 'hot';
+    test(
+      'returns 400 (not 500) when a required number is unparseable',
+      () async {
+        final body = profileWithoutMetadata()..['tank_temperature'] = 'hot';
 
-      final response = await postProfile({'profile': body});
+        final response = await postProfile({'profile': body});
 
-      expect(response.statusCode, 400);
-    });
+        expect(response.statusCode, 400);
+      },
+    );
   });
 }

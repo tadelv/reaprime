@@ -110,7 +110,8 @@ void main() {
         expect(
           errors.whereType<RangeError>(),
           isEmpty,
-          reason: 'short frames must be dropped at the notification '
+          reason:
+              'short frames must be dropped at the notification '
               'layer, not propagate through the parser',
         );
 

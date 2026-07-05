@@ -55,8 +55,9 @@ class Workflow {
     } else if (ctx == null &&
         (dose != null || grinder != null || coffee != null)) {
       ctx = WorkflowContext(
-        targetDoseWeight:
-            dose != null ? parseOptionalDouble(dose['doseIn']) : null,
+        targetDoseWeight: dose != null
+            ? parseOptionalDouble(dose['doseIn'])
+            : null,
         targetYield: dose != null ? parseOptionalDouble(dose['doseOut']) : null,
         grinderSetting: grinder?['setting'] as String?,
         grinderModel: grinder?['model'] as String?,
@@ -71,18 +72,15 @@ class Workflow {
       description: json['description'],
       profile: Profile.fromJson(json['profile']),
       context: ctx,
-      steamSettings:
-          json['steamSettings'] != null
-              ? SteamSettings.fromJson(json['steamSettings'])
-              : SteamSettings.defaults(),
-      hotWaterData:
-          json['hotWaterData'] != null
-              ? HotWaterData.fromJson(json['hotWaterData'])
-              : HotWaterData.defaults(),
-      rinseData:
-          json['rinseData'] != null
-              ? RinseData.fromJson(json['rinseData'])
-              : RinseData.defaults(),
+      steamSettings: json['steamSettings'] != null
+          ? SteamSettings.fromJson(json['steamSettings'])
+          : SteamSettings.defaults(),
+      hotWaterData: json['hotWaterData'] != null
+          ? HotWaterData.fromJson(json['hotWaterData'])
+          : HotWaterData.defaults(),
+      rinseData: json['rinseData'] != null
+          ? RinseData.fromJson(json['rinseData'])
+          : RinseData.defaults(),
       machine: json['machine'] != null
           ? WorkflowMachine.fromJson(json['machine'] as Map<String, dynamic>)
           : null,
@@ -146,10 +144,11 @@ class WorkflowMachine {
       WorkflowMachine(flowCalibration: flowCalibration ?? this.flowCalibration);
 
   Map<String, dynamic> toJson() => {
-        if (flowCalibration != null) 'flowCalibration': flowCalibration,
-      };
+    if (flowCalibration != null) 'flowCalibration': flowCalibration,
+  };
 
-  factory WorkflowMachine.fromJson(Map<String, dynamic> json) => WorkflowMachine(
+  factory WorkflowMachine.fromJson(Map<String, dynamic> json) =>
+      WorkflowMachine(
         flowCalibration: parseOptionalDouble(json['flowCalibration']),
       );
 
@@ -212,10 +211,11 @@ class SteamSettings {
 
   factory SteamSettings.defaults() {
     return SteamSettings(
-        targetTemperature: 150,
-        duration: 50,
-        flow: 0.8,
-        stopAtTemperature: 0.0);
+      targetTemperature: 150,
+      duration: 50,
+      flow: 0.8,
+      stopAtTemperature: 0.0,
+    );
   }
 
   @override
@@ -292,7 +292,6 @@ class HotWaterData {
     );
   }
 
-
   @override
   bool operator ==(Object other) {
     if (other is! HotWaterData) {
@@ -307,7 +306,10 @@ class HotWaterData {
 
   @override
   int get hashCode =>
-      targetTemperature.hashCode ^ flow.hashCode ^ duration.hashCode ^ volume.hashCode;
+      targetTemperature.hashCode ^
+      flow.hashCode ^
+      duration.hashCode ^
+      volume.hashCode;
 }
 
 class RinseData {
@@ -340,7 +342,6 @@ class RinseData {
   factory RinseData.defaults() {
     return RinseData(targetTemperature: 90, duration: 10, flow: 6.0);
   }
-
 
   @override
   bool operator ==(Object other) {

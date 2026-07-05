@@ -54,13 +54,13 @@ class FeedbackRequest {
   }) : timestamp = timestamp ?? DateTime.now();
 
   Map<String, dynamic> toJson() => {
-        'description': description,
-        'type': type.name,
-        'includeLogs': includeLogs,
-        'includeSystemInfo': includeSystemInfo,
-        'screenshotCount': screenshots.length,
-        'timestamp': timestamp.toIso8601String(),
-      };
+    'description': description,
+    'type': type.name,
+    'includeLogs': includeLogs,
+    'includeSystemInfo': includeSystemInfo,
+    'screenshotCount': screenshots.length,
+    'timestamp': timestamp.toIso8601String(),
+  };
 
   factory FeedbackRequest.fromJson(Map<String, dynamic> json) {
     return FeedbackRequest(

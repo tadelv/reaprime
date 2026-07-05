@@ -51,11 +51,14 @@ class SettingsHandler {
         'nightModeSleepTime': _controller.nightModeSleepTime,
         'nightModeMorningTime': _controller.nightModeMorningTime,
         'lowBatteryBrightnessLimit': _controller.lowBatteryBrightnessLimit,
-        'simulatedDevices': _controller.simulatedDevices.map((e) => e.name).toList(),
+        'simulatedDevices': _controller.simulatedDevices
+            .map((e) => e.name)
+            .toList(),
         'themeMode': _controller.themeMode.name,
       };
       if (_batteryController?.currentChargingState != null) {
-        result['chargingState'] = _batteryController!.currentChargingState!.toJson();
+        result['chargingState'] = _batteryController!.currentChargingState!
+            .toJson();
       }
       return result;
     });
@@ -247,11 +250,15 @@ class SettingsHandler {
         final devices = <SimulatedDevicesTypes>{};
         for (final item in value) {
           if (item is! String) {
-            return jsonBadRequest({'message': 'Invalid simulated device type: $item'});
+            return jsonBadRequest({
+              'message': 'Invalid simulated device type: $item',
+            });
           }
           final type = SimulatedDevicesTypesFromString.fromString(item);
           if (type == null) {
-            return jsonBadRequest({'message': 'Invalid simulated device type: $item'});
+            return jsonBadRequest({
+              'message': 'Invalid simulated device type: $item',
+            });
           }
           devices.add(type);
         }

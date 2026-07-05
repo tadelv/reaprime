@@ -24,8 +24,8 @@ class WorkflowDeviceSync {
   WorkflowDeviceSync({
     required WorkflowController workflowController,
     required De1Controller de1Controller,
-  })  : _workflow = workflowController,
-        _de1 = de1Controller {
+  }) : _workflow = workflowController,
+       _de1 = de1Controller {
     _lastPushedProfile = _workflow.currentWorkflow.profile;
     _workflow.addListener(_onChange);
   }
@@ -59,7 +59,11 @@ class WorkflowDeviceSync {
         'defaultWorkflow on next connect',
       );
     } catch (e, st) {
-      _log.warning('setProfile failed; will retry on next workflow change', e, st);
+      _log.warning(
+        'setProfile failed; will retry on next workflow change',
+        e,
+        st,
+      );
     } finally {
       // Clear the in-flight guard so the next change (including a retry of this
       // same profile after a failure) can push again.

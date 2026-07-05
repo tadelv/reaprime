@@ -25,12 +25,12 @@ class _FakeWebUIStorage extends Fake implements WebUIStorage {
   int downloadCount = 0;
 
   WebUISkin get _skin => WebUISkin(
-        id: 'streamline.js',
-        name: 'Streamline',
-        path: '/tmp/streamline.js',
-        version: _version,
-        isBundled: true,
-      );
+    id: 'streamline.js',
+    name: 'Streamline',
+    path: '/tmp/streamline.js',
+    version: _version,
+    isBundled: true,
+  );
 
   @override
   List<WebUISkin> get installedSkins => [_skin];

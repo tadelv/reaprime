@@ -27,8 +27,7 @@ class GrinderDao extends DatabaseAccessor<AppDatabase> with _$GrinderDaoMixin {
   }
 
   Future<Grinder?> getGrinderById(String id) {
-    return (select(grinders)..where((g) => g.id.equals(id)))
-        .getSingleOrNull();
+    return (select(grinders)..where((g) => g.id.equals(id))).getSingleOrNull();
   }
 
   Future<void> insertGrinder(GrindersCompanion grinder) {
@@ -36,8 +35,9 @@ class GrinderDao extends DatabaseAccessor<AppDatabase> with _$GrinderDaoMixin {
   }
 
   Future<void> updateGrinder(GrindersCompanion grinder) {
-    return (update(grinders)..where((g) => g.id.equals(grinder.id.value)))
-        .write(grinder);
+    return (update(
+      grinders,
+    )..where((g) => g.id.equals(grinder.id.value))).write(grinder);
   }
 
   Future<void> deleteGrinder(String id) {

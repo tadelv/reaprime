@@ -302,8 +302,7 @@ class BeanBatch {
       if (bestBeforeDate != null)
         'bestBeforeDate': bestBeforeDate!.toIso8601String(),
       if (freezeDate != null) 'freezeDate': freezeDate!.toIso8601String(),
-      if (unfreezeDate != null)
-        'unfreezeDate': unfreezeDate!.toIso8601String(),
+      if (unfreezeDate != null) 'unfreezeDate': unfreezeDate!.toIso8601String(),
       'frozen': frozen,
       'archived': archived,
       if (notes != null) 'notes': notes,

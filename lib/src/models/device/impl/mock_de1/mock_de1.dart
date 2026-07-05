@@ -265,10 +265,9 @@ class MockDe1 implements De1Interface, SimulatedDevice {
     }
 
     // Calculate progress through current step (0.0 to 1.0)
-    final stepProgress =
-        stepDurationMs > 0
-            ? min(_profileStepElapsedTime / stepDurationMs, 1.0)
-            : 0.0;
+    final stepProgress = stepDurationMs > 0
+        ? min(_profileStepElapsedTime / stepDurationMs, 1.0)
+        : 0.0;
 
     // Calculate temperature movement toward target
     final targetTemp = currentStep.temperature;
@@ -400,12 +399,11 @@ class MockDe1 implements De1Interface, SimulatedDevice {
       targetMixTemperature: targetTemp,
       targetGroupTemperature: targetTemp,
       profileFrame: _currentProfileStepIndex,
-      steamTemperature:
-          _calculateTemperature(
-            current: _lastSnapshot.steamTemperature.toDouble(),
-            target: 150.0,
-            rate: 0.2,
-          ).toInt(),
+      steamTemperature: _calculateTemperature(
+        current: _lastSnapshot.steamTemperature.toDouble(),
+        target: 150.0,
+        rate: 0.2,
+      ).toInt(),
     );
   }
 

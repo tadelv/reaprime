@@ -95,8 +95,8 @@ class _DataManagementPageState extends State<DataManagementPage> {
               Text(
                 'Export & Backup',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
@@ -104,11 +104,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
           Text(
             'Create backups of your data or export specific items',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7),
-                ),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
           ),
           const SizedBox(height: 16),
           Wrap(
@@ -147,8 +146,8 @@ class _DataManagementPageState extends State<DataManagementPage> {
               Text(
                 'Import & Restore',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
@@ -156,11 +155,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
           Text(
             'Restore data from a previous backup',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7),
-                ),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
           ),
           const SizedBox(height: 16),
           Wrap(
@@ -186,11 +184,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
           Text(
             'Use "Import Shots (JSON)" for legacy shot exports — single JSON files or arrays of shot records.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.5),
-                ),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.5),
+            ),
           ),
         ],
       ),
@@ -210,8 +207,8 @@ class _DataManagementPageState extends State<DataManagementPage> {
               Text(
                 'Privacy & Feedback',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
@@ -219,11 +216,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
           Text(
             'Control data sharing and send feedback',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7),
-                ),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
           ),
           const SizedBox(height: 16),
           ShadSwitch(
@@ -273,8 +269,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
           Uri.parse('http://localhost:8080/api/v1/data/export'),
         );
         final response = await request.close();
-        final responseBytes =
-            await response.fold<List<int>>([], (bytes, chunk) {
+        final responseBytes = await response.fold<List<int>>([], (
+          bytes,
+          chunk,
+        ) {
           bytes.addAll(chunk);
           return bytes;
         });
@@ -327,8 +325,8 @@ class _DataManagementPageState extends State<DataManagementPage> {
       final webviewLogFile = File('${docs.path}/webview_console.log');
 
       final hasAppLog = await logFile.exists();
-      final hasWebviewLog = await webviewLogFile.exists() &&
-          (await webviewLogFile.length()) > 0;
+      final hasWebviewLog =
+          await webviewLogFile.exists() && (await webviewLogFile.length()) > 0;
 
       if (!hasAppLog && !hasWebviewLog) {
         if (mounted) {
@@ -347,11 +345,11 @@ class _DataManagementPageState extends State<DataManagementPage> {
       if (hasWebviewLog) {
         final bytes = await webviewLogFile.readAsBytes();
         archive.addFile(
-            ArchiveFile('webview_console.log', bytes.length, bytes));
+          ArchiveFile('webview_console.log', bytes.length, bytes),
+        );
       }
 
-      final zipBytes =
-          Uint8List.fromList(ZipEncoder().encode(archive));
+      final zipBytes = Uint8List.fromList(ZipEncoder().encode(archive));
 
       final outputFile = await FilePicker.saveFile(
         fileName: "R1-logs.zip",
@@ -397,8 +395,11 @@ class _DataManagementPageState extends State<DataManagementPage> {
         final tempFile = File('$destination/R1_shots.zip');
         final archive = Archive();
         final sourceBytes = await source.readAsBytes();
-        final archiveFile =
-            ArchiveFile('shots.json', sourceBytes.length, sourceBytes);
+        final archiveFile = ArchiveFile(
+          'shots.json',
+          sourceBytes.length,
+          sourceBytes,
+        );
         archive.addFile(archiveFile);
         final zipData = ZipEncoder().encode(archive);
         await tempFile.writeAsBytes(zipData);
@@ -429,8 +430,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
       context: context,
       builder: (context) => ShadDialog(
         title: const Text('Import Backup'),
-        description:
-            const Text('Choose how to handle data that already exists'),
+        description: const Text(
+          'Choose how to handle data that already exists',
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -479,18 +481,18 @@ class _DataManagementPageState extends State<DataManagementPage> {
             'http://localhost:8080/api/v1/data/import?onConflict=$strategy',
           ),
         );
-        request.headers.contentType =
-            ContentType('application', 'zip');
+        request.headers.contentType = ContentType('application', 'zip');
         request.add(bytes);
         final response = await request.close();
         final responseBody = await response.transform(utf8.decoder).join();
 
         if (response.statusCode != 200) {
-          throw Exception('Server returned ${response.statusCode}: $responseBody');
+          throw Exception(
+            'Server returned ${response.statusCode}: $responseBody',
+          );
         }
 
-        final responseJson =
-            jsonDecode(responseBody) as Map<String, dynamic>;
+        final responseJson = jsonDecode(responseBody) as Map<String, dynamic>;
 
         if (!mounted) return;
 
@@ -604,10 +606,12 @@ class _DataManagementPageState extends State<DataManagementPage> {
         builder: (ctx) => StatefulBuilder(
           builder: (ctx, setState) {
             setCopyState = setState;
-            final isMilestone = filesToCopy == 0 ||
+            final isMilestone =
+                filesToCopy == 0 ||
                 filesCopied == filesToCopy ||
                 (filesToCopy > 0 &&
-                    filesCopied % (filesToCopy ~/ 4).clamp(1, filesToCopy) == 0);
+                    filesCopied % (filesToCopy ~/ 4).clamp(1, filesToCopy) ==
+                        0);
             return ShadDialog(
               title: const Text('Copying files...'),
               child: Column(
@@ -694,7 +698,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
       if (scanResult.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No DE1 app data found in this folder')),
+            const SnackBar(
+              content: Text('No DE1 app data found in this folder'),
+            ),
           );
         }
         return;
@@ -719,7 +725,11 @@ class _DataManagementPageState extends State<DataManagementPage> {
 
       // Run import with progress dialog
       ImportResult? importResult;
-      ImportProgress progress = const ImportProgress(current: 0, total: 0, phase: '');
+      ImportProgress progress = const ImportProgress(
+        current: 0,
+        total: 0,
+        phase: '',
+      );
       int shotsImported = 0;
       int profilesImported = 0;
 
@@ -843,8 +853,8 @@ class _DataManagementPageState extends State<DataManagementPage> {
             Text(
               '  Warning: $error',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
+                color: Theme.of(context).colorScheme.error,
+              ),
             ),
           );
         }

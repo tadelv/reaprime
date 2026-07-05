@@ -28,8 +28,9 @@ void main() {
     });
 
     test('a connected machine → its record', () {
-      final r =
-          rememberedFromMachine(_FakeDevice('de1', 'DE1', DeviceType.machine));
+      final r = rememberedFromMachine(
+        _FakeDevice('de1', 'DE1', DeviceType.machine),
+      );
       expect(r?.id, 'de1');
       expect(r?.type, DeviceType.machine);
     });
@@ -49,24 +50,31 @@ void main() {
     });
 
     test('connected → the record from connectedScale()', () {
-      final r = rememberedFromScaleState(ConnectionState.connected, () => scale);
+      final r = rememberedFromScaleState(
+        ConnectionState.connected,
+        () => scale,
+      );
       expect(r?.id, 's');
       expect(r?.type, DeviceType.scale);
     });
 
-    test('the connected-then-nulled race (DeviceNotConnectedException) → null',
-        () {
-      final r = rememberedFromScaleState(
-        ConnectionState.connected,
-        () => throw const DeviceNotConnectedException.scale(),
-      );
-      expect(r, isNull);
-    });
+    test(
+      'the connected-then-nulled race (DeviceNotConnectedException) → null',
+      () {
+        final r = rememberedFromScaleState(
+          ConnectionState.connected,
+          () => throw const DeviceNotConnectedException.scale(),
+        );
+        expect(r, isNull);
+      },
+    );
 
     test('any other exception surfaces (not swallowed)', () {
       expect(
         () => rememberedFromScaleState(
-            ConnectionState.connected, () => throw StateError('boom')),
+          ConnectionState.connected,
+          () => throw StateError('boom'),
+        ),
         throwsStateError,
       );
     });

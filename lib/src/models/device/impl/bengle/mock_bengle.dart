@@ -22,8 +22,7 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
     super.deviceId = 'MockBengle',
     bool probeAttached = true,
   }) {
-    _probeAttachedSubject =
-        BehaviorSubject<bool>.seeded(probeAttached);
+    _probeAttachedSubject = BehaviorSubject<bool>.seeded(probeAttached);
   }
 
   @override
@@ -134,8 +133,7 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
   // --- milk probe surface ---
 
   @override
-  Stream<double> get stopAtTemperatureTarget =>
-      _stopAtTempTargetSubject.stream;
+  Stream<double> get stopAtTemperatureTarget => _stopAtTempTargetSubject.stream;
 
   @override
   Stream<bool> get probeAttached => _probeAttachedSubject.stream;
@@ -169,11 +167,13 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
 
   void _emit() {
     if (_weight.isClosed) return;
-    _weight.add(ScaleSnapshot(
-      timestamp: DateTime.now(),
-      weight: _accumulatedWeight - _tareOffset,
-      batteryLevel: 100,
-    ));
+    _weight.add(
+      ScaleSnapshot(
+        timestamp: DateTime.now(),
+        weight: _accumulatedWeight - _tareOffset,
+        batteryLevel: 100,
+      ),
+    );
   }
 
   @override
@@ -281,10 +281,10 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
 
   @override
   MachineInfo get machineInfo => MachineInfo(
-        version: '1.0',
-        model: 'Bengle',
-        serialNumber: 'mock-bengle',
-        groupHeadControllerPresent: true,
-        extra: {'voltage': 220, 'refillKit': false},
-      );
+    version: '1.0',
+    model: 'Bengle',
+    serialNumber: 'mock-bengle',
+    groupHeadControllerPresent: true,
+    extra: {'voltage': 220, 'refillKit': false},
+  );
 }

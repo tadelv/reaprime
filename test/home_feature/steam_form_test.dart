@@ -13,8 +13,9 @@ Widget _wrap(Widget child) {
 
 void main() {
   group('SteamForm', () {
-    testWidgets('renders stop-at-temperature controls when enabled', (tester) async {
-      SteamFormSettings? applied;
+    testWidgets('renders stop-at-temperature controls when enabled', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _wrap(
           SteamForm(
@@ -25,7 +26,7 @@ void main() {
               targetFlow: 1.0,
               stopAtTemperature: 65.0,
             ),
-            apply: (settings) => applied = settings,
+            apply: (settings) {},
           ),
         ),
       );
@@ -35,8 +36,9 @@ void main() {
       expect(find.textContaining('Stop at: 65.0'), findsOneWidget);
     });
 
-    testWidgets('hides preferred probe picker with one or zero probes',
-        (tester) async {
+    testWidgets('hides preferred probe picker with one or zero probes', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _wrap(
           SteamForm(
@@ -58,8 +60,9 @@ void main() {
       expect(find.text('Preferred probe'), findsNothing);
     });
 
-    testWidgets('shows preferred probe picker when multiple probes present',
-        (tester) async {
+    testWidgets('shows preferred probe picker when multiple probes present', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _wrap(
           SteamForm(
@@ -84,8 +87,9 @@ void main() {
       expect(find.text('Probe B'), findsOneWidget);
     });
 
-    testWidgets('apply persists stopAtTemperature and preferred probe',
-        (tester) async {
+    testWidgets('apply persists stopAtTemperature and preferred probe', (
+      tester,
+    ) async {
       SteamFormSettings? applied;
       await tester.pumpWidget(
         _wrap(

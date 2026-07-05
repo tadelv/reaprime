@@ -17,22 +17,25 @@ void main() {
     });
 
     test('emits weightSnapshot after connect', () async {
-      final snapshot = await bengle.weightSnapshot.first
-          .timeout(const Duration(seconds: 2));
+      final snapshot = await bengle.weightSnapshot.first.timeout(
+        const Duration(seconds: 2),
+      );
       expect(snapshot.batteryLevel, 100);
       expect(snapshot.weight, isA<double>());
     });
 
     test('weight rises during simulated espresso shot', () async {
-      final pre = await bengle.weightSnapshot.first
-          .timeout(const Duration(seconds: 2));
+      final pre = await bengle.weightSnapshot.first.timeout(
+        const Duration(seconds: 2),
+      );
 
       await bengle.requestState(MachineState.espresso);
       await Future.delayed(const Duration(seconds: 2));
       await bengle.requestState(MachineState.idle);
 
-      final post = await bengle.weightSnapshot.first
-          .timeout(const Duration(seconds: 2));
+      final post = await bengle.weightSnapshot.first.timeout(
+        const Duration(seconds: 2),
+      );
       expect(post.weight, greaterThan(pre.weight));
     });
 
@@ -43,8 +46,9 @@ void main() {
 
       await bengle.weightSnapshot.first;
       await bengle.tareIntegratedScale();
-      final next = await bengle.weightSnapshot.first
-          .timeout(const Duration(seconds: 2));
+      final next = await bengle.weightSnapshot.first.timeout(
+        const Duration(seconds: 2),
+      );
       expect(next.weight.abs(), lessThan(0.01));
     });
 
@@ -54,9 +58,9 @@ void main() {
       // value (if any) then immediately delivers `done`. Either way the
       // stream completes — `toList()` returns within the timeout. If the
       // close didn't propagate, this would hang and time out.
-      final all = await bengle.weightSnapshot
-          .toList()
-          .timeout(const Duration(seconds: 1));
+      final all = await bengle.weightSnapshot.toList().timeout(
+        const Duration(seconds: 1),
+      );
       expect(all, isA<List<ScaleSnapshot>>());
     });
   });

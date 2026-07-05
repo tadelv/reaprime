@@ -20,10 +20,16 @@ void main() {
       final sub2 = c2.stream.listen((_) {});
       await subs.add('char-uuid', sub2);
 
-      expect(c1.hasListener, isFalse,
-          reason: 'first subscription should be cancelled on replace');
-      expect(c2.hasListener, isTrue,
-          reason: 'newest subscription stays active');
+      expect(
+        c1.hasListener,
+        isFalse,
+        reason: 'first subscription should be cancelled on replace',
+      );
+      expect(
+        c2.hasListener,
+        isTrue,
+        reason: 'newest subscription stays active',
+      );
 
       await subs.cancelAll();
       addTearDown(() async {

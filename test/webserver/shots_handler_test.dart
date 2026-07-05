@@ -56,51 +56,55 @@ void main() {
       );
 
   group('ShotsHandler', () {
-    test('GET /api/v1/shots/<id> returns probeTemperature in measurements',
-        () async {
-      final snapshot = ShotSnapshot(
-        machine: _machineSnapshot(),
-        probeTemperature: 93.5,
-      );
-      await persistence.persistShot(
-        makeShot(id: 'probe-shot', measurements: [snapshot]),
-      );
+    test(
+      'GET /api/v1/shots/<id> returns probeTemperature in measurements',
+      () async {
+        final snapshot = ShotSnapshot(
+          machine: _machineSnapshot(),
+          probeTemperature: 93.5,
+        );
+        await persistence.persistShot(
+          makeShot(id: 'probe-shot', measurements: [snapshot]),
+        );
 
-      final response = await sendGet('/api/v1/shots/probe-shot');
-      expect(response.statusCode, 200);
-      final body =
-          jsonDecode(await response.readAsString()) as Map<String, dynamic>;
-      final measurements = body['measurements'] as List;
-      expect(measurements, hasLength(1));
-      expect(
-        (measurements.first as Map)['probeTemperature'],
-        equals(93.5),
-      );
-    });
+        final response = await sendGet('/api/v1/shots/probe-shot');
+        expect(response.statusCode, 200);
+        final body =
+            jsonDecode(await response.readAsString()) as Map<String, dynamic>;
+        final measurements = body['measurements'] as List;
+        expect(measurements, hasLength(1));
+        expect(
+          (measurements.first as Map)['probeTemperature'],
+          equals(93.5),
+        );
+      },
+    );
 
-    test('PUT /api/v1/shots/<id> returns probeTemperature in measurements',
-        () async {
-      final snapshot = ShotSnapshot(
-        machine: _machineSnapshot(),
-        probeTemperature: 91.2,
-      );
-      await persistence.persistShot(
-        makeShot(id: 'probe-put', measurements: [snapshot]),
-      );
+    test(
+      'PUT /api/v1/shots/<id> returns probeTemperature in measurements',
+      () async {
+        final snapshot = ShotSnapshot(
+          machine: _machineSnapshot(),
+          probeTemperature: 91.2,
+        );
+        await persistence.persistShot(
+          makeShot(id: 'probe-put', measurements: [snapshot]),
+        );
 
-      final response = await sendPut('/api/v1/shots/probe-put', {
-        'annotations': {'espressoNotes': 'bright'},
-      });
-      expect(response.statusCode, 200);
-      final body =
-          jsonDecode(await response.readAsString()) as Map<String, dynamic>;
-      final measurements = body['measurements'] as List;
-      expect(measurements, hasLength(1));
-      expect(
-        (measurements.first as Map)['probeTemperature'],
-        equals(91.2),
-      );
-    });
+        final response = await sendPut('/api/v1/shots/probe-put', {
+          'annotations': {'espressoNotes': 'bright'},
+        });
+        expect(response.statusCode, 200);
+        final body =
+            jsonDecode(await response.readAsString()) as Map<String, dynamic>;
+        final measurements = body['measurements'] as List;
+        expect(measurements, hasLength(1));
+        expect(
+          (measurements.first as Map)['probeTemperature'],
+          equals(91.2),
+        );
+      },
+    );
 
     test('GET /api/v1/shots filters by beanId across all batches', () async {
       final bean = Bean.create(roaster: 'Old roaster', name: 'Old name');
@@ -183,22 +187,22 @@ void main() {
 }
 
 MachineSnapshot _machineSnapshot() => MachineSnapshot(
-      timestamp: DateTime.utc(2026, 7, 1, 12, 0, 0),
-      state: const MachineStateSnapshot(
-        state: MachineState.espresso,
-        substate: MachineSubstate.pouring,
-      ),
-      flow: 2.0,
-      pressure: 9.0,
-      targetFlow: 2.0,
-      targetPressure: 9.0,
-      mixTemperature: 92.0,
-      groupTemperature: 92.0,
-      targetMixTemperature: 92.0,
-      targetGroupTemperature: 92.0,
-      profileFrame: 0,
-      steamTemperature: 0,
-    );
+  timestamp: DateTime.utc(2026, 7, 1, 12, 0, 0),
+  state: const MachineStateSnapshot(
+    state: MachineState.espresso,
+    substate: MachineSubstate.pouring,
+  ),
+  flow: 2.0,
+  pressure: 9.0,
+  targetFlow: 2.0,
+  targetPressure: 9.0,
+  mixTemperature: 92.0,
+  groupTemperature: 92.0,
+  targetMixTemperature: 92.0,
+  targetGroupTemperature: 92.0,
+  profileFrame: 0,
+  steamTemperature: 0,
+);
 
 ShotRecord makeShot({
   required String id,

@@ -19,29 +19,33 @@ void main() {
     bleService.dispose();
   });
 
-  test('emits adapterTurnedOff when adapter state changes to poweredOff',
-      () async {
-    bleService.setAdapterState(AdapterState.poweredOn);
-    await Future.delayed(Duration.zero);
+  test(
+    'emits adapterTurnedOff when adapter state changes to poweredOff',
+    () async {
+      bleService.setAdapterState(AdapterState.poweredOn);
+      await Future.delayed(Duration.zero);
 
-    expectLater(
-      guardian.events,
-      emits(ScanStateEvent.adapterTurnedOff),
-    );
-    bleService.setAdapterState(AdapterState.poweredOff);
-  });
+      expectLater(
+        guardian.events,
+        emits(ScanStateEvent.adapterTurnedOff),
+      );
+      bleService.setAdapterState(AdapterState.poweredOff);
+    },
+  );
 
-  test('emits adapterTurnedOn when adapter state changes to poweredOn',
-      () async {
-    bleService.setAdapterState(AdapterState.poweredOff);
-    await Future.delayed(Duration.zero);
+  test(
+    'emits adapterTurnedOn when adapter state changes to poweredOn',
+    () async {
+      bleService.setAdapterState(AdapterState.poweredOff);
+      await Future.delayed(Duration.zero);
 
-    expectLater(
-      guardian.events,
-      emits(ScanStateEvent.adapterTurnedOn),
-    );
-    bleService.setAdapterState(AdapterState.poweredOn);
-  });
+      expectLater(
+        guardian.events,
+        emits(ScanStateEvent.adapterTurnedOn),
+      );
+      bleService.setAdapterState(AdapterState.poweredOn);
+    },
+  );
 
   test('emits scanStateStale on app resume', () async {
     expectLater(

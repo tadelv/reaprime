@@ -12,8 +12,7 @@ class InMemoryProfileStorage implements ProfileStorageService {
   @override
   Future<void> initialize() async {}
   @override
-  Future<void> store(ProfileRecord record) async =>
-      records[record.id] = record;
+  Future<void> store(ProfileRecord record) async => records[record.id] = record;
   @override
   Future<ProfileRecord?> get(String id) async => records[id];
   @override
@@ -56,65 +55,78 @@ const _milkyFile = 'Flow_profile_for_milky_drinks.json';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('M2: a default whose file was removed from the manifest is hidden',
-      () async {
-    final storage = InMemoryProfileStorage();
-    final base = Profile.fromJson(await _bundledJson(_milkyFile));
-    final removed = ProfileRecord.create(
-      profile: base,
-      isDefault: true,
-      metadata: {'source': 'bundled', 'filename': 'deleted_profile.json'},
-    );
-    await storage.store(removed);
+  test(
+    'M2: a default whose file was removed from the manifest is hidden',
+    () async {
+      final storage = InMemoryProfileStorage();
+      final base = Profile.fromJson(await _bundledJson(_milkyFile));
+      final removed = ProfileRecord.create(
+        profile: base,
+        isDefault: true,
+        metadata: {'source': 'bundled', 'filename': 'deleted_profile.json'},
+      );
+      await storage.store(removed);
 
-    await ProfileController(storage: storage).initialize();
+      await ProfileController(storage: storage).initialize();
 
-    expect(storage.records[removed.id]!.visibility, Visibility.hidden,
-        reason: 'removed-from-manifest default should be hidden');
-  });
+      expect(
+        storage.records[removed.id]!.visibility,
+        Visibility.hidden,
+        reason: 'removed-from-manifest default should be hidden',
+      );
+    },
+  );
 
-  test('M2: a stale prior version of a changed default is hidden, current stays visible',
-      () async {
-    final storage = InMemoryProfileStorage();
-    // Simulate the pre-curation milky: same filename, different content (bump a
-    // step) so it gets a different content-hash id.
-    final json = await _bundledJson(_milkyFile);
-    (json['steps'] as List).first['seconds'] = '999';
-    final stale = ProfileRecord.create(
-      profile: Profile.fromJson(json),
-      isDefault: true,
-      metadata: {'source': 'bundled', 'filename': _milkyFile},
-    );
-    await storage.store(stale);
+  test(
+    'M2: a stale prior version of a changed default is hidden, current stays visible',
+    () async {
+      final storage = InMemoryProfileStorage();
+      // Simulate the pre-curation milky: same filename, different content (bump a
+      // step) so it gets a different content-hash id.
+      final json = await _bundledJson(_milkyFile);
+      (json['steps'] as List).first['seconds'] = '999';
+      final stale = ProfileRecord.create(
+        profile: Profile.fromJson(json),
+        isDefault: true,
+        metadata: {'source': 'bundled', 'filename': _milkyFile},
+      );
+      await storage.store(stale);
 
-    await ProfileController(storage: storage).initialize();
+      await ProfileController(storage: storage).initialize();
 
-    final current = Profile.fromJson(await _bundledJson(_milkyFile));
-    final currentId = ProfileRecord.create(profile: current).id;
-    expect(stale.id == currentId, isFalse, reason: 'precondition: ids differ');
-    expect(storage.records[currentId]?.visibility, Visibility.visible);
-    expect(storage.records[stale.id]!.visibility, Visibility.hidden);
-  });
+      final current = Profile.fromJson(await _bundledJson(_milkyFile));
+      final currentId = ProfileRecord.create(profile: current).id;
+      expect(
+        stale.id == currentId,
+        isFalse,
+        reason: 'precondition: ids differ',
+      );
+      expect(storage.records[currentId]?.visibility, Visibility.visible);
+      expect(storage.records[stale.id]!.visibility, Visibility.hidden);
+    },
+  );
 
-  test('M1: an existing default with stale metadata gets its title refreshed',
-      () async {
-    final storage = InMemoryProfileStorage();
-    // Same content as current milky (same id) but a stale title.
-    final json = await _bundledJson(_milkyFile);
-    json['title'] = 'OLD STALE TITLE';
-    final staleMeta = ProfileRecord.create(
-      profile: Profile.fromJson(json),
-      isDefault: true,
-      metadata: {'source': 'bundled', 'filename': _milkyFile},
-    );
-    await storage.store(staleMeta);
+  test(
+    'M1: an existing default with stale metadata gets its title refreshed',
+    () async {
+      final storage = InMemoryProfileStorage();
+      // Same content as current milky (same id) but a stale title.
+      final json = await _bundledJson(_milkyFile);
+      json['title'] = 'OLD STALE TITLE';
+      final staleMeta = ProfileRecord.create(
+        profile: Profile.fromJson(json),
+        isDefault: true,
+        metadata: {'source': 'bundled', 'filename': _milkyFile},
+      );
+      await storage.store(staleMeta);
 
-    await ProfileController(storage: storage).initialize();
+      await ProfileController(storage: storage).initialize();
 
-    final refreshed = storage.records[staleMeta.id]!;
-    expect(refreshed.profile.title, 'Flow profile for milky drinks');
-    expect(refreshed.visibility, Visibility.visible);
-  });
+      final refreshed = storage.records[staleMeta.id]!;
+      expect(refreshed.profile.title, 'Flow profile for milky drinks');
+      expect(refreshed.visibility, Visibility.visible);
+    },
+  );
 
   test('user profiles (not default) are never touched by retirement', () async {
     final storage = InMemoryProfileStorage();
@@ -144,30 +156,41 @@ void main() {
 
     await ProfileController(storage: storage).initialize();
 
-    expect(storage.records[hidden.id]!.visibility, Visibility.hidden,
-        reason: 'a user-hidden default must not be un-hidden by the reseed');
+    expect(
+      storage.records[hidden.id]!.visibility,
+      Visibility.hidden,
+      reason: 'a user-hidden default must not be un-hidden by the reseed',
+    );
     expect(storage.records[hidden.id]!.isDefault, isTrue);
   });
 
-  test('M3: a hidden default still gets curated metadata refreshed but stays hidden',
-      () async {
-    final storage = InMemoryProfileStorage();
-    // Same content as current milky (same id) but a stale title, and hidden.
-    final json = await _bundledJson(_milkyFile);
-    json['title'] = 'OLD STALE TITLE';
-    final hiddenStale = ProfileRecord.create(
-      profile: Profile.fromJson(json),
-      isDefault: true,
-      metadata: {'source': 'bundled', 'filename': _milkyFile},
-    ).copyWith(visibility: Visibility.hidden);
-    await storage.store(hiddenStale);
+  test(
+    'M3: a hidden default still gets curated metadata refreshed but stays hidden',
+    () async {
+      final storage = InMemoryProfileStorage();
+      // Same content as current milky (same id) but a stale title, and hidden.
+      final json = await _bundledJson(_milkyFile);
+      json['title'] = 'OLD STALE TITLE';
+      final hiddenStale = ProfileRecord.create(
+        profile: Profile.fromJson(json),
+        isDefault: true,
+        metadata: {'source': 'bundled', 'filename': _milkyFile},
+      ).copyWith(visibility: Visibility.hidden);
+      await storage.store(hiddenStale);
 
-    await ProfileController(storage: storage).initialize();
+      await ProfileController(storage: storage).initialize();
 
-    final refreshed = storage.records[hiddenStale.id]!;
-    expect(refreshed.profile.title, 'Flow profile for milky drinks',
-        reason: 'curation metadata refresh still applies to hidden defaults');
-    expect(refreshed.visibility, Visibility.hidden,
-        reason: 'refreshing metadata must not un-hide the profile');
-  });
+      final refreshed = storage.records[hiddenStale.id]!;
+      expect(
+        refreshed.profile.title,
+        'Flow profile for milky drinks',
+        reason: 'curation metadata refresh still applies to hidden defaults',
+      );
+      expect(
+        refreshed.visibility,
+        Visibility.hidden,
+        reason: 'refreshing metadata must not un-hide the profile',
+      );
+    },
+  );
 }

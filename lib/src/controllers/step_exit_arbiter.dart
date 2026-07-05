@@ -107,8 +107,10 @@ class StepExitArbiter {
       ExitType.pressure => pressureProximityMinimum,
       ExitType.flow => flowProximityMinimum,
     };
-    final proximityThreshold = (exit.value * proximityFraction)
-        .clamp(proximityMinimum, double.infinity);
+    final proximityThreshold = (exit.value * proximityFraction).clamp(
+      proximityMinimum,
+      double.infinity,
+    );
 
     // Far from threshold — no race risk.
     if (distance > proximityThreshold) {

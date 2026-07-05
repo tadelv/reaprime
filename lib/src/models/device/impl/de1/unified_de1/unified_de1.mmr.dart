@@ -29,15 +29,18 @@ extension UnifiedDe1MMR on UnifiedDe1 {
   /// Address-only MMR read for capability mixins whose addresses aren't
   /// in the [MMRItem] enum. Same wire behavior as [_mmrRead]; uses the
   /// hex address as the log/timeout label when no enum name is given.
-  Future<List<int>> _mmrReadRaw(int address,
-      {int length = 0, String? label}) async {
+  Future<List<int>> _mmrReadRaw(
+    int address, {
+    int length = 0,
+    String? label,
+  }) async {
     final logLabel = label ?? '0x${address.toRadixString(16)}';
     ByteData bytes = ByteData(20);
     bytes.setInt32(0, address, Endian.big);
     var buffer = bytes.buffer.asUint8List();
     buffer[0] = (length % 0xFF);
 
-    for (var attempt = 0;; attempt++) {
+    for (var attempt = 0; ; attempt++) {
       _log.info(
         "mmr read: $logLabel${attempt > 0 ? ' (retry $attempt)' : ''}",
       );
@@ -86,8 +89,11 @@ extension UnifiedDe1MMR on UnifiedDe1 {
   }
 
   /// Address-only MMR write for capability mixins; see [_mmrReadRaw].
-  Future<void> _mmrWriteRaw(int address, List<int> bufferData,
-      {String? label}) {
+  Future<void> _mmrWriteRaw(
+    int address,
+    List<int> bufferData, {
+    String? label,
+  }) {
     final logLabel = label ?? '0x${address.toRadixString(16)}';
     _log.info("mmr write: $logLabel");
 

@@ -18,12 +18,18 @@ class FakeKvStore implements KeyValueStoreService {
   }
 
   @override
-  Future<bool> delete({String namespace = 'default', required String key}) async {
+  Future<bool> delete({
+    String namespace = 'default',
+    required String key,
+  }) async {
     return _store[namespace]?.remove(key) != null;
   }
 
   @override
-  Future<Object?> get({String namespace = 'default', required String key}) async {
+  Future<Object?> get({
+    String namespace = 'default',
+    required String key,
+  }) async {
     return _store[namespace]?[key];
   }
 
@@ -55,19 +61,22 @@ void main() {
       );
     });
 
-    test('addPlugin does not throw UnsupportedError when appStoreMode is false', () {
-      final service = PluginLoaderService(
-        kvStore: FakeKvStore(),
-        appStoreMode: false,
-      );
+    test(
+      'addPlugin does not throw UnsupportedError when appStoreMode is false',
+      () {
+        final service = PluginLoaderService(
+          kvStore: FakeKvStore(),
+          appStoreMode: false,
+        );
 
-      // Should not throw UnsupportedError — will throw a different error
-      // because the path doesn't exist and the service isn't initialized,
-      // but it should NOT be an UnsupportedError.
-      expect(
-        () => service.addPlugin('/nonexistent/path'),
-        throwsA(isNot(isA<UnsupportedError>())),
-      );
-    });
+        // Should not throw UnsupportedError — will throw a different error
+        // because the path doesn't exist and the service isn't initialized,
+        // but it should NOT be an UnsupportedError.
+        expect(
+          () => service.addPlugin('/nonexistent/path'),
+          throwsA(isNot(isA<UnsupportedError>())),
+        );
+      },
+    );
   });
 }

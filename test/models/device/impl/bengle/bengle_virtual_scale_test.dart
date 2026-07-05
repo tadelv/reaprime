@@ -20,8 +20,9 @@ void main() {
     });
 
     test('proxies the machine weightSnapshot stream', () async {
-      final snap = await scale.currentSnapshot.first
-          .timeout(const Duration(seconds: 2));
+      final snap = await scale.currentSnapshot.first.timeout(
+        const Duration(seconds: 2),
+      );
       expect(snap.batteryLevel, 100);
     });
 
@@ -32,8 +33,9 @@ void main() {
 
       await scale.currentSnapshot.first;
       await scale.tare();
-      final next = await scale.currentSnapshot.first
-          .timeout(const Duration(seconds: 2));
+      final next = await scale.currentSnapshot.first.timeout(
+        const Duration(seconds: 2),
+      );
       expect(next.weight.abs(), lessThan(0.01));
     });
 
@@ -50,11 +52,13 @@ void main() {
     });
 
     test('connectionState mirrors machine connectionState', () async {
-      final state = await scale.connectionState.first
-          .timeout(const Duration(seconds: 1));
+      final state = await scale.connectionState.first.timeout(
+        const Duration(seconds: 1),
+      );
       expect(state, isA<ConnectionState>());
-      final mState = await bengle.connectionState.first
-          .timeout(const Duration(seconds: 1));
+      final mState = await bengle.connectionState.first.timeout(
+        const Duration(seconds: 1),
+      );
       expect(state, mState);
     });
 

@@ -143,6 +143,3 @@ Widget destinationCardPreview() {
     ),
   );
 }
-
-
-

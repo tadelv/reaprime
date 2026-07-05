@@ -11,10 +11,14 @@ abstract class BeanStorageService {
   Future<void> deleteBean(String id);
 
   // --- BeanBatches ---
-  Future<List<BeanBatch>> getBatchesForBean(String beanId,
-      {bool includeArchived = false});
-  Stream<List<BeanBatch>> watchBatchesForBean(String beanId,
-      {bool includeArchived = false});
+  Future<List<BeanBatch>> getBatchesForBean(
+    String beanId, {
+    bool includeArchived = false,
+  });
+  Stream<List<BeanBatch>> watchBatchesForBean(
+    String beanId, {
+    bool includeArchived = false,
+  });
   Future<BeanBatch?> getBatchById(String id);
   Future<void> insertBatch(BeanBatch batch);
   Future<void> updateBatch(BeanBatch batch);

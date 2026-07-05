@@ -23,7 +23,9 @@ void main() {
         archived: false,
         createdAt: now,
         updatedAt: now,
-        extras: {'plugin': {'flag': true}},
+        extras: {
+          'plugin': {'flag': true},
+        },
       );
 
       final json = bean.toJson();
@@ -42,7 +44,9 @@ void main() {
       expect(restored.processing, 'Washed');
       expect(restored.notes, 'Floral, jasmine, bergamot');
       expect(restored.archived, false);
-      expect(restored.extras, {'plugin': {'flag': true}});
+      expect(restored.extras, {
+        'plugin': {'flag': true},
+      });
     });
 
     test('nullable fields omitted from JSON', () {

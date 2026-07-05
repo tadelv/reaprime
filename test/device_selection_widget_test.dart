@@ -35,26 +35,30 @@ void main() {
 
   group('DeviceSelectionWidget', () {
     testWidgets('shows empty state when no machines found', (tester) async {
-      await tester.pumpWidget(buildTestApp(
-        DeviceSelectionWidget(
-          deviceController: deviceController,
-          deviceType: dev.DeviceType.machine,
-          onDeviceTapped: (_) {},
+      await tester.pumpWidget(
+        buildTestApp(
+          DeviceSelectionWidget(
+            deviceController: deviceController,
+            deviceType: dev.DeviceType.machine,
+            onDeviceTapped: (_) {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('No machines found.'), findsOneWidget);
     });
 
     testWidgets('shows empty state when no scales found', (tester) async {
-      await tester.pumpWidget(buildTestApp(
-        DeviceSelectionWidget(
-          deviceController: deviceController,
-          deviceType: dev.DeviceType.scale,
-          onDeviceTapped: (_) {},
+      await tester.pumpWidget(
+        buildTestApp(
+          DeviceSelectionWidget(
+            deviceController: deviceController,
+            deviceType: dev.DeviceType.scale,
+            onDeviceTapped: (_) {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('No scales found.'), findsOneWidget);
@@ -65,13 +69,15 @@ void main() {
       mockService.addDevice(MockDe1());
       await tester.pump(); // flush stream microtasks to DeviceController
 
-      await tester.pumpWidget(buildTestApp(
-        DeviceSelectionWidget(
-          deviceController: deviceController,
-          deviceType: dev.DeviceType.machine,
-          onDeviceTapped: (_) {},
+      await tester.pumpWidget(
+        buildTestApp(
+          DeviceSelectionWidget(
+            deviceController: deviceController,
+            deviceType: dev.DeviceType.machine,
+            onDeviceTapped: (_) {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('MockDe1'), findsOneWidget);
@@ -83,13 +89,15 @@ void main() {
       mockService.addDevice(TestScale());
       await tester.pump(); // flush stream microtasks to DeviceController
 
-      await tester.pumpWidget(buildTestApp(
-        DeviceSelectionWidget(
-          deviceController: deviceController,
-          deviceType: dev.DeviceType.scale,
-          onDeviceTapped: (_) {},
+      await tester.pumpWidget(
+        buildTestApp(
+          DeviceSelectionWidget(
+            deviceController: deviceController,
+            deviceType: dev.DeviceType.scale,
+            onDeviceTapped: (_) {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Mock Scale'), findsOneWidget);
@@ -102,13 +110,15 @@ void main() {
       mockService.addDevice(TestScale());
       await tester.pump();
 
-      await tester.pumpWidget(buildTestApp(
-        DeviceSelectionWidget(
-          deviceController: deviceController,
-          deviceType: dev.DeviceType.machine,
-          onDeviceTapped: (_) {},
+      await tester.pumpWidget(
+        buildTestApp(
+          DeviceSelectionWidget(
+            deviceController: deviceController,
+            deviceType: dev.DeviceType.machine,
+            onDeviceTapped: (_) {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('MockDe1'), findsOneWidget);
@@ -120,13 +130,15 @@ void main() {
       mockService.addDevice(TestScale());
       await tester.pump();
 
-      await tester.pumpWidget(buildTestApp(
-        DeviceSelectionWidget(
-          deviceController: deviceController,
-          deviceType: dev.DeviceType.scale,
-          onDeviceTapped: (_) {},
+      await tester.pumpWidget(
+        buildTestApp(
+          DeviceSelectionWidget(
+            deviceController: deviceController,
+            deviceType: dev.DeviceType.scale,
+            onDeviceTapped: (_) {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Mock Scale'), findsOneWidget);
@@ -140,15 +152,17 @@ void main() {
       mockService.addDevice(machine);
       await tester.pump();
 
-      await tester.pumpWidget(buildTestApp(
-        DeviceSelectionWidget(
-          deviceController: deviceController,
-          deviceType: dev.DeviceType.machine,
-          onDeviceTapped: (device) {
-            tappedDevice = device;
-          },
+      await tester.pumpWidget(
+        buildTestApp(
+          DeviceSelectionWidget(
+            deviceController: deviceController,
+            deviceType: dev.DeviceType.machine,
+            onDeviceTapped: (device) {
+              tappedDevice = device;
+            },
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       // Tap the device tile (tap on the name text)
@@ -159,20 +173,23 @@ void main() {
       expect(tappedDevice!.deviceId, equals('test-de1'));
     });
 
-    testWidgets('shows connecting indicator for connecting device',
-        (tester) async {
+    testWidgets('shows connecting indicator for connecting device', (
+      tester,
+    ) async {
       final machine = MockDe1(deviceId: 'connecting-de1');
       mockService.addDevice(machine);
       await tester.pump();
 
-      await tester.pumpWidget(buildTestApp(
-        DeviceSelectionWidget(
-          deviceController: deviceController,
-          deviceType: dev.DeviceType.machine,
-          onDeviceTapped: (_) {},
-          connectingDeviceId: 'connecting-de1',
+      await tester.pumpWidget(
+        buildTestApp(
+          DeviceSelectionWidget(
+            deviceController: deviceController,
+            deviceType: dev.DeviceType.machine,
+            onDeviceTapped: (_) {},
+            connectingDeviceId: 'connecting-de1',
+          ),
         ),
-      ));
+      );
       // Use pump() instead of pumpAndSettle() — CircularProgressIndicator
       // has an ongoing animation that prevents settling
       await tester.pump();
@@ -185,16 +202,18 @@ void main() {
       mockService.addDevice(MockDe1());
       await tester.pump();
 
-      await tester.pumpWidget(buildTestApp(
-        DeviceSelectionWidget(
-          deviceController: deviceController,
-          deviceType: dev.DeviceType.machine,
-          onDeviceTapped: (_) {},
-          showHeader: true,
-          headerText: 'Machines',
-          errorMessage: 'Connection failed: timeout',
+      await tester.pumpWidget(
+        buildTestApp(
+          DeviceSelectionWidget(
+            deviceController: deviceController,
+            deviceType: dev.DeviceType.machine,
+            onDeviceTapped: (_) {},
+            showHeader: true,
+            headerText: 'Machines',
+            errorMessage: 'Connection failed: timeout',
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Connection failed: timeout'), findsOneWidget);

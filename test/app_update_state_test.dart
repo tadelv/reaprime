@@ -52,8 +52,10 @@ void main() {
         installable: true,
       );
 
-      final downloading =
-          base.copyWith(phase: AppUpdatePhase.downloading, progress: 0.5);
+      final downloading = base.copyWith(
+        phase: AppUpdatePhase.downloading,
+        progress: 0.5,
+      );
 
       expect(downloading.phase, AppUpdatePhase.downloading);
       expect(downloading.progress, 0.5);

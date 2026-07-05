@@ -8,7 +8,7 @@ class ForegroundTaskService {
 
   static ForegroundServiceGraceTimer? _graceTimer;
   static StreamSubscription? _machineSubscription;
-  
+
   static void init() {
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
@@ -47,7 +47,7 @@ class ForegroundTaskService {
         notificationText: "Maintaining connections",
         callback: startCallback,
       );
-      
+
       switch (started) {
         case ServiceRequestSuccess():
           _log.info("Foreground service started successfully");
@@ -150,7 +150,9 @@ class FirstTaskHandler extends TaskHandler {
 
     // Log periodically to confirm service is running
     if (_eventCount % 5 == 0) {
-      _log.fine('Foreground service heartbeat: $_eventCount events, uptime: ${_formatUptime()}');
+      _log.fine(
+        'Foreground service heartbeat: $_eventCount events, uptime: ${_formatUptime()}',
+      );
     }
   }
 
@@ -208,11 +210,16 @@ class ForegroundServiceGraceTimer {
     if (_serviceStopped) {
       _log.info('Machine reconnected - restarting foreground service');
       _serviceStopped = false;
-      onStart().then((_) => _updateNotification(
-        'Streamline Active',
-        'Connected to DE1',
-      )).catchError((e) =>
-        _log.warning('Failed to restart foreground service: $e'));
+      onStart()
+          .then(
+            (_) => _updateNotification(
+              'Streamline Active',
+              'Connected to DE1',
+            ),
+          )
+          .catchError(
+            (e) => _log.warning('Failed to restart foreground service: $e'),
+          );
     } else {
       _updateNotification(
         'Streamline Active',
@@ -223,7 +230,9 @@ class ForegroundServiceGraceTimer {
 
   void onMachineDisconnected() {
     _graceTimer?.cancel();
-    _log.info('Machine disconnected - starting ${gracePeriod.inMinutes}m grace period');
+    _log.info(
+      'Machine disconnected - starting ${gracePeriod.inMinutes}m grace period',
+    );
     _graceTimer = Timer(gracePeriod, () async {
       _log.info('Grace period expired - stopping foreground service');
       _serviceStopped = true;
@@ -239,4 +248,3 @@ class ForegroundServiceGraceTimer {
     _graceTimer?.cancel();
   }
 }
-

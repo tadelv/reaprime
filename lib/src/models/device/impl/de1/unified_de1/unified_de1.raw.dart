@@ -58,12 +58,11 @@ extension UnifiedDe1Raw on UnifiedDe1 {
       type: De1RawMessageType.response,
       operation: operation,
       characteristicUUID: characteristicUUID,
-      payload:
-          data
-              .map(
-                (byte) => byte.toRadixString(16).padLeft(2, '0').toUpperCase(),
-              )
-              .join(),
+      payload: data
+          .map(
+            (byte) => byte.toRadixString(16).padLeft(2, '0').toUpperCase(),
+          )
+          .join(),
     );
   }
 

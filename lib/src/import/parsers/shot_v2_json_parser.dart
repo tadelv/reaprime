@@ -61,12 +61,9 @@ class ShotV2JsonParser {
     final metaGrinder = meta?['grinder'] as Map<String, dynamic>?;
 
     // --- Bean metadata ---
-    final beanBrand =
-        _str(metaBean?['brand']) ?? _str(settings['bean_brand']);
-    final beanType =
-        _str(metaBean?['type']) ?? _str(settings['bean_type']);
-    final beanNotes =
-        _str(metaBean?['notes']) ?? _str(settings['bean_notes']);
+    final beanBrand = _str(metaBean?['brand']) ?? _str(settings['bean_brand']);
+    final beanType = _str(metaBean?['type']) ?? _str(settings['bean_type']);
+    final beanNotes = _str(metaBean?['notes']) ?? _str(settings['bean_notes']);
     final roastLevel =
         _str(metaBean?['roast_level']) ?? _str(settings['roast_level']);
     final roastDate =
@@ -91,27 +88,33 @@ class ShotV2JsonParser {
         beverageType: BeverageType.espresso,
         steps: [],
         targetWeight: parse_utils.parseOptionalDouble(
-            settings['final_desired_shot_weight']),
+          settings['final_desired_shot_weight'],
+        ),
         targetVolumeCountStart: 0,
         tankTemperature: 0,
       );
     }
 
     // --- Shot annotations ---
-    final doseWeight = parse_utils.parseOptionalDouble(meta?['in']) ??
+    final doseWeight =
+        parse_utils.parseOptionalDouble(meta?['in']) ??
         parse_utils.parseOptionalDouble(settings['grinder_dose_weight']);
-    final actualYield = parse_utils.parseOptionalDouble(meta?['out']) ??
+    final actualYield =
+        parse_utils.parseOptionalDouble(meta?['out']) ??
         parse_utils.parseOptionalDouble(settings['drink_weight']);
     // Target yield: DYE's target_drink_weight → profile's target_weight → actual
     final targetYield =
         parse_utils.parseOptionalDouble(settings['target_drink_weight']) ??
         profile.targetWeight ??
         actualYield;
-    final tds = parse_utils.parseOptionalDouble(metaShot?['tds']) ??
+    final tds =
+        parse_utils.parseOptionalDouble(metaShot?['tds']) ??
         parse_utils.parseOptionalDouble(settings['drink_tds']);
-    final ey = parse_utils.parseOptionalDouble(metaShot?['ey']) ??
+    final ey =
+        parse_utils.parseOptionalDouble(metaShot?['ey']) ??
         parse_utils.parseOptionalDouble(settings['drink_ey']);
-    final enjoyment = parse_utils.parseOptionalDouble(metaShot?['enjoyment']) ??
+    final enjoyment =
+        parse_utils.parseOptionalDouble(metaShot?['enjoyment']) ??
         parse_utils.parseOptionalDouble(settings['espresso_enjoyment']);
     final espressoNotes =
         _str(metaShot?['notes']) ?? _str(settings['espresso_notes']);
@@ -228,10 +231,17 @@ class ShotV2JsonParser {
     final waterDispensed = _numList(totals?['water_dispensed']);
 
     final allArrays = [
-      elapsed, pressureData, pressureGoal,
-      flowData, flowGoal, flowByWeight,
-      tempBasket, tempMix, tempGoal,
-      totalWeight, waterDispensed,
+      elapsed,
+      pressureData,
+      pressureGoal,
+      flowData,
+      flowGoal,
+      flowByWeight,
+      tempBasket,
+      tempMix,
+      tempGoal,
+      totalWeight,
+      waterDispensed,
     ];
     final count = allArrays
         .where((l) => l.isNotEmpty)
@@ -275,10 +285,12 @@ class ShotV2JsonParser {
             )
           : null;
 
-      snapshots.add(ShotSnapshot(
-        machine: machineSnap,
-        scale: weightSnap,
-      ));
+      snapshots.add(
+        ShotSnapshot(
+          machine: machineSnap,
+          scale: weightSnap,
+        ),
+      );
     }
 
     return snapshots;

@@ -10,15 +10,15 @@ import '../helpers/mock_device_discovery_service.dart';
 import '../helpers/test_de1.dart';
 
 Profile _profile(String title) => Profile(
-      version: '2',
-      title: title,
-      notes: '',
-      author: 'test',
-      beverageType: BeverageType.espresso,
-      steps: const [],
-      targetVolumeCountStart: 0,
-      tankTemperature: 0,
-    );
+  version: '2',
+  title: title,
+  notes: '',
+  author: 'test',
+  beverageType: BeverageType.espresso,
+  steps: const [],
+  targetVolumeCountStart: 0,
+  tankTemperature: 0,
+);
 
 class _RecordingDe1 extends TestDe1 {
   final List<Profile> setProfileCalls = [];
@@ -61,16 +61,18 @@ void main() {
     de1 = _RecordingDe1();
     await de1Controller.connectToDe1(de1);
     // Unblock De1Controller._initializeData which awaits shotSettings.first.
-    de1.emitShotSettings(De1ShotSettings(
-      steamSetting: 0,
-      targetSteamTemp: 150,
-      targetSteamDuration: 30,
-      targetHotWaterTemp: 75,
-      targetHotWaterVolume: 50,
-      targetHotWaterDuration: 30,
-      targetShotVolume: 36,
-      groupTemp: 94.0,
-    ));
+    de1.emitShotSettings(
+      De1ShotSettings(
+        steamSetting: 0,
+        targetSteamTemp: 150,
+        targetSteamDuration: 30,
+        targetHotWaterTemp: 75,
+        targetHotWaterVolume: 50,
+        targetHotWaterDuration: 30,
+        targetShotVolume: 36,
+        groupTemp: 94.0,
+      ),
+    );
     await Future<void>.delayed(const Duration(milliseconds: 150));
     sync = WorkflowDeviceSync(
       workflowController: workflow,
@@ -135,16 +137,18 @@ void main() {
       final controller = De1Controller(controller: dc);
       final flaky = _FlakyDe1(failures: 1);
       await controller.connectToDe1(flaky);
-      flaky.emitShotSettings(De1ShotSettings(
-        steamSetting: 0,
-        targetSteamTemp: 150,
-        targetSteamDuration: 30,
-        targetHotWaterTemp: 75,
-        targetHotWaterVolume: 50,
-        targetHotWaterDuration: 30,
-        targetShotVolume: 36,
-        groupTemp: 94.0,
-      ));
+      flaky.emitShotSettings(
+        De1ShotSettings(
+          steamSetting: 0,
+          targetSteamTemp: 150,
+          targetSteamDuration: 30,
+          targetHotWaterTemp: 75,
+          targetHotWaterVolume: 50,
+          targetHotWaterDuration: 30,
+          targetShotVolume: 36,
+          groupTemp: 94.0,
+        ),
+      );
       await Future<void>.delayed(const Duration(milliseconds: 150));
       final flakySync = WorkflowDeviceSync(
         workflowController: wf,
@@ -153,13 +157,17 @@ void main() {
 
       // First push of the cleaning profile fails (timeout) — nothing recorded,
       // and the profile is NOT marked pushed.
-      wf.setWorkflow(wf.currentWorkflow.copyWith(profile: _profile('Cleaning')));
+      wf.setWorkflow(
+        wf.currentWorkflow.copyWith(profile: _profile('Cleaning')),
+      );
       await Future<void>.delayed(const Duration(milliseconds: 10));
       expect(flaky.setProfileCalls, isEmpty);
 
       // Re-applying the SAME profile must RETRY (not skip as already-pushed),
       // since the first upload never landed on the device.
-      wf.setWorkflow(wf.currentWorkflow.copyWith(profile: _profile('Cleaning')));
+      wf.setWorkflow(
+        wf.currentWorkflow.copyWith(profile: _profile('Cleaning')),
+      );
       await Future<void>.delayed(const Duration(milliseconds: 10));
       expect(flaky.setProfileCalls.length, equals(1));
       expect(flaky.setProfileCalls.single.title, equals('Cleaning'));
@@ -174,7 +182,9 @@ void main() {
       final initial = workflow.currentWorkflow;
       sync.dispose();
 
-      workflow.setWorkflow(initial.copyWith(profile: _profile('After dispose')));
+      workflow.setWorkflow(
+        initial.copyWith(profile: _profile('After dispose')),
+      );
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
       expect(de1.setProfileCalls, isEmpty);

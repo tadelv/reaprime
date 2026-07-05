@@ -153,16 +153,20 @@ void main() {
   group('CombustionProtocol.parseProbeStatusNotification', () {
     test('parses thermistor block after 8-byte log range', () {
       final notification = Uint8List(23);
-      notification.setRange(8, 21, _encodeThermistorField([
-        _rawFromCelsius(55.0),
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-      ]));
+      notification.setRange(
+        8,
+        21,
+        _encodeThermistorField([
+          _rawFromCelsius(55.0),
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+        ]),
+      );
       notification[21] = 0x00;
       notification[22] = 0x00;
 

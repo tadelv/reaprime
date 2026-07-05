@@ -9,8 +9,8 @@ class PresenceHandler {
   PresenceHandler({
     required PresenceController presenceController,
     required SettingsController settingsController,
-  })  : _presenceController = presenceController,
-        _settingsController = settingsController;
+  }) : _presenceController = presenceController,
+       _settingsController = settingsController;
 
   void addRoutes(RouterPlus app) {
     app.post('/api/v1/machine/heartbeat', _heartbeatHandler);
@@ -41,9 +41,9 @@ class PresenceHandler {
       final schedulesJson = _settingsController.wakeSchedules;
       List<Map<String, dynamic>> schedules = [];
       if (schedulesJson.isNotEmpty && schedulesJson != '[]') {
-        schedules = WakeSchedule.deserializeList(schedulesJson)
-            .map((s) => s.toJson())
-            .toList();
+        schedules = WakeSchedule.deserializeList(
+          schedulesJson,
+        ).map((s) => s.toJson()).toList();
       }
 
       return jsonOk({
@@ -66,12 +66,14 @@ class PresenceHandler {
       final json = jsonDecode(body) as Map<String, dynamic>;
 
       if (json.containsKey('userPresenceEnabled')) {
-        await _settingsController
-            .setUserPresenceEnabled(json['userPresenceEnabled'] as bool);
+        await _settingsController.setUserPresenceEnabled(
+          json['userPresenceEnabled'] as bool,
+        );
       }
       if (json.containsKey('sleepTimeoutMinutes')) {
-        await _settingsController
-            .setSleepTimeoutMinutes(json['sleepTimeoutMinutes'] as int);
+        await _settingsController.setSleepTimeoutMinutes(
+          json['sleepTimeoutMinutes'] as int,
+        );
       }
 
       return jsonOk({
@@ -110,13 +112,17 @@ class PresenceHandler {
 
       final keepAwakeFor = json['keepAwakeFor'] as int?;
       if (keepAwakeFor != null && (keepAwakeFor < 0 || keepAwakeFor > 720)) {
-        return jsonBadRequest({'error': 'keepAwakeFor must be 1-720 minutes, or 0/null to clear'});
+        return jsonBadRequest({
+          'error': 'keepAwakeFor must be 1-720 minutes, or 0/null to clear',
+        });
       }
 
       final schedule = WakeSchedule.create(
-        hour: json['hour'] as int? ??
+        hour:
+            json['hour'] as int? ??
             int.parse((json['time'] as String).split(':')[0]),
-        minute: json['minute'] as int? ??
+        minute:
+            json['minute'] as int? ??
             int.parse((json['time'] as String).split(':')[1]),
         daysOfWeek: json.containsKey('daysOfWeek')
             ? (json['daysOfWeek'] as List).cast<int>().toSet()
@@ -132,8 +138,9 @@ class PresenceHandler {
       }
 
       schedules.add(schedule);
-      await _settingsController
-          .setWakeSchedules(WakeSchedule.serializeList(schedules));
+      await _settingsController.setWakeSchedules(
+        WakeSchedule.serializeList(schedules),
+      );
 
       return jsonCreated(schedule.toJson());
     } catch (e, st) {
@@ -176,7 +183,9 @@ class PresenceHandler {
       if (json.containsKey('keepAwakeFor')) {
         final val = json['keepAwakeFor'] as int?;
         if (val != null && (val < 0 || val > 720)) {
-          return jsonBadRequest({'error': 'keepAwakeFor must be 1-720 minutes, or 0/null to clear'});
+          return jsonBadRequest({
+            'error': 'keepAwakeFor must be 1-720 minutes, or 0/null to clear',
+          });
         }
         if (val == null || val == 0) {
           clearKeepAwakeFor = true;
@@ -198,8 +207,9 @@ class PresenceHandler {
       );
 
       schedules[index] = updated;
-      await _settingsController
-          .setWakeSchedules(WakeSchedule.serializeList(schedules));
+      await _settingsController.setWakeSchedules(
+        WakeSchedule.serializeList(schedules),
+      );
 
       return jsonOk(updated.toJson());
     } catch (e, st) {
@@ -224,8 +234,9 @@ class PresenceHandler {
       }
 
       schedules.removeAt(index);
-      await _settingsController
-          .setWakeSchedules(WakeSchedule.serializeList(schedules));
+      await _settingsController.setWakeSchedules(
+        WakeSchedule.serializeList(schedules),
+      );
 
       return jsonOk({'deleted': id});
     } catch (e, st) {

@@ -5,8 +5,9 @@ class PermissionDeniedException implements Exception {
   const PermissionDeniedException([this.message]);
 
   @override
-  String toString() =>
-      message == null ? 'PermissionDeniedException' : 'PermissionDeniedException: $message';
+  String toString() => message == null
+      ? 'PermissionDeniedException'
+      : 'PermissionDeniedException: $message';
 }
 
 /// Which kind of device produced a [DeviceNotConnectedException].

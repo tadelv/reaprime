@@ -155,7 +155,8 @@ class _InitializationStepViewState extends State<_InitializationStepView> {
     }
     unawaited(
       widget.webUIStorage.downloadRemoteSkinsAndRescan().catchError(
-        (Object e) => _log.warning('Background remote-skin download failed: $e'),
+        (Object e) =>
+            _log.warning('Background remote-skin download failed: $e'),
       ),
     );
   }

@@ -10,8 +10,7 @@ import 'package:rxdart/rxdart.dart';
 
 /// Discovery service that emits whatever the test feeds it.
 class _TestDiscovery extends DeviceDiscoveryService {
-  final BehaviorSubject<List<Device>> _subj =
-      BehaviorSubject.seeded(const []);
+  final BehaviorSubject<List<Device>> _subj = BehaviorSubject.seeded(const []);
   @override
   Stream<List<Device>> get devices => _subj.stream;
   @override
@@ -37,11 +36,16 @@ class _StubSensor implements Sensor {
   Stream<Map<String, dynamic>> get data => const Stream.empty();
   @override
   SensorInfo get info => SensorInfo(
-      name: name, vendor: 'test', dataChannels: const [], commands: const []);
+    name: name,
+    vendor: 'test',
+    dataChannels: const [],
+    commands: const [],
+  );
   @override
   Future<Map<String, dynamic>> execute(
-          String commandId, Map<String, dynamic>? parameters) async =>
-      const {};
+    String commandId,
+    Map<String, dynamic>? parameters,
+  ) async => const {};
   @override
   Future<void> onConnect() async {}
   @override
@@ -79,8 +83,7 @@ void main() {
       expect(controller.sensors, contains('discovered-1'));
     });
 
-    test('bridge wins when same deviceId appears from both sources',
-        () async {
+    test('bridge wins when same deviceId appears from both sources', () async {
       final discovered = _StubSensor('shared', label: 'discovered');
       final bridge = _StubSensor('shared', label: 'bridge');
 
@@ -88,8 +91,11 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       await controller.register(bridge);
 
-      expect(controller.sensors['shared'], same(bridge),
-          reason: 'bridge-registered instance should win the dedupe');
+      expect(
+        controller.sensors['shared'],
+        same(bridge),
+        reason: 'bridge-registered instance should win the dedupe',
+      );
     });
 
     test('unregister removes a bridge-registered sensor', () async {
@@ -101,67 +107,79 @@ void main() {
       expect(controller.sensors, isNot(contains('probe-2')));
     });
 
-    test('unregister does not touch DeviceController-sourced sensors',
-        () async {
-      final discovered = _StubSensor('keep-1');
-      discovery.emit([discovered]);
-      await Future<void>.delayed(Duration.zero);
-
-      await controller.unregister('keep-1');
-      expect(controller.sensors, contains('keep-1'),
-          reason: 'unregister is a no-op on non-bridge entries');
-    });
-
-    group('resolvePreferred', () {
-      test('returns bridge instance when preferred id collides (FR-M2)',
-          () async {
-        final discovered = _StubSensor('shared', label: 'discovered');
-        final bridge = _StubSensor('shared', label: 'bridge');
-
+    test(
+      'unregister does not touch DeviceController-sourced sensors',
+      () async {
+        final discovered = _StubSensor('keep-1');
         discovery.emit([discovered]);
         await Future<void>.delayed(Duration.zero);
-        await controller.register(bridge);
 
+        await controller.unregister('keep-1');
         expect(
-          controller.resolvePreferred('shared'),
-          same(bridge),
-          reason: 'bridge-registered sensor wins on deviceId collision',
+          controller.sensors,
+          contains('keep-1'),
+          reason: 'unregister is a no-op on non-bridge entries',
         );
-      });
+      },
+    );
 
-      test('returns explicitly preferred sensor when multiple present (FR-M1)',
-          () async {
-        final first = _StubSensor('probe-a', label: 'first');
-        final second = _StubSensor('probe-b', label: 'second');
+    group('resolvePreferred', () {
+      test(
+        'returns bridge instance when preferred id collides (FR-M2)',
+        () async {
+          final discovered = _StubSensor('shared', label: 'discovered');
+          final bridge = _StubSensor('shared', label: 'bridge');
 
-        discovery.emit([first, second]);
-        await Future<void>.delayed(Duration.zero);
+          discovery.emit([discovered]);
+          await Future<void>.delayed(Duration.zero);
+          await controller.register(bridge);
 
-        expect(controller.resolvePreferred('probe-b'), same(second));
-      });
-
-      test('falls back to first registered sensor when preferred unset (FR-M3)',
-          () async {
-        final first = _StubSensor('probe-a', label: 'first');
-        final second = _StubSensor('probe-b', label: 'second');
-
-        discovery.emit([first, second]);
-        await Future<void>.delayed(Duration.zero);
-
-        expect(controller.resolvePreferred(null), same(first));
-      });
+          expect(
+            controller.resolvePreferred('shared'),
+            same(bridge),
+            reason: 'bridge-registered sensor wins on deviceId collision',
+          );
+        },
+      );
 
       test(
-          'falls back to first registered sensor when preferred id missing (FR-M3)',
-          () async {
-        final first = _StubSensor('probe-a', label: 'first');
-        final second = _StubSensor('probe-b', label: 'second');
+        'returns explicitly preferred sensor when multiple present (FR-M1)',
+        () async {
+          final first = _StubSensor('probe-a', label: 'first');
+          final second = _StubSensor('probe-b', label: 'second');
 
-        discovery.emit([first, second]);
-        await Future<void>.delayed(Duration.zero);
+          discovery.emit([first, second]);
+          await Future<void>.delayed(Duration.zero);
 
-        expect(controller.resolvePreferred('missing'), same(first));
-      });
+          expect(controller.resolvePreferred('probe-b'), same(second));
+        },
+      );
+
+      test(
+        'falls back to first registered sensor when preferred unset (FR-M3)',
+        () async {
+          final first = _StubSensor('probe-a', label: 'first');
+          final second = _StubSensor('probe-b', label: 'second');
+
+          discovery.emit([first, second]);
+          await Future<void>.delayed(Duration.zero);
+
+          expect(controller.resolvePreferred(null), same(first));
+        },
+      );
+
+      test(
+        'falls back to first registered sensor when preferred id missing (FR-M3)',
+        () async {
+          final first = _StubSensor('probe-a', label: 'first');
+          final second = _StubSensor('probe-b', label: 'second');
+
+          discovery.emit([first, second]);
+          await Future<void>.delayed(Duration.zero);
+
+          expect(controller.resolvePreferred('missing'), same(first));
+        },
+      );
 
       test('returns null when no sensors registered', () {
         expect(controller.resolvePreferred(null), isNull);

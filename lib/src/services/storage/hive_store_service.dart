@@ -25,14 +25,14 @@ class HiveStoreService implements KeyValueStoreService {
   }
 
   @override
-  Future<List<String>> keys({String? namespace }) async {
+  Future<List<String>> keys({String? namespace}) async {
     final box = await _getOrCreateNamespace(namespace ?? defaultNamespace);
     return box.keys.map((e) => e.toString()).toList();
   }
 
   @override
   Future<void> set({
-    String? namespace ,
+    String? namespace,
     required String key,
     required Object value,
   }) async {

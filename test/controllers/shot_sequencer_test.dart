@@ -268,8 +268,9 @@ class _ProbeTestSensor implements Sensor {
   @override
   Stream<Map<String, dynamic>> get data => _data.stream;
 
-  final BehaviorSubject<ConnectionState> _connection =
-      BehaviorSubject.seeded(ConnectionState.connected);
+  final BehaviorSubject<ConnectionState> _connection = BehaviorSubject.seeded(
+    ConnectionState.connected,
+  );
 
   @override
   Stream<ConnectionState> get connectionState => _connection.stream;
@@ -910,8 +911,7 @@ void main() {
         expect(
           testDe1.requestedStates,
           isNot(contains(MachineState.skipStep)),
-          reason:
-              'Flow near under-2.0 exit → defer to avoid racing firmware.',
+          reason: 'Flow near under-2.0 exit → defer to avoid racing firmware.',
         );
 
         // After max deferral frames (3), fires regardless.
@@ -1704,42 +1704,45 @@ void main() {
       shotSequencer.dispose();
     });
 
-    test('keeps last-known probeTemperature after disconnect mid-shot', () async {
-      final probe = _ProbeTestSensor();
-      await sensorController.register(probe);
+    test(
+      'keeps last-known probeTemperature after disconnect mid-shot',
+      () async {
+        final probe = _ProbeTestSensor();
+        await sensorController.register(probe);
 
-      scaleController.emitWeight(0.0);
-      final shotSequencer = buildSequencer();
-      final recorded = <ShotSnapshot>[];
-      shotSequencer.shotData.listen(recorded.add);
+        scaleController.emitWeight(0.0);
+        final shotSequencer = buildSequencer();
+        final recorded = <ShotSnapshot>[];
+        shotSequencer.shotData.listen(recorded.add);
 
-      await settle();
-      driveToPouring();
-      await settle();
+        await settle();
+        driveToPouring();
+        await settle();
 
-      probe.emitTemperature(62.5);
-      await settle();
-      testDe1.emitStateAndSubstate(
-        MachineState.espresso,
-        MachineSubstate.pouring,
-      );
-      await settle();
+        probe.emitTemperature(62.5);
+        await settle();
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouring,
+        );
+        await settle();
 
-      probe.simulateDisconnect();
-      await settle();
+        probe.simulateDisconnect();
+        await settle();
 
-      probe.emitTemperature(99.0);
-      await settle();
-      testDe1.emitStateAndSubstate(
-        MachineState.espresso,
-        MachineSubstate.pouring,
-      );
-      await settle();
+        probe.emitTemperature(99.0);
+        await settle();
+        testDe1.emitStateAndSubstate(
+          MachineState.espresso,
+          MachineSubstate.pouring,
+        );
+        await settle();
 
-      expect(recorded.last.probeTemperature, equals(62.5));
+        expect(recorded.last.probeTemperature, equals(62.5));
 
-      probe.dispose();
-      shotSequencer.dispose();
-    });
+        probe.dispose();
+        shotSequencer.dispose();
+      },
+    );
   });
 }
