@@ -131,6 +131,32 @@ void main() {
           reason: 'identical upload on successful cache must short-circuit');
     });
 
+    test(
+        'failed upload invalidates the cache — re-pushing the previously '
+        'successful profile re-uploads', () async {
+      // Land profile successfully first.
+      await de1.setProfile(profile);
+      final writesAfterSuccess = transport.writes.length;
+      expect(writesAfterSuccess, greaterThan(0));
+
+      // A different profile fails on its header write. The firmware may now
+      // be wedged mid-receive, so the previously-successful profile can no
+      // longer be assumed present on the device.
+      final other = profile.copyWith(title: 'Other Profile');
+      transport.failIndexOnce = writesAfterSuccess;
+      await expectLater(
+        () => de1.setProfile(other),
+        throwsA(isA<Exception>()),
+      );
+
+      // Reverting to the original profile MUST re-upload it, not
+      // short-circuit on the stale success cache.
+      await de1.setProfile(profile);
+      expect(transport.writes.length, greaterThan(writesAfterSuccess + 1),
+          reason:
+              'revert after a failed upload must re-drive the full sequence');
+    });
+
     test('different profile always uploads', () async {
       await de1.setProfile(profile);
       final writesAfterFirst = transport.writes.length;

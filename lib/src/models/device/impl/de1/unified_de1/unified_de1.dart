@@ -328,10 +328,13 @@ class UnifiedDe1 implements De1Interface {
     if (_currentProfile == profile) {
       return;
     }
-    // Assign only after a successful send. A mid-upload throw leaves
-    // `_currentProfile` at its previous value so a retry with the same
-    // `Profile` won't silently no-op on the equality guard. See
-    // comms-harden #1.
+    // Invalidate the cache for the duration of the upload and assign only
+    // after a successful send. A mid-upload throw can leave the firmware
+    // wedged mid-receive, so no profile — including the previously
+    // successful one — can be assumed present on the device afterwards; a
+    // stale cache would silently no-op the recovery upload on the equality
+    // guard. See comms-harden #1.
+    _currentProfile = null;
     await _sendProfile(profile);
     _currentProfile = profile;
     // Guard against firmware ProfileDownloadInProgress race: the DE1 writes
