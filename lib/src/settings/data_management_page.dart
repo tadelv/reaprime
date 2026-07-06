@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
@@ -64,6 +65,13 @@ class DataManagementPage extends StatefulWidget {
 }
 
 class _DataManagementPageState extends State<DataManagementPage> {
+  // Progress-dialog bookkeeping. Captured navigator lets us dismiss the
+  // dialog even if the widget unmounts mid-prep (no stranded dialog route);
+  // the flag is reset by the dialog future's completion so a system-back
+  // dismiss doesn't cause a later pop() to pop the page instead.
+  bool _progressDialogOpen = false;
+  NavigatorState? _progressNavigator;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -275,21 +283,22 @@ class _DataManagementPageState extends State<DataManagementPage> {
     if (!mounted) return;
     _showProgressDialog(context, 'Preparing full backup...');
 
-    final List<int> responseBytes;
+    final Uint8List responseBytes;
     final client = HttpClient();
     try {
       final request = await client.getUrl(
         Uri.parse('http://localhost:8080/api/v1/data/export'),
       );
       final response = await request.close();
-      responseBytes = await response.fold<List<int>>([], (bytes, chunk) {
-        bytes.addAll(chunk);
-        return bytes;
-      });
+      final builder = BytesBuilder();
+      await for (final chunk in response) {
+        builder.add(chunk);
+      }
+      responseBytes = builder.takeBytes();
     } catch (e) {
       _log.severe("Failed to export full backup", e);
+      _dismissProgressDialog();
       if (mounted) {
-        Navigator.of(context).pop(); // dismiss progress dialog
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to export full backup: $e')),
         );
@@ -300,7 +309,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
     }
 
     if (!mounted) return;
-    Navigator.of(context).pop(); // dismiss progress dialog before picker
+    _dismissProgressDialog(); // dismiss progress dialog before picker
 
     try {
       final timestamp = DateTime.now()
@@ -313,15 +322,12 @@ class _DataManagementPageState extends State<DataManagementPage> {
       final outputFile = await FilePicker.saveFile(
         fileName: fileName,
         dialogTitle: 'Choose where to save backup',
-        bytes: Uint8List.fromList(responseBytes),
+        bytes: responseBytes,
       );
 
       if (outputFile != null) {
-        // On desktop, saveFile(bytes:) doesn't write — we must write manually.
-        // On mobile (Android/iOS), the SAF/picker writes the file for us.
-        if (!Platform.isAndroid && !Platform.isIOS) {
-          await File(outputFile).writeAsBytes(responseBytes);
-        }
+        // file_picker writes bytes on all platforms (mobile SAF, desktop
+        // saveBytesToFile, web Blob download) — no manual write needed.
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -356,8 +362,8 @@ class _DataManagementPageState extends State<DataManagementPage> {
           (await webviewLogFile.length()) > 0;
 
       if (!hasAppLog && !hasWebviewLog) {
+        _dismissProgressDialog();
         if (mounted) {
-          Navigator.of(context).pop(); // dismiss progress dialog
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('No log files found')),
           );
@@ -375,8 +381,8 @@ class _DataManagementPageState extends State<DataManagementPage> {
       zipBytes = await compute(_zipFiles, files);
     } catch (e) {
       _log.severe("Failed to export logs", e);
+      _dismissProgressDialog();
       if (mounted) {
-        Navigator.of(context).pop(); // dismiss progress dialog
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to export logs: $e')),
         );
@@ -385,7 +391,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
     }
 
     if (!mounted) return;
-    Navigator.of(context).pop(); // dismiss progress dialog before picker
+    _dismissProgressDialog(); // dismiss progress dialog before picker
 
     try {
       final outputFile = await FilePicker.saveFile(
@@ -394,9 +400,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
         bytes: zipBytes,
       );
       if (outputFile != null) {
-        if (!Platform.isAndroid && !Platform.isIOS) {
-          await File(outputFile).writeAsBytes(zipBytes);
-        }
+        // file_picker writes bytes on all platforms — no manual write needed.
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -430,8 +434,8 @@ class _DataManagementPageState extends State<DataManagementPage> {
       zipBytes = await compute(_zipFiles, {'shots.json': jsonBytes});
     } catch (e, st) {
       _log.severe("Failed to export shots", e, st);
+      _dismissProgressDialog();
       if (mounted) {
-        Navigator.of(context).pop(); // dismiss progress dialog
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to export shots: $e')),
         );
@@ -440,7 +444,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
     }
 
     if (!mounted) return;
-    Navigator.of(context).pop(); // dismiss progress dialog before picker
+    _dismissProgressDialog(); // dismiss progress dialog before picker
 
     try {
       final outputFile = await FilePicker.saveFile(
@@ -449,11 +453,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
         bytes: zipBytes,
       );
       if (outputFile != null) {
-        // On desktop, saveFile(bytes:) doesn't write — we must write manually.
-        // On mobile (Android/iOS), the SAF/picker writes the file for us.
-        if (!Platform.isAndroid && !Platform.isIOS) {
-          await File(outputFile).writeAsBytes(zipBytes);
-        }
+        // file_picker writes bytes on all platforms — no manual write needed.
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -855,6 +855,8 @@ class _DataManagementPageState extends State<DataManagementPage> {
   }
 
   void _showProgressDialog(BuildContext context, String message) {
+    _progressNavigator = Navigator.of(context);
+    _progressDialogOpen = true;
     showShadDialog(
       context: context,
       barrierDismissible: false,
@@ -870,7 +872,20 @@ class _DataManagementPageState extends State<DataManagementPage> {
           ],
         ),
       ),
-    );
+    ).then((_) => _progressDialogOpen = false);
+  }
+
+  /// Dismiss the progress dialog shown by [_showProgressDialog], if still open.
+  ///
+  /// Uses the navigator captured at show time, so this works even if the
+  /// widget has unmounted (cleans up an orphaned dialog route). No-op if the
+  /// dialog already closed (e.g. system-back dismiss reset the flag via the
+  /// dialog future), which prevents accidentally popping the page.
+  void _dismissProgressDialog() {
+    if (_progressDialogOpen && _progressNavigator != null) {
+      _progressNavigator!.pop();
+      _progressDialogOpen = false;
+    }
   }
 
   Future<void> _showImportResultDialog(Map<String, dynamic> response) async {
