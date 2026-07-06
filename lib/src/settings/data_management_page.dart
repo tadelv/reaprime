@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
@@ -26,6 +26,18 @@ import 'package:reaprime/src/util/shot_importer.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 final Logger _log = Logger("DataManagement");
+
+/// Zips the given `name -> bytes` entries into a single zip archive.
+///
+/// Top-level so it can run in a background isolate via [compute] — zip
+/// encoding is CPU-bound and would otherwise jank the UI on large exports.
+Uint8List _zipFiles(Map<String, Uint8List> files) {
+  final archive = Archive();
+  files.forEach((name, bytes) {
+    archive.addFile(ArchiveFile(name, bytes.length, bytes));
+  });
+  return Uint8List.fromList(ZipEncoder().encode(archive));
+}
 
 class DataManagementPage extends StatefulWidget {
   const DataManagementPage({
@@ -260,55 +272,64 @@ class _DataManagementPageState extends State<DataManagementPage> {
   // MARK: - Export Actions
 
   Future<void> _exportFullBackup() async {
+    if (!mounted) return;
+    _showProgressDialog(context, 'Preparing full backup...');
+
+    final List<int> responseBytes;
+    final client = HttpClient();
     try {
+      final request = await client.getUrl(
+        Uri.parse('http://localhost:8080/api/v1/data/export'),
+      );
+      final response = await request.close();
+      responseBytes = await response.fold<List<int>>([], (bytes, chunk) {
+        bytes.addAll(chunk);
+        return bytes;
+      });
+    } catch (e) {
+      _log.severe("Failed to export full backup", e);
       if (mounted) {
+        Navigator.of(context).pop(); // dismiss progress dialog
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Preparing full backup...')),
+          SnackBar(content: Text('Failed to export full backup: $e')),
         );
       }
+      return;
+    } finally {
+      client.close();
+    }
 
-      final client = HttpClient();
-      try {
-        final request = await client.getUrl(
-          Uri.parse('http://localhost:8080/api/v1/data/export'),
-        );
-        final response = await request.close();
-        final responseBytes =
-            await response.fold<List<int>>([], (bytes, chunk) {
-          bytes.addAll(chunk);
-          return bytes;
-        });
+    if (!mounted) return;
+    Navigator.of(context).pop(); // dismiss progress dialog before picker
 
-        final timestamp = DateTime.now()
-            .toIso8601String()
-            .replaceAll(':', '-')
-            .split('.')
-            .first;
-        final fileName = 'decent_export_$timestamp.zip';
+    try {
+      final timestamp = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .split('.')
+          .first;
+      final fileName = 'decent_export_$timestamp.zip';
 
-        final outputFile = await FilePicker.saveFile(
-          fileName: fileName,
-          dialogTitle: 'Choose where to save backup',
-          bytes: Uint8List.fromList(responseBytes),
-        );
+      final outputFile = await FilePicker.saveFile(
+        fileName: fileName,
+        dialogTitle: 'Choose where to save backup',
+        bytes: Uint8List.fromList(responseBytes),
+      );
 
-        if (outputFile != null) {
-          // On desktop, saveFile(bytes:) doesn't write — we must write manually.
-          // On mobile (Android/iOS), the SAF/picker writes the file for us.
-          if (!Platform.isAndroid && !Platform.isIOS) {
-            await File(outputFile).writeAsBytes(responseBytes);
-          }
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Full backup exported successfully'),
-                backgroundColor: Colors.green,
-              ),
-            );
-          }
+      if (outputFile != null) {
+        // On desktop, saveFile(bytes:) doesn't write — we must write manually.
+        // On mobile (Android/iOS), the SAF/picker writes the file for us.
+        if (!Platform.isAndroid && !Platform.isIOS) {
+          await File(outputFile).writeAsBytes(responseBytes);
         }
-      } finally {
-        client.close();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Full backup exported successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       }
     } catch (e) {
       _log.severe("Failed to export full backup", e);
@@ -321,6 +342,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
   }
 
   Future<void> _exportLogs() async {
+    if (!mounted) return;
+    _showProgressDialog(context, 'Preparing logs...');
+
+    final Uint8List zipBytes;
     try {
       final docs = await getApplicationDocumentsDirectory();
       final logFile = File('${docs.path}/log.txt');
@@ -332,6 +357,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
 
       if (!hasAppLog && !hasWebviewLog) {
         if (mounted) {
+          Navigator.of(context).pop(); // dismiss progress dialog
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('No log files found')),
           );
@@ -339,20 +365,29 @@ class _DataManagementPageState extends State<DataManagementPage> {
         return;
       }
 
-      final archive = Archive();
+      final files = <String, Uint8List>{};
       if (hasAppLog) {
-        final bytes = await logFile.readAsBytes();
-        archive.addFile(ArchiveFile('log.txt', bytes.length, bytes));
+        files['log.txt'] = await logFile.readAsBytes();
       }
       if (hasWebviewLog) {
-        final bytes = await webviewLogFile.readAsBytes();
-        archive.addFile(
-            ArchiveFile('webview_console.log', bytes.length, bytes));
+        files['webview_console.log'] = await webviewLogFile.readAsBytes();
       }
+      zipBytes = await compute(_zipFiles, files);
+    } catch (e) {
+      _log.severe("Failed to export logs", e);
+      if (mounted) {
+        Navigator.of(context).pop(); // dismiss progress dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to export logs: $e')),
+        );
+      }
+      return;
+    }
 
-      final zipBytes =
-          Uint8List.fromList(ZipEncoder().encode(archive));
+    if (!mounted) return;
+    Navigator.of(context).pop(); // dismiss progress dialog before picker
 
+    try {
       final outputFile = await FilePicker.saveFile(
         fileName: "R1-logs.zip",
         dialogTitle: "Choose where to save logs",
@@ -382,19 +417,32 @@ class _DataManagementPageState extends State<DataManagementPage> {
   }
 
   Future<void> _exportShots() async {
+    if (!mounted) return;
+    _showProgressDialog(context, 'Preparing shots export...');
+
+    final Uint8List zipBytes;
     try {
       final exporter = ShotExporter(
         storage: widget.persistenceController.storageService,
       );
       final jsonData = await exporter.exportJson();
-      final jsonBytes = utf8.encode(jsonData);
+      final jsonBytes = Uint8List.fromList(utf8.encode(jsonData));
+      zipBytes = await compute(_zipFiles, {'shots.json': jsonBytes});
+    } catch (e, st) {
+      _log.severe("Failed to export shots", e, st);
+      if (mounted) {
+        Navigator.of(context).pop(); // dismiss progress dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to export shots: $e')),
+        );
+      }
+      return;
+    }
 
-      final archive = Archive();
-      archive.addFile(
-        ArchiveFile('shots.json', jsonBytes.length, jsonBytes),
-      );
-      final zipBytes = Uint8List.fromList(ZipEncoder().encode(archive));
+    if (!mounted) return;
+    Navigator.of(context).pop(); // dismiss progress dialog before picker
 
+    try {
       final outputFile = await FilePicker.saveFile(
         fileName: "R1_shots.zip",
         dialogTitle: "Choose where to save shots",
