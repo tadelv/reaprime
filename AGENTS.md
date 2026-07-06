@@ -18,7 +18,7 @@ These sections are tool-agnostic and apply to all agents:
 - **Architecture** — Design principles, layer overview, key controllers, storage
 - **Conventions & Gotchas** — RxDart patterns, BLE handling, StreamBuilder patterns
 - **Testing** — Test tiers, helpers, widget test patterns
-- **Common Workflows** — Adding devices, API endpoints
+- **Common Workflows** — Adding devices, API endpoints, BLE temperature sensors
 - **Documentation** — Links to detailed docs
 
 ### Adapt the Workflow Section
@@ -41,6 +41,7 @@ The **Development Workflow** references a TDD skill in `.claude/skills/tdd-workf
 - **Three test tiers:** Unit, integration, end-to-end
 - **Self-review:** Review your own code before claiming done
 - **Full suite:** Run `flutter test` and `flutter analyze` before committing
+- **Adding BLE sensors** — `CLAUDE.md` → Common Workflows → "Adding a BLE temperature sensor"; full reference in `doc/agents/sensor-integration.md`
 
 ## Working with Decent.app (all agents)
 
@@ -66,4 +67,5 @@ Prerequisites: `bash`, `curl`, `jq`, `websocat`, `flutter`, and POSIX `mkfifo` (
 | API reference | `doc/Api.md` |
 | API specs (OpenAPI) | `assets/api/rest_v1.yml`, `assets/api/websocket_v1.yml` |
 | PR template | `.github/pull_request_template.md` |
+| Sensor integration guide | `doc/agents/sensor-integration.md` |
 | Detailed docs | `doc/*.md` |

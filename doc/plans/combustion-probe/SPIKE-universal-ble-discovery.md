@@ -1,5 +1,8 @@
 # Phase 0 Spike — `universal_ble` Discovery for Combustion Probe
 
+> **Superseded for implementation:** See [REIMPLEMENTATION-v2.md](REIMPLEMENTATION-v2.md).
+> This document remains for historical context (v1 scope, spine batch, PR #404 approach).
+
 **Status:** Complete (API analysis + spec-derived fixtures; Android DE1 hardware capture pending SP-018)  
 **Blocks:** Phase 1 implementation ([IMPLEMENTATION.md §13 step 0](IMPLEMENTATION.md#13-tdd-implementation-sequence))  
 **PRD reference:** [PRD.md §12 Phasing](PRD.md#12-phasing)  

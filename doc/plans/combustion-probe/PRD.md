@@ -1,5 +1,8 @@
 # Combustion Inc Predictive Thermometer — Decent.app Probe Integration
 
+> **Superseded for implementation:** See [REIMPLEMENTATION-v2.md](REIMPLEMENTATION-v2.md).
+> This document remains for historical context (v1 scope, spine batch, PR #404 approach).
+
 ## Document metadata
 
 | Field | Value |
@@ -8,7 +11,8 @@
 | **Status** | Draft / Pre-implementation |
 | **Location (active)** | `doc/plans/combustion-probe/PRD.md` |
 | **Location (after ship)** | `doc/plans/archive/combustion-probe/PRD.md` — see [§13 Document lifecycle](#13-document-lifecycle) |
-| **Engineering handoff** | [IMPLEMENTATION.md](IMPLEMENTATION.md) |
+| **Engineering handoff (v2)** | [REIMPLEMENTATION-v2.md](REIMPLEMENTATION-v2.md) |
+| **Engineering handoff (v1)** | [IMPLEMENTATION.md](IMPLEMENTATION.md) — superseded |
 | **Phase 0 spike template** | [SPIKE-universal-ble-discovery.md](SPIKE-universal-ble-discovery.md) |
 
 **Related research:** Best-of-n feasibility study (June 2026), three parallel Composer research runs on commit `feb1427f`.

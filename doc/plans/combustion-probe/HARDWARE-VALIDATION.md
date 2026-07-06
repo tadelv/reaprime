@@ -1,5 +1,8 @@
 # Combustion Probe — Hardware Validation Protocol
 
+> **Superseded for implementation:** See [REIMPLEMENTATION-v2.md](REIMPLEMENTATION-v2.md).
+> This document remains for historical context (v1 scope, spine batch, PR #404 approach).
+
 Manual sign-off checklist for Combustion Inc Predictive Thermometer integration on the **Android DE1 tablet** (primary platform). Use this document after Phase 3 implementation is code-complete and simulate/E2E tests pass.
 
 **Related:** [PRD.md](PRD.md) · [IMPLEMENTATION.md](IMPLEMENTATION.md) · [SPIKE-universal-ble-discovery.md](SPIKE-universal-ble-discovery.md) · E2E recipe [combustion-probe-steam-stop.md](../../../.agents/skills/decent-app/scenarios/combustion-probe-steam-stop.md)

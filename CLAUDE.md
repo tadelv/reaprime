@@ -222,6 +222,18 @@ All Dart tests (unit + integration) live in `test/` and run via `flutter test`. 
 5. Create controller if needed in `lib/src/controllers/`
 6. Add API handler in `lib/src/services/webserver/`
 
+### Adding a BLE temperature sensor
+
+For third-party temperature probes (e.g. Combustion Inc.), read [`doc/agents/sensor-integration.md`](doc/agents/sensor-integration.md) first. Maintainer guidance: implement like `DecentTemp`, register in `device_matcher.dart` only, and use existing workflow/API scaffolding.
+
+1. Read `doc/agents/sensor-integration.md` and `lib/src/models/device/impl/decent_temp/temperature.dart`.
+2. Implement `Sensor` in `lib/src/models/device/impl/{vendor}/` — `data` must include `temperature` if used for steam stop.
+3. Add matcher entry in `device_matcher.dart` (`serviceUuidsFor` + name/metadata rule).
+4. Wire mock + `simulate=sensor` for hardware-free testing.
+5. **Do not** modify `SteamSequencer` — it already stops steam at `workflow.steamSettings.stopAtTemperature`.
+6. Verify workflow API round-trip if adding workflow fields; prefer existing fields.
+7. See [`doc/plans/combustion-probe/REIMPLEMENTATION-v2.md`](doc/plans/combustion-probe/REIMPLEMENTATION-v2.md) for a worked example of scope mistakes to avoid.
+
 ### Adding a New API Endpoint
 
 1. Create/modify handler in `lib/src/services/webserver/`
@@ -242,6 +254,7 @@ Detailed docs in `doc/`:
 - **`doc/DeviceManagement.md`** — Device discovery and connection management
 - **`doc/RELEASE.md`** — Release process and versioning
 - **`.agents/skills/decent-app/`** — Dev-loop skill: `sb-dev` lifecycle, REST/WebSocket recipes, simulated devices, verification scenarios
+- **`doc/agents/sensor-integration.md`** — BLE temperature sensor integration for agents
 - **`doc/agents/domain.md`** — Domain language, vocabulary conventions, no CONTEXT.md policy
 - **`doc/agents/issue-tracker.md`** — Issue tracking policy (GitHub Issues canonical for contributors)
 - **`doc/agents/triage-labels.md`** — Triage label taxonomy

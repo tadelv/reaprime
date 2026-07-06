@@ -1,5 +1,8 @@
 # Combustion Inc Probe — Engineering Implementation Handoff
 
+> **Superseded for implementation:** See [REIMPLEMENTATION-v2.md](REIMPLEMENTATION-v2.md).
+> This document remains for historical context (v1 scope, spine batch, PR #404 approach).
+
 Engineering handoff to produce a detailed engineering spec and implementation plan for the Combustion Inc Predictive Thermometer integration in Decent.app.
 
 **Product requirements:** [PRD.md](PRD.md)
