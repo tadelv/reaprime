@@ -53,6 +53,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
