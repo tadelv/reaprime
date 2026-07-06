@@ -4120,7 +4120,7 @@ paths:
         middleware handles. Derek is public knowledge-base data, so this route
         needs no authentication. Request validation, rate limiting, and error
         shapes are Derek's — the upstream status and body are relayed verbatim.
-      tags: [Account]
+      tags: [System]
       requestBody:
         description: >
           JSON answer request relayed verbatim to Derek. Only `query` is
