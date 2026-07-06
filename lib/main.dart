@@ -359,9 +359,12 @@ void main(List<String> args) async {
     persistenceController.saveWorkflow(workflowController.currentWorkflow);
     de1Controller.defaultWorkflow = workflowController.currentWorkflow;
   });
-  // Single writer of DE1 setProfile across REST + UI paths. Must be
-  // constructed after workflowController has its persisted workflow
-  // loaded so its initial snapshot matches what was last pushed.
+  // Single writer of DE1 setProfile for the workflow paths (REST
+  // PUT /api/v1/workflow + UI picker). POST /api/v1/machine/profile and the
+  // reconnect defaults push bypass it — UnifiedDe1.setProfile serializes
+  // uploads across all callers at the device level. Must be constructed
+  // after workflowController has its persisted workflow loaded so its
+  // initial snapshot matches what was last pushed.
   // ignore: unused_local_variable
   final workflowDeviceSync = WorkflowDeviceSync(
     workflowController: workflowController,

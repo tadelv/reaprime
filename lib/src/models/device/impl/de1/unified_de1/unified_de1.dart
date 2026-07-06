@@ -323,8 +323,32 @@ class UnifiedDe1 implements De1Interface {
   }
 
   Profile? _currentProfile;
+
+  /// Tail of the profile-upload queue. An upload is a stateful multi-write
+  /// sequence (header + frames + tail) the firmware consumes as one
+  /// conversation; two uploads whose writes interleave on the transport's
+  /// per-device queue wedge the firmware's profile-receive state machine
+  /// until the GATT timeout. Chaining every [setProfile] onto this future
+  /// serializes uploads across ALL callers — `WorkflowDeviceSync`'s
+  /// queue-with-coalesce only covers the workflow path; the REST handler
+  /// (`POST /api/v1/machine/profile`) and the reconnect defaults push call
+  /// [setProfile] directly.
+  Future<void> _profileUploadQueue = Future.value();
+
   @override
-  Future<void> setProfile(Profile profile) async {
+  Future<void> setProfile(Profile profile) {
+    // Queue unconditionally — the equality guard runs inside the locked
+    // section so it sees the cache as of upload start (after any queued
+    // uploads finished), not as of call time.
+    final upload =
+        _profileUploadQueue.then((_) => _uploadProfileLocked(profile));
+    // Keep the queue alive past a failed upload: the chain swallows the
+    // error, the caller's future still surfaces it.
+    _profileUploadQueue = upload.catchError((_) {});
+    return upload;
+  }
+
+  Future<void> _uploadProfileLocked(Profile profile) async {
     if (_currentProfile == profile) {
       return;
     }
@@ -343,6 +367,8 @@ class UnifiedDe1 implements De1Interface {
     // that flash write returns. If a state=espresso request hits the
     // firmware task loop before the flag clears, doEspresso() aborts to
     // HeaterDown and the shot ends after preinfuse. See BC 9788201734.
+    // Kept inside the locked section: a queued upload must not start while
+    // the firmware is still flushing the previous descriptor.
     await Future.delayed(ConnectionTimings.profileDownloadGuard);
   }
 

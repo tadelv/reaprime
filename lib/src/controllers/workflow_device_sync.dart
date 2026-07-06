@@ -34,6 +34,11 @@ import 'package:reaprime/src/models/errors.dart';
 /// skipped; the existing `De1Controller._setDe1Defaults` path uploads the
 /// current workflow's profile on reconnect (see `defaultWorkflow`
 /// assignment in `main.dart`).
+///
+/// Callers outside this sync (REST `POST /api/v1/machine/profile`, the
+/// reconnect defaults push) are backstopped by the per-device upload queue
+/// in `UnifiedDe1.setProfile`, so they cannot interleave with an upload
+/// from here either.
 class WorkflowDeviceSync {
   WorkflowDeviceSync({
     required WorkflowController workflowController,
