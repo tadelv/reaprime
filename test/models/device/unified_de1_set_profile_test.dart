@@ -168,4 +168,125 @@ void main() {
           reason: 'different profile must upload even after a prior success');
     });
   });
+
+  group('concurrent setProfile serialization', () {
+    // A profile upload is a stateful multi-write sequence (header + frames +
+    // tail) the firmware consumes as one conversation. Two uploads whose
+    // writes interleave on the transport queue wedge the firmware's
+    // profile-receive state machine — so UnifiedDe1 must serialize uploads
+    // across ALL callers (workflow sync, REST handler, reconnect defaults).
+    //
+    // The two profiles differ in step count so their write sequences differ
+    // in length and content; expectations compare against each profile's
+    // solo-run write sequence, captured once below.
+
+    const profileA = Profile(
+      version: '2',
+      title: 'Serialization A',
+      notes: '',
+      author: 'test',
+      beverageType: BeverageType.espresso,
+      steps: [],
+      targetVolumeCountStart: 0,
+      tankTemperature: 0,
+    );
+
+    const profileB = Profile(
+      version: '2',
+      title: 'Serialization B',
+      notes: '',
+      author: 'test',
+      beverageType: BeverageType.espresso,
+      steps: [
+        ProfileStepPressure(
+          name: 'pour',
+          transition: TransitionType.fast,
+          volume: 0,
+          seconds: 30,
+          temperature: 92,
+          sensor: TemperatureSensor.coffee,
+          pressure: 9,
+        ),
+      ],
+      targetVolumeCountStart: 0,
+      tankTemperature: 0,
+    );
+
+    late List<String> soloWritesA;
+    late List<String> soloWritesB;
+
+    /// The exact transport writes one upload of [p] produces on its own.
+    Future<List<String>> soloWrites(Profile p) async {
+      final t = _RecordingSerialTransport();
+      final d = UnifiedDe1(transport: t);
+      await d.setProfile(p);
+      final writes = List<String>.from(t.writes);
+      await t.dispose();
+      return writes;
+    }
+
+    setUpAll(() async {
+      soloWritesA = await soloWrites(profileA);
+      soloWritesB = await soloWrites(profileB);
+    });
+
+    late _RecordingSerialTransport transport;
+    late UnifiedDe1 de1;
+
+    setUp(() {
+      transport = _RecordingSerialTransport();
+      de1 = UnifiedDe1(transport: transport);
+    });
+
+    tearDown(() {
+      transport.dispose();
+    });
+
+    test('sequences differ so interleaving would be observable', () {
+      expect(soloWritesA.length, greaterThanOrEqualTo(2),
+          reason: 'an upload must be a multi-write sequence');
+      expect(soloWritesB.length, greaterThan(soloWritesA.length));
+    });
+
+    test('concurrent uploads of different profiles do not interleave',
+        () async {
+      final first = de1.setProfile(profileA);
+      final second = de1.setProfile(profileB);
+      await Future.wait([first, second]);
+
+      expect(
+        transport.writes,
+        [...soloWritesA, ...soloWritesB],
+        reason: 'the second upload must not start until the first — '
+            'including its post-upload firmware flash guard — has finished',
+      );
+    });
+
+    test(
+        'concurrent identical uploads collapse to one — the equality guard '
+        'is evaluated when the upload starts, not when it queues', () async {
+      final first = de1.setProfile(profileB);
+      final second = de1.setProfile(profileB);
+      await Future.wait([first, second]);
+
+      expect(transport.writes, soloWritesB,
+          reason: 'the queued duplicate must see the fresh cache and '
+              'short-circuit instead of re-uploading');
+    });
+
+    test('a failed upload releases the queue for the next one', () async {
+      // Fail A's header write; B is already queued behind it.
+      transport.failIndexOnce = 0;
+      final first = de1.setProfile(profileA);
+      final second = de1.setProfile(profileB);
+
+      await expectLater(first, throwsA(isA<Exception>()));
+      await second;
+
+      expect(transport.writes.length, 1 + soloWritesB.length,
+          reason: 'A records only its failed header; B runs in full');
+      expect(transport.writes.sublist(1), soloWritesB,
+          reason: 'the queued upload must run untouched by the failure');
+    });
+  });
 }
