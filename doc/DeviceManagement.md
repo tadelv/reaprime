@@ -314,6 +314,39 @@ ConnectionManager listens for disconnects automatically:
 - Watches `scaleController.connectionState` — resets `_scaleConnected` flag on disconnect
 - Resets phase to `idle` when machine disconnects
 
+### Machine Auto-Reconnect (recovery mode)
+
+An *unexpected* machine disconnect (not announced via
+`markExpectingDisconnect` / `disconnectMachine`) puts `ConnectionManager`
+into machine recovery mode: full `connect()` scans retry with the same
+5s→60s exponential backoff the preferred-scale loop uses, rescheduling
+after every attempt that ends without a machine, until the machine
+reconnects (or the user disconnects deliberately). Gated on
+`preferredMachineId` so a background retry can never pop a machine picker —
+the id is auto-set on every successful connect, so coverage is effectively
+total. Motivation: a power outage previously left the app "disconnected"
+indefinitely because nothing ever rescanned for the machine.
+
+### Zombie-Link Detection (BLE transport)
+
+A dead BLE link doesn't always deliver a disconnect event (observed on
+Android: GATT writes time out forever while the app still believes it is
+connected, and no recovery is possible without an app restart).
+`UniversalBleTransport` detects this and emits `disconnected` itself —
+which drives the normal disconnect cascade and, for machines, the
+auto-reconnect above:
+
+- **On a GATT operation timeout** it probes the OS connection state
+  (async, never blocking the caller). An OS-confirmed drop declares the
+  link dead; three consecutive timeouts force a teardown even if the OS
+  still claims connected. A single timeout on a healthy link keeps the
+  existing fail-fast behavior (profile-upload safety — see the comment on
+  `UniversalBleTransport.write`).
+- **On seeing its own deviceId advertising** while believed connected, it
+  runs the same probe (throttled). Teardown is probe-confirmed only,
+  because the transport is shared with scales/sensors and some peripherals
+  legitimately advertise while connected.
+
 ### Preferred Device Settings
 
 Device preferences are stored via `SettingsController`:

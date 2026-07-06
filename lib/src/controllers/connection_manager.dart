@@ -159,6 +159,29 @@ class ConnectionManager {
     return Duration(seconds: seconds.clamp(5, 60));
   }
 
+  /// Machine auto-reconnect (recovery mode). Armed by an *unexpected*
+  /// machine disconnect when a preferred machine is configured; retries
+  /// full `connect()` scans with the same 5s→60s backoff the scale loop
+  /// uses, and reschedules itself after every attempt that ends without
+  /// a machine. Cleared on machine connect, deliberate disconnect, and
+  /// dispose. Motivated by a power-outage incident where the app sat
+  /// "disconnected" for six hours because nothing ever rescanned — see
+  /// doc/plans/machine-connection-recovery.md.
+  bool _machineRecoveryActive = false;
+  Timer? _machineReconnect;
+  int _machineReconnectFailures = 0;
+
+  /// Base delay for the machine-reconnect backoff. Overridable in tests.
+  @visibleForTesting
+  Duration machineReconnectBaseDelay = const Duration(seconds: 5);
+
+  Duration get _machineReconnectBackoff {
+    final multiplier = (1 << _machineReconnectFailures).clamp(1, 12);
+    final delay = machineReconnectBaseDelay * multiplier;
+    const cap = Duration(seconds: 60);
+    return delay > cap ? cap : delay;
+  }
+
   MachineState? _latestMachineState;
   StreamSubscription<MachineSnapshot>? _machineSnapshotSub;
 
@@ -194,6 +217,7 @@ class ConnectionManager {
       preferredScaleId: () => settingsController.preferredScaleId,
       onMachineConnected: _handleMachineConnected,
       onMachineDisconnected: _handleMachineDisconnected,
+      onUnexpectedMachineDisconnect: _startMachineRecovery,
       onScaleConnected: _cancelPreferredScaleReconnect,
       onScaleDisconnected: _maybeSchedulePreferredScaleReconnect,
     );
@@ -650,11 +674,17 @@ class ConnectionManager {
   }
 
   void _handleMachineConnected() {
+    _stopMachineRecovery();
     _watchConnectedMachineState();
     _maybeSchedulePreferredScaleReconnect();
   }
 
   void _handleMachineDisconnected() {
+    // Deliberate disconnects route only through here (disconnectMachine
+    // pre-nulls the supervisor view), so recovery stays off for them.
+    // For unexpected drops the supervisor fires
+    // [_startMachineRecovery] right after this cleanup.
+    _stopMachineRecovery();
     _stopWatchingConnectedMachineState();
     _deferredScaleScan?.cancel();
     _deferredScaleScan = null;
@@ -662,6 +692,55 @@ class ConnectionManager {
     if (_activeScaleOnlyScan) {
       deviceScanner.stopScan();
     }
+  }
+
+  /// Enter machine recovery mode after an unexpected disconnect and arm
+  /// the first retry. No-op without a `preferredMachineId` — a
+  /// background retry must never surface a machine-picker ambiguity.
+  void _startMachineRecovery() {
+    if (settingsController.preferredMachineId == null) return;
+    _machineRecoveryActive = true;
+    _log.info(
+      'Machine disconnected unexpectedly — starting auto-reconnect scans',
+    );
+    _maybeScheduleMachineReconnect();
+  }
+
+  void _stopMachineRecovery() {
+    _machineRecoveryActive = false;
+    _machineReconnect?.cancel();
+    _machineReconnect = null;
+    _machineReconnectFailures = 0;
+  }
+
+  bool _shouldRetryMachine() {
+    return _machineRecoveryActive &&
+        !_machineConnected &&
+        settingsController.preferredMachineId != null;
+  }
+
+  void _maybeScheduleMachineReconnect() {
+    if (_machineReconnect != null) return;
+    if (!_shouldRetryMachine()) return;
+    final delay = _machineReconnectBackoff;
+    _machineReconnectFailures++;
+    _log.fine(
+      'Machine is missing (attempt #$_machineReconnectFailures); '
+      'retrying full scan in ${delay.inSeconds}s',
+    );
+    _machineReconnect = Timer(delay, () async {
+      _machineReconnect = null;
+      if (!_shouldRetryMachine()) return;
+      try {
+        await connect();
+      } catch (e, st) {
+        _log.fine('Machine reconnect attempt failed', e, st);
+      }
+      // Reschedule regardless of how the attempt ended — including
+      // attempts silently dropped by the concurrent-connect guard.
+      // No-op once the machine is back or recovery was stopped.
+      _maybeScheduleMachineReconnect();
+    });
   }
 
   void _watchConnectedMachineState() {
@@ -1077,6 +1156,7 @@ class ConnectionManager {
   }
 
   Future<void> dispose() async {
+    _stopMachineRecovery();
     _deferredScaleScan?.cancel();
     _cancelPreferredScaleReconnect();
     _stopWatchingConnectedMachineState();

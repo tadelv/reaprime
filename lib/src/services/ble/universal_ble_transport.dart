@@ -21,6 +21,31 @@ class UniversalBleTransport implements BLETransport {
 
   StreamSubscription? _connectionStateSubscription;
 
+  // --- Zombie-link detection (see doc/plans/machine-connection-recovery.md).
+  // A dead link doesn't always deliver a disconnect event (observed on
+  // Android after a DE1 power outage: writes time out forever while the
+  // app believes it is connected). Two independent detectors feed
+  // [_declareLinkDead]:
+  //  1. GATT operation timeouts trigger an OS-level connection-state probe;
+  //     [_maxConsecutiveOpTimeouts] in a row force a teardown even when the
+  //     OS still claims connected.
+  //  2. Advertisements for our own deviceId while we believe we are
+  //     connected trigger the same probe (throttled) — probe-confirmed
+  //     only, because some peripherals legitimately advertise while
+  //     connected (this transport is shared by scales and sensors).
+  int _consecutiveOpTimeouts = 0;
+  bool _linkDeadDeclared = false;
+  DateTime? _lastAdvertProbe;
+  StreamSubscription<BleDevice>? _advertSub;
+
+  static const int _maxConsecutiveOpTimeouts = 3;
+  static const Duration _linkProbeTimeout = Duration(seconds: 2);
+
+  /// Minimum spacing between advert-triggered OS probes. A disconnected
+  /// peripheral advertises ~1/s during a scan; one probe per window is
+  /// plenty.
+  static const Duration _advertProbeThrottle = Duration(seconds: 5);
+
   // BlueZ-specific timings (Linux only). universal_ble's Linux backend is the
   // pure-Dart `bluez` client, which needs the same handling the former
   // LinuxBluePlusTransport applied: connecting while (or right after) a scan
@@ -47,9 +72,13 @@ class UniversalBleTransport implements BLETransport {
 
   @override
   Future<void> connect() async {
+    _linkDeadDeclared = false;
+    _consecutiveOpTimeouts = 0;
+    _lastAdvertProbe = null;
     // Use connectionUpdateStream (from our universal_ble fork) to get
     // native disconnect reason codes (GATT error, HCI status) — the
     // standard connectionStream only emits bool.
+    _connectionStateSubscription?.cancel();
     _connectionStateSubscription = UniversalBle.connectionUpdateStream(
       _device.deviceId,
     ).listen((update) {
@@ -63,6 +92,7 @@ class UniversalBleTransport implements BLETransport {
     });
     if (_isLinux) {
       await _connectBlueZ();
+      _startAdvertWatch();
       return;
     }
     try {
@@ -73,6 +103,7 @@ class UniversalBleTransport implements BLETransport {
     } on UniversalBleException catch (e) {
       throw mapUniversalConnectError(e);
     }
+    _startAdvertWatch();
 
     // Android: post-connect settle + MTU bump.
     // The 200ms settle avoids service-discovery races on tablet SoCs
@@ -211,6 +242,8 @@ class UniversalBleTransport implements BLETransport {
 
   @override
   Future<void> disconnect() async {
+    _advertSub?.cancel();
+    _advertSub = null;
     try {
       _log.fine("disconnect");
       for (var sub in _subscriptions.keys) {
@@ -285,12 +318,14 @@ class UniversalBleTransport implements BLETransport {
   @override
   Future<Uint8List> read(String serviceUUID, String characteristicUUID, {Duration? timeout}) async {
     try {
-      return await UniversalBle.read(
+      final value = await UniversalBle.read(
         _device.deviceId,
         serviceUUID,
         characteristicUUID,
         timeout: timeout
       );
+      _noteOperationSuccess();
+      return value;
     } on TimeoutException {
       // Fail fast (see write() — a read-timeout reconnect mid profile-upload
       // would wedge the firmware the same way). Clear the stuck queue entry and
@@ -309,9 +344,99 @@ class UniversalBleTransport implements BLETransport {
   /// timeout propagate. Do NOT convert it to a [BleTimeoutException]: that would
   /// trigger a disconnect/reconnect+single-write retry, which corrupts an
   /// in-flight profile upload (a stateful multi-write sequence).
+  ///
+  /// A timeout is also a zombie-link symptom: verify the link async (never
+  /// blocking the caller). A single timeout with a healthy OS link changes
+  /// nothing; an OS-confirmed drop — or [_maxConsecutiveOpTimeouts] in a
+  /// row — declares the link dead so recovery can start instead of the app
+  /// staying "connected" to a corpse forever.
   void _onOperationTimeout(String operation, String path) {
     _log.warning('GATT $operation($path) timed out — clearing BLE queue');
     UniversalBle.clearQueue(_device.deviceId);
+    _consecutiveOpTimeouts++;
+    if (_consecutiveOpTimeouts >= _maxConsecutiveOpTimeouts) {
+      _declareLinkDead(
+        '$_consecutiveOpTimeouts consecutive GATT timeouts',
+        forceOsDisconnect: true,
+      );
+    } else {
+      unawaited(_probeAndDeclareIfDead('GATT $operation timeout'));
+    }
+  }
+
+  void _noteOperationSuccess() {
+    _consecutiveOpTimeouts = 0;
+  }
+
+  /// Listen for advertisements carrying our own deviceId while we believe
+  /// the link is up. Adverts only flow while some scan runs (the scale
+  /// reconnect loop, UI scans) — this starts none itself.
+  void _startAdvertWatch() {
+    _advertSub?.cancel();
+    _advertSub = UniversalBle.scanStream
+        .where((d) => d.deviceId == _device.deviceId)
+        .listen(_onOwnAdvertisement);
+  }
+
+  void _onOwnAdvertisement(BleDevice _) {
+    if (_connectionStateSubject.valueOrNull !=
+        device.ConnectionState.connected) {
+      return;
+    }
+    final now = DateTime.now();
+    final last = _lastAdvertProbe;
+    if (last != null && now.difference(last) < _advertProbeThrottle) return;
+    _lastAdvertProbe = now;
+    _log.warning(
+      'Received advertisement while believed connected — probing OS link state',
+    );
+    unawaited(_probeAndDeclareIfDead('advertising while believed connected'));
+  }
+
+  /// Ask the OS for the actual connection state. Declares the link dead
+  /// only on an explicit disconnected/disconnecting answer — a probe
+  /// error is inconclusive and must not tear down a possibly-live link.
+  Future<void> _probeAndDeclareIfDead(String context) async {
+    final BleConnectionState state;
+    try {
+      state = await UniversalBle.getConnectionState(
+        _device.deviceId,
+        timeout: _linkProbeTimeout,
+      );
+    } catch (e) {
+      _log.fine('Link probe inconclusive ($context): $e');
+      return;
+    }
+    if (state == BleConnectionState.connected ||
+        state == BleConnectionState.connecting) {
+      return;
+    }
+    _declareLinkDead('$context; OS reports ${state.name}');
+  }
+
+  /// Emit `disconnected` so the normal recovery cascade runs (device impl →
+  /// controller reset → DisconnectSupervisor → machine auto-reconnect).
+  /// Idempotent per connection. [forceOsDisconnect] additionally releases
+  /// the OS-level GATT handle (best-effort) so it can't block the next
+  /// connect — used when the OS still claims the dead link is connected.
+  void _declareLinkDead(String reason, {bool forceOsDisconnect = false}) {
+    if (_linkDeadDeclared) return;
+    _linkDeadDeclared = true;
+    _log.warning('Declaring BLE link dead: $reason');
+    _advertSub?.cancel();
+    _advertSub = null;
+    UniversalBle.clearQueue(_device.deviceId);
+    _connectionStateSubject.add(device.ConnectionState.disconnected);
+    if (forceOsDisconnect) {
+      unawaited(
+        UniversalBle.disconnect(
+          _device.deviceId,
+          timeout: const Duration(seconds: 5),
+        ).catchError((Object e) {
+          _log.fine('Best-effort OS disconnect failed: $e');
+        }),
+      );
+    }
   }
 
   final Map<String, StreamSubscription<Uint8List>> _subscriptions = {};
@@ -362,6 +487,7 @@ class UniversalBleTransport implements BLETransport {
         withoutResponse: !withResponse,
         timeout: timeout
       );
+      _noteOperationSuccess();
     } on TimeoutException {
       // Fail fast — do NOT map this to a BleTimeoutException. Doing so routes it
       // into the DE1 transport's reconnect-and-retry-this-one-write recovery,
@@ -397,6 +523,8 @@ class UniversalBleTransport implements BLETransport {
 
   @override
   Future<void> dispose() async {
+    _advertSub?.cancel();
+    _advertSub = null;
     _connectionStateSubscription?.cancel();
     _connectionStateSubscription = null;
     for (final sub in _subscriptions.values) {

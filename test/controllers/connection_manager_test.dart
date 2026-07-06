@@ -52,6 +52,9 @@ class _FakeDe1 implements De1Interface {
   }
 
   @override
+  Future<void> disconnect() async {}
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 
@@ -1582,6 +1585,174 @@ void main() {
         expect(connectionManager.currentStatus.error, isNotNull);
         await connectionManager.connect(scaleOnly: true);
         expect(connectionManager.currentStatus.error, isNull);
+      });
+    });
+
+    group('machine auto-reconnect', () {
+      /// Pump enough microtask/zero-timer turns for a drop → timer →
+      /// connect() → scan → connect-machine cycle to complete.
+      Future<void> pumpCycles([int n = 8]) async {
+        for (var i = 0; i < n; i++) {
+          await Future<void>.delayed(Duration.zero);
+        }
+      }
+
+      test(
+          'unexpected machine disconnect starts recovery scans and '
+          'reconnects the preferred machine', () async {
+        connectionManager.machineReconnectBaseDelay = Duration.zero;
+        await settingsController.setPreferredMachineId('pref-de1');
+        final fakeDe1 = _FakeDe1(deviceId: 'pref-de1');
+        mockScanner.addDevice(fakeDe1); // still advertising / came back
+        mockDe1Controller.de1Subject.add(fakeDe1);
+        await Future<void>.delayed(Duration.zero);
+
+        mockDe1Controller.de1Subject.add(null); // unexpected drop
+        await pumpCycles();
+
+        expect(
+          mockDe1Controller.connectCalls.map((d) => d.deviceId),
+          contains('pref-de1'),
+          reason: 'recovery loop must rescan and reconnect the machine',
+        );
+      });
+
+      test('recovery keeps retrying until the machine reappears, then stops',
+          () async {
+        connectionManager.machineReconnectBaseDelay = Duration.zero;
+        await settingsController.setPreferredMachineId('pref-de1');
+        final fakeDe1 = _FakeDe1(deviceId: 'pref-de1');
+        mockDe1Controller.de1Subject.add(fakeDe1);
+        await Future<void>.delayed(Duration.zero);
+
+        var scanStarts = 0;
+        final sub = mockScanner.scanningStream.listen((s) {
+          if (s) scanStarts++;
+        });
+
+        // Machine drops and is NOT in scan results yet.
+        mockDe1Controller.de1Subject.add(null);
+        await pumpCycles();
+        expect(scanStarts, greaterThan(0),
+            reason: 'loop must scan even while the machine is absent');
+        expect(mockDe1Controller.connectCalls, isEmpty);
+
+        // Machine comes back — next cycle reconnects and the loop stops.
+        mockScanner.addDevice(fakeDe1);
+        await pumpCycles();
+        expect(
+          mockDe1Controller.connectCalls.map((d) => d.deviceId),
+          contains('pref-de1'),
+        );
+
+        final scansAfterReconnect = scanStarts;
+        await pumpCycles();
+        expect(scanStarts, scansAfterReconnect,
+            reason: 'loop must stop once the machine is connected');
+        await sub.cancel();
+      });
+
+      test('expected machine disconnect does not start recovery', () async {
+        connectionManager.machineReconnectBaseDelay = Duration.zero;
+        await settingsController.setPreferredMachineId('pref-de1');
+        final fakeDe1 = _FakeDe1(deviceId: 'pref-de1');
+        mockScanner.addDevice(fakeDe1);
+        mockDe1Controller.de1Subject.add(fakeDe1);
+        await Future<void>.delayed(Duration.zero);
+
+        var scanStarts = 0;
+        final sub = mockScanner.scanningStream.listen((s) {
+          if (s) scanStarts++;
+        });
+
+        connectionManager.markExpectingDisconnect('pref-de1');
+        mockDe1Controller.de1Subject.add(null);
+        await pumpCycles();
+
+        expect(scanStarts, 0,
+            reason: 'expected disconnects must not trigger background scans');
+        expect(mockDe1Controller.connectCalls, isEmpty);
+        await sub.cancel();
+      });
+
+      test('deliberate disconnectMachine does not start recovery', () async {
+        connectionManager.machineReconnectBaseDelay = Duration.zero;
+        await settingsController.setPreferredMachineId('pref-de1');
+        final fakeDe1 = _FakeDe1(deviceId: 'pref-de1');
+        mockScanner.addDevice(fakeDe1);
+        mockDe1Controller.de1Subject.add(fakeDe1);
+        await Future<void>.delayed(Duration.zero);
+
+        var scanStarts = 0;
+        final sub = mockScanner.scanningStream.listen((s) {
+          if (s) scanStarts++;
+        });
+
+        await connectionManager.disconnectMachine();
+        await pumpCycles();
+
+        expect(scanStarts, 0);
+        expect(mockDe1Controller.connectCalls, isEmpty);
+        await sub.cancel();
+      });
+
+      test('no preferred machine → no recovery scans', () async {
+        connectionManager.machineReconnectBaseDelay = Duration.zero;
+        final fakeDe1 = _FakeDe1(deviceId: 'some-de1');
+        mockScanner.addDevice(fakeDe1);
+        mockDe1Controller.de1Subject.add(fakeDe1);
+        await Future<void>.delayed(Duration.zero);
+
+        var scanStarts = 0;
+        final sub = mockScanner.scanningStream.listen((s) {
+          if (s) scanStarts++;
+        });
+
+        mockDe1Controller.de1Subject.add(null);
+        await pumpCycles();
+
+        expect(scanStarts, 0,
+            reason: 'without a preferred machine a background retry could '
+                'pop a picker — must stay off');
+        await sub.cancel();
+      });
+
+      test('recovery retries use exponential backoff', () {
+        fakeAsync((async) {
+          final manager = ConnectionManager(
+            deviceScanner: mockScanner,
+            de1Controller: mockDe1Controller,
+            scaleController: mockScaleController,
+            settingsController: settingsController,
+          );
+          settingsController.setPreferredMachineId('pref-de1');
+          async.flushMicrotasks();
+          mockDe1Controller.de1Subject.add(_FakeDe1(deviceId: 'pref-de1'));
+          async.flushMicrotasks();
+
+          var scanStarts = 0;
+          mockScanner.scanningStream.listen((s) {
+            if (s) scanStarts++;
+          });
+
+          mockDe1Controller.de1Subject.add(null); // unexpected drop at t=0
+          async.flushMicrotasks();
+
+          // First retry at t=5s (base delay).
+          async.elapse(const Duration(seconds: 4));
+          expect(scanStarts, 0, reason: 'no retry before the base delay');
+          async.elapse(const Duration(seconds: 2)); // t=6
+          expect(scanStarts, 1, reason: 'first retry fires at 5s');
+
+          // Second retry doubles: due 10s after the first (t≈15s).
+          async.elapse(const Duration(seconds: 8)); // t=14
+          expect(scanStarts, 1, reason: 'second retry must back off to 10s');
+          async.elapse(const Duration(seconds: 2)); // t=16
+          expect(scanStarts, 2);
+
+          manager.dispose();
+          async.flushMicrotasks();
+        });
       });
     });
   });
