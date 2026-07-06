@@ -629,8 +629,8 @@ packages:
     description:
       path: "."
       ref: main
-      resolved-ref: "2d3e79391eba353a1470343e655173642a415620"
-      url: "https://github.com/AurelienBallier/flutter_libserialport.git"
+      resolved-ref: "6a26ab90fd32e2a2d977aa37e3b614da101b3899"
+      url: "https://github.com/tadelv/flutter_libserialport.git"
     source: git
     version: "0.4.0"
   flutter_lints:

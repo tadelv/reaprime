@@ -54,11 +54,13 @@ dependencies:
   # plugins). Bump only after the AGP 9 migration. See pubspec KGP note.
   saf_util: ^2.0.0
   saf_stream: ^2.0.0
-  # maybe one day? https://github.com/AurelienBallier/flutter_libserialport
+  # tadelv fork = AurelienBallier/flutter_libserialport (Android/USB support)
+  # + macOS Swift Package Manager support (tadelv 6a26ab9). Drop the fork
+  # once the SPM PR lands upstream.
   flutter_libserialport:
     # ^0.6.0
     git:
-      url: https://github.com/AurelienBallier/flutter_libserialport.git
+      url: https://github.com/tadelv/flutter_libserialport.git
       ref: main
   # usb_serial: ^0.5.2
   # usb_serial:
