@@ -387,21 +387,25 @@ class _DataManagementPageState extends State<DataManagementPage> {
         storage: widget.persistenceController.storageService,
       );
       final jsonData = await exporter.exportJson();
-      final tempDir = await getTemporaryDirectory();
-      final source = File("${tempDir.path}/shots.json");
-      await source.writeAsString(jsonData);
-      final destination = await FilePicker.getDirectoryPath(
-        dialogTitle: "Pick export dir",
+      final jsonBytes = utf8.encode(jsonData);
+
+      final archive = Archive();
+      archive.addFile(
+        ArchiveFile('shots.json', jsonBytes.length, jsonBytes),
       );
-      if (destination != null) {
-        final tempFile = File('$destination/R1_shots.zip');
-        final archive = Archive();
-        final sourceBytes = await source.readAsBytes();
-        final archiveFile =
-            ArchiveFile('shots.json', sourceBytes.length, sourceBytes);
-        archive.addFile(archiveFile);
-        final zipData = ZipEncoder().encode(archive);
-        await tempFile.writeAsBytes(zipData);
+      final zipBytes = Uint8List.fromList(ZipEncoder().encode(archive));
+
+      final outputFile = await FilePicker.saveFile(
+        fileName: "R1_shots.zip",
+        dialogTitle: "Choose where to save shots",
+        bytes: zipBytes,
+      );
+      if (outputFile != null) {
+        // On desktop, saveFile(bytes:) doesn't write — we must write manually.
+        // On mobile (Android/iOS), the SAF/picker writes the file for us.
+        if (!Platform.isAndroid && !Platform.isIOS) {
+          await File(outputFile).writeAsBytes(zipBytes);
+        }
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
