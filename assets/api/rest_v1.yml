@@ -3804,15 +3804,23 @@ paths:
     get:
       summary: Get recent log entries
       description: |
-      Returns the last N kilobytes of the app log file, newest entries first. Query parameter `kb` controls the size (default: 16).
+        Returns the most recent window of the app log, newest entries first.
+        The live log file and any rotated siblings (`log.txt.1`, `log.txt.2`,
+        …) are always stitched in chronological order — oldest rotation
+        first, live file last — before the window and `order` are applied.
+        The window is `kb` kilobytes when given (clamped to 4096), 1024 KB
+        otherwise, so a full rotation set is never buffered in memory.
       tags: [System]
       parameters:
         - name: kb
           in: query
           schema:
             type: integer
+            minimum: 1
+            default: 1024
           description: |
-          Number of kilobytes to return (default: 16)
+            Tail window size in kilobytes. Defaults to 1024 (1 MB); values
+            above 4096 (4 MB) are clamped to that ceiling.
         - name: order
           in: query
           schema:
@@ -3820,16 +3828,6 @@ paths:
             enum: [desc, asc]
             default: desc
           description: Line order — desc (newest first, default) or asc (original chronological order).
-        - name: rotated
-          in: query
-          schema:
-            type: boolean
-            default: false
-          description: |
-            When true (`1`/`true`/`yes`), also include the rotated log files
-            (`log.txt.1`, `log.txt.2`, …), stitched in chronological order —
-            oldest rotation first, live file last — before `kb` and `order` are
-            applied. Default returns only the live log file.
       responses:
         "200":
           description: Recent log entries as plain text
