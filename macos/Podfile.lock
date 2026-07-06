@@ -1,34 +1,15 @@
 PODS:
-  - flutter_js (0.0.1):
-    - FlutterMacOS
-  - flutter_libserialport (0.0.1):
-    - FlutterMacOS
-    - libserialport
   - FlutterMacOS (1.0.0)
-  - libserialport (0.1.1)
 
 DEPENDENCIES:
-  - flutter_js (from `Flutter/ephemeral/.symlinks/plugins/flutter_js/macos`)
-  - flutter_libserialport (from `Flutter/ephemeral/.symlinks/plugins/flutter_libserialport/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
 
-SPEC REPOS:
-  trunk:
-    - libserialport
-
 EXTERNAL SOURCES:
-  flutter_js:
-    :path: Flutter/ephemeral/.symlinks/plugins/flutter_js/macos
-  flutter_libserialport:
-    :path: Flutter/ephemeral/.symlinks/plugins/flutter_libserialport/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
 
 SPEC CHECKSUMS:
-  flutter_js: 79c3c70d33ba464c67d8eb88639a61aa718cd8b8
-  flutter_libserialport: 2c523cb8d8203fc6d1b0da88190da31ac970eb93
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
-  libserialport: 1cb25e66ef3c92a8e59c2ea3820302c3fa2268cd
 
 PODFILE CHECKSUM: 89c84cf5c2351c1e554c6dea18d31a879fc3a19e
 
