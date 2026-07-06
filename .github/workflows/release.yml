@@ -410,13 +410,11 @@ jobs:
           channel: 'stable'
           flutter-version: '3.44.2'
 
-      # Flutter >=3.44 defaults Swift Package Manager on, which skips
-      # `pod install` so ios/Pods (and FirebaseCrashlytics/upload-symbols)
-      # never gets generated and the dSYM upload step below fails. The iOS
-      # project is committed as CocoaPods (0 SPM refs) and local dev runs
-      # with SPM disabled, so pin CI to the same CocoaPods path.
-      - name: Disable Swift Package Manager (use CocoaPods)
-        run: flutter config --no-enable-swift-package-manager
+      # Swift Package Manager (Flutter >=3.44 default) is enabled: the iOS
+      # project commits the SPM integration and Package.resolved. Firebase
+      # resolves via SPM; pod install only covers the remaining non-SPM
+      # plugins. The dSYM upload step below probes both the SPM checkout
+      # and the Pods layout for upload-symbols.
 
       - name: Install FlutterFire CLI
         run: dart pub global activate flutterfire_cli
@@ -539,8 +537,21 @@ jobs:
           echo "Found dSYMs:"
           ls -la "$DSYM_PATH"
 
+          # SPM checkout first (current posture), Pods as fallback.
+          UPLOAD_SYMBOLS=""
+          for p in \
+            "build/ios/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/upload-symbols" \
+            "ios/Pods/FirebaseCrashlytics/upload-symbols"; do
+            if [ -f "$p" ]; then UPLOAD_SYMBOLS="$p"; break; fi
+          done
+          if [ -z "$UPLOAD_SYMBOLS" ]; then
+            echo "::error::upload-symbols not found in SPM SourcePackages or ios/Pods"
+            exit 1
+          fi
+          echo "Using upload-symbols at $UPLOAD_SYMBOLS"
+
           flutterfire upload-crashlytics-symbols \
-            --upload-symbols-script-path="ios/Pods/FirebaseCrashlytics/upload-symbols" \
+            --upload-symbols-script-path="$UPLOAD_SYMBOLS" \
             --platform=ios \
             --apple-project-path="ios" \
             --env-platform-name="iphoneos" \
