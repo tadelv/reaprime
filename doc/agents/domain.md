@@ -11,6 +11,7 @@ This repo's domain language and architectural context live in existing files —
 - **`doc/Plugins.md`** — JS plugin development
 - **`doc/Profiles.md`** — Profile API and content-based hashing
 - **`doc/DeviceManagement.md`** — Device discovery and connection management
+- **`doc/agents/sensor-integration.md`** — BLE temperature sensor integration (maintainer rules, scaffolding, anti-patterns)
 - **`doc/RELEASE.md`** — Release process and versioning
 - **`doc/plans/archive/`** — Archived design docs (the *why* behind shipped features, rejected alternatives, constraints)
 - **`.agents/skills/decent-app/`** — Dev-loop skill: `sb-dev` lifecycle, REST/WebSocket recipes, simulated devices, verification scenarios
