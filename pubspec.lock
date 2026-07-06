@@ -612,7 +612,7 @@ packages:
     description:
       path: "."
       ref: master
-      resolved-ref: fc9e8d5f29a8cadebd529674b73af5aed6704b46
+      resolved-ref: c7cde7b5c9c6ad7013157f296a7320835aac6cdb
       url: "https://github.com/tadelv/dart_js"
     source: git
     version: "0.8.5"
