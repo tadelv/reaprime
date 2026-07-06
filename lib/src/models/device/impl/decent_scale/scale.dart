@@ -155,7 +155,7 @@ class DecentScale implements Scale, TransportHandoffScale {
         }
         _heartbeatTotalTicks++;
 
-        // Periodic oled-on every 2 ticks (8s) when awake
+        // Periodic battery level request every 2 ticks (8s) when awake
         if (_heartbeatTotalTicks % 2 == 0) {
           final uptimeMin = (_heartbeatTotalTicks * 4) ~/ 60;
           _log.fine(
@@ -197,7 +197,7 @@ class DecentScale implements Scale, TransportHandoffScale {
         await tare();
       }
       if (!_isSleeping) {
-        await wakeDisplay();
+        await _sendOledOn();
       }
       _connectionStateController.add(ConnectionState.connected);
     } catch (e) {
@@ -292,7 +292,7 @@ class DecentScale implements Scale, TransportHandoffScale {
   }
 
   /// Causes the scale to respond with battery level, while the actual request
-  /// is to turn on the display
+  /// is to turn on the display (OledOn)
   Future<void> _requestBatteryData() async {
     final heartbeatByte = isUsingHeartBeat ? 0x01 : 0x00;
     await _writeCommand([0x0A, 0x01, 0x00, 0x00, heartbeatByte]);
@@ -300,7 +300,7 @@ class DecentScale implements Scale, TransportHandoffScale {
 
   Future<void> _sendOledOn() async {
     final heartbeatByte = isUsingHeartBeat ? 0x01 : 0x00;
-    await _writeCommand([0x0A, 0x01, 0x00, 0x00, heartbeatByte]);
+    await _requestBatteryData();
     await Future.delayed(Duration(milliseconds: 100));
     await _writeCommand([0x0A, 0x04, 0x00, 0x00, heartbeatByte]);
   }
