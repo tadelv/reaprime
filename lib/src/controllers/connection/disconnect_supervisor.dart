@@ -33,6 +33,7 @@ class DisconnectSupervisor {
   final String? Function() _preferredScaleId;
   final void Function()? _onMachineConnected;
   final void Function()? _onMachineDisconnected;
+  final void Function()? _onUnexpectedMachineDisconnect;
   final void Function()? _onScaleConnected;
   final void Function()? _onScaleDisconnected;
 
@@ -55,6 +56,7 @@ class DisconnectSupervisor {
     required String? Function() preferredScaleId,
     void Function()? onMachineConnected,
     void Function()? onMachineDisconnected,
+    void Function()? onUnexpectedMachineDisconnect,
     void Function()? onScaleConnected,
     void Function()? onScaleDisconnected,
   })  : _machineStream = machineStream,
@@ -67,6 +69,7 @@ class DisconnectSupervisor {
         _preferredScaleId = preferredScaleId,
         _onMachineConnected = onMachineConnected,
         _onMachineDisconnected = onMachineDisconnected,
+        _onUnexpectedMachineDisconnect = onUnexpectedMachineDisconnect,
         _onScaleConnected = onScaleConnected,
         _onScaleDisconnected = onScaleDisconnected {
     _start();
@@ -112,7 +115,10 @@ class DisconnectSupervisor {
         );
         final id = _lastKnownMachineId;
         if (id != null) {
-          _handleMachineDisconnect(id);
+          final unexpected = _handleMachineDisconnect(id);
+          if (unexpected) {
+            _onUnexpectedMachineDisconnect?.call();
+          }
         }
       }
     });
@@ -141,10 +147,13 @@ class DisconnectSupervisor {
     });
   }
 
-  void _handleMachineDisconnect(String deviceId) {
+  /// Returns `true` when the disconnect was unexpected (no matching
+  /// expectation) — mirrors [_handleScaleDisconnect] so the caller can
+  /// gate recovery behavior on it.
+  bool _handleMachineDisconnect(String deviceId) {
     if (_expectations.consume(deviceId)) {
       _log.fine('Machine $deviceId: expected disconnect, suppressing error');
-      return;
+      return false;
     }
     _statusPublisher.emitError(ConnectionError(
       kind: ConnectionErrorKind.machineDisconnected,
@@ -155,6 +164,7 @@ class DisconnectSupervisor {
       suggestion:
           'Check the machine is powered on and in range, then reconnect.',
     ));
+    return true;
   }
 
   bool _handleScaleDisconnect(String deviceId) {
