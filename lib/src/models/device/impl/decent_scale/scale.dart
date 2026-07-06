@@ -162,7 +162,7 @@ class DecentScale implements Scale, TransportHandoffScale {
             "heartbeat: ${uptimeMin}m uptime, $_totalNotifications notifications",
           );
           if (!_isSleeping) {
-            await _sendOledOn();
+            await _requestBatteryData();
           }
         }
 
@@ -197,7 +197,7 @@ class DecentScale implements Scale, TransportHandoffScale {
         await tare();
       }
       if (!_isSleeping) {
-        await _sendOledOn();
+        await wakeDisplay();
       }
       _connectionStateController.add(ConnectionState.connected);
     } catch (e) {
@@ -289,6 +289,13 @@ class DecentScale implements Scale, TransportHandoffScale {
     } catch (e) {
       _log.warning('Heartbeat write failed (transient): $e');
     }
+  }
+
+  /// Causes the scale to respond with battery level, while the actual request
+  /// is to turn on the display
+  Future<void> _requestBatteryData() async {
+    final heartbeatByte = isUsingHeartBeat ? 0x01 : 0x00;
+    await _writeCommand([0x0A, 0x01, 0x00, 0x00, heartbeatByte]);
   }
 
   Future<void> _sendOledOn() async {
