@@ -40,6 +40,8 @@
 	<array>
 		<string>_decentscale._tcp</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Needed to capture photos for shot notes and feedback when picking images via the file picker</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Needed to import photos for shot notes and feedback</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
