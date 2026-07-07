@@ -16,6 +16,8 @@ import 'package:reaprime/src/models/device/impl/skale/skale2_scale.dart';
 import 'package:reaprime/src/models/device/impl/smartchef/smartchef_scale.dart';
 import 'package:reaprime/src/models/device/impl/varia/varia_aku_scale.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/models/device/impl/weighmaster/weighmaster_scale.dart';
+
 
 class DeviceMatcher {
   /// Service UUIDs advertised by devices of a given [type].
@@ -36,6 +38,7 @@ class DeviceMatcher {
       DifluidScale.serviceIdentifier.long,
       HiroiaScale.serviceIdentifier.long,
       AtomheartScale.serviceIdentifier.long,
+      WeighMasterScale.serviceIdentifier.long,
       ...AcaiaScale.advertisedServiceUuids,
     ],
     DeviceType.machine => [
@@ -118,6 +121,9 @@ class DeviceMatcher {
     }
     if (nameLower.contains('decent temp')) {
       return DecentTemp(transport: transport);
+    }
+    if (name == 'WeighMaster Scale') {
+      return WeighMasterScale(transport: transport);
     }
 
     return null;
