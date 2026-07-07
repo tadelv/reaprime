@@ -13,11 +13,22 @@ import 'package:rxdart/rxdart.dart';
 /// Minimal BLE transport whose initial connection state is controllable, so
 /// we can drive `UnifiedDe1Transport.connect()` down the first-connect path
 /// (transport disconnected) vs. the no-op-reconnect path (already connected).
+/// Records call order and captures per-characteristic subscribe callbacks so
+/// tests can assert on disconnect-before-connect ordering and on which
+/// listener receives a pushed notification after a re-subscribe.
 class _Fake extends BLETransport {
   _Fake(ConnectionState initial)
       : _connState = BehaviorSubject<ConnectionState>.seeded(initial);
 
   final BehaviorSubject<ConnectionState> _connState;
+
+  /// Ordered record of `disconnect` / `connect` / `subscribe:<uuid>` calls,
+  /// so tests can assert a no-op reconnect now tears down before re-connect.
+  final List<String> callOrder = [];
+
+  /// Last callback registered per characteristic uuid — lets a test invoke
+  /// the *current* listener and assert it (not a stale one) receives pushes.
+  final Map<String, void Function(Uint8List)> subscribers = {};
 
   @override
   String get id => 'fake-id';
@@ -29,10 +40,15 @@ class _Fake extends BLETransport {
   Future<ConnectionState> getConnectionState() async =>
       ConnectionState.disconnected;
   @override
-  Future<void> connect() async => _connState.add(ConnectionState.connected);
+  Future<void> connect() async {
+    callOrder.add('connect');
+    _connState.add(ConnectionState.connected);
+  }
   @override
-  Future<void> disconnect() async =>
-      _connState.add(ConnectionState.disconnected);
+  Future<void> disconnect() async {
+    callOrder.add('disconnect');
+    _connState.add(ConnectionState.disconnected);
+  }
   @override
   Future<List<String>> discoverServices() async => [de1ServiceUUID];
   @override
@@ -40,7 +56,10 @@ class _Fake extends BLETransport {
       Uint8List(20);
   @override
   Future<void> subscribe(
-      String s, String c, void Function(Uint8List) cb) async {}
+      String s, String c, void Function(Uint8List) cb) async {
+    callOrder.add('subscribe:$c');
+    subscribers[c] = cb;
+  }
   @override
   Future<void> setTransportPriority(bool prioritized) async {}
   @override
@@ -64,30 +83,28 @@ void main() {
     await logSub.cancel();
   });
 
-  test('records DuplicateBleSubscription when connect runs on an '
-      'already-connected transport', () async {
-    final transport = UnifiedDe1Transport(transport: _Fake(
-      ConnectionState.connected,
-    ));
+  test('no-op reconnect tears down stale link before connect and re-subscribe',
+      () async {
+    final fake = _Fake(ConnectionState.connected);
+    final transport = UnifiedDe1Transport(transport: fake);
 
     await transport.connect();
 
-    final hits =
-        records.where((r) => r.error is DuplicateBleSubscription).toList();
-    expect(hits.length, 1,
-        reason: 'no-op reconnect should record exactly one non-fatal');
-
-    // Privacy: the recorded error is forwarded to Crashlytics unscrubbed, so
-    // it must carry an anonymized id, never the raw device id / MAC.
-    final err = hits.single.error as DuplicateBleSubscription;
-    expect(err.anonymizedDeviceId, startsWith('mac_'));
-    expect(err.toString(), isNot(contains('fake-id')));
+    // disconnect must come before connect, and connect before any subscribe.
+    final disconnectAt = fake.callOrder.indexOf('disconnect');
+    final connectAt = fake.callOrder.indexOf('connect');
+    final firstSubscribeAt = fake.callOrder
+        .indexWhere((e) => e.startsWith('subscribe:'));
+    expect(disconnectAt, greaterThanOrEqualTo(0),
+        reason: 'no-op reconnect should disconnect the stale link first');
+    expect(connectAt, greaterThan(disconnectAt));
+    expect(firstSubscribeAt, greaterThan(connectAt));
   });
 
-  test('does not record on a first connect (transport disconnected)',
-      () async {
+  test('no-op reconnect no longer records DuplicateBleSubscription (handled '
+      'by clean teardown)', () async {
     final transport = UnifiedDe1Transport(transport: _Fake(
-      ConnectionState.disconnected,
+      ConnectionState.connected,
     ));
 
     await transport.connect();
@@ -95,6 +112,59 @@ void main() {
     expect(
       records.any((r) => r.error is DuplicateBleSubscription),
       isFalse,
+      reason: 'the no-op reconnect is now handled by a clean disconnect, so '
+          'the measurement non-fatal should no longer fire',
     );
+  });
+
+  test('first connect (transport disconnected) does not disconnect first',
+      () async {
+    final fake = _Fake(ConnectionState.disconnected);
+    final transport = UnifiedDe1Transport(transport: fake);
+
+    await transport.connect();
+
+    expect(fake.callOrder, isNot(contains('disconnect')),
+        reason: 'a fresh connect must not tear down a link that is not there');
+    expect(fake.callOrder, contains('connect'));
+  });
+
+  test('re-subscribe after reconnect wires a new stateInfo callback that '
+      'drives the state stream', () async {
+    final fake = _Fake(ConnectionState.connected);
+    final transport = UnifiedDe1Transport(transport: fake);
+
+    await transport.connect();
+    final stateInfoUuid = Endpoint.stateInfo.uuid;
+    final firstCb = fake.subscribers[stateInfoUuid];
+    expect(firstCb, isNotNull,
+        reason: '_bleConnect should subscribe stateInfo on connect');
+
+    // Drive a push through the first listener and observe it on `state`.
+    final firstSeen = <ByteData>[];
+    final sub = transport.state.listen(firstSeen.add);
+    firstCb!(Uint8List.fromList([0x05, 0x00, 0x00, 0x00]));
+    await Future<void>.delayed(Duration.zero);
+    expect(firstSeen, isNotEmpty,
+        reason: 'first listener should receive the pushed state frame');
+
+    // Reconnect (no-op reconnect path): _bleConnect re-subscribes stateInfo.
+    await transport.connect();
+    final secondCb = fake.subscribers[stateInfoUuid];
+    expect(secondCb, isNot(same(firstCb)),
+        reason: 're-subscribe must wire a NEW callback');
+
+    // The new callback must still drive the state stream (the transport's
+    // internal wiring is intact after the clean teardown + reconnect).
+    final secondSeen = <ByteData>[];
+    final sub2 = transport.state.listen(secondSeen.add);
+    secondCb!(Uint8List.fromList([0x06, 0x00, 0x00, 0x00]));
+    await Future<void>.delayed(Duration.zero);
+    expect(secondSeen, isNotEmpty,
+        reason: 'new listener must drive the state stream on a post-reconnect '
+            'push');
+
+    await sub.cancel();
+    await sub2.cancel();
   });
 }

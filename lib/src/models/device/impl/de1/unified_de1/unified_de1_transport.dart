@@ -10,7 +10,6 @@ import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/device/transport/logical_endpoint.dart';
 import 'package:reaprime/src/models/errors.dart';
-import 'package:reaprime/src/services/telemetry/anonymization.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -83,27 +82,41 @@ class UnifiedDe1Transport {
               : TransportType.unknown,
       _log = Logger("UnifiedDe1Transport-${transport.id}");
   Future<void> connect() async {
-    // A connect() while the transport already reports `connected` means BLE
-    // setup is about to re-subscribe to every characteristic without an
-    // intervening disconnect — the no-op reconnect that used to stack
-    // duplicate notification listeners (every frame delivered twice). The
-    // per-characteristic guard now replaces subscriptions idempotently, but
-    // we record the condition as a non-fatal to measure how often it fires.
+    // A connect() while the transport already reports `connected` is a
+    // no-op reconnect: the underlying GATT link never came down (e.g. the
+    // app-level disconnect on machine sleep nulled De1Controller._de1 but
+    // the native BLE transport lingered connected — a zombie link). The
+    // prior fix (PR #246 / sb-030) made `_bleConnect()`'s per-characteristic
+    // `subscribe()` cancel-before-replace so it no longer STACKED duplicate
+    // listeners. But re-subscribing against the zombie link had an inverse
+    // failure mode seen in the field: a pure-push characteristic
+    // (stateInfo/A00E) silently stopped delivering while solicited
+    // reads/writes kept succeeding — invisible to the zombie watchdog,
+    // which only counts GATT op timeouts and own-advert probes.
+    //
+    // The load-bearing fix is to tear down the stale native link BEFORE
+    // re-connecting, so `_bleConnect()` runs against a freshly-established
+    // GATT and every CCCD is written cleanly. The transient `disconnected`
+    // the native link emits during teardown is absorbed without surfacing
+    // to upstream: De1Controller.connectToDe1 has already cancelled its
+    // `connectionState` listener (via _onDisconnect) before `onConnect()`
+    // runs this method, and only re-subscribes after `onConnect()` returns.
     final wasConnected = transportType == TransportType.ble &&
         await _transport.connectionState.first ==
             device.ConnectionState.connected;
+
+    if (wasConnected) {
+      _log.info(
+        'Transport already connected; tearing down stale link before '
+        'reconnect to avoid no-op-reconnect push death',
+      );
+      await _transport.disconnect();
+    }
 
     await _transport.connect();
 
     switch (transportType) {
       case TransportType.ble:
-        if (wasConnected) {
-          _log.warning(
-            're-running BLE setup on already-connected transport (no-op '
-            'reconnect); notify subscriptions replaced, not stacked',
-            DuplicateBleSubscription(Anonymization.anonymizeMac(_transport.id)),
-          );
-        }
         await _bleConnect();
         break;
       case TransportType.serial:
