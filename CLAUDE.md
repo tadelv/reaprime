@@ -121,9 +121,8 @@ All three steps are required, not optional.
 
 - **`DeviceController`:** Coordinates multiple `DeviceDiscoveryService` implementations → unified device stream
 - **`ConnectionManager`:** Centralized connection orchestrator. Scans for devices, applies preferred-device policy, handles machine→scale connection sequencing. Exposes `ConnectionStatus` stream with phases: `idle`, `scanning`, `connectingMachine`, `connectingScale`, `ready`.
-- **`De1Controller`:** Machine operations (state, settings, profiles)
+- **`De1Controller`:** Machine operations (state, settings, profiles). Also hosts the long-lived `shotState` feed backing `/ws/v1/machine/shotState` (`De1StateManager` publishes into it) and the stop-intent stamp (`recordStopIntent`/`consumeStopIntent`) used to attribute machine-reported stops to their source (REST vs in-app UI).
 - **`ScaleController`:** Scale connection lifecycle, weight/flow data processing
-- **`ShotController`:** Orchestrates shot execution, stops at target weight. Timer lifecycle: reset on first tare (preparingForShot), start on second tare (preinfusion/pouring), stop when shot ends.
 - **`ProfileController`:** Profile library with content-based hash IDs for deduplication
 - **`WorkflowController`:** Multi-step espresso workflows
 - **`PersistenceController`:** Thin persistence layer — delegates to `StorageService`, emits `shotsChanged` stream for UI/handler invalidation
@@ -133,7 +132,7 @@ All three steps are required, not optional.
 - **`DisplayController`:** Display/screen management
 - **`FeedbackController`:** Feedback submission orchestration
 - **`De1StateManager`:** Central state→behavior orchestrator. Listens to machine state transitions, manages scale power (sleep/wake on machine state), handles gateway mode logic (full/tracking/disabled), triggers scale re-scans, manages shot/steam sequencing via `ShotSequencer` and `SteamSequencer`, navigates to realtime features in disabled mode.
-- **`ShotSequencer`:** Owned by `De1StateManager` — manages shot lifecycle (timer start/stop, measurement recording, persistence) for a single shot. Recreated per shot.
+- **`ShotSequencer`:** Owned by `De1StateManager` — manages shot lifecycle (timer start/stop at target weight, measurement recording, persistence) for a single shot. Recreated per shot. Emits structured `ShotDecision`s (why a step advanced, why the shot stopped — vocabulary in `lib/src/models/data/shot_state_event.dart`) with a single consolidated log line per decision under `Logger('ShotState')`; the final stop reason persists as `ShotRecord.stopReason`.
 - **`SteamSequencer`:** Owned by `De1StateManager` — manages steam session lifecycle (start on steam entry, finalize on exit, record `SteamSnapshot`).
 - **`RememberedDevicesController`:** Persists devices the user connected to (machine + scale) across restarts. Feeds the `available` field in device list — remembered but offline devices show as `state: "disconnected"`.
 - **`ScanStateGuardian`:** Guards against overlapping BLE scans and tracks adapter state across scan attempts.
