@@ -1691,10 +1691,10 @@ packages:
     description:
       path: "."
       ref: main
-      resolved-ref: "6a5abe483a8368c00b84b94df92b2f51667247f7"
+      resolved-ref: "1e1f38808ec5dd816a14bbb6ebc3ddb276463ca5"
       url: "https://github.com/tadelv/universal_ble.git"
     source: git
-    version: "2.0.4"
+    version: "2.1.1"
   universal_image:
     dependency: transitive
     description:
