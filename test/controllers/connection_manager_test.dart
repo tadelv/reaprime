@@ -1755,6 +1755,153 @@ void main() {
         });
       });
     });
+
+    group('snapshot staleness watchdog', () {
+      // The watchdog Timer must be created inside the fakeAsync zone, so
+      // each test constructs a fresh ConnectionManager here (the setUp
+      // instance lives in the real zone — its Timer wouldn't be visible
+      // to async.elapse). Mirrors the 'recovery retries use exponential
+      // backoff' test.
+
+      ConnectionManager newManager() => ConnectionManager(
+            deviceScanner: mockScanner,
+            de1Controller: mockDe1Controller,
+            scaleController: mockScaleController,
+            settingsController: settingsController,
+          );
+
+      test('fires after 10s with no snapshots and forces a reconnect', () {
+        fakeAsync((async) {
+          final manager = newManager();
+          final fakeDe1 = _FakeDe1(deviceId: 'stale-de1');
+          mockDe1Controller.de1Subject.add(fakeDe1);
+          async.flushMicrotasks();
+          // First snapshot frame arms (and re-arms) the watchdog.
+          fakeDe1.emitState(MachineState.idle);
+          async.flushMicrotasks();
+
+          expect(manager.snapshotStalenessReconnects, 0);
+          async.elapse(const Duration(seconds: 9));
+          expect(manager.snapshotStalenessReconnects, 0,
+              reason: 'must not fire before the staleness timeout');
+          // Counter increments synchronously at the top of the force
+          // action, so it is observable the moment the Timer fires. The
+          // counter proves the watchdog fired and the force path ran
+          // (disconnectMachine → connect). We don't assert on
+          // fakeDe1.disconnectCalls here: BehaviorSubject's Rx.defer
+          // replay doesn't settle under flushMicrotasks/elapse(0) in
+          // fakeAsync, so the async chain only resumes after dispose —
+          // making that assertion flaky without proving anything the
+          // counter doesn't already show.
+          async.elapse(const Duration(seconds: 2)); // 11s elapsed
+          expect(manager.snapshotStalenessReconnects, 1,
+              reason: 'a silent push channel must trigger a forced reconnect');
+
+          manager.dispose();
+          async.flushMicrotasks();
+        });
+      });
+
+      test('a deduped snapshot within the window re-arms the watchdog', () {
+        fakeAsync((async) {
+          final manager = newManager();
+          final fakeDe1 = _FakeDe1(deviceId: 'stale-de1');
+          mockDe1Controller.de1Subject.add(fakeDe1);
+          async.flushMicrotasks();
+          fakeDe1.emitState(MachineState.idle);
+          async.flushMicrotasks();
+
+          async.elapse(const Duration(seconds: 9));
+          // Same state — deduped by _latestMachineState — but still proves
+          // the push channel is alive; watchdog must re-arm.
+          fakeDe1.emitState(MachineState.idle);
+          async.flushMicrotasks();
+
+          async.elapse(const Duration(seconds: 9)); // 18s total, 9s since re-arm
+          expect(manager.snapshotStalenessReconnects, 0,
+              reason: 'a deduped frame must re-arm the watchdog');
+
+          manager.dispose();
+          async.flushMicrotasks();
+        });
+      });
+
+      test('deliberate disconnectMachine cancels the watchdog (no fire, no error)',
+          () {
+        fakeAsync((async) {
+          final manager = newManager();
+          final fakeDe1 = _FakeDe1(deviceId: 'stale-de1');
+          mockDe1Controller.de1Subject.add(fakeDe1);
+          async.flushMicrotasks();
+          fakeDe1.emitState(MachineState.idle);
+          async.flushMicrotasks();
+
+          // Deliberate disconnect cancels the watchdog and bumps the
+          // generation token.
+          manager.disconnectMachine();
+          async.flushMicrotasks();
+
+          async.elapse(const Duration(seconds: 15));
+          expect(manager.snapshotStalenessReconnects, 0,
+              reason: 'deliberate disconnect must cancel the watchdog');
+          expect(manager.currentStatus.error, isNull,
+              reason: 'deliberate disconnect must not surface an error banner');
+
+          manager.dispose();
+          async.flushMicrotasks();
+        });
+      });
+
+      test('initial grace: no fire before the first snapshot at 9s, fire at 11s',
+          () {
+        fakeAsync((async) {
+          final manager = newManager();
+          final fakeDe1 = _FakeDe1(deviceId: 'stale-de1');
+          mockDe1Controller.de1Subject.add(fakeDe1);
+          async.flushMicrotasks();
+          // No snapshot emitted — only the initial-grace arm at watch setup.
+
+          async.elapse(const Duration(seconds: 9));
+          expect(manager.snapshotStalenessReconnects, 0,
+              reason: 'must not fire within the initial grace window');
+
+          async.elapse(const Duration(seconds: 2)); // 11s
+          expect(manager.snapshotStalenessReconnects, 1,
+              reason: 'watchdog armed at watch setup must fire if no frame '
+                  'ever lands');
+
+          manager.dispose();
+          async.flushMicrotasks();
+        });
+      });
+
+      test('stale generation after a forced reconnect bails (no double-reconnect)',
+          () {
+        fakeAsync((async) {
+          final manager = newManager();
+          final fakeDe1 = _FakeDe1(deviceId: 'stale-de1');
+          mockDe1Controller.de1Subject.add(fakeDe1);
+          async.flushMicrotasks();
+          fakeDe1.emitState(MachineState.idle);
+          async.flushMicrotasks();
+
+          async.elapse(const Duration(seconds: 11));
+          expect(manager.snapshotStalenessReconnects, 1);
+          async.flushMicrotasks();
+
+          // The forced reconnect cancelled the watchdog and bumped the
+          // generation. With no new machine connected and no new frames,
+          // no watchdog is re-armed — a long elapse must not trigger a
+          // second forced reconnect.
+          async.elapse(const Duration(seconds: 30));
+          expect(manager.snapshotStalenessReconnects, 1,
+              reason: 'a stale-generation Timer must bail, not re-fire');
+
+          manager.dispose();
+          async.flushMicrotasks();
+        });
+      });
+    });
   });
 }
 

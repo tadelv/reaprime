@@ -185,6 +185,22 @@ class ConnectionManager {
   MachineState? _latestMachineState;
   StreamSubscription<MachineSnapshot>? _machineSnapshotSub;
 
+  /// Snapshot-staleness watchdog: if a connected machine stops pushing
+  /// snapshot frames for this long, the push channel is presumed dead
+  /// (live-link + dead-push — the field incident of 2026-07-07). A clean
+  /// forced reconnect re-establishes notifications. See Fix #1.
+  @visibleForTesting
+  static const Duration snapshotStalenessTimeout = Duration(seconds: 10);
+
+  Timer? _stateWatchdog;
+  int _watchdogGeneration = 0;
+
+  /// Number of times the staleness watchdog forced a machine reconnect.
+  /// Incremented once per force action — tests assert on this instead of
+  /// driving the full disconnect+connect cycle through fake_async.
+  @visibleForTesting
+  int snapshotStalenessReconnects = 0;
+
   /// Set true by [_checkEarlyStop] when it actually cut the scan short on
   /// machine-connect with no preferred scale. Distinguishes that case
   /// from a full scan that simply completed without a scale — only the
@@ -754,7 +770,16 @@ class ConnectionManager {
       _log.fine('Machine snapshot stream unavailable', e, st);
       return;
     }
+    // Arm the initial-grace watchdog before the first frame lands —
+    // covers the Android GATT-busy first-notify-loss race (sb-060/061/062):
+    // if the first push is lost, the watchdog fires and forces a clean
+    // reconnect that re-establishes notifications.
+    _armStateWatchdog(machine.deviceId);
     _machineSnapshotSub = snapshots.listen((snapshot) {
+      // Every frame — including a deduped duplicate of the current state —
+      // proves the push channel is alive. Re-arm BEFORE the dedupe check
+      // so a steady non-transitioning state doesn't false-trigger.
+      _armStateWatchdog(machine.deviceId);
       final state = snapshot.state.state;
       if (_latestMachineState == state) return;
       _latestMachineState = state;
@@ -772,6 +797,41 @@ class ConnectionManager {
     });
   }
 
+  void _armStateWatchdog(String deviceId) {
+    final gen = _watchdogGeneration;
+    _stateWatchdog?.cancel();
+    _stateWatchdog = Timer(snapshotStalenessTimeout, () {
+      if (gen != _watchdogGeneration) return;
+      if (!_machineConnected) return;
+      final current = _disconnectSupervisor.latestMachine;
+      if (current?.deviceId != deviceId) return;
+      _log.warning(
+        'Snapshot stream stale for $deviceId after '
+        '${snapshotStalenessTimeout.inSeconds}s with link still '
+        '"connected"; forcing a clean machine reconnect',
+      );
+      _forceMachineReconnect();
+    });
+  }
+
+  /// Force a deliberate, immediate machine reconnect (no backoff). Bumps
+  /// the generation token first so any in-flight or stale watchdog Timer
+  /// bails; `disconnectMachine` also tears down the watcher (bumps gen
+  /// again, cancels the Timer) and marks the disconnect expected so no
+  /// error banner surfaces.
+  Future<void> _forceMachineReconnect() async {
+    snapshotStalenessReconnects++;
+    _watchdogGeneration++;
+    _stateWatchdog?.cancel();
+    _stateWatchdog = null;
+    try {
+      await disconnectMachine();
+      await connect();
+    } catch (e, st) {
+      _log.fine('Forced machine reconnect failed', e, st);
+    }
+  }
+
   void _pauseScaleReconnectForPowerMode() {
     _deferredScaleScan?.cancel();
     _deferredScaleScan = null;
@@ -782,6 +842,9 @@ class ConnectionManager {
   }
 
   void _stopWatchingConnectedMachineState() {
+    _watchdogGeneration++;
+    _stateWatchdog?.cancel();
+    _stateWatchdog = null;
     _machineSnapshotSub?.cancel();
     _machineSnapshotSub = null;
     _latestMachineState = null;
