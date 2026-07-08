@@ -1901,6 +1901,42 @@ void main() {
           async.flushMicrotasks();
         });
       });
+
+      // Runs in the real async zone (not fakeAsync): the forced reconnect's
+      // `disconnectMachine → connect` chain awaits `de1Controller.de1.first`,
+      // which a BehaviorSubject does not settle under fakeAsync — so the
+      // strand safety-net in the `finally` only runs with real microtasks.
+      // A short overridden staleness timeout keeps the test fast.
+      test(
+          'a forced reconnect that cannot recover the machine hands off to '
+          'the recovery loop (no strand)', () async {
+        await settingsController.setPreferredMachineId('stale-de1');
+        // Non-zero base delay avoids a hot recovery loop within the wait
+        // window; we only assert the loop is armed, not how often it scans.
+        connectionManager.machineReconnectBaseDelay =
+            const Duration(milliseconds: 50);
+        connectionManager.snapshotStalenessTimeout =
+            const Duration(milliseconds: 20);
+        final fakeDe1 = _FakeDe1(deviceId: 'stale-de1');
+        mockDe1Controller.de1Subject.add(fakeDe1);
+        await Future<void>.delayed(Duration.zero);
+        fakeDe1.emitState(MachineState.idle);
+        await Future<void>.delayed(Duration.zero);
+
+        // Let the 20ms watchdog fire and force a reconnect. The scanner
+        // surfaces no machine, so the forced `connect()` completes without
+        // reconnecting → the machine is left disconnected.
+        // `disconnectMachine` marked the drop expected, so the
+        // unexpected-disconnect path never armed recovery; without the
+        // safety net nothing would retry.
+        await Future<void>.delayed(const Duration(milliseconds: 60));
+
+        expect(connectionManager.snapshotStalenessReconnects, greaterThan(0),
+            reason: 'the watchdog must have forced a reconnect');
+        expect(connectionManager.machineRecoveryActive, isTrue,
+            reason: 'a stranded forced reconnect must hand off to the '
+                'machine-recovery loop, not leave the machine disconnected');
+      });
     });
   });
 }

@@ -189,8 +189,10 @@ class ConnectionManager {
   /// snapshot frames for this long, the push channel is presumed dead
   /// (live-link + dead-push — the field incident of 2026-07-07). A clean
   /// forced reconnect re-establishes notifications. See Fix #1.
+  /// Overridable in tests so the watchdog can be driven without a real
+  /// 10s wait.
   @visibleForTesting
-  static const Duration snapshotStalenessTimeout = Duration(seconds: 10);
+  Duration snapshotStalenessTimeout = const Duration(seconds: 10);
 
   Timer? _stateWatchdog;
   int _watchdogGeneration = 0;
@@ -729,6 +731,11 @@ class ConnectionManager {
     _machineReconnectFailures = 0;
   }
 
+  /// Whether the machine auto-reconnect recovery loop is currently armed.
+  /// Test hook for asserting the staleness watchdog's strand safety-net.
+  @visibleForTesting
+  bool get machineRecoveryActive => _machineRecoveryActive;
+
   bool _shouldRetryMachine() {
     return _machineRecoveryActive &&
         !_machineConnected &&
@@ -829,6 +836,18 @@ class ConnectionManager {
       await connect();
     } catch (e, st) {
       _log.fine('Forced machine reconnect failed', e, st);
+    } finally {
+      // Safety net against stranding the machine. `disconnectMachine`
+      // marked the drop expected, so the unexpected-disconnect path never
+      // armed machine recovery; and the `connect()` above can be silently
+      // dropped by the concurrent-connect guard (e.g. a scale-only rescan
+      // already in flight) or return without finding the machine. If
+      // we're still machineless, hand off to the recovery loop: it
+      // retries with backoff and cancels itself the moment the machine
+      // reconnects (no-op without a preferredMachineId).
+      if (!_machineConnected) {
+        _startMachineRecovery();
+      }
     }
   }
 
