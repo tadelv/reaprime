@@ -21,6 +21,8 @@ class WeighMasterScale implements Scale {
   static const int _cmdBuzzer = 0x05;
 
   static const int _frameLength = 7;
+  static const int _headerByte1 = 0x01;
+  static const int _headerByte2 = 0x02;
   static const int _statusOffset = 3;
   static const int _weightOffset = 4;
   static const int _statusNegative = 0x01;
@@ -140,6 +142,10 @@ class WeighMasterScale implements Scale {
 
   static ScaleSnapshot? parseFrame(List<int> data) {
     if (data.length < _frameLength) {
+      return null;
+    }
+
+    if (data[0] != _headerByte1 || data[1] != _headerByte2) {
       return null;
     }
 
