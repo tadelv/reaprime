@@ -144,5 +144,26 @@ void main() {
       expect(transport.receivedWrites[0], [0x02]);
       expect(transport.receivedWrites[1], [0x05, 0x00]);
     });
+
+    test('rejects frames with incorrect header', () async {
+      final transport = _MockWeighMasterBleTransport(
+        serviceUUIDs: [WeighMasterScale.serviceIdentifier.long],
+      );
+      final scale = WeighMasterScale(transport: transport);
+      final snapshots = <ScaleSnapshot>[];
+
+      scale.currentSnapshot.listen(snapshots.add);
+      await scale.onConnect();
+
+      transport.simulateNotification([0x01, 0x02, 0x01, 0x00, 0x00, 0x04, 0xD2]);
+      transport.simulateNotification([0x00, 0x02, 0x01, 0x00, 0x00, 0x04, 0xD2]);
+      transport.simulateNotification([0x01, 0x03, 0x01, 0x00, 0x00, 0x04, 0xD2]);
+      transport.simulateNotification([0x99, 0x99, 0x01, 0x00, 0x00, 0x04, 0xD2]);
+
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      expect(snapshots, hasLength(1));
+      expect(snapshots[0].weight, closeTo(123.4, 0.01));
+    });
   });
 }
