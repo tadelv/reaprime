@@ -61,7 +61,7 @@ jobs:
           path: |
             ~/.pub-cache
             ~/.gradle
-          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.yaml') }}
+          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.yaml', '**/pubspec.lock') }}
 
       - name: Install dependencies
         run: flutter pub get
