@@ -22,5 +22,9 @@
   {
     "type": "github_release",
     "repo": "Sabotage1/WorkFlow-Skin"
+  },
+  {
+    "type": "github_release",
+    "repo": "decentespresso/insight-js"
   }
 ]
