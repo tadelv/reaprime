@@ -75,7 +75,7 @@ class ShotSequencer {
   // shot.
   static const double _settleFlowThreshold = 0.4; // g/s; |flow| below = still
   static const int _settleSampleCount =
-      3; // consecutive still samples = settled
+      10; // consecutive still samples = settled (was 3; raised for Kalman smoothness — 3 samples at ~10 Hz ≈ 0.3s misses trailing drips)
   static const double _removalFlowThreshold =
       3.0; // g/s; flow < -this = removal
   static const double _spikeFlowJump = 3.0; // g/s; flow rising vs prev = spike

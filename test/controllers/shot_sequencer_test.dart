@@ -1058,8 +1058,9 @@ void main() {
         );
         async.elapse(Duration(milliseconds: 10));
 
-        // Three near-still samples settle the yield.
-        for (var i = 0; i < 3; i++) {
+        // Ten near-still samples settle the yield (raised from 3 for
+        // Kalman smoothness — avoids locking before trailing drips).
+        for (var i = 0; i < 10; i++) {
           scaleController.emitWeight(36.1, weightFlow: 0.1);
           testDe1.emitStateAndSubstate(
             MachineState.espresso,

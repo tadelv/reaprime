@@ -5,6 +5,7 @@ import 'package:reaprime/src/controllers/weight_flow_calculator.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/errors.dart';
+import 'package:reaprime/src/util/kalman_flow_estimator.dart';
 import 'package:reaprime/src/util/moving_average.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -107,6 +108,7 @@ class ScaleController {
     _scale = null;
     _scaleConnection = null;
     _flowCalculator = FlowCalculator(windowDuration: smoothingWindowDuration);
+    _kalmanEstimator = null;
     _lastSnapshotTime = null;
     _flowSettleUntil = null;
   }
@@ -141,13 +143,25 @@ class ScaleController {
   /// window off the scale's own clock rather than the wall clock.
   DateTime? _lastSnapshotTime;
 
-  /// Until this scale-clock time, report `weightFlow` as 0. A tare steps the
-  /// weight discontinuously, and the windowed flow derived across that step is
-  /// a meaningless spike (e.g. a phantom ~5 g/s right after taring). We keep
-  /// feeding the calculator so it refills, but suppress its output for one
-  /// smoothing window so the spike never reaches consumers. Null = not
-  /// settling.
+  /// Until this scale-clock time, report `weightFlow` as 0 (legacy path only).
+  /// The Kalman path uses [KalmanFlowEstimator.reset] instead — a principled
+  /// re-init at the weight discontinuity rather than a suppress window.
   DateTime? _flowSettleUntil;
+
+  // -- Feature flag / estimator selection --
+
+  /// When true, the Kalman estimator replaces [FlowCalculator] +
+  /// [MovingAverage]. Controlled by [FeatureFlag.kalmanFlow].
+  bool _kalmanFlowEnabled = false;
+
+  /// Enable or disable the Kalman flow estimator at runtime. Safe to call
+  /// while a scale is connected — the flag takes effect on the next
+  /// snapshot.
+  void setKalmanFlowEnabled(bool enabled) {
+    _kalmanFlowEnabled = enabled;
+  }
+
+  KalmanFlowEstimator? _kalmanEstimator;
 
   /// Tare the connected scale and swallow the resulting flow spike.
   ///
@@ -160,27 +174,46 @@ class ScaleController {
   Future<void> tare() async {
     final scale = connectedScale();
     await scale.tare();
-    _flowCalculator = FlowCalculator(windowDuration: smoothingWindowDuration);
-    weightFlowAverage = MovingAverage(10);
-    _flowSettleUntil = _lastSnapshotTime?.add(smoothingWindowDuration);
+    if (_kalmanFlowEnabled) {
+      _kalmanEstimator?.reset(0.0);
+    } else {
+      _flowCalculator =
+          FlowCalculator(windowDuration: smoothingWindowDuration);
+      weightFlowAverage = MovingAverage(10);
+      _flowSettleUntil = _lastSnapshotTime?.add(smoothingWindowDuration);
+    }
   }
 
   void _processSnapshot(ScaleSnapshot snapshot) {
     _lastSnapshotTime = snapshot.timestamp;
-    final flow = _flowCalculator.addSample(snapshot.timestamp, snapshot.weight);
 
-    weightFlowAverage.add(flow); // Use your existing average queue
+    final double filteredWeight;
+    final double flow;
 
-    // Suppress the flow transient a tare introduces until the smoothing window
-    // has cleared the discontinuity. Weight itself stays truthful throughout.
-    final settling = _flowSettleUntil != null &&
-        snapshot.timestamp.isBefore(_flowSettleUntil!);
+    if (_kalmanFlowEnabled) {
+      _kalmanEstimator ??=
+          KalmanFlowEstimator(initialWeight: snapshot.weight);
+      final (w, f) =
+          _kalmanEstimator!.addSample(snapshot.timestamp, snapshot.weight);
+      filteredWeight = w;
+      flow = f;
+    } else {
+      // Legacy path: endpoint-difference FlowCalculator + MovingAverage.
+      filteredWeight = snapshot.weight;
+      final rawFlow =
+          _flowCalculator.addSample(snapshot.timestamp, snapshot.weight);
+      weightFlowAverage.add(rawFlow);
+
+      final settling = _flowSettleUntil != null &&
+          snapshot.timestamp.isBefore(_flowSettleUntil!);
+      flow = settling ? 0.0 : weightFlowAverage.average;
+    }
 
     _weightSnapshotController.add(
       WeightSnapshot(
         timestamp: snapshot.timestamp,
-        weight: snapshot.weight,
-        weightFlow: settling ? 0.0 : weightFlowAverage.average,
+        weight: filteredWeight,
+        weightFlow: flow,
         battery: snapshot.batteryLevel,
         timerValue: snapshot.timerValue,
       ),
