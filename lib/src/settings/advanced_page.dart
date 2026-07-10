@@ -110,6 +110,35 @@ class AdvancedPage extends StatelessWidget {
                 ),
               ),
               const SettingsDivider(),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: ShadSwitch(
+                  value: controller
+                      .isFeatureFlagEnabled(FeatureFlag.kalmanFlow),
+                  onChanged: (v) async {
+                    await controller.setFeatureFlag(
+                      FeatureFlag.kalmanFlow,
+                      v,
+                    );
+                  },
+                  label: const Text('Kalman Flow Estimator'),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                ),
+                child: Text(
+                  'Replaces the flow calculator with a Kalman filter for '
+                  'smoother, signed flow estimates. Experimental — may '
+                  'slightly shift stop timing on declining-flow profiles.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              const SettingsDivider(),
 
               // Simulated devices
               Padding(

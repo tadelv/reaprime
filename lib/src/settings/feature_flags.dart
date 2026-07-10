@@ -9,10 +9,19 @@ enum FeatureFlag {
   ///
   /// Default: **true** (opt-out — the fix is the new default behavior).
   stepExitArbiter,
+
+  /// When enabled, replaces the endpoint-difference [FlowCalculator] +
+  /// [MovingAverage] pipeline with a 1-D constant-velocity Kalman filter
+  /// ([KalmanFlowEstimator]) that provides signed, low-lag flow estimates
+  /// with disturbance rejection (issue #417).
+  ///
+  /// Default: **false** (opt-in — validation window for stop-timing risk).
+  kalmanFlow,
 }
 
 /// Default values for each flag. Flags that ship as "on" default to true;
 /// flags that ship as experimental default to false.
 const Map<FeatureFlag, bool> defaultFeatureFlagValues = {
   FeatureFlag.stepExitArbiter: true,
+  FeatureFlag.kalmanFlow: false,
 };
