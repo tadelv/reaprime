@@ -176,6 +176,7 @@ void main() {
 
     group('golden trace (shot 1, native ~10 Hz)', () {
       /// Loads the P0 raw trace fixture.
+      // ignore: no_leading_underscores_for_local_identifiers
       List<({DateTime timestamp, double weight})> _loadFixture() {
         // Inline the fixture data to avoid filesystem deps in unit tests.
         // Each entry is (epoch_ms, weight_g) from the raw P0 capture.
@@ -306,11 +307,11 @@ void main() {
         final oldMean =
             oldSettled.reduce((a, b) => a + b) / oldSettled.length;
 
-        // Diagnostics
+        // ignore: avoid_print
         print('Kalman: mean=${kalmanMean.toStringAsFixed(2)} '
             'stdev=${kalmanStdev.toStringAsFixed(3)} '
-            'stdev/mean=${(kalmanStdev / kalmanMean * 100).toStringAsFixed(1)}%');
-        print('Old FC: mean=${oldMean.toStringAsFixed(2)} '
+            'stdev/mean=${(kalmanStdev / kalmanMean * 100).toStringAsFixed(1)}%'
+            '  |  Old FC: mean=${oldMean.toStringAsFixed(2)} '
             'stdev=${oldStdev.toStringAsFixed(3)} '
             'stdev/mean=${(oldStdev / oldMean * 100).toStringAsFixed(1)}%');
 
@@ -326,8 +327,6 @@ void main() {
       });
 
       test('Kalman flow is natively signed (no abs())', () {
-        final trace = _loadFixture();
-
         // Synthetic data: pour then cup removal (negative slope).
         final estimator = KalmanFlowEstimator(initialWeight: 50.0);
         final t0 = DateTime.fromMillisecondsSinceEpoch(1783576240000,
