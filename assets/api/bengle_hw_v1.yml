@@ -1,0 +1,757 @@
+# =============================================================================
+# Bengle firmware <-> app hardware contract (bengle_hw_v1.yml)
+# =============================================================================
+# contract_version: 1
+#
+# Generated from firmware the firmware register table at:
+#
+#
+# Change protocol: firmware changes a register -> regenerate this file from the
+# new the firmware register table -> bump contract_version -> update the app enums (BengleMmr /
+# BengleSteamMmr / BengleScaleMmr / BengleCalMmr / BengleLedMmr / MMRItem) ->
+# the mmr_contract_test checker enforces agreement; firmware and app PRs both
+# cite the contract_version.
+#
+# Normalization rules applied (binding):
+#   * mult / min / max are only meaningful on firmware register-table rows with auto > 0 (the
+#     macro read/write path). auto = 0 rows are served by hand-written firmware
+#     cases; for those, `mult` below records the VERIFIED behaviour of the
+#     hand-written path (which matches the the firmware register table column everywhere except
+#     v13Model, whose mult=1000 column is inert -- recorded as mult: 1).
+#   * min / max below are RAW WIRE UNITS (the little-endian int32 actually on
+#     the wire). Where the firmware register table used post-divide engineering units, the original
+#     engineering values are kept in a trailing comment.
+#   * min/max encoding: where the firmware register table declares the full-u32 column
+#     0..0xFFFFFFFF it is retained verbatim (for a u32 wire value that is
+#     identical to "no constraint"); ScaleTare alone is normalized to
+#     null/null because its written value is ignored entirely (pure trigger).
+#     Deliberate, not drift -- a subset checker passes either encoding.
+#   * Read-back resolution on FLOAT-backed rows (EndOfShotWeight, LastTARE,
+#     ScaleCalWeight, TargetMilkTemp, V24CurrentBudget, MatCurrentTemp): the
+#     firmware macro read path truncates BEFORE scaling
+#     (the firmware the firmware read path),
+#     so wire READS return floor(engineering) x mult -- whole engineering
+#     units -- while writes keep full x-mult resolution. The same U32(float)
+#     cast saturates a negative stored value to 0 on Cortex-M, so these rows
+#     can never read back negative. Affected rows carry a "Read-back" note.
+#     (MatSetPoint is float-backed too but exact: mult 1, whole-degC writes.)
+#   * The firmware does NOT enforce min/max on Bengle macro-path writes
+#     the firmware write path never range-checks): bounds here are documentation and the app
+#     is the sole guard. Checker semantics: app range must be a SUBSET of the
+#     contract range (not equal) -- e.g. calFlowEst app min raw 130 vs FW 125.
+#   * perms are canonicalized from the the firmware register table ENTRY column:
+#     PERM_READ -> R, PERM_RT -> RT, PERM_RW -> RW, PERM_RWD -> RWD (persisted
+#     to disk), PERM_RWT -> RWT (write triggers an action). The ENTRY column is
+#     AUTHORITATIVE: the firmware register table's own header comment block disagrees with it on
+#     row 33 (comment "RW" vs ENTRY PERM_READ) and rows 34/35/37 (comment "W"
+#     vs ENTRY PERM_RWT); the firmware write macro verifiably enforces the
+#     ENTRY perms. App enums carry no perms today, so the checker must NOT
+#     assert perms in v1.
+#   * `app_alias` is present only where the app's declared description string
+#     differs from the firmware register name (TargetMilkTemp is the only
+#     case). Rows are keyed by FIRMWARE name, so the alias records the
+#     app-side name.
+#   * Rows 12 (PrefGHCMCI) and 13 (MaxShotPres) are omitted: PERM_NONE TODO
+#     stubs in firmware, unreachable and irrelevant to the app.
+#   * All len=4 registers are little-endian int32 on the MMR wire. Addresses in
+#     frames are 24-bit big-endian (the 0x00 top byte of 0x008038xx-style
+#     addresses is discarded).
+# =============================================================================
+
+contract_version: 1
+firmware:
+  commit: 0381e7ab58eb5b5ee36c14b0bef123ea3cfe4f2e
+  build: 90
+  source: the firmware register table
+generated: 2026-07-11
+
+# -----------------------------------------------------------------------------
+# MMR register table
+# name = firmware register name; fw_row = the firmware register table RangeNum; address as it
+# appears in a read/write frame (before the 24-bit truncation); length in
+# bytes; mult = raw wire value / engineering value.
+# -----------------------------------------------------------------------------
+registers:
+  # --- Shared DE1-family rows the app's MMRItem enum declares -----------------
+  - name: ExternalFlash
+    fw_row: 0
+    address: "0x00000000"
+    length: 1048575 # 0xFFFFF -- first 1 MB mapped to external flash
+    perms: RW
+    mult: 1
+    value_kind: bytes
+    min: null
+    max: null
+    unit: null
+    semantics: "External-flash window (disk operations, firmware images); not a scalar register."
+
+  - name: HWConfig
+    fw_row: 1
+    address: "0x00800000"
+    length: 4
+    perms: R
+    mult: 1
+    value_kind: int32
+    min: null
+    max: null
+    unit: bitmask
+    semantics: "Hardware configuration word."
+
+  - name: Model
+    fw_row: 2
+    address: "0x00800004"
+    length: 4
+    perms: R
+    mult: 1
+    value_kind: int32
+    min: null
+    max: null
+    unit: null
+    semantics: "Legacy machine model."
+
+  - name: CPUBoardModel
+    fw_row: 19
+    address: "0x00800008"
+    length: 4
+    perms: R
+    mult: 1
+    value_kind: int32
+    min: null
+    max: null
+    unit: "model x 1000"
+    semantics: "CPU board model x 1000 by convention (e.g. 1100 = 1.1); served raw, no mult column."
+
+  - name: v13Model
+    fw_row: 20
+    address: "0x0080000C"
+    length: 4
+    perms: R
+    # the firmware register table's mult column says 1000 but the row is auto=0 and served UNSCALED
+    # by a hand-written case (a hand-written firmware case) -- the column is inert. A
+    # generator that trusted it would declare v13Model x1000 and break Bengle
+    # detection. HW-verified: a live Bengle answers 128 raw.
+    mult: 1
+    value_kind: int32
+    min: null
+    max: null
+    unit: null
+    semantics: "v1.3+ firmware model: Unset=0, DE1=1, DE1Plus=2, DE1Pro=3, DE1XL=4, DE1Cafe=5, DE1XXL=6, DE1XXXL=7, Bengle=128. Bengle identity gate is value >= 128."
+
+  - name: CPUFirmwareBuild
+    fw_row: 21
+    address: "0x00800010"
+    length: 4
+    perms: R
+    mult: 1
+    value_kind: int32
+    min: null
+    max: null
+    unit: build
+    semantics: "CPU board firmware build number (starts at 1000 for v1.3, +1 per build). This contract pins the validated firmware build on a firmware development branch
+
+  - name: DebugLen
+    fw_row: 3
+    address: "0x00802800"
+    length: 4
+    perms: RT
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 4096
+    unit: chars
+    semantics: "Valid characters in the debug buffer; accessing pauses BLE debug logging."
+
+  - name: DebugBuffer
+    fw_row: 4
+    address: "0x00802804"
+    length: 4096 # 0x1000
+    perms: RT
+    mult: 1
+    value_kind: bytes
+    min: null
+    max: null
+    unit: null
+    semantics: "Last 4 K of debug output; zero-terminated if not full. Pauses BLE debug logging."
+
+  - name: DebugConfig
+    fw_row: 5
+    address: "0x00803804"
+    length: 4
+    perms: RT
+    mult: 1
+    value_kind: int32
+    min: null
+    max: null
+    unit: bitmask
+    semantics: "BLE debug config; reading restarts logging into the BLE log."
+
+  - name: FanThreshold
+    fw_row: 6
+    address: "0x00803808"
+    length: 4
+    perms: RW
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 50
+    unit: degC
+    semantics: "Fan threshold temperature."
+
+  - name: TankTemp
+    fw_row: 7
+    address: "0x0080380C"
+    length: 4
+    perms: RW
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 60
+    unit: degC
+    semantics: "Tank water temperature threshold."
+
+  - name: HeaterUp1Flow
+    fw_row: 8
+    address: "0x00803810"
+    length: 4
+    perms: RW
+    mult: 10
+    value_kind: scaledFloat
+    min: 5 # the firmware register table 0.5 ml/s (post-divide)
+    max: 80 # the firmware register table 8.0 ml/s
+    unit: "ml/s x 10"
+    semantics: "HeaterUp phase-1 flow rate."
+
+  - name: HeaterUp2Flow
+    fw_row: 9
+    address: "0x00803814"
+    length: 4
+    perms: RW
+    mult: 10
+    value_kind: scaledFloat
+    min: 5 # the firmware register table 0.5 ml/s
+    max: 80 # the firmware register table 8.0 ml/s
+    unit: "ml/s x 10"
+    semantics: "HeaterUp phase-2 flow rate."
+
+  - name: WaterHeaterIdleTemp
+    fw_row: 10
+    address: "0x00803818"
+    length: 4
+    perms: RW
+    mult: 10
+    value_kind: scaledFloat
+    min: 5 # the firmware register table 0.5 degC
+    max: 1000 # the firmware register table 100.0 degC
+    unit: "degC x 10"
+    semantics: "Water heater idle temperature."
+
+  - name: GHCInfo
+    fw_row: 11
+    address: "0x0080381C"
+    length: 4
+    perms: R
+    mult: 1
+    value_kind: int32
+    min: null
+    max: 4294967295 # 0xFFFFFFFF
+    unit: bitmask
+    semantics: "GHC info bitmask: 0x1 LED controller, 0x2 touch controller, 0x4 GHC active, 0x80000000 factory mode."
+
+  - name: TargetSteamFlow
+    fw_row: 14
+    address: "0x00803828"
+    length: 4
+    perms: RW
+    mult: 100
+    value_kind: scaledFloat
+    min: 40 # the firmware register table 0.4 ml/s
+    max: 400 # the firmware register table 4.0 ml/s
+    unit: "ml/s x 100"
+    semantics: "Target steam flow rate."
+
+  - name: SteamStartSecs
+    fw_row: 15
+    address: "0x0080382C"
+    length: 4
+    perms: RW
+    # KNOWN DECLARATION MISMATCH (D5): this scaledFloat was previously declared
+    # with scales 1.0 while the firmware mult is 100. Latent (nothing reads/writes
+    # it today); the declaration is corrected to readScale 0.01 / writeScale 100.0.
+    mult: 100
+    value_kind: scaledFloat
+    min: 10 # the firmware register table 0.1 s
+    max: 400 # the firmware register table 4.0 s
+    unit: "seconds x 100"
+    semantics: "Seconds of high steam flow; 0 may overheat the heater."
+
+  - name: SerialN
+    fw_row: 16
+    address: "0x00803830"
+    length: 4
+    perms: R
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 4294967295 # 0xFFFFFFFF
+    unit: null
+    semantics: "Current machine serial number."
+
+  - name: HeaterV
+    fw_row: 17
+    address: "0x00803834"
+    length: 4
+    perms: RW
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 1230
+    unit: volts
+    semantics: "Nominal heater voltage (0, 120 or 230); +1000 when it is a set value."
+
+  - name: HeaterUp2Timeout
+    fw_row: 18
+    address: "0x00803838"
+    length: 4
+    perms: RW
+    mult: 10
+    value_kind: scaledFloat
+    min: 5 # the firmware register table 0.5 s
+    max: 300 # the firmware register table 30.0 s
+    unit: "seconds x 10"
+    semantics: "HeaterUp phase-2 timeout."
+
+  - name: CalFlowEst
+    fw_row: 22
+    address: "0x0080383C"
+    length: 4
+    perms: RW
+    mult: 1000
+    value_kind: scaledFloat
+    min: 125 # the firmware register table 0.125 (post-divide). App declares min raw 130 -- narrower is legal (app range must be a subset of this range).
+    max: 2000 # the firmware register table 2.0
+    unit: "ratio x 1000"
+    semantics: "Flow-estimation calibration multiplier."
+
+  - name: FlushFlowRate
+    fw_row: 23
+    address: "0x00803840"
+    length: 4
+    perms: RW
+    mult: 10
+    value_kind: scaledFloat
+    min: 10 # the firmware register table 1 ml/s
+    max: 80 # the firmware register table 8.0 ml/s
+    unit: "ml/s x 10"
+    semantics: "Flush flow rate."
+
+  - name: FlushTemp
+    fw_row: 24
+    address: "0x00803844"
+    length: 4
+    perms: RW
+    mult: 10
+    value_kind: scaledFloat
+    min: 10 # the firmware register table 1 degC
+    max: 990 # the firmware register table 99.0 degC
+    unit: "degC x 10"
+    semantics: "Flush temperature."
+
+  - name: FlushTimeout
+    fw_row: 25
+    address: "0x00803848"
+    length: 4
+    perms: RW
+    mult: 10
+    value_kind: scaledFloat
+    min: 10 # the firmware register table 1 s
+    max: 2500 # the firmware register table 250.0 s
+    unit: "seconds x 10"
+    semantics: "Flush timeout."
+
+  - name: HotWaterFlowRate
+    fw_row: 26
+    address: "0x0080384C"
+    length: 4
+    perms: RW
+    mult: 10
+    value_kind: scaledFloat
+    min: 0
+    max: 80 # the firmware register table 8.0 ml/s
+    unit: "ml/s x 10"
+    semantics: "Hot water flow rate."
+
+  - name: SteamPurgeMode
+    fw_row: 27
+    address: "0x00803850"
+    length: 4
+    perms: RWD
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 1
+    unit: enum
+    semantics: "Steam purge mode."
+
+  - name: AllowUSBCharging
+    fw_row: 28
+    address: "0x00803854"
+    length: 4
+    perms: RW
+    mult: 1
+    value_kind: boolean
+    min: 0
+    max: 1
+    unit: bool
+    semantics: "Allow USB charging."
+
+  - name: AppFeatureFlags
+    fw_row: 29
+    address: "0x00803858"
+    length: 4
+    perms: RW
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 2147483647 # 0x7FFFFFFF -- top bit unavailable (parts of FW treat it as signed)
+    unit: bitmask
+    semantics: "App-reported feature flags; bit0 = app supports the UserNotPresent substate (app writes 1 on connect)."
+
+  - name: RefillKitPresent
+    fw_row: 30
+    address: "0x0080385C"
+    length: 4
+    perms: RW
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 2147483647 # 0x7FFFFFFF
+    unit: enum
+    semantics: "Refill kit presence -- TRI-STATE 0/1/2, not a boolean."
+
+  - name: UserPresent
+    fw_row: 31
+    address: "0x00803860"
+    length: 4
+    perms: RW
+    mult: 1
+    value_kind: boolean
+    min: 0
+    max: 1
+    unit: bool
+    semantics: "Is the user present."
+
+  # --- Bengle scale / stop-at-weight (app: BengleScaleMmr) --------------------
+  - name: EndOfShotWeight
+    fw_row: 32
+    address: "0x00803864"
+    length: 4
+    perms: RWD
+    mult: 100
+    value_kind: scaledFloat
+    min: 0
+    max: 1000000 # the firmware register table 10000.0 g (post-divide) -- the 10000 g WIRE clamp the app enforces (grams clamped 0..10000 before x100).
+    # Footnote: the firmware's internal model table
+    # gives EOSW a model range of 0..3000 g -- targets above 3000 g are
+    # wire-legal but outside the firmware's model range.
+    unit: "g x 100"
+    semantics: "Stop-at-weight target: firmware ends the shot autonomously at this weight; 0 = disabled. App writes round(grams x 100) -- rounding, not truncation. Read-back is whole grams only (firmware truncates before scaling: floor(g) x 100)."
+
+  - name: MatSetPoint
+    fw_row: 36
+    address: "0x00803874"
+    length: 4
+    perms: RWD
+    mult: 1 # WHOLE degrees C -- not deci-degC, not float32 
+    value_kind: scaledFloat
+    min: 0
+    max: 4294967295 # the firmware register table column is unbounded (0..0xFFFFFFFF); firmware never clamps -- the app is the sole guard, clamping 0..80 degC.
+    unit: degC
+    semantics: "Cup-warmer target in whole degC; 0 = off. Inert unless CupWarmerMode=1; app re-sends both on every connect."
+
+  - name: ScaleCalCmd
+    fw_row: 39
+    address: "0x00803880"
+    length: 4
+    perms: RWT
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 5
+    unit: enum
+    semantics: "Start a non-blocking cal step: 0=abort 1=zero 3=tare 4=latch point 1 (LEFT half) 5=latch point 2 (RIGHT half); 2 = retired auto-detect (errors, never send). Non-zero cmd while busy OR during Espresso is ignored (a cal step would move the mass reference the running shot's stop-at-weight gate depends on; the step stays Idle)."
+
+  - name: ScaleCalState
+    fw_row: 40
+    address: "0x00803884"
+    length: 4
+    perms: R
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 4294967295 # 0xFFFFFFFF
+    unit: packed
+    semantics: "Packed cal state: Step[31:24] SubState[23:16] Remaining[15:8] CalStatus[7:0]. SubState: 0=settling 1=averaging 2=done 3=error. Step at THIS pin (two-point cal): Idle=0 Zeroing=1 CalPoint1=2 CalPoint2=3 Taring=4 Complete=5 Error=6; the FIELD single-point variant numbers Complete=4 / Error=5 (colliding with two-point Taring/Complete). Terminal detection MUST therefore key off SubState (done=2 / error=3), never Step."
+
+  - name: ScaleCalWeight
+    fw_row: 41
+    address: "0x00803888"
+    length: 4
+    perms: RW
+    mult: 10
+    value_kind: scaledFloat
+    min: 0
+    max: 100000 # the firmware register table 10000 g (post-divide)
+    unit: "g x 10"
+    semantics: "Known reference calibration mass; write and read-back-confirm (within 0.1 g) before ScaleCalCmd 4/5. Read-back is whole grams only (firmware truncates before scaling: floor(g) x 10), so the 0.1 g confirm round-trips ONLY integer-gram references -- use whole-gram masses."
+
+  - name: ScaleTare
+    fw_row: 42
+    address: "0x0080388C"
+    length: 4
+    perms: RWT
+    mult: 1
+    value_kind: int32
+    min: null # trigger -- value ignored, never clamped
+    max: null
+    unit: trigger
+    semantics: "Quick tare: writing any value performs an immediate tare; app writes 1 (de1plus parity). Confirm by watching Weight drop, not by the 0xA013 Flags bit."
+
+  # --- LED strip (app: BengleLedMmr); all packed 0x00RRGGBB -------------------
+  # 16-bit app channels map DOWN by taking each channel's high byte and UP by
+  # byte-replication (0xAB -> 0xABAB). There is NO switch-LED register: the
+  # firmware mirrors the front strip to the switch.
+  - name: FrontLEDColor
+    fw_row: 43
+    address: "0x00803890"
+    length: 4
+    perms: RWD
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 16777215 # 0x00FFFFFF
+    unit: rgb24
+    semantics: "Live/preview front strip colour 0x00RRGGBB: shows immediately regardless of awake/sleep without touching the stored palette; FW refreshes it when a stored palette is applied."
+
+  - name: RearLEDColor
+    fw_row: 44
+    address: "0x00803894"
+    length: 4
+    perms: RWD
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 16777215 # 0x00FFFFFF
+    unit: rgb24
+    semantics: "Live/preview rear strip colour 0x00RRGGBB (as FrontLEDColor)."
+
+  - name: FrontLEDAwake
+    fw_row: 45
+    address: "0x00803898"
+    length: 4
+    perms: RWD
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 16777215 # 0x00FFFFFF
+    unit: rgb24
+    semantics: "Stored front awake palette 0x00RRGGBB; FW applies on wake and immediately when written while awake."
+
+  - name: RearLEDAwake
+    fw_row: 46
+    address: "0x0080389C"
+    length: 4
+    perms: RWD
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 16777215 # 0x00FFFFFF
+    unit: rgb24
+    semantics: "Stored rear awake palette 0x00RRGGBB."
+
+  - name: FrontLEDSleep
+    fw_row: 47
+    address: "0x008038A0"
+    length: 4
+    perms: RWD
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 16777215 # 0x00FFFFFF
+    unit: rgb24
+    semantics: "Stored front sleep palette 0x00RRGGBB; FW applies on sleep."
+
+  - name: RearLEDSleep
+    fw_row: 48
+    address: "0x008038A4"
+    length: 4
+    perms: RWD
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 16777215 # 0x00FFFFFF
+    unit: rgb24
+    semantics: "Stored rear sleep palette 0x00RRGGBB."
+
+  # --- Milk auto-stop (app: BengleSteamMmr) -----------------------------------
+  - name: TargetMilkTemp
+    fw_row: 49
+    address: "0x008038A8"
+    length: 4
+    perms: RWD
+    mult: 10
+    value_kind: scaledFloat
+    min: 0
+    max: 850 # ALREADY RAW (= 85.0 degC): the firmware register table lists 850 in violation of its own post-divide convention (desc says "Range 0-85").
+    unit: "degC x 10"
+    semantics: "Milk-probe steam auto-stop target; 0 = disabled. App clamps 0..85 degC before scaling; live probe reading rides 0xA013 MilkTemp, not an MMR. Read-back resolution is whole degC (floor(degC) x 10) -- writes keep deci-degC."
+    app_alias: StopAtTemperatureTarget # app desc string differs from the FW name (BengleSteamMmr.stopAtTemperatureTarget)
+
+  # --- Cup warmer mode + status (app: BengleMmr.cupWarmerMode + thermal reads) -
+  - name: CupWarmerMode
+    fw_row: 50
+    address: "0x008038AC"
+    length: 4
+    perms: RW # deliberately NOT RWD: resets to 0 every boot so the heater cannot auto-activate after a power cut -- app must re-send on every connect
+    mult: 1
+    value_kind: boolean
+    min: 0
+    max: 1
+    unit: bool
+    semantics: "Cup-warmer enable 0=Off 1=On; RAM-only by design. App writes 1 iff target > 0 and re-asserts (with MatSetPoint) on reconnect."
+
+  - name: InactivitySleepTimeout
+    fw_row: 54
+    address: "0x008038BC"
+    length: 4
+    perms: RWD
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 240
+    unit: minutes
+    semantics: "Minutes of inactivity before autonomous sleep when no tablet is connected; 0 = disabled, default 60. While a tablet is connected the tablet owns sleep."
+
+  - name: SetLocalTimeOfWeek
+    fw_row: 55
+    address: "0x008038C0"
+    length: 4
+    perms: RW
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 604800
+    unit: seconds
+    semantics: "Local time as seconds since Sunday 00:00:00; sets the firmware wall-clock. RAM-only, re-push on connect."
+
+  - name: ScheduleEntry
+    fw_row: 56
+    address: "0x008038C4"
+    length: 4
+    perms: RW
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 2147483647 # 0x7FFFFFFF
+    unit: packed
+    semantics: "One wake window, packed (dow<<22)|(startMin<<11)|endMin; appended to the schedule table."
+
+  - name: ScheduleControl
+    fw_row: 57
+    address: "0x008038C8"
+    length: 4
+    perms: RW
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 255
+    unit: enum
+    semantics: "Schedule control: 0 = clear table + disable, 1 = enable. Write 0, then entries, then 1."
+
+  - name: MatCurrentTemp
+    fw_row: 58
+    address: "0x008038CC"
+    length: 4
+    perms: R
+    mult: 10
+    value_kind: scaledFloat
+    min: 0
+    max: 1600 # ALREADY RAW (= 160.0 degC): second the firmware register table post-divide convention violation, like TargetMilkTemp.
+    unit: "degC x 10"
+    semantics: "Cup-warmer current mat temperature; 0 = no valid reading (NTC open/short) -- app maps 0 to null ('no reading'), never fake data. Read resolution is whole degC despite the x10 unit (firmware truncates before scaling) -- wire values are always multiples of 10."
+
+# -----------------------------------------------------------------------------
+# 0xA013 BengleShotSample -- the sole shot/telemetry source on a Bengle
+# -----------------------------------------------------------------------------
+# BLE: additive characteristic 0xA013 on service 0xA000 (never present on a
+# plain DE1; requires large ATT MTU -- app requests 517). Serial: CID letter S
+# ("<+S>" / "<-S>" / "[S]hex"). 28 bytes, size-locked in firmware
+# (static_assert on T_BengleShotSample), streamed at 15 Hz.
+#
+# ALL multi-byte fields are BIG-endian -- the opposite of the little-endian MMR
+# payloads. It is a reorganised superset of 0xA00D, not 0xA00D + a tail: field
+# order, widths and scaling all differ; never reuse the 0xA00D parser.
+#
+# DROP RULE: frames shorter than 28 bytes are dropped (decoder returns null,
+# transport drops + warns) -- never a RangeError, never a snapshot. Bytes
+# beyond 28 are ignored.
+#
+# Golden frame (hand-computed, cross-checked vs firmware + de1plus):
+#   03E8 0384 0258 00FA 00C8 00B4 2422 2260 2454 2328 0490 07 34BC 0000 00
+#   -> time 1000, pressure 9.00, setPressure 6.00, flow 2.50, setFlow 2.00,
+#      gFlow 1.80, mix 92.50, head 88.00, setMix 93.00, setHead 90.00,
+#      weight 1168/32 = 36.5 g, frame 7, steam 135.00, milk 0.00, flags 0
+packet_0xA013:
+  size_bytes: 28
+  endianness: big
+  ble_characteristic: "A013"
+  ble_service: "A000"
+  serial_cid: S
+  rate_hz: 15
+  drop_rule: "Frames < 28 bytes are dropped at both the transport and the decoder (null, no RangeError); trailing bytes beyond 28 are ignored."
+  fields:
+    - { offset: 0,  size: 2, name: SampleTime,       type: u16, scale: 1,    unit: halfcycles, semantics: "Half-cycles since shot start (same basis as 0xA00D SampleTime)." }
+    - { offset: 2,  size: 2, name: GroupPressure,    type: u16, scale: 0.01, unit: bar,  semantics: "Pressure at group (u16 / 100)." }
+    - { offset: 4,  size: 2, name: SetGroupPressure, type: u16, scale: 0.01, unit: bar,  semantics: "Set pressure; 0 if no target." }
+    - { offset: 6,  size: 2, name: GroupFlow,        type: u16, scale: 0.01, unit: ml/s, semantics: "Estimated flow at group." }
+    - { offset: 8,  size: 2, name: SetGroupFlow,     type: u16, scale: 0.01, unit: ml/s, semantics: "Set flow; 0 if no target." }
+    - { offset: 10, size: 2, name: GFlow,            type: u16, scale: 0.01, unit: g/s,  semantics: "Gravimetric flow from the integrated scale -> MachineSnapshot.weightFlow." }
+    - { offset: 12, size: 2, name: MixTemp,          type: u16, scale: 0.01, unit: degC, semantics: "Water temperature entering the group." }
+    - { offset: 14, size: 2, name: HeadTemp,         type: u16, scale: 0.01, unit: degC, semantics: "Showerhead water temperature (u16/100 here; 0xA00D used 3-byte U24P16 -- layout differs)." }
+    - { offset: 16, size: 2, name: SetMixTemp,       type: u16, scale: 0.01, unit: degC, semantics: "Mix temperature target; 0 if no target." }
+    - { offset: 18, size: 2, name: SetHeadTemp,      type: u16, scale: 0.01, unit: degC, semantics: "Showerhead temperature target; 0 if no target." }
+    - { offset: 20, size: 2, name: Weight,           type: u16, scale: 0.03125, unit: g, semantics: "Integrated-scale weight, U16P5 (u16 / 32 -- NOT / 100): max 2048 g, step 0.03125 g. ALREADY net of tare (firmware serializes CurrW - LastTARE, the exact stop-at-weight control expression). A negative net weight (platform unloaded after a tare) clamps to 0 on the wire -- U16P5 has no sign bit." }
+    - { offset: 22, size: 1, name: FrameNumber,      type: u8,  scale: 1,    unit: index, semantics: "Profile frame currently executing." }
+    - { offset: 23, size: 2, name: SteamTemp,        type: u16, scale: 0.01, unit: degC, semantics: "Steam metal temperature (unaligned offset -- the struct is packed)." }
+    - { offset: 25, size: 2, name: MilkTemp,         type: u16, scale: 0.01, unit: degC, semantics: "Milk-probe temperature (u16 / 100). 0 = no probe / no fresh reading: at this firmware pin the value is a refreshed only while the probe reports live data." }
+    - { offset: 27, size: 1, name: Flags,            type: u8,  scale: 1,    unit: bitmask, semantics: "Newer FW (this pin): bit0 = LastTARE != 0.0f; app must never gate on it. (Older firmware wrote 0 unconditionally; it is a value proxy, not a tare event.)" }
+
+# -----------------------------------------------------------------------------
+# Serial (USB) ASCII view -- shared with the firmware BLE module
+# -----------------------------------------------------------------------------
+serial_verbs:
+  framing:
+    write: '"<X>" + lowercase hex (2 chars/byte) + newline -- write payload to endpoint letter X'
+    subscribe: '"<+X>" + newline -- add-notify for endpoint letter X; firmware add-notify ALWAYS provokes one immediate [X] frame even if the value is unchanged'
+    unsubscribe: '"<-X>" + newline -- remove-notify'
+    reply: '"[X]" + HEX -- one inbound frame; a message is complete when followed by the next "[" or a newline'
+    notes: "No checksum, no retransmit; leading junk before the first '[' is discarded; a receive buffer past 4096 chars with no complete message is dumped with a warning. Resync relies on the keepalive and on MMR-read retries."
+  mmr_read: # <E> = readFromMMR (BLE 0xA005). Reads go over E, never F.
+    request: '"<E>" + 40 hex chars: 20-byte T_ReadFromMMR -- byte[0] Len (firmware reads (Len+1)*4 bytes; app sends 0 => 4 bytes), byte[1..3] 24-bit address BIG-endian, byte[4..19] zeros'
+    response: '"[E]" + hex: byte[0] length, byte[1..3] address BIG-endian (match the request triplet), byte[4..7] value LITTLE-endian int32, echo padded to the 20-byte frame'
+    round_trip: "Arm the [E] listener BEFORE writing the request (address-triplet match closes the race); bounded 4 s timeout, 2 retries with 300 ms settle; readFromMMR is continuously subscribed on serial (<+E> at connect). Addresses must be 4-aligned or the firmware silently drops the frame."
+    probe_example: 'v13Model probe: "<E>0080000c" + 32 zero chars -> "[E]0480000C80000000..." (len 4, LE value 0x00000080 = 128 = Bengle)'
+  mmr_write: # <F> = writeToMMR (BLE 0xA006). Write-only: no [F] frame ever exists.
+    frame: '"<F>" + EXACTLY 40 hex chars: 20-byte the MMR write frame -- byte[0] Len = TRUE payload byte count (firmware requires 1..16), byte[1..3] 24-bit address BIG-endian, byte[4..19] data (int values LE int32 at offset 4, unused tail zeros)'
+    zero_pad_rule: "The firmware serial parser consumes exactly sizeof(the MMR write frame) = 20 bytes (40 hex chars) per <F> frame before accepting the newline; a short frame desyncs it. The app zero-pads ONLY writeToMMR frames shorter than 20 bytes (the DFU uploader's final chunk is the sole short-frame producer). The Len byte carries the true length so padding is inert; the BLE path is unchanged and other endpoints are never padded."
+  one_shot_read: 'Endpoints without a continuous subscription (versions "A", temperatures "J", calibration "R") read as a round trip: "<+X>" -> await the fresh "[X]" (listener armed before the write) -> "<-X>" sent even on failure; bounded timeout (default 2 s). Continuously-subscribed endpoints serve their latest-received frame; endpoints the firmware cannot emit throw a descriptive UnsupportedError.'
+  keepalive: 'A 5 s periodic "<+N>" actively drives the shared BLE/USB serial view: the firmware source arbitration is last-writer-wins (any byte on the BLE-module UART silently steals the notify stream from a passive USB listener), so the client must keep writing; because add-notify forces an immediate [N], it doubles as a resync for the checksum-less ASCII framing.'
+  throughput: "Downlink ceiling ~1920 B/s: the firmware main loop drains at most 16 bytes per ~120 Hz tick and polls for input only on ticks where it sent nothing (half-duplex, downlink-prioritised). Dual 15 Hz [M]+[S] streams (~42 + ~60 chars/frame) overrun the budget -- hardware-confirmed truncated frames and weight flicker -- so on a confirmed Bengle the app unsubscribes 0xA00D over serial with <-M> (BLE has headroom and keeps 0xA00D subscribed, parse-and-dropped)."
+  bengle_specifics:
+    - '"<+S>" is sent unconditionally at serial connect (a plain DE1 simply never emits [S]); "[S]" + 56 hex chars = one 0xA013 frame; the <28-byte drop rule applies on serial too.'
+    - '"<-M>" is sent after Bengle identity is confirmed (v13Model >= 128) -- see throughput.'
+    - '"<-S>" mirrors at disconnect.'
+  usb_identity: # the USB half of brief-Section-5 invariant 11
+    enumeration: 'The Bengle enumerates with the pico-sdk DEFAULT VID:PID 0x2E8A:0x000A and product string "TinyUSB Device" (the device ships TinyUSB default descriptors). Captured from hardware.'
+    app_dispatch: 'The defaults are too generic for the direct-instantiation shortcut: bengleUsbIds stays deliberately EMPTY and 0x2E8A:0x000A rides bengleProbeCandidateIds into the identification PROBE path instead -- the serial v13Model read (>= 128) remains the sole authority on Bengle identity.'
+    android_name_gate: 'serialProbeAllowsProductName() admits a port to the probe when the USB product name is null/unknown, contains "Serial", or is exactly one of "DE1" / "Bengle" / "Half Decent Scale"; every other name is skipped without probing. Desktop has NO name gate.'
+    android_auto_permission: 'android/app/src/main/res/xml/device_filter.xml grants USB permission without a user prompt for vendor-id 11914 (0x2E8A) / product-id 10 (0x000A).'
