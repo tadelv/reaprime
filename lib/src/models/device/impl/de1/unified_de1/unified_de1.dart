@@ -257,11 +257,121 @@ class UnifiedDe1 implements De1Interface {
       .map((state) => state == ConnectionState.connected)
       .asBroadcastStream();
 
+  /// First DE1 firmware build (`machineInfo.version`, cpuFirmwareBuild) that
+  /// auto-promotes cold maintenance requests in `CGHCController::handleConfirm`.
+  /// Builds below this drop BLE maintenance (airPurge/descale/clean) while the
+  /// machine is cold on a GHC-fitted machine. On old firmware we mirror
+  /// de1app's "onestep_cold" workaround: load a 1°C single-frame profile so the
+  /// machine exits preheat into Wait, then send the state. TODO: set to the
+  /// real shipped build (>1355) once the FW fix is flashed; the high sentinel is
+  /// a safe default (always applies the workaround — harmless on new FW, just
+  /// an extra profile send). See Obsidian `DE1/maintenance up-to-temp.md`.
+  static const int _kColdMaintenancePromotionMinFwBuild = 1356;
+
+  /// Minimal single-frame 1°C profile mirroring de1app's "onestep_cold"
+  /// (`de1_comms.tcl` / `binary.tcl`). Its 1°C group goal makes S_PreheatGroup
+  /// exit (ShotMachine.cpp:631-684: TargetGroupTemp is set from Frames[0].Temp
+  /// each tick, and the group is already above a 1°C target). The tank preheat
+  /// is exited separately by setting the tank threshold to 0 — both are needed
+  /// to reach Wait. See `_prepareColdMaintenanceWorkaround`.
+  static const Profile _onestepColdProfile = Profile(
+    version: '1.0',
+    title: 'onestep_cold',
+    notes: 'cold maintenance workaround (reaprime)',
+    author: 'reaprime',
+    beverageType: BeverageType.espresso,
+    steps: [
+      ProfileStepPressure(
+        name: 'onestep_cold',
+        transition: TransitionType.fast,
+        volume: 0.0,
+        seconds: 1.0,
+        temperature: 1.0,
+        sensor: TemperatureSensor.coffee,
+        pressure: 0.0,
+      ),
+    ],
+    targetVolumeCountStart: 0,
+    tankTemperature: 0,
+  );
+
   @override
   Future<void> requestState(MachineState newState) async {
-    Uint8List data = Uint8List(1);
+    // Cold-maintenance workaround: on old firmware + GHC + cold machine, load a
+    // 1°C profile and lower the tank threshold so the firmware exits preheat
+    // into Wait, where S_Awake promotes the request. Returns the saved tank
+    // threshold to restore after the state write, or null if no workaround.
+    final restoreTank = await _prepareColdMaintenanceWorkaround(newState);
+    final Uint8List data = Uint8List(1);
     data[0] = De1StateEnum.fromMachineState(newState).hexValue;
     await _transport.writeWithResponse(Endpoint.requestedState, data);
+    if (restoreTank != null) {
+      // Restore the tank threshold AFTER the machine has left Wait and entered
+      // the maintenance state. Restoring sooner is unsafe: S_Wait's post-switch
+      // temp check (ShotMachine.cpp:861) re-enters preheat when the tank is below
+      // TankMinTemp, which would drop the just-sent maintenance request. The
+      // maintenance states (S_Descale/S_Clean/S_AirPurge) do not read TankMinTemp,
+      // so restoring mid-maintenance is harmless; after it completes the machine
+      // returns to Wait with the user's tank target intact. Fire-and-forget so
+      // the caller (web API, native UI) isn't blocked by the restore delay.
+      unawaited(
+        Future.delayed(const Duration(seconds: 2), () async {
+          try {
+            await setTankTempThreshold(restoreTank);
+          } catch (e) {
+            _log.warning('Failed to restore tank threshold after maintenance: $e');
+          }
+        }),
+      );
+    }
+  }
+
+  /// On old firmware + GHC + cold machine, prepare the onestep_cold workaround:
+  /// load a 1°C profile (exits PreheatGroup) and set the tank threshold to 0
+  /// (exits PreheatWater) so the firmware reaches Wait, where S_Awake promotes
+  /// the maintenance request. Mirrors de1app's `de1_send_pre_maintenance_profile`
+  /// (shot frames) + `set_tank_temperature_threshold 0` (de1_comms.tcl:1510) —
+  /// BOTH are required; the profile alone only exits the group preheat, not the
+  /// tank preheat. Returns the saved tank threshold for the caller to restore
+  /// after the state write, or null if the workaround did not apply
+  /// (non-maintenance state, new firmware, no GHC, or machine already at temp).
+  /// Lives inside `requestState` so EVERY caller — web API, native debug view,
+  /// sequencers, presence — gets it. Non-maintenance states return immediately.
+  Future<int?> _prepareColdMaintenanceWorkaround(MachineState state) async {
+    final isMaintenance = state == MachineState.airPurge ||
+        state == MachineState.descaling ||
+        state == MachineState.cleaning;
+    if (!isMaintenance) return null;
+    final snapshot = await currentSnapshot.first;
+    final s = snapshot.state.state;
+    final isCold = s == MachineState.preheating ||
+        s == MachineState.heating ||
+        snapshot.state.substate == MachineSubstate.preparingForShot;
+    final ghcPresent = machineInfo.groupHeadControllerPresent;
+    final fwBuild = int.tryParse(machineInfo.version) ?? 0;
+    if (!(isCold && ghcPresent && fwBuild < _kColdMaintenancePromotionMinFwBuild)) {
+      return null;
+    }
+    _log.info(
+      'Cold maintenance ($state) on GHC + old FW build $fwBuild: '
+      'applying onestep_cold workaround (1C profile + tank threshold 0)',
+    );
+    // Save the tank threshold so we can restore it after the maintenance
+    // request is dispatched; setting it to 0 forces PreheatWater to exit, but
+    // leaving it at 0 would skip tank preheat for future brews.
+    int? savedTank;
+    try {
+      savedTank = await getTankTempThreshold();
+    } catch (e) {
+      _log.warning('Could not read tank threshold for restore: $e');
+    }
+    await setProfile(_onestepColdProfile);
+    await setTankTempThreshold(0);
+    // Give the firmware time to apply the profile, exit PreheatGroup (group
+    // target now 1C) and PreheatWater (tank target now 0), and reach Wait where
+    // S_Awake promotes the request. Mirrors de1app's `after 1000` (machine.tcl).
+    await Future.delayed(const Duration(seconds: 1));
+    return savedTank;
   }
 
   final StreamController<De1RawMessage> _rawInputController =
