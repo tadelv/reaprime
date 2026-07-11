@@ -611,7 +611,7 @@ class UnifiedDe1 implements De1Interface {
   /// `requestState(sleeping)` and the start of FW image upload.
   ///
   /// Default: no-op. Bengle overrides this to request
-  /// `MachineState.fwUpgrade` (state 0x22) — Bengle FW requires entering
+  /// `MachineState.fwUpgrade` (state 0x16) — Bengle FW requires entering
   /// that state before the `.dat` upload protocol starts. DE1 doesn't.
   ///
   /// This resolves the TODO at `unified_de1.firmware.dart:13-14` (commented

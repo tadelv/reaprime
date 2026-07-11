@@ -20,12 +20,12 @@ void main() {
       await bengle.beforeFirmwareUpload();
 
       expect(transport.lastRequestedState, MachineState.fwUpgrade);
-      // Wire byte must be 0x22.
+      // Wire byte must be 0x16 (the firmware's FirmwareUp state).
       final stateWrites = transport.writes
           .where((w) => w.characteristicUUID == Endpoint.requestedState.uuid)
           .toList();
       expect(stateWrites, hasLength(1));
-      expect(stateWrites.single.data[0], 0x22);
+      expect(stateWrites.single.data[0], 0x16);
     });
 
     test(
@@ -63,8 +63,8 @@ void main() {
       expect(fwWrites[0].data[0],
           De1StateEnum.fromMachineState(MachineState.sleeping).hexValue);
       expect(fwWrites[1].characteristicUUID, Endpoint.requestedState.uuid);
-      expect(fwWrites[1].data[0], 0x22,
-          reason: 'second prelude write must be fwUpgrade (0x22)');
+      expect(fwWrites[1].data[0], 0x16,
+          reason: 'second prelude write must be fwUpgrade (0x16)');
       expect(fwWrites[1].data[0],
           De1StateEnum.fromMachineState(MachineState.fwUpgrade).hexValue);
     });
