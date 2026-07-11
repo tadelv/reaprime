@@ -30,6 +30,19 @@ enum BengleScaleMmr implements MmrAddress {
     max: 1000000, // 10000.0 g × 100
     readScale: 0.01,
     writeScale: 100.0,
+  ),
+
+  /// Instant tare trigger. Firmware `ScaleTare` (`0x0080388C`, RWT):
+  /// writing any value performs an immediate tare (de1plus writes
+  /// `1`). Not a stored value — `int32` write-trigger; reading it
+  /// returns 0. Confirm the tare by watching `Weight` drop toward 0,
+  /// never the `0xA013` Flags bit (a `LastTARE` value proxy at best;
+  /// older firmware hardcodes it to 0).
+  scaleTare(
+    0x0080388C,
+    4,
+    MmrValueKind.int32,
+    'ScaleTare',
   );
 
   const BengleScaleMmr(
@@ -123,15 +136,12 @@ mixin IntegratedScaleCapability on UnifiedDe1 {
     }
   }
 
-  /// Tare the integrated scale. Logged no-op until the `ScaleTare` MMR
-  /// write-trigger lands (stop-at-weight/tare branch). Note the
-  /// `0xA013` Weight already arrives net of the firmware's own tare state,
-  /// so bridged weights stay correct meanwhile.
+  /// Tare the integrated scale. Write-trigger to the firmware
+  /// `ScaleTare` register — the value is ignored, so we send `1` (matching
+  /// de1plus). The firmware performs an immediate tare; subsequent `0xA013`
+  /// Weight arrives already net of the new zero.
   Future<void> tareIntegratedScale() async {
-    this.log.info(
-      'IntegratedScaleCapability: tare is not yet wired — the ScaleTare '
-      'MMR trigger lands.',
-    );
+    await writeMmrInt(BengleScaleMmr.scaleTare, 1);
   }
 
   /// Write the autonomous SAW target (grams) to the firmware

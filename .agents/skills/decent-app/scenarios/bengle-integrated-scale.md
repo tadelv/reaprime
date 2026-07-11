@@ -50,6 +50,8 @@ curl -s -X PUT http://localhost:8080/api/v1/scale/tare
 
 Expected: `200 OK`, empty body.
 
+On real hardware this generic endpoint reaches the machine's `ScaleTare` MMR write-trigger (`0x0080388C`) through `BengleVirtualScale.tare()` → `tareIntegratedScale()`; the firmware performs an immediate tare and subsequent `0xA013` weight arrives already net of the new zero. Confirm a tare by watching the weight drop toward 0 — never the `0xA013` Flags bit.
+
 Re-sample the snapshot and confirm weight is ~0 (MockBengle resets `_tareOffset` to the current accumulated weight, so the next emission reads near zero):
 
 ```bash

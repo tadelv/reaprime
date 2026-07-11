@@ -132,7 +132,7 @@ const List<ContractEntry> entriesUnderTest = <ContractEntry>[
   // (in integrated_scale_capability.dart, part of unified_de1).
   // ---------------------------------------------------------------------------
   ContractEntry(BengleScaleMmr.stopAtWeightTarget, 'EndOfShotWeight'),
-  // ContractEntry(BengleScaleMmr.scaleTare, 'ScaleTare'), // commit
+  ContractEntry(BengleScaleMmr.scaleTare, 'ScaleTare'),
 
   // ---------------------------------------------------------------------------
   // Calibration-wizard branch (spec 06): `BengleCalMmr`

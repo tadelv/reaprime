@@ -79,26 +79,28 @@ void main() {
       await expectLater(bengle.weightSnapshot, emitsThrough(emitsDone));
     });
 
-    test('tareIntegratedScale logs and no-ops until it is wired', () async {
-      // The ScaleTare MMR write-trigger belongs to the stop-at-weight/tare
-      // branch; until then tare must not write anything to the wire.
-      logRecords.clear();
+    test('tareIntegratedScale triggers the ScaleTare MMR', () async {
+      // tare is a write-trigger to ScaleTare (0x0080388C) — write any
+      // value (de1plus writes 1). The firmware performs an immediate tare.
       transport.writes.clear();
       await bengle.tareIntegratedScale();
+
+      final mmrWrites = transport.writes
+          .where((w) => w.characteristicUUID == Endpoint.writeToMMR.uuid)
+          .toList();
       expect(
-        logRecords.any(
-          (r) =>
-              r.message.contains('IntegratedScaleCapability') &&
-              r.message.contains('tare'),
-        ),
-        isTrue,
-        reason: 'expected tare log entry about the pending tare wiring',
+        mmrWrites,
+        hasLength(1),
+        reason: 'tare must write exactly one MMR frame',
       );
-      expect(
-        transport.writes,
-        isEmpty,
-        reason: 'tare must stay off the wire until then',
-      );
+      final d = mmrWrites.single.data;
+      // Length byte + big-endian address low 3 bytes (0x80,0x38,0x8C).
+      expect(d[0], 4);
+      expect(d[1], 0x80);
+      expect(d[2], 0x38);
+      expect(d[3], 0x8C);
+      // Payload = 1, little-endian.
+      expect(d.sublist(4, 8), [0x01, 0x00, 0x00, 0x00]);
     });
 
     test('connect → disconnect → connect lifecycle is leak-free', () async {
