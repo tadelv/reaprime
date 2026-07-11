@@ -49,4 +49,25 @@ void main() {
       expect(matchUsbDevice(usbDeviceTable, vid: 0xFFFF, pid: 0xFFFF), isNull);
     });
   });
+
+  group('Bengle probe-candidate pair', () {
+    test('bengleUsbIds stays empty — TinyUSB defaults are too generic', () {
+      // 0x2E8A:0x000A is EVERY default pico-sdk CDC device. It may only
+      // qualify a port for the v13Model probe (bengleProbeCandidateIds),
+      // never identify one. Adding it here would claim random hobby
+      // boards as espresso machines.
+      expect(bengleUsbIds, isEmpty);
+      expect(bengleProbeCandidateIds, contains((0x2E8A, 0x000A)));
+    });
+
+    test('the TinyUSB-default pair never direct-instantiates', () {
+      expect(
+        matchUsbDevice(usbDeviceTable, vid: 0x2E8A, pid: 0x000A),
+        isNull,
+        reason:
+            'the pair feeds the probe path only — the v13Model read '
+            'stays the authority on what the device is',
+      );
+    });
+  });
 }
