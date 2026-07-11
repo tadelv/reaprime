@@ -142,6 +142,18 @@ Discovery services are responsible for scanning and creating device instances. E
     ASCII framing has no checksum/retransmit; MMR reads additionally carry
     their own timeout+retry).
 
+  **Bluetooth-off operation.** USB/serial discovery keeps running with the
+  Bluetooth adapter off (the scan runs every discovery service in parallel
+  and records per-service failures instead of failing the whole scan). The
+  scan-flow UI demotes only the `adapterOff` error while non-Bluetooth
+  results are in flight — found machines, an active connect, a pending
+  picker — so a wired-only setup still reaches its picker; genuine connect
+  failures still surface, and the adapter-off view tells the user USB keeps
+  working. The preferred machine is stored per transport id (a serial
+  device's `usb-…` stable id vs a BLE MAC), so the first wired session ends
+  at the picker; picking the wired machine once makes later launches
+  auto-connect over USB.
+
 #### 3. SimulatedDeviceService
 - **Platform:** All
 - **File:** `lib/src/services/simulated_device_service.dart`

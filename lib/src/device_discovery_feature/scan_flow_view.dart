@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:reaprime/src/controllers/connection_error.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scan_state_guardian.dart';
@@ -252,12 +253,29 @@ class ScanFlowViewState extends State<ScanFlowView> {
   Widget build(BuildContext context) {
     final Widget content;
 
-    // Adapter error takes precedence
-    if (_adapterError != null) {
+    // Adapter error takes precedence -- but only while nothing that works
+    // WITHOUT Bluetooth is in flight. USB/serial discovery keeps running
+    // with the adapter off, so found machines, an active
+    // connect, or a pending picker keep the normal flow visible and a
+    // wired-only setup can reach the skin. `ready` navigates away above
+    // regardless.
+    final busyWithoutBle =
+        _status.phase == ConnectionPhase.connectingMachine ||
+        _status.phase == ConnectionPhase.connectingScale ||
+        _status.pendingAmbiguity != null ||
+        _status.foundMachines.isNotEmpty ||
+        _discoveredMachines.isNotEmpty;
+    if (_adapterError != null && !busyWithoutBle) {
       content = _adapterErrorView(context);
     }
-    // Error state from connection manager
-    else if (_status.error != null && _status.phase == ConnectionPhase.idle) {
+    // Error state from connection manager. The sticky adapter-off error
+    // gets the same treatment as the guardian view above: it must not
+    // hide machines that were found WITHOUT Bluetooth (USB/serial), or
+    // a wired-only setup can never reach its picker.
+    else if (_status.error != null &&
+        _status.phase == ConnectionPhase.idle &&
+        !(busyWithoutBle &&
+            _status.error!.kind == ConnectionErrorKind.adapterOff)) {
       content = _errorView(context);
     }
     // Scanning
@@ -610,6 +628,12 @@ class ScanFlowViewState extends State<ScanFlowView> {
           Text('Bluetooth Unavailable', style: theme.textTheme.h4),
           Text(
             _adapterError!,
+            style: theme.textTheme.muted,
+            textAlign: TextAlign.center,
+          ),
+          Text(
+            'USB connections keep working: plug the machine in over USB '
+            'and it will be found without Bluetooth.',
             style: theme.textTheme.muted,
             textAlign: TextAlign.center,
           ),
