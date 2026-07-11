@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
@@ -58,9 +59,17 @@ class UniversalBleTransport implements BLETransport {
   static const int _bluezDiscoveryRetries = 3;
   static const Duration _bluezDiscoveryRetryDelay = Duration(seconds: 1);
 
-  bool get _isLinux => Platform.isLinux;
+  bool get _isLinux => isLinuxOverride ?? Platform.isLinux;
 
-  UniversalBleTransport({required BleDevice device}) : _device = device {
+  /// Test seam for the Linux-vs-rest platform gate (`dart:io Platform` is
+  /// not fakeable in unit tests). Production code never sets it.
+  @visibleForTesting
+  final bool? isLinuxOverride;
+
+  UniversalBleTransport({
+    required BleDevice device,
+    @visibleForTesting this.isLinuxOverride,
+  }) : _device = device {
     _log = Logger("BLETransport-${device.deviceId}");
   }
 
@@ -105,12 +114,22 @@ class UniversalBleTransport implements BLETransport {
     }
     _startAdvertWatch();
 
-    // Android: post-connect settle + MTU bump.
-    // The 200ms settle avoids service-discovery races on tablet SoCs
-    // where the BLE stack finalises GATT setup asynchronously after
-    // connect. MTU 517 reduces GATT round-trips for reads/writes.
-    if (!_isLinux && Platform.isAndroid) {
-      await Future.delayed(_androidPostConnectDelay);
+    // Post-connect MTU bump: request a large ATT MTU on ALL platforms, not
+    // just Android. The 28-byte Bengle 0xA013 shot-sample notification needs
+    // an MTU above the 23-byte ATT default (else the notification truncates),
+    // and MTU 517 also reduces GATT round-trips for every read/write. The
+    // DE1/Bengle module self-negotiates up to 247 on connect regardless, so
+    // this client request is a belt-and-suspenders complement. Skipped on
+    // Linux — BlueZ manages the MTU itself and universal_ble does not expose
+    // requestMtu there. MTU is a BLE-only concept; the serial transport
+    // neither has nor needs one.
+    if (!_isLinux) {
+      // The 200ms settle avoids a service-discovery race on Android tablet
+      // SoCs that finalise GATT setup asynchronously after connect. Only
+      // needed there, so keep it Android-scoped.
+      if (Platform.isAndroid) {
+        await Future.delayed(_androidPostConnectDelay);
+      }
       try {
         await UniversalBle.requestMtu(
           _device.deviceId,
