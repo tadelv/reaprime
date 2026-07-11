@@ -13,8 +13,11 @@ import 'package:reaprime/src/models/data/shot_record.dart';
 import 'package:reaprime/src/models/data/shot_state_event.dart';
 import 'package:reaprime/src/models/data/steam_record.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
+import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/led_strip.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
@@ -52,6 +55,50 @@ class _TestDe1Controller extends De1Controller {
     current = null;
     de1Subject.add(null);
   }
+}
+
+/// Bengle-flavoured TestDe1 (same shape as the one in
+/// `shot_sequencer_bengle_bypass_test.dart`): reuses every DE1-side
+/// behavior but also implements [BengleInterface] so the state manager's
+/// `machine is BengleInterface` checks return `true`. Every Bengle-only
+/// member is an inert stub — this test only cares about the flag.
+class _TestBengle extends TestDe1 implements BengleInterface {
+  @override
+  Future<void> setStopAtWeightTarget(double grams) async {}
+  @override
+  Future<double> getStopAtWeightTarget() async => 0.0;
+  @override
+  Stream<double> get stopAtWeightTarget => const Stream.empty();
+
+  @override
+  Future<void> setCupWarmerTemperature(double celsius) async {}
+  @override
+  Future<double> getCupWarmerTemperature() async => 0.0;
+  @override
+  Stream<ScaleSnapshot> get weightSnapshot => const Stream.empty();
+  @override
+  Future<void> tareIntegratedScale() async {}
+  @override
+  Stream<LedStripState> get ledStripState => const Stream.empty();
+  @override
+  Future<LedStripState> getLedStripState() async => const LedStripState();
+  @override
+  Future<void> setLedStrip(LedStripState state) async {}
+  @override
+  Future<void> commitLedStrip() async {}
+  @override
+  Future<void> resetLedStrip() async {}
+
+  @override
+  Future<void> setStopAtTemperatureTarget(double celsius) async {}
+  @override
+  Future<double> getStopAtTemperatureTarget() async => 0.0;
+  @override
+  Stream<double> get stopAtTemperatureTarget => const Stream.empty();
+  @override
+  Stream<bool> get probeAttached => const Stream.empty();
+  @override
+  Stream<double> get probeTemperature => const Stream.empty();
 }
 
 /// StorageService that records persisted shots and stores nothing else.
@@ -327,5 +374,65 @@ void main() {
       isEmpty,
       reason: 'a disconnected shot is torn down, not persisted',
     );
+  });
+
+  test('shotState frames carry machineHasAutonomousSAW == false on a plain '
+      'DE1', () async {
+    await driveShot();
+
+    expect(events, isNotEmpty);
+    expect(
+      events.every((e) => !e.machineHasAutonomousSAW),
+      isTrue,
+      reason: 'a plain DE1 has no firmware SAW — every frame must say so',
+    );
+  });
+
+  test('shotState frames carry machineHasAutonomousSAW == true on a Bengle, '
+      'including the idle re-seed frame', () async {
+    final bengle = _TestBengle();
+    de1Controller.disconnect();
+    await pump();
+    de1Controller.connect(bengle);
+    await pump();
+
+    events.clear();
+    bengle.emitStateAndSubstate(
+      MachineState.espresso,
+      MachineSubstate.preparingForShot,
+    );
+    await pump();
+    bengle.emitStateAndSubstate(
+      MachineState.espresso,
+      MachineSubstate.pouring,
+    );
+    await pump();
+    bengle.emitStateAndSubstate(
+      MachineState.espresso,
+      MachineSubstate.pouringDone,
+    );
+    await pump();
+
+    expect(events, isNotEmpty);
+    expect(
+      events.every((e) => e.machineHasAutonomousSAW),
+      isTrue,
+      reason: 'every frame of a Bengle shot must advertise the FW-side SAW '
+          'so clients know the final yield stop is firmware-side',
+    );
+    expect(
+      events.last.state,
+      ShotState.idle,
+      reason: 'the feed re-seeds idle after cleanup',
+    );
+    expect(
+      events.last.machineHasAutonomousSAW,
+      isTrue,
+      reason: 'the idle re-seed frame derives the flag from the connected '
+          'machine (no live sequencer), so a client attaching between shots '
+          'still sees the real value',
+    );
+
+    await bengle.dispose();
   });
 }

@@ -59,11 +59,11 @@ import 'package:reaprime/src/models/device/impl/de1/mmr_address.dart'
 // Thermal branch (spec 08) uncomments this import with its section below:
 // import 'package:reaprime/src/models/device/impl/bengle/bengle_mmr.dart'
 //     show BengleMmr, BengleSteamMmr;
-// The first of the SAW/tare (spec 05) / cal (spec 06) / LED (spec 07)
-// branches to land uncomments this import (the enums are parts of the
-// unified_de1 library) and extends the `show` list as the others follow:
-// import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart'
-//     show BengleCalMmr, BengleLedMmr, BengleScaleMmr;
+// The cal (spec 06) / LED (spec 07) branches extend this `show` list with
+// BengleCalMmr / BengleLedMmr as they land (the enums are parts of the
+// unified_de1 library):
+import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart'
+    show BengleScaleMmr;
 
 const String _contractPath = 'assets/api/bengle_hw_v1.yml';
 
@@ -130,10 +130,9 @@ const List<ContractEntry> entriesUnderTest = <ContractEntry>[
   // ---------------------------------------------------------------------------
   // SAW/tare branch (spec 05): `BengleScaleMmr`
   // (in integrated_scale_capability.dart, part of unified_de1).
-  // UNCOMMENT these lines (and the unified_de1 import) when the branch lands:
   // ---------------------------------------------------------------------------
-  // ContractEntry(BengleScaleMmr.stopAtWeightTarget, 'EndOfShotWeight'),
-  // ContractEntry(BengleScaleMmr.scaleTare, 'ScaleTare'),
+  ContractEntry(BengleScaleMmr.stopAtWeightTarget, 'EndOfShotWeight'),
+  // ContractEntry(BengleScaleMmr.scaleTare, 'ScaleTare'), // commit
 
   // ---------------------------------------------------------------------------
   // Calibration-wizard branch (spec 06): `BengleCalMmr`

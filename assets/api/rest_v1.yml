@@ -355,10 +355,15 @@ paths:
       description: |
         Returns the optional capability surfaces the currently connected
         machine exposes. Plain DE1s return an empty list; Bengle returns
-        `["cupWarmer", "integratedScale"]` plus any future capabilities
-        as they ship. Skins should query this
-        endpoint once after connect to decide which UI to render and
-        which `/api/v1/machine/...` capability endpoints to call.
+        `["cupWarmer", "integratedScale", "ledStrip", "stopAtWeight"]`
+        plus any future capabilities as they ship. `stopAtWeight` means
+        the machine firmware runs its own autonomous stop-at-weight from
+        the integrated scale: the app reflects `WorkflowContext.targetYield`
+        into the SAW MMR, so clients keep setting the target yield through
+        `PUT /api/v1/workflow` — there is no dedicated SAW endpoint.
+        Skins should query this endpoint once after connect to decide
+        which UI to render and which `/api/v1/machine/...` capability
+        endpoints to call.
       tags: [Machine]
       responses:
         "200":

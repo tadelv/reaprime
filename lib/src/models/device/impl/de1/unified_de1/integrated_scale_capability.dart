@@ -9,22 +9,27 @@ part of 'unified_de1.dart';
 ///
 /// Co-located with [IntegratedScaleCapability] so the mixin owns its
 /// wire identifiers (mirrors how `LedStripCapability` owns
-/// [BengleLedEndpoint]). Address is stubbed `0x00000000` — FW slot
-/// TBD. While stubbed the capability is a logged no-op; once FW
-/// publishes the address, fill it in and the rest lights up.
+/// [BengleLedEndpoint]) — the pattern rule: the capability owns the
+/// registers it writes.
 enum BengleScaleMmr implements MmrAddress {
-  /// Stop-at-weight target in grams. `0.0` disables autonomous SAW
+  /// Autonomous stop-at-weight target in grams. Firmware
+  /// `EndOfShotWeight` (`0x00803864`, RWD): the Bengle stops the shot
+  /// when its integrated scale reaches this weight. `0.0` disables SAW
   /// (mirrors cup-warmer `0.0 = off`). Encoded as `scaledFloat` with
-  /// scale factor 10 — decigrams on the wire.
+  /// scale factor 100 — centigrams on the wire (`round(g × 100)`, matching
+  /// de1plus `int(round(weight × 100))`, `de1_comms.tcl:1164`). Max
+  /// 10000 g (the firmware register table); the firmware never clamps Bengle registers
+  ///, so reaprime is
+  /// the sole guard.
   stopAtWeightTarget(
-    0x00000000, // TBD with FW
+    0x00803864,
     4,
     MmrValueKind.scaledFloat,
-    'StopAtWeightTarget',
+    'EndOfShotWeight',
     min: 0,
-    max: 5000, // 500.0 g
-    readScale: 0.1,
-    writeScale: 10.0,
+    max: 1000000, // 10000.0 g × 100
+    readScale: 0.01,
+    writeScale: 100.0,
   );
 
   const BengleScaleMmr(
@@ -78,10 +83,6 @@ mixin IntegratedScaleCapability on UnifiedDe1 {
   /// Seeded so late subscribers see the current value immediately.
   BehaviorSubject<double> _sawTarget = BehaviorSubject<double>.seeded(0.0);
 
-  /// Count of stub-related info logs emitted this session (avoids
-  /// spam — same pattern as `LedStripCapability._stubWarningsEmitted`).
-  int _sawStubWarningsEmitted = 0;
-
   /// Live weight stream from the integrated scale (one [ScaleSnapshot] per
   /// valid `0xA013` frame).
   Stream<ScaleSnapshot> get weightSnapshot => _bengleWeight.stream;
@@ -133,47 +134,28 @@ mixin IntegratedScaleCapability on UnifiedDe1 {
     );
   }
 
-  /// Write the autonomous SAW target (grams) to FW. `0.0` disables
-  /// SAW. Range `0.0..500.0`; out-of-range values are clamped.
-  ///
-  /// While [BengleScaleMmr.stopAtWeightTarget] is stubbed
-  /// (`address == 0x00000000`) this is a logged no-op on the wire —
-  /// the value is still cached so [stopAtWeightTarget] subscribers
-  /// see the intent. Mirrors `LedStripCapability.setLedStrip`'s
-  /// stub-friendly behaviour.
+  /// Write the autonomous SAW target (grams) to the firmware
+  /// `EndOfShotWeight` register. `0.0` disables SAW. Range
+  /// `0.0..10000.0`; out-of-range values are clamped client-side (the
+  /// firmware does not clamp its Bengle registers). The scaled write
+  /// rounds (`writeMmrScaled`), matching de1plus.
   Future<void> setStopAtWeightTarget(double grams) async {
-    final clamped = grams.clamp(0.0, 500.0).toDouble();
+    final clamped = grams.clamp(0.0, 10000.0).toDouble();
     if (!_sawTarget.isClosed) {
       _sawTarget.add(clamped);
     }
-    final addr = BengleScaleMmr.stopAtWeightTarget;
-    if (addr.address == 0x00000000) {
-      _logSawStubOnce('setStopAtWeightTarget($clamped) ignored. Awaiting FW.');
-      return;
-    }
-    await writeMmrScaled(addr, clamped);
+    await writeMmrScaled(BengleScaleMmr.stopAtWeightTarget, clamped);
   }
 
-  /// Read the SAW target from cache. While the MMR slot is stubbed
-  /// the cache is authoritative; once FW publishes the address this
-  /// hydrates from the wire on first call.
+  /// Read the SAW target back from the firmware `EndOfShotWeight`
+  /// register (grams) and hydrate the cache so [stopAtWeightTarget]
+  /// subscribers see the wire truth.
   Future<double> getStopAtWeightTarget() async {
-    final addr = BengleScaleMmr.stopAtWeightTarget;
-    if (addr.address == 0x00000000) {
-      return _sawTarget.value;
-    }
-    final value = await readMmrScaled(addr);
+    final value = await readMmrScaled(BengleScaleMmr.stopAtWeightTarget);
     if (!_sawTarget.isClosed) {
       _sawTarget.add(value);
     }
     return value;
-  }
-
-  void _logSawStubOnce(String msg) {
-    if (_sawStubWarningsEmitted < 1) {
-      this.log.info('IntegratedScaleCapability: SAW endpoint unwired; $msg');
-      _sawStubWarningsEmitted++;
-    }
   }
 
   /// Bridge a 0xA013 frame's integrated-scale weight **and firmware-computed
