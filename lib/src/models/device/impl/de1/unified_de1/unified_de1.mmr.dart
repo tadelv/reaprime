@@ -151,6 +151,13 @@ extension UnifiedDe1MMR on UnifiedDe1 {
   }
 
   Future<void> _writeMMRScaled(MMRItem item, double value) async {
+    // toInt() (truncate), NOT round(): these base-DE1 setters
+    // (flush/hot-water/steam/heater/cal flow) must stay byte-identical to a
+    // plain DE1 as shipped, and de1plus truncates them via int(...) —
+    // e.g. set_flush_flow_rate `int(10*rate)`, set_steam_flow (de1_comms.tcl).
+    // The Bengle-only ×100 weight case that genuinely needs rounding (floating
+    // error: 2.3*100 == 229.999… truncates low) rides the SEPARATE public
+    // writeMmrScaled() helper, which de1plus also rounds — not this one.
     final scaledValue = (value * item.writeScale).toInt();
     await _writeMMRInt(item, scaledValue);
   }

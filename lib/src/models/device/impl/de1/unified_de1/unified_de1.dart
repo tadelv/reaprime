@@ -807,7 +807,11 @@ class UnifiedDe1 implements De1Interface {
   @protected
   Future<void> writeMmrScaled(MmrAddress addr, double value) async {
     _assertKind(addr, const {MmrValueKind.scaledFloat}, 'writeMmrScaled');
-    final scaled = (value * addr.writeScale).toInt();
+    // round(), not toInt(): floating error (e.g. 2.3 * 100 == 229.999…)
+    // truncates a whole unit low. Matches de1plus, which rounds this write
+    // class. (Bengle path — every Bengle capability scaled write routes
+    // through here.)
+    final scaled = (value * addr.writeScale).round();
     if (addr is MMRItem) return _writeMMRInt(addr, scaled);
     final clamped = (addr.min != null && addr.max != null)
         ? scaled.clamp(addr.min!, addr.max!)

@@ -228,6 +228,50 @@ void main() {
       expect(payload.getInt32(0, Endian.little), 500);
     });
 
+    test('writeMmrScaled rounds, not truncates, the scaled value (Bengle path)',
+        () async {
+      // 2.3 * 100 == 229.999… in IEEE-754: the old toInt() truncated to
+      // 229; round() gives the correct 230. Every Bengle scaled write
+      // rides this non-MMRItem branch, so this guards the load-bearing
+      // helper for the whole Bengle feature set.
+      const addr = _CapabilityAddr(
+        address: 0x00805000,
+        length: 4,
+        name: 'roundProbe',
+        kind: MmrValueKind.scaledFloat,
+        writeScale: 100.0,
+      );
+      transport.writes.clear();
+      await de1.capWriteScaled(addr, 2.3);
+      final frame = transport.writes.firstWhere(
+        (w) => w.characteristicUUID == Endpoint.writeToMMR.uuid,
+      );
+      final payload = ByteData.sublistView(frame.data, 4, 8);
+      expect(payload.getInt32(0, Endian.little), 230);
+    });
+
+    test('_writeMMRScaled truncates like de1plus (base-DE1 setter path)',
+        () async {
+      // The base-DE1 scaled setters (flush/hot-water/steam/heater/cal flow)
+      // must stay byte-identical to a plain DE1 and to de1plus, which
+      // truncates via int(...). targetSteamFlow uses writeScale 100 with no
+      // clamp, so setSteamFlow(2.3) lands 229 (2.3*100 == 229.999… truncated),
+      // NOT the rounded 230 — rounding is correct only for the Bengle ×100
+      // weight write on the separate public writeMmrScaled helper.
+      transport.writes.clear();
+      await de1.setSteamFlow(2.3);
+      final frame = transport.writes.firstWhere(
+        (w) => w.characteristicUUID == Endpoint.writeToMMR.uuid,
+      );
+      final addrBytes = ByteData(4)
+        ..setInt32(0, MMRItem.targetSteamFlow.address, Endian.big);
+      expect(frame.data[1], addrBytes.getUint8(1));
+      expect(frame.data[2], addrBytes.getUint8(2));
+      expect(frame.data[3], addrBytes.getUint8(3));
+      final payload = ByteData.sublistView(frame.data, 4, 8);
+      expect(payload.getInt32(0, Endian.little), 229);
+    });
+
     test('notificationsFor(shotSample) routes to transport shotSample',
         () async {
       // The transport's BLE subscriber for the shotSample characteristic

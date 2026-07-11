@@ -291,11 +291,17 @@ enum MMRItem implements MmrAddress {
     readScale: 0.01,
     writeScale: 100.0,
   ),
+  // Scales fixed against firmware the firmware register table (mult = 100, seconds ×100 on the
+  // wire): this entry used to carry the default 1.0 scales, which was latent
+  // (nothing reads/writes it yet) but the first wired setter would have
+  // written 100× low. Pinned by the bengle_hw_v1.yml contract checker.
   steamStartSecs(
     0x0080382C,
     4,
     MmrValueKind.scaledFloat,
     "Seconds of high steam flow * 100. Valid range 0.0 - 4.0. 0 may result in an overheated heater. Be careful.",
+    readScale: 0.01,
+    writeScale: 100.0,
   ),
   serialN(0x00803830, 4, MmrValueKind.int32, "Current serial number"),
   heaterV(
