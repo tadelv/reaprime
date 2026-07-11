@@ -43,6 +43,66 @@ extension MessageParsing on UnifiedDe1 {
     );
   }
 
+  /// Build a [MachineSnapshot] from a Bengle `0xA013` BengleShotSample frame
+  /// (the sole snapshot source on a Bengle) plus the latest DE1 state
+  /// frame (state layout is unchanged, so it is read exactly like the `0xA00D`
+  /// path). Adds integrated-scale weight, gravimetric flow and milk temp
+  ///.
+  MachineSnapshot _parseStateAndBengleShotSample(
+    ByteData stateSample,
+    ByteData shotSample,
+  ) {
+    final state = De1StateEnum.fromHexValue(stateSample.getUint8(0));
+    final subState =
+        De1SubState.fromHexValue(stateSample.getUint8(1)) ??
+        De1SubState.noState;
+    final machineState = MachineStateSnapshot(
+      state: mapDe1ToMachineState(state),
+      substate: mapDe1SubToMachineSubstate(subState),
+    );
+
+    final s = parseBengleShotSample(shotSample);
+    if (s == null) {
+      // Truncated frame — the transport already drops these, so this
+      // is defensive: emit a state-only snapshot rather than throw.
+      return MachineSnapshot(
+        timestamp: DateTime.now(),
+        state: machineState,
+        pressure: 0,
+        flow: 0,
+        mixTemperature: 0,
+        groupTemperature: 0,
+        targetMixTemperature: 0,
+        targetGroupTemperature: 0,
+        targetPressure: 0,
+        targetFlow: 0,
+        profileFrame: 0,
+        steamTemperature: 0,
+      );
+    }
+
+    return MachineSnapshot(
+      timestamp: DateTime.now(),
+      state: machineState,
+      pressure: s.groupPressure,
+      flow: s.groupFlow,
+      mixTemperature: s.mixTemp,
+      groupTemperature: s.headTemp,
+      targetMixTemperature: s.setMixTemp,
+      targetGroupTemperature: s.setHeadTemp,
+      targetPressure: s.setGroupPressure,
+      targetFlow: s.setGroupFlow,
+      profileFrame: s.frameNumber,
+      // MachineSnapshot.steamTemperature is an int; the 0xA013 value is
+      // fractional (÷100). Rounding matches the whole-degree 0xA00D field and
+      // keeps the shared type unchanged.
+      steamTemperature: s.steamTemp.round(),
+      weight: s.weight,
+      weightFlow: s.gFlow,
+      milkTemperature: s.milkTemp,
+    );
+  }
+
   De1WaterLevels _parseWaterLevels(ByteData data) {
     try {
       var waterlevel = data.getUint16(0, Endian.big);

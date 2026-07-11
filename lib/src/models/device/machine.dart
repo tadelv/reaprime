@@ -48,6 +48,18 @@ class MachineSnapshot {
   final int profileFrame;
   final int steamTemperature;
 
+  /// Integrated-scale weight in grams (Bengle `0xA013`, already net of tare).
+  /// `0.0` on machines without an integrated scale.
+  final double weight;
+
+  /// Gravimetric flow in g/s from the integrated scale (Bengle `0xA013`
+  /// GFlow). `0.0` on machines without an integrated scale.
+  final double weightFlow;
+
+  /// Milk-probe temperature in °C (Bengle `0xA013`). `0.0` when the firmware
+  /// does not provide it (no probe / no fresh reading).
+  final double milkTemperature;
+
   MachineSnapshot({
     required this.timestamp,
     required this.state,
@@ -61,6 +73,9 @@ class MachineSnapshot {
     required this.targetGroupTemperature,
     required this.profileFrame,
     required this.steamTemperature,
+    this.weight = 0.0,
+    this.weightFlow = 0.0,
+    this.milkTemperature = 0.0,
   });
 
   // CopyWith Method
@@ -77,6 +92,9 @@ class MachineSnapshot {
     double? targetGroupTemperature,
     int? profileFrame,
     int? steamTemperature,
+    double? weight,
+    double? weightFlow,
+    double? milkTemperature,
   }) {
     return MachineSnapshot(
       timestamp: timestamp ?? this.timestamp,
@@ -92,6 +110,9 @@ class MachineSnapshot {
           targetGroupTemperature ?? this.targetGroupTemperature,
       profileFrame: profileFrame ?? this.profileFrame,
       steamTemperature: steamTemperature ?? this.steamTemperature,
+      weight: weight ?? this.weight,
+      weightFlow: weightFlow ?? this.weightFlow,
+      milkTemperature: milkTemperature ?? this.milkTemperature,
     );
   }
 
@@ -109,6 +130,9 @@ class MachineSnapshot {
       'targetGroupTemperature': targetGroupTemperature,
       'profileFrame': profileFrame,
       'steamTemperature': steamTemperature,
+      'weight': weight,
+      'weightFlow': weightFlow,
+      'milkTemperature': milkTemperature,
     };
   }
 
@@ -133,6 +157,10 @@ class MachineSnapshot {
       targetGroupTemperature: json["targetGroupTemperature"],
       profileFrame: json["profileFrame"],
       steamTemperature: json["steamTemperature"],
+      // Additive fields — default 0.0 so older payloads still decode.
+      weight: (json["weight"] ?? 0.0).toDouble(),
+      weightFlow: (json["weightFlow"] ?? 0.0).toDouble(),
+      milkTemperature: (json["milkTemperature"] ?? 0.0).toDouble(),
     );
   }
 }

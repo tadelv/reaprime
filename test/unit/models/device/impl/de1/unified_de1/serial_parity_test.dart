@@ -89,6 +89,41 @@ void main() {
     });
   });
 
+  group('Bengle drops the redundant 0xA00D stream on serial', () {
+    late FakeSerialTransport serial;
+    late UnifiedDe1Transport transport;
+
+    setUp(() {
+      serial = FakeSerialTransport();
+      transport = UnifiedDe1Transport(transport: serial);
+    });
+
+    tearDown(() => transport.dispose());
+
+    test('connect still subscribes <+M> (identity not yet known)', () async {
+      await transport.connect();
+      expect(
+        serial.writes,
+        contains('<+${Endpoint.shotSample.representation}>'),
+      );
+    });
+
+    test('subscribeBengleShotSample sends <-M> on serial', () async {
+      await transport.connect();
+      serial.writes.clear();
+
+      await transport.subscribeBengleShotSample();
+
+      expect(
+        serial.writes,
+        contains('<-${Endpoint.shotSample.representation}>'),
+        reason:
+            '0xA013 is the sole snapshot source on a Bengle; '
+            '[M]+[S] together overrun the ~1920 B/s serial ceiling',
+      );
+    });
+  });
+
   group('serial reads', () {
     late FakeSerialTransport serial;
     late UnifiedDe1Transport transport;

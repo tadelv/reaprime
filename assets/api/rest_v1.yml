@@ -4418,6 +4418,21 @@ components:
           type: integer
         steamTemperature:
           type: number
+        weight:
+          type: number
+          description: >
+            Integrated-scale weight in grams (Bengle 0xA013, already net of
+            tare). 0 on machines without an integrated scale.
+        weightFlow:
+          type: number
+          description: >
+            Gravimetric flow in g/s from the integrated scale (Bengle 0xA013
+            GFlow). 0 on machines without an integrated scale.
+        milkTemperature:
+          type: number
+          description: >
+            Milk-probe temperature in °C (Bengle 0xA013). 0 when the firmware
+            does not provide it.
     MachineState:
       type: string
       enum:

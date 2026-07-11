@@ -24,7 +24,11 @@ enum Endpoint implements LogicalEndpoint {
   headerWrite('A00F', 'O'),
   frameWrite('A010', 'P'),
   waterLevels('A011', 'Q'),
-  calibration('A012', 'R');
+  calibration('A012', 'R'),
+  // Bengle-only high-res shot sample (integrated-scale weight + gravimetric
+  // flow + milk). Additive characteristic on service 0xA000; serial char 'S'.
+  // Wire layout: assets/api/bengle_hw_v1.yml `packet_0xA013`.
+  bengleShotSample('A013', 'S');
 
   @override
   final String uuid;
