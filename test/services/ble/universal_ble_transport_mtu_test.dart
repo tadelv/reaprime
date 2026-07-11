@@ -79,8 +79,7 @@ class _MtuRecordingBlePlatform extends UniversalBlePlatform {
   Future<List<BleService>> discoverServices(
     String deviceId,
     bool withDescriptors,
-  ) async =>
-      [];
+  ) async => [];
 
   @override
   Future<void> setNotifiable(
@@ -96,8 +95,7 @@ class _MtuRecordingBlePlatform extends UniversalBlePlatform {
     String service,
     String characteristic, {
     Duration? timeout,
-  }) async =>
-      Uint8List(0);
+  }) async => Uint8List(0);
 
   @override
   Future<void> writeValue(
@@ -133,8 +131,7 @@ class _MtuRecordingBlePlatform extends UniversalBlePlatform {
   @override
   Future<List<BleDevice>> getSystemDevices(
     List<String>? withServices,
-  ) async =>
-      [];
+  ) async => [];
 }
 
 void main() {
@@ -161,29 +158,35 @@ void main() {
     expect(
       platform.mtuRequests,
       [(deviceId, 517)],
-      reason: 'exactly one MTU request, value 517 — required for the '
+      reason:
+          'exactly one MTU request, value 517 — required for the '
           '28-byte 0xA013 notification (ATT default is 23)',
     );
     await transport.dispose();
   });
 
-  test('connect() skips the MTU request on Linux (BlueZ owns the MTU)',
-      () async {
-    final transport = UniversalBleTransport(
-      device: BleDevice(deviceId: deviceId, name: 'Bengle'),
-      isLinuxOverride: true,
-    );
+  test(
+    'connect() skips the MTU request on Linux (BlueZ owns the MTU)',
+    () async {
+      final transport = UniversalBleTransport(
+        device: BleDevice(deviceId: deviceId, name: 'Bengle'),
+        isLinuxOverride: true,
+      );
 
-    await transport.connect();
+      await transport.connect();
 
-    expect(platform.mtuRequests, isEmpty,
-        reason: 'universal_ble exposes no requestMtu on Linux; BlueZ '
-            'negotiates the MTU itself');
-    await transport.dispose();
-  });
+      expect(
+        platform.mtuRequests,
+        isEmpty,
+        reason:
+            'universal_ble exposes no requestMtu on Linux; BlueZ '
+            'negotiates the MTU itself',
+      );
+      await transport.dispose();
+    },
+  );
 
-  test('a failed MTU negotiation is non-fatal — connect() completes',
-      () async {
+  test('a failed MTU negotiation is non-fatal — connect() completes', () async {
     platform.throwOnRequestMtu = true;
     final transport = UniversalBleTransport(
       device: BleDevice(deviceId: deviceId, name: 'Bengle'),
@@ -195,8 +198,11 @@ void main() {
     // the larger MTU.
     await transport.connect();
 
-    expect(platform.mtuRequests, hasLength(1),
-        reason: 'the request must still be attempted');
+    expect(
+      platform.mtuRequests,
+      hasLength(1),
+      reason: 'the request must still be attempted',
+    );
     await transport.dispose();
   });
 }
