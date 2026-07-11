@@ -16,9 +16,18 @@ class Bengle extends UnifiedDe1
   @override
   String get name => "Bengle";
 
+  /// Last requested cup-warmer target °C (`0` = off). Remembered so the
+  /// RAM-only [BengleMmr.cupWarmerMode] can be re-asserted on reconnect.
+  double _cupWarmerTarget = 0.0;
+
   @override
-  Future<void> setCupWarmerTemperature(double celsius) =>
-      writeMmrScaled(BengleMmr.matSetPoint, celsius);
+  Future<void> setCupWarmerTemperature(double celsius) async {
+    _cupWarmerTarget = celsius.clamp(0.0, 80.0).toDouble();
+    await writeMmrScaled(BengleMmr.matSetPoint, _cupWarmerTarget);
+    // CupWarmerMode is the real enable — a temperature alone does nothing.
+    // `> 0 °C` ⇒ On. It is RAM-only, so it is also re-pushed on every connect.
+    await writeMmrInt(BengleMmr.cupWarmerMode, _cupWarmerTarget > 0 ? 1 : 0);
+  }
 
   @override
   Future<double> getCupWarmerTemperature() =>
@@ -109,6 +118,15 @@ class Bengle extends UnifiedDe1
     await initIntegratedScale();
     await initScaleCalibration();
     await initLedStrip();
+    // CupWarmerMode is RAM-only (FW resets it to 0 on boot) — re-assert the
+    // desired state on every (re)connect so an enabled warmer survives.
+    // Conditional on purpose: an app instance that never enabled the warmer
+    // must write NOTHING here, or it would stomp state set by another client
+    // sharing the machine.
+    if (_cupWarmerTarget > 0) {
+      await writeMmrScaled(BengleMmr.matSetPoint, _cupWarmerTarget);
+      await writeMmrInt(BengleMmr.cupWarmerMode, 1);
+    }
   }
 
   @override

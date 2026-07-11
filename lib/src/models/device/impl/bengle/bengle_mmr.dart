@@ -9,7 +9,8 @@ enum BengleMmr implements MmrAddress {
   /// Cup-warmer mat target temperature in whole °C. Firmware `MatSetPoint`
   /// uses `mult = 1`, packed as a little-endian int32 (NOT an IEEE-754
   /// float, NOT deci-°C). Matches de1plus `set_cupwarmer_temperature`
-  /// (unscaled). Range `0..80 °C`; `0` = off. Permission RWD.
+  /// (unscaled). Range `0..80 °C`; `0` = off. Permission RWD. Enabling the
+  /// warmer is a separate register — [cupWarmerMode] (0x008038AC, 0/1);
   ///
   /// history: the register has been mis-encoded twice — first as
   /// float32 (early FW notes), then as ×10 deci-°C (every set landed 10×
@@ -26,18 +27,24 @@ enum BengleMmr implements MmrAddress {
     writeScale: 1.0,
   ),
 
-  /// Integrated-scale tare trigger. Address and value semantics are
-  /// stubbed — FW slot TBD. Once published, fill in the real address
-  /// and tighten [kind] / bounds. Capability code (`IntegratedScale-
-  /// Capability.tareIntegratedScale`) currently routes through the
-  /// control endpoint, not MMR — this entry exists so the FW slot has
-  /// a home when the wire spec arrives.
-  scaleTare(
-    0x00000000, // TBD with FW
+  /// Cup-warmer enable: `0` = Off, `1` = On. Firmware `CupWarmerMode`
+  /// (`0x008038AC`, firmware register-table row 50), plain int32 0/1, **not persisted** —
+  /// deliberately `PERM_RW` (not RWD) so the machine can never boot with
+  /// the mat silently heating; the firmware resets it to 0 every boot and
+  /// the app must re-send it on every connect. Enabling the warmer needs
+  /// this in addition to [matSetPoint] (setting the temperature alone does
+  /// nothing)
+  cupWarmerMode(
+    0x008038AC,
     4,
-    MmrValueKind.int32, // TBD with FW
-    'ScaleTare',
+    MmrValueKind.boolean,
+    'CupWarmerMode',
+    min: 0,
+    max: 1,
   );
+  // Integrated-scale tare (`ScaleTare`) lives with the scale capability
+  // that owns it: [BengleScaleMmr.scaleTare]. Milk-probe stop
+  // lives in [BengleSteamMmr].
 
   const BengleMmr(
     this.address,

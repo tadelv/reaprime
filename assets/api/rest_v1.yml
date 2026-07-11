@@ -430,9 +430,15 @@ paths:
       summary: Set cup-warmer setpoint
       description: |
         Set the cup-warmer mat target temperature in °C. Range
-        `0.0`–`80.0`; `0.0` turns the mat off (there is no separate
-        enable flag). Out-of-range values return 400; the app does not
-        rely on FW-side clamping so callers see immediate feedback.
+        `0.0`–`80.0`. A target `> 0` also enables the warmer and `0.0`
+        disables it — the separate firmware enable register is an
+        implementation detail the API hides. The enable does not survive
+        a machine reboot (the firmware deliberately clears it so the mat
+        can never heat unattended after a power cut), but the app
+        re-asserts the last requested state on every reconnect, so
+        clients only ever set the temperature. Out-of-range values
+        return 400; the app does not rely on FW-side clamping so callers
+        see immediate feedback.
         Returns 404 when the connected machine is not a Bengle.
       tags: [Machine]
       requestBody:
@@ -4511,7 +4517,10 @@ components:
           maximum: 80.0
           description: |
             Cup-warmer mat target temperature in °C. `0.0` turns the
-            mat off — there is no separate enable flag.
+            mat off; `> 0` turns it on. The firmware's separate enable
+            register is managed by the app and hidden from the API — it
+            is cleared by the machine on every reboot and re-asserted by
+            the app on reconnect.
           example: 60.0
 
     LedStripState:

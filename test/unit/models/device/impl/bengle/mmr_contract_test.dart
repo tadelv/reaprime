@@ -156,6 +156,7 @@ const List<ContractEntry> entriesUnderTest = <ContractEntry>[
   // 'StopAtTemperatureTarget' is the contract row's `app_alias`.
   // ---------------------------------------------------------------------------
   ContractEntry(BengleMmr.matSetPoint, 'MatSetPoint'),
+  ContractEntry(BengleMmr.cupWarmerMode, 'CupWarmerMode'),
 ];
 
 // =============================================================================
