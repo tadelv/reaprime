@@ -33,10 +33,10 @@ void main() {
     });
 
     test(
-      'setCupWarmerTemperature writes a scaled uint32 to BengleMmr.matSetPoint',
+      'setCupWarmerTemperature writes a whole-°C uint32 to BengleMmr.matSetPoint',
       () async {
         transport.writes.clear();
-        await bengle.setCupWarmerTemperature(60.0);
+        await bengle.setCupWarmerTemperature(70.0);
 
         final frame = transport.writes.firstWhere(
           (w) => w.characteristicUUID == Endpoint.writeToMMR.uuid,
@@ -49,15 +49,15 @@ void main() {
         expect(frame.data[2], addr.getUint8(2));
         expect(frame.data[3], addr.getUint8(3));
 
-        // Payload bytes [4..7] = uint32 scaled 60.0.
+        // firmware mult=1, so 70 °C encodes as LE 70 (not 700).
         final payload = ByteData.sublistView(frame.data, 4, 8);
-        expect(payload.getUint32(0, Endian.little), equals(600));
+        expect(payload.getUint32(0, Endian.little), equals(70));
       },
     );
 
-    test('getCupWarmerTemperature reads a scaled uint32 back from the wire', () async {
-      // Pre-queue a 50.0 °C scaled uint32 response at the matSetPoint address.
-      final bytes = ByteData(4)..setUint32(0, 500, Endian.little);
+    test('getCupWarmerTemperature reads a whole-°C uint32 back from the wire', () async {
+      // Pre-queue a 50 °C reading (raw uint32, mult=1) at the matSetPoint addr.
+      final bytes = ByteData(4)..setUint32(0, 50, Endian.little);
       transport.queueMmrResponseRaw(
         BengleMmr.matSetPoint,
         List<int>.generate(4, (i) => bytes.getUint8(i)),
@@ -69,13 +69,13 @@ void main() {
 
     test('setCupWarmerTemperature clamps over-range writes', () async {
       transport.writes.clear();
-      await bengle.setCupWarmerTemperature(120.0); // FW max is 80.0
+      await bengle.setCupWarmerTemperature(120.0); // FW max is 80 °C
 
       final frame = transport.writes.firstWhere(
         (w) => w.characteristicUUID == Endpoint.writeToMMR.uuid,
       );
       final payload = ByteData.sublistView(frame.data, 4, 8);
-      expect(payload.getUint32(0, Endian.little), equals(800));
+      expect(payload.getUint32(0, Endian.little), equals(80));
     });
   });
 }

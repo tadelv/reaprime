@@ -56,9 +56,8 @@ import 'package:reaprime/src/models/device/impl/de1/de1.models.dart'
     show MMRItem;
 import 'package:reaprime/src/models/device/impl/de1/mmr_address.dart'
     show MmrAddress;
-// Thermal branch (spec 08) uncomments this import with its section below:
-// import 'package:reaprime/src/models/device/impl/bengle/bengle_mmr.dart'
-//     show BengleMmr, BengleSteamMmr;
+import 'package:reaprime/src/models/device/impl/bengle/bengle_mmr.dart'
+    show BengleMmr;
 // (The Bengle capability enums are parts of the unified_de1 library.)
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart'
     show BengleScaleMmr, BengleCalMmr, BengleLedMmr;
@@ -155,11 +154,8 @@ const List<ContractEntry> entriesUnderTest = <ContractEntry>[
   // Thermal branch (spec 08: cup-warmer mode + milk temp + mat-temp read):
   // `BengleMmr` + `BengleSteamMmr` (bengle_mmr.dart). The app desc string
   // 'StopAtTemperatureTarget' is the contract row's `app_alias`.
-  // UNCOMMENT these lines (and the bengle_mmr import) when the branch lands:
   // ---------------------------------------------------------------------------
-  // ContractEntry(BengleMmr.matSetPoint, 'MatSetPoint'),
-  // ContractEntry(BengleMmr.cupWarmerMode, 'CupWarmerMode'),
-  // ContractEntry(BengleSteamMmr.stopAtTemperatureTarget, 'TargetMilkTemp'),
+  ContractEntry(BengleMmr.matSetPoint, 'MatSetPoint'),
 ];
 
 // =============================================================================

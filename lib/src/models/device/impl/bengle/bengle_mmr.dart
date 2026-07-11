@@ -6,18 +6,24 @@ import 'package:reaprime/src/models/device/impl/de1/mmr_address.dart';
 /// shared DE1 MMRs stay in `de1.models.dart#MMRItem`. The milk-probe
 /// stop-at-temperature target lives in [BengleSteamMmr].
 enum BengleMmr implements MmrAddress {
-  /// Cup-warmer mat target temperature in °C, stored as raw IEEE-754
-  /// float32 (little-endian). Range `0.0..80.0`; `0.0` = off.
-  /// FW name: `MatSetPoint`. Permission RWD.
+  /// Cup-warmer mat target temperature in whole °C. Firmware `MatSetPoint`
+  /// uses `mult = 1`, packed as a little-endian int32 (NOT an IEEE-754
+  /// float, NOT deci-°C). Matches de1plus `set_cupwarmer_temperature`
+  /// (unscaled). Range `0..80 °C`; `0` = off. Permission RWD.
+  ///
+  /// history: the register has been mis-encoded twice — first as
+  /// float32 (early FW notes), then as ×10 deci-°C (every set landed 10×
+  /// too hot, every read 10× too cold). FW firmware register-table row 36 is `mult 1`
+  /// and the FW write path consumes the raw value as °C; hardware won.
   matSetPoint(
     0x00803874,
     4,
     MmrValueKind.scaledFloat,
     'MatSetPoint',
     min: 0,
-    max: 800,
-    readScale: 0.1,
-    writeScale: 10.0,
+    max: 80,
+    readScale: 1.0,
+    writeScale: 1.0,
   ),
 
   /// Integrated-scale tare trigger. Address and value semantics are
