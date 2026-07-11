@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/mmr_address.dart';
+import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart'
+    show BengleLedMmr;
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:rxdart/rxdart.dart';
@@ -261,8 +263,10 @@ class FakeBleTransport extends BLETransport {
 
   /// Queue the standard set of MMR responses needed for `onConnect()` to
   /// complete (`v13Model`, `ghcInfo`, `serialN`, `cpuFirmwareBuild`,
-  /// `heaterV`, `refillKitPresent`). Override individual values via
-  /// keyword arguments.
+  /// `heaterV`, `refillKitPresent`), plus the four LED palette registers
+  /// (packed `0x00RRGGBB`) that a Bengle connect hydrates its LED cache
+  /// from — default 0 (all-off; unconsumed on plain-DE1 connects). Override
+  /// individual values via keyword arguments.
   void queueOnConnectResponses({
     int v13Model = 1,
     int ghcInfo = 0,
@@ -270,6 +274,10 @@ class FakeBleTransport extends BLETransport {
     int cpuFirmwareBuild = 1300,
     int heaterV = 230,
     int refillKitPresent = 0,
+    int ledFrontAwake = 0,
+    int ledFrontSleep = 0,
+    int ledRearAwake = 0,
+    int ledRearSleep = 0,
   }) {
     queueMmrResponseInt(MMRItem.v13Model, v13Model);
     queueMmrResponseInt(MMRItem.ghcInfo, ghcInfo);
@@ -277,6 +285,10 @@ class FakeBleTransport extends BLETransport {
     queueMmrResponseInt(MMRItem.cpuFirmwareBuild, cpuFirmwareBuild);
     queueMmrResponseInt(MMRItem.heaterV, heaterV);
     queueMmrResponseInt(MMRItem.refillKitPresent, refillKitPresent);
+    queueMmrResponseInt(BengleLedMmr.frontAwake, ledFrontAwake);
+    queueMmrResponseInt(BengleLedMmr.frontSleep, ledFrontSleep);
+    queueMmrResponseInt(BengleLedMmr.rearAwake, ledRearAwake);
+    queueMmrResponseInt(BengleLedMmr.rearSleep, ledRearSleep);
   }
 
   @override

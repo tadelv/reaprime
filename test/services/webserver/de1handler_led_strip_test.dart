@@ -14,6 +14,9 @@ import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
+import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
+
+import '../../helpers/fake_ble_transport.dart';
 import '../../helpers/mock_device_discovery_service.dart';
 import '../../helpers/mock_settings_service.dart';
 import '../../helpers/test_scale.dart';
@@ -69,11 +72,11 @@ void main() {
         headers: {HttpHeaders.contentTypeHeader: 'application/json'},
       ));
 
-  Future<Response> post(String path) async =>
+  Future<Response> post(String path, [Object body = const {}]) async =>
       await handler(Request(
         'POST',
         Uri.parse('http://localhost$path'),
-        body: jsonEncode(const {}),
+        body: jsonEncode(body),
         headers: {HttpHeaders.contentTypeHeader: 'application/json'},
       ));
 
@@ -111,6 +114,36 @@ void main() {
       await wireWith(MockDe1());
       final res = await get('/api/v1/machine/ledStrip');
       expect(res.statusCode, 404);
+    });
+
+    test('200 + serves the machine-stored palette after connect-time '
+        'hydration (real Bengle over fake transport)', () async {
+      // The user-facing fix: after an app restart the first GET must show
+      // the colours stored on the machine, not all-off — no PUT/reset (and
+      // no skin change) needed first.
+      final transport = FakeBleTransport();
+      final bengle = Bengle(transport: transport);
+      transport.queueOnConnectResponses(
+        v13Model: 128, // Bengle marker
+        ledFrontAwake: 0x385A92,
+        ledFrontSleep: 0x112233,
+        ledRearAwake: 0xFF7A00,
+        ledRearSleep: 0x0000FF,
+      );
+      await bengle.onConnect();
+      addTearDown(transport.dispose);
+      await wireWith(bengle);
+
+      final res = await get('/api/v1/machine/ledStrip');
+      expect(res.statusCode, 200);
+      final body = jsonDecode(await res.readAsString());
+      expect(body['frontStrip']['awake'], '38385A5A9292');
+      expect(body['frontStrip']['sleeping'], '111122223333');
+      expect(body['backStrip']['awake'], 'FFFF7A7A0000');
+      expect(body['backStrip']['sleeping'], '00000000FFFF');
+      // Switch mirrors the front strip on read.
+      expect(body['frontSwitch']['awake'], '38385A5A9292');
+      expect(body['frontSwitch']['sleeping'], '111122223333');
     });
   });
 
@@ -206,6 +239,70 @@ void main() {
     test('404 on plain DE1', () async {
       await wireWith(MockDe1());
       final res = await post('/api/v1/machine/ledStrip/reset');
+      expect(res.statusCode, 404);
+    });
+  });
+
+  group('POST /api/v1/machine/ledStrip/preview', () {
+    test('202 on Bengle', () async {
+      await wireWith(MockBengle());
+      final res = await post('/api/v1/machine/ledStrip/preview', {
+        'front': 'FFFF00000000',
+        'back': '00000000FFFF',
+      });
+      expect(res.statusCode, 202);
+    });
+
+    test('202 + preview does not touch the stored config', () async {
+      final bengle = MockBengle();
+      await wireWith(bengle);
+
+      final res = await post('/api/v1/machine/ledStrip/preview', {
+        'front': 'FFFF00000000',
+        'back': '00000000FFFF',
+      });
+      expect(res.statusCode, 202);
+
+      // GET still serves the (all-off) stored config — preview bypasses it.
+      final got = await get('/api/v1/machine/ledStrip');
+      final body = jsonDecode(await got.readAsString());
+      expect(body['frontStrip']['awake'], '000000000000');
+    });
+
+    test('202 on empty body — missing keys preview as black', () async {
+      // Color16.fromJson is defensive-black: `{}` is accepted and blacks
+      // both strips (locked model semantics, not an error).
+      await wireWith(MockBengle());
+      final res = await post('/api/v1/machine/ledStrip/preview');
+      expect(res.statusCode, 202);
+    });
+
+    test('400 on non-map body', () async {
+      await wireWith(MockBengle());
+      final res = await post('/api/v1/machine/ledStrip/preview', [1, 2, 3]);
+      expect(res.statusCode, 400);
+    });
+
+    test('404 on plain DE1', () async {
+      await wireWith(MockDe1());
+      final res = await post('/api/v1/machine/ledStrip/preview', {
+        'front': 'FFFF00000000',
+        'back': '00000000FFFF',
+      });
+      expect(res.statusCode, 404);
+    });
+  });
+
+  group('POST /api/v1/machine/ledStrip/preview/clear', () {
+    test('202 on Bengle', () async {
+      await wireWith(MockBengle());
+      final res = await post('/api/v1/machine/ledStrip/preview/clear');
+      expect(res.statusCode, 202);
+    });
+
+    test('404 on plain DE1', () async {
+      await wireWith(MockDe1());
+      final res = await post('/api/v1/machine/ledStrip/preview/clear');
       expect(res.statusCode, 404);
     });
   });

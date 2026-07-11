@@ -59,10 +59,9 @@ import 'package:reaprime/src/models/device/impl/de1/mmr_address.dart'
 // Thermal branch (spec 08) uncomments this import with its section below:
 // import 'package:reaprime/src/models/device/impl/bengle/bengle_mmr.dart'
 //     show BengleMmr, BengleSteamMmr;
-// The LED branch (spec 07) extends this `show` list with BengleLedMmr when it
-// lands (the enums are parts of the unified_de1 library):
+// (The Bengle capability enums are parts of the unified_de1 library.)
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart'
-    show BengleScaleMmr, BengleCalMmr;
+    show BengleScaleMmr, BengleCalMmr, BengleLedMmr;
 
 const String _contractPath = 'assets/api/bengle_hw_v1.yml';
 
@@ -144,14 +143,13 @@ const List<ContractEntry> entriesUnderTest = <ContractEntry>[
   // ---------------------------------------------------------------------------
   // LED-strip branch (spec 07): `BengleLedMmr`
   // (in led_strip_capability.dart, part of unified_de1).
-  // UNCOMMENT these lines (and the unified_de1 import) when the branch lands:
   // ---------------------------------------------------------------------------
-  // ContractEntry(BengleLedMmr.frontLive, 'FrontLEDColor'),
-  // ContractEntry(BengleLedMmr.rearLive, 'RearLEDColor'),
-  // ContractEntry(BengleLedMmr.frontAwake, 'FrontLEDAwake'),
-  // ContractEntry(BengleLedMmr.rearAwake, 'RearLEDAwake'),
-  // ContractEntry(BengleLedMmr.frontSleep, 'FrontLEDSleep'),
-  // ContractEntry(BengleLedMmr.rearSleep, 'RearLEDSleep'),
+  ContractEntry(BengleLedMmr.frontLive, 'FrontLEDColor'),
+  ContractEntry(BengleLedMmr.rearLive, 'RearLEDColor'),
+  ContractEntry(BengleLedMmr.frontAwake, 'FrontLEDAwake'),
+  ContractEntry(BengleLedMmr.rearAwake, 'RearLEDAwake'),
+  ContractEntry(BengleLedMmr.frontSleep, 'FrontLEDSleep'),
+  ContractEntry(BengleLedMmr.rearSleep, 'RearLEDSleep'),
 
   // ---------------------------------------------------------------------------
   // Thermal branch (spec 08: cup-warmer mode + milk temp + mat-temp read):

@@ -71,6 +71,16 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
     _ledState.add(_committedLedState);
   }
 
+  @override
+  Future<void> previewLedColor(Color16 front, Color16 back) async {
+    // Mock: no live strip to preview.
+  }
+
+  @override
+  Future<void> clearLedPreview() async {
+    // Mock: nothing to restore.
+  }
+
   // --- integrated scale ---
   // Weight synthesis lives in the shared SimulatedShotWeightModel (also used
   // by the standalone MockScale): preinfusion absorbed, first-drops holdback,

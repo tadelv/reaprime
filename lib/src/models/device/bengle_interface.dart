@@ -83,16 +83,28 @@ abstract class BengleInterface extends De1Interface {
   /// One-shot read of the current LED strip state.
   Future<LedStripState> getLedStripState();
 
-  /// Write a full LED strip configuration (all zones, both modes).
-  /// Updates cache and pushes to FW live registers. Does NOT persist
-  /// to NVM — call [commitLedStrip] separately.
+  /// Write a full LED strip configuration (all zones, both modes) to the
+  /// cache and the FW palette registers. The palette registers persist on
+  /// write (`PERM_RWD`) — [commitLedStrip] is a re-assert kept for API
+  /// symmetry, not a separate persist step.
   Future<void> setLedStrip(LedStripState state);
 
-  /// Persist the current LED strip configuration to FW NVM.
+  /// Re-assert the cached LED strip configuration to the FW. The palette
+  /// registers already persist on every write; there is no separate commit
+  /// register — kept for API symmetry.
   Future<void> commitLedStrip();
 
-  /// Reload the LED strip configuration from FW NVM, dropping uncommitted changes.
+  /// Reload the LED strip configuration from the FW palette registers,
+  /// dropping local edits.
   Future<void> resetLedStrip();
+
+  /// Preview a colour live on the strip (front + rear) immediately, regardless
+  /// of awake/sleep state, without changing the stored palette — used to show
+  /// e.g. the sleep colour while the machine is awake. [clearLedPreview] restores.
+  Future<void> previewLedColor(Color16 front, Color16 back);
+
+  /// Restore the strip to the cached awake palette after a [previewLedColor].
+  Future<void> clearLedPreview();
 
   // --- Milk-probe steam stop (scaffolding) -----------------------------------
   //

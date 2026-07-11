@@ -453,7 +453,13 @@ paths:
       summary: Get LED strip configuration
       description: |
         Read the current LED strip configuration (all 3 zones × 2 modes)
-        from the in-memory cache. Returns 404 when the connected
+        from the in-memory cache. The cache is hydrated from the
+        machine's four stored palette registers on connect (read-only —
+        the live/preview registers are never touched), so after an app
+        restart this returns the colours stored on the machine without
+        needing a `PUT` or `POST /reset` first. If the connect-time
+        hydration read fails, the cache falls back to all-off until the
+        first `PUT` or `POST /reset`. Returns 404 when the connected
         machine is not a Bengle.
       tags: [Machine]
       responses:
@@ -468,10 +474,16 @@ paths:
     put:
       summary: Set LED strip configuration
       description: |
-        Write a full LED strip configuration (all 3 zones × 2 modes).
-        Updates cache and pushes to FW live registers. Does NOT persist
-        to NVM — call `/commit` separately. Returns 404 when the
-        connected machine is not a Bengle.
+        Write a full LED strip configuration (all 3 zones × 2 modes) to
+        the cache and the firmware palette registers. The firmware
+        persists each palette write immediately (registers are
+        disk-backed) and also applies it to the strip right away when
+        the machine is already in that colour's awake/sleep state —
+        there is no separate live/persist split. The `frontSwitch` zone
+        has no register: the physical switch light mirrors the front
+        strip in firmware (the zone is accepted for API symmetry and
+        ignored on write). Returns 404 when the connected machine is
+        not a Bengle.
       tags: [Machine]
       requestBody:
         required: true
@@ -489,14 +501,16 @@ paths:
 
   /api/v1/machine/ledStrip/commit:
     post:
-      summary: Commit LED strip config to NVM
+      summary: Re-assert LED strip config to the firmware
       description: |
-        Persist the current in-memory LED strip configuration to FW
-        non-volatile memory. The machine retains settings across power
-        cycles. Returns 404 when the connected machine is not a Bengle.
+        Re-write the cached LED strip configuration to the firmware
+        palette registers. Palette writes already persist (`PUT` is
+        sufficient); this endpoint is kept for API symmetry / as an
+        explicit re-assert. Body is ignored. Returns 404 when the
+        connected machine is not a Bengle.
       tags: [Machine]
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
@@ -510,15 +524,17 @@ paths:
 
   /api/v1/machine/ledStrip/reset:
     post:
-      summary: Reset LED strip cache from NVM
+      summary: Reset LED strip cache from the firmware
       description: |
-        Reload the LED strip cache from FW non-volatile memory,
-        dropping any uncommitted changes. Returns the refreshed
-        configuration. Returns 404 when the connected machine is not
-        a Bengle.
+        Re-read the four firmware palette registers into the cache,
+        dropping local edits, and return the refreshed configuration.
+        Because the firmware persists on every palette write, this
+        returns whatever was last written — it is a cache re-hydrate,
+        not a rollback. Body is ignored. Returns 404 when the connected
+        machine is not a Bengle.
       tags: [Machine]
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
@@ -531,6 +547,67 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LedStripState"
+        "404":
+          description: Machine connected but does not support LED strip
+
+  /api/v1/machine/ledStrip/preview:
+    post:
+      summary: Preview LED strip colours live
+      description: |
+        Show the given front/back colours on the strips immediately,
+        regardless of awake/sleep state, WITHOUT changing the stored
+        palette or the cached configuration. Cleared by
+        `/ledStrip/preview/clear`; the firmware also overwrites the
+        live colour from the stored palette on the next sleep/wake
+        transition, so a preview never survives a state change.
+        Missing or malformed `front`/`back` values are treated as
+        black (`000000000000`), matching `Color16` semantics — an
+        empty object previews both strips black. Returns 404 when the
+        connected machine is not a Bengle.
+      tags: [Machine]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [front, back]
+              properties:
+                front:
+                  $ref: "#/components/schemas/Color16"
+                back:
+                  $ref: "#/components/schemas/Color16"
+      responses:
+        "202":
+          description: Preview accepted
+        "400":
+          description: Invalid JSON body (not an object)
+        "404":
+          description: Machine connected but does not support LED strip
+
+  /api/v1/machine/ledStrip/preview/clear:
+    post:
+      summary: Clear LED preview
+      description: |
+        Restore the strips to the cached awake palette after a
+        `/ledStrip/preview`. The restore source is the app-side cache,
+        which is hydrated from the machine's stored palette on connect
+        (see `GET`) — so this normally restores the machine's real
+        awake colours. Only when that connect-time hydration failed
+        (and before any `PUT`/`reset`) does clearing a preview write
+        black. Body is ignored. Returns 404 when the connected machine
+        is not a Bengle.
+      tags: [Machine]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: {}
+      responses:
+        "202":
+          description: Preview cleared
         "404":
           description: Machine connected but does not support LED strip
   /api/v1/machine/settings:

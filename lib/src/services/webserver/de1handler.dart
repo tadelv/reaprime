@@ -197,6 +197,36 @@ class De1Handler {
       });
     });
 
+    // Live colour preview: show a colour on the strip now (regardless of
+    // awake/sleep) without changing the stored palette — body { front, back }
+    // as 12-char hex. `/clear` restores the cached awake palette.
+    app.post('/api/v1/machine/ledStrip/preview', (Request r) async {
+      return withDe1((de1) async {
+        if (de1 is! BengleInterface) {
+          return jsonNotFound({'error': 'ledStrip not supported'});
+        }
+        final json = jsonDecode(await r.readAsString());
+        if (json is! Map) {
+          return jsonBadRequest({'error': 'invalid JSON body'});
+        }
+        await de1.previewLedColor(
+          Color16.fromJson(json['front']),
+          Color16.fromJson(json['back']),
+        );
+        return jsonAccepted();
+      });
+    });
+
+    app.post('/api/v1/machine/ledStrip/preview/clear', (Request _) async {
+      return withDe1((de1) async {
+        if (de1 is! BengleInterface) {
+          return jsonNotFound({'error': 'ledStrip not supported'});
+        }
+        await de1.clearLedPreview();
+        return jsonAccepted();
+      });
+    });
+
     app.post('/api/v1/machine/waterLevels', (Request r) async {
       return withDe1((de1) async {
         var json = jsonDecode(await r.readAsString());

@@ -57,10 +57,12 @@ For browser clients on a different origin, `ETag` is exposed via `Access-Control
 | POST | `/api/v1/machine/scale/calibrate` | Two-point integrated-scale cal: `{"command":"zero"}` (empty), then `{"command":"left","grams":500}` and `{"command":"right","grams":500}` (same mass, LEFT then RIGHT half), or `{"command":"abort"}`. Non-blocking; returns the calibration result — Bengle only, 404 elsewhere | |
 | GET | `/api/v1/machine/cupWarmer` | Read cup-warmer setpoint °C — Bengle only, 404 elsewhere | |
 | PUT | `/api/v1/machine/cupWarmer` | Set cup-warmer setpoint °C (range 0.0–80.0, `0.0` = off) — Bengle only | |
-| GET | `/api/v1/machine/ledStrip` | Read full LED strip config (3 zones × 2 modes, 16-bit RGB) — Bengle only | |
-| PUT | `/api/v1/machine/ledStrip` | Write full LED strip config (cache + FW live registers) — Bengle only | |
-| POST | `/api/v1/machine/ledStrip/commit` | Persist LED config to FW NVM — Bengle only | |
-| POST | `/api/v1/machine/ledStrip/reset` | Reload LED config from FW NVM, return refreshed state — Bengle only | |
+| GET | `/api/v1/machine/ledStrip` | Read full LED strip config (3 zones × 2 modes, 16-bit RGB) from the app cache, hydrated from the machine's stored palette on connect (all-off fallback until a PUT or `/reset` only if that read fails) — Bengle only | |
+| PUT | `/api/v1/machine/ledStrip` | Write full LED strip config to the FW palette registers (persisted + live-applied by FW on write; `frontSwitch` has no register — FW mirrors the front strip) — Bengle only | |
+| POST | `/api/v1/machine/ledStrip/commit` | Re-assert the cached LED config to the FW (palette writes already persist; kept for API symmetry) — Bengle only | |
+| POST | `/api/v1/machine/ledStrip/reset` | Re-read the FW palette registers into the cache, return refreshed state — Bengle only | |
+| POST | `/api/v1/machine/ledStrip/preview` | Show `{"front","back"}` (12-char hex) on the strips now, without changing the stored palette — Bengle only | |
+| POST | `/api/v1/machine/ledStrip/preview/clear` | Restore the strips to the cached awake palette after a preview — Bengle only | |
 
 ### Scale
 

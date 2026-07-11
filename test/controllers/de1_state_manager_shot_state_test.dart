@@ -89,6 +89,10 @@ class _TestBengle extends TestDe1 implements BengleInterface {
   Future<void> commitLedStrip() async {}
   @override
   Future<void> resetLedStrip() async {}
+  @override
+  Future<void> previewLedColor(Color16 front, Color16 back) async {}
+  @override
+  Future<void> clearLedPreview() async {}
 
   @override
   Future<void> setStopAtTemperatureTarget(double celsius) async {}

@@ -86,5 +86,18 @@ void main() {
       final after = await bengle.getLedStripState();
       expect(after, const LedStripState());
     });
+
+    test('previewLedColor / clearLedPreview are no-ops on the mock', () async {
+      // No live strip to preview — neither call may throw or disturb the
+      // stored config (real HW: live registers only, cache untouched).
+      final bengle = MockBengle();
+      final before = await bengle.getLedStripState();
+
+      await bengle.previewLedColor(
+          const Color16(65535, 0, 0), const Color16(0, 0, 65535));
+      await bengle.clearLedPreview();
+
+      expect(await bengle.getLedStripState(), before);
+    });
   });
 }
