@@ -4914,7 +4914,7 @@ components:
           type: array
           items:
             type: string
-            enum: [machine, scale, sensor]
+            enum: [machine, scale, sensor, bengle]
           nullable: true
         themeMode:
           description: App theme mode
@@ -5004,7 +5004,7 @@ components:
           type: array
           items:
             type: string
-            enum: [machine, scale, sensor]
+            enum: [machine, scale, sensor, bengle]
         themeMode:
           description: App theme mode
           type: string
