@@ -160,7 +160,9 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
 
   @override
   Future<void> setStopAtTemperatureTarget(double celsius) async {
-    _stopAtTempTarget = celsius.clamp(0.0, 80.0).toDouble();
+    // 0..85 matches the real Bengle (TargetMilkTemp FW max 850 deci-°C) —
+    // NB wider than the cup-warmer's 0..80.
+    _stopAtTempTarget = celsius.clamp(0.0, 85.0).toDouble();
     if (!_stopAtTempTargetSubject.isClosed) {
       _stopAtTempTargetSubject.add(_stopAtTempTarget);
     }
@@ -273,8 +275,8 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
   /// Synthesises milk-probe temperature during `MachineState.steam`.
   /// Rises linearly from [_probeStartTemp]; resets when steam exits.
   /// If [_stopAtTempTarget] is set and reached, requests `idle` — the
-  /// FW-autonomous stop behaviour the real Bengle will perform once
-  /// the MMR slot is published.
+  /// FW-autonomous stop behaviour the real Bengle performs when a probe
+  /// is attached (`TargetMilkTemp`).
   void _tickProbeTemperature(MachineSnapshot s, DateTime now) {
     if (!(_probeAttachedSubject.hasValue && _probeAttachedSubject.value)) {
       _lastProbeTickAt = null;

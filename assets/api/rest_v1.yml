@@ -5386,12 +5386,15 @@ components:
           format: double
           description: >
             Stop steaming when the milk-probe reading reaches this
-            temperature (°C). `0` disables the stop. Range 0..80.
-            Scaffolding only today — no machine in production has an
-            integrated probe wired, so the field round-trips but does
-            not affect machine behaviour. On Bengle with a future probe
-            firmware the stop is FW-autonomous; on other machines or
-            third-party probes the app stops via `requestState(idle)`.
+            temperature (°C). `0` disables the stop. Range 0..85 on
+            Bengle (the firmware TargetMilkTemp register caps at
+            85.0 °C; the app clamps before writing). On Bengle the
+            target is written to the machine and the stop is
+            FW-autonomous the moment a milk probe is physically
+            attached; on other machines or third-party probes the app
+            stops via `requestState(idle)` when a registered sensor
+            crosses the target (with no probe attached and no sensor
+            registered the field round-trips but nothing stops).
           example: 65.0
           default: 0.0
 

@@ -106,21 +106,26 @@ abstract class BengleInterface extends De1Interface {
   /// Restore the strip to the cached awake palette after a [previewLedColor].
   Future<void> clearLedPreview();
 
-  // --- Milk-probe steam stop (scaffolding) -----------------------------------
+  // --- Milk-probe steam stop -----------------------------------------
   //
-  // FW is not yet ready. The methods + streams below are the API surface
-  // skin developers can target now. On real `Bengle` the streams are inert
-  // (target replays cached value, probeAttached stays `false`,
-  // probeTemperature never emits) until FW publishes the wire spec. See
-  // [[bengle_steam_mmr]] for the MMR slot and [[bengle_milk_probe]] for
-  // the planned probe device wrapper.
+  // The auto-stop TARGET is a real MMR write (`TargetMilkTemp`, ×10
+  // decicelsius on the wire — see [[bengle_steam_mmr]]). The live probe
+  // READING is separate: it rides the `0xA013` shot-sample stream into
+  // `MachineSnapshot.milkTemperature` (÷100), and current firmware
+  // serialises 0 there until a probe pipeline ships — so on real `Bengle`
+  // `probeAttached` stays `false` and `probeTemperature` never emits
+  // (graceful degradation, no fake data). The target write is NOT gated on
+  // probe presence: firmware stops autonomously the moment a probe is
+  // physically attached. See [[bengle_milk_probe]] for the sensor wrapper.
 
   /// Set the autonomous stop-at-temperature target in °C. `0.0` disables
-  /// the stop. Range `0..80`. Today: caches locally + log-once; no MMR
-  /// write until FW publishes the slot.
+  /// the stop. Range `0..85` (FW max 850 deci-°C). Implementations clamp
+  /// out-of-range values before writing.
   Future<void> setStopAtTemperatureTarget(double celsius);
 
-  /// Read the current stop-at-temperature target in °C.
+  /// Read the current stop-at-temperature target in °C. On real `Bengle`
+  /// this reads the register and echoes the value onto
+  /// [stopAtTemperatureTarget] so replay subscribers see post-read truth.
   Future<double> getStopAtTemperatureTarget();
 
   /// Latest stop-at-temperature target stream (`0.0` = stop off).
@@ -129,8 +134,8 @@ abstract class BengleInterface extends De1Interface {
 
   /// Whether the milk probe is physically attached to the machine.
   /// `BehaviorSubject<bool>` seeded `false`. Real `Bengle` stays `false`
-  /// until FW publishes a presence signal; `MockBengle` defaults to
-  /// `true` for tests.
+  /// until FW publishes a presence signal (the live reading rides `0xA013`);
+  /// `MockBengle` defaults to `true` for tests.
   Stream<bool> get probeAttached;
 
   /// Live milk-probe temperature stream (°C). `PublishSubject<double>` —

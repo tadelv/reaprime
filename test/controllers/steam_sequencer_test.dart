@@ -268,16 +268,16 @@ void main() {
       m.dispose();
     });
 
-    test('false today because MMR slot is stubbed', () {
+    test('true when Bengle + probe attached + positive target (FW slot wired)',
+        () {
       final m = _BengleTestMachine();
-      // All three "real" preconditions met; predicate still false
-      // because BengleSteamMmr.stopAtTemperatureTarget.address == 0.
+      // All three preconditions met and TargetMilkTemp is wired,
+      // so the FW autonomous-stop branch applies.
       expect(
           sequencer.useFwAutonomousStop(
               machine: m, probeAttached: true, stopAtTemperature: 60),
-          isFalse,
-          reason:
-              'FW slot is still 0x00000000 — predicate must stay false');
+          isTrue,
+          reason: 'TargetMilkTemp is wired — FW autonomous stop applies');
       m.dispose();
     });
   });

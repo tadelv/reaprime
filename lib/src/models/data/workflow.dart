@@ -165,8 +165,9 @@ class SteamSettings {
   int targetTemperature;
   int duration;
   double flow;
-  // 0.0 = off. Set/get target only; FW autonomous stop gated on a
-  // future MMR address (see [[bengle_steam_mmr]]).
+  // 0.0 = off. On Bengle the target is reflected into the real
+  // TargetMilkTemp MMR (see [[bengle_steam_mmr]]); FW stops autonomously
+  // when a milk probe is attached, otherwise the app-side stop applies.
   double stopAtTemperature;
 
   SteamSettings({

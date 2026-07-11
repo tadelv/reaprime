@@ -10,28 +10,25 @@ import 'package:reaprime/src/models/data/steam_snapshot.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
-import 'package:reaprime/src/models/device/impl/bengle/bengle_mmr.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/sensor.dart';
 import 'package:uuid/uuid.dart';
 
-/// Long-lived service that records steaming sessions and orchestrates
-/// the stop-at-temperature scaffolding. Mirrors `ShotSequencer` shape
+/// Long-lived service that records steaming sessions and arbitrates
+/// the stop-at-temperature source. Mirrors `ShotSequencer` shape
 /// but lives across the app lifetime (not per-shot) because steaming
 /// has no separate "begin shot" command — the user just enters the
 /// steam state on the machine.
 ///
-/// **Today (FW not ready):**
 /// - Records persist via `PersistenceController.persistSteam`.
 /// - `SteamSnapshot.milkTemperature` is populated from the first
 ///   sensor registered in `SensorController`. No probe is registered
 ///   in production today, so the field is `null` in real recordings.
-/// - The stop-at-temperature path: the FW-autonomous branch is
-///   gated on `BengleSteamMmr.stopAtTemperatureTarget.address != 0`,
-///   which is `false` today — so the app-side branch is taken. With
-///   no sensor registered, the app-side branch is also inert. The
-///   test suite exercises both branches via `MockBengle` +
-///   `TestSensor`.
+/// - The stop-at-temperature path: the FW-autonomous branch fires when a
+///   Bengle probe is attached and a positive target is set (`TargetMilkTemp`
+/// is wired); otherwise the app-side branch is taken. With no
+///   sensor registered in production, the app-side branch is also inert. The
+///   test suite exercises both branches via `MockBengle` + `TestSensor`.
 class SteamSequencer {
   SteamSequencer({
     required De1Controller de1Controller,
@@ -69,9 +66,10 @@ class SteamSequencer {
 
   /// Stop-source predicate (see plan §Approach). Public for tests.
   ///
-  /// `true` means the FW will autonomously stop the steam at the
-  /// target temperature — the sequencer must NOT request `idle`. Today
-  /// this is always `false` because the MMR address is stubbed.
+  /// `true` means the FW will autonomously stop the steam at the target
+  /// temperature — the sequencer must NOT request `idle`. Requires a Bengle,
+  /// a probe attached, and a positive target (the `TargetMilkTemp` MMR is
+  /// wired).
   bool useFwAutonomousStop({
     required De1Interface? machine,
     required bool probeAttached,
@@ -80,9 +78,6 @@ class SteamSequencer {
     if (machine is! BengleInterface) return false;
     if (stopAtTemperature <= 0) return false;
     if (!probeAttached) return false;
-    if (BengleSteamMmr.stopAtTemperatureTarget.address == 0x00000000) {
-      return false;
-    }
     return true;
   }
 

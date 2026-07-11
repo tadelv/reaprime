@@ -116,12 +116,14 @@ reaches `connected`.
 ### Steams
 
 Recorded milk-steaming sessions. Each record is opened when the machine
-enters `steam` and finalized when it leaves. Today no probe is wired in
-production, so `SteamSnapshot.milkTemperature` is `null` on every frame —
-the API surface is scaffolding for skin developers and for future
-probe / FW support. `SteamSettings.stopAtTemperature` (in
-`/api/v1/workflow`) is the target the future FW-autonomous stop or
-in-app stop will trigger on.
+enters `steam` and finalized when it leaves. `SteamSnapshot.milkTemperature`
+is populated from the first registered milk sensor; no probe ships in
+production today, so the field is `null` on every frame until one is
+attached. `SteamSettings.stopAtTemperature` (in `/api/v1/workflow`, range
+0–85 °C on Bengle) is written to the Bengle's `TargetMilkTemp` register:
+the machine stops steam autonomously once a milk probe is physically
+attached and the reading crosses the target; on other machines or
+third-party probes the app requests `idle` instead.
 
 | Method | Path | Description | Handler |
 |--------|------|-------------|---------|

@@ -52,19 +52,17 @@ class Bengle extends UnifiedDe1
   @protected
   Duration get firmwareUploadBatchPause => Duration.zero;
 
-  // --- Milk-probe steam stop (FW-stubbed scaffolding) -----------------------
+  // --- Milk-probe steam stop ------------------------------------------------
   //
-  // Mirrors `IntegratedScaleCapability`'s SAW stub: cache locally,
-  // log-once, no MMR write until FW publishes the slot. `probeAttached`
-  // stays `false` and `probeTemperature` never emits — probe discovery
-  // and data transport are TBD (may be a new BLE characteristic, not
-  // another MMR slot).
+  // The auto-stop TARGET is a real MMR write ([BengleSteamMmr.stopAtTemperatureTarget]
+  // = TargetMilkTemp). The live probe READING is separate — it rides the
+  // `0xA013` shot-sample stream, not an MMR — so `probeAttached`/`probeTemperature`
+  // are surfaced by that pipeline, not here. (FW currently serialises MilkTemp as 0.)
   final BehaviorSubject<double> _stopAtTempTarget =
       BehaviorSubject<double>.seeded(0.0);
   final BehaviorSubject<bool> _probeAttached =
       BehaviorSubject<bool>.seeded(false);
   final PublishSubject<double> _probeTemperature = PublishSubject<double>();
-  int _stopAtTempStubWarningsEmitted = 0;
 
   @override
   Stream<double> get stopAtTemperatureTarget => _stopAtTempTarget.stream;
@@ -77,37 +75,20 @@ class Bengle extends UnifiedDe1
 
   @override
   Future<void> setStopAtTemperatureTarget(double celsius) async {
-    final clamped = celsius.clamp(0.0, 80.0).toDouble();
+    final clamped = celsius.clamp(0.0, 85.0).toDouble();
     if (!_stopAtTempTarget.isClosed) {
       _stopAtTempTarget.add(clamped);
     }
-    final addr = BengleSteamMmr.stopAtTemperatureTarget;
-    if (addr.address == 0x00000000) {
-      _logStopAtTempStubOnce(
-          'setStopAtTemperatureTarget($clamped) ignored. Awaiting FW.');
-      return;
-    }
-    await writeMmrScaled(addr, clamped);
+    await writeMmrScaled(BengleSteamMmr.stopAtTemperatureTarget, clamped);
   }
 
   @override
   Future<double> getStopAtTemperatureTarget() async {
-    final addr = BengleSteamMmr.stopAtTemperatureTarget;
-    if (addr.address == 0x00000000) {
-      return _stopAtTempTarget.value;
-    }
-    final value = await readMmrScaled(addr);
+    final value = await readMmrScaled(BengleSteamMmr.stopAtTemperatureTarget);
     if (!_stopAtTempTarget.isClosed) {
       _stopAtTempTarget.add(value);
     }
     return value;
-  }
-
-  void _logStopAtTempStubOnce(String msg) {
-    if (_stopAtTempStubWarningsEmitted < 1) {
-      log.info('Bengle: stop-at-temperature endpoint unwired; $msg');
-      _stopAtTempStubWarningsEmitted++;
-    }
   }
 
   // --- integrated scale lifecycle ---

@@ -57,7 +57,7 @@ import 'package:reaprime/src/models/device/impl/de1/de1.models.dart'
 import 'package:reaprime/src/models/device/impl/de1/mmr_address.dart'
     show MmrAddress;
 import 'package:reaprime/src/models/device/impl/bengle/bengle_mmr.dart'
-    show BengleMmr;
+    show BengleMmr, BengleSteamMmr;
 // (The Bengle capability enums are parts of the unified_de1 library.)
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart'
     show BengleScaleMmr, BengleCalMmr, BengleLedMmr;
@@ -157,6 +157,7 @@ const List<ContractEntry> entriesUnderTest = <ContractEntry>[
   // ---------------------------------------------------------------------------
   ContractEntry(BengleMmr.matSetPoint, 'MatSetPoint'),
   ContractEntry(BengleMmr.cupWarmerMode, 'CupWarmerMode'),
+  ContractEntry(BengleSteamMmr.stopAtTemperatureTarget, 'TargetMilkTemp'),
 ];
 
 // =============================================================================

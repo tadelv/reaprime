@@ -83,25 +83,26 @@ enum BengleMmr implements MmrAddress {
 
 /// MMR addresses for the milk-probe steam stop. Currently the
 /// stop-at-temperature target only — probe discovery / temperature
-/// transport is unknown and may end up as a separate characteristic
-/// rather than another MMR slot.
+/// transport is separate (the live reading rides the `0xA013`
+/// shot-sample stream, not an MMR).
 ///
 /// `stopAtTemperatureTarget` is a **set/get target** endpoint, not a
-/// presence/detection mechanism. Address is stubbed `0x00000000`; the
-/// `setStopAtTemperatureTarget` implementation no-ops on the wire and
-/// caches locally until FW publishes the slot. Pin tests assert the
-/// stub address so the day FW lands, the test flips and forces review.
+/// presence/detection mechanism. Backed by firmware `TargetMilkTemp`
+/// (`0x008038A8`, firmware register-table row 49), decicelsius on the wire
+/// (`mult = 10`), `0` = disabled. NB the asymmetric milk scaling
+///: this target is ×10 while the live `0xA013` `MilkTemp`
+/// reading is ÷100 — confusing them puts the auto-stop 10× off.
 enum BengleSteamMmr implements MmrAddress {
   /// Stop-at-temperature target in °C. `0.0` disables autonomous stop.
   /// Encoded as `scaledFloat` with scale factor 10 — decicelsius on
-  /// the wire, unsigned. Range `0..80 °C`.
+  /// the wire, unsigned. Range `0..85 °C` (FW max 850).
   stopAtTemperatureTarget(
-    0x00000000, // TBD with FW
+    0x008038A8, // TargetMilkTemp
     4,
     MmrValueKind.scaledFloat,
     'StopAtTemperatureTarget',
     min: 0,
-    max: 800, // 80.0 °C
+    max: 850, // 85.0 °C
     readScale: 0.1,
     writeScale: 10.0,
   );

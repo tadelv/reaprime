@@ -383,10 +383,9 @@ void main(List<String> args) async {
     de1Controller: de1Controller,
   );
 
-  // Reflects SteamSettings.stopAtTemperature into Bengle's stop-at-
-  // temperature MMR (currently stubbed FW slot — bridge keeps the
-  // cache consistent so the day FW publishes, writes hit the wire
-  // automatically). See [[bengle_steam_stop_bridge]].
+  // Reflects SteamSettings.stopAtTemperature into Bengle's
+  // TargetMilkTemp MMR (real register).
+  // See [[bengle_steam_stop_bridge]].
   // ignore: unused_local_variable
   final bengleSteamStopBridge = BengleSteamStopBridge(
     workflowController: workflowController,
