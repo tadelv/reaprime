@@ -109,6 +109,39 @@ Discovery services are responsible for scanning and creating device instances. E
   (`0x2E8A:0x000A`) comes from
   `android/app/src/main/res/xml/device_filter.xml`.
 
+  **USB/serial transport behaviour (DE1 family).** The wire protocol is the
+  DE1 ASCII serial view (uplink `<X>hex` / `<+X>` / `<-X>`, downlink
+  `[X]hex`), shared with the firmware's BLE module. Constraints the client
+  designs around (`UnifiedDe1Transport`):
+
+  - **Reads.** The serial view has no read verb. Continuously-subscribed
+    frames (state, shot sample, water levels, MMR, FW map) are served from
+    the latest received frame; `versions`, `temperatures` and `calibration`
+    are one-shot `<+X>` → `[X]` → `<-X>` round trips with a 2 s timeout
+    (firmware that never emits the char fails fast instead of hanging).
+    Endpoints the firmware cannot emit (`setTime`, `shotDirectory`,
+    `headerWrite`, `frameWrite`, …) throw `UnsupportedError`. Shot settings
+    (`[K]`) are accepted as writes by the the Bengle firmware but not yet
+    emitted — a serial read returns the seeded zero frame until the
+    firmware gains `[K]` support.
+  - **Length-exact frames.** The firmware parser consumes exactly
+    `sizeof(struct)` hex bytes per `<X>` frame; a short frame is dropped and
+    desyncs the parser to the next `<`. The only short-frame producer — the
+    DFU uploader's final image chunk — is zero-padded to the 20-byte
+    the MMR write frame size on serial (the `Len` byte keeps the true length).
+  - **Throughput.** The firmware serial downlink is capped at ~1920 B/s
+    (16 bytes per 120 Hz tick), half-duplex and downlink-prioritised.
+    Subscriptions are budgeted accordingly, and truncated frames from a
+    momentary overrun are dropped with a warning rather than crashing the
+    parser.
+  - **Link arbitration.** BLE and USB are mutually exclusive in the
+    firmware (last-writer-wins source flag): a passively-listening USB
+    client can silently lose its notify stream to a stray BLE-module byte.
+    The transport actively drives the link with a 5 s `<+N>` keepalive,
+    which re-asserts the USB source and re-syncs subscribed frames (the
+    ASCII framing has no checksum/retransmit; MMR reads additionally carry
+    their own timeout+retry).
+
 #### 3. SimulatedDeviceService
 - **Platform:** All
 - **File:** `lib/src/services/simulated_device_service.dart`

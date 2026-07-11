@@ -26,6 +26,43 @@ class UnifiedDe1Transport {
   // serial branch never runs.
   StreamSubscription<String>? _transportSubscription;
 
+  /// period of the serial keepalive that actively drives the
+  /// shared firmware link. BLE and USB share one serial view in the
+  /// firmware, arbitrated by a last-writer-wins `Source` flag — any stray
+  /// byte from the BLE module silently steals the notify stream from a
+  /// passively-listening USB client (the firmware its BLE input path vs
+  /// the BLE-UART RX path). A periodic `<+N>` re-add re-asserts
+  /// Source=USB, and — because the firmware treats an add-notify as a
+  /// force-update — also re-syncs any subscribed frame a silently-dropped
+  /// byte corrupted (the ASCII framing has no checksum/retransmit). 5 s
+  /// bounds the worst-case stolen-stream window at negligible cost (one
+  /// ~8-char command up, one [N] frame + changed frames down).
+  static const defaultSerialKeepaliveInterval = Duration(seconds: 5);
+
+  /// Test seam: keepalive cadence, injectable so the timer tests can run
+  /// on real (shortened) time — fakeAsync stalls on the root-zone
+  /// `_nullFuture` that broadcast-subscription cancels return.
+  final Duration serialKeepaliveInterval;
+  Timer? _serialKeepalive;
+
+  /// bounded wait for a single-notify serial read. The firmware
+  /// answers a `<+X>` with one `[X]` frame within a notify tick, so 2 s is
+  /// generous; firmware that never emits the char (e.g. a pre-parity
+  /// the firmware asked for `[A]`) fails fast with a [TimeoutException] instead
+  /// of hanging the raw-API caller.
+  static const defaultSerialSingleReadTimeout = Duration(seconds: 2);
+
+  /// Test seam: see [serialKeepaliveInterval].
+  final Duration serialSingleReadTimeout;
+
+  /// the firmware serial parser consumes exactly
+  /// the frame length is 20 bytes per `<F>`
+  /// frame (the firmware serial view counts hex pairs before accepting
+  /// the newline). BLE tolerates a short final DFU chunk; serial drops the
+  /// whole frame and resyncs on the next `<`. The `Len` byte (`data[0]`)
+  /// carries the true payload length, so trailing zeros are inert.
+  static const _writeToMmrFrameBytes = 20;
+
   // True while `_handleBleTimeout` is doing a deliberate disconnect→reconnect
   // to recover from a BLE timeout. The disconnect it issues must stay
   // invisible to upstream (De1Controller would otherwise null the machine on
@@ -68,6 +105,17 @@ class UnifiedDe1Transport {
     ByteData(7),
   );
 
+  // single-notify serial read channels ([A] Versions,
+  // [J] Temperatures, [R] Calibration). Plain broadcast controllers, NOT
+  // BehaviorSubjects: a read must resolve with the fresh frame provoked by
+  // its own `<+X>`, never a cached one.
+  final StreamController<ByteData> _versionsController =
+      StreamController.broadcast();
+  final StreamController<ByteData> _temperaturesController =
+      StreamController.broadcast();
+  final StreamController<ByteData> _calibrationController =
+      StreamController.broadcast();
+
   Stream<ByteData> get state => _stateSubject.asBroadcastStream();
   Stream<ByteData> get shotSample => _shotSampleSubject.asBroadcastStream();
   Stream<ByteData> get shotSettings => shotSettingsSubject.asBroadcastStream();
@@ -78,7 +126,11 @@ class UnifiedDe1Transport {
   // Serial only
   String _currentBuffer = "";
 
-  UnifiedDe1Transport({required DataTransport transport})
+  UnifiedDe1Transport({
+    required DataTransport transport,
+    this.serialKeepaliveInterval = defaultSerialKeepaliveInterval,
+    this.serialSingleReadTimeout = defaultSerialSingleReadTimeout,
+  })
     : _transport = transport,
       transportType =
           transport is BLETransport
@@ -200,6 +252,20 @@ class UnifiedDe1Transport {
 
     // needed to know which state we're at - request idle state
     await _transport.writeCommand("<B>02");
+
+    // actively drive the shared BLE/USB link — see
+    // [serialKeepaliveInterval] for why a passive USB client loses its
+    // notify stream. Fire-and-forget: a failed keepalive write means the
+    // port is dying, which the read-side onError/onDone paths already
+    // handle; it must not become an unhandled async error.
+    _serialKeepalive?.cancel();
+    _serialKeepalive = Timer.periodic(serialKeepaliveInterval, (_) {
+      _transport
+          .writeCommand("<+${Endpoint.stateInfo.representation}>")
+          .catchError(
+            (Object e) => _log.fine('serial keepalive write failed', e),
+          );
+    });
   }
 
   /// End-of-life cleanup. Closes all subjects, cancels the serial
@@ -209,6 +275,8 @@ class UnifiedDe1Transport {
     // Cancel serial subscription if active
     await _transportSubscription?.cancel();
     _transportSubscription = null;
+    _serialKeepalive?.cancel();
+    _serialKeepalive = null;
 
     // Close all BehaviorSubjects so downstream listeners see onDone
     if (!_stateSubject.isClosed) _stateSubject.close();
@@ -217,6 +285,9 @@ class UnifiedDe1Transport {
     if (!_waterLevelsSubject.isClosed) _waterLevelsSubject.close();
     if (!_mmrSubject.isClosed) _mmrSubject.close();
     if (!_fwMapRequestSubject.isClosed) _fwMapRequestSubject.close();
+    if (!_versionsController.isClosed) _versionsController.close();
+    if (!_temperaturesController.isClosed) _temperaturesController.close();
+    if (!_calibrationController.isClosed) _calibrationController.close();
 
     await _transport.dispose();
   }
@@ -232,12 +303,17 @@ class UnifiedDe1Transport {
   Future<void> detach() async {
     await _transportSubscription?.cancel();
     _transportSubscription = null;
+    _serialKeepalive?.cancel();
+    _serialKeepalive = null;
     if (!_stateSubject.isClosed) _stateSubject.close();
     if (!_shotSampleSubject.isClosed) _shotSampleSubject.close();
     if (!shotSettingsSubject.isClosed) shotSettingsSubject.close();
     if (!_waterLevelsSubject.isClosed) _waterLevelsSubject.close();
     if (!_mmrSubject.isClosed) _mmrSubject.close();
     if (!_fwMapRequestSubject.isClosed) _fwMapRequestSubject.close();
+    if (!_versionsController.isClosed) _versionsController.close();
+    if (!_temperaturesController.isClosed) _temperaturesController.close();
+    if (!_calibrationController.isClosed) _calibrationController.close();
   }
 
   Future<void> disconnect() async {
@@ -253,6 +329,8 @@ class UnifiedDe1Transport {
         }
         await _transportSubscription?.cancel();
         _transportSubscription = null;
+        _serialKeepalive?.cancel();
+        _serialKeepalive = null;
         // Start notifications - regular setup
         await _transport.writeCommand(
           "<-${Endpoint.stateInfo.representation}>",
@@ -375,6 +453,15 @@ class UnifiedDe1Transport {
           _mmrNotification(data);
         case "[I]":
           _fwMapNotification(data);
+        // single-notify read replies. Only ever solicited by
+        // _serialSingleNotifyRead's own `<+X>`, so no length guard here —
+        // the awaiting reader owns interpretation.
+        case "[A]":
+          _versionsController.add(data);
+        case "[J]":
+          _temperaturesController.add(data);
+        case "[R]":
+          _calibrationController.add(data);
         default:
           _log.warning("unhandled de1 message: $input");
           break;
@@ -497,49 +584,98 @@ class UnifiedDe1Transport {
     return response;
   }
 
+  /// Serial reads come in three shapes:
+  ///
+  /// 1. **Continuously-subscribed streams** (`<+X>` sent in
+  ///    `_serialConnect`) — the BehaviorSubject's current value *is* the
+  ///    latest frame; return it.
+  /// 2. **Single-notify round trips** — the DE1 serial view has no read
+  ///    verb; an add-notify (`<+X>`) makes the firmware emit one `[X]`
+  ///    frame immediately, so a read is `<+X>` → await fresh frame →
+  ///    `<-X>` ([_serialSingleNotifyRead]).
+  /// 3. **No read path** — the firmware never emits the char (its
+  ///    the firmware notify loop serves only N/M/Q/I/E/R — plus J/K with the
+  ///    serial-parity firmware; the firmware has no version-frame support,
+  ///    so a `versions` read times out cleanly on every firmware today —
+  ///    and F/G/H are write-only commands). A descriptive
+  ///    [UnsupportedError] beats `UnimplementedError`: the raw WS API
+  ///    surfaces it to the client instead of crashing the read.
   Future<ByteData> _serialRead(Endpoint e) async {
     if (transportType != TransportType.serial) {
       throw "Invalid transport type, expected Serial";
     }
 
     switch (e) {
-      case Endpoint.versions:
-        throw UnimplementedError();
+      // -- continuously subscribed: current value is the latest frame.
       case Endpoint.requestedState:
-        return _stateSubject.first;
-      case Endpoint.setTime:
-        throw UnimplementedError();
-      case Endpoint.shotDirectory:
-        throw UnimplementedError();
-      case Endpoint.readFromMMR:
-        return _mmrSubject.first;
-      case Endpoint.writeToMMR:
-        throw UnimplementedError();
-      case Endpoint.shotMapRequest:
-        throw UnimplementedError();
-      case Endpoint.deleteShotRange:
-        throw UnimplementedError();
-      case Endpoint.fwMapRequest:
-        return _fwMapRequestSubject.first;
-      case Endpoint.temperatures:
-        throw UnimplementedError();
-      case Endpoint.shotSettings:
-        return shotSettingsSubject.first;
-      case Endpoint.deprecatedShotDesc:
-        throw UnimplementedError();
-      case Endpoint.shotSample:
-        return _shotSampleSubject.first;
       case Endpoint.stateInfo:
         return _stateSubject.first;
-      case Endpoint.headerWrite:
-        throw UnimplementedError();
-      case Endpoint.frameWrite:
-        throw UnimplementedError();
+      case Endpoint.readFromMMR:
+        return _mmrSubject.first;
+      case Endpoint.fwMapRequest:
+        return _fwMapRequestSubject.first;
+      case Endpoint.shotSettings:
+        // Note: the the Bengle firmware accepts <K> writes but does not emit
+        // [K] frames (no the firmware notify loop block), so on serial this stays the
+        // seeded zero frame until the firmware gains [K] support.
+        return shotSettingsSubject.first;
+      case Endpoint.shotSample:
+        return _shotSampleSubject.first;
       case Endpoint.waterLevels:
         return _waterLevelsSubject.first;
+
+      // -- single-notify round trips.
+      case Endpoint.versions:
+        return _serialSingleNotifyRead(e, _versionsController.stream);
+      case Endpoint.temperatures:
+        return _serialSingleNotifyRead(e, _temperaturesController.stream);
       case Endpoint.calibration:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+        return _serialSingleNotifyRead(e, _calibrationController.stream);
+
+      // -- no serial read path.
+      case Endpoint.setTime:
+      case Endpoint.shotDirectory:
+      case Endpoint.writeToMMR:
+      case Endpoint.shotMapRequest:
+      case Endpoint.deleteShotRange:
+      case Endpoint.deprecatedShotDesc:
+      case Endpoint.headerWrite:
+      case Endpoint.frameWrite:
+        throw UnsupportedError(
+          'Endpoint ${e.name} has no serial read path: the DE1 serial view '
+          'never emits [${e.representation}] frames',
+        );
+    }
+  }
+
+  /// One-shot serial read of a characteristic that is not continuously
+  /// subscribed: arm a listener, provoke a single notify with
+  /// `<+X>`, await the fresh frame, then `<-X>` so the read leaves no
+  /// stream subscription behind. Bounded by [serialSingleReadTimeout] so
+  /// firmware that never emits the char yields a clean [TimeoutException]
+  /// instead of a hang.
+  Future<ByteData> _serialSingleNotifyRead(
+    Endpoint e,
+    Stream<ByteData> frames,
+  ) async {
+    final t = _transport;
+    if (t is! SerialTransport) {
+      throw StateError(
+        '_serialSingleNotifyRead(${e.name}) requires a serial transport',
+      );
+    }
+    // Arm BEFORE requesting so the reply can't slip between the write
+    // completing and the listener attaching (same race `_mmrReadRaw`
+    // guards against).
+    final response = frames.first.timeout(serialSingleReadTimeout);
+    // If the request write throws, nothing awaits `response` and its later
+    // timeout would surface as an unhandled async error — mark it handled.
+    response.ignore();
+    try {
+      await t.writeCommand('<+${e.representation}>');
+      return await response;
+    } finally {
+      await t.writeCommand('<-${e.representation}>');
     }
   }
 
@@ -662,7 +798,16 @@ class UnifiedDe1Transport {
     if (_transport is! SerialTransport) {
       throw "Invalid transport type, expected Serial";
     }
-    final payload = data
+    var frame = data;
+    // length-exact framing. Only writeToMMR has a short-frame
+    // producer (the DFU uploader's final image chunk); every other caller
+    // already emits struct-sized frames (`_mmrWriteRaw` pads to 20,
+    // Header/Frame writes are 5 B / 8 B by construction). See
+    // [_writeToMmrFrameBytes] for why the firmware requires this.
+    if (e == Endpoint.writeToMMR && data.length < _writeToMmrFrameBytes) {
+      frame = Uint8List(_writeToMmrFrameBytes)..setRange(0, data.length, data);
+    }
+    final payload = frame
         .map((e) => e.toRadixString(16).padLeft(2, '0'))
         .join('');
     await _transport.writeCommand('<${e.representation!}>$payload');
