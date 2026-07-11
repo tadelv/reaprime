@@ -563,7 +563,17 @@ class ConnectionManager {
     switch (machineAction) {
       case ConnectMachineAction(machine: final m):
         await _connectMachineTracked(m, scanReport);
-        await _runScalePhase(m, scales, preferredScaleId, scanReport);
+        // connectToDe1 may re-resolve the machine to a new class instance
+        // over the same transport (v13Model-authoritative). Run the
+        // scale phase against the *connected* machine (latestMachine), not
+        // the stale name-picked `m`, so a promoted Bengle's integrated scale
+        // attaches. Matches the sibling _runScalePhase calls above.
+        await _runScalePhase(
+          _disconnectSupervisor.latestMachine,
+          scales,
+          preferredScaleId,
+          scanReport,
+        );
         _maybeArmDeferredScaleScan();
         _maybeSchedulePreferredScaleReconnect();
       case MachinePickerAction():

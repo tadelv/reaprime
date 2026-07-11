@@ -1,28 +1,9 @@
 part of 'unified_de1.dart';
 
-/// Wire endpoints for Bengle's integrated scale.
-///
-/// Both [uuid] and [representation] return `null` for now — the firmware
-/// slots have not yet been published. The [IntegratedScaleCapability]
-/// mixin treats null wires as "capability not yet wired" and silently
-/// no-ops. Once FW publishes the wire spec, fill these in and the rest
-/// of the capability light up unchanged.
-enum BengleScaleEndpoint implements LogicalEndpoint {
-  /// Notify characteristic carrying weight frames.
-  weight,
-
-  /// Write characteristic for tare and other scale commands.
-  control;
-
-  @override
-  String? get uuid => null; // TBD with FW
-
-  @override
-  String? get representation => null; // TBD with FW
-
-  @override
-  String get name => (this as Enum).name;
-}
+// NOTE: the integrated scale is NOT a separate BLE characteristic —
+// weight rides on the 0xA013 BengleShotSample stream, already net of tare in
+// firmware. The early `BengleScaleEndpoint` null-UUID scaffolding that assumed
+// dedicated weight/control endpoints was the wrong model and has been dropped.
 
 /// MMR addresses for the integrated scale.
 ///
@@ -79,17 +60,15 @@ enum BengleScaleMmr implements MmrAddress {
 
 /// Stateful capability for Bengle's integrated scale.
 ///
-/// Owns the weight stream and tare endpoint. Lifecycle is managed by the
+/// Bridges the `0xA013` BengleShotSample frame's integrated-scale Weight
+/// into the standard scale pipeline. Lifecycle is managed by the
 /// concrete `Bengle` device — call [initIntegratedScale] from
 /// `onConnect`, [disposeIntegratedScale] from `onDisconnect`.
 /// `UnifiedDe1.disconnect()` invokes `onDisconnect()` for the device, so
 /// `disposeIntegratedScale()` runs on every real disconnect. The
 /// capability is also re-init-safe: `initIntegratedScale()` recreates
 /// `_bengleWeight` if a previous dispose closed it, so a reconnect on
-/// the same instance restores a live stream. The capability is
-/// intentionally a no-op until firmware publishes the wire identifiers
-/// (see [BengleScaleEndpoint]); when that happens, fill in the enum and
-/// replace the placeholder parser/encoder bodies.
+/// the same instance restores a live stream.
 mixin IntegratedScaleCapability on UnifiedDe1 {
   BehaviorSubject<ScaleSnapshot> _bengleWeight =
       BehaviorSubject<ScaleSnapshot>();
@@ -103,20 +82,21 @@ mixin IntegratedScaleCapability on UnifiedDe1 {
   /// spam — same pattern as `LedStripCapability._stubWarningsEmitted`).
   int _sawStubWarningsEmitted = 0;
 
-  /// Live weight stream from the integrated scale. Emits nothing while
-  /// the wire identifiers in [BengleScaleEndpoint] are null (FW TBD).
+  /// Live weight stream from the integrated scale (one [ScaleSnapshot] per
+  /// valid `0xA013` frame).
   Stream<ScaleSnapshot> get weightSnapshot => _bengleWeight.stream;
 
   /// Current stop-at-weight target in grams (`0.0` = SAW off).
   Stream<double> get stopAtWeightTarget => _sawTarget.stream;
 
-  /// Subscribe to the integrated-scale weight notify endpoint. No-op
-  /// (with a single info log) while the endpoint wires are null.
+  /// Start bridging `0xA013` Weight into the scale pipeline.
   ///
-  /// Re-init-safe: if a previous [disposeIntegratedScale] closed the
-  /// subject, a fresh one is created here so that listeners attaching
-  /// after a reconnect see a live stream rather than an immediately-
-  /// done one.
+  /// The 0xA013 subscription itself is enabled by `UnifiedDe1.onConnect`
+  ///; here we just listen to the transport's already-guarded frame
+  /// stream. Re-init-safe: cancels any prior subscription first (a reconnect
+  /// calls this again), and if a previous [disposeIntegratedScale] closed the
+  /// subjects, fresh ones are created so that listeners attaching after a
+  /// reconnect see a live stream rather than an immediately-done one.
   Future<void> initIntegratedScale() async {
     if (_bengleWeight.isClosed) {
       _bengleWeight = BehaviorSubject<ScaleSnapshot>();
@@ -124,15 +104,10 @@ mixin IntegratedScaleCapability on UnifiedDe1 {
     if (_sawTarget.isClosed) {
       _sawTarget = BehaviorSubject<double>.seeded(0.0);
     }
-    final endpoint = BengleScaleEndpoint.weight;
-    if (endpoint.uuid == null && endpoint.representation == null) {
-      this.log.info('IntegratedScaleCapability: weight endpoint unwired; '
-          'no notify subscription. Awaiting FW.');
-      return;
-    }
-    // When wires are real:
-    // _bengleWeightSub =
-    //     notificationsFor(endpoint).listen(_handleWeightFrame);
+    await _bengleWeightSub?.cancel();
+    _bengleWeightSub = _transport.bengleShotSample.listen(
+      _handleBengleShotSample,
+    );
   }
 
   /// Cancel the weight subscription and close the snapshot subject.
@@ -147,18 +122,15 @@ mixin IntegratedScaleCapability on UnifiedDe1 {
     }
   }
 
-  /// Tare the integrated scale. No-op (with a single info log) while
-  /// the control endpoint wires are null.
+  /// Tare the integrated scale. Logged no-op until the `ScaleTare` MMR
+  /// write-trigger lands (stop-at-weight/tare branch). Note the
+  /// `0xA013` Weight already arrives net of the firmware's own tare state,
+  /// so bridged weights stay correct meanwhile.
   Future<void> tareIntegratedScale() async {
-    final ctl = BengleScaleEndpoint.control;
-    if (ctl.uuid == null && ctl.representation == null) {
-      this.log.info('IntegratedScaleCapability: tare ignored — control '
-          'endpoint unwired. Awaiting FW.');
-      return;
-    }
-    // When wired:
-    // await writeEndpoint(ctl, Uint8List.fromList(_encodeTareCommand()),
-    //     withResponse: false);
+    this.log.info(
+      'IntegratedScaleCapability: tare is not yet wired — the ScaleTare '
+      'MMR trigger lands.',
+    );
   }
 
   /// Write the autonomous SAW target (grams) to FW. `0.0` disables
@@ -204,14 +176,24 @@ mixin IntegratedScaleCapability on UnifiedDe1 {
     }
   }
 
-  // Frame parser placeholder — replaced once FW spec lands.
-  // ignore: unused_element
-  void _handleWeightFrame(ByteData frame) {
-    this.log.warning('IntegratedScaleCapability: weight frame received but '
-        'parser not yet implemented (FW spec TBD)');
+  /// Bridge a 0xA013 frame's integrated-scale weight into the scale pipeline
+  ///. Weight (offset 20, U16P5 ÷32) arrives already tare-netted, so
+  /// we trust it directly. GFlow (gravimetric flow) and milk temp travel on
+  /// the [MachineSnapshot] (see `_parseStateAndBengleShotSample`); the Scale
+  /// surface carries weight only ([ScaleSnapshot] has no flow field).
+  ///
+  /// The **Flags** byte is deliberately ignored — bit0 is a `LastTARE` value
+  /// proxy at best (older firmware hardcodes 0), so a tare must be confirmed
+  /// by watching the weight, not the flag.
+  void _handleBengleShotSample(ByteData frame) {
+    final sample = parseBengleShotSample(frame);
+    if (sample == null || _bengleWeight.isClosed) return;
+    _bengleWeight.add(
+      ScaleSnapshot(
+        timestamp: DateTime.now(),
+        weight: sample.weight,
+        batteryLevel: 100, // integrated scale is mains-powered; report full
+      ),
+    );
   }
-
-  // Tare command encoder placeholder — replaced once FW spec lands.
-  // ignore: unused_element
-  List<int> _encodeTareCommand() => const [];
 }
