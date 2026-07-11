@@ -115,9 +115,10 @@ Discovery services are responsible for scanning and creating device instances. E
   designs around (`UnifiedDe1Transport`):
 
   - **Reads.** The serial view has no read verb. Continuously-subscribed
-    frames (state, shot sample, water levels, MMR, FW map) are served from
-    the latest received frame; `versions`, `temperatures` and `calibration`
-    are one-shot `<+X>` → `[X]` → `<-X>` round trips with a 2 s timeout
+    frames (state, shot sample, water levels, MMR, FW map, the Bengle 0xA013
+    shot sample) are served from the latest received frame; `versions`,
+    `temperatures` and `calibration` are one-shot
+    `<+X>` → `[X]` → `<-X>` round trips with a 2 s timeout
     (firmware that never emits the char fails fast instead of hanging).
     Endpoints the firmware cannot emit (`setTime`, `shotDirectory`,
     `headerWrite`, `frameWrite`, …) throw `UnsupportedError`. Shot settings
@@ -133,7 +134,11 @@ Discovery services are responsible for scanning and creating device instances. E
     (16 bytes per 120 Hz tick), half-duplex and downlink-prioritised.
     Subscriptions are budgeted accordingly, and truncated frames from a
     momentary overrun are dropped with a warning rather than crashing the
-    parser.
+    parser. On a confirmed Bengle the redundant `[M]` (0xA00D) stream is
+    unsubscribed (`<-M>`) as soon as the identity is known — 0xA013 is the
+    sole snapshot source there, and the dual 15 Hz stream overruns the
+    ceiling (hw-confirmed: truncated frames, weight flicker). BLE has the
+    headroom and keeps 0xA00D subscribed (parse-and-dropped).
   - **Link arbitration.** BLE and USB are mutually exclusive in the
     firmware (last-writer-wins source flag): a passively-listening USB
     client can silently lose its notify stream to a stray BLE-module byte.
