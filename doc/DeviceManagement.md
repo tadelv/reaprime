@@ -89,11 +89,25 @@ Discovery services are responsible for scanning and creating device instances. E
   1. `productName == "DE1"` → `UnifiedDe1`. `productName == "Bengle"` →
      `Bengle`. Cheapest path.
   2. VID:PID match against `lib/src/services/serial/usb_ids.dart`.
-     Tables empty until concrete pairs are captured from hardware.
+     Direct-instantiation tables stay empty: the Bengle's captured pair
+     (`0x2E8A:0x000A`, product string "TinyUSB Device") is the pico-sdk
+     default that any hobby CDC board also uses, so it only *qualifies
+     the port for the probe* (`bengleProbeCandidateIds`) — the `v13Model`
+     read decides what the device actually is.
   3. Fallback: open the port, send `<+M>` and the v13Model MMR-read
      request, wait for `[M]` (DE1-protocol baseline) plus an `[E]…`
      reply at addr `0x0080000C`. v13Model `>= 128` → `Bengle`, else
      `UnifiedDe1`. Encoded via `lib/src/services/serial/mmr_codec.dart`.
+
+  On Android the enumeration is pre-filtered by USB `productName`
+  (`serialProbeAllowsProductName` in `lib/src/services/serial/utils.dart`):
+  `DE1`, `Bengle`, `Half Decent Scale`, anything containing `Serial`, and
+  unknown (null) names are probed; everything else is skipped so the
+  3-second probe never opens unrelated USB devices. A port whose VID:PID is
+  in `bengleProbeCandidateIds` passes the gate regardless of its name.
+  Desktop has no name gate. Auto-permission for the Bengle VID:PID
+  (`0x2E8A:0x000A`) comes from
+  `android/app/src/main/res/xml/device_filter.xml`.
 
 #### 3. SimulatedDeviceService
 - **Platform:** All

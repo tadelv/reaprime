@@ -19,8 +19,26 @@ typedef UsbIdPair = (int vid, int pid);
 /// DE1 USB ID pairs. See doc on [UsbDeviceModel] for caveats.
 const List<UsbIdPair> de1UsbIds = [];
 
-/// Bengle USB ID pairs. Populated once captured from hardware.
+/// Bengle USB ID pairs. Deliberately EMPTY: the Bengle's TinyUSB stack
+/// currently enumerates with the pico-sdk DEFAULT ids (`0x2E8A:0x000A`,
+/// product string "TinyUSB Device" — captured from hardware),
+/// which any default pico-sdk CDC device also uses. Too generic for the
+/// direct-instantiation shortcut; see [bengleProbeCandidateIds] instead.
 const List<UsbIdPair> bengleUsbIds = [];
+
+/// VID:PID pairs that qualify a port for the identification PROBE (the
+/// v13Model read stays the authority on what the device is), without
+/// requiring the product-name gate to pass. This is how a Bengle whose
+/// firmware still ships the TinyUSB default descriptors ("TinyUSB
+/// Device") gets probed at all on Android.
+const List<UsbIdPair> bengleProbeCandidateIds = [(0x2E8A, 0x000A)];
+
+/// True when `(vid, pid)` is worth a DE1-protocol probe even though the
+/// product name says nothing useful. Null inputs yield false.
+bool isBengleProbeCandidate({required int? vid, required int? pid}) {
+  if (vid == null || pid == null) return false;
+  return bengleProbeCandidateIds.contains((vid, pid));
+}
 
 /// Default table consulted by serial services.
 const Map<UsbDeviceModel, List<UsbIdPair>> usbDeviceTable = {

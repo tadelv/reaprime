@@ -32,6 +32,19 @@ bool isDE1(List<String> data, List<int> bytes) {
   return data.any((e) => e.startsWith("[M]"));
 }
 
+/// Android USB product-name pre-filter for the serial probe.
+///
+/// The gate exists so the 3-second identification probe doesn't open every
+/// USB device on the bus, but it used to drop a board named `Bengle` before
+/// the v13Model probe ever ran (the auto-permission `device_filter.xml`
+/// already holds the Bengle VID:PID). Unknown (null) names stay allowed —
+/// the probe is the authority there. Desktop has no such gate.
+bool serialProbeAllowsProductName(String? productName) {
+  if (productName == null) return true;
+  if (productName.contains('Serial')) return true;
+  return const {'DE1', 'Bengle', 'Half Decent Scale'}.contains(productName);
+}
+
 /// Non-blocking replacement for the native `sp_drain`, which has no timeout
 /// and blocks the calling isolate forever when a USB-serial device never
 /// transmits the buffered bytes (observed when scan probes a non-Decent

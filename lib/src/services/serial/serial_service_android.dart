@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:collection/collection.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
@@ -187,11 +188,22 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
     _machineSubject.add(_devices);
   }
 
+  /// 3 admission gate for [_detectDevice]: the old inline name check
+  /// dropped `productName == "Bengle"` before the v13Model probe ever ran,
+  /// making the Bengle shortcut below unreachable. A known Bengle VID:PID
+  /// also passes (current firmware enumerates with the TinyUSB default
+  /// strings, so the name alone says nothing); the probe stays the
+  /// authority on what the device actually is. Extracted as a static seam
+  /// so the OR-combination — the actual fix — is unit-testable; the
+  /// predicates alone don't lock the call-site wiring.
+  @visibleForTesting
+  static bool shouldProbeUsbDevice(UsbDevice device) =>
+      serialProbeAllowsProductName(device.productName) ||
+      isBengleProbeCandidate(vid: device.vid, pid: device.pid);
+
   Future<Device?> _detectDevice(UsbDevice device) async {
     _log.info("device name: ${device.productName}");
-    if (device.productName?.contains('Serial') == false &&
-        !(device.productName == 'DE1') &&
-        !(device.productName == 'Half Decent Scale')) {
+    if (!shouldProbeUsbDevice(device)) {
       return null;
     }
     UsbPort? port;
@@ -213,8 +225,8 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
       return UnifiedDe1(transport: transport);
     }
 
-    // Bengle shortcut (productName likely lands as "Bengle" once FW
-    // exposes it; trivial future-proofing).
+    // Bengle shortcut — reachable now that the name gate admits "Bengle"
+    //.
     if (device.productName == "Bengle") {
       _log.info("short circuit to bengle");
       return Bengle(transport: transport);
