@@ -84,6 +84,10 @@ void main() {
     await expectDisposed(interim.weightSnapshot, 'IntegratedScale.weight');
     await expectDisposed(interim.stopAtWeightTarget, 'IntegratedScale.saw');
     await expectDisposed(interim.ledStripState, 'LedStrip.state');
+    await expectDisposed(
+      interim.scaleCalibrationProgress,
+      'ScaleCalibration.progress',
+    );
   });
 
   test('connectToDe1 is idempotent by deviceId after a class swap', () async {

@@ -17,6 +17,7 @@ import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/led_strip.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/device/scale_calibration.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
 import 'package:rxdart/rxdart.dart';
@@ -71,6 +72,28 @@ class _TestBengle extends TestDe1 implements BengleInterface {
   Stream<bool> get probeAttached => const Stream.empty();
   @override
   Stream<double> get probeTemperature => const Stream.empty();
+
+  @override
+  Future<ScaleCalResult> calibrateScaleZero() async => const ScaleCalResult(
+      success: true,
+      finalStep: ScaleCalStep.complete,
+      pointStatus: ScaleCalPointStatus.none);
+  @override
+  Future<ScaleCalResult> calibrateScaleWeightLeft(double grams) async =>
+      const ScaleCalResult(
+          success: true,
+          finalStep: ScaleCalStep.complete,
+          pointStatus: ScaleCalPointStatus.incomplete);
+  @override
+  Future<ScaleCalResult> calibrateScaleWeightRight(double grams) async =>
+      const ScaleCalResult(
+          success: true,
+          finalStep: ScaleCalStep.complete,
+          pointStatus: ScaleCalPointStatus.ok);
+  @override
+  Future<void> abortScaleCalibration() async {}
+  @override
+  Stream<ScaleCalStatus> get scaleCalibrationProgress => const Stream.empty();
 }
 
 class _FakeDiscoveryService extends DeviceDiscoveryService {

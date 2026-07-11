@@ -49,9 +49,61 @@ class De1Handler {
             'integratedScale',
             'ledStrip',
             'stopAtWeight',
+            'scaleCalibration',
           ]);
         }
         return jsonOk({'capabilities': caps});
+      });
+    });
+
+    // Scale calibration — Bengle two-point integrated-scale load-cell
+    // wizard. `command`: zero (empty platform) | left / right (latch the known
+    // `grams` reference mass on that half; both required) | abort.
+    app.post('/api/v1/machine/scale/calibrate', (Request r) async {
+      return withDe1((de1) async {
+        if (de1 is! BengleInterface) {
+          return jsonNotFound({'error': 'scale calibration not supported'});
+        }
+        final json = jsonDecode(await r.readAsString());
+        if (json is! Map) {
+          return jsonBadRequest({'error': 'expected a JSON object body'});
+        }
+        final command = json['command'];
+        switch (command) {
+          case 'zero':
+            return jsonOk((await de1.calibrateScaleZero()).toJson());
+          case 'left':
+            if (json['grams'] == null) {
+              return jsonBadRequest({
+                'error': 'weight calibration requires "grams"',
+              });
+            }
+            return jsonOk(
+              (await de1.calibrateScaleWeightLeft(
+                parseDouble(json['grams']),
+              )).toJson(),
+            );
+          case 'right':
+            if (json['grams'] == null) {
+              return jsonBadRequest({
+                'error': 'weight calibration requires "grams"',
+              });
+            }
+            return jsonOk(
+              (await de1.calibrateScaleWeightRight(
+                parseDouble(json['grams']),
+              )).toJson(),
+            );
+          case 'abort':
+            await de1.abortScaleCalibration();
+            return jsonAccepted();
+          default:
+            return jsonBadRequest({
+              'error':
+                  'unknown command "$command" — expected '
+                  'zero, left, right, or abort',
+            });
+        }
       });
     });
 

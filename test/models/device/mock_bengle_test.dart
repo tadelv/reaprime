@@ -3,6 +3,7 @@ import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/impl/bengle/mock_bengle.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
+import 'package:reaprime/src/models/device/scale_calibration.dart';
 
 void main() {
   group('MockBengle', () {
@@ -66,6 +67,30 @@ void main() {
       final m = MockBengle();
       await m.setStopAtWeightTarget(36.0);
       expect(await m.stopAtWeightTarget.first, 36.0);
+    });
+  });
+
+  group('MockBengle scale calibration', () {
+    test('calibrateScaleZero completes successfully', () async {
+      final m = MockBengle();
+      final r = await m.calibrateScaleZero();
+      expect(r.success, isTrue);
+      expect(r.finalStep, ScaleCalStep.complete);
+    });
+
+    test('two-point weight cal completes and emits progress', () async {
+      final m = MockBengle();
+      final seen = <ScaleCalStatus>[];
+      final sub = m.scaleCalibrationProgress.listen(seen.add);
+      final left = await m.calibrateScaleWeightLeft(500.0);
+      final right = await m.calibrateScaleWeightRight(500.0);
+      await pumpEventQueue();
+      await sub.cancel();
+      expect(left.success, isTrue);
+      expect(left.pointStatus, ScaleCalPointStatus.incomplete);
+      expect(right.success, isTrue);
+      expect(right.pointStatus, ScaleCalPointStatus.ok);
+      expect(seen.last.isComplete, isTrue);
     });
   });
 

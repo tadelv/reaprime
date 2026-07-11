@@ -18,6 +18,7 @@ import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1_tran
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/led_strip.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/device/scale_calibration.dart';
 import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/device/transport/logical_endpoint.dart';
@@ -31,6 +32,7 @@ part 'unified_de1.firmware.dart';
 part 'unified_de1.raw.dart';
 part 'integrated_scale_capability.dart';
 part 'led_strip_capability.dart';
+part 'scale_calibration_capability.dart';
 
 class UnifiedDe1 implements De1Interface {
   static final BleServiceIdentifier advertisingIdentifier =

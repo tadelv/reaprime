@@ -355,12 +355,15 @@ paths:
       description: |
         Returns the optional capability surfaces the currently connected
         machine exposes. Plain DE1s return an empty list; Bengle returns
-        `["cupWarmer", "integratedScale", "ledStrip", "stopAtWeight"]`
-        plus any future capabilities as they ship. `stopAtWeight` means
-        the machine firmware runs its own autonomous stop-at-weight from
-        the integrated scale: the app reflects `WorkflowContext.targetYield`
-        into the SAW MMR, so clients keep setting the target yield through
-        `PUT /api/v1/workflow` — there is no dedicated SAW endpoint.
+        `["cupWarmer", "integratedScale", "ledStrip", "stopAtWeight",
+        "scaleCalibration"]` plus any future capabilities as they ship.
+        `stopAtWeight` means the machine firmware runs its own autonomous
+        stop-at-weight from the integrated scale: the app reflects
+        `WorkflowContext.targetYield` into the SAW MMR, so clients keep
+        setting the target yield through `PUT /api/v1/workflow` — there is
+        no dedicated SAW endpoint. `scaleCalibration` is the non-blocking
+        load-cell zero/weight wizard over MMR — see
+        `POST /api/v1/machine/scale/calibrate`.
         Skins should query this endpoint once after connect to decide
         which UI to render and which `/api/v1/machine/...` capability
         endpoints to call.
@@ -372,6 +375,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MachineCapabilities"
+  /api/v1/machine/scale/calibrate:
+    post:
+      summary: Calibrate integrated scale (Bengle)
+      description: |
+        Run one step of the Bengle's **two-point** load-cell calibration.
+        Procedure: `zero` → `left` → `right`. `command`:
+          * `zero` — precision-zero the cells with NOTHING on the platform;
+          * `left` — latch point 1: known reference mass (`grams`, required) on
+            the LEFT half;
+          * `right` — latch point 2: the same mass on the RIGHT half; solving
+            this point persists + applies the cal;
+          * `abort` — cancel an in-flight run.
+        `zero`/`left`/`right` trigger the firmware and poll it to a terminal
+        step or a bounded deadline, returning the outcome. Returns 404 on a
+        plain DE1 (no integrated scale).
+      tags: [Machine]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScaleCalibrationRequest"
+      responses:
+        "200":
+          description: Calibration finished (see `success`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScaleCalibrationResult"
+        "202":
+          description: Abort accepted
+        "400":
+          description: Unknown command, or `left`/`right` without `grams`
+        "404":
+          description: Machine connected but has no integrated scale
   /api/v1/machine/cupWarmer:
     get:
       summary: Get cup-warmer setpoint
@@ -4318,17 +4356,72 @@ components:
           description: |
             Capability identifiers supported by the currently connected
             machine. Plain DE1 returns an empty array. Bengle returns
-            `cupWarmer`, `integratedScale`, `ledStrip`, and
+            `cupWarmer`, `integratedScale`, `ledStrip`,
             `stopAtWeight` (autonomous in-FW stop-at-weight driven by
             the integrated scale; the app reflects
-            `WorkflowContext.targetYield` into the SAW MMR). Future
-            Bengle peripherals will append their identifiers as they
-            ship. Note: the milk-probe scaffolding lives in `/sensors`,
-            not here.
+            `WorkflowContext.targetYield` into the SAW MMR), and
+            `scaleCalibration` (non-blocking load-cell zero/weight
+            wizard over MMR — see `POST /api/v1/machine/scale/calibrate`).
+            Future Bengle peripherals will append their identifiers as
+            they ship. Note: the milk-probe scaffolding lives in
+            `/sensors`, not here.
           items:
             type: string
-            enum: [cupWarmer, integratedScale, ledStrip, stopAtWeight]
-          example: [cupWarmer, integratedScale, ledStrip, stopAtWeight]
+            enum: [cupWarmer, integratedScale, ledStrip, stopAtWeight, scaleCalibration]
+          example: [cupWarmer, integratedScale, ledStrip, stopAtWeight, scaleCalibration]
+
+    ScaleCalibrationRequest:
+      type: object
+      required: [command]
+      properties:
+        command:
+          type: string
+          enum: [zero, left, right, abort]
+          description: |
+            `zero` precision-zeros the empty cells; `left`/`right` latch the
+            two-point weight cal (LEFT then RIGHT half) against a known mass;
+            `abort` cancels an in-flight run.
+        grams:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 10000.0
+          description: |
+            Known reference mass in grams. Required for `command: left` and
+            `command: right` (use the same mass for both); ignored otherwise.
+            Out-of-range values are clamped. Use a whole-gram mass — the
+            firmware reads the reference back at whole-gram resolution and the
+            app refuses to latch when the read-back does not confirm the write.
+          example: 500.0
+
+    ScaleCalibrationResult:
+      type: object
+      required: [success, finalStep, pointStatus]
+      properties:
+        success:
+          type: boolean
+          description: |
+            Whether the step succeeded — for `zero` a Complete step; for `left`
+            a latched point (pointStatus `incomplete`); for `right` a solved cal
+            (pointStatus `ok`).
+        finalStep:
+          type: string
+          enum: [idle, zeroing, calPoint1, calPoint2, taring, complete, error, unknown]
+          description: Terminal firmware Step reached.
+          example: complete
+        pointStatus:
+          type: string
+          enum: [ok, incomplete, noZero, notSettled, badWeight, badDelta, illConditioned, outOfRange, none, unknown]
+          description: |
+            Firmware CalStatus of the last weight-cal latch. `incomplete` = the
+            point latched, awaiting the other half; `ok` = both points solved
+            and the cal was persisted. `none` for zero. The rest are rejections.
+          example: ok
+        message:
+          type: string
+          description: >-
+            Reason on failure (`timed out`, `firmware reported error`,
+            `calibration not accepted (status: …)`, …); absent on success.
 
     CupWarmerState:
       type: object

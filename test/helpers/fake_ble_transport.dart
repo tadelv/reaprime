@@ -54,6 +54,12 @@ class FakeBleTransport extends BLETransport {
   /// both are queued for the same address.
   final Map<int, List<int>> _rawResponses = {};
 
+  /// Address -> ordered ints emitted on successive matching MMR reads (for
+  /// polling loops, e.g. `ScaleCalState`). The final value is sticky (repeats)
+  /// once the queue drains to one, so a poll that reads past the sequence keeps
+  /// seeing the terminal word instead of timing out.
+  final Map<int, Queue<int>> _intResponseSeq = {};
+
   /// Per-UUID queued `read()` payloads.
   final Map<String, Queue<Uint8List>> _readQueue = {};
 
@@ -76,6 +82,12 @@ class FakeBleTransport extends BLETransport {
   /// request to [item] hits the MMR write characteristic.
   void queueMmrResponseRaw(MmrAddress item, List<int> payload) {
     _rawResponses[item.address] = payload;
+  }
+
+  /// Queue an ordered sequence of ints returned on successive reads of [item]
+  /// (for polling loops, e.g. `ScaleCalState`). The final value repeats.
+  void queueMmrResponseIntSequence(MmrAddress item, List<int> values) {
+    _intResponseSeq[item.address] = Queue<int>.of(values);
   }
 
   /// Queue [bytes] for the next `read()` call against [characteristicUUID].
@@ -185,6 +197,34 @@ class FakeBleTransport extends BLETransport {
       for (var i = 0; i < payload.length && i + 4 < 20; i++) {
         resp[i + 4] = payload[i];
       }
+      final cb = subscribers[Endpoint.readFromMMR.uuid];
+      if (cb != null) {
+        scheduleMicrotask(() => cb(resp));
+      }
+      return;
+    }
+
+    int? matchedSeqAddr;
+    for (final addr in _intResponseSeq.keys) {
+      final bytes = ByteData(4)..setInt32(0, addr, Endian.big);
+      if (bytes.getUint8(1) == addrMid1 &&
+          bytes.getUint8(2) == addrMid2 &&
+          bytes.getUint8(3) == addrLow) {
+        matchedSeqAddr = addr;
+        break;
+      }
+    }
+    if (matchedSeqAddr != null) {
+      final q = _intResponseSeq[matchedSeqAddr]!;
+      // Sticky-last: keep returning the final value once drained to one.
+      final value = q.length > 1 ? q.removeFirst() : q.first;
+      final resp = Uint8List(20);
+      final view = ByteData.sublistView(resp);
+      view.setUint8(0, data[0]);
+      view.setUint8(1, addrMid1);
+      view.setUint8(2, addrMid2);
+      view.setUint8(3, addrLow);
+      view.setInt32(4, value, Endian.little);
       final cb = subscribers[Endpoint.readFromMMR.uuid];
       if (cb != null) {
         scheduleMicrotask(() => cb(resp));

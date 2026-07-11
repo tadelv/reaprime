@@ -1,6 +1,7 @@
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/led_strip.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/device/scale_calibration.dart';
 
 /// Marker interface for Bengle-specific machine API.
 ///
@@ -47,6 +48,34 @@ abstract class BengleInterface extends De1Interface {
   /// Latest SAW target stream (`0.0` = SAW off). Late subscribers see
   /// the cached current value immediately.
   Stream<double> get stopAtWeightTarget;
+
+  // --- Load-cell calibration (two-point) -----------------------------
+  //
+  // Procedure: [calibrateScaleZero] (empty platform) → [calibrateScaleWeightLeft]
+  // (known mass on the LEFT half) → [calibrateScaleWeightRight] (same mass on
+  // the RIGHT half). The firmware solves a 2x2 system on the second point and
+  // persists + applies the cal. Each call is non-blocking (polls to a terminal
+  // firmware step or a bounded deadline) and out-of-range masses are clamped.
+
+  /// Precision-zero the load cells with NOTHING on the platform. Must run
+  /// before the weight-cal points.
+  Future<ScaleCalResult> calibrateScaleZero();
+
+  /// Latch weight-cal point 1: the known reference [grams] mass placed anywhere
+  /// on the **LEFT** half. Success means the point latched (awaiting the RIGHT
+  /// point).
+  Future<ScaleCalResult> calibrateScaleWeightLeft(double grams);
+
+  /// Latch weight-cal point 2: the same reference [grams] mass placed anywhere
+  /// on the **RIGHT** half. Success means both points solved and the cal was
+  /// persisted + applied.
+  Future<ScaleCalResult> calibrateScaleWeightRight(double grams);
+
+  /// Abort an in-flight calibration.
+  Future<void> abortScaleCalibration();
+
+  /// Live calibration status while a run is in progress (each polled state).
+  Stream<ScaleCalStatus> get scaleCalibrationProgress;
 
   /// Current LED strip state stream.
   Stream<LedStripState> get ledStripState;

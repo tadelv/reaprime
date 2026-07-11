@@ -53,7 +53,8 @@ For browser clients on a different origin, `ETag` is exposed via `Access-Control
 | POST | `/api/v1/machine/firmware` | Upload firmware image to machine (raw binary body) | |
 | — | USB charger | Controlled via `POST /api/v1/machine/settings` with `{"usb": "enable"}` or `{"usb": "disable"}` | |
 | POST | `/api/v1/machine/waterLevels` | Update water level threshold | |
-| GET | `/api/v1/machine/capabilities` | List capability identifiers (`cupWarmer`, `integratedScale`, `ledStrip`, `stopAtWeight`) supported by the connected machine | |
+| GET | `/api/v1/machine/capabilities` | List capability identifiers (`cupWarmer`, `integratedScale`, `ledStrip`, `stopAtWeight`, `scaleCalibration`) supported by the connected machine | |
+| POST | `/api/v1/machine/scale/calibrate` | Two-point integrated-scale cal: `{"command":"zero"}` (empty), then `{"command":"left","grams":500}` and `{"command":"right","grams":500}` (same mass, LEFT then RIGHT half), or `{"command":"abort"}`. Non-blocking; returns the calibration result — Bengle only, 404 elsewhere | |
 | GET | `/api/v1/machine/cupWarmer` | Read cup-warmer setpoint °C — Bengle only, 404 elsewhere | |
 | PUT | `/api/v1/machine/cupWarmer` | Set cup-warmer setpoint °C (range 0.0–80.0, `0.0` = off) — Bengle only | |
 | GET | `/api/v1/machine/ledStrip` | Read full LED strip config (3 zones × 2 modes, 16-bit RGB) — Bengle only | |

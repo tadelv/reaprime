@@ -21,7 +21,7 @@ curl -sf http://localhost:8080/api/v1/machine/capabilities | jq .
 Expected:
 
 ```json
-{ "capabilities": ["cupWarmer", "integratedScale", "ledStrip", "stopAtWeight"] }
+{ "capabilities": ["cupWarmer", "integratedScale", "ledStrip", "stopAtWeight", "scaleCalibration"] }
 ```
 
 Quick assertions:

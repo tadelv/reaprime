@@ -59,11 +59,10 @@ import 'package:reaprime/src/models/device/impl/de1/mmr_address.dart'
 // Thermal branch (spec 08) uncomments this import with its section below:
 // import 'package:reaprime/src/models/device/impl/bengle/bengle_mmr.dart'
 //     show BengleMmr, BengleSteamMmr;
-// The cal (spec 06) / LED (spec 07) branches extend this `show` list with
-// BengleCalMmr / BengleLedMmr as they land (the enums are parts of the
-// unified_de1 library):
+// The LED branch (spec 07) extends this `show` list with BengleLedMmr when it
+// lands (the enums are parts of the unified_de1 library):
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart'
-    show BengleScaleMmr;
+    show BengleScaleMmr, BengleCalMmr;
 
 const String _contractPath = 'assets/api/bengle_hw_v1.yml';
 
@@ -137,11 +136,10 @@ const List<ContractEntry> entriesUnderTest = <ContractEntry>[
   // ---------------------------------------------------------------------------
   // Calibration-wizard branch (spec 06): `BengleCalMmr`
   // (in scale_calibration_capability.dart, part of unified_de1).
-  // UNCOMMENT these lines (and the unified_de1 import) when the branch lands:
   // ---------------------------------------------------------------------------
-  // ContractEntry(BengleCalMmr.cmd, 'ScaleCalCmd'),
-  // ContractEntry(BengleCalMmr.state, 'ScaleCalState'),
-  // ContractEntry(BengleCalMmr.weight, 'ScaleCalWeight'),
+  ContractEntry(BengleCalMmr.cmd, 'ScaleCalCmd'),
+  ContractEntry(BengleCalMmr.state, 'ScaleCalState'),
+  ContractEntry(BengleCalMmr.weight, 'ScaleCalWeight'),
 
   // ---------------------------------------------------------------------------
   // LED-strip branch (spec 07): `BengleLedMmr`
