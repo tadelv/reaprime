@@ -1,12 +1,14 @@
 # Scenario: Bengle cup-warmer + capability discovery
 
-Verifies the first Bengle peripheral surface end-to-end: `GET /api/v1/machine/capabilities` lists `cupWarmer` when a Bengle is connected, `GET /api/v1/machine/cupWarmer` returns the current setpoint, `POST /api/v1/machine/cupWarmer` writes a new setpoint, and out-of-range writes are rejected at 400 before reaching the device.
+Verifies the first Bengle peripheral surface end-to-end: `GET /api/v1/machine/capabilities` lists `cupWarmer` when a Bengle is connected, `GET /api/v1/machine/cupWarmer` returns the current setpoint plus the live mat temperature (`currentTemperature`, `null` when the firmware has no valid reading), `PUT /api/v1/machine/cupWarmer` writes a new setpoint, and out-of-range writes are rejected at 400 before reaching the device.
 
 ## Preconditions
 
 ```bash
-scripts/sb-dev.sh start --connect-machine MockBengle --connect-scale MockScale
+scripts/sb-dev.sh start --connect-machine MockBengle
 ```
+
+(No `--connect-scale`: on Bengle the integrated scale always wins and `preferredScaleId` is ignored.)
 
 ## Steps
 
@@ -18,24 +20,24 @@ curl -sf http://localhost:8080/api/v1/machine/capabilities | jq -e '.capabilitie
 
 Exit 0 → `cupWarmer` present in the capability list.
 
-### 2. Read initial setpoint (off)
+### 2. Read initial setpoint (off) + live mat temperature placeholder
 
 ```bash
-curl -sf http://localhost:8080/api/v1/machine/cupWarmer | jq -e '.temperature == 0'
+curl -sf http://localhost:8080/api/v1/machine/cupWarmer | jq -e '.temperature == 0 and .currentTemperature == null'
 ```
 
-MockBengle boots with `_cupWarmerTemp = 0.0`. Exit 0 → off.
+MockBengle boots with `_cupWarmerTemp = 0.0` and no simulated mat reading — `currentTemperature` is `null` (the "no valid reading" placeholder case; field firmware without the MatCurrentTemp register behaves the same). Exit 0 → off + placeholder.
 
 ### 3. Set a valid setpoint
 
 ```bash
-curl -sf -X POST http://localhost:8080/api/v1/machine/cupWarmer \
+curl -sf -X PUT http://localhost:8080/api/v1/machine/cupWarmer \
   -H 'Content-Type: application/json' \
   -d '{"temperature": 60}' \
   -o /dev/null -w '%{http_code}\n'
 ```
 
-Expected: `202`.
+Expected: `200`. (Also enables the warmer — a target `> 0` = on; the FW enable register is app-managed.)
 
 ### 4. Confirm the new setpoint
 
@@ -48,7 +50,7 @@ Exit 0 → MockBengle stored the value.
 ### 5. Reject out-of-range
 
 ```bash
-curl -s -X POST http://localhost:8080/api/v1/machine/cupWarmer \
+curl -s -X PUT http://localhost:8080/api/v1/machine/cupWarmer \
   -H 'Content-Type: application/json' \
   -d '{"temperature": 100}' \
   -o /dev/null -w '%{http_code}\n'

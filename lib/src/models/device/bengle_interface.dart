@@ -21,6 +21,14 @@ abstract class BengleInterface extends De1Interface {
   /// Read the current cup-warmer mat setpoint in °C.
   Future<double> getCupWarmerTemperature();
 
+  /// Read the LIVE cup-warmer mat temperature in °C, or `null` when there
+  /// is no valid reading. Distinct from [getCupWarmerTemperature] (the
+  /// setpoint): this is the measured mat temperature. `null` covers both
+  /// firmware reporting raw `0` (NTC open/short — no valid reading) and
+  /// older firmware without the register at all (the read is defensive).
+  /// Implementations must never substitute fake data for `null`.
+  Future<double?> getCupWarmerCurrentTemperature();
+
   /// Live snapshot stream from the integrated scale.
   ///
   /// Real `Bengle` wires this to `IntegratedScaleCapability.weightSnapshot`

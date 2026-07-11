@@ -157,6 +157,7 @@ const List<ContractEntry> entriesUnderTest = <ContractEntry>[
   // ---------------------------------------------------------------------------
   ContractEntry(BengleMmr.matSetPoint, 'MatSetPoint'),
   ContractEntry(BengleMmr.cupWarmerMode, 'CupWarmerMode'),
+  ContractEntry(BengleMmr.matCurrentTemp, 'MatCurrentTemp'),
   ContractEntry(BengleSteamMmr.stopAtTemperatureTarget, 'TargetMilkTemp'),
 ];
 

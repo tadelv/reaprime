@@ -134,6 +134,36 @@ void main() {
       await bengle.onConnect();
       expect(writesTo(BengleMmr.cupWarmerMode.address), isEmpty);
     });
+
+    // --- MatCurrentTemp live mat temperature (defensive read) ---
+
+    test('getCupWarmerCurrentTemperature unscales a live ×10 reading',
+        () async {
+      transport.queueMmrResponseInt(
+          BengleMmr.matCurrentTemp, 425); // 42.5 °C × 10
+      expect(
+          await bengle.getCupWarmerCurrentTemperature(), closeTo(42.5, 1e-6));
+    });
+
+    test('getCupWarmerCurrentTemperature maps raw 0 to null (no reading)',
+        () async {
+      transport.queueMmrResponseInt(BengleMmr.matCurrentTemp, 0);
+      expect(await bengle.getCupWarmerCurrentTemperature(), isNull,
+          reason: 'raw 0 = NTC open/short — never fake a temperature');
+    });
+
+    test('getCupWarmerCurrentTemperature returns null when the read fails',
+        () async {
+      // Older firmware has no MatCurrentTemp register: simulate the read
+      // request failing at the transport rather than waiting out the
+      // MMR-read timeout ladder.
+      final failing = _MatTempReadFailsTransport();
+      final b = Bengle(transport: failing);
+      failing.queueOnConnectResponses(v13Model: 128);
+      await b.onConnect();
+      expect(await b.getCupWarmerCurrentTemperature(), isNull);
+      failing.dispose();
+    });
   });
 
   group('cup-warmer registers stay Bengle-only', () {
@@ -160,4 +190,26 @@ void main() {
       transport.dispose();
     });
   });
+}
+
+/// Fails any MMR read request that targets `MatCurrentTemp` — simulates
+/// older firmware where the register does not exist and the transport/
+/// read path errors instead of answering.
+class _MatTempReadFailsTransport extends FakeBleTransport {
+  @override
+  Future<void> write(
+      String serviceUUID, String characteristicUUID, Uint8List data,
+      {bool withResponse = true, Duration? timeout}) async {
+    if (characteristicUUID == Endpoint.readFromMMR.uuid && data.length >= 4) {
+      final ba = ByteData(4)
+        ..setInt32(0, BengleMmr.matCurrentTemp.address, Endian.big);
+      if (data[1] == ba.getUint8(1) &&
+          data[2] == ba.getUint8(2) &&
+          data[3] == ba.getUint8(3)) {
+        throw Exception('simulated: MatCurrentTemp not mapped on this FW');
+      }
+    }
+    return super.write(serviceUUID, characteristicUUID, data,
+        withResponse: withResponse, timeout: timeout);
+  }
 }

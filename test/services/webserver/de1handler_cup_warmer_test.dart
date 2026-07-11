@@ -122,6 +122,29 @@ void main() {
       expect(body['temperature'], 0.0);
     });
 
+    test('currentTemperature is null when the firmware has no reading',
+        () async {
+      await wireWith(MockBengle());
+      final res = await get('/api/v1/machine/cupWarmer');
+      expect(res.statusCode, 200);
+      final body = jsonDecode(await res.readAsString()) as Map;
+      expect(body.containsKey('currentTemperature'), isTrue,
+          reason: 'the key is always present on a Bengle — null means '
+              'no valid reading, clients render a placeholder');
+      expect(body['currentTemperature'], isNull);
+    });
+
+    test('200 + live mat temperature when the firmware reports one',
+        () async {
+      final bengle = MockBengle();
+      bengle.setMatCurrentTemperature(42.5);
+      await wireWith(bengle);
+      final res = await get('/api/v1/machine/cupWarmer');
+      expect(res.statusCode, 200);
+      final body = jsonDecode(await res.readAsString());
+      expect(body['currentTemperature'], 42.5);
+    });
+
     test('404 on plain DE1 (machine connected but capability absent)',
         () async {
       await wireWith(MockDe1());

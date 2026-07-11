@@ -41,6 +41,25 @@ enum BengleMmr implements MmrAddress {
     'CupWarmerMode',
     min: 0,
     max: 1,
+  ),
+
+  /// Live cup-warmer mat temperature. Firmware `MatCurrentTemp`
+  /// (`0x008038CC`, firmware register-table row 58), **read-only**, ×10 deci-°C on the
+  /// wire, max 1600 (= 160.0 °C). Raw `0` = no valid reading (NTC
+  /// open/short) — callers map it to `null` and NEVER fake data. Older
+  /// firmware lacks the register entirely, so reads are defensive
+  /// (failure → `null`); see [Bengle.getCupWarmerCurrentTemperature].
+  /// `writeScale` mirrors the contract `mult` for the drift checker —
+  /// the app never writes this register.
+  matCurrentTemp(
+    0x008038CC,
+    4,
+    MmrValueKind.scaledFloat,
+    'MatCurrentTemp',
+    min: 0,
+    max: 1600,
+    readScale: 0.1,
+    writeScale: 10.0,
   );
   // Integrated-scale tare (`ScaleTare`) lives with the scale capability
   // that owns it: [BengleScaleMmr.scaleTare]. Milk-probe stop

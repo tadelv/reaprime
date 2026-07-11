@@ -113,7 +113,11 @@ class De1Handler {
           return jsonNotFound({'error': 'cupWarmer not supported'});
         }
         final t = await de1.getCupWarmerTemperature();
-        return jsonOk({'temperature': t});
+        // Live mat temperature (MatCurrentTemp, read-only). `null` = no
+        // valid reading or older firmware without the register — clients
+        // render a placeholder, never fake data.
+        final current = await de1.getCupWarmerCurrentTemperature();
+        return jsonOk({'temperature': t, 'currentTemperature': current});
       });
     });
 

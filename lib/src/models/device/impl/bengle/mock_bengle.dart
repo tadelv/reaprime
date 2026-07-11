@@ -33,6 +33,11 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
   // --- cup warmer ---
   double _cupWarmerTemp = 0.0;
 
+  /// Simulated live mat temperature. Defaults to `null` ("no valid
+  /// reading") — matching field firmware without the MatCurrentTemp
+  /// register — so consumers exercise the placeholder path by default.
+  double? _matCurrentTemp;
+
   @override
   Future<void> setCupWarmerTemperature(double celsius) async {
     _cupWarmerTemp = celsius.clamp(0.0, 80.0).toDouble();
@@ -40,6 +45,15 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
 
   @override
   Future<double> getCupWarmerTemperature() async => _cupWarmerTemp;
+
+  @override
+  Future<double?> getCupWarmerCurrentTemperature() async => _matCurrentTemp;
+
+  /// Test hook: set the simulated live mat temperature reading.
+  /// `null` = no valid reading (the default).
+  void setMatCurrentTemperature(double? celsius) {
+    _matCurrentTemp = celsius;
+  }
 
   // --- LED strip ---
   /// Cache of the last-set config (not necessarily committed to NVM).

@@ -412,14 +412,20 @@ paths:
           description: Machine connected but has no integrated scale
   /api/v1/machine/cupWarmer:
     get:
-      summary: Get cup-warmer setpoint
+      summary: Get cup-warmer setpoint + live mat temperature
       description: |
-        Read the current cup-warmer mat target temperature in °C.
+        Read the current cup-warmer mat target temperature in °C
+        (`temperature`) and the live measured mat temperature
+        (`currentTemperature`). `currentTemperature` is `null` when the
+        firmware has no valid reading (sensor fault, or older firmware
+        without the register) — clients must render a placeholder for
+        `null` and must also tolerate the key being absent entirely
+        (responses from older app versions). Never fabricate a value.
         Returns 404 when the connected machine is not a Bengle.
       tags: [Machine]
       responses:
         "200":
-          description: Current cup-warmer setpoint
+          description: Current cup-warmer setpoint + live mat temperature
           content:
             application/json:
               schema:
@@ -4522,6 +4528,20 @@ components:
             is cleared by the machine on every reboot and re-asserted by
             the app on reconnect.
           example: 60.0
+        currentTemperature:
+          type: number
+          format: float
+          nullable: true
+          readOnly: true
+          description: |
+            Live measured mat temperature in °C (one decimal, from the
+            read-only MatCurrentTemp register, wire ×10). `null` when the
+            firmware reports no valid reading (raw 0 — sensor open/short)
+            or does not expose the register (older firmware). Response
+            only — ignored on PUT. Clients render a placeholder for
+            `null` and must tolerate the key being absent (older app
+            versions); never substitute fake data.
+          example: 42.5
 
     LedStripState:
       type: object

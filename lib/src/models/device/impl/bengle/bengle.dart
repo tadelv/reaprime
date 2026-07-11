@@ -33,6 +33,21 @@ class Bengle extends UnifiedDe1
   Future<double> getCupWarmerTemperature() =>
       readMmrScaled(BengleMmr.matSetPoint);
 
+  @override
+  Future<double?> getCupWarmerCurrentTemperature() async {
+    // Defensive read: MatCurrentTemp exists only on newer
+    // firmware (firmware register-table row 58). A raw 0 means "no valid reading" (NTC
+    // open/short) and older FW may not answer at all — both map to null,
+    // never fake data.
+    try {
+      final celsius = await readMmrScaled(BengleMmr.matCurrentTemp);
+      return celsius > 0 ? celsius : null;
+    } on Exception catch (e) {
+      log.fine('MatCurrentTemp read failed (older firmware?): $e');
+      return null;
+    }
+  }
+
   /// Bengle FW requires entering state 0x22 (`MachineState.fwUpgrade`) between
   /// the `requestState(sleeping)` step and the start of `.dat` upload.
   /// DE1 doesn't need this — see [UnifiedDe1.beforeFirmwareUpload]
