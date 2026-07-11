@@ -42,6 +42,12 @@ class UnifiedDe1Transport {
 
   String get id => _transport.id;
 
+  /// The underlying [DataTransport], exposed for connect-time model-based
+  /// class resolution only (see `resolveMachineForModel`): a re-resolved
+  /// machine is rebuilt over this same live transport. Not for I/O — use the
+  /// typed read/write/subscribe surface.
+  DataTransport get dataTransport => _transport;
+
   final BehaviorSubject<ByteData> _stateSubject = BehaviorSubject.seeded(
     ByteData(4),
   );
@@ -213,6 +219,25 @@ class UnifiedDe1Transport {
     if (!_fwMapRequestSubject.isClosed) _fwMapRequestSubject.close();
 
     await _transport.dispose();
+  }
+
+  /// Releases this wrapper's own resources (serial read subscription + local
+  /// subjects) WITHOUT disposing the underlying [dataTransport]. Used when a
+  /// machine is re-resolved to a different class over the same live transport
+  /// (`resolveMachineForModel`): the discarded interim wrapper must stop
+  /// listening — else a serial `readStream` listener lingers and
+  /// double-parses every line — but must NOT tear down the shared transport,
+  /// which the replacement wrapper now owns. Not for normal teardown; use
+  /// [dispose] for that.
+  Future<void> detach() async {
+    await _transportSubscription?.cancel();
+    _transportSubscription = null;
+    if (!_stateSubject.isClosed) _stateSubject.close();
+    if (!_shotSampleSubject.isClosed) _shotSampleSubject.close();
+    if (!shotSettingsSubject.isClosed) shotSettingsSubject.close();
+    if (!_waterLevelsSubject.isClosed) _waterLevelsSubject.close();
+    if (!_mmrSubject.isClosed) _mmrSubject.close();
+    if (!_fwMapRequestSubject.isClosed) _fwMapRequestSubject.close();
   }
 
   Future<void> disconnect() async {

@@ -10,6 +10,9 @@ import 'package:reaprime/src/models/data/shot_state_event.dart';
 import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
+import 'package:reaprime/src/models/device/impl/de1/de1_resolver.dart';
+import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/subjects.dart';
 
@@ -141,14 +144,57 @@ class De1Controller {
   }
 
   Future<void> connectToDe1(De1Interface de1Interface) async {
-    if (de1Interface == _de1) {
-        _log.fine("trying to connect to existing de1, exit early");
-        return;
-      }
+    // Guard on deviceId, not object identity: after a model-based class swap
+    // (resolveMachineForModel below) `_de1` is a rebuilt instance, so a
+    // caller re-passing the name-picked interim (same physical machine)
+    // would otherwise fall through and needlessly tear down + rebuild the
+    // live connection.
+    if (_de1 != null &&
+        (identical(de1Interface, _de1) ||
+            de1Interface.deviceId == _de1!.deviceId)) {
+      _log.fine("trying to connect to existing de1, exit early");
+      return;
+    }
     _onDisconnect(); // just in case
     _log.fine("found de1, connecting");
+    var machine = de1Interface;
     try {
-      await de1Interface.onConnect();
+      await machine.onConnect();
+      // BLE discovery picks the class by advertised name, but the v13Model
+      // read in onConnect is authoritative. If they disagree, re-resolve to
+      // the correct class over the same live transport and finish connecting
+      // it (the re-connect only (re)subscribes + runs capability init —
+      // identity was carried over, so no MMR re-read).
+      final resolved = resolveMachineForModel(machine);
+      if (!identical(resolved, machine)) {
+        _log.info(
+          'v13Model disagrees with name-picked class: re-resolved '
+          '${machine.name} -> ${resolved.name} over the same transport',
+        );
+        await resolved.onConnect();
+        // The name-picked interim is discarded but shares the live transport
+        // with `resolved`; detach its wrapper (stop listening + close its
+        // subjects) WITHOUT disposing the shared transport, which `resolved`
+        // now owns. Prevents a lingering serial readStream listener and
+        // leaked subjects.
+        //
+        // A *demoted* Bengle interim (name-picked "Bengle" that reads
+        // v13Model < 128) ran its capability init in onConnect, attaching
+        // capability subjects to itself that only Bengle.onDisconnect would
+        // release — and the discarded interim never sees a disconnect.
+        // Dispose EVERY capability Bengle.onConnect initialises; when a new
+        // capability mixin is added to Bengle, extend this teardown or the
+        // demotion path leaks its subjects
+        // (test/controllers/de1_controller_resolve_test.dart locks this).
+        if (machine is Bengle) {
+          await machine.disposeIntegratedScale();
+          await machine.disposeLedStrip();
+        }
+        if (machine is UnifiedDe1) {
+          await machine.detachTransport();
+        }
+        machine = resolved;
+      }
     } catch (e, st) {
       _log.warning(
         'Failed to connect to ${de1Interface.name} '
@@ -159,7 +205,7 @@ class De1Controller {
       _onDisconnect();
       rethrow;
     }
-    _de1 = de1Interface;
+    _de1 = machine;
     _de1Controller.add(_de1);
 
     _subscriptions.add(

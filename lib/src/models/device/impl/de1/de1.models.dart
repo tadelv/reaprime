@@ -415,10 +415,13 @@ enum DecentMachineModel {
         return DecentMachineModel.DE1XXL;
       case 6:
         return DecentMachineModel.DE1XXXL;
-      case 128:
-        return DecentMachineModel.Bengle;
       default:
-        return DecentMachineModel.Unknown;
+        // v13Model >= 128 => Bengle; the DE1 family is 1..7. Matches the
+        // detection gate (unified_de1 / serial_service both use `>= 128`),
+        // so a future Bengle model number resolves to Bengle, not Unknown.
+        return model >= 128
+            ? DecentMachineModel.Bengle
+            : DecentMachineModel.Unknown;
     }
   }
 }

@@ -193,6 +193,48 @@ class UnifiedDe1 implements De1Interface {
   int _refillKit = -1;
   double? _cachedFlowEstimation;
 
+  bool _isBengle = false;
+
+  /// Authoritative Bengle identity, established on [onConnect] from the
+  /// `v13Model` MMR (`0x0080000C`): `model >= 128` ⇒ Bengle (the DE1 family
+  /// is 1..7; the register is served unscaled).
+  ///
+  /// The BLE advertised name is only a scan hint — `DeviceMatcher` picks the
+  /// class by name before a connection exists — so this runtime flag, read
+  /// from the wire, is authoritative. `resolveMachineForModel` uses it at
+  /// connect time to re-resolve the machine to the correct class over the
+  /// same transport, so a Bengle advertising a DE1-style name still presents
+  /// Bengle features. `false` until `onConnect` has read the model; the
+  /// serial path gates the same way (`serial_service_*`).
+  bool get isBengle => _isBengle;
+
+  /// The underlying [DataTransport], exposed for connect-time model-based
+  /// class resolution (`resolveMachineForModel`): when `v13Model` disagrees
+  /// with the name-picked class, a fresh instance is built over this same
+  /// live transport. Not intended for direct I/O.
+  DataTransport get dataTransport => _transport.dataTransport;
+
+  /// Copies the connect-time identity that [onConnect] reads (machine info,
+  /// heater voltage, refill-kit state, flow-cal cache, Bengle flag) from
+  /// [other] onto this instance. Used by `resolveMachineForModel` so a
+  /// re-resolved machine's [onConnect] short-circuits the MMR re-reads (its
+  /// `_info` is already populated) and only (re)subscribes + runs capability
+  /// init over the shared transport.
+  void adoptIdentityFrom(UnifiedDe1 other) {
+    _info = other._info;
+    _voltage = other._voltage;
+    _refillKit = other._refillKit;
+    _cachedFlowEstimation = other._cachedFlowEstimation;
+    _isBengle = other._isBengle;
+  }
+
+  /// Releases this instance's transport wrapper (its subjects + serial read
+  /// subscription) WITHOUT disposing the underlying transport, which a
+  /// re-resolved replacement now owns. Used by `De1Controller.connectToDe1`
+  /// to tear down the discarded name-picked interim after a model-based
+  /// class swap. See `resolveMachineForModel`.
+  Future<void> detachTransport() => _transport.detach();
+
   @override
   Future<void> onConnect() async {
     initRawStream();
@@ -203,10 +245,17 @@ class UnifiedDe1 implements De1Interface {
     }
 
     final model = _unpackMMRInt(await _mmrRead(MMRItem.v13Model));
-    if (model >= 128) {
-      _log.warning(
-        'Device model $model indicates non-DE1 hardware '
-        '(Bengle or similar). Advertised name may be misleading.',
+    // v13Model (0x0080000C) is the authoritative Bengle identity —
+    // model >= 128 ⇒ Bengle (DE1 family is 1..7), served unscaled. The BLE
+    // advertised name is only a scan hint (DeviceMatcher picks the class by
+    // name); De1Controller.connectToDe1 re-resolves the class from this flag
+    // afterwards (resolveMachineForModel), so a mis-named Bengle still gets
+    // Bengle features.
+    _isBengle = model >= 128;
+    if (_isBengle) {
+      _log.info(
+        'v13Model=$model (>=128): Bengle hardware detected. Advertised '
+        'name is a hint only.',
       );
     }
     final ghcInfo = _unpackMMRInt(await _mmrRead(MMRItem.ghcInfo));
@@ -448,7 +497,7 @@ class UnifiedDe1 implements De1Interface {
     await _sendProfile(profile);
     _currentProfile = profile;
     // Guard against firmware ProfileDownloadInProgress race: the DE1 writes
-    // the shot descriptor to internal flash inside APIView::write for the
+    // the shot descriptor to internal flash inside the firmware for the
     // final frame and tail, and only clears ProfileDownloadInProgress when
     // that flash write returns. If a state=espresso request hits the
     // firmware task loop before the flag clears, doEspresso() aborts to

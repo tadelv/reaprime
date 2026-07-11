@@ -131,6 +131,31 @@ Discovery services use name-based matching via `DeviceMatcher` to create appropr
 - Service verification happens during `onConnect()` using `BleServiceIdentifier`
 - DiFluid R2 reflectometers are matched separately from DiFluid scales by advertised name and the R2 BLE service UUID, then exposed as `Sensor` devices with a `measure` command
 
+#### Bengle: name is a hint, `v13Model` is authoritative
+
+The BLE advertised name only *selects the class at scan time* — it must not
+decide the DE1-vs-Bengle protocol, because the authoritative identity is the
+`v13Model` MMR register (`0x0080000C`), which is readable only **after**
+connecting: `model >= 128` ⇒ Bengle (the DE1 family is `1..7`; served
+unscaled). `UnifiedDe1.onConnect` reads it and sets the `isBengle` flag.
+
+So `DeviceMatcher` stays name-based, and `De1Controller.connectToDe1`
+re-resolves the machine class from the connected model
+(`resolveMachineForModel`, `lib/src/models/device/impl/de1/de1_resolver.dart`):
+
+- if the name-picked class already agrees with the model (the common case —
+  real Bengle hardware advertises `"Bengle"`), the same instance is used, with
+  no reconnect;
+- otherwise a fresh instance of the correct class (`Bengle` / `UnifiedDe1`) is
+  built over the **same live transport**, carrying the connect-time identity
+  across, and re-connected (which only re-subscribes + runs capability init —
+  no MMR re-read).
+
+This mirrors the serial path (`serial_service_*`), which already instantiates
+`Bengle` vs `UnifiedDe1` from `v13Model >= 128` at detection time. Net effect:
+a Bengle presenting any advertised name still gets Bengle features, and a DE1
+mis-advertising `"Bengle"` is driven as a plain DE1.
+
 ### Service Lifecycle
 
 1. **Initialization:** `service.initialize()`
