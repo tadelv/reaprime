@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:reaprime/src/util/rot13.dart';
 import 'package:reaprime/src/controllers/persistence_controller.dart';
 import 'package:reaprime/src/feedback_feature/feedback_view.dart';
 import 'package:reaprime/src/import/de1app_importer.dart';
@@ -260,10 +261,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
           ShadButton.outline(
             onPressed: () => showFeedbackDialog(
               context,
-              githubToken: const String.fromEnvironment(
+              githubToken: rot13(const String.fromEnvironment(
                 'GITHUB_FEEDBACK_TOKEN',
                 defaultValue: '',
-              ),
+              )),
             ),
             child: const Text("Send Feedback"),
           ),

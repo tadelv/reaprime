@@ -46,6 +46,7 @@ import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
+import 'package:reaprime/src/util/rot13.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:reaprime/src/webui_support/webui_storage.dart';
@@ -196,10 +197,10 @@ Future<void> startWebServer(
 
   final feedbackHandler = FeedbackHandler(
     service: FeedbackService(
-      githubToken: const String.fromEnvironment(
+      githubToken: rot13(const String.fromEnvironment(
         'GITHUB_FEEDBACK_TOKEN',
         defaultValue: '',
-      ),
+      )),
     ),
   );
 
