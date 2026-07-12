@@ -483,7 +483,11 @@ class UnifiedDe1Transport {
           return read(endpoint, timeout: timeout);
         }
       }
-      _log.severe("failed to read", e, st);
+      if (e is TimeoutException) {
+        _log.warning('read of ${endpoint.name} timed out', e, st);
+      } else {
+        _log.severe("failed to read", e, st);
+      }
       rethrow;
     }
   }
@@ -579,7 +583,15 @@ class UnifiedDe1Transport {
           return write(endpoint, data);
         }
       }
-      _log.severe("failed to write", e, st);
+      // TimeoutException from the universal_ble queue is an expected
+      // failure (GATT op hung) — the caller (WorkflowDeviceSync) catches
+      // it and retries. Log at WARNING, not SEVERE, so the telemetry
+      // forwarder (PR #288 SEVERE filter) doesn't forward it to Crashlytics.
+      if (e is TimeoutException) {
+        _log.warning('write to ${endpoint.name} timed out', e, st);
+      } else {
+        _log.severe("failed to write", e, st);
+      }
       rethrow;
     }
   }
@@ -618,7 +630,11 @@ class UnifiedDe1Transport {
           return writeWithResponse(endpoint, data);
         }
       }
-      _log.severe("failed to write", e, st);
+      if (e is TimeoutException) {
+        _log.warning('writeWithResponse to ${endpoint.name} timed out', e, st);
+      } else {
+        _log.severe("failed to write", e, st);
+      }
       rethrow;
     }
   }
