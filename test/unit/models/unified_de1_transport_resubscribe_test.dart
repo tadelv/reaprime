@@ -17,10 +17,20 @@ import 'package:rxdart/rxdart.dart';
 /// tests can assert on disconnect-before-connect ordering and on which
 /// listener receives a pushed notification after a re-subscribe.
 class _Fake extends BLETransport {
-  _Fake(ConnectionState initial)
-      : _connState = BehaviorSubject<ConnectionState>.seeded(initial);
+  _Fake(ConnectionState initial, {ConnectionState? osProbeState})
+      : _connState = BehaviorSubject<ConnectionState>.seeded(initial),
+        _osProbeState = osProbeState ?? ConnectionState.disconnected;
 
   final BehaviorSubject<ConnectionState> _connState;
+
+  /// What `getConnectionState()` returns when probed. Defaults to
+  /// `disconnected` so existing tests keep the old teardown behavior.
+  /// Set to `connected` to test the #431 probe-before-teardown path.
+  final ConnectionState _osProbeState;
+
+  /// When true, `getConnectionState()` throws instead of returning a
+  /// value — simulates a platform error / timeout.
+  bool throwOnGetConnectionState = false;
 
   /// Ordered record of `disconnect` / `connect` / `subscribe:<uuid>` calls,
   /// so tests can assert a no-op reconnect now tears down before re-connect.
@@ -37,8 +47,12 @@ class _Fake extends BLETransport {
   @override
   Stream<ConnectionState> get connectionState => _connState.stream;
   @override
-  Future<ConnectionState> getConnectionState() async =>
-      ConnectionState.disconnected;
+  Future<ConnectionState> getConnectionState() async {
+    if (throwOnGetConnectionState) {
+      throw Exception('platform error');
+    }
+    return _osProbeState;
+  }
   @override
   Future<void> connect() async {
     callOrder.add('connect');
@@ -166,5 +180,56 @@ void main() {
 
     await sub.cancel();
     await sub2.cancel();
+  });
+
+  group('#431 probe-before-teardown', () {
+    test('live link: OS probe says connected → teardown does NOT fire',
+        () async {
+      final fake = _Fake(ConnectionState.connected,
+          osProbeState: ConnectionState.connected);
+      final transport = UnifiedDe1Transport(transport: fake);
+
+      await transport.connect();
+
+      expect(fake.callOrder, isNot(contains('disconnect')),
+          reason: 'teardown must not fire when OS probe confirms live link');
+      expect(fake.callOrder, contains('connect'),
+          reason: 'connect must still run to re-establish GATT');
+      // Verify it logged the skip message
+      expect(
+        records.any((r) =>
+            r.message.contains('skipping stale-link teardown')),
+        isTrue,
+      );
+    });
+
+    test('dead link: OS probe says disconnected → teardown DOES fire',
+        () async {
+      final fake = _Fake(ConnectionState.connected,
+          osProbeState: ConnectionState.disconnected);
+      final transport = UnifiedDe1Transport(transport: fake);
+
+      await transport.connect();
+
+      final disconnectAt = fake.callOrder.indexOf('disconnect');
+      final connectAt = fake.callOrder.indexOf('connect');
+      expect(disconnectAt, greaterThanOrEqualTo(0),
+          reason: 'teardown must fire when OS probe confirms dead link');
+      expect(connectAt, greaterThan(disconnectAt),
+          reason: 'connect must come after teardown');
+    });
+
+    test('inconclusive probe: throws → teardown DOES fire (safe default)',
+        () async {
+      final fake = _Fake(ConnectionState.connected);
+      fake.throwOnGetConnectionState = true;
+      final transport = UnifiedDe1Transport(transport: fake);
+
+      await transport.connect();
+
+      expect(fake.callOrder, contains('disconnect'),
+          reason: 'teardown must fire on inconclusive probe (safe default)');
+      expect(fake.callOrder, contains('connect'));
+    });
   });
 }
