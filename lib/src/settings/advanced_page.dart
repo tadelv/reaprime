@@ -132,9 +132,9 @@ class AdvancedPage extends StatelessWidget {
                   horizontal: 16,
                 ),
                 child: Text(
-                  'Replaces the flow calculator with a Kalman filter for '
-                  'smoother, signed flow estimates. Experimental — may '
-                  'slightly shift stop timing on declining-flow profiles.',
+                  'Uses a Kalman filter for smoother, signed flow estimates '
+                  'with disturbance rejection. Enabled by default. Disable if '
+                  'you prefer the legacy endpoint-difference flow calculator.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),

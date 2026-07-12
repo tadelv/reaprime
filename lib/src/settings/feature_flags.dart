@@ -15,7 +15,8 @@ enum FeatureFlag {
   /// ([KalmanFlowEstimator]) that provides signed, low-lag flow estimates
   /// with disturbance rejection (issue #417).
   ///
-  /// Default: **false** (opt-in — validation window for stop-timing risk).
+  /// Default: **true** (opt-out — 10-shot validation gate passed;
+  /// mean |Δyield| 0.44g ≤ 1g baseline, flow noise 8–13% vs 14.7% old).
   kalmanFlow,
 }
 
@@ -23,5 +24,5 @@ enum FeatureFlag {
 /// flags that ship as experimental default to false.
 const Map<FeatureFlag, bool> defaultFeatureFlagValues = {
   FeatureFlag.stepExitArbiter: true,
-  FeatureFlag.kalmanFlow: false,
+  FeatureFlag.kalmanFlow: true,
 };
