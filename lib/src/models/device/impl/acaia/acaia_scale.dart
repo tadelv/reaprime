@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/subjects.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
@@ -265,21 +266,44 @@ class AcaiaScale implements Scale {
   }
 
   void _sendHeartbeat() {
-    _transport.write(
-      _serviceUuid,
-      _writeCharUuid,
-      _encode(0x00, _heartbeatPayload),
-      withResponse: _useWriteResponse,
-    );
+    // Heartbeat runs from Timer.periodic — fire-and-forget. The write
+    // returns a Future; if the scale has disconnected, _handleGattError
+    // throws DeviceNotConnectedException inside that Future. Without a
+    // catch, it propagates to the Flutter zone error handler → Crashlytics
+    // records it as FATAL (iOS cdd48b30, 28ev). Catch it here and let the
+    // watchdog/disconnect cascade handle cleanup.
+    unawaited(_doHeartbeatWrite());
+  }
+
+  Future<void> _doHeartbeatWrite() async {
+    try {
+      await _transport.write(
+        _serviceUuid,
+        _writeCharUuid,
+        _encode(0x00, _heartbeatPayload),
+        withResponse: _useWriteResponse,
+      );
+    } on DeviceNotConnectedException {
+      _log.fine('Heartbeat write failed — scale disconnected');
+      return;
+    }
     _configTimer?.cancel();
     _configTimer = Timer(const Duration(seconds: 1), () {
-      _transport.write(
+      unawaited(_doConfigWrite());
+    });
+  }
+
+  Future<void> _doConfigWrite() async {
+    try {
+      await _transport.write(
         _serviceUuid,
         _writeCharUuid,
         _encode(0x0C, _configPayload),
         withResponse: _useWriteResponse,
       );
-    });
+    } on DeviceNotConnectedException {
+      _log.fine('Config write failed — scale disconnected');
+    }
   }
 
   void _checkWatchdog() {
