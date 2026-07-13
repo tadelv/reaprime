@@ -285,6 +285,21 @@ class ConnectionManager {
   /// (comms-harden #8).
   void _emit(ConnectionError err) => _statusPublisher.emitError(err);
 
+  /// Surface an out-of-band [ConnectionError] on the status stream —
+  /// for collaborators outside the connect flow (`WorkflowDeviceSync`'s
+  /// profile-upload failure). Routes through the same
+  /// [StatusPublisher] gatekeeper as internal emits.
+  void reportError(ConnectionError err) => _emit(err);
+
+  /// Clear the current status error iff it is of [kind]. Lets an
+  /// out-of-band reporter retract its own error on recovery without
+  /// stomping an unrelated one that has since replaced it.
+  void clearErrorOfKind(String kind) {
+    if (currentStatus.error?.kind == kind) {
+      _clearError();
+    }
+  }
+
   /// Build a [ConnectionError] for a failed connect attempt. Pulls out
   /// `ble_code` / `ble_description` when the caught exception is a
   /// [BleConnectException] (the domain type transports map their native
