@@ -431,8 +431,13 @@ components:
             by this field. Initial set:
             scaleConnectFailed, machineConnectFailed,
             scaleDisconnected, machineDisconnected,
-            adapterOff, bluetoothPermissionDenied, scanFailed.
+            adapterOff, bluetoothPermissionDenied, scanFailed,
+            profileUploadFailed.
             New kinds may be added without a version bump.
+
+            profileUploadFailed is raised when a profile upload to the
+            machine fails and is being retried; it is retracted once a
+            retry succeeds.
         severity:
           type: string
           enum: [warning, error]
