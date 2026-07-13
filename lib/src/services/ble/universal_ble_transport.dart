@@ -207,6 +207,15 @@ class UniversalBleTransport implements BLETransport {
       UniversalBle.clearQueue(_device.deviceId);
       throw const DeviceNotConnectedException.unknown();
     }
+    // GATT-133 (gattError): transient Android BLE stack error. Often
+    // retryable — clear the queue and throw BleTimeoutException so the
+    // caller (UnifiedDe1Transport) can retry via _handleBleTimeout.
+    // Do NOT declare the link dead or emit disconnected.
+    if (e.code == UniversalBleErrorCode.gattError) {
+      _log.warning('GATT $operation($path) failed — GATT error 133 (transient): $e');
+      UniversalBle.clearQueue(_device.deviceId);
+      throw BleTimeoutException('GATT $operation($path)', e);
+    }
     // Also treat unknownError as likely device-gone on Bluetooth-off / macOS
     // adapter restarts — same symptom, different error code.
     if (e.code == UniversalBleErrorCode.unknownError) {
