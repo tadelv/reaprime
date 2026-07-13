@@ -36,6 +36,7 @@ For non-trivial features or fixes:
 - Preserve existing user changes. Do not revert unrelated work.
 - Match existing code style. Do not refactor adjacent code unless the task demands it.
 - Update `assets/api/rest_v1.yml` or `assets/api/websocket_v1.yml` in the same commit as endpoint changes.
+- Use `rg` (ripgrep) for targeted code search before opening large files: `rg -n "symbolName" lib/`. When `rg` is not installed, fall back to `grep -rn`. Use this for finding constants, command handlers, UI labels, and protocol definitions — one `rg` call replaces reading entire files.
 
 ### Verification
 
