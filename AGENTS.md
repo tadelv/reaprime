@@ -28,6 +28,28 @@ Use `doc/AI_REPO_MAP.md` first for orientation. Read broader docs only when the 
 - Constructor dependency injection — no service locators.
 - Stream subscriptions always cancelled in `dispose()`.
 
+## Vocabulary
+
+Use existing project terminology. Match the naming in `doc/` and the AI_* files. Examples: "ConnectionManager phases" not "connection lifecycle states", "transport abstraction" not "BLE wrapper", "simulated devices" not "mock hardware mode".
+
+If your output contradicts documented architecture or conventions, surface it explicitly rather than silently overriding.
+
+## Tracking
+
+**For contributors:** GitHub Issues on `tadelv/reaprime` is the canonical issue tracker. Open issues, feature requests, and bug reports there.
+
+**For the maintainer:** A personal Obsidian vault is used for priority tracking and sprint planning. Use the `obsidian-todo-sync` skill for maintainer task management. For public-facing issue work (triage, labeling, closing), use GitHub Issues (`gh issue` commands).
+
+**Triage labels** (used on `tadelv/reaprime`):
+
+| Label | Meaning |
+|-------|---------|
+| `needs-triage` | Maintainer needs to evaluate this issue |
+| `needs-info` | Waiting on reporter for more information |
+| `ready-for-agent` | Fully specified, ready for an AFK agent |
+| `ready-for-human` | Requires human implementation |
+| `wontfix` | Will not be actioned |
+
 ## Deep References
 
 - Fast file routing: `doc/AI_REPO_MAP.md`.
@@ -36,9 +58,12 @@ Use `doc/AI_REPO_MAP.md` first for orientation. Read broader docs only when the 
 - REST/WS API contracts and compat: `doc/AI_API_NOTES.md`.
 - Drift DB schema, migrations, SharedPreferences: `doc/AI_STORAGE_NOTES.md`.
 - Crashlytics triage and debugging: `doc/AI_DEBUG_NOTES.md`.
-- Full project docs: `CLAUDE.md`, `CONTRIBUTING.md`.
+- Test tiers, widget patterns, mock helpers: `doc/AI_TESTING_NOTES.md`.
+- Full project docs: `doc/Api.md`, `doc/Skins.md`, `doc/Plugins.md`, `doc/Profiles.md`, `doc/DeviceManagement.md`, `doc/RELEASE.md`.
+- Contributing: `CONTRIBUTING.md`.
 - Dev-loop skill: `.agents/skills/decent-app/SKILL.md`.
 - API specs: `assets/api/rest_v1.yml`, `assets/api/websocket_v1.yml`.
+- Archived design docs: `doc/plans/archive/` (the *why* behind shipped features).
 
 ## Naming Reference
 
@@ -59,3 +84,4 @@ Use `doc/AI_REPO_MAP.md` first for orientation. Read broader docs only when the 
 - Don't add API endpoints without updating the OpenAPI/AsyncAPI spec in the same commit.
 - Don't add new global state without a clear ownership boundary.
 - Don't `--amend` or force-push on `main`.
+- Don't create `CONTEXT.md` or `doc/adr/` — `AGENTS.md` + `doc/` are the equivalents.

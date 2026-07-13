@@ -1,0 +1,39 @@
+---
+description: "Core project rules and conventions for ReaPrime/Decent.app"
+globs: ["lib/**", "test/**", "assets/api/**", "pubspec.yaml", "Makefile"]
+alwaysApply: false
+---
+
+# ReaPrime / Decent.app — Project Rules
+
+Read `AGENTS.md` at the repo root first. It is the canonical source for project conventions, hard rules, and deep reference routing.
+
+## Top-Level Orientation
+
+- `doc/AI_REPO_MAP.md` — fast file routing for any task.
+- `AGENTS.md` — hard rules, naming, tracking, vocabulary.
+- `CLAUDE.md` — `@AGENTS.md` + Claude-specific hooks.
+
+## Domain-Specific Guidance (read when the task matches)
+
+| When working on… | Read |
+|------------------|------|
+| BLE transport, connection lifecycle | `doc/AI_BLE_NOTES.md` |
+| Build, platform, simulate | `doc/AI_BUILD_NOTES.md` |
+| REST/WS API, auth proxy | `doc/AI_API_NOTES.md` |
+| Database schema, migrations | `doc/AI_STORAGE_NOTES.md` |
+| Crashes, telemetry, debugging | `doc/AI_DEBUG_NOTES.md` |
+| Tests, widget patterns, mocks | `doc/AI_TESTING_NOTES.md` |
+| API reference | `doc/Api.md`, `assets/api/rest_v1.yml`, `assets/api/websocket_v1.yml` |
+| Skins, plugins, profiles | `doc/Skins.md`, `doc/Plugins.md`, `doc/Profiles.md` |
+| Device management | `doc/DeviceManagement.md` |
+| Release process | `doc/RELEASE.md` |
+
+## Key Conventions
+
+- Test-first: `flutter test` + `flutter analyze` before commit.
+- Update API specs in the same commit as endpoint changes.
+- Never import BLE libraries outside `lib/src/services/ble/`.
+- All BLE operations use 128-bit UUID.
+- Constructor DI — no service locators.
+- `main` is protected; push via PR only.
