@@ -1195,7 +1195,7 @@ class WebUIStorage {
       return skinId;
     }
     if (destDir.existsSync()) {
-      _log.warning('Skin already exists: $skinId, overwriting...');
+      _log.info('Skin already exists: $skinId, overwriting...');
       await destDir.delete(recursive: true);
     }
 
