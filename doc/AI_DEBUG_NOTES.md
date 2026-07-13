@@ -1,76 +1,73 @@
 # AI Debug Notes
 
-Read this when triaging Crashlytics issues, debugging BLE errors, investigating telemetry noise, or diagnosing platform-specific crashes. Skip it for feature work that doesn't touch error paths.
+Read this when debugging BLE errors, diagnosing platform-specific crashes, investigating app hangs, or tracing error paths. Skip it for feature work that doesn't touch error handling.
 
 ## Source Of Truth
 
 - Error filter: `lib/src/services/crashlytics_error_filter.dart`.
-- Telemetry: `lib/src/services/telemetry/`.
 - Logging: `package:logging`, configured in `main.dart`.
-- Crashlytics console: Firebase project `rea-1-556fd`.
 
-## Crashlytics Triage Workflow
+## General Debugging Principles
 
-1. Open Firebase Crashlytics for the relevant app (iOS `net.tadel.reaprime` or Android `net.tadel.reaprime`).
-2. Filter by version and time range (default: 7 days).
-3. For each cluster: check event count, user count, last seen version, first seen version.
-4. **Investigating:** `NEEDS_TRIAGE` → open the issue, read stack trace, check for known patterns below.
-5. **Resolved/Muted:** mark accordingly on Crashlytics.
+- **File log first:** `getApplicationDocumentsDirectory()/log.txt` (rotated `log.txt.1..3`). On Android: `adb shell run-as net.tadel.reaprime cat app_flutter/log.txt`.
+- **adb logcat:** `adb logcat | grep -i rea` for live output on Android.
+- **macOS log path:** `~/Library/Containers/net.tadel.reaprime/Data/Documents/log.txt`.
+- **Simulate mode:** Reproduce without hardware using `--dart-define=simulate=1`. Mock devices are deterministic — use them to isolate whether an issue is transport or logic.
+- **Stream debugging:** Enable `Logger('ShotState')` for structured shot decisions. `Logger('Ble')` for BLE operations.
 
-## SEVERE-Only Forwarder
+## Common Error Patterns
 
-**PR #288:** Telemetry forwarder only forwards `SEVERE` + FATAL. WARNING still buffered for crash context but not forwarded. This prevents WARNING-level noise from drowning real crashes.
+### `LateInitializationError` in SettingsController
 
-## Known Error Patterns
+**Symptom:** `LateInitializationError: _chargingMode has not been initialized`.
+**Root cause:** `late` fields accessed before `loadSettings()` completes.
+**Fix (PR #243):** Replaced all `late` fields in `SettingsController` with safe defaults matching `SharedPreferencesSettingsService` `??` fallbacks.
+**Prevention:** Never use `late` for fields that depend on async initialization. Use nullable + default instead.
 
-### `LateInitializationError: _chargingMode has not been initialized`
+### `Stream has already been listened to`
 
-**Pattern:** `SettingsController` `late` fields accessed before `loadSettings()`.
-**Fix (PR #243):** Replaced all `late` fields with safe defaults matching `SharedPreferencesSettingsService` `??` fallbacks.
-**Status:** Holding. Last seen on v0.7.1 (iOS) and v0.7.2 (Android). Monitor for reappearance on newer versions.
+**Symptom:** `Bad state: Stream has already been listened to`.
+**Root cause:** A single-subscription stream (e.g., `StreamController.broadcast()` not used) was listened to by multiple subscribers.
+**Fix:** Use `.asBroadcastStream()` on streams shared across multiple listeners. The guard was added in `comms-harden` #3 (`20e5d8e6`).
+**Prevention:** All shared controller streams should be broadcast.
 
-### `PathAccessException: Operation not permitted` (iCloud Drive)
+### `PathAccessException` (iOS export)
 
-**Pattern:** Crash `760a674b` — `_DataManagementPageState._exportShots` writing directly to iCloud Drive.
-**Related:** PR #409 fixed the `saveFile` path but this is a *different* export path.
-**Fix needed:** Route this path through `saveFile` too, or guard with entitlement check.
+**Symptom:** `PathAccessException: Operation not permitted` when exporting data to iCloud Drive.
+**Pattern:** Writing directly to file system paths that need security-scoped access.
+**Related:** PR #409 fixed the `saveFile` path. Other export paths may still need the same treatment.
+**Fix pattern:** Route file writes through `saveFile` (which handles security-scoped URLs) rather than direct `writeAsBytes`.
 
 ### `PlatformException(startScan, Location services required)`
 
-**Pattern:** Android BLE scan without location permissions.
-**Status:** Low volume, 1 ev / 1 user. May be addressed by troubleshooting wizard (#125/#126).
+**Symptom:** Android BLE scan fails with location permission error.
+**Cause:** Android requires location permissions for BLE scanning on API < 31.
+**Status:** Low volume. May be addressed by onboarding permission checks.
 
-### `TimeoutException` in `universal_ble/queue.dart`
+### `TimeoutException` in BLE queue
 
-**Pattern:** Crashes `60b12216` + `38d02b06` — BLE operations timing out after 10s in the universal_ble queue.
-**Related:** May relate to zombie-link (#431) or concurrent BLE write contention (#423).
-**Priority:** P2. Monitor after zombie-link fixes ship.
+**Pattern:** BLE operations timing out after 10s in the universal_ble queue.
+**Related:** May involve zombie-link teardown (#431) or concurrent BLE write contention (#423).
 
-### iOS `WebUIHandler._handleInstallFromUrl`
+### `SuperNotCalledException` at launch
 
-**Pattern:** Crash `3045294f` — aged out. 1 event v0.6.4, two weeks stale. Likely blip on Mark's machine.
-
-### `SuperNotCalledException: Activity did not call through to super.onCreate()`
-
-**Pattern:** Crash `bef7d3cd` — Android launch crash, FATAL, 16 ev / 4 users.
+**Symptom:** `Activity did not call through to super.onCreate()` — Android launch crash.
 **Fix (PR #435):** `super.onCreate()` moved to top of `onCreate()` before early-return guards.
-**Follow-up:** Tighten `isRunningInClonedEnvironment()` heuristic — flags legitimate multi-user/work-profile devices as clones.
+**Follow-up:** `isRunningInClonedEnvironment()` heuristic may flag legitimate multi-user/work-profile devices as clones.
 
 ## BLE Error Debugging
 
-**GATT-133 on cold boot:** See `doc/AI_BLE_NOTES.md` footgun #1. Second scan/connect succeeds. Early-connect watcher handles it.
+- **GATT-133 on cold boot:** See `doc/AI_BLE_NOTES.md` footgun #1. Second connect succeeds.
+- **Duplicate state messages:** See `doc/AI_BLE_NOTES.md` footgun #2. Listener stacking from reconnect.
+- **Scale write exceptions:** Must be caught at `_writeCommand` / `_safeWrite`. `isBenignFrameworkError()` in `crashlytics_error_filter.dart` is the safety net, not the primary defense.
+- **Gone-device errors:** `UniversalBleTransport._handleGattError()` catches `UniversalBleException` with codes: `characteristicNotFound`, `deviceNotFound`, `serviceNotFound`, `connectionTerminated`, `deviceDisconnected`, `unknownError`. On hit: emits `disconnected`, drains queue, throws `DeviceNotConnectedException`.
 
-**Duplicate state messages:** See `doc/AI_BLE_NOTES.md` footgun #2. Listener stacking from reconnect without disconnect. Fixed in PR #246.
+## Widget / UI Debugging
 
-**Scale write exceptions:** Must be caught at `_writeCommand` / `_safeWrite`. The `isBenignFrameworkError()` filter is the safety net, not the primary defense.
-
-## Telemetry Noise Patterns
-
-| Pattern | Source | Status |
-|---------|--------|--------|
-| `android_blue_plus_transport.disconnect` WARNING | PR #246 disconnect wiring | Suppressed by SEVERE floor (PR #288) |
-| `defaultWorkflow.json` PathNotFoundException | Pre-PR #288 WARNING buffer draining | Monitor — not aging out as expected |
-| Decent Temp disconnect noise | Temp sensor guard missing | Multiple `disconnect()` calls per event |
+- **Stream propagation:** Add devices to mock service *before* building widgets, `await tester.pump()` before `pumpWidget()`.
+- **Infinite animations:** Use `pump()` not `pumpAndSettle()` when tree has `CircularProgressIndicator`.
+- **Async operations:** Use `tester.runAsync()` for code that uses real `Future.delayed` or stream microtasks.
+- **Lifecycle:** Implement `WidgetsBindingObserver`, set stream to `null` when backgrounded.
 
 ## Debugging Commands
 
@@ -81,8 +78,11 @@ adb logcat | grep -i rea
 
 # macOS log path
 ~/Library/Containers/net.tadel.reaprime/Data/Documents/log.txt
+
+# Simulate mode (reproduce without hardware)
+flutter run --dart-define=simulate=1
 ```
 
 ## Keeping Notes Fresh
 
-Add new crash patterns with: symptom, root cause (if known), fix (if shipped), tracking issue. Mark aged-out clusters as closed. Prune when upstream fixes land.
+Add debugging patterns with: symptom, root cause, fix pattern, prevention. Prune when fixes ship and patterns are no longer current.
