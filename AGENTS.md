@@ -37,6 +37,7 @@ For non-trivial features or fixes:
 - Match existing code style. Do not refactor adjacent code unless the task demands it.
 - Update `assets/api/rest_v1.yml` or `assets/api/websocket_v1.yml` in the same commit as endpoint changes.
 - Use `rg` (ripgrep) for targeted code search before opening large files: `rg -n "symbolName" lib/`. When `rg` is not installed, fall back to `grep -rn`. Use this for finding constants, command handlers, UI labels, and protocol definitions — one `rg` call replaces reading entire files.
+- Use `rtk` (https://github.com/rtk-ai/rtk) to compress noisy command output when installed: `rtk git status`, `rtk git diff`, `rtk flutter test`, `rtk flutter analyze`. Saves 60-90% of tokens on build/test/git/diff commands. Install via `brew install rtk` then `rtk init -g --agent pi`. When `rtk` is not installed, commands run normally — no change needed.
 
 ### Verification
 
