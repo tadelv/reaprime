@@ -343,6 +343,14 @@ class UniversalBleTransport implements BLETransport {
       rethrow;
     } on UniversalBleException catch (e) {
       _handleGattError(e, 'read', '$serviceUUID/$characteristicUUID');
+    } catch (e) {
+      // Same clearQueue rationale as write() — see write() catch block.
+      if (e.toString().contains('Queue Cancelled')) {
+        _log.fine('read($serviceUUID/$characteristicUUID) cancelled by clearQueue');
+        _connectionStateSubject.add(device.ConnectionState.disconnected);
+        throw const DeviceNotConnectedException.unknown();
+      }
+      rethrow;
     }
   }
 
@@ -510,6 +518,22 @@ class UniversalBleTransport implements BLETransport {
       rethrow;
     } on UniversalBleException catch (e) {
       _handleGattError(e, 'write', '$serviceUUID/$characteristicUUID');
+    } catch (e) {
+      // universal_ble's Queue.dispose() (called from clearQueue in
+      // _handleGattError or _onOperationTimeout) cancels pending items
+      // with Exception('Queue Cancelled') — a plain Exception, not
+      // UniversalBleException, so the on UniversalBleException catch
+      // above misses it. Treat it as a gone-device: the queue was
+      // cleared because the device is gone, so emit disconnected and
+      // throw the domain exception.
+      if (e.toString().contains('Queue Cancelled')) {
+        _log.fine(
+            'write($serviceUUID/$characteristicUUID) cancelled by clearQueue',
+        );
+        _connectionStateSubject.add(device.ConnectionState.disconnected);
+        throw const DeviceNotConnectedException.unknown();
+      }
+      rethrow;
     }
   }
 

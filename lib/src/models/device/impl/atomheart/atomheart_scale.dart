@@ -6,6 +6,7 @@ import 'package:rxdart/subjects.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
 
+import 'package:reaprime/src/models/errors.dart';
 import '../../scale.dart';
 
 /// Atomheart Eclair scale implementation.
@@ -94,14 +95,24 @@ class AtomheartScale implements Scale {
   @override
   DeviceType get type => DeviceType.scale;
 
+  /// Safe write — catches [DeviceNotConnectedException] so a write to a
+  /// disconnected scale doesn't escape as a FATAL (Crashlytics fa51312d).
+  Future<void> _safeWrite(Uint8List data) async {
+    try {
+      await _transport.write(
+        serviceIdentifier.long,
+        commandCharacteristic.long,
+        data,
+        withResponse: false,
+      );
+    } on DeviceNotConnectedException {
+      // Transport already emitted disconnected.
+    }
+  }
+
   @override
   Future<void> tare() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0x54, 0x01, 0x01]),
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0x54, 0x01, 0x01]));
   }
 
   @override
@@ -116,22 +127,12 @@ class AtomheartScale implements Scale {
 
   @override
   Future<void> startTimer() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0x43, 0x01, 0x01]),
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0x43, 0x01, 0x01]));
   }
 
   @override
   Future<void> stopTimer() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0x43, 0x00, 0x00]),
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0x43, 0x00, 0x00]));
   }
 
   @override
