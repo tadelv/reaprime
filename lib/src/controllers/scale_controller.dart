@@ -195,7 +195,7 @@ class ScaleController {
           KalmanFlowEstimator(initialWeight: snapshot.weight);
       final (w, f) =
           _kalmanEstimator!.addSample(snapshot.timestamp, snapshot.weight);
-      filteredWeight = w;
+      filteredWeight = snapshot.weight;
       flow = f;
     } else {
       // Legacy path: endpoint-difference FlowCalculator + MovingAverage.
