@@ -1,69 +1,61 @@
-# AGENTS.md
+# Agent Instructions
 
-This file provides guidance for AI coding agents that don't natively read `CLAUDE.md`.
+Use `doc/AI_REPO_MAP.md` first for orientation. Read broader docs only when the task needs them.
 
-## Primary Instructions
+## Always
 
-**Read `CLAUDE.md` for complete project documentation.**
+- Plan with the user before complex or risky operations.
+- Test-first: write tests before implementation. Run `flutter test` + `flutter analyze` before committing.
+- Preserve existing user changes. Do not revert unrelated work.
+- Match existing code style. Do not refactor adjacent code unless the task demands it.
+- `main` has branch protection. Push via PR only.
+- Update `assets/api/rest_v1.yml` or `assets/api/websocket_v1.yml` in the same commit as endpoint changes.
 
-## How to Use CLAUDE.md
+## Hard Rules
 
-`CLAUDE.md` is the authoritative source for this project. However, some sections contain references to Claude Code-specific features that other agents should handle as follows:
+- Never import 3rd-party BLE libraries (e.g. `universal_ble`) outside `lib/src/services/ble/`.
+- All BLE operations use 128-bit UUID format.
+- Scale write paths must catch `DeviceNotConnectedException` at the lowest-level write helper.
+- Keep Flutter build and run flows non-interactive. Prefer `--dart-define=simulate=1` for smoke tests.
+- Use prefixed imports for domain models that share names with Drift-generated code: `import '...shot_record.dart' as domain;` or `hide Workflow` on the database import.
+- No emojis in comments or documentation.
 
-### Use as-is
+## Code Style
 
-These sections are tool-agnostic and apply to all agents:
-- **Project Overview** — Tech stack, architecture, supported platforms
-- **Commands** — Run, test, lint, build commands
-- **Architecture** — Design principles, layer overview, key controllers, storage
-- **Conventions & Gotchas** — RxDart patterns, BLE handling, StreamBuilder patterns
-- **Testing** — Test tiers, helpers, widget test patterns
-- **Common Workflows** — Adding devices, API endpoints
-- **Documentation** — Links to detailed docs
+- Do not add explanatory comments to new or substantially rewritten code; use clear names and small functions. Preserve existing comments and required notices.
+- Put rationale, hardware constraints, and debugging history in the matching `doc/AI_*_NOTES.md` file.
+- Prefer immutability when practical.
+- Constructor dependency injection — no service locators.
+- Stream subscriptions always cancelled in `dispose()`.
 
-### Adapt the Workflow Section
+## Deep References
 
-The **Development Workflow** section references `EnterPlanMode`, which is Claude Code-specific. Interpret it as:
+- Fast file routing: `doc/AI_REPO_MAP.md`.
+- BLE footguns, transport threading, connection lifecycle: `doc/AI_BLE_NOTES.md`.
+- Build, flash, simulate, platform quirks: `doc/AI_BUILD_NOTES.md`.
+- REST/WS API contracts and compat: `doc/AI_API_NOTES.md`.
+- Drift DB schema, migrations, SharedPreferences: `doc/AI_STORAGE_NOTES.md`.
+- Crashlytics triage and debugging: `doc/AI_DEBUG_NOTES.md`.
+- Full project docs: `CLAUDE.md`, `CONTRIBUTING.md`.
+- Dev-loop skill: `.agents/skills/decent-app/SKILL.md`.
+- API specs: `assets/api/rest_v1.yml`, `assets/api/websocket_v1.yml`.
 
-> For planning, use the agent's equivalent planning/analysis mode. Explore the codebase to understand the problem, then write a plan in `doc/plans/` before implementing.
+## Naming Reference
 
-### Adapt the Branching Section
+| Layer | Value |
+|-------|-------|
+| User-facing name | **Decent.app** (short: "Decent") |
+| Dart package name | `reaprime` |
+| Plugin file extension | `.reaplugin` |
+| Bundle ID | `net.tadel.reaprime` |
+| Database name | `streamline_bridge` |
+| GitHub repo | `tadelv/reaprime` |
 
-The **Branching Strategy** section references `EnterWorktree`, which is Claude Code-specific. Interpret it as:
+## Don't
 
-> Use standard git commands (`git checkout -b`, `git worktree add`, etc.) for branching. Ask the user which strategy they prefer before creating branches.
-
-### Skills Reference
-
-The **Development Workflow** references a TDD skill in `.claude/skills/tdd-workflow/`. Other agents should follow these principles:
-
-- **Test-first approach:** Write tests before implementation
-- **Three test tiers:** Unit, integration, end-to-end
-- **Self-review:** Review your own code before claiming done
-- **Full suite:** Run `flutter test` and `flutter analyze` before committing
-
-## Working with Decent.app (all agents)
-
-The authoritative dev-loop skill lives under the [agentskills.io](https://agentskills.io) cross-client path `.agents/skills/decent-app/`. Any compliant client auto-discovers it. Non-compliant clients can read it as plain markdown.
-
-- **Entry point:** `.agents/skills/decent-app/SKILL.md`
-- **Routing:** `SKILL.md` has a table pointing at sibling files for lifecycle, REST, WebSocket, simulated devices, verification, and the end-to-end scenarios under `scenarios/`.
-- **Lifecycle helper:** `scripts/sb-dev.sh` (POSIX shell) manages `flutter run` in simulate mode — start, stop, hot reload, logs, status.
-- **Authoritative specs:** `assets/api/rest_v1.yml` (OpenAPI 3.0) and `assets/api/websocket_v1.yml` (AsyncAPI 3.0). Always read the relevant spec before making calls — don't guess endpoint paths or payload shapes.
-
-Claude Code also loads the skill via a thin forwarder at `.claude/skills/decent-app/SKILL.md` that points at the same canonical location.
-
-Prerequisites: `bash`, `curl`, `jq`, `websocat`, `flutter`, and POSIX `mkfifo` (macOS/Linux). Windows contributors run `flutter run` in a real terminal — see `.agents/skills/decent-app/lifecycle.md` for the Windows caveat.
-
-## File Locations
-
-| Purpose | Path |
-|---------|------|
-| Project instructions | `CLAUDE.md` |
-| Contributing guide & guards | `CONTRIBUTING.md` |
-| TDD workflow | `.claude/skills/tdd-workflow/SKILL.md` |
-| Plans (before commit) | `doc/plans/` |
-| API reference | `doc/Api.md` |
-| API specs (OpenAPI) | `assets/api/rest_v1.yml`, `assets/api/websocket_v1.yml` |
-| PR template | `.github/pull_request_template.md` |
-| Detailed docs | `doc/*.md` |
+- Don't push directly to `main`. Use PRs.
+- Don't import BLE libraries outside the transport layer.
+- Don't create new Drift tables without a schema version bump + migration.
+- Don't add API endpoints without updating the OpenAPI/AsyncAPI spec in the same commit.
+- Don't add new global state without a clear ownership boundary.
+- Don't `--amend` or force-push on `main`.
