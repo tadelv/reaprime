@@ -10,6 +10,11 @@ class ConnectionErrorKind {
   static const bluetoothPermissionDenied = 'bluetoothPermissionDenied';
   static const scanFailed = 'scanFailed';
 
+  /// A profile upload to the machine failed and is being retried.
+  /// Surfaced by `WorkflowDeviceSync` via `ConnectionManager.reportError`;
+  /// retracted through `clearErrorOfKind` once a retry lands.
+  static const profileUploadFailed = 'profileUploadFailed';
+
   /// Kinds that survive `ConnectionPhase` transitions. They only clear
   /// when the specific environmental condition recovers.
   static const sticky = <String>{

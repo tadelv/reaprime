@@ -1932,10 +1932,12 @@ Example payload:
 | `adapterOff` | Bluetooth adapter powered off | Instruct user to enable Bluetooth (no retry button) |
 | `bluetoothPermissionDenied` | BLE runtime permission refused | Instruct user to grant permission |
 | `scanFailed` | Scan failed to start | Retry scan |
+| `profileUploadFailed` | A profile upload to the machine failed; the app is retrying with backoff | None — informational. Retracted automatically when a retry lands. |
 
 **Lifecycle rules:**
 
 - **Transient kinds** (`scaleConnectFailed`, `machineConnectFailed`, `scaleDisconnected`, `machineDisconnected`) auto-clear when a new operation starts — i.e. the phase transitions to `scanning`, `connectingMachine`, `connectingScale`, or `ready`.
+- **`profileUploadFailed`** is additionally *retracted* explicitly: the app keeps retrying the upload, and the error is withdrawn as soon as one succeeds. Treat it as "the machine may not be holding your selected profile yet", not as a dead end — no user action is required.
 - **Sticky kinds** (`adapterOff`, `bluetoothPermissionDenied`, `scanFailed`) survive phase transitions. They clear only when the environment recovers (adapter on, permission granted, successful scan start).
 - Emitting any new error overwrites the previous one. **Latest event wins.**
 
@@ -1950,6 +1952,7 @@ const copyForKind = {
   adapterOff: 'Bluetooth is off. Turn it on to continue.',
   bluetoothPermissionDenied: 'Grant Bluetooth permission to continue.',
   scanFailed: 'Scan could not start. Retry.',
+  profileUploadFailed: 'Profile did not reach the machine. Retrying…',
 };
 
 let lastSeen = null;

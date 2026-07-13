@@ -19,6 +19,7 @@ import 'package:reaprime/src/controllers/bengle_saw_bridge.dart';
 import 'package:reaprime/src/controllers/bengle_steam_stop_bridge.dart';
 import 'package:reaprime/src/controllers/hot_water_sequencer.dart';
 import 'package:reaprime/src/controllers/steam_sequencer.dart';
+import 'package:reaprime/src/controllers/connection_error.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
@@ -365,15 +366,20 @@ void main(List<String> args) async {
     de1Controller.defaultWorkflow = workflowController.currentWorkflow;
   });
   // Single writer of DE1 setProfile for the workflow paths (REST
-  // PUT /api/v1/workflow + UI picker). POST /api/v1/machine/profile and the
-  // reconnect defaults push bypass it — UnifiedDe1.setProfile serializes
-  // uploads across all callers at the device level. Must be constructed
-  // after workflowController has its persisted workflow loaded so its
-  // initial snapshot matches what was last pushed.
+  // PUT /api/v1/workflow + UI picker) AND the machine (re)connect push
+  // (the old defaults-path upload was single-shot with
+  // swallowed errors). Only POST /api/v1/machine/profile bypasses it —
+  // UnifiedDe1.setProfile serializes uploads across all callers at the
+  // device level. Persistent upload failures surface on the connection
+  // status stream and retract once a retry lands.
   // ignore: unused_local_variable
   final workflowDeviceSync = WorkflowDeviceSync(
     workflowController: workflowController,
     de1Controller: de1Controller,
+    onUploadError: connectionManager.reportError,
+    onUploadRecovered: () => connectionManager.clearErrorOfKind(
+      ConnectionErrorKind.profileUploadFailed,
+    ),
   );
   // Reflects WorkflowContext.targetYield into Bengle's autonomous SAW
   // MMR. Single writer for both REST and UI yield-edits; re-applies on

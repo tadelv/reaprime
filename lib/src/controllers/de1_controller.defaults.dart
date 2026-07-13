@@ -29,11 +29,11 @@ extension Defaults on De1Controller {
     RinseData rinseData = defaultWorkflow!.rinseData;
     await updateFlushSettings(rinseData);
 
-    final defaultProfile = defaultWorkflow?.profile;
-    if (defaultProfile == null) {
-      return;
-    }
-    await _de1?.setProfile(defaultProfile);
+    // The connect-time profile upload is owned by WorkflowDeviceSync
+    // (its `_onDe1Change` connect branch), NOT pushed here: this path is
+    // single-shot with swallowed errors, and a mid-sequence failure left
+    // the firmware's ProfileDownloadInProgress latch stuck with no retry
+    // (magenta GH-LED pulse, start requests ignored).
   }
 
   Future<void> applySettingsDefaults() async {
