@@ -51,17 +51,13 @@ Read this when changing REST endpoints, WebSocket topics, API specs, auth proxy,
 
 **Source:** Original DE1 app at `github.com/decentespresso/de1app` is the authoritative source for DE1 protocol behavior, BLE characteristics, and machine state logic.
 
-**Key note:** Decent uses its own JSON profile format — the TCL-based profile format in `de1app` is not authoritative for profiles here.
+**Profiles:** Use Profile JSON v2 format. See `doc/Profiles.md` for the full profile API and content-based hashing.
 
-**MMR (Memory-Mapped Register) reads:** Used for DE1 debug log buffer, firmware settings, and advanced state. MMR read timeout observed on M50Mini under `flutter run` debug mode (~270ms in release). Not reproducible in release builds — dev-loop annoyance only.
+**MMR (Memory-Mapped Register) reads:** Used for DE1 debug log buffer, firmware settings, and advanced state. Not for general profile or workflow operations.
 
 ## Workflow Dual Representation
 
 Workflow JSON has both `context` (new: `WorkflowContext` with `grinderModel`, `coffeeName`, etc.) and legacy fields (`grinderData`, `coffeeData`, `doseData`). `Workflow.fromJson()` backfills context from legacy fields. UI reads from `context`; API clients can write to either. Always keep both in sync when modifying serialization.
-
-## Profile Upload Gotcha
-
-**Issue #389:** Profile push to DE1 writes to workflow but the DE1 doesn't execute the new profile until next restart. Not a serialization bug — a DE1 firmware behavior quirk.
 
 ## Adding An Endpoint (Checklist)
 

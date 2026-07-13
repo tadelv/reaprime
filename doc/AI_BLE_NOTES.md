@@ -5,7 +5,7 @@ Read this when changing BLE transport, scanning, connection lifecycle, GATT erro
 ## Source Of Truth
 
 - Transport interfaces: `lib/src/models/device/data_transport.dart`, `lib/src/models/device/ble_transport.dart`.
-- BLE transport implementations: `lib/src/services/ble/` (`universal_ble_transport.dart`, `android_blue_plus_transport.dart`, `blue_plus_transport.dart`, `linux_ble_transport.dart`).
+- BLE transport: `lib/src/services/ble/universal_ble_transport.dart` (cross-platform via `universal_ble` package).
 - Connection orchestration: `lib/src/controllers/connection/connection_manager.dart`.
 - Device discovery + matching: `lib/src/services/device_matcher.dart`, `lib/src/services/device_discovery/`.
 - Error filtering: `lib/src/services/crashlytics_error_filter.dart`.
@@ -20,18 +20,9 @@ Read this when changing BLE transport, scanning, connection lifecycle, GATT erro
 
 ## Transport Architecture
 
-Four BLE transport implementations share common patterns through `UnifiedDe1Transport`:
+The single BLE transport is `UniversalBleTransport` in `lib/src/services/ble/universal_ble_transport.dart`, wrapping the `universal_ble` package. It implements the `DataTransport` interface: `connect()`, `disconnect()`, `dispose()`, `read(uuid)`, `write(uuid, data)`, `writeWithResponse(uuid, data)`, `subscribe(uuid)`, `connectionState` stream.
 
-| Transport | File | Notes |
-|-----------|------|-------|
-| Universal BLE | `universal_ble_transport.dart` | Cross-platform, current primary. |
-| Android Blue Plus | `android_blue_plus_transport.dart` | Legacy Android path. |
-| Blue Plus | `blue_plus_transport.dart` | macOS desktop. |
-| Linux BLE | `linux_ble_transport.dart` | Linux desktop. |
-
-The `DataTransport` interface defines: `connect()`, `disconnect()`, `dispose()`, `read(uuid)`, `write(uuid, data)`, `writeWithResponse(uuid, data)`, `subscribe(uuid)`, `connectionState` stream.
-
-`UnifiedDe1Transport` wraps a `DataTransport` and adds MMR read/write on top of raw characteristic I/O. It provides `rawData` stream, `readMmr()`, `writeMmr()`, and typed connection guards (`DeviceNotConnectedException.machine()` on read/write when disconnected).
+`UnifiedDe1Transport` wraps `UniversalBleTransport` and adds MMR read/write on top of raw characteristic I/O. It provides `rawData` stream, `readMmr()`, `writeMmr()`, and typed connection guards (`DeviceNotConnectedException.machine()` on read/write when disconnected).
 
 ## Connection Flow
 
@@ -50,17 +41,17 @@ The `DataTransport` interface defines: `connect()`, `disconnect()`, `dispose()`,
 
 **Root cause:** Android BLE stack (`BluetoothGatt.gattStatus = 133 = GATT_ERROR`) busy during connect init. Not a device problem — the `connect()` call itself fails before any characteristic I/O.
 
-**Fix pattern:** `EarlyConnectWatcher` already retries the 2nd attempt. `sb-061` MMR-read retry catches the notify-drop variant. The cold-boot `connect()`-level 133 is a different entry point — tracked in `sb-071` for `universal_ble` 2.x migration.
+**Fix pattern:** `EarlyConnectWatcher` already retries; the 2nd attempt succeeds.
 
-**Status:** Evidence-only. The early-connect watcher handles it; the 2nd attempt succeeds. Monitor for new patterns after `universal_ble` 2.x migration.
+**Status:** The early-connect watcher handles this. Not a code bug — an Android BLE stack behavior.
 
 ## Footgun #2: Listener Stacking on Reconnect
 
 **Symptom:** Duplicate WebSocket state messages, `currentSnapshot` emits duplicates.
 
-**Root cause (fixed in PR #246):** `AndroidBluePlusTransport.connect()` returns early on "Already connected, skipping connect" (no disconnect), but `UnifiedDe1Transport.connect()` always re-runs `_bleConnect()` → re-`subscribe()`s all 6 characteristics. With no disconnect, `cancelWhenDisconnected` never fired, so listeners stacked → every notification delivered twice.
+**Root cause (fixed in PR #246):** `UnifiedDe1Transport.connect()` re-ran `_bleConnect()` → re-`subscribe()`d all characteristics without disconnecting first. `cancelWhenDisconnected` never fired, so listeners stacked → every notification delivered twice.
 
-**Fix:** `CharSubscriptions` helper (cancel-before-replace per characteristic UUID) wired into all 4 BLE transports. Unit-tested. `DuplicateBleSubscription` non-fatal recorded for telemetry.
+**Fix:** `CharSubscriptions` helper (cancel-before-replace per characteristic UUID). Unit-tested.
 
 **Verification:** Cannot reproduce in unit/simulate. Rely on Crashlytics + `DuplicateBleSubscription` telemetry to confirm the path fires.
 
@@ -102,7 +93,7 @@ Three reusable idioms from the comms-harden effort:
 
 | Symptom | First place to look |
 |---------|---------------------|
-| GATT-133 on first connect, works on retry | `EarlyConnectWatcher` — 2nd attempt should succeed. Track `sb-071` for root fix. |
+| GATT-133 on first connect, works on retry | `EarlyConnectWatcher` — 2nd attempt should succeed. |
 | Duplicate state messages | Listener stacking. Check `CharSubscriptions` is cancel-before-replace. |
 | Scale write exceptions escaping to framework | Scale write path missing `DeviceNotConnectedException` catch. Add at `_writeCommand` / `_safeWrite`. |
 | BLE scan overlaps | `ScanStateGuardian` — check adapter state tracking. |

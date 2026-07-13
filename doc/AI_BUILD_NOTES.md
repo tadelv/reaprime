@@ -4,14 +4,13 @@ Read this when building, running, flashing, or touching platform configuration. 
 
 ## Common Commands
 
-```bash
-# Run (with git commit version injection)
-./flutter_with_commit.sh run
+Prefer `./flutter_with_commit.sh` for all runs — it injects the git commit hash and respects `.env.dev`. Pass `--dart-define` flags through it.
 
-# Run with simulated devices
-flutter run --dart-define=simulate=1           # All simulated
-flutter run --dart-define=simulate=machine,scale  # Specific types
-flutter run --dart-define=simulate=bengle      # Bengle only
+```bash
+# Run
+./flutter_with_commit.sh run                                    # Standard
+./flutter_with_commit.sh run --dart-define=simulate=1           # All simulated
+./flutter_with_commit.sh run --dart-define=simulate=machine,scale
 
 # Test & Lint
 flutter test                                   # All tests
@@ -70,11 +69,21 @@ Also toggleable from the settings UI after launch.
 
 **Fix:** Finite 500ms per-chunk write timeout + bail on zero-progress, `drainWithTimeout` polling `bytesToWrite`.
 
-## Footgun #3: USB Charger Mode Spam
+## CLI Parameters
 
-**Symptom:** ~2665 `setUsbChargerMode` writes per 2 days on m50mini.
+The app supports several command-line flags for headless/calibration-station use. See PR #349 and #352 for full details.
 
-**Fix (PR #246):** `shouldWriteChargerMode()` in `charging_logic.dart` — write-on-change, re-assert "off" every 5min while discharging, skip otherwise. Reset on disconnect.
+```bash
+./flutter_with_commit.sh run --dart-define=simulate=1 \
+  --serial=<mac>              # Auto-connect to specific DE1 by MAC
+  --bypass-onboarding         # Skip onboarding, go straight to launcher
+  --direct                    # Skip scan, connect directly to --serial device
+  --skin=<id>                 # Pre-select skin by ID
+  --skin-path=<path>          # Pre-select skin by filesystem path
+  --no-account                # Skip DecentAccountService (headless Linux with no desktop session)
+```
+
+All flags are optional. Combine as needed. `--no-account` is specifically for headless Linux stations where `libsecret` blocks on XDG secrets portal.
 
 ## Dev-Loop Skill
 
