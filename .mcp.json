@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "code-review-graph": {
+      "command": "/Users/vid/.pyenv/versions/3.12.1/bin/python3.12",
+      "args": [
+        "-m",
+        "code_review_graph",
+        "serve"
+      ],
+      "cwd": "/Users/vid/development/repos/reaprime",
+      "type": "stdio"
+    }
+  }
+}
