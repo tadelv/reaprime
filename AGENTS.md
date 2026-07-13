@@ -2,14 +2,58 @@
 
 Use `doc/AI_REPO_MAP.md` first for orientation. Read broader docs only when the task needs them.
 
-## Always
+## Workflow
+
+### Starting Work
+
+**Before any planning or implementation, always ask the user:**
+1. **Branch strategy:** New branch, worktree, or current branch?
+2. **Completion strategy:** PR, local merge to main, or leave as-is?
+
+**Do not push to remote or create PRs until the user explicitly instructs you to.** Commit locally as needed, but wait.
+
+**`main` has branch protection.** Pushing directly bypasses protections — always use PRs.
+
+**Worktree gotcha:** Worktree branches track `origin/main` — pushing will push directly to `main`. Create a PR:
+```bash
+git push -u origin HEAD:feature/my-branch-name
+gh pr create --base main
+```
+
+### Planning
+
+For non-trivial features or fixes:
+1. Explore the codebase and design the approach.
+2. Write a plan in `doc/plans/` covering: steps, files to change, architecture considerations, testing.
+3. Present to user for review. Iterate until approved. Only then implement.
+
+**Skip planning only for:** simple typo fixes, single-line changes, or tasks with very specific instructions.
+
+### During Implementation
 
 - Plan with the user before complex or risky operations.
-- Test-first: write tests before implementation. Run `flutter test` + `flutter analyze` before committing.
+- Test-first: write tests before implementation.
 - Preserve existing user changes. Do not revert unrelated work.
 - Match existing code style. Do not refactor adjacent code unless the task demands it.
-- `main` has branch protection. Push via PR only.
 - Update `assets/api/rest_v1.yml` or `assets/api/websocket_v1.yml` in the same commit as endpoint changes.
+
+### Verification
+
+After every meaningful code change:
+1. Run relevant tests + `flutter analyze`. Fix immediately if anything fails.
+2. Run full `flutter test` before committing and before claiming done.
+3. Evidence before assertions — show test output, not just "tests pass."
+
+For API/spec changes, smoke-test via `scripts/sb-dev.sh` + `curl`/`websocat`. See `.agents/skills/decent-app/verification.md`.
+
+### Pre-Commit / Pre-PR Checklist
+
+**Before opening a PR, merging locally, or considering work done:**
+0. **Fill out the PR template** at `.github/pull_request_template.md` — sections marked required are hard gates. See `CONTRIBUTING.md`.
+1. **Archive design docs** from `doc/plans/` to `doc/plans/archive/<meaningful-subfolder-name>/`. Design docs are worth keeping (the *why*). Implementation plans (step-by-step task lists) are not — delete them.
+2. **Check doc updates:** `doc/Api.md` if endpoints changed, `doc/Skins.md` if skin behavior changed, `doc/Plugins.md` if events changed, `doc/Profiles.md` if profile handling changed, `doc/DeviceManagement.md` if device flows changed.
+
+All three steps are required, not optional.
 
 ## Hard Rules
 
