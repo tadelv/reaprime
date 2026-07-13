@@ -110,6 +110,7 @@ If your output contradicts documented architecture or conventions, surface it ex
 - Dev-loop skill: `.agents/skills/decent-app/SKILL.md`.
 - API specs: `assets/api/rest_v1.yml`, `assets/api/websocket_v1.yml`.
 - Archived design docs: `doc/plans/archive/` (the *why* behind shipped features).
+- Knowledge graph: `code-review-graph` MCP tools — use `detect_changes`, `get_impact_radius`, `query_graph`, and `semantic_search_nodes` before Grep/Glob/Read for code exploration and impact analysis.
 
 ## Naming Reference
 
