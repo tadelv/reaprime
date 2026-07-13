@@ -75,3 +75,9 @@ pubspec_overrides.yaml
 
 # Brainstorming visual companion
 .superpowers/
+
+# pi-spine / pi-loop / specify (local orchestration; generated state must not be committed)
+.spine/
+.pi/
+.specify/
+.worktrees/
