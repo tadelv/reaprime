@@ -347,6 +347,47 @@ auto-reconnect above:
   because the transport is shared with scales/sensors and some peripherals
   legitimately advertise while connected.
 
+### Gone-Device GATT Error Handling (BLE transport)
+
+When a BLE write/read/subscribe hits a device that has already
+ disconnected (scale powered off mid-session, Bluetooth adapter off on
+ macOS, DE1 unplugged), `universal_ble` throws `UniversalBleException`
+with error codes like `characteristicNotFound`, `deviceNotFound`,
+`serviceNotFound`, `connectionTerminated`, `deviceDisconnected`, or
+`unknownError`. The transport's `_handleGattError()` catches these,
+
+1. Emits `ConnectionState.disconnected` (drives the normal disconnect cascade),
+2. Drains the BLE queue (`clearQueue`) so pending writes don't pile up, and
+3. Throws `DeviceNotConnectedException` so upper layers handle it gracefully
+   instead of crashing.
+
+GATT error 133 (`gattError`) is treated as transient — the queue is cleared
+and a `BleTimeoutException` is thrown so `UnifiedDe1Transport` can retry via
+`_handleBleTimeout`. The link is NOT declared dead for GATT-133.
+
+### Crashlytics Error Filtering (telemetry)
+
+The `DeviceNotConnectedException` thrown from `_handleGattError` and the raw
+`UniversalBleException` can escape to the Flutter framework's global error
+handlers (`FlutterError.onError`, `PlatformDispatcher.instance.onError`)
+from fire-and-forget contexts — e.g. a `Timer.periodic` heartbeat callback
+where nobody is awaiting the write Future. Without filtering, the
+Crashlytics integration records these as FATAL crashes (false positives —
+the transport already emitted `disconnected` and the device impl's
+connectionState listener handles cleanup).
+
+`isBenignFrameworkError()` in `lib/src/services/telemetry/crashlytics_error_filter.dart`
+filters these from both framework error handlers:
+
+- `DeviceNotConnectedException` (any kind)
+- `UniversalBleException` with gone-device error codes
+- `Exception('Queue Cancelled')` — from `universal_ble`'s `Queue.dispose()`
+  when `clearQueue` cancels pending items
+
+This is the safety net. Device implementations should ALSO catch
+`DeviceNotConnectedException` at their write level for graceful recovery
+(see [Best Practices](#best-practices)).
+
 ### Preferred Device Settings
 
 Device preferences are stored via `SettingsController`:
@@ -856,6 +897,37 @@ try {
   // Show user error message
 }
 ```
+
+**Scale writes must catch `DeviceNotConnectedException`.** When a BLE
+write hits a disconnected device, the transport's `_handleGattError`
+throws `DeviceNotConnectedException`. This can escape from fire-and-forget
+contexts (Timer.periodic heartbeat callbacks, unawaited Futures) and reach
+the framework error handler. Catch it at the lowest-level write helper so all
+command paths are covered:
+
+```dart
+// ✅ Good — single catch point in _writeCommand / _safeWrite
+Future<void> _writeCommand(List<int> commandBytes) async {
+  try {
+    await _device.write(serviceId, charId, _buildCommand(commandBytes));
+  } on DeviceNotConnectedException {
+    // Transport already emitted disconnected; the connectionState
+    // listener handles cleanup.
+  }
+}
+```
+
+```dart
+// ❌ Bad — bare _transport.write() without catch; crashes if scale
+// disconnected mid-session
+Future<void> tare() async {
+  await _transport.write(serviceId, charId, Uint8List.fromList([0x10]));
+}
+```
+
+The framework error handler filter (`isBenignFrameworkError`) is the safety
+net — but scale-level catches are defense-in-depth and keep the log trace
+informative (`.info` level rather than silently swallowed).
 
 ### State Broadcasting
 
