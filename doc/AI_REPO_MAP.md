@@ -38,6 +38,23 @@ Use this before broader docs when you need fast orientation. Read only the subsy
 - Release process: `doc/RELEASE.md`, then `.github/workflows/release.yml`.
 - Historical design rationale: `doc/plans/archive/` — search for the feature name.
 
+## Coupling
+
+When you change X, also check Y and Z.
+
+| Changing... | Must also check... | Why |
+|-------------|---------------------|-----|
+| BLE transport (`universal_ble_transport.dart`) | `UnifiedDe1Transport`, `De1Controller`, `ConnectionManager`, `CharSubscriptions`, crashlytics error filter, all transport tests | All layers share the `DataTransport` interface; gone-device handling affects error filtering |
+| REST/WS endpoint (handler) | API spec (`rest_v1.yml` / `websocket_v1.yml`), router (`_init()`), `doc/Api.md`, handler test | Spec must stay in sync; stale spec = stale agent knowledge |
+| Database schema (`app_database.dart`) | `@Database` version bump, migration in `onUpgrade`, DAOs, mappers, domain models (import prefixes) | Schema drift breaks persistence silently |
+| Profile/workflow serialization | `Workflow.fromJson()`, `ProfileDao`, `ProfileStorageService`, legacy field backfill, spec | Dual representation (`context` + legacy fields); both must stay in sync |
+| `ConnectionManager` | 7 collaborators (`DisconnectExpectations`, `StatusPublisher`, `ScanReportBuilder`, `DisconnectSupervisor`, `EarlyConnectWatcher`, `ScanOrchestrator`, `PolicyResolver`) | Delegate to the right collaborator rather than growing the manager |
+| `De1StateManager` | `ShotSequencer`, `SteamSequencer`, `ScaleController` (sleep/wake), `ConnectionManager` (reconnect) | Machine state transitions cascade to shot lifecycle, scale power, and reconnect logic |
+| Plugin API or permissions | `PluginManager`, `PluginHost`, `dye2-plugin`, `doc/Plugins.md`, bundled plugin assets | Plugin host + bundled plugin must stay compatible |
+| WebUI / skin serving | `lib/src/webui_support/`, `lib/src/services/webserver/webui/`, `doc/Skins.md` | Skin install, serving, and metadata are coupled |
+| Device discovery | `DeviceMatcher`, `BleServiceIdentifier`, `ScanStateGuardian`, `ScanOrchestrator`, `doc/DeviceManagement.md` | Name matching, service verification, and scan lifecycle are interdependent |
+| `BatteryController` / charging | `charging_logic.dart`, `De1Controller`, DE1 FW behavior (auto-re-enables charger) | Charger mode logic depends on DE1 FW quirks |
+
 ## Focused Tests
 
 - All tests: `flutter test`.
