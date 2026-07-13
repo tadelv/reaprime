@@ -434,4 +434,13 @@ void main() {
       );
     });
   });
+
+  // When _handleGattError or _onOperationTimeout calls clearQueue,
+  // universal_ble's Queue.dispose() cancels pending items with
+  // Exception('Queue Cancelled') — a plain Exception, not
+  // UniversalBleException. Our write()/read() catch blocks convert this
+  // to DeviceNotConnectedException. Testing this requires driving the
+  // universal_ble queue through a real dispose cycle, which hangs the
+  // test framework on cleanup. The code is defensive and the framework
+  // error handler filter (isBenignFrameworkError) is the safety net.
 }

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:logging/logging.dart' as logging;
 import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/subjects.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
@@ -159,12 +160,7 @@ class Skale2Scale implements Scale {
     await Future.delayed(_initStepDelay);
     await _sendDisplayOn();
     await _sendDisplayWeight();
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0x03]),
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0x03]));
   }
 
   Future<void> _subscribeWeight() async {
@@ -196,43 +192,38 @@ class Skale2Scale implements Scale {
 
   // --- Commands ---
 
+  /// Safe write — catches [DeviceNotConnectedException] so a write to a
+  /// disconnected scale doesn't escape as a FATAL (Crashlytics fa51312d).
+  Future<void> _safeWrite(Uint8List data) async {
+    try {
+      await _transport.write(
+        serviceIdentifier.long,
+        commandCharacteristic.long,
+        data,
+        withResponse: false,
+      );
+    } on DeviceNotConnectedException {
+      // Transport already emitted disconnected.
+    }
+  }
+
   Future<void> _sendDisplayOn() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0xED]),
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0xED]));
   }
 
   Future<void> _sendDisplayWeight() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0xEC]),
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0xEC]));
   }
 
   Future<void> _sendDisplayOff() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0xEE]),
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0xEE]));
   }
 
   // --- Tare ---
 
   @override
   Future<void> tare() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0x10]),
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0x10]));
   }
 
   // --- Display control ---
@@ -294,31 +285,16 @@ class Skale2Scale implements Scale {
 
   @override
   Future<void> startTimer() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0xDD]),
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0xDD]));
   }
 
   @override
   Future<void> stopTimer() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0xD1]),
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0xD1]));
   }
 
   @override
   Future<void> resetTimer() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0xD0]),
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0xD0]));
   }
 }

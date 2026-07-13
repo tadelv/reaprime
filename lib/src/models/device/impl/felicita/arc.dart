@@ -7,6 +7,7 @@ import 'package:rxdart/subjects.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
 
+import 'package:reaprime/src/models/errors.dart';
 import '../../scale.dart';
 
 class FelicitaArc implements Scale {
@@ -88,15 +89,25 @@ class FelicitaArc implements Scale {
   @override
   DeviceType get type => DeviceType.scale;
 
+  /// Safe write — catches [DeviceNotConnectedException] so a write to a
+  /// disconnected scale doesn't escape as a FATAL (Crashlytics fa51312d).
+  Future<void> _safeWrite(Uint8List data) async {
+    try {
+      await _transport.write(
+        serviceIdentifier.long,
+        dataCharacteristic.long,
+        data,
+      );
+    } on DeviceNotConnectedException {
+      // Transport already emitted disconnected.
+    }
+  }
+
   @override
   Future<void> tare() async {
     final writeData = Uint8List(1);
     writeData[0] = 0x54;
-    await _transport.write(
-      serviceIdentifier.long,
-      dataCharacteristic.long,
-      writeData
-    );
+    await _safeWrite(writeData);
   }
 
   @override
@@ -147,16 +158,16 @@ class FelicitaArc implements Scale {
 
   @override
   Future<void> startTimer() async {
-    await _transport.write(serviceIdentifier.long, dataCharacteristic.long, Uint8List.fromList([0x52]));
+    await _safeWrite(Uint8List.fromList([0x52]));
   }
 
   @override
   Future<void> stopTimer() async {
-    await _transport.write(serviceIdentifier.long, dataCharacteristic.long, Uint8List.fromList([0x53]));
+    await _safeWrite(Uint8List.fromList([0x53]));
   }
 
   @override
   Future<void> resetTimer() async {
-    await _transport.write(serviceIdentifier.long, dataCharacteristic.long, Uint8List.fromList([0x43]));
+    await _safeWrite(Uint8List.fromList([0x43]));
   }
 }

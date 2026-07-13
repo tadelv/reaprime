@@ -74,13 +74,23 @@ class DecentScale implements Scale, TransportHandoffScale {
     Duration? timeout,
     bool withResponse = true,
   }) async {
-    await _device.write(
-      serviceIdentifier.long,
-      writeCharacteristic.long,
-      _buildCommand(commandBytes),
-      timeout: timeout,
-      withResponse: withResponse,
-    );
+    try {
+      await _device.write(
+        serviceIdentifier.long,
+        writeCharacteristic.long,
+        _buildCommand(commandBytes),
+        timeout: timeout,
+        withResponse: withResponse,
+      );
+    } on DeviceNotConnectedException {
+      _log.info('Write failed: device not connected');
+      // Don't call disconnect() here — the transport already emitted
+      // disconnected (in _handleGattError), which triggers the
+      // connectionState listener that calls disconnect(). Re-entering
+      // disconnect from a write path risks a re-entrant teardown.
+      // The _isDisconnecting guard would catch it, but the extra
+      // log noise is confusing.
+    }
   }
 
   // --- Scale interface -------------------------------------------------
