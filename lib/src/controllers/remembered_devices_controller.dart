@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/remembered_device.dart';
+import 'package:reaprime/src/services/device_matcher.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:rxdart/subjects.dart';
 
@@ -50,8 +51,14 @@ class RememberedDevicesController {
     _initialized = true;
     final raw = await _settings.rememberedDevices();
     final loaded = RememberedDevice.decodeList(raw);
+    var migrated = 0;
     for (final d in loaded) {
-      _registry[d.id] = d;
+      if (d.implementation == null || d.transportType == null) {
+        _registry[d.id] = d.migrate(DeviceMatcher.implementationForName);
+        migrated++;
+      } else {
+        _registry[d.id] = d;
+      }
     }
     // Surface dropped records (malformed, or an unknown type written by a newer
     // build) instead of letting a remembered device silently vanish.
@@ -60,7 +67,8 @@ class RememberedDevicesController {
       _log.warning(
           'dropped ${stored - loaded.length} unreadable remembered record(s)');
     }
-    _log.info('loaded ${_registry.length} remembered device(s)');
+    _log.info('loaded ${_registry.length} remembered device(s)'
+        '${migrated > 0 ? ", migrated $migrated old record(s)" : ""}');
     _emit();
     // SEVERE, not warning: the scale mapper narrows its catch to the benign
     // DeviceNotConnectedException race, so anything reaching here is a genuine
