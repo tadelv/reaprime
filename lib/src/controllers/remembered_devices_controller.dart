@@ -1,7 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/remembered_device.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/services/device_matcher.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:rxdart/subjects.dart';
@@ -29,6 +33,11 @@ class RememberedDevicesController {
   final List<StreamSubscription> _subs = [];
   bool _initialized = false;
 
+  /// True when a migration persist attempt failed and the in-memory registry
+  /// carries data not yet flushed to disk. A live-device reconnect will retry
+  /// the persist even when sameMetadata() passes.
+  bool _migrationPersistPending = false;
+
   RememberedDevicesController({
     required Stream<RememberedDevice?> machineConnections,
     required Stream<RememberedDevice?> scaleConnections,
@@ -51,6 +60,18 @@ class RememberedDevicesController {
     _initialized = true;
     final raw = await _settings.rememberedDevices();
     final loaded = RememberedDevice.decodeList(raw);
+
+    // Detect opaque records (unknown types, unrecognized enum values) that
+    // would be destroyed by a full-registry rewrite. If ANY such record
+    // exists, the entire list stays on disk as-is — we rewrite nothing.
+    final stored = RememberedDevice.storedCount(raw);
+    final recordsDropped = stored > loaded.length;
+    final hasOpaqueRecords = recordsDropped || _scanForOpaqueRecords(raw);
+    if (recordsDropped) {
+      _log.warning(
+          'dropped ${stored - loaded.length} unreadable remembered record(s)');
+    }
+
     var migrated = 0;
     for (final d in loaded) {
       if (d.implementation == null || d.transportType == null) {
@@ -60,23 +81,15 @@ class RememberedDevicesController {
         _registry[d.id] = d;
       }
     }
-    // Surface dropped records (malformed, or an unknown type written by a newer
-    // build) instead of letting a remembered device silently vanish.
-    final stored = RememberedDevice.storedCount(raw);
-    if (stored > loaded.length) {
-      _log.warning(
-          'dropped ${stored - loaded.length} unreadable remembered record(s)');
-    }
     _log.info('loaded ${_registry.length} remembered device(s)'
         '${migrated > 0 ? ", migrated $migrated old record(s)" : ""}');
-    if (migrated > 0) {
+    if (migrated > 0 && !hasOpaqueRecords) {
       try {
         await _persist();
       } catch (_) {
-        // Non-fatal: the metadata was inferred from name/id and will be
-        // re-inferred on next load. A persist failure here leaves the disk
-        // record thin, which self-heals on the next live-device reconnect
-        // (sameMetadata now compares implementation + transportType).
+        _migrationPersistPending = true;
+        _log.warning(
+          'migration persist failed — will retry on next live-device reconnect');
       }
     }
     _emit();
@@ -109,7 +122,17 @@ class RememberedDevicesController {
   Future<void> _remember(RememberedDevice device) async {
     final existing = _registry[device.id];
     if (existing != null && existing.sameMetadata(device)) {
-      return; // already remembered with the same metadata
+      // Metadata unchanged — but a previous migration persist may have
+      // failed, leaving the disk with thin records. Retry now.
+      if (_migrationPersistPending) {
+        try {
+          await _persist();
+          _migrationPersistPending = false;
+        } catch (_) {
+          // Already logged at SEVERE in _persist; keep pending for next retry.
+        }
+      }
+      return;
     }
     _registry[device.id] = device;
     try {
@@ -154,6 +177,32 @@ class RememberedDevicesController {
       _log.severe('failed to persist remembered devices', e, st);
       rethrow;
     }
+  }
+
+  /// Check raw JSON for records with enum values unknown to the current
+  /// build — a successful persist would overwrite them, which is lossy.
+  static bool _scanForOpaqueRecords(String raw) {
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(raw);
+    } catch (_) {
+      return false;
+    }
+    if (decoded is! List) return false;
+    final knownTypes = DeviceType.values.map((t) => t.name).toSet();
+    final knownImpls =
+        DeviceImplementation.values.map((i) => i.name).toSet();
+    final knownTTs = TransportType.values.map((t) => t.name).toSet();
+    for (final entry in decoded) {
+      if (entry is! Map) continue;
+      final typeName = entry['type'];
+      if (typeName is String && !knownTypes.contains(typeName)) return true;
+      final implName = entry['implementation'];
+      if (implName is String && !knownImpls.contains(implName)) return true;
+      final ttName = entry['transportType'];
+      if (ttName is String && !knownTTs.contains(ttName)) return true;
+    }
+    return false;
   }
 
   void _emit() {
