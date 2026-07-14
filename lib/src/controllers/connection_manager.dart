@@ -456,15 +456,15 @@ class ConnectionManager {
   }
 
   /// Attempt to quick-connect the preferred machine from remembered
-  /// metadata. Returns true if the machine was adopted.
-  Future<bool> _tryQuickConnectMachine() async {
+  /// metadata. Returns the adopted [De1Interface], or null on failure.
+  Future<De1Interface?> _tryQuickConnectMachine() async {
     final registry = rememberedDevices;
-    if (registry == null) return false;
+    if (registry == null) return null;
     final machineId = settingsController.preferredMachineId;
-    if (machineId == null || machineId.isEmpty) return false;
+    if (machineId == null || machineId.isEmpty) return null;
     final remembered = registry.remembered
         .firstWhereOrNull((d) => d.id == machineId);
-    if (remembered == null) return false;
+    if (remembered == null) return null;
     try {
       final device = await deviceScanner.tryQuickConnect(remembered);
       if (device is De1Interface) {
@@ -472,12 +472,12 @@ class ConnectionManager {
         _publishStatus(currentStatus.copyWith(
             phase: ConnectionPhase.connectingMachine));
         _log.info('Quick-connect: machine adopted (${device.deviceId})');
-        return true;
+        return device;
       }
     } catch (e, st) {
       _log.warning('Quick-connect: machine attempt failed', e, st);
     }
-    return false;
+    return null;
   }
 
 
@@ -499,15 +499,25 @@ class ConnectionManager {
     }
 
     // Quick-connect: try direct connection to the preferred machine from
-    // remembered metadata. Scales are excluded — they are discovered by
-    // the background scale-reconnect loop after the machine connects.
+    // remembered metadata. Scales are excluded — the machine-only critical
+    // path publishes ready immediately after adoption, then kicks off
+    // background scale discovery.
     var effectiveScaleOnly = scaleOnly;
     if (!scaleOnly && rememberedDevices != null) {
       _publishStatus(currentStatus.copyWith(
           phase: ConnectionPhase.connectingMachine));
-      final qcMachineConnected = await _tryQuickConnectMachine();
-      if (qcMachineConnected) {
+      final qcMachine = await _tryQuickConnectMachine();
+      if (qcMachine != null) {
         _log.info('Quick-connect: machine connected, proceeding to ready');
+        if (qcMachine is BengleInterface) {
+          await _attachBengleVirtualScale(qcMachine);
+        } else if (!_scaleConnected) {
+          if (settingsController.preferredScaleId != null) {
+            _maybeSchedulePreferredScaleReconnect();
+          } else {
+            _armPostQuickConnectScaleScan();
+          }
+        }
         _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.ready));
         return;
       }
@@ -681,6 +691,27 @@ class ConnectionManager {
         deviceScanner.stopScan();
       }
     }
+  }
+
+  /// Arm a deferred scale-only scan after machine quick-connect when the
+  /// user has no preferred scale configured. Unlike
+  /// [_maybeArmDeferredScaleScan], this path is independent of
+  /// [_earlyStopFired] — quick-connect skips the scan entirely, so there
+  /// is no early-stop flag to gate on.
+  void _armPostQuickConnectScaleScan() {
+    if (_scaleConnected) return;
+    if (_scaleReconnectBlockedByPowerMode) return;
+    _log.fine(
+      'Quick-connected machine without a scale; '
+      'arming deferred scale scan in ${deferredScaleScanDelay.inSeconds}s',
+    );
+    _deferredScaleScan?.cancel();
+    _deferredScaleScan = Timer(deferredScaleScanDelay, () {
+      _deferredScaleScan = null;
+      if (_scaleConnected) return;
+      if (!_machineConnected || _scaleReconnectBlockedByPowerMode) return;
+      connect(scaleOnly: true);
+    });
   }
 
   /// Compensate for [_checkEarlyStop] cutting the scan short. When a

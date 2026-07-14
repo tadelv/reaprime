@@ -198,12 +198,10 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
         await device.onConnect().timeout(const Duration(seconds: 10));
         _portPathToDevice[portPath] = device;
         _portPathToDeviceId[portPath] = device.deviceId;
-        device.connectionState.listen((state) {
+        late final StreamSubscription<ConnectionState> stateSub;
+        stateSub = device.connectionState.listen((state) {
           if (state == ConnectionState.disconnected) {
-            _portPathToDevice.remove(portPath);
-            _portPathToDeviceId.remove(portPath);
-            _portPathToTransport.remove(portPath);
-            _machineSubject.add(_devices);
+            unawaited(_handleQuickConnectedDisconnect(portPath, stateSub));
           }
         });
         _devices = _portPathToDevice.values.toList();
@@ -377,6 +375,24 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       _lastEmittedIds = ids;
       _machineSubject.add(_devices);
       _log.info("Devices: $_devices");
+    }
+  }
+
+  Future<void> _handleQuickConnectedDisconnect(
+    String path,
+    StreamSubscription<ConnectionState> sub,
+  ) async {
+    try {
+      await sub.cancel();
+      await _dropAndDispose(path, reap: false);
+
+      _devices = _portPathToDevice.values.toList();
+      _lastEmittedIds = _devices.map((d) => d.deviceId).toSet();
+      if (!_machineSubject.isClosed) {
+        _machineSubject.add(List.unmodifiable(_devices));
+      }
+    } catch (e, st) {
+      _log.warning('Quick-connect disconnect cleanup failed for $path', e, st);
     }
   }
 

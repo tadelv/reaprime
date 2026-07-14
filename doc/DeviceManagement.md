@@ -241,6 +241,12 @@ All phase writes route through `StatusPublisher.publish`. If a
 transition isn't listed below, it's not supposed to happen.
 
 ```
+                              ┌───────────────────┐
+                              │ quick-connect path │ (machine-only)
+                              │ idle → connMachine │
+                              │       → ready      │
+                              └───────────────────┘
+
                        ┌──────────────────────────────┐
                        │                              │
                        ▼                              │
@@ -259,6 +265,8 @@ Transition owners (where the `publish(phase: …)` call lives):
 
 | Edge                                    | Owner                                                   |
 |-----------------------------------------|---------------------------------------------------------|
+| `idle → connectingMachine` (QC)         | `ConnectionManager._connectImpl` (before QC attempt)    |
+| `connectingMachine → ready` (QC)        | `ConnectionManager._connectImpl` (after machine adoption)|
 | `idle → scanning`                       | `ScanOrchestrator.runScan`                              |
 | `scanning → idle` (scan failure)        | `ScanOrchestrator._emitScanStartError`                  |
 | `scanning → connectingMachine`          | `ConnectionManager.connectMachine` (policy stage)       |
@@ -268,8 +276,8 @@ Transition owners (where the `publish(phase: …)` call lives):
 | `connectingScale → idle` (scale error)  | `StatusPublisher.emitError` → gatekeeper folds to idle  |
 | any `→ idle` on disconnect              | `DisconnectSupervisor._onMachineGone / _onScaleGone`    |
 
-`scaleOnly` reconnects (`scanAndConnectScale`) skip the
-`connectingMachine` edge and go `idle → scanning → connectingScale → ready`.
+`scaleOnly` reconnects (`connect(scaleOnly: true)`) skip every machine-phase
+edge and go `idle → scanning → connectingScale → ready`.
 
 Non-phase status fields (`error`, `foundMachines`, `pendingAmbiguity`)
 are allowed to change on any edge; only the `phase` field follows the
@@ -523,15 +531,17 @@ to gate "internal scale" UX hints.
 ### Quick Connect
 
 Before running a full scan, `ConnectionManager._connectImpl` tries a
-**quick-connect** — a direct connection to the preferred machine and scale
+**machine-only quick-connect** — a direct connection to the preferred machine
 from remembered-device metadata, without scanning:
 
 ```
 ConnectionManager._connectImpl()
   |
-  +-- Look up preferred machine + scale in RememberedDevicesController
+  +-- Publish connectingMachine phase (UI shows spinner, not Retry)
   |
-  +-- For machine: deviceScanner.tryQuickConnect(machineRemembered)
+  +-- Look up preferred machine in RememberedDevicesController
+  |
+  +-- deviceScanner.tryQuickConnect(machineRemembered)
   |     |- BLE: getSystemDevices (Apple) / direct connect (Android)
   |     |      -> BleDevice + UniversalBleTransport + DeviceFactory.create()
   |     |      -> transport.connect() -> device.onConnect() -> identity check
@@ -540,27 +550,34 @@ ConnectionManager._connectImpl()
   |     |- Serial: open SerialPort(storedPath) -> _detectDevice()
   |     |         -> verify match -> onConnect() -> return Device or null
   |     |
-  |     +-- WiFi: WifiIpCache -> connect -> onConnect() -> return or null
+  |     +-- WiFi: WifiScaleDiscoveryService.tryQuickConnect()
+  |            (returns null — WiFi scales use deferred discovery)
   |
-  +-- If machine returned: de1Controller.adoptDevice()
-  |    If scale returned: scaleController.adoptScale()
-  |    Both success -> publish ready. DONE.
+  +-- If machine returned:
+  |     |- de1Controller.adoptDevice()
+  |     |- Bengle → attach integrated BengleVirtualScale
+  |     |- DE1 + preferred scale configured → schedule preferred scale reconnect
+  |     |- DE1 + no preferred scale → arm deferred scale-only scan (~3s delay)
+  |     +-- publish ready. DONE (no scan fallthrough).
   |
   +-- If machine null -> fall through to ScanOrchestrator.runScan()
-  |    (existing scan -> match -> EarlyConnectWatcher -> connect)
-  |
-  +-- If machine adopted but scale null -> scale-only scan
-     (scanAndConnectScale)
+       (existing scan -> match -> EarlyConnectWatcher -> connect)
 ```
 
-Quick-connect is tried in **all** connect cycles (startup, manual
-reconnect, recovery mode). The phase stream is unchanged — quick-connect
-is invisible, staying at `idle` during the attempt. On success:
-`idle -> connectingMachine -> connectingScale -> ready`. On failure:
-`idle -> scanning` (existing flow).
+Scales are **excluded** from quick-connect. The machine-only critical path
+publishes ready immediately after machine adoption, then kicks off background
+scale discovery:
 
-`adoptDevice()` / `adoptScale()` skip `onConnect()` (already done by
-`tryQuickConnect`) and wire up stream subscriptions directly.
+- **Preferred scale configured:** `_maybeSchedulePreferredScaleReconnect()`
+  (exponential backoff: 5s → 10s → 20s → 40s → 60s cap)
+- **No preferred scale:** `_armPostQuickConnectScaleScan()` (single deferred
+  scale-only scan after ~3s, same delay as the post-wake reconnect)
+
+Quick-connect is tried in **all** connect cycles (startup, manual
+reconnect, recovery mode). The phase stream shows
+`idle → connectingMachine → ready` on success. On failure:
+`connectingMachine` is published before the attempt, then phase falls
+through to `scanning` (existing scan path).
 
 ### Initial App Startup
 
@@ -586,11 +603,14 @@ is invisible, staying at `idle` during the attempt. On success:
    ↓
 9. Scan step calls connectionManager.connect()
    ↓
-10. ConnectionManager: quick-connect (preferred devices) -> scan fallback
-     -> early-connect preferred devices -> apply policy
+10. ConnectionManager: machine-only quick-connect (preferred machine)
+     -> publish connectingMachine -> BLE/serial tryQuickConnect ->
+     adoptDevice -> Bengle virtual scale / deferred scale scan ->
+     publish ready. On failure: fall through to full scan.
    ↓
-11. Status stream: idle -> (quick-connect or) scanning ->
-     connectingMachine -> connectingScale -> ready
+11. Status stream (QC success): idle -> connectingMachine -> ready.
+     Status stream (QC failure): idle -> connectingMachine -> scanning ->
+     connectingMachine -> connectingScale -> ready.
      ↓
 12. On `ready`, onboarding completes -> navigates to LauncherView, then pushes
     SkinView on top when the platform supports an in-app WebView, the device
