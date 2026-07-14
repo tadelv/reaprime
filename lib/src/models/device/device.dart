@@ -1,4 +1,5 @@
 import 'package:reaprime/src/models/device/device_implementation.dart';
+import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
 
@@ -45,5 +46,15 @@ abstract class DeviceDiscoveryService {
   /// timers and stop the underlying scan (e.g., BLE stopScan).
   void stopScan() {
     // Default: no-op.
+  }
+
+  /// Attempt a direct connection to a remembered device without scanning.
+  /// Returns a connected-and-ready [Device] on success, or null to signal
+  /// the caller to fall back to a full scan.
+  ///
+  /// Default implementation returns null (scan fallback). Transport-specific
+  /// discovery services override this with the direct-connect path.
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async {
+    return null;
   }
 }

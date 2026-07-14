@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/device_scanner.dart';
+import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -105,6 +106,19 @@ class MockDeviceScanner implements DeviceScanner {
   @override
   void stopScan() {
     stopScanCallCount++;
+  }
+
+  /// When set, [tryQuickConnect] returns this device. When null (default),
+  /// returns null to force the scan fallback path.
+  Device? quickConnectResult;
+
+  /// Number of times [tryQuickConnect] has been called.
+  int quickConnectCallCount = 0;
+
+  @override
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async {
+    quickConnectCallCount++;
+    return quickConnectResult;
   }
 
   void dispose() {

@@ -14,6 +14,7 @@ import 'package:reaprime/src/models/device/impl/sensor/debug_port.dart';
 import 'package:reaprime/src/models/device/impl/sensor/sensor_basket.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
+import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'mmr_codec.dart';
 import 'serial_reconcile.dart';
 import 'usb_ids.dart';
@@ -156,7 +157,10 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
   }
 
   @override
-  void stopScan() {} // Serial enumeration is instant, nothing to stop.
+  void stopScan() {}
+
+  @override
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async => null; // Serial enumeration is instant, nothing to stop.
 
   @override
   Future<void> scanForDevices({ScanFilter? filter}) => _runScan(forceEmit: true);

@@ -8,6 +8,7 @@ import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
 import 'package:reaprime/src/models/device/impl/mock_scale/mock_scale.dart';
 import 'package:reaprime/src/models/device/impl/sensor/mock/mock_debug_port.dart';
 import 'package:reaprime/src/models/device/impl/sensor/mock/mock_sensor_basket.dart';
+import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
 
 class SimulatedDeviceService
@@ -29,7 +30,10 @@ class SimulatedDeviceService
   int scanCount = 0;
 
   @override
-  void stopScan() {} // Simulated scan completes instantly.
+  void stopScan() {}
+
+  @override
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async => null; // Simulated scan completes instantly.
 
   @override
   @override
