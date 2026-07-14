@@ -4,6 +4,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/connection/connection_timings.dart';
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/device_attach_notifier.dart';
 import 'package:reaprime/src/models/device/device_scanner.dart';
 import 'package:reaprime/src/models/device/device_watch.dart';
 import 'package:reaprime/src/models/device/remembered_device.dart';
@@ -45,6 +46,17 @@ class DeviceController implements DeviceScanner {
 
   @override
   AdapterState get currentAdapterState => _adapterStateStream.value;
+
+  /// Attach edges merged from every service that can be told about an
+  /// arrival ([DeviceAttachNotifier]). A [PublishSubject], not a
+  /// BehaviorSubject: an attach is an *event*, and replaying the last one to
+  /// a late subscriber would trigger a spurious scan.
+  final PublishSubject<DeviceAttachedEvent> _deviceAttachedStream =
+      PublishSubject<DeviceAttachedEvent>();
+
+  @override
+  Stream<DeviceAttachedEvent> get deviceAttached =>
+      _deviceAttachedStream.stream;
 
   final List<StreamSubscription> _serviceSubscriptions = [];
 
@@ -129,6 +141,18 @@ class DeviceController implements DeviceScanner {
             }
           });
           _serviceSubscriptions.add(adapterSub);
+        }
+        // if-case, not `is`: DeviceAttachNotifier is a sibling capability
+        // interface, not a subtype of DeviceDiscoveryService, so `service`
+        // cannot be promoted to it.
+        if (service case final DeviceAttachNotifier notifier) {
+          final attachSub = notifier.deviceAttached.listen((event) {
+            _log.info("device attached on $service: $event");
+            if (!_deviceAttachedStream.isClosed) {
+              _deviceAttachedStream.add(event);
+            }
+          });
+          _serviceSubscriptions.add(attachSub);
         }
       } catch (e) {
         _log.warning("Service $service failed to init:", e);
@@ -408,5 +432,6 @@ class DeviceController implements DeviceScanner {
     _deviceStream.close();
     _scanningStream.close();
     _adapterStateStream.close();
+    _deviceAttachedStream.close();
   }
 }

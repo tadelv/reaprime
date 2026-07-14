@@ -22,6 +22,7 @@ import 'package:reaprime/src/models/device/impl/bengle/bengle_virtual_scale.dart
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/device_attach_notifier.dart';
 import 'package:reaprime/src/models/device/device_scanner.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
@@ -135,6 +136,22 @@ class ConnectionManager {
   late final ScaleWatch _scaleWatch;
 
   StreamSubscription<AdapterState>? _adapterSub;
+  StreamSubscription<DeviceAttachedEvent>? _deviceAttachedSub;
+
+  /// Settle window between a transport's attach edge and the scan it kicks.
+  /// Android broadcasts ACTION_USB_DEVICE_ATTACHED as soon as the device
+  /// enumerates, a beat before the CDC interface is actually usable, so
+  /// scanning on the instant can see zero ports. Overridable in tests.
+  @visibleForTesting
+  Duration deviceAttachSettleDelay = const Duration(milliseconds: 500);
+
+  Timer? _attachConnect;
+  bool _attachConnectInFlight = false;
+
+  /// Number of attach-triggered connect attempts made. Test hook — the storm
+  /// guards are asserted on this rather than on scan side effects.
+  @visibleForTesting
+  int attachTriggeredConnects = 0;
 
   final DisconnectExpectations _disconnectExpectations =
       DisconnectExpectations();
@@ -277,6 +294,83 @@ class ConnectionManager {
       isScaleConnected: () => _scaleConnected,
     );
     _listenForAdapter();
+    _listenForDeviceAttach();
+  }
+
+  /// React to a transport telling us a device just landed on the bus (today:
+  /// Android USB). Without this the only path back is the backoff loop, which
+  /// sat idle for a measured 20.3 s with the machine present and enumerable
+  /// — and up to 60 s once the backoff has stretched.
+  void _listenForDeviceAttach() {
+    _deviceAttachedSub =
+        deviceScanner.deviceAttached.listen(_handleDeviceAttached);
+  }
+
+  /// A device attached: scan + connect now instead of waiting for the timer.
+  ///
+  /// Deliberately narrow: it only acts when no machine is connected, and it
+  /// runs the same `connect()` every other path runs, so machine policy
+  /// (preferred / picker / none) is unchanged — an attach is a "rescan now"
+  /// hint, never a licence to connect something the policy wouldn't.
+  ///
+  /// Storm guards: at most one attach-triggered connect is pending or running
+  /// at a time. A composite device can broadcast several attach intents, and a
+  /// flapping cable can broadcast many; they coalesce into one scan.
+  void _handleDeviceAttached(DeviceAttachedEvent event) {
+    if (_machineConnected) {
+      _log.fine('$event while the machine is already connected — ignoring');
+      return;
+    }
+    if (_attachConnect != null || _attachConnectInFlight) {
+      _log.fine('$event while an attach-triggered connect is already pending');
+      return;
+    }
+    _log.info(
+      '$event — connecting now instead of waiting out the reconnect backoff',
+    );
+    _attachConnect = Timer(deviceAttachSettleDelay, () async {
+      _attachConnect = null;
+      if (_machineConnected) return;
+      _attachConnectInFlight = true;
+      attachTriggeredConnects++;
+      // The device is on the bus NOW, so a pending backoff timer (up to 60s
+      // out) can only delay the attempt. Drop it and reset the backoff — this
+      // is a fresh, physical arrival, not another blind retry. The fallback is
+      // re-armed below if the connect doesn't land.
+      _machineReconnect?.cancel();
+      _machineReconnect = null;
+      _machineReconnectFailures = 0;
+      try {
+        await connect();
+      } catch (e, st) {
+        _log.fine('Attach-triggered connect failed', e, st);
+      } finally {
+        _attachConnectInFlight = false;
+        _ensureMachineRecoveryArmed();
+      }
+    });
+  }
+
+  /// Keep the backoff loop as the fallback behind the attach fast-path.
+  ///
+  /// Called after an attach-triggered connect that did not end with a machine
+  /// — it may have been dropped by the concurrent-connect guard, or the port
+  /// may not have been ready yet. Arms recovery even if it was never armed,
+  /// which also covers the case where `DisconnectSupervisor` declined to arm
+  /// it because the drop landed during an in-flight connect.
+  void _ensureMachineRecoveryArmed() {
+    if (_machineConnected) return;
+    // No preferred machine ⇒ a background retry could pop a picker. Same rule
+    // as [_startMachineRecovery].
+    if (settingsController.preferredMachineId == null) return;
+    if (!_machineRecoveryActive) {
+      _log.info(
+        'Attach-triggered connect did not land a machine — falling back to '
+        'the auto-reconnect backoff',
+      );
+      _machineRecoveryActive = true;
+    }
+    _maybeScheduleMachineReconnect();
   }
 
   void _listenForAdapter() {
@@ -1395,6 +1489,8 @@ class ConnectionManager {
     _stopMachineRecovery();
     _deferredScaleScan?.cancel();
     _cancelPreferredScaleReconnect();
+    _attachConnect?.cancel();
+    _attachConnect = null;
     // Awaited (not via _cancelScaleReacquisition) so the watch is
     // deterministically stopped before the controllers it feeds are
     // disposed.
@@ -1404,6 +1500,7 @@ class ConnectionManager {
     scaleController.dispose();
     _disconnectSupervisor.dispose();
     _adapterSub?.cancel();
+    _deviceAttachedSub?.cancel();
     _disconnectExpectations.dispose();
     _statusPublisher.dispose();
     _scanReportSubject.close();

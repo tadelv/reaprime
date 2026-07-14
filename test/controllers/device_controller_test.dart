@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/device_attach_notifier.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/scan_result.dart';
 import 'package:reaprime/src/models/device/device_implementation.dart';
@@ -111,6 +112,31 @@ class _RecordingTelemetry implements TelemetryService {
 
   @override
   String getLogBuffer() => '';
+}
+
+/// A discovery service whose transport is *told* when a device arrives — the
+/// Android USB serial service's shape.
+class _AttachNotifyingDiscoveryService
+    implements DeviceDiscoveryService, DeviceAttachNotifier {
+  final _controller = BehaviorSubject<List<Device>>.seeded(const []);
+  final _attached = PublishSubject<DeviceAttachedEvent>();
+
+  @override
+  Stream<List<Device>> get devices => _controller.stream;
+
+  @override
+  Stream<DeviceAttachedEvent> get deviceAttached => _attached.stream;
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<void> scanForDevices({ScanFilter? filter}) async {}
+
+  @override
+  void stopScan() {}
+
+  void attach(DeviceAttachedEvent event) => _attached.add(event);
 }
 
 /// Minimal `Device` stub.
@@ -248,6 +274,56 @@ void main() {
             reason: 'cache must rebuild after a device-list mutation');
       },
     );
+  });
+
+  group('deviceAttached aggregation', () {
+    test('forwards attach edges from a notifying service', () async {
+      final notifier = _AttachNotifyingDiscoveryService();
+      final controller = DeviceController([notifier]);
+      await controller.initialize();
+
+      final seen = <DeviceAttachedEvent>[];
+      final sub = controller.deviceAttached.listen(seen.add);
+
+      notifier.attach(const DeviceAttachedEvent(
+        deviceId: 'usb-2e8a-a-8549628789ABCDEF',
+        name: 'DE1',
+      ));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(seen, hasLength(1));
+      expect(seen.single.deviceId, 'usb-2e8a-a-8549628789ABCDEF');
+      await sub.cancel();
+    });
+
+    test('a service that cannot be notified (BLE, Wi-Fi, simulated) never '
+        'emits', () async {
+      final controller = DeviceController([_ManualDiscoveryService()]);
+      await controller.initialize();
+
+      final seen = <DeviceAttachedEvent>[];
+      final sub = controller.deviceAttached.listen(seen.add);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(seen, isEmpty);
+      await sub.cancel();
+    });
+
+    test('does not replay a past attach to a late subscriber', () async {
+      final notifier = _AttachNotifyingDiscoveryService();
+      final controller = DeviceController([notifier]);
+      await controller.initialize();
+
+      notifier.attach(const DeviceAttachedEvent(deviceId: 'gone-again'));
+      await Future<void>.delayed(Duration.zero);
+
+      final seen = <DeviceAttachedEvent>[];
+      final sub = controller.deviceAttached.listen(seen.add);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(seen, isEmpty);
+      await sub.cancel();
+    });
   });
 
   group('disconnect tracking keys (comms-harden #20)', () {

@@ -148,6 +148,41 @@ Discovery services use name-based matching via `DeviceMatcher` to create appropr
    - Broadcast stream of discovered devices
    - Updates when new devices found or existing devices disconnect
 
+### Attach Notification (`DeviceAttachNotifier`)
+
+**File:** `lib/src/models/device/device_attach_notifier.dart`
+
+An **optional** capability a discovery service may also implement when its platform can tell it the
+moment a device physically arrives, rather than only when a poll happens to find it.
+
+```dart
+abstract class DeviceAttachNotifier {
+  Stream<DeviceAttachedEvent> get deviceAttached;
+}
+```
+
+- **Who implements it:** `SerialServiceAndroid`, which receives Android's
+  `ACTION_USB_DEVICE_ATTACHED` broadcast. Other services do not, and are unaffected — the interface
+  is opt-in and `DeviceController` forwards edges only from the services that expose it.
+- **Who consumes it:** `ConnectionManager`, which treats an attach as "scan and connect **now**"
+  rather than waiting for the next exponential-backoff scan. Without it, a device that
+  re-enumerates mid-backoff waits out the remaining delay — **20.3 s measured, up to 60 s at the
+  cap** — while it sits enumerated and ready on the bus.
+- **The event is a hint, not an admission decision.** *Every* attached USB device is announced,
+  including ones the app would never talk to. The scan that follows is the filter (`_performScan`
+  already probes every enumerated port), so an uninteresting device costs one no-op scan. Filtering
+  at the notifier would risk suppressing a real machine whose descriptors Android reports late or
+  incompletely — a real case, since `serial` is often `null` on the first enumeration.
+- **`deviceId` is best-effort.** It is the USB stable id when the serial is readable and `null`
+  otherwise; the follow-up scan re-reads descriptors with permission and is the authority.
+- **Delivery is edge-only.** The stream is a `PublishSubject`, not a `BehaviorSubject` — a late
+  subscriber must not be handed a stale attach for a device that has since been unplugged.
+
+`ConnectionManager` de-bounces the edge (a settle window, one in-flight connect at a time) so a
+composite device broadcasting one intent per interface, or a flapping cable, produces a single
+connect attempt. The backoff loop remains armed as the fallback for when the attach-triggered
+connect finds nothing.
+
 ---
 
 ## Device Controller
