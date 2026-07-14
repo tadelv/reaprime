@@ -1,5 +1,6 @@
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 import 'package:rxdart/rxdart.dart';
@@ -41,6 +42,9 @@ class MockDeviceDiscoveryService implements DeviceDiscoveryService {
 
   @override
   void stopScan() {}
+
+  @override
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async => null;
 
   void dispose() {
     _controller.close();

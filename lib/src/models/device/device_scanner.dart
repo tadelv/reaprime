@@ -1,5 +1,6 @@
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/scan_result.dart';
 
@@ -35,4 +36,9 @@ abstract class DeviceScanner {
   /// Used by the scan orchestrator to populate `ScanReport` without
   /// awaiting a stream value (comms-harden #27).
   AdapterState get currentAdapterState;
+
+  /// Attempt a direct connection to a remembered device without scanning.
+  /// Iterates the registered discovery services, returning the first
+  /// connected device or null if all services return null.
+  Future<Device?> tryQuickConnect(RememberedDevice remembered);
 }

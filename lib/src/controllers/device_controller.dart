@@ -5,6 +5,7 @@ import 'package:reaprime/src/controllers/connection/connection_timings.dart';
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/device_scanner.dart';
+import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
@@ -238,6 +239,19 @@ class DeviceController implements DeviceScanner {
     for (final service in _services) {
       service.stopScan();
     }
+  }
+
+  @override
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async {
+    for (final service in _services) {
+      try {
+        final device = await service.tryQuickConnect(remembered);
+        if (device != null) return device;
+      } catch (e, st) {
+        _log.warning('tryQuickConnect failed for service $service', e, st);
+      }
+    }
+    return null;
   }
 
   void _serviceUpdate(DeviceDiscoveryService service, List<Device> devices) {
