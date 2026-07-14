@@ -328,11 +328,11 @@ All WebSocket endpoints are on port 8080 at `/ws/v1/...`. See [`assets/api/webso
 
 | Path | Description | Data |
 |------|-------------|------|
-| `/ws/v1/machine/snapshot` | Machine state stream (~10Hz) | Temps, pressures, flow, state |
+| `/ws/v1/machine/snapshot` | Machine state stream (~10Hz). Re-binds across a machine reconnect — see [Machine sockets re-bind](#machine-sockets-re-bind-across-a-reconnect). | Temps, pressures, flow, state |
 | `/ws/v1/scale/snapshot` | Scale weight/flow stream. Stays open across scale disconnects; emits `{"status":"connected"\|"disconnected"}` frames on state change. | Weight, flow, battery |
-| `/ws/v1/machine/shotSettings` | Shot settings changes | Target temp, volume, weight |
-| `/ws/v1/machine/waterLevels` | Water level changes | Current/limit levels |
-| `/ws/v1/machine/raw` | Raw BLE characteristic data | Hex-encoded bytes |
+| `/ws/v1/machine/shotSettings` | Shot settings changes. Re-binds across a machine reconnect. | Target temp, volume, weight |
+| `/ws/v1/machine/waterLevels` | Water level changes. Re-binds across a machine reconnect. | Current/limit levels |
+| `/ws/v1/machine/raw` | Raw BLE characteristic data. Re-binds across a machine reconnect; writes go to the currently-bound machine. | Hex-encoded bytes |
 | `/ws/v1/machine/shotState` | Shot sequencer state + decision feed: why a step advanced, why the shot stopped. Replays the latest frame on connect; idle between shots; not gated on a connected machine. | `event` (`state`\|`decision`\|`terminal`), `shotId`, shot phase, machine context, `decision {kind, reason, details, data}` |
 | `/ws/v1/devices` | Device discovery + `ConnectionManager` status (phase, found devices, ambiguity, errors). Also accepts `scan`/`connect`/`disconnect` commands. | Device list, `connectionStatus` |
 | `/ws/v1/sensors/:id/snapshot` | Sensor data stream | Sensor-specific |
@@ -341,6 +341,28 @@ All WebSocket endpoints are on port 8080 at `/ws/v1/...`. See [`assets/api/webso
 | `/ws/v1/webview/logs` | WebView console log stream | WebView console messages |
 | `/ws/v1/display` | Display state changes | Brightness, wakelock |
 | `/ws/v1/update` | App-update state stream. Also accepts `{"command":"check"}` and `{"command":"install"}` (Android installs; other platforms reply `{"error","url"}`). | `phase`, `progress`, `latestVersion`, `installable` |
+
+### Machine sockets re-bind across a reconnect
+
+When a machine reconnects — a power-cycle, a USB re-enumeration, a BLE drop — the app discards the
+old machine object and builds a new one. The machine sockets
+(`/ws/v1/machine/{snapshot,shotSettings,waterLevels,raw}`) **follow the swap**: the server re-attaches
+each open socket to the new machine and frames resume on their own.
+
+For clients this means:
+
+- **Do not reconnect the socket on a machine disconnect.** The socket stays open and goes quiet while
+  no machine is connected, then resumes. This mirrors `/ws/v1/scale/snapshot`.
+- **No status frame is emitted.** Unlike the scale socket, each machine socket carries exactly one
+  payload type per frame, and existing clients parse every frame as that type — a `{"status": ...}`
+  frame would break the wire contract. Track link state on `/ws/v1/devices` instead, which reports it
+  independently of any machine instance.
+- **A gap in frames is not a dead socket.** If a client needs a liveness signal, use `/ws/v1/devices`.
+- `/ws/v1/machine/raw` writes are delivered to the machine the socket is *currently* bound to, not the
+  one that was present when the socket was opened.
+
+The one unchanged case: opening a machine socket while **no** machine is connected still returns an
+error frame and closes, so reconnect-until-present loops keep working.
 
 ### `shotState` events
 
