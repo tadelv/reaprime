@@ -47,7 +47,10 @@ class RememberedDevice {
   /// (`==`) is id-only, so the registry uses this to detect a metadata change on
   /// reconnect without widening equality.
   bool sameMetadata(RememberedDevice other) =>
-      other.name == name && other.type == type;
+      other.name == name &&
+      other.type == type &&
+      other.implementation == implementation &&
+      other.transportType == transportType;
 
   /// Build a record from a live [Device], or null if the device is simulated
   /// (a [SimulatedDevice] is governed by the simulate setting, not real

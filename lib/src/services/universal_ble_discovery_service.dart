@@ -13,6 +13,8 @@ import 'package:reaprime/src/services/device_matcher.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:universal_ble/universal_ble.dart';
 import '../models/device/device.dart';
+import '../models/device/machine.dart';
+import '../models/device/impl/de1/de1.models.dart';
 import 'package:logging/logging.dart' as logging;
 
 class UniversalBleDiscoveryService extends BleDiscoveryService {
@@ -274,7 +276,29 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
     }
 
     try {
-      await _connectWithRetry(transport, device);
+      await _connectWithRetry(device);
+      if (device is Machine) {
+        final model = device.machineInfo.model;
+        final expectedBengle = impl == DeviceImplementation.bengle;
+        final actualBengle = model == DecentMachineModel.Bengle.name;
+        if (expectedBengle != actualBengle) {
+          log.warning(
+            'Quick-connect: identity mismatch for $deviceId '
+            '(expected ${impl.name}, got model=$model)',
+          );
+          try { await device.disconnect(); } catch (_) {}
+          try { await transport.dispose(); } catch (_) {}
+          return null;
+        }
+      }
+      _devices[deviceId] = device;
+      _deviceStreamController.add(_devices.values.toList());
+      _connections[deviceId] = device.connectionState.listen((state) {
+        if (state == ConnectionState.disconnected) {
+          _devices.remove(deviceId);
+          _deviceStreamController.add(_devices.values.toList());
+        }
+      });
       log.info('Quick-connect succeeded for $deviceId');
       return device;
     } catch (e, st) {
@@ -303,10 +327,7 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
     return null;
   }
 
-  Future<void> _connectWithRetry(
-    UniversalBleTransport transport,
-    Device device,
-  ) async {
+  Future<void> _connectWithRetry(Device device) async {
     const timeout = Duration(seconds: 10);
     try {
       await device.onConnect().timeout(timeout);

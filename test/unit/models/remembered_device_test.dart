@@ -76,14 +76,47 @@ void main() {
           isNull);
     });
 
-    test('sameMetadata compares name + type, not id', () {
-      const a = RememberedDevice(id: 'a', name: 'N', type: DeviceType.scale);
-      const aRenamed =
-          RememberedDevice(id: 'a', name: 'Other', type: DeviceType.scale);
-      const bSameMeta =
-          RememberedDevice(id: 'b', name: 'N', type: DeviceType.scale);
-      expect(a.sameMetadata(bSameMeta), isTrue);
-      expect(a.sameMetadata(aRenamed), isFalse);
+    test('sameMetadata compares name, type, implementation, transportType',
+        () {
+      const a = RememberedDevice(
+        id: 'a',
+        name: 'N',
+        type: DeviceType.scale,
+        implementation: DeviceImplementation.decentScale,
+        transportType: TransportType.ble,
+      );
+      const sameMeta = RememberedDevice(
+        id: 'different',
+        name: 'N',
+        type: DeviceType.scale,
+        implementation: DeviceImplementation.decentScale,
+        transportType: TransportType.ble,
+      );
+      const renamed = RememberedDevice(
+        id: 'a',
+        name: 'Other',
+        type: DeviceType.scale,
+        implementation: DeviceImplementation.decentScale,
+        transportType: TransportType.ble,
+      );
+      const differentImpl = RememberedDevice(
+        id: 'a',
+        name: 'N',
+        type: DeviceType.scale,
+        implementation: DeviceImplementation.skale2,
+        transportType: TransportType.ble,
+      );
+      const differentTransport = RememberedDevice(
+        id: 'a',
+        name: 'N',
+        type: DeviceType.scale,
+        implementation: DeviceImplementation.decentScale,
+        transportType: TransportType.wifi,
+      );
+      expect(a.sameMetadata(sameMeta), isTrue);
+      expect(a.sameMetadata(renamed), isFalse);
+      expect(a.sameMetadata(differentImpl), isFalse);
+      expect(a.sameMetadata(differentTransport), isFalse);
     });
 
     test('storedCount counts stored records before validity filtering', () {

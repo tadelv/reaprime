@@ -127,6 +127,14 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
       }
       try {
         await device.onConnect().timeout(const Duration(seconds: 10));
+        _devices.add(device);
+        device.connectionState.listen((state) {
+          if (state == ConnectionState.disconnected) {
+            _devices.remove(device);
+            _machineSubject.add(_devices);
+          }
+        });
+        _machineSubject.add(_devices);
         _log.info('Quick-connect succeeded for ${remembered.id}');
         return device;
       } catch (e, st) {

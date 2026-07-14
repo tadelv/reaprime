@@ -228,6 +228,7 @@ class DecentScale implements Scale, TransportHandoffScale {
       try {
         await _device.disconnect();
       } catch (_) {}
+      rethrow;
     }
   }
 

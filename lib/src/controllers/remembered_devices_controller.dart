@@ -69,6 +69,16 @@ class RememberedDevicesController {
     }
     _log.info('loaded ${_registry.length} remembered device(s)'
         '${migrated > 0 ? ", migrated $migrated old record(s)" : ""}');
+    if (migrated > 0) {
+      try {
+        await _persist();
+      } catch (_) {
+        // Non-fatal: the metadata was inferred from name/id and will be
+        // re-inferred on next load. A persist failure here leaves the disk
+        // record thin, which self-heals on the next live-device reconnect
+        // (sameMetadata now compares implementation + transportType).
+      }
+    }
     _emit();
     // SEVERE, not warning: the scale mapper narrows its catch to the benign
     // DeviceNotConnectedException race, so anything reaching here is a genuine
