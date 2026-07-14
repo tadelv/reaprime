@@ -7,7 +7,7 @@
         "code_review_graph",
         "serve"
       ],
-      "cwd": ""."",
+      "cwd": ".",
       "type": "stdio"
     }
   }

@@ -96,7 +96,7 @@ GitHub Issues on `tadelv/reaprime` is the canonical issue tracker. Use `gh issue
 - Build, flash, simulate, platform quirks: `doc/AI_BUILD_NOTES.md`.
 - REST/WS API contracts and compat: `doc/AI_API_NOTES.md`.
 - Drift DB schema, migrations, SharedPreferences: `doc/AI_STORAGE_NOTES.md`.
-- Crashlytics triage and debugging: `doc/AI_DEBUG_NOTES.md`.
+- Debugging patterns and BLE errors: `doc/AI_DEBUG_NOTES.md`.
 - Test tiers, widget patterns, mock helpers: `doc/AI_TESTING_NOTES.md`.
 - Full project docs: `doc/Api.md`, `doc/Skins.md`, `doc/Plugins.md`, `doc/Profiles.md`, `doc/DeviceManagement.md`, `doc/RELEASE.md`.
 - Contributing: `CONTRIBUTING.md`.

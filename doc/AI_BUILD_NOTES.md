@@ -111,7 +111,7 @@ Prefer `reload` over `hot-restart` — state is preserved.
 ```sh
 flutter analyze          # Minimum before any commit
 flutter test             # Full suite before commit/PR
-flutter format lib/ test/  # Format check
+dart format lib/ test/  # Format check
 ```
 
 ## Keeping Notes Fresh
