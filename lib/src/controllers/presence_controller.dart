@@ -4,6 +4,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/keep_awake_occurrence.dart';
 import 'package:reaprime/src/models/wake_schedule.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 
@@ -60,11 +61,32 @@ class PresenceController {
   final Set<String> _firedScheduleIds = {};
   int? _lastCheckedMinute;
 
-  /// Timestamp when the current keep-awake window expires. Null = no active window.
-  DateTime? _keepAwakeUntil;
+  String? _cachedSchedulesJson;
+  List<WakeSchedule> _cachedSchedules = const [];
+  final Set<KeepAwakeOccurrence> _cancelledOccurrences = {};
 
-  /// Exposes the keep-awake expiry for API/UI. Null if no window is active.
-  DateTime? get keepAwakeUntil => _keepAwakeUntil;
+  List<WakeSchedule> get _wakeSchedules {
+    final json = _settingsController.wakeSchedules;
+    if (json != _cachedSchedulesJson) {
+      _cachedSchedulesJson = json;
+      _cachedSchedules = keepAwakeSchedulesFromJson(json);
+      _pruneRemovedCancelledOccurrences();
+    }
+    return _cachedSchedules;
+  }
+
+  KeepAwakeOccurrence? get _activeKeepAwakeOccurrence {
+    if (_de1 == null) return null;
+    final schedules = _wakeSchedules;
+    final occurrence = activeKeepAwakeOccurrence(schedules, _clock());
+    _pruneCancelledOccurrences(occurrence);
+    if (occurrence == null || _cancelledOccurrences.contains(occurrence)) {
+      return null;
+    }
+    return occurrence;
+  }
+
+  DateTime? get keepAwakeUntil => _activeKeepAwakeOccurrence?.end;
 
   PresenceController({
     required De1Controller de1Controller,
@@ -95,7 +117,7 @@ class PresenceController {
     _pendingUserPresent = false;
     _pendingUserPresentTimer?.cancel();
     _pendingUserPresentTimer = null;
-    _keepAwakeUntil = null;
+    _cancelledOccurrences.clear();
     _settingsController.removeListener(_onSettingsChanged);
   }
 
@@ -135,7 +157,6 @@ class PresenceController {
     _pendingUserPresent = false;
     _pendingUserPresentTimer?.cancel();
     _pendingUserPresentTimer = null;
-    _keepAwakeUntil = null;
     _de1 = de1;
 
     if (de1 != null) {
@@ -165,10 +186,13 @@ class PresenceController {
     }
 
     if (newState == MachineState.sleeping &&
-        _currentMachineState != MachineState.sleeping &&
-        _keepAwakeUntil != null) {
-      _log.info('Machine went to sleep during keep-awake window, clearing');
-      _keepAwakeUntil = null;
+        _currentMachineState != null &&
+        _currentMachineState != MachineState.sleeping) {
+      final occurrence = _activeKeepAwakeOccurrence;
+      if (occurrence != null) {
+        _cancelledOccurrences.add(occurrence);
+        _log.info('Machine went to sleep during keep-awake occurrence');
+      }
     }
 
     // An activity (espresso/steam/hot water/flush/clean) just finished: restart
@@ -202,6 +226,25 @@ class PresenceController {
     } else {
       _sleepTimer?.cancel();
       _sleepTimer = null;
+    }
+  }
+
+  void _pruneRemovedCancelledOccurrences() {
+    final scheduleIds = _cachedSchedules.map((schedule) => schedule.id).toSet();
+    _cancelledOccurrences.removeWhere(
+      (occurrence) => !scheduleIds.contains(occurrence.scheduleId),
+    );
+  }
+
+  void _pruneCancelledOccurrences(KeepAwakeOccurrence? activeOccurrence) {
+    final now = _clock();
+    _cancelledOccurrences.removeWhere(
+      (occurrence) =>
+          occurrence != activeOccurrence && !now.isBefore(occurrence.end),
+    );
+    if (activeOccurrence != null &&
+        _cancelledOccurrences.remove(activeOccurrence)) {
+      _cancelledOccurrences.add(activeOccurrence);
     }
   }
 
@@ -263,17 +306,13 @@ class PresenceController {
   void _onSleepTimeout() {
     if (_de1 == null) return;
 
-    if (_keepAwakeUntil != null && _clock().isBefore(_keepAwakeUntil!)) {
+    final occurrence = _activeKeepAwakeOccurrence;
+    if (occurrence != null) {
       _log.info(
-        'Sleep timeout suppressed by keep-awake (until $_keepAwakeUntil)',
+        'Sleep timeout suppressed by keep-awake (until ${occurrence.end})',
       );
       _resetSleepTimer();
       return;
-    }
-
-    if (_keepAwakeUntil != null) {
-      _log.info('Keep-awake window expired');
-      _keepAwakeUntil = null;
     }
 
     // If machine is in an active state, restart the timer instead of sleeping
@@ -366,16 +405,6 @@ class PresenceController {
           _de1!.requestState(MachineState.schedIdle).catchError((Object e) {
             _log.warning('Failed to request schedIdle', e);
           });
-          if (schedule.keepAwakeFor != null) {
-            final newExpiry = now.add(
-              Duration(minutes: schedule.keepAwakeFor!),
-            );
-            if (_keepAwakeUntil == null ||
-                newExpiry.isAfter(_keepAwakeUntil!)) {
-              _keepAwakeUntil = newExpiry;
-              _log.info('Keep-awake window set until $_keepAwakeUntil');
-            }
-          }
           break; // One wake per check cycle
         }
       }
