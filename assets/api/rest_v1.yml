@@ -3347,10 +3347,19 @@ paths:
               properties:
                 userPresenceEnabled:
                   type: boolean
-                  description: Whether user presence tracking is enabled
+                  description: >
+                    Whether user presence tracking is enabled. Must be a boolean;
+                    any other type is rejected with 400.
                 sleepTimeoutMinutes:
                   type: integer
-                  description: Minutes of inactivity before the machine is put to sleep
+                  minimum: 0
+                  maximum: 240
+                  description: >
+                    Minutes of inactivity before the app puts the machine to
+                    sleep. Must be an integer in 0..240; anything else (a
+                    non-integer, or a value outside the range) is rejected with
+                    400 and nothing is stored. `0` means "Disabled" — the app
+                    will not sleep the machine on its own idle timer.
             examples:
               enablePresence:
                 summary: Enable presence tracking with 30 minute timeout
@@ -3377,6 +3386,15 @@ paths:
                     type: boolean
                   sleepTimeoutMinutes:
                     type: integer
+        "400":
+          description: >
+            Invalid field value — `userPresenceEnabled` was not a boolean, or
+            `sleepTimeoutMinutes` was not an integer in 0..240. No setting is
+            changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "500":
           description: Internal Server Error
           content:

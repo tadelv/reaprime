@@ -5,6 +5,7 @@ import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/feature_flags.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
+import 'package:reaprime/src/settings/sleep_timeout_safety.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 
 import 'settings_service.dart';
@@ -402,10 +403,19 @@ class SettingsController with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Sets the user's idle-sleep preference, in minutes. `0` = "Disabled", i.e.
+  /// the APP will not sleep the machine on its own idle timer.
+  ///
+  /// Clamped to `0..240` so no caller — REST, an imported settings blob, a
+  /// hand-edited pref — can store a nonsense value. `0` stays legal: it is a
+  /// statement about the app's behaviour, and says nothing about the machine's
+  /// own inactivity timeout.
   Future<void> setSleepTimeoutMinutes(int value) async {
-    if (value == _sleepTimeoutMinutes) return;
-    _sleepTimeoutMinutes = value;
-    await _settingsService.setSleepTimeoutMinutes(value);
+    final clamped =
+        value.clamp(kMinSleepTimeoutSetting, kMaxSleepTimeoutSetting);
+    if (clamped == _sleepTimeoutMinutes) return;
+    _sleepTimeoutMinutes = clamped;
+    await _settingsService.setSleepTimeoutMinutes(clamped);
     notifyListeners();
   }
 
