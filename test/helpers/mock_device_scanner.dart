@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/device_attach_notifier.dart';
 import 'package:reaprime/src/models/device/device_scanner.dart';
 import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
@@ -84,6 +85,12 @@ class MockDeviceScanner implements DeviceScanner {
   @override
   AdapterState get currentAdapterState => _adapterStateSubject.value;
 
+  final _deviceAttachedSubject = PublishSubject<DeviceAttachedEvent>();
+
+  @override
+  Stream<DeviceAttachedEvent> get deviceAttached =>
+      _deviceAttachedSubject.stream;
+
   @override
   List<Device> get devices => List.from(_devices);
 
@@ -91,6 +98,13 @@ class MockDeviceScanner implements DeviceScanner {
   /// recovery paths in [ConnectionManager].
   void mockAdapterState(AdapterState state) {
     _adapterStateSubject.add(state);
+  }
+
+  /// Simulate a transport reporting a device arriving on the bus (Android's
+  /// USB attach intent).
+  void mockDeviceAttached({String? deviceId, String? name}) {
+    _deviceAttachedSubject
+        .add(DeviceAttachedEvent(deviceId: deviceId, name: name));
   }
 
   /// Add a device and emit on the device stream.
@@ -187,5 +201,6 @@ class MockDeviceScanner implements DeviceScanner {
     _deviceSubject.close();
     _scanningSubject.close();
     _adapterStateSubject.close();
+    _deviceAttachedSubject.close();
   }
 }

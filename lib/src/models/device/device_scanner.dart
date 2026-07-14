@@ -1,5 +1,6 @@
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/device_attach_notifier.dart';
 import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/scan_result.dart';
@@ -27,6 +28,13 @@ abstract class DeviceScanner {
   Future<ScanResult> scanForDevices({ScanFilter? filter});
 
   void stopScan();
+
+  /// Out-of-band "a device just arrived on the bus" edges, merged across every
+  /// registered [DeviceAttachNotifier] service (today: Android USB serial).
+  /// Consumers treat this as "scan now"; it says nothing about *which* device
+  /// arrived being usable or preferred. Never emits for transports that can
+  /// only discover by scanning.
+  Stream<DeviceAttachedEvent> get deviceAttached;
 
   /// Aggregated Bluetooth adapter state across any BLE-capable discovery
   /// services. Non-BLE transports (serial, simulated) contribute nothing;

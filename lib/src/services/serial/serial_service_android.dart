@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:collection/collection.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/device_attach_notifier.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
@@ -23,7 +25,8 @@ import 'package:rxdart/subjects.dart';
 // ignore: depend_on_referenced_packages
 import 'package:usb_serial/usb_serial.dart';
 
-class SerialServiceAndroid implements DeviceDiscoveryService {
+class SerialServiceAndroid
+    implements DeviceDiscoveryService, DeviceAttachNotifier {
   final _log = Logger("Android Serial service");
 
   final List<Device> _devices = [];
@@ -34,70 +37,122 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
   /// but the QC path uses it to avoid leaking port handles + stream
   /// controllers on mismatch / failure / disconnect.
   final Map<String, AndroidSerialPort> _transportForDeviceId = {};
-  
+
   // Guard against concurrent scans
   bool _isScanning = false;
   Future<void>? _currentScan;
-  
+
   final BehaviorSubject<List<Device>> _machineSubject = BehaviorSubject.seeded(
     <Device>[],
   );
   @override
   Stream<List<Device>> get devices => _machineSubject.stream;
 
+  /// Attach edges. A PublishSubject, not a BehaviorSubject: an attach is an
+  /// event and must not be replayed to a late subscriber.
+  final PublishSubject<DeviceAttachedEvent> _attachedSubject =
+      PublishSubject<DeviceAttachedEvent>();
+
+  @override
+  Stream<DeviceAttachedEvent> get deviceAttached => _attachedSubject.stream;
+
   @override
   Future<void> initialize() async {
     List<UsbDevice> devices = await UsbSerial.listDevices();
     _log.info("found $devices");
 
-    UsbSerial.usbEventStream?.listen((data) async {
-      switch (data.event) {
-        case UsbEvent.ACTION_USB_DETACHED:
-          _log.info("USB_DETACHED: device=${data.device?.productName ?? 'null'} "
-              "raw=${data.device?.deviceId}");
-          if (data.device != null) {
-            // Match by stable ID, falling back to vid:pid prefix match.
-            // Android detach events often have null serial, so exact stable ID
-            // won't match. Use vid:pid prefix to find the orphaned device.
-            final vid = data.device!.vid;
-            final pid = data.device!.pid;
-            final detachedStableId = computeUsbStableId(
-              vid: vid,
-              pid: pid,
-              serial: data.device!.serial,
-            );
-            final vidPidPrefix = (vid != null && pid != null)
-                ? 'usb-${vid.toRadixString(16)}-${pid.toRadixString(16)}-'
-                : null;
-            _log.info("USB_DETACHED: stableId=${detachedStableId ?? 'none'}, "
-                "prefix=$vidPidPrefix");
-            final match = _devices.firstWhereOrNull((d) =>
-                d.deviceId == detachedStableId ||
-                (vidPidPrefix != null && d.deviceId.startsWith(vidPidPrefix)) ||
-                d.deviceId == "${data.device!.deviceId}");
-            if (match != null) {
-              _log.info("USB_DETACHED: disconnecting ${match.name}(${match.deviceId})");
-              match.disconnect();
-              _devices.remove(match);
-            } else {
-              _log.warning("USB_DETACHED: no matching device in $_devices");
-            }
+    UsbSerial.usbEventStream?.listen(handleUsbEvent);
+  }
+
+  /// Handle one Android USB broadcast.
+  ///
+  /// Extracted from the [initialize] listener so the attach path is
+  /// unit-testable without an Android device.
+  @visibleForTesting
+  void handleUsbEvent(UsbEvent data) {
+    switch (data.event) {
+      case UsbEvent.ACTION_USB_DETACHED:
+        _log.info("USB_DETACHED: device=${data.device?.productName ?? 'null'} "
+            "raw=${data.device?.deviceId}");
+        if (data.device != null) {
+          // Match by stable ID, falling back to vid:pid prefix match.
+          // Android detach events often have null serial, so exact stable ID
+          // won't match. Use vid:pid prefix to find the orphaned device.
+          final vid = data.device!.vid;
+          final pid = data.device!.pid;
+          final detachedStableId = computeUsbStableId(
+            vid: vid,
+            pid: pid,
+            serial: data.device!.serial,
+          );
+          final vidPidPrefix = (vid != null && pid != null)
+              ? 'usb-${vid.toRadixString(16)}-${pid.toRadixString(16)}-'
+              : null;
+          _log.info("USB_DETACHED: stableId=${detachedStableId ?? 'none'}, "
+              "prefix=$vidPidPrefix");
+          final match = _devices.firstWhereOrNull((d) =>
+              d.deviceId == detachedStableId ||
+              (vidPidPrefix != null && d.deviceId.startsWith(vidPidPrefix)) ||
+              d.deviceId == "${data.device!.deviceId}");
+          if (match != null) {
+            _log.info("USB_DETACHED: disconnecting ${match.name}(${match.deviceId})");
+            match.disconnect();
+            _devices.remove(match);
           } else {
-            // No device info — disconnect all serial devices as a fallback
-            _log.warning("USB_DETACHED: device is null, disconnecting "
-                "${_devices.length} serial device(s)");
-            for (final d in _devices) {
-              d.disconnect();
-            }
-            _devices.clear();
+            _log.warning("USB_DETACHED: no matching device in $_devices");
           }
-          _machineSubject.add(_devices);
-          break;
-        default:
-          _log.info("USB event: ${data.event}, device=${data.device?.productName ?? 'null'}");
-          break;
-      }
-    });
+        } else {
+          // No device info — disconnect all serial devices as a fallback
+          _log.warning("USB_DETACHED: device is null, disconnecting "
+              "${_devices.length} serial device(s)");
+          for (final d in _devices) {
+            d.disconnect();
+          }
+          _devices.clear();
+        }
+        _machineSubject.add(_devices);
+        break;
+      case UsbEvent.ACTION_USB_ATTACHED:
+        _announceAttach(data.device);
+        break;
+      default:
+        _log.info("USB event: ${data.event}, device=${data.device?.productName ?? 'null'}");
+        break;
+    }
+  }
+
+  /// Publish the attach edge so [ConnectionManager] can scan + connect NOW.
+  ///
+  /// Android broadcasts ACTION_USB_DEVICE_ATTACHED the moment a device is back
+  /// on the bus, but this service used to drop the intent in `default:` and
+  /// merely log it. A re-enumerating machine therefore had to wait out the
+  /// exponential-backoff scan before the app noticed it — 20.3 s of dead time
+  /// measured (attach 15:46:55.102, connect 15:47:15.376), and up to 60 s once
+  /// the backoff reaches its cap.
+  ///
+  /// The attach edge is a *hint*, not an admission decision: every attached USB
+  /// device is announced and the existing scan path decides what is interesting.
+  /// `_performScan` already calls `_detectDevice` on every enumerated port, so a
+  /// keyboard costs one no-op scan and nothing more. A null device (the platform
+  /// told us nothing) is announced too — the same permissive treatment the detach
+  /// path gives it.
+  void _announceAttach(UsbDevice? device) {
+    final stableId = device == null
+        ? null
+        : computeUsbStableId(
+            vid: device.vid,
+            pid: device.pid,
+            serial: device.serial,
+          );
+    _log.info(
+      "USB_ATTACHED: device=${device?.productName ?? 'null'} "
+      "id=${stableId ?? device?.deviceId}",
+    );
+    if (!_attachedSubject.isClosed) {
+      _attachedSubject.add(
+        DeviceAttachedEvent(deviceId: stableId, name: device?.productName),
+      );
+    }
   }
 
   @override
