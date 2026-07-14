@@ -17,7 +17,7 @@ flutter test                                   # All tests
 flutter test test/path/to_test.dart            # Specific file
 flutter test --name "test pattern"             # Specific test
 flutter analyze                                # Static analysis
-flutter format lib/ test/                      # Format
+dart format lib/ test/                      # Format
 
 # Build (Linux via Docker/Colima)
 make build-arm                                 # ARM64 binary

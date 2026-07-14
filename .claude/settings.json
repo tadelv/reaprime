@@ -2,24 +2,12 @@
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Edit|Write|Bash",
+        "matcher": "Edit|Write",
         "hooks": [
           {
             "type": "command",
-            "command": "code-review-graph update --skip-flows || true",
+            "command": "code-review-graph update --skip-flows 2>/dev/null",
             "timeout": 30
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "code-review-graph status || echo 'Not a git repo, skipping'",
-            "timeout": 10
           }
         ]
       }

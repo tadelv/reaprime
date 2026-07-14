@@ -1,16 +1,14 @@
 # Agent Instructions
 
-Use `doc/AI_REPO_MAP.md` first for orientation. Read broader docs only when the task needs them.
+For unfamiliar or multi-subsystem tasks, read `doc/AI_REPO_MAP.md` first. For known files or exact symbols, open them directly. Read domain-specific docs only when the task needs them.
 
 ## Workflow
 
 ### Starting Work
 
-**Before any planning or implementation, always ask the user:**
-1. **Branch strategy:** New branch, worktree, or current branch?
-2. **Completion strategy:** PR, local merge to main, or leave as-is?
+Default to the current branch and leave changes local. Never push, merge, or create a PR unless explicitly asked.
 
-**Do not push to remote or create PRs until the user explicitly instructs you to.** Commit locally as needed, but wait.
+Ask about branch/worktree strategy only when the current state is unsafe or the task depends on it.
 
 **`main` has branch protection.** Pushing directly bypasses protections — always use PRs.
 
@@ -22,12 +20,9 @@ gh pr create --base main
 
 ### Planning
 
-For non-trivial features or fixes:
-1. Explore the codebase and design the approach.
-2. Write a plan in `doc/plans/` covering: steps, files to change, architecture considerations, testing.
-3. Present to user for review. Iterate until approved. Only then implement.
+For non-trivial features or fixes, write a plan in `doc/plans/`. Seek approval for destructive operations, ambiguous choices, or broad architectural changes.
 
-**Skip planning only for:** simple typo fixes, single-line changes, or tasks with very specific instructions.
+**Skip planning for:** typo fixes, single-line changes, or tasks with very specific instructions.
 
 ### During Implementation
 
@@ -37,7 +32,7 @@ For non-trivial features or fixes:
 - Match existing code style. Do not refactor adjacent code unless the task demands it.
 - Update `assets/api/rest_v1.yml` or `assets/api/websocket_v1.yml` in the same commit as endpoint changes.
 - Use `rg` (ripgrep) for targeted code search before opening large files: `rg -n "symbolName" lib/`. When `rg` is not installed, fall back to `grep -rn`. Use this for finding constants, command handlers, UI labels, and protocol definitions — one `rg` call replaces reading entire files.
-- Use `rtk` (https://github.com/rtk-ai/rtk) to compress noisy command output when installed. Once set up (`brew install rtk && rtk init -g --agent pi`), Bash commands auto-rewrite — `git status` becomes `rtk git status`, `flutter test` becomes `rtk flutter test`. Saves ~80% of tokens on build, test, git, and diff output. When `rtk` is not installed, commands run normally — no workflow change needed.
+- Use `rtk` (https://github.com/rtk-ai/rtk) for verbose test, build, and git output when already configured for the active client.
 
 ### Verification
 
@@ -82,9 +77,7 @@ If your output contradicts documented architecture or conventions, surface it ex
 
 ## Tracking
 
-**For contributors:** GitHub Issues on `tadelv/reaprime` is the canonical issue tracker. Open issues, feature requests, and bug reports there.
-
-**For the maintainer:** A personal Obsidian vault is used for priority tracking and sprint planning. Use the `obsidian-todo-sync` skill for maintainer task management. For public-facing issue work (triage, labeling, closing), use GitHub Issues (`gh issue` commands).
+GitHub Issues on `tadelv/reaprime` is the canonical issue tracker. Use `gh issue` commands for triage, labeling, and closing.
 
 **Triage labels** (used on `tadelv/reaprime`):
 
@@ -110,7 +103,7 @@ If your output contradicts documented architecture or conventions, surface it ex
 - Dev-loop skill: `.agents/skills/decent-app/SKILL.md`.
 - API specs: `assets/api/rest_v1.yml`, `assets/api/websocket_v1.yml`.
 - Archived design docs: `doc/plans/archive/` (the *why* behind shipped features).
-- Knowledge graph: `code-review-graph` MCP tools — use `detect_changes`, `get_impact_radius`, `query_graph`, and `semantic_search_nodes` before Grep/Glob/Read for code exploration and impact analysis.
+- Knowledge graph: `code-review-graph` MCP tools. Use `rg` or direct file reads for exact names, paths, and one-hop lookups. Use the graph for multi-hop impact analysis, callers-of-callers, affected flows, architectural exploration, and test reachability.
 
 ## Naming Reference
 
