@@ -22,18 +22,28 @@ servers:
 channels:
   MachineSnapshot:
     address: ws/v1/machine/snapshot
-    description: Real-time snapshot data from the espresso machine.
+    description: >
+      Real-time snapshot data from the espresso machine. The socket re-binds
+      across a machine instance swap: when the machine reconnects (for example
+      after a power-cycle) the server re-attaches this socket to the new machine
+      and frames simply resume. Clients do not need to reconnect. No status
+      frame is emitted — every frame on this channel is a MachineSnapshot.
+      Link state is published on ws/v1/devices.
     messages:
       machineSnapshotMessage:
         $ref: '#/components/messages/MachineSnapshot'
   ShotSettings:
-    description: Real-time shot settings updates.
+    description: >
+      Real-time shot settings updates. Re-binds across a machine instance swap
+      — see MachineSnapshot.
     address: ws/v1/machine/shotSettings
     messages:
       shotSettingsMessage:
         $ref: '#/components/messages/ShotSettings'
   WaterLevels:
-    description: Real-time water level updates.
+    description: >
+      Real-time water level updates. Re-binds across a machine instance swap —
+      see MachineSnapshot.
     address: ws/v1/machine/waterLevels
     messages:
       waterLevelsMessage:
@@ -53,7 +63,11 @@ channels:
       scaleStatusMessage:
         $ref: '#/components/messages/ScaleStatus'
   MachineRaw:
-    description: Real-time raw BLE data from machine (read/write/notify).
+    description: >
+      Real-time raw BLE data from machine (read/write/notify). Re-binds across a
+      machine instance swap — see MachineSnapshot. Writes are delivered to the
+      machine the socket is currently bound to, not the one present when the
+      socket was opened.
     address: ws/v1/machine/raw
     messages:
       machineRawMessage:

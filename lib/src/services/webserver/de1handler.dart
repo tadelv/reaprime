@@ -352,19 +352,96 @@ class De1Handler {
     }
   }
 
+  /// Bind a machine-gated socket to the *currently* connected De1, and RE-BIND
+  /// it whenever [De1Controller] swaps the instance.
+  ///
+  /// The previous implementation resolved `connectedDe1()` once, at socket
+  /// open, and subscribed to that object's streams for the life of the socket.
+  /// A machine power-cycle makes De1Controller drop the De1 and build a
+  /// brand-new instance (`_onDisconnect()` → next scan → `connectToDe1`), so
+  /// the socket stayed bound to the dead object: no frames, and — because the
+  /// old instance's transport subjects are only closed by `dispose()`, not
+  /// `disconnect()` — no close either. The socket went open-but-silent
+  /// forever, and a client whose reconnect logic only triggers on *close*
+  /// (`ReconnectingWebSocket`, i.e. every Streamline/WebUI client) never
+  /// recovered without a reload. Bench bug i14.
+  ///
+  /// This follows the pattern `ScaleHandler._handleSnapshot` already uses:
+  /// watch the controller, cancel the payload subscription when the device
+  /// goes away, and re-attach it to the new device when one arrives. Frames
+  /// simply resume — no client-side action, and it heals every client, not
+  /// just the one skin.
+  ///
+  /// Two deliberate choices:
+  ///  * **Instance identity, not deviceId, is the swap signal.** The USB
+  ///    stable id is byte-identical across a power-cycle
+  ///    (`usb-2e8a-a-<factory serial>`), so an id comparison would see "same
+  ///    machine" and never re-bind. `identical()` is also what keeps a
+  ///    duplicate emission of the *same* De1 from double-subscribing (which
+  ///    would double the frame rate).
+  ///  * **No `{"status": ...}` frames.** Unlike the scale socket, the machine
+  ///    sockets carry a single typed payload (a MachineSnapshot /
+  ///    De1ShotSettings / De1WaterLevels per frame) and existing clients parse
+  ///    every frame as that type; injecting a status frame would be a
+  ///    breaking change to the wire contract. Link state is already published,
+  ///    instance-independently, on `/ws/v1/devices`.
+  ///
+  /// The "no machine at open" contract is unchanged: error frame + close, so
+  /// a client's reconnect loop keeps polling until a machine appears.
   void _withDe1Ws(
     WebSocketChannel socket,
-    void Function(De1Interface) body,
-  ) {
-    De1Interface de1;
-    try {
-      de1 = _controller.connectedDe1();
-    } catch (e) {
+    StreamSubscription<dynamic> Function(De1Interface de1) attach, {
+    void Function(De1Interface de1, dynamic message)? onMessage,
+  }) {
+    if (_controller.connectedDe1OrNull == null) {
       socket.sink.add(jsonEncode({'error': 'No machine connected'}));
       socket.sink.close();
       return;
     }
-    body(de1);
+
+    De1Interface? attached;
+    StreamSubscription<dynamic>? payloadSub;
+
+    void detach() {
+      final sub = payloadSub;
+      payloadSub = null;
+      attached = null;
+      sub?.cancel();
+    }
+
+    final de1Sub = _controller.de1.listen((de1) {
+      if (de1 == null) {
+        // Machine gone. Stop streaming but hold the socket open: the client
+        // keeps its subscription and starts receiving again the moment a
+        // machine is back.
+        if (attached != null) {
+          log.info('machine disconnected — detaching socket until it returns');
+          detach();
+        }
+        return;
+      }
+      if (identical(de1, attached)) return; // already streaming this instance
+      log.info('binding socket to ${de1.name} (${de1.deviceId})');
+      detach();
+      attached = de1;
+      payloadSub = attach(de1);
+    });
+
+    socket.stream.listen(
+      (message) {
+        final de1 = attached;
+        if (onMessage == null || de1 == null) return;
+        onMessage(de1, message);
+      },
+      onDone: () {
+        de1Sub.cancel();
+        detach();
+      },
+      onError: (Object e, StackTrace st) {
+        de1Sub.cancel();
+        detach();
+      },
+    );
   }
 
   Future<Response> _infoHandler(Request request) async {
@@ -477,7 +554,7 @@ class De1Handler {
   ) async {
     log.fine("handling websocket connection");
     _withDe1Ws(socket, (de1) {
-      var sub = de1.currentSnapshot.listen((snapshot) {
+      return de1.currentSnapshot.listen((snapshot) {
         try {
           var json = jsonEncode(snapshot.toJson());
           socket.sink.add(json);
@@ -485,11 +562,6 @@ class De1Handler {
           log.severe("failed to send: ", e, st);
         }
       });
-      socket.stream.listen(
-        (e) {},
-        onDone: () => sub.cancel(),
-        onError: (e, st) => sub.cancel(),
-      );
     });
   }
 
@@ -499,7 +571,7 @@ class De1Handler {
   ) async {
     log.fine('handling shot settings connection');
     _withDe1Ws(socket, (de1) {
-      var sub = de1.shotSettings.listen((data) {
+      return de1.shotSettings.listen((data) {
         try {
           var json = jsonEncode(data.toJson());
           socket.sink.add(json);
@@ -507,11 +579,6 @@ class De1Handler {
           log.severe("failed to send: ", e, st);
         }
       });
-      socket.stream.listen(
-        (e) {},
-        onDone: () => sub.cancel(),
-        onError: (e, st) => sub.cancel(),
-      );
     });
   }
 
@@ -521,7 +588,7 @@ class De1Handler {
   ) async {
     log.fine('handling water levels connection');
     _withDe1Ws(socket, (de1) {
-      var sub = de1.waterLevels.listen((data) {
+      return de1.waterLevels.listen((data) {
         try {
           var json = jsonEncode(data.toJson());
           socket.sink.add(json);
@@ -529,11 +596,6 @@ class De1Handler {
           log.severe("failed to send water levels", e, st);
         }
       });
-      socket.stream.listen(
-        (e) {},
-        onDone: () => sub.cancel(),
-        onError: (e, st) => sub.cancel(),
-      );
     });
   }
 
@@ -541,24 +603,26 @@ class De1Handler {
     WebSocketChannel socket,
     String? protocol,
   ) async {
-    _withDe1Ws(socket, (de1) {
-      var sub = de1.rawOutStream.listen((data) {
-        try {
-          var json = jsonEncode(data.toJson());
-          socket.sink.add(json);
-        } catch (e) {
-          log.severe("Failed to send raw: ", e);
-        }
-      });
-      socket.stream.listen(
-        (event) {
-          var json = jsonDecode(event.toString());
-          final message = De1RawMessage.fromJson(json);
-          de1.sendRawMessage(message);
-        },
-        onDone: () => sub.cancel(),
-        onError: (e, st) => sub.cancel(),
-      );
-    });
+    _withDe1Ws(
+      socket,
+      (de1) {
+        return de1.rawOutStream.listen((data) {
+          try {
+            var json = jsonEncode(data.toJson());
+            socket.sink.add(json);
+          } catch (e) {
+            log.severe("Failed to send raw: ", e);
+          }
+        });
+      },
+      // Writes go to the machine the socket is CURRENTLY bound to, so a raw
+      // command sent after a swap reaches the live machine instead of the
+      // dead one.
+      onMessage: (de1, event) {
+        var json = jsonDecode(event.toString());
+        final message = De1RawMessage.fromJson(json);
+        de1.sendRawMessage(message);
+      },
+    );
   }
 }

@@ -57,6 +57,16 @@ class TestDe1 implements De1Interface {
     _shotSettingsSubject.add(settings);
   }
 
+  /// Drives the [waterLevels] stream. Unseeded, so a machine that is never
+  /// asked emits nothing (the old `Stream.empty()` behaviour).
+  final BehaviorSubject<De1WaterLevels> _waterLevelsSubject =
+      BehaviorSubject<De1WaterLevels>();
+
+  /// Emit a [De1WaterLevels] on the [waterLevels] stream.
+  void emitWaterLevels(De1WaterLevels levels) {
+    _waterLevelsSubject.add(levels);
+  }
+
   /// Records every [MachineState] passed to [requestState].
   final List<MachineState> requestedStates = [];
 
@@ -87,6 +97,7 @@ class TestDe1 implements De1Interface {
     snapshotSubject.close();
     _connectionState.close();
     _shotSettingsSubject.close();
+    _waterLevelsSubject.close();
   }
 
   // ---- Machine / Device ----
@@ -130,7 +141,7 @@ class TestDe1 implements De1Interface {
   @override
   Future<void> updateShotSettings(De1ShotSettings newSettings) async {}
   @override
-  Stream<De1WaterLevels> get waterLevels => const Stream.empty();
+  Stream<De1WaterLevels> get waterLevels => _waterLevelsSubject.stream;
   @override
   Future<void> setRefillLevel(int newRefillLevel) async {}
   @override
