@@ -419,7 +419,13 @@ components:
           description: Current weight reading in grams.
         weightFlow:
           type: number
-          description: Smoothed weight-derived flow in g/s (moving average over the smoothing window).
+          description: >
+            Flow in g/s. A scale that reports weight only (every BLE scale) has
+            no flow of its own, so the app derives one from the weight series and
+            smooths it. A scale that computes flow on-hardware — the Bengle's
+            integrated scale, via the 0xA013 GFlow field — reports its own value,
+            and it is passed through verbatim with no app-side re-estimation, so
+            this field agrees with the machine snapshot's weightFlow.
         battery:
           type: integer
           nullable: true

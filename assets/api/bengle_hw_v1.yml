@@ -714,7 +714,7 @@ packet_0xA013:
     - { offset: 4,  size: 2, name: SetGroupPressure, type: u16, scale: 0.01, unit: bar,  semantics: "Set pressure; 0 if no target." }
     - { offset: 6,  size: 2, name: GroupFlow,        type: u16, scale: 0.01, unit: ml/s, semantics: "Estimated flow at group." }
     - { offset: 8,  size: 2, name: SetGroupFlow,     type: u16, scale: 0.01, unit: ml/s, semantics: "Set flow; 0 if no target." }
-    - { offset: 10, size: 2, name: GFlow,            type: u16, scale: 0.01, unit: g/s,  semantics: "Gravimetric flow from the integrated scale -> MachineSnapshot.weightFlow." }
+    - { offset: 10, size: 2, name: GFlow,            type: u16, scale: 0.01, unit: g/s,  semantics: "Gravimetric flow, computed on-device from the load cell -> MachineSnapshot.weightFlow AND the scale surface's weightFlow (passed through verbatim; the app does not re-estimate flow for a device that computes its own)." }
     - { offset: 12, size: 2, name: MixTemp,          type: u16, scale: 0.01, unit: degC, semantics: "Water temperature entering the group." }
     - { offset: 14, size: 2, name: HeadTemp,         type: u16, scale: 0.01, unit: degC, semantics: "Showerhead water temperature (u16/100 here; 0xA00D used 3-byte U24P16 -- layout differs)." }
     - { offset: 16, size: 2, name: SetMixTemp,       type: u16, scale: 0.01, unit: degC, semantics: "Mix temperature target; 0 if no target." }

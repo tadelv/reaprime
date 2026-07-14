@@ -38,11 +38,25 @@ class ScaleSnapshot {
   final int batteryLevel;
   final Duration? timerValue;
 
+  /// Flow rate in g/s **as computed by the device itself**, or `null` when the
+  /// device cannot compute one.
+  ///
+  /// Almost every scale leaves this `null`: a BLE scale reports weight only, so
+  /// the app must estimate flow from the weight series — that is what
+  /// [ScaleController]'s estimators are for. A scale that derives flow
+  /// on-hardware from the load cell it owns (the Bengle's integrated scale, via
+  /// the `0xA013` `GFlow` field) reports it here, and [ScaleController] passes
+  /// it through verbatim instead of re-deriving it. Re-estimating a number the
+  /// device already computed is strictly worse — the estimators need roughly a
+  /// second to converge on a value the device has correct at the first sample.
+  final double? flow;
+
   ScaleSnapshot({
     required this.timestamp,
     required this.weight,
     required this.batteryLevel,
     this.timerValue,
+    this.flow,
   });
 
   Map<String, dynamic> toJson() {

@@ -106,6 +106,21 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
   @override
   Stream<ScaleSnapshot> get weightSnapshot => _weight.stream;
 
+  /// The simulated machine snapshot, enriched with the integrated scale's
+  /// synthesised weight and gravimetric flow. A real Bengle's firmware puts
+  /// its own gFlow into the shot sample, so `ws/v1/machine/snapshot` carries
+  /// `weightFlow`; the plain [MockDe1] leaves both at 0. Overlaying the weight
+  /// model here makes the mock behave like the device it mocks, so the machine
+  /// surface and the scale surface report the SAME single-source flow instead
+  /// of disagreeing by the whole estimator.
+  @override
+  Stream<MachineSnapshot> get currentSnapshot => super.currentSnapshot.map(
+        (s) => s.copyWith(
+          weight: _weightModel.weight,
+          weightFlow: _weightModel.flow,
+        ),
+      );
+
   @override
   Stream<double> get stopAtWeightTarget => _sawTargetSubject.stream;
 
@@ -161,6 +176,10 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
     _weight.add(ScaleSnapshot(
       timestamp: DateTime.now(),
       weight: _weightModel.weight,
+      // Report the synthesised gravimetric flow so ScaleController takes the
+      // device-flow path (no estimator), exactly as a real Bengle's firmware
+      // gFlow does — the opt-out this branch introduces.
+      flow: _weightModel.flow,
       batteryLevel: 100,
     ));
   }

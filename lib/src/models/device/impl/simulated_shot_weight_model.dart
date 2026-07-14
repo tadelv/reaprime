@@ -37,12 +37,19 @@ class SimulatedShotWeightModel {
   double _tareOffset = 0.0;
   bool _inShot = false;
   DateTime? _lastSampleTime;
+  double _flow = 0.0; // synthesised gravimetric flow, g/s
 
   double get _gross =>
       _settledWeight + max(0.0, _shotVolume - firstDropsMl);
 
   /// Current (tared) scale reading in grams. Never decreases mid-shot.
   double get weight => _gross - _tareOffset;
+
+  /// Synthesised gravimetric flow (dW/dt) in g/s, tracking [weight]. Zero
+  /// whenever the weight is not changing (idle, preinfusion, steam), so a
+  /// simulated Bengle can report its own flow the way the real firmware
+  /// reports gFlow — one source, no estimator.
+  double get flow => _flow;
 
   /// Zero the reading, like placing/taring a cup.
   void tare() => _tareOffset = _gross;
@@ -55,6 +62,7 @@ class SimulatedShotWeightModel {
     _tareOffset = 0.0;
     _inShot = false;
     _lastSampleTime = null;
+    _flow = 0.0;
   }
 
   /// Integrate one machine snapshot (uses the snapshot's own timestamp, so
@@ -78,15 +86,19 @@ class SimulatedShotWeightModel {
     final dtSec = now.difference(last).inMilliseconds / 1000.0;
     if (dtSec <= 0) return;
 
+    final grossBefore = _gross;
     if (inEspresso) {
-      if (s.profileFrame < targetVolumeCountStart) return;
-      _pourElapsed += dtSec;
-      final ramp = (_pourElapsed / saturationSecs).clamp(0.0, 1.0);
-      _shotVolume += s.flow * dtSec * ramp;
+      if (s.profileFrame >= targetVolumeCountStart) {
+        _pourElapsed += dtSec;
+        final ramp = (_pourElapsed / saturationSecs).clamp(0.0, 1.0);
+        _shotVolume += s.flow * dtSec * ramp;
+      }
     } else if (s.state.state == MachineState.hotWater) {
       // Hot water pours straight into the cup — no puck to absorb it or
       // hold back the first drops.
       _settledWeight += s.flow * dtSec;
     }
+    // dW/dt over this interval: the gravimetric flow the weight is rising at.
+    _flow = (_gross - grossBefore) / dtSec;
   }
 }

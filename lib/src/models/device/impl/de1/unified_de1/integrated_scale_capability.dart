@@ -176,11 +176,16 @@ mixin IntegratedScaleCapability on UnifiedDe1 {
     }
   }
 
-  /// Bridge a 0xA013 frame's integrated-scale weight into the scale pipeline
-  ///. Weight (offset 20, U16P5 ÷32) arrives already tare-netted, so
-  /// we trust it directly. GFlow (gravimetric flow) and milk temp travel on
-  /// the [MachineSnapshot] (see `_parseStateAndBengleShotSample`); the Scale
-  /// surface carries weight only ([ScaleSnapshot] has no flow field).
+  /// Bridge a 0xA013 frame's integrated-scale weight **and firmware-computed
+  /// gravimetric flow** into the scale pipeline. Weight (offset 20,
+  /// U16P5 ÷32) arrives already tare-netted, so we trust it directly.
+  ///
+  /// GFlow rides [ScaleSnapshot.flow] so the Scale surface carries the value
+  /// the firmware computed on its own load cell, rather than having
+  /// [ScaleController] re-estimate flow from the weight the firmware derived it
+  /// from. The same GFlow also travels on the [MachineSnapshot] (see
+  /// `_parseStateAndBengleShotSample`) — sourcing both surfaces from the frame
+  /// is what keeps them from disagreeing.
   ///
   /// The **Flags** byte is deliberately ignored — bit0 is a `LastTARE` value
   /// proxy at best (older firmware hardcodes 0), so a tare must be confirmed
@@ -193,6 +198,7 @@ mixin IntegratedScaleCapability on UnifiedDe1 {
         timestamp: DateTime.now(),
         weight: sample.weight,
         batteryLevel: 100, // integrated scale is mains-powered; report full
+        flow: sample.gFlow,
       ),
     );
   }

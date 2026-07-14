@@ -111,6 +111,7 @@ class ScaleController {
     _kalmanEstimator = null;
     _lastSnapshotTime = null;
     _flowSettleUntil = null;
+    _deviceProvidesFlow = false;
   }
 
   Scale connectedScale() {
@@ -174,7 +175,13 @@ class ScaleController {
   Future<void> tare() async {
     final scale = connectedScale();
     await scale.tare();
-    if (_kalmanFlowEnabled) {
+    if (_deviceProvidesFlow) {
+      // The device tares the load cell it computes flow from, so there is no
+      // app-side estimator state to drop. Still arm the settle window: the
+      // no-flow-spike-after-tare guarantee is specced, and honouring it here
+      // costs one comparison per sample.
+      _flowSettleUntil = _lastSnapshotTime?.add(smoothingWindowDuration);
+    } else if (_kalmanFlowEnabled) {
       _kalmanEstimator?.reset(0.0);
     } else {
       _flowCalculator =
@@ -184,8 +191,38 @@ class ScaleController {
     }
   }
 
+  /// Set once a scale reports a device-computed [ScaleSnapshot.flow], so
+  /// [tare] knows there is no estimator state to rebuild. Cleared on disconnect.
+  bool _deviceProvidesFlow = false;
+
   void _processSnapshot(ScaleSnapshot snapshot) {
     _lastSnapshotTime = snapshot.timestamp;
+
+    final deviceFlow = snapshot.flow;
+    if (deviceFlow != null) {
+      // The device computed this flow on-hardware, from the load cell it owns
+      // (the Bengle's integrated scale: `GFlow` in the 15 Hz `0xA013` frame).
+      // Pass it through and bypass BOTH estimators. Re-deriving flow from the
+      // weight the device derived it FROM is strictly worse: the estimators
+      // read ~0 g/s at shot onset and take ~1 s to converge on a value the
+      // device already has correct at the first sample. This also pins the
+      // scale surface to the same number the machine snapshot carries, so the
+      // two cannot disagree, and it holds no matter which estimator upstream
+      // makes the default.
+      _deviceProvidesFlow = true;
+      final settling = _flowSettleUntil != null &&
+          snapshot.timestamp.isBefore(_flowSettleUntil!);
+      _weightSnapshotController.add(
+        WeightSnapshot(
+          timestamp: snapshot.timestamp,
+          weight: snapshot.weight,
+          weightFlow: settling ? 0.0 : deviceFlow,
+          battery: snapshot.batteryLevel,
+          timerValue: snapshot.timerValue,
+        ),
+      );
+      return;
+    }
 
     final double filteredWeight;
     final double flow;
