@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/connection/disconnect_expectations.dart';
 import 'package:reaprime/src/controllers/connection/disconnect_supervisor.dart';
@@ -11,6 +12,7 @@ import 'package:reaprime/src/controllers/connection/scan_report_builder.dart';
 import 'package:reaprime/src/controllers/connection/status_publisher.dart';
 import 'package:reaprime/src/controllers/connection_error.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
+import 'package:reaprime/src/controllers/remembered_devices_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
@@ -80,6 +82,11 @@ class ConnectionManager {
   final De1Controller de1Controller;
   final ScaleController scaleController;
   final SettingsController settingsController;
+
+  /// Remembered-device registry for quick-connect. Nullable so existing
+  /// tests and wiring without a registry still work — null disables
+  /// quick-connect and falls through to the scan path.
+  final RememberedDevicesController? rememberedDevices;
 
   final _log = Logger('ConnectionManager');
 
@@ -223,6 +230,7 @@ class ConnectionManager {
     required this.de1Controller,
     required this.scaleController,
     required this.settingsController,
+    this.rememberedDevices,
   }) {
     _disconnectSupervisor = DisconnectSupervisor(
       machineStream: de1Controller.de1,
@@ -447,6 +455,56 @@ class ConnectionManager {
     }
   }
 
+  /// Attempt to quick-connect the preferred machine from remembered
+  /// metadata. Returns true if the machine was adopted.
+  Future<bool> _tryQuickConnectMachine() async {
+    final registry = rememberedDevices;
+    if (registry == null) return false;
+    final machineId = settingsController.preferredMachineId;
+    if (machineId == null || machineId.isEmpty) return false;
+    final remembered = registry.remembered
+        .firstWhereOrNull((d) => d.id == machineId);
+    if (remembered == null) return false;
+    try {
+      final device = await deviceScanner.tryQuickConnect(remembered);
+      if (device is De1Interface) {
+        de1Controller.adoptDevice(device);
+        _publishStatus(currentStatus.copyWith(
+            phase: ConnectionPhase.connectingMachine));
+        _log.info('Quick-connect: machine adopted (${device.deviceId})');
+        return true;
+      }
+    } catch (e, st) {
+      _log.warning('Quick-connect: machine attempt failed', e, st);
+    }
+    return false;
+  }
+
+  /// Attempt to quick-connect the preferred scale from remembered
+  /// metadata. Returns true if the scale was adopted.
+  Future<bool> _tryQuickConnectScale() async {
+    final registry = rememberedDevices;
+    if (registry == null) return false;
+    final scaleId = settingsController.preferredScaleId;
+    if (scaleId == null || scaleId.isEmpty) return false;
+    final remembered = registry.remembered
+        .firstWhereOrNull((d) => d.id == scaleId);
+    if (remembered == null) return false;
+    try {
+      final device = await deviceScanner.tryQuickConnect(remembered);
+      if (device is Scale) {
+        await scaleController.adoptScale(device);
+        _publishStatus(currentStatus.copyWith(
+            phase: ConnectionPhase.connectingScale));
+        _log.info('Quick-connect: scale adopted (${device.deviceId})');
+        return true;
+      }
+    } catch (e, st) {
+      _log.warning('Quick-connect: scale attempt failed', e, st);
+    }
+    return false;
+  }
+
   Future<void> _connectImpl({required bool scaleOnly}) async {
     _cancelPreferredScaleReconnect();
     if (scaleOnly && _scaleReconnectBlockedByPowerMode) {
@@ -462,20 +520,40 @@ class ConnectionManager {
       _deferredScaleScan = null;
       _earlyStopFired = false;
     }
+
+    // Quick-connect: try direct connection from remembered metadata before
+    // scanning. If both devices connect, skip the scan entirely. If only the
+    // machine connects, fall through to a scale-only scan. If neither
+    // connects, fall through to the full scan path unchanged.
+    var effectiveScaleOnly = scaleOnly;
+    if (!scaleOnly && rememberedDevices != null) {
+      final qcMachineConnected = await _tryQuickConnectMachine();
+      if (qcMachineConnected) {
+        final qcScaleConnected = await _tryQuickConnectScale();
+        if (qcScaleConnected) {
+          _log.info('Quick-connect: both devices connected, skipping scan');
+          _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.ready));
+          return;
+        }
+        _log.info('Quick-connect: machine connected, scale-only scan');
+        effectiveScaleOnly = true;
+      }
+    }
+
     final preferredMachineId =
-        scaleOnly ? null : settingsController.preferredMachineId;
+        effectiveScaleOnly ? null : settingsController.preferredMachineId;
     final preferredScaleId = settingsController.preferredScaleId;
     // Early stop is enabled for any full (non-scaleOnly) connect.
     // Previously gated on preferredMachineId != null, which meant
     // auto-discovered machines never stopped the scan early even
     // with both devices found and connected.
-    final earlyStopEnabled = !scaleOnly;
+    final earlyStopEnabled = !effectiveScaleOnly;
 
     final scanStartTime = DateTime.now();
 
     // Build a filtered scan for Android scaleOnly path to bypass
     // background throttling. Full connect stays unfiltered.
-    final scaleFilter = scaleOnly && Platform.isAndroid
+    final scaleFilter = effectiveScaleOnly && Platform.isAndroid
         ? ScanFilter(
             preferredDeviceId: preferredScaleId,
             deviceTypes: {DeviceType.scale},
@@ -500,7 +578,7 @@ class ConnectionManager {
     final scales = scanRun.scales;
     final scanReport = scanRun.reportBuilder;
 
-    if (scaleOnly) {
+    if (effectiveScaleOnly) {
       _publishStatus(currentStatus.copyWith(foundScales: scales));
       await _runScalePhase(
         _disconnectSupervisor.latestMachine,
