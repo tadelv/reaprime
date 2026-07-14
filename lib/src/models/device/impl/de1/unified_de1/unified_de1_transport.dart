@@ -13,8 +13,6 @@ import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
 import 'package:rxdart/rxdart.dart';
 
-enum TransportType { ble, serial, unknown }
-
 class UnifiedDe1Transport {
   final DataTransport _transport;
   final TransportType transportType;
@@ -74,12 +72,7 @@ class UnifiedDe1Transport {
 
   UnifiedDe1Transport({required DataTransport transport})
     : _transport = transport,
-      transportType =
-          transport is BLETransport
-              ? TransportType.ble
-              : transport is SerialTransport
-              ? TransportType.serial
-              : TransportType.unknown,
+      transportType = transport.transportType,
       _log = Logger("UnifiedDe1Transport-${transport.id}");
   Future<void> connect() async {
     // A connect() while the transport already reports `connected` is a
@@ -279,6 +272,8 @@ class UnifiedDe1Transport {
         break;
       case TransportType.unknown:
         throw StateError('Unknown transport type: $transportType');
+      case TransportType.wifi:
+        throw StateError('WiFi transport not supported for DE1: $transportType');
     }
 
     await _transport.disconnect();

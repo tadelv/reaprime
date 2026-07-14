@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/mock_de1/mock_de1.dart';
 import 'package:reaprime/src/models/device/impl/simulated_shot_weight_model.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/simulated_device.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:rxdart/subjects.dart';
 
 class MockScale implements Scale, SimulatedDevice {
@@ -29,6 +31,12 @@ class MockScale implements Scale, SimulatedDevice {
   // remembered-device records. The human-facing `name` keeps the space.
   @override
   String get deviceId => "MockScale";
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.decentScale;
+
+  @override
+  TransportType get transportType => TransportType.unknown;
 
   @override
   disconnect() async {

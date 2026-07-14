@@ -5,6 +5,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/models/device/transport/ble_timeout_exception.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/services/ble/ble_exception_mapper.dart';
 import 'package:rxdart/subjects.dart';
@@ -323,6 +324,9 @@ class UniversalBleTransport implements BLETransport {
 
   @override
   String get name => _device.name ?? "Unknown";
+
+  @override
+  TransportType get transportType => TransportType.ble;
 
   @override
   Future<Uint8List> read(String serviceUUID, String characteristicUUID, {Duration? timeout}) async {

@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:rxdart/rxdart.dart';
 
 /// A lightweight Scale for widget tests.
@@ -29,6 +31,12 @@ class TestScale implements Scale {
 
   @override
   DeviceType get type => DeviceType.scale;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
+
+  @override
+  TransportType get transportType => TransportType.unknown;
 
   @override
   Stream<ConnectionState> get connectionState => _connectionState.stream;

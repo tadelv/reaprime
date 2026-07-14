@@ -4,6 +4,8 @@ import 'package:reaprime/src/controllers/connection_manager.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/device/scale.dart' as device_scale;
 import 'package:reaprime/src/models/scan_report.dart';
 import 'package:rxdart/rxdart.dart';
@@ -18,6 +20,12 @@ class FakeDe1 implements De1Interface {
 
   @override
   dev.DeviceType get type => dev.DeviceType.machine;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
+
+  @override
+  TransportType get transportType => TransportType.unknown;
 
   @override
   Stream<dev.ConnectionState> get connectionState =>

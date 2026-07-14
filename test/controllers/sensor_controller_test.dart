@@ -6,6 +6,8 @@ import 'package:reaprime/src/controllers/sensor_controller.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/sensor.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:rxdart/rxdart.dart';
 
 /// Discovery service that emits whatever the test feeds it.
@@ -30,6 +32,12 @@ class _StubSensor implements Sensor {
   String get name => 'StubSensor';
   @override
   DeviceType get type => DeviceType.sensor;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
+
+  @override
+  TransportType get transportType => TransportType.unknown;
   @override
   Stream<ConnectionState> get connectionState =>
       Stream.value(ConnectionState.connected);

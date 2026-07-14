@@ -1,4 +1,6 @@
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 
 enum DeviceType { machine, scale, sensor }
 
@@ -6,6 +8,14 @@ abstract class Device {
   String get deviceId;
   String get name;
   DeviceType get type;
+
+  /// Which concrete device class this is. Used by [DeviceFactory] to
+  /// reconstruct a device from persisted metadata without name-matching.
+  DeviceImplementation get implementation;
+
+  /// The transport type this device communicates over. Delegates to the
+  /// underlying transport.
+  TransportType get transportType;
 
   // discover and subscribe to services/characteristics
   Future<void> onConnect();

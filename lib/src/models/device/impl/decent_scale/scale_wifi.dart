@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/hds_wifi_protocol.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/wifi_scale_id.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/transport/web_socket_transport.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:rxdart/subjects.dart';
 
 /// Builds a fresh [WebSocketTransport] for a connect attempt. Each call may
@@ -63,6 +65,12 @@ class HDSWifi implements Scale, TransportHandoffScale {
 
   @override
   String get deviceId => WifiScaleId.forHost(host);
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.hdsWifi;
+
+  @override
+  TransportType get transportType => TransportType.wifi;
 
   @override
   String get name => 'Half Decent Scale (WiFi)';
