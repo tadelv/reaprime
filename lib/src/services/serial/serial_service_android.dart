@@ -97,9 +97,46 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
   void stopScan() {}
 
   @override
-  Future<Device?> tryQuickConnect(RememberedDevice remembered) async => null; // Serial enumeration is instant, nothing to stop.
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async {
+    final impl = remembered.implementation;
+    final tt = remembered.transportType;
+    if (impl == null || tt == null || tt != TransportType.serial) {
+      return null;
+    }
 
-  @override
+    final devices = await UsbSerial.listDevices();
+    for (final d in devices) {
+      final stableId =
+          computeUsbStableId(vid: d.vid, pid: d.pid, serial: d.serial) ??
+          '${d.deviceId}';
+      if (stableId != remembered.id) continue;
+
+      _log.info('Quick-connect: found USB device ${d.productName} for ${remembered.id}');
+      Device? device;
+      try {
+        device = await _detectDevice(d);
+      } catch (e, st) {
+        _log.warning('Quick-connect: _detectDevice failed', e, st);
+        continue;
+      }
+      if (device == null || device.implementation != impl) {
+        _log.info('Quick-connect: device mismatch'
+            ' (expected $impl, got ${device?.implementation})');
+        try { await device?.disconnect(); } catch (_) {}
+        continue;
+      }
+      try {
+        await device.onConnect().timeout(const Duration(seconds: 10));
+        _log.info('Quick-connect succeeded for ${remembered.id}');
+        return device;
+      } catch (e, st) {
+        _log.warning('Quick-connect: onConnect failed', e, st);
+        try { await device.disconnect(); } catch (_) {}
+      }
+    }
+    return null;
+  }
+
   @override
   Future<void> scanForDevices({ScanFilter? filter}) async {
     // If already scanning, wait for that scan to complete
