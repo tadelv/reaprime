@@ -102,6 +102,39 @@ class ScaleController {
     _connectionController.add(ConnectionState.connected);
   }
 
+  /// Adopt a scale that has already been connected and had [onConnect]
+  /// called by [tryQuickConnect]. Skips [onConnect] and wires up stream
+  /// subscriptions directly — the inverse of [connectToScale] minus the
+  /// connect call.
+  Future<void> adoptScale(Scale scale) async {
+    final previous = _scale;
+    _onDisconnect();
+    if (previous != null && previous.deviceId != scale.deviceId) {
+      try {
+        if (previous is TransportHandoffScale) {
+          await (previous as TransportHandoffScale).disconnectForHandoff();
+        } else {
+          await previous.disconnect();
+        }
+      } catch (e) {
+        log.warning('Failed to disconnect previous scale ${previous.deviceId}', e);
+      }
+    }
+    _scaleSnapshot = scale.currentSnapshot.listen(_processSnapshot);
+    final state = await scale.connectionState.first;
+    if (state != ConnectionState.connected) {
+      log.warning('Adopted scale not connected (state: ${state.name})');
+      _scaleSnapshot?.cancel();
+      _scaleSnapshot = null;
+      _connectionController.add(ConnectionState.disconnected);
+      throw StateError('Adopted scale not connected (state: ${state.name})');
+    }
+    _scaleConnection = scale.connectionState.listen(_processConnection);
+    _scale = scale;
+    _lastConnectedDeviceId = scale.deviceId;
+    _connectionController.add(ConnectionState.connected);
+  }
+
   void _onDisconnect() {
     _scaleSnapshot?.cancel();
     _scaleConnection?.cancel();

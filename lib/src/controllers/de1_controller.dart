@@ -193,6 +193,44 @@ class De1Controller {
     );
   }
 
+  /// Adopt a device that has already been connected and had [onConnect]
+  /// called by [tryQuickConnect]. Skips [onConnect] and wires up stream
+  /// subscriptions directly — the inverse of [connectToDe1] minus the
+  /// connect call.
+  void adoptDevice(De1Interface de1Interface) {
+    if (de1Interface == _de1) {
+      _log.fine('adoptDevice: already connected to this device, exit early');
+      return;
+    }
+    _onDisconnect();
+    _de1 = de1Interface;
+    _de1Controller.add(_de1);
+
+    _subscriptions.add(
+      _de1!.ready.listen(
+        (ready) {
+          if (ready) {
+            _initializeData();
+          }
+        },
+      ),
+    );
+
+    _subscriptions.add(
+      _de1!.connectionState.listen(
+        (connectionData) {
+          switch (connectionData) {
+            case ConnectionState.disconnected:
+              _log.info('device $_de1 disconnected (adopted), resetting');
+              _onDisconnect();
+            default:
+              break;
+          }
+        },
+      ),
+    );
+  }
+
   void _onDisconnect() {
     _log.info("resetting de1");
     _connectionGeneration++;
