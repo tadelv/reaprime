@@ -16,6 +16,7 @@ import 'package:reaprime/build_info.dart';
 import 'package:reaprime/src/controllers/battery_controller.dart';
 import 'package:reaprime/src/controllers/bengle_probe_bridge.dart';
 import 'package:reaprime/src/controllers/bengle_saw_bridge.dart';
+import 'package:reaprime/src/controllers/bengle_schedule_sync.dart';
 import 'package:reaprime/src/controllers/bengle_steam_stop_bridge.dart';
 import 'package:reaprime/src/controllers/hot_water_sequencer.dart';
 import 'package:reaprime/src/controllers/steam_sequencer.dart';
@@ -358,6 +359,18 @@ void main(List<String> args) async {
     settingsController: settingsController,
   );
   presenceController.initialize();
+
+  // Pushes the sleep timeout + the wake schedule into the Bengle's own
+  // registers, so the machine runs its scheduler with NO tablet connected
+  // (all three registers read zero on a fresh machine: no clock, no entries,
+  // schedule disabled). Bengle-gated: a plain DE1 gets nothing on the wire,
+  // and PresenceController's app-side wake/sleep keeps working for it.
+  // ignore: unused_local_variable
+  final bengleScheduleSync = BengleScheduleSync(
+    de1Controller: de1Controller,
+    settingsController: settingsController,
+  );
+  bengleScheduleSync.initialize();
 
   workflowController.addListener(() {
     persistenceController.saveWorkflow(workflowController.currentWorkflow);

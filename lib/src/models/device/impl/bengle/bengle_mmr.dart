@@ -100,6 +100,138 @@ enum BengleMmr implements MmrAddress {
   String get name => (this as Enum).name;
 }
 
+/// Tablet-synced clock + weekly wake schedule (firmware firmware register-table rows
+/// 54–57, logic in the firmware, consumers in
+/// the firmware). Kept out of [BengleMmr] (the cup-warmer /
+/// thermal group) for the same reason as [BengleSteamMmr]: addresses live
+/// with the capability that owns them.
+///
+/// **All four are WRITE-DRIVEN. A read echoes the last value WRITTEN, not
+/// live device state** (the firmware — the `F_` hooks only act on
+/// `Write` and pass the value through on `Read`). There is no way to read
+/// the schedule table back, and no register exposes the running firmware
+/// clock, so drift cannot be measured. The only meaningful read is `== 0`
+/// on [setLocalTimeOfWeek] / [scheduleControl]: the machine rebooted (both
+/// slots are RAM-only with initval 0). [inactivitySleepTimeout] is the one
+/// exception — it is `PERM_RWD`, persisted, and genuinely readable.
+///
+/// Write protocol for the table: [scheduleControl] `0` (clear + disable) →
+/// one [scheduleEntry] per window → [scheduleControl] `1` (enable). The
+/// clock must be valid first: a table enabled with an invalid clock does
+/// nothing (the firmware schedule check returns false).
+enum BengleScheduleMmr implements MmrAddress {
+  /// `InactivitySleepTimeout` (0x008038BC, firmware register-table row 54, PERM_RWD —
+  /// **persisted**). Minutes of inactivity before the firmware sleeps
+  /// ITSELF; `0` = disabled, firmware default 60, max 240.
+  ///
+  /// NB the firmware skips this timer only while `TabletConnected`, which
+  /// is latched exclusively from the BLE GAP connect event
+  ///. **Over USB serial the firmware
+  /// believes no tablet is present and the timer ACTS** — so this value
+  /// governs a serial-connected tablet too. Inside an active schedule
+  /// window the firmware calls its user-present hook every tick, which
+  /// defers (never forces) this sleep.
+  inactivitySleepTimeout(
+    0x008038BC,
+    4,
+    MmrValueKind.int32,
+    'InactivitySleepTimeout',
+    min: 0,
+    max: 240,
+  ),
+
+  /// `SetLocalTimeOfWeek` (0x008038C0, firmware register-table row 55, PERM_RW — RAM-only,
+  /// **lost on every reboot**; there is no battery-backed RTC). LOCAL
+  /// seconds since Sunday 00:00:00. Once set, the firmware ticks it from
+  /// its own 1 Hz counter and wraps the week itself — no tablet needed.
+  ///
+  /// `max` is 604799, deliberately NARROWER than the contract's 604800:
+  /// the setter rejects `secOfWeek >= SECONDS_PER_WEEK`,
+  /// so writing exactly 604800 would silently leave the clock invalid. The
+  /// app also never writes `0` — a read-back of `0` is the "rebooted, never
+  /// synced" sentinel (see `localSecondsOfWeek`, which clamps to `>= 1`).
+  setLocalTimeOfWeek(
+    0x008038C0,
+    4,
+    MmrValueKind.int32,
+    'SetLocalTimeOfWeek',
+    min: 0,
+    max: 604799,
+  ),
+
+  /// `ScheduleEntry` (0x008038C4, firmware register-table row 56). ONE wake window,
+  /// APPENDED to the firmware table: `(dow << 22) | (startMin << 11) |
+  /// endMin`.
+  ///
+  /// **`dow` is a day INDEX, 0 = Sunday … 6 = Saturday — NOT a bitmask.**
+  /// The firmware masks it to 3 bits and compares it for EQUALITY
+  ///, so a Mon–Fri schedule is FIVE entries.
+  /// `startMin` is inclusive, `endMin` exclusive and `<= 1440`;
+  /// `startMin >= endMin` is silently dropped, so midnight-crossing windows
+  /// must be split by the app. The table holds 32 entries and the 33rd is
+  /// silently dropped — the packing/merging/cap lives in
+  /// `wake_schedule_windows.dart`.
+  scheduleEntry(
+    0x008038C4,
+    4,
+    MmrValueKind.int32,
+    'ScheduleEntry',
+    min: 0,
+    max: 0x7FFFFFFF,
+  ),
+
+  /// `ScheduleControl` (0x008038C8, firmware register-table row 57). `0` = clear the table
+  /// **and** disable; `1` = enable. Protocol: write `0`, then the entries,
+  /// then `1`.
+  ///
+  /// `max` is 1, narrower than the contract's 255, on purpose: the firmware
+  /// reads only bit 0 on a non-zero write, so a stray `2` would disable the
+  /// schedule WITHOUT clearing it. Declaring max 1 makes that structurally
+  /// impossible — `writeMmrInt` clamps to the declared range.
+  scheduleControl(
+    0x008038C8,
+    4,
+    MmrValueKind.int32,
+    'ScheduleControl',
+    min: 0,
+    max: 1,
+  );
+
+  const BengleScheduleMmr(
+    this.address,
+    this.length,
+    this.kind,
+    this.description, {
+    this.min,
+    this.max,
+  });
+
+  @override
+  final int address;
+  @override
+  final int length;
+  @override
+  final MmrValueKind kind;
+  final String description;
+  @override
+  final int? min;
+  @override
+  final int? max;
+
+  /// All four rows are `mult 1` in the contract — raw ints, no scaling. Fixed
+  /// getters rather than constructor params so no caller can introduce a scale
+  /// the firmware does not apply (the contract checker asserts
+  /// `writeScale == mult` and `readScale == 1/mult`).
+  @override
+  double get readScale => 1.0;
+
+  @override
+  double get writeScale => 1.0;
+
+  @override
+  String get name => (this as Enum).name;
+}
+
 /// MMR addresses for the milk-probe steam stop. Currently the
 /// stop-at-temperature target only — probe discovery / temperature
 /// transport is separate (the live reading rides the `0xA013`

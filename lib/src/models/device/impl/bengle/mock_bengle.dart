@@ -192,6 +192,65 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
     }
   }
 
+  // --- autonomous sleep + wake schedule ---
+  //
+  // Models the firmware's registers closely enough to be honest: the clock and
+  // the table are RAM-only (a [simulateReboot] wipes them, exactly as a real
+  // power-cycle does), the sleep timeout persists, and the reads are WRITE
+  // ECHOES, not live state.
+
+  int _inactivitySleepTimeout = 60; // FW default
+  int _localTimeOfWeekEcho = 0; // 0 = never synced since boot
+  int _scheduleControl = 0;
+  List<int> _wakeScheduleTable = const [];
+
+  /// Last `InactivitySleepTimeout` written (minutes; persisted in FW).
+  int get inactivitySleepTimeout => _inactivitySleepTimeout;
+
+  /// Last `SetLocalTimeOfWeek` written. `0` = never synced since boot.
+  int get localTimeOfWeekEcho => _localTimeOfWeekEcho;
+
+  /// The simulated firmware wake table (packed windows).
+  List<int> get wakeScheduleTable => List.unmodifiable(_wakeScheduleTable);
+
+  /// Whether the simulated firmware schedule is enabled.
+  bool get scheduleEnabled => _scheduleControl == 1;
+
+  @override
+  Future<void> setInactivitySleepTimeout(int minutes) async {
+    _inactivitySleepTimeout = minutes.clamp(0, 240);
+  }
+
+  @override
+  Future<void> setLocalTimeOfWeek(int secondsOfWeek) async {
+    _localTimeOfWeekEcho = secondsOfWeek.clamp(1, 604799);
+  }
+
+  @override
+  Future<void> pushWakeSchedule(List<int> packedWindows) async {
+    // ScheduleControl = 0 clears the table AND disables.
+    _wakeScheduleTable = const [];
+    _scheduleControl = 0;
+    if (packedWindows.isEmpty) return;
+    _wakeScheduleTable = List.of(packedWindows.take(32));
+    _scheduleControl = 1;
+  }
+
+  @override
+  Future<int> readLocalTimeOfWeekEcho() async => _localTimeOfWeekEcho;
+
+  @override
+  Future<int> readScheduleControl() async => _scheduleControl;
+
+  /// Test hook: simulate a machine power-cycle. The clock and the schedule
+  /// table are RAM-only in firmware and do not survive; the sleep timeout is
+  /// persisted and does.
+  void simulateReboot() {
+    _localTimeOfWeekEcho = 0;
+    _scheduleControl = 0;
+    _wakeScheduleTable = const [];
+  }
+
   @override
   Future<void> tareIntegratedScale() async {
     _weightModel.tare();

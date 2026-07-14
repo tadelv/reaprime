@@ -3,6 +3,8 @@ import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle_mmr.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/wake_schedule_windows.dart'
+    show kMaxWakeWindows, kSecondsPerWeek;
 import 'package:rxdart/rxdart.dart';
 
 class Bengle extends UnifiedDe1
@@ -105,6 +107,53 @@ class Bengle extends UnifiedDe1
     }
     return value;
   }
+
+  // --- Autonomous sleep + wake schedule --------------------------------------
+  //
+  // Thin register plumbing only. WHAT to write and WHEN lives in
+  // `BengleScheduleSync`; HOW a window is packed lives in
+  // `wake_schedule_windows.dart`. See [BengleScheduleMmr] for why reads here
+  // are write-echoes rather than device state.
+
+  @override
+  Future<void> setInactivitySleepTimeout(int minutes) =>
+      // writeMmrInt clamps to the enum's declared 0..240.
+      writeMmrInt(BengleScheduleMmr.inactivitySleepTimeout, minutes);
+
+  @override
+  Future<void> setLocalTimeOfWeek(int secondsOfWeek) => writeMmrInt(
+        BengleScheduleMmr.setLocalTimeOfWeek,
+        // Never 0 (the FW's "never synced" sentinel) and never >= 604800
+        // (the FW setter rejects it outright, leaving the clock invalid).
+        secondsOfWeek.clamp(1, kSecondsPerWeek - 1),
+      );
+
+  @override
+  Future<void> pushWakeSchedule(List<int> packedWindows) async {
+    // The firmware protocol, in order: 0 clears the table AND disables the
+    // schedule; entries append; 1 enables. Sequential awaits on purpose —
+    // the entries must land between the clear and the enable.
+    await writeMmrInt(BengleScheduleMmr.scheduleControl, 0);
+    if (packedWindows.isEmpty) {
+      // No enabled schedules: cleared + disabled is the whole desired state.
+      // Writing 1 here would enable an empty table (harmless but a lie).
+      return;
+    }
+    // The FW silently drops the 33rd entry; expandWindows already caps at 32,
+    // so this take() is belt-and-braces for a caller that packs its own list.
+    for (final packed in packedWindows.take(kMaxWakeWindows)) {
+      await writeMmrInt(BengleScheduleMmr.scheduleEntry, packed);
+    }
+    await writeMmrInt(BengleScheduleMmr.scheduleControl, 1);
+  }
+
+  @override
+  Future<int> readLocalTimeOfWeekEcho() =>
+      readMmrInt(BengleScheduleMmr.setLocalTimeOfWeek);
+
+  @override
+  Future<int> readScheduleControl() =>
+      readMmrInt(BengleScheduleMmr.scheduleControl);
 
   // --- integrated scale lifecycle ---
 

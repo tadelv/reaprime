@@ -57,7 +57,7 @@ import 'package:reaprime/src/models/device/impl/de1/de1.models.dart'
 import 'package:reaprime/src/models/device/impl/de1/mmr_address.dart'
     show MmrAddress;
 import 'package:reaprime/src/models/device/impl/bengle/bengle_mmr.dart'
-    show BengleMmr, BengleSteamMmr;
+    show BengleMmr, BengleScheduleMmr, BengleSteamMmr;
 // (The Bengle capability enums are parts of the unified_de1 library.)
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart'
     show BengleScaleMmr, BengleCalMmr, BengleLedMmr;
@@ -159,6 +159,21 @@ const List<ContractEntry> entriesUnderTest = <ContractEntry>[
   ContractEntry(BengleMmr.cupWarmerMode, 'CupWarmerMode'),
   ContractEntry(BengleMmr.matCurrentTemp, 'MatCurrentTemp'),
   ContractEntry(BengleSteamMmr.stopAtTemperatureTarget, 'TargetMilkTemp'),
+
+  // ---------------------------------------------------------------------------
+  // Wake-schedule branch: `BengleScheduleMmr` (bengle_mmr.dart).
+  // Two app bounds are deliberately NARROWER than the contract (legal — the
+  // checker asserts app subset of contract): SetLocalTimeOfWeek max 604799
+  // (the FW setter rejects >= 604800) and ScheduleControl max 1 (the FW reads
+  // only bit 0, so a stray 2 would disable WITHOUT clearing).
+  // ---------------------------------------------------------------------------
+  ContractEntry(
+    BengleScheduleMmr.inactivitySleepTimeout,
+    'InactivitySleepTimeout',
+  ),
+  ContractEntry(BengleScheduleMmr.setLocalTimeOfWeek, 'SetLocalTimeOfWeek'),
+  ContractEntry(BengleScheduleMmr.scheduleEntry, 'ScheduleEntry'),
+  ContractEntry(BengleScheduleMmr.scheduleControl, 'ScheduleControl'),
 ];
 
 // =============================================================================

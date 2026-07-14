@@ -146,6 +146,50 @@ abstract class BengleInterface extends De1Interface {
   /// `MockBengle` defaults to `true` for tests.
   Stream<bool> get probeAttached;
 
+  // --- Autonomous sleep + wake schedule ---------------------------------------
+  //
+  // These five exist so the machine can run its own scheduler with NO tablet
+  // connected. `writeMmrInt` is `@protected` on `UnifiedDe1`, so the sync
+  // service (`BengleScheduleSync`) cannot touch MMRs directly — every write
+  // goes through this interface. See [[bengle_mmr]] `BengleScheduleMmr` for
+  // the register semantics and `wake_schedule_windows.dart` for the packing.
+
+  /// Set the firmware's autonomous inactivity-sleep timeout in [minutes]
+  /// (`InactivitySleepTimeout`, persisted). `0` disables it; the firmware
+  /// clamps/accepts 0..240. The firmware only acts on this when it believes
+  /// no tablet is connected — which, over USB serial, is always.
+  Future<void> setInactivitySleepTimeout(int minutes);
+
+  /// Set the firmware's wall-clock to [secondsOfWeek] = LOCAL seconds since
+  /// Sunday 00:00:00 (`SetLocalTimeOfWeek`). The clock is RAM-only and is
+  /// lost on every machine reboot, so this must be re-sent on (re)connect and
+  /// periodically. Implementations clamp to the firmware's writable range
+  /// (1..604799 — never 0, which is the "never synced" sentinel).
+  Future<void> setLocalTimeOfWeek(int secondsOfWeek);
+
+  /// Replace the firmware's weekly wake table with [packedWindows], each
+  /// packed by `packWakeWindow` (`(dow << 22) | (startMin << 11) | endMin`).
+  ///
+  /// Performs the whole firmware protocol: `ScheduleControl = 0` (clear the
+  /// table + disable), then one `ScheduleEntry` write per window, then
+  /// `ScheduleControl = 1` (enable). An empty list writes ONLY the `0` —
+  /// clearing and disabling the schedule, with no enable.
+  ///
+  /// NB this re-arms the firmware's rising-edge wake, so callers must only
+  /// push when the desired table actually changed (a mid-window re-push would
+  /// re-wake a machine the user had just manually slept).
+  Future<void> pushWakeSchedule(List<int> packedWindows);
+
+  /// Read back `SetLocalTimeOfWeek`. **This is the last value WRITTEN, not
+  /// the running firmware clock** — it is useless for measuring drift. Its
+  /// one meaning: `0` ⇒ the machine rebooted and lost the clock (and the
+  /// schedule table with it), because the app never writes 0.
+  Future<int> readLocalTimeOfWeekEcho();
+
+  /// Read back `ScheduleControl` (also a write echo). `0` while the app
+  /// expects `1` ⇒ the machine rebooted, or another client cleared the table.
+  Future<int> readScheduleControl();
+
   /// Live milk-probe temperature stream (°C). `PublishSubject<double>` —
   /// no replay, latest-only consumers should track themselves. Real
   /// `Bengle` never emits today; `MockBengle` synthesises during steam.

@@ -107,6 +107,19 @@ class _TestBengle extends TestDe1 implements BengleInterface {
   @override
   Stream<double> get probeTemperature => const Stream.empty();
 
+  // Wake schedule / autonomous sleep — inert here; exercised in
+  // `bengle_schedule_sync_test.dart` and `bengle_wake_schedule_test.dart`.
+  @override
+  Future<void> setInactivitySleepTimeout(int minutes) async {}
+  @override
+  Future<void> setLocalTimeOfWeek(int secondsOfWeek) async {}
+  @override
+  Future<void> pushWakeSchedule(List<int> packedWindows) async {}
+  @override
+  Future<int> readLocalTimeOfWeekEcho() async => 0;
+  @override
+  Future<int> readScheduleControl() async => 0;
+
   @override
   Future<ScaleCalResult> calibrateScaleZero() async => const ScaleCalResult(
       success: true,
