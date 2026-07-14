@@ -6,6 +6,7 @@ import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/models/device/simulated_device.dart';
 import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
+import 'package:reaprime/src/services/device_matcher.dart';
 
 class _RealDevice implements Device {
   @override
@@ -15,10 +16,12 @@ class _RealDevice implements Device {
   @override
   final DeviceType type;
   @override
-  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
+  final DeviceImplementation implementation;
   @override
-  TransportType get transportType => TransportType.unknown;
-  _RealDevice(this.deviceId, this.name, this.type);
+  final TransportType transportType;
+  _RealDevice(this.deviceId, this.name, this.type,
+      {this.implementation = DeviceImplementation.unifiedDe1,
+      this.transportType = TransportType.unknown});
   @override
   Stream<ConnectionState> get connectionState => const Stream.empty();
   @override
@@ -118,6 +121,239 @@ void main() {
       expect(a1, a2);
       expect(a1, isNot(b));
       expect({a1, a2, b}.length, 2);
+    });
+  });
+
+  group('RememberedDevice enrichment (implementation + transportType)', () {
+    test('fromDevice captures implementation and transportType', () {
+      final r = RememberedDevice.fromDevice(_RealDevice(
+        'D9:11:0B:E6:9F:86',
+        'DE1',
+        DeviceType.machine,
+        implementation: DeviceImplementation.unifiedDe1,
+        transportType: TransportType.ble,
+      ));
+      expect(r, isNotNull);
+      expect(r!.implementation, DeviceImplementation.unifiedDe1);
+      expect(r.transportType, TransportType.ble);
+    });
+
+    test('toJson includes implementation and transportType when present', () {
+      const d = RememberedDevice(
+        id: 'D9:11:0B:E6:9F:86',
+        name: 'DE1',
+        type: DeviceType.machine,
+        implementation: DeviceImplementation.unifiedDe1,
+        transportType: TransportType.ble,
+      );
+      final json = d.toJson();
+      expect(json['implementation'], 'unifiedDe1');
+      expect(json['transportType'], 'ble');
+    });
+
+    test('toJson omits implementation and transportType when null', () {
+      const d = RememberedDevice(
+        id: 'a',
+        name: 'DE1',
+        type: DeviceType.machine,
+      );
+      final json = d.toJson();
+      expect(json.containsKey('implementation'), isFalse);
+      expect(json.containsKey('transportType'), isFalse);
+    });
+
+    test('fromJson reads implementation and transportType', () {
+      final r = RememberedDevice.fromJson({
+        'id': 'a',
+        'name': 'DE1',
+        'type': 'machine',
+        'implementation': 'bengle',
+        'transportType': 'ble',
+      });
+      expect(r, isNotNull);
+      expect(r!.implementation, DeviceImplementation.bengle);
+      expect(r.transportType, TransportType.ble);
+    });
+
+    test('fromJson tolerates missing implementation and transportType (old records)', () {
+      final r = RememberedDevice.fromJson({
+        'id': 'a',
+        'name': 'DE1',
+        'type': 'machine',
+      });
+      expect(r, isNotNull);
+      expect(r!.implementation, isNull);
+      expect(r.transportType, isNull);
+    });
+
+    test('fromJson tolerates unknown implementation name (graceful null)', () {
+      final r = RememberedDevice.fromJson({
+        'id': 'a',
+        'name': 'DE1',
+        'type': 'machine',
+        'implementation': 'nonexistentDevice',
+      });
+      expect(r, isNotNull);
+      expect(r!.implementation, isNull);
+    });
+
+    test('round-trip preserves implementation and transportType', () {
+      const d = RememberedDevice(
+        id: 'wifi:hds.local',
+        name: 'HDS',
+        type: DeviceType.scale,
+        implementation: DeviceImplementation.hdsWifi,
+        transportType: TransportType.wifi,
+      );
+      final back = RememberedDevice.fromJson(d.toJson());
+      expect(back, isNotNull);
+      expect(back!.implementation, DeviceImplementation.hdsWifi);
+      expect(back.transportType, TransportType.wifi);
+    });
+  });
+
+  group('RememberedDevice.migrate', () {
+    test('infers implementation from name when null', () {
+      const old = RememberedDevice(
+        id: 'D9:11:0B:E6:9F:86',
+        name: 'DE1',
+        type: DeviceType.machine,
+      );
+      final migrated = old.migrate((name) {
+        expect(name, 'DE1');
+        return DeviceImplementation.unifiedDe1;
+      });
+      expect(migrated.implementation, DeviceImplementation.unifiedDe1);
+    });
+
+    test('infers transportType from deviceId when null (MAC → ble)', () {
+      const old = RememberedDevice(
+        id: 'D9:11:0B:E6:9F:86',
+        name: 'DE1',
+        type: DeviceType.machine,
+      );
+      final migrated = old.migrate((_) => null);
+      expect(migrated.transportType, TransportType.ble);
+    });
+
+    test('infers transportType from deviceId when null (wifi: → wifi)', () {
+      const old = RememberedDevice(
+        id: 'wifi:hds.local',
+        name: 'HDS',
+        type: DeviceType.scale,
+      );
+      final migrated = old.migrate((_) => null);
+      expect(migrated.transportType, TransportType.wifi);
+    });
+
+    test('infers transportType from deviceId when null (serial- → serial)', () {
+      const old = RememberedDevice(
+        id: 'serial-ttyUSB0',
+        name: 'HDS',
+        type: DeviceType.scale,
+      );
+      final migrated = old.migrate((_) => null);
+      expect(migrated.transportType, TransportType.serial);
+    });
+
+    test('infers transportType from deviceId when null (usb- → serial)', () {
+      const old = RememberedDevice(
+        id: 'usb-1a86-7523-serial123',
+        name: 'HDS',
+        type: DeviceType.scale,
+      );
+      final migrated = old.migrate((_) => null);
+      expect(migrated.transportType, TransportType.serial);
+    });
+
+    test('does not override existing implementation', () {
+      const old = RememberedDevice(
+        id: 'D9:11:0B:E6:9F:86',
+        name: 'DE1',
+        type: DeviceType.machine,
+        implementation: DeviceImplementation.bengle,
+      );
+      final migrated = old.migrate((_) => DeviceImplementation.unifiedDe1);
+      expect(migrated.implementation, DeviceImplementation.bengle);
+    });
+
+    test('does not override existing transportType', () {
+      const old = RememberedDevice(
+        id: 'wifi:hds.local',
+        name: 'HDS',
+        type: DeviceType.scale,
+        transportType: TransportType.ble,
+      );
+      final migrated = old.migrate((_) => null);
+      expect(migrated.transportType, TransportType.ble);
+    });
+
+    test('migrate with DeviceMatcher.implementationForName — DE1', () {
+      const old = RememberedDevice(
+        id: 'D9:11:0B:E6:9F:86',
+        name: 'DE1',
+        type: DeviceType.machine,
+      );
+      final migrated = old.migrate((name) {
+        // Simulate DeviceMatcher.implementationForName
+        if (name == 'DE1') return DeviceImplementation.unifiedDe1;
+        return null;
+      });
+      expect(migrated.implementation, DeviceImplementation.unifiedDe1);
+      expect(migrated.transportType, TransportType.ble);
+    });
+
+    test('migrate with UUID id (iOS/macOS BLE) infers ble', () {
+      const old = RememberedDevice(
+        id: '12345678-1234-1234-1234-123456789ABC',
+        name: 'Decent Scale',
+        type: DeviceType.scale,
+      );
+      final migrated = old.migrate((_) => DeviceImplementation.decentScale);
+      expect(migrated.transportType, TransportType.ble);
+    });
+
+    test('preserves id, name, type', () {
+      const old = RememberedDevice(
+        id: 'D9:11:0B:E6:9F:86',
+        name: 'DE1',
+        type: DeviceType.machine,
+      );
+      final migrated = old.migrate((_) => null);
+      expect(migrated.id, old.id);
+      expect(migrated.name, old.name);
+      expect(migrated.type, old.type);
+    });
+  });
+
+  group('DeviceMatcher.implementationForName', () {
+    test('DE1 → unifiedDe1', () {
+      expect(DeviceMatcher.implementationForName('DE1'),
+          DeviceImplementation.unifiedDe1);
+    });
+
+    test('Bengle → bengle', () {
+      expect(DeviceMatcher.implementationForName('Bengle'),
+          DeviceImplementation.bengle);
+    });
+
+    test('Decent Scale → decentScale', () {
+      expect(DeviceMatcher.implementationForName('Decent Scale'),
+          DeviceImplementation.decentScale);
+    });
+
+    test('Skale2 → skale2', () {
+      expect(DeviceMatcher.implementationForName('Skale2'),
+          DeviceImplementation.skale2);
+    });
+
+    test('Acaia Lunar → acaiaScale', () {
+      expect(DeviceMatcher.implementationForName('Lunar'),
+          DeviceImplementation.acaiaScale);
+    });
+
+    test('unknown name → null', () {
+      expect(DeviceMatcher.implementationForName('Unknown Device'), isNull);
     });
   });
 }

@@ -2,7 +2,9 @@ import 'dart:convert';
 
 import 'package:collection/collection.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/simulated_device.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 
 /// Lightweight, persistable record of a device the user has connected to.
 /// Metadata only — it is NOT a live [Device] (no transport, no
@@ -13,19 +15,32 @@ class RememberedDevice {
   final String name;
   final DeviceType type;
 
+  /// The concrete [DeviceImplementation] for this device. Null on old records
+  /// written before this field existed — the controller infers it on load.
+  final DeviceImplementation? implementation;
+
+  /// The [TransportType] this device communicates over. Null on old records
+  /// — the controller infers it on load.
+  final TransportType? transportType;
+
   const RememberedDevice({
     required this.id,
     required this.name,
     required this.type,
+    this.implementation,
+    this.transportType,
   }) : assert(id.length > 0, 'a remembered device must have a non-empty id');
 
-  // NOTE: `type.name` is a PERSISTED WIRE CONTRACT. The enum identifier is what
-  // gets written to and read from storage (see [fromJson]), so renaming a
-  // `DeviceType` value would silently orphan every stored record of that type.
+  // NOTE: `type.name`, `implementation.name`, and `transportType.name` are
+  // PERSISTED WIRE CONTRACTS. The enum identifier is what gets written to and
+  // read from storage (see [fromJson]), so renaming an enum value would
+  // silently orphan every stored record of that type.
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
         'type': type.name,
+        if (implementation != null) 'implementation': implementation!.name,
+        if (transportType != null) 'transportType': transportType!.name,
       };
 
   /// Whether [other] carries the same display metadata (name + type). Identity
@@ -45,12 +60,20 @@ class RememberedDevice {
     // with any other empty-id entry under id-only equality.
     if (device.deviceId.isEmpty) return null;
     return RememberedDevice(
-        id: device.deviceId, name: device.name, type: device.type);
+      id: device.deviceId,
+      name: device.name,
+      type: device.type,
+      implementation: device.implementation,
+      transportType: device.transportType,
+    );
   }
 
   /// Parse one record. Returns null for malformed input, an empty id, or an
   /// unknown type — so [decodeList] never throws and never builds an invalid
   /// record.
+  ///
+  /// Old records missing `implementation` and `transportType` load with nulls.
+  /// The controller infers them on load via [migrate].
   static RememberedDevice? fromJson(Map<String, dynamic> json) {
     final id = json['id'];
     final name = json['name'];
@@ -61,7 +84,65 @@ class RememberedDevice {
     final type =
         DeviceType.values.firstWhereOrNull((t) => t.name == typeName);
     if (type == null) return null;
-    return RememberedDevice(id: id, name: name, type: type);
+
+    DeviceImplementation? impl;
+    final implName = json['implementation'];
+    if (implName is String) {
+      impl = DeviceImplementation.values.firstWhereOrNull((i) => i.name == implName);
+    }
+
+    TransportType? tt;
+    final ttName = json['transportType'];
+    if (ttName is String) {
+      tt = TransportType.values.firstWhereOrNull((t) => t.name == ttName);
+    }
+
+    return RememberedDevice(
+      id: id,
+      name: name,
+      type: type,
+      implementation: impl,
+      transportType: tt,
+    );
+  }
+
+  /// Return a copy with [implementation] and [transportType] filled in,
+  /// inferring from [name] and [id] when they are null. Used by the controller
+  /// to migrate old records on first load after update.
+  ///
+  /// [nameToImplementation] is injected so tests can supply a custom matcher.
+  /// Production passes [DeviceMatcher.implementationForName].
+  RememberedDevice migrate(
+    DeviceImplementation? Function(String name) nameToImplementation,
+  ) {
+    return RememberedDevice(
+      id: id,
+      name: name,
+      type: type,
+      implementation: implementation ?? nameToImplementation(name),
+      transportType: transportType ?? _inferTransportType(id),
+    );
+  }
+
+  /// Heuristic transport-type inference from device-id format, used only for
+  /// old records that predate the `transportType` field.
+  static TransportType _inferTransportType(String deviceId) {
+    if (deviceId.startsWith('wifi:')) return TransportType.wifi;
+    if (deviceId.startsWith('serial-') || deviceId.startsWith('usb-')) {
+      return TransportType.serial;
+    }
+    if (deviceId.contains('/dev/')) return TransportType.serial;
+    // MAC address: XX:XX:XX:XX:XX:XX (Android BLE)
+    if (RegExp(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$').hasMatch(deviceId)) {
+      return TransportType.ble;
+    }
+    // UUID: 8-4-4-4-12 hex (iOS/macOS BLE)
+    if (RegExp(r'^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$')
+        .hasMatch(deviceId)) {
+      return TransportType.ble;
+    }
+    // Default to BLE — most devices are BLE.
+    return TransportType.ble;
   }
 
   /// Encode a list to the JSON string persisted in settings.
@@ -106,5 +187,6 @@ class RememberedDevice {
   int get hashCode => id.hashCode;
 
   @override
-  String toString() => 'RememberedDevice($id, $name, ${type.name})';
+  String toString() =>
+      'RememberedDevice($id, $name, ${type.name}, impl=${implementation?.name}, transport=${transportType?.name})';
 }
