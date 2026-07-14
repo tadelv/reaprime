@@ -160,7 +160,49 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
   void stopScan() {}
 
   @override
-  Future<Device?> tryQuickConnect(RememberedDevice remembered) async => null; // Serial enumeration is instant, nothing to stop.
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async {
+    final impl = remembered.implementation;
+    final tt = remembered.transportType;
+    if (impl == null || tt == null || tt != TransportType.serial) {
+      return null;
+    }
+
+    final ports = (await SerialPort.availablePorts).toSet();
+    for (final portPath in ports) {
+      final port = SerialPort(portPath);
+      try {
+        final meta = _readPortMetadata(portPath, port);
+        final stableId = meta.stableId ?? 'serial-${portPath.split("/").last}';
+        if (stableId != remembered.id) continue;
+      } finally {
+        port.dispose();
+      }
+
+      _log.info('Quick-connect: found port $portPath for ${remembered.id}');
+      Device? device;
+      try {
+        device = await _detectDevice(portPath);
+      } catch (e, st) {
+        _log.warning('Quick-connect: _detectDevice failed for $portPath', e, st);
+        continue;
+      }
+      if (device == null || device.implementation != impl) {
+        _log.info('Quick-connect: device mismatch on $portPath'
+            ' (expected $impl, got ${device?.implementation})');
+        try { await device?.disconnect(); } catch (_) {}
+        continue;
+      }
+      try {
+        await device.onConnect().timeout(const Duration(seconds: 10));
+        _log.info('Quick-connect succeeded for ${remembered.id}');
+        return device;
+      } catch (e, st) {
+        _log.warning('Quick-connect: onConnect failed for $portPath', e, st);
+        try { await device.disconnect(); } catch (_) {}
+      }
+    }
+    return null;
+  }
 
   @override
   Future<void> scanForDevices({ScanFilter? filter}) => _runScan(forceEmit: true);
