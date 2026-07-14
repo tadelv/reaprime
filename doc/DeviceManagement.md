@@ -520,6 +520,48 @@ to gate "internal scale" UX hints.
 
 ## Connection Flow
 
+### Quick Connect
+
+Before running a full scan, `ConnectionManager._connectImpl` tries a
+**quick-connect** — a direct connection to the preferred machine and scale
+from remembered-device metadata, without scanning:
+
+```
+ConnectionManager._connectImpl()
+  |
+  +-- Look up preferred machine + scale in RememberedDevicesController
+  |
+  +-- For machine: deviceScanner.tryQuickConnect(machineRemembered)
+  |     |- BLE: getSystemDevices (Apple) / direct connect (Android)
+  |     |      -> BleDevice + UniversalBleTransport + DeviceFactory.create()
+  |     |      -> transport.connect() -> device.onConnect() -> identity check
+  |     |      -> return connected Device or null
+  |     |
+  |     |- Serial: open SerialPort(storedPath) -> _detectDevice()
+  |     |         -> verify match -> onConnect() -> return Device or null
+  |     |
+  |     +-- WiFi: WifiIpCache -> connect -> onConnect() -> return or null
+  |
+  +-- If machine returned: de1Controller.adoptDevice()
+  |    If scale returned: scaleController.adoptScale()
+  |    Both success -> publish ready. DONE.
+  |
+  +-- If machine null -> fall through to ScanOrchestrator.runScan()
+  |    (existing scan -> match -> EarlyConnectWatcher -> connect)
+  |
+  +-- If machine adopted but scale null -> scale-only scan
+     (scanAndConnectScale)
+```
+
+Quick-connect is tried in **all** connect cycles (startup, manual
+reconnect, recovery mode). The phase stream is unchanged — quick-connect
+is invisible, staying at `idle` during the attempt. On success:
+`idle -> connectingMachine -> connectingScale -> ready`. On failure:
+`idle -> scanning` (existing flow).
+
+`adoptDevice()` / `adoptScale()` skip `onConnect()` (already done by
+`tryQuickConnect`) and wire up stream subscriptions directly.
+
 ### Initial App Startup
 
 ```
@@ -529,23 +571,28 @@ to gate "internal scale" UX hints.
    ↓
 3. Create DeviceController(services), De1Controller, ScaleController
    ↓
-4. Create ConnectionManager(deviceController, de1Controller, scaleController, settingsController)
+4. Create RememberedDevicesController, initialize (loads + migrates registry)
    ↓
-5. runApp(MyApp(...))
+5. Create ConnectionManager(deviceController, de1Controller, scaleController,
+   settingsController, rememberedDevices)
    ↓
-6. OnboardingView displayed (steps: android-warning → welcome → login →
+6. runApp(MyApp(...))
+   ↓
+7. OnboardingView displayed (steps: android-warning → welcome → login →
    permissions → initialization → scan)
    ↓
-7. Permissions step grants permissions; initialization step runs
+8. Permissions step grants permissions; initialization step runs
    deviceController.initialize()
    ↓
-8. Scan step calls connectionManager.connect()
+9. Scan step calls connectionManager.connect()
    ↓
-9. ConnectionManager: scan → early-connect preferred devices → apply policy
+10. ConnectionManager: quick-connect (preferred devices) -> scan fallback
+     -> early-connect preferred devices -> apply policy
    ↓
-10. Status stream: idle → scanning → connectingMachine → connectingScale → ready
-    ↓
-11. On `ready`, onboarding completes → navigates to LauncherView, then pushes
+11. Status stream: idle -> (quick-connect or) scanning ->
+     connectingMachine -> connectingScale -> ready
+     ↓
+12. On `ready`, onboarding completes -> navigates to LauncherView, then pushes
     SkinView on top when the platform supports an in-app WebView, the device
     isn't a degraded Android (SDK < 31), and the skin server is serving.
     Degraded/unsupported devices stay on the launcher (browser hero card).

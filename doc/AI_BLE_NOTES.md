@@ -100,6 +100,30 @@ Three reusable idioms from the comms-harden effort:
 | `TimeoutException` in `universal_ble/queue.dart` | May relate to zombie-link (#431) or concurrent BLE write contention (#423). |
 | `PlatformException: Location services required` | Android location permissions not granted. Onboarding check or troubleshooting wizard (#125/#126). |
 
+## Quick Connect
+
+`tryQuickConnect` on `UniversalBleDiscoveryService` connects to a known
+device by ID without scanning. GATT-133 (cold-boot Android, Teclast) is
+handled by a single retry with a 1s delay inside `_connectWithRetry`:
+
+```
+await device.onConnect().timeout(10s)
+  catch BleConnectException:
+    wait 1s
+    disconnect
+    await device.onConnect().timeout(10s)  // one retry only
+```
+
+If both attempts fail, `tryQuickConnect` returns null and the scan fallback
+runs. The `EarlyConnectWatcher` does its own retry during the scan.
+
+On Apple (iOS/macOS), `getSystemDevices` is used to find the peripheral in
+the system cache. If not cached, returns null immediately (no timeout waste).
+On Android/Linux/Windows, direct `UniversalBle.connect(deviceId)` works.
+
+The identity check happens during `onConnect()` — for machines, `v13Model`
+is read and compared against the expected `DeviceImplementation`.
+
 ## Focused Tests
 
 ```sh
