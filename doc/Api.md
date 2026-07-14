@@ -254,11 +254,26 @@ Settings fields include: `gatewayMode`, `themeMode`, `logLevel`, `weightFlowMult
 |--------|------|-------------|---------|
 | POST | `/api/v1/machine/heartbeat` | Signal user presence (keep-alive) | `presence_handler.dart` |
 | GET | `/api/v1/presence/settings` | Get presence/sleep settings | |
-| POST | `/api/v1/presence/settings` | Update presence/sleep settings | |
+| POST | `/api/v1/presence/settings` | Update presence/sleep settings (validated — see below) | |
 | GET | `/api/v1/presence/schedules` | List wake schedules | |
 | POST | `/api/v1/presence/schedules` | Create wake schedule | |
 | PUT | `/api/v1/presence/schedules/:id` | Update wake schedule | |
 | DELETE | `/api/v1/presence/schedules/:id` | Delete wake schedule | |
+
+`POST /api/v1/presence/settings` validates its body and returns **400** rather than storing a bad
+value:
+
+| Field | Accepted | On anything else |
+|---|---|---|
+| `userPresenceEnabled` | a boolean | `400`, nothing stored |
+| `sleepTimeoutMinutes` | an integer in **0–240** | `400`, nothing stored |
+
+`sleepTimeoutMinutes: 0` is valid and means **"Disabled"** — the app will not sleep the machine on
+its own idle timer.
+
+Both fields remain optional (partial updates are supported); validation applies only to fields that
+are present. Previously the handler hard-cast the raw JSON, so a non-integer threw and surfaced as a
+`500`, while an out-of-range number was stored verbatim.
 
 ### Sensors
 

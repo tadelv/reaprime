@@ -2,6 +2,7 @@ import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
+import 'package:reaprime/src/settings/sleep_timeout_safety.dart';
 import 'package:reaprime/src/services/webserver/data_export/data_export_section.dart';
 
 class SettingsExportSection implements DataExportSection {
@@ -177,9 +178,15 @@ class SettingsExportSection implements DataExportSection {
         }
 
         if (settings.containsKey('sleepTimeoutMinutes')) {
-          await _controller
-              .setSleepTimeoutMinutes(settings['sleepTimeoutMinutes'] as int);
-          imported++;
+          // Bounded, not hard-cast: an imported blob is untrusted input. An
+          // unusable value is SKIPPED (the current setting stands) rather than
+          // stored — see sleep_timeout_safety.dart.
+          final minutes =
+              sanitizeSleepTimeoutSetting(settings['sleepTimeoutMinutes']);
+          if (minutes != null) {
+            await _controller.setSleepTimeoutMinutes(minutes);
+            imported++;
+          }
         }
       }
 

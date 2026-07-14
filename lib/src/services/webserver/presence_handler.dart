@@ -66,12 +66,26 @@ class PresenceHandler {
       final json = jsonDecode(body) as Map<String, dynamic>;
 
       if (json.containsKey('userPresenceEnabled')) {
-        await _settingsController
-            .setUserPresenceEnabled(json['userPresenceEnabled'] as bool);
+        final enabled = json['userPresenceEnabled'];
+        if (enabled is! bool) {
+          return jsonBadRequest(
+              {'error': 'userPresenceEnabled must be a boolean'});
+        }
+        await _settingsController.setUserPresenceEnabled(enabled);
       }
       if (json.containsKey('sleepTimeoutMinutes')) {
-        await _settingsController
-            .setSleepTimeoutMinutes(json['sleepTimeoutMinutes'] as int);
+        // Bounded, never cast raw: a null/garbage/out-of-range value used to
+        // sail straight into the setting, and a non-int threw a TypeError that
+        // surfaced as a 500. See sleep_timeout_safety.dart.
+        final minutes = json['sleepTimeoutMinutes'];
+        if (minutes is! int || !isValidSleepTimeoutSetting(minutes)) {
+          return jsonBadRequest({
+            'error': 'sleepTimeoutMinutes must be an integer '
+                '$kMinSleepTimeoutSetting-$kMaxSleepTimeoutSetting '
+                '(0 = the app will not sleep the machine on its own idle timer)',
+          });
+        }
+        await _settingsController.setSleepTimeoutMinutes(minutes);
       }
 
       return jsonOk({

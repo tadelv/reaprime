@@ -46,6 +46,7 @@ import 'package:reaprime/src/services/storage/grinder_storage_service.dart';
 import 'package:reaprime/src/settings/gateway_mode.dart';
 import 'package:reaprime/src/settings/scale_power_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
+import 'package:reaprime/src/settings/sleep_timeout_safety.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
 import 'package:reaprime/src/util/rot13.dart';
 import 'package:reaprime/src/webui_support/webui_service.dart';
