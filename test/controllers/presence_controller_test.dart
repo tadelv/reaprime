@@ -441,48 +441,51 @@ void main() {
       });
     });
 
-    test('sleep countdown restarts when a shot ends, not from the last heartbeat', () {
-      fakeAsync((async) {
-        settingsController.setSleepTimeoutMinutes(5);
-        async.flushMicrotasks();
+    test(
+      'sleep countdown restarts when a shot ends, not from the last heartbeat',
+      () {
+        fakeAsync((async) {
+          settingsController.setSleepTimeoutMinutes(5);
+          async.flushMicrotasks();
 
-        final controller = PresenceController(
-          de1Controller: de1Controller,
-          settingsController: settingsController,
-          clock: () => clock.now(),
-        );
-        controller.initialize();
-        de1Controller.setDe1(testDe1);
-        async.flushMicrotasks();
+          final controller = PresenceController(
+            de1Controller: de1Controller,
+            settingsController: settingsController,
+            clock: () => clock.now(),
+          );
+          controller.initialize();
+          de1Controller.setDe1(testDe1);
+          async.flushMicrotasks();
 
-        controller.heartbeat();
-        async.flushMicrotasks();
+          controller.heartbeat();
+          async.flushMicrotasks();
 
-        // A hands-off pull that begins and ends well within the timeout window,
-        // with no further heartbeats (the user never touches the screen).
-        async.elapse(const Duration(minutes: 1));
-        testDe1.emitState(MachineState.espresso);
-        async.flushMicrotasks();
-        async.elapse(const Duration(minutes: 1));
-        testDe1.emitState(MachineState.idle);
-        async.flushMicrotasks();
+          // A hands-off pull that begins and ends well within the timeout window,
+          // with no further heartbeats (the user never touches the screen).
+          async.elapse(const Duration(minutes: 1));
+          testDe1.emitState(MachineState.espresso);
+          async.flushMicrotasks();
+          async.elapse(const Duration(minutes: 1));
+          testDe1.emitState(MachineState.idle);
+          async.flushMicrotasks();
 
-        // Past the ORIGINAL heartbeat-anchored timeout (5m after the heartbeat):
-        // must NOT sleep, because the shot ending restarted the countdown.
-        async.elapse(const Duration(minutes: 3, seconds: 30));
-        expect(
-          testDe1.requestedStates.where((s) => s == MachineState.sleeping),
-          isEmpty,
-          reason: 'Shot end should have restarted the sleep countdown',
-        );
+          // Past the ORIGINAL heartbeat-anchored timeout (5m after the heartbeat):
+          // must NOT sleep, because the shot ending restarted the countdown.
+          async.elapse(const Duration(minutes: 3, seconds: 30));
+          expect(
+            testDe1.requestedStates.where((s) => s == MachineState.sleeping),
+            isEmpty,
+            reason: 'Shot end should have restarted the sleep countdown',
+          );
 
-        // A full timeout after the shot ended: now it sleeps.
-        async.elapse(const Duration(minutes: 2));
-        expect(testDe1.requestedStates, contains(MachineState.sleeping));
+          // A full timeout after the shot ended: now it sleeps.
+          async.elapse(const Duration(minutes: 2));
+          expect(testDe1.requestedStates, contains(MachineState.sleeping));
 
-        controller.dispose();
-      });
-    });
+          controller.dispose();
+        });
+      },
+    );
   });
 
   group('scheduled wake', () {
@@ -887,6 +890,265 @@ void main() {
         expect(secondExpiry, isNotNull);
         expect(secondExpiry!.isAfter(firstExpiry!), isTrue);
 
+        controller.dispose();
+      });
+    });
+
+    test(
+      'already-awake machine keeps the occurrence after its start minute',
+      () {
+        fakeAsync((async) {
+          settingsController.setSleepTimeoutMinutes(30);
+          settingsController.setWakeSchedules(
+            WakeSchedule.serializeList([
+              const WakeSchedule(
+                id: 'already-awake',
+                hour: 5,
+                minute: 30,
+                daysOfWeek: {1, 2, 3, 4, 5},
+                enabled: true,
+                keepAwakeFor: 90,
+              ),
+            ]),
+          );
+          async.flushMicrotasks();
+
+          final controller = PresenceController(
+            de1Controller: de1Controller,
+            settingsController: settingsController,
+            clock: () => DateTime(2026, 1, 15, 6),
+          );
+          controller.initialize();
+          de1Controller.setDe1(testDe1);
+          async.flushMicrotasks();
+
+          controller.heartbeat();
+          async.elapse(const Duration(minutes: 30, seconds: 1));
+
+          expect(controller.keepAwakeUntil, DateTime(2026, 1, 15, 7));
+          expect(
+            testDe1.requestedStates,
+            isNot(contains(MachineState.sleeping)),
+          );
+
+          controller.clockOverride = () => DateTime(2026, 1, 15, 7, 1);
+          async.elapse(const Duration(minutes: 30, seconds: 1));
+
+          expect(testDe1.requestedStates, contains(MachineState.sleeping));
+          controller.dispose();
+        });
+      },
+    );
+
+    test('reconnecting during an occurrence preserves keep-awake', () {
+      fakeAsync((async) {
+        settingsController.setWakeSchedules(
+          WakeSchedule.serializeList([
+            const WakeSchedule(
+              id: 'reconnect',
+              hour: 7,
+              minute: 0,
+              daysOfWeek: {},
+              enabled: true,
+              keepAwakeFor: 60,
+            ),
+          ]),
+        );
+        async.flushMicrotasks();
+
+        final controller = PresenceController(
+          de1Controller: de1Controller,
+          settingsController: settingsController,
+          clock: () => DateTime(2026, 1, 15, 7, 30),
+        );
+        controller.initialize();
+        de1Controller.setDe1(testDe1);
+        async.flushMicrotasks();
+        de1Controller.setDe1(null);
+        async.flushMicrotasks();
+
+        expect(controller.keepAwakeUntil, isNull);
+
+        final reconnected = _TestDe1();
+        de1Controller.setDe1(reconnected);
+        async.flushMicrotasks();
+
+        expect(controller.keepAwakeUntil, DateTime(2026, 1, 15, 8));
+        controller.dispose();
+      });
+    });
+
+    test('new controller derives an occurrence already in progress', () {
+      fakeAsync((async) {
+        settingsController.setWakeSchedules(
+          WakeSchedule.serializeList([
+            const WakeSchedule(
+              id: 'restart',
+              hour: 7,
+              minute: 0,
+              daysOfWeek: {},
+              enabled: true,
+              keepAwakeFor: 60,
+            ),
+          ]),
+        );
+        async.flushMicrotasks();
+
+        final controller = PresenceController(
+          de1Controller: de1Controller,
+          settingsController: settingsController,
+          clock: () => DateTime(2026, 1, 15, 7, 30),
+        );
+        controller.initialize();
+        de1Controller.setDe1(testDe1);
+        async.flushMicrotasks();
+
+        expect(controller.keepAwakeUntil, DateTime(2026, 1, 15, 8));
+        controller.dispose();
+      });
+    });
+
+    test('waking again does not restore a manually cancelled occurrence', () {
+      fakeAsync((async) {
+        settingsController.setWakeSchedules(
+          WakeSchedule.serializeList([
+            const WakeSchedule(
+              id: 'manual-cancel',
+              hour: 7,
+              minute: 0,
+              daysOfWeek: {},
+              enabled: true,
+              keepAwakeFor: 60,
+            ),
+          ]),
+        );
+        async.flushMicrotasks();
+
+        final controller = PresenceController(
+          de1Controller: de1Controller,
+          settingsController: settingsController,
+          clock: () => DateTime(2026, 1, 15, 7, 30),
+        );
+        controller.initialize();
+        de1Controller.setDe1(testDe1);
+        async.flushMicrotasks();
+
+        testDe1.emitState(MachineState.sleeping);
+        async.flushMicrotasks();
+        expect(controller.keepAwakeUntil, isNull);
+
+        testDe1.emitState(MachineState.idle);
+        async.flushMicrotasks();
+        expect(controller.keepAwakeUntil, isNull);
+
+        controller.dispose();
+      });
+    });
+
+    test('changing a schedule does not restore a cancelled occurrence', () {
+      fakeAsync((async) {
+        const schedule = WakeSchedule(
+          id: 'changed',
+          hour: 7,
+          minute: 0,
+          daysOfWeek: {},
+          enabled: true,
+          keepAwakeFor: 60,
+        );
+        settingsController.setWakeSchedules(
+          WakeSchedule.serializeList([schedule]),
+        );
+        async.flushMicrotasks();
+
+        final controller = PresenceController(
+          de1Controller: de1Controller,
+          settingsController: settingsController,
+          clock: () => DateTime(2026, 1, 15, 7, 30),
+        );
+        controller.initialize();
+        de1Controller.setDe1(testDe1);
+        async.flushMicrotasks();
+
+        testDe1.emitState(MachineState.sleeping);
+        async.flushMicrotasks();
+        expect(controller.keepAwakeUntil, isNull);
+
+        settingsController.setWakeSchedules(
+          WakeSchedule.serializeList([
+            schedule.copyWith(keepAwakeFor: 120),
+          ]),
+        );
+        async.flushMicrotasks();
+
+        testDe1.emitState(MachineState.idle);
+        async.flushMicrotasks();
+        expect(controller.keepAwakeUntil, isNull);
+        controller.dispose();
+      });
+    });
+
+    test('a later concrete occurrence works after cancellation', () {
+      fakeAsync((async) {
+        const schedule = WakeSchedule(
+          id: 'recurring',
+          hour: 7,
+          minute: 0,
+          daysOfWeek: {},
+          enabled: true,
+          keepAwakeFor: 60,
+        );
+        settingsController.setWakeSchedules(
+          WakeSchedule.serializeList([schedule]),
+        );
+        async.flushMicrotasks();
+
+        final controller = PresenceController(
+          de1Controller: de1Controller,
+          settingsController: settingsController,
+          clock: () => DateTime(2026, 1, 15, 7, 30),
+        );
+        controller.initialize();
+        de1Controller.setDe1(testDe1);
+        async.flushMicrotasks();
+
+        testDe1.emitState(MachineState.sleeping);
+        async.flushMicrotasks();
+        expect(controller.keepAwakeUntil, isNull);
+
+        controller.clockOverride = () => DateTime(2026, 1, 16, 7, 30);
+        testDe1.emitState(MachineState.idle);
+        async.flushMicrotasks();
+
+        expect(controller.keepAwakeUntil, DateTime(2026, 1, 16, 8));
+        controller.dispose();
+      });
+    });
+
+    test('keepAwakeUntil is null without a connected machine', () {
+      fakeAsync((async) {
+        settingsController.setWakeSchedules(
+          WakeSchedule.serializeList([
+            const WakeSchedule(
+              id: 'disconnected',
+              hour: 7,
+              minute: 0,
+              daysOfWeek: {},
+              enabled: true,
+              keepAwakeFor: 60,
+            ),
+          ]),
+        );
+        async.flushMicrotasks();
+
+        final controller = PresenceController(
+          de1Controller: de1Controller,
+          settingsController: settingsController,
+          clock: () => DateTime(2026, 1, 15, 7, 30),
+        );
+        controller.initialize();
+        async.flushMicrotasks();
+
+        expect(controller.keepAwakeUntil, isNull);
         controller.dispose();
       });
     });
