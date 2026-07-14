@@ -60,6 +60,8 @@ class DeviceMatcher {
     final name = advertisedName;
     final nameLower = name.toLowerCase();
 
+    if (name == 'Half Decent Scale (USB)') return DeviceImplementation.hdsSerial;
+    if (name == 'Half Decent Scale (WiFi)') return DeviceImplementation.hdsWifi;
     if (name == 'Decent Scale') return DeviceImplementation.decentScale;
     if (name == 'Skale2' || nameLower.startsWith('skale')) {
       return DeviceImplementation.skale2;

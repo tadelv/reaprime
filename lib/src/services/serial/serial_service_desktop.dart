@@ -190,15 +190,32 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
         _log.info('Quick-connect: device mismatch on $portPath'
             ' (expected $impl, got ${device?.implementation})');
         try { await device?.disconnect(); } catch (_) {}
+        final t = _portPathToTransport.remove(portPath);
+        try { await t?.dispose(); } catch (_) {}
         continue;
       }
       try {
         await device.onConnect().timeout(const Duration(seconds: 10));
+        _portPathToDevice[portPath] = device;
+        _portPathToDeviceId[portPath] = device.deviceId;
+        device.connectionState.listen((state) {
+          if (state == ConnectionState.disconnected) {
+            _portPathToDevice.remove(portPath);
+            _portPathToDeviceId.remove(portPath);
+            _portPathToTransport.remove(portPath);
+            _machineSubject.add(_devices);
+          }
+        });
+        _devices = _portPathToDevice.values.toList();
+        _lastEmittedIds = _devices.map((d) => d.deviceId).toSet();
+        _machineSubject.add(_devices);
         _log.info('Quick-connect succeeded for ${remembered.id}');
         return device;
       } catch (e, st) {
         _log.warning('Quick-connect: onConnect failed for $portPath', e, st);
         try { await device.disconnect(); } catch (_) {}
+        final t = _portPathToTransport.remove(portPath);
+        try { await t?.dispose(); } catch (_) {}
       }
     }
     return null;

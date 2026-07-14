@@ -480,30 +480,7 @@ class ConnectionManager {
     return false;
   }
 
-  /// Attempt to quick-connect the preferred scale from remembered
-  /// metadata. Returns true if the scale was adopted.
-  Future<bool> _tryQuickConnectScale() async {
-    final registry = rememberedDevices;
-    if (registry == null) return false;
-    final scaleId = settingsController.preferredScaleId;
-    if (scaleId == null || scaleId.isEmpty) return false;
-    final remembered = registry.remembered
-        .firstWhereOrNull((d) => d.id == scaleId);
-    if (remembered == null) return false;
-    try {
-      final device = await deviceScanner.tryQuickConnect(remembered);
-      if (device is Scale) {
-        await scaleController.adoptScale(device);
-        _publishStatus(currentStatus.copyWith(
-            phase: ConnectionPhase.connectingScale));
-        _log.info('Quick-connect: scale adopted (${device.deviceId})');
-        return true;
-      }
-    } catch (e, st) {
-      _log.warning('Quick-connect: scale attempt failed', e, st);
-    }
-    return false;
-  }
+
 
   Future<void> _connectImpl({required bool scaleOnly}) async {
     _cancelPreferredScaleReconnect();
@@ -521,22 +498,18 @@ class ConnectionManager {
       _earlyStopFired = false;
     }
 
-    // Quick-connect: try direct connection from remembered metadata before
-    // scanning. If both devices connect, skip the scan entirely. If only the
-    // machine connects, fall through to a scale-only scan. If neither
-    // connects, fall through to the full scan path unchanged.
+    // Quick-connect: try direct connection to the preferred machine from
+    // remembered metadata. Scales are excluded — they are discovered by
+    // the background scale-reconnect loop after the machine connects.
     var effectiveScaleOnly = scaleOnly;
     if (!scaleOnly && rememberedDevices != null) {
+      _publishStatus(currentStatus.copyWith(
+          phase: ConnectionPhase.connectingMachine));
       final qcMachineConnected = await _tryQuickConnectMachine();
       if (qcMachineConnected) {
-        final qcScaleConnected = await _tryQuickConnectScale();
-        if (qcScaleConnected) {
-          _log.info('Quick-connect: both devices connected, skipping scan');
-          _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.ready));
-          return;
-        }
-        _log.info('Quick-connect: machine connected, scale-only scan');
-        effectiveScaleOnly = true;
+        _log.info('Quick-connect: machine connected, proceeding to ready');
+        _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.ready));
+        return;
       }
     }
 
