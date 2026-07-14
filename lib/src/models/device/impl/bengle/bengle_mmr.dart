@@ -60,6 +60,78 @@ enum BengleMmr implements MmrAddress {
     max: 1600,
     readScale: 0.1,
     writeScale: 10.0,
+  ),
+
+  /// Scheduled cup-warmer pre-warm enable: `0` = Off, `1` = On. Firmware
+  /// `MatPreheatEnable` (`0x008038D0`, firmware register-table row 59, **contract v2**),
+  /// `PERM_RWD` — **persisted**, unlike the RAM-only [cupWarmerMode].
+  ///
+  /// With this set the FIRMWARE runs the mat from [matPreheatLeadMin]
+  /// minutes before a scheduled wake window opens and holds it until the
+  /// window closes — with no tablet connected and WITHOUT waking the
+  /// machine (the boilers stay cold). The app implements no pre-warm
+  /// timing of its own; it writes this pair and reads [matPreheatActive].
+  ///
+  /// Persisted on purpose: surviving a reboot is the whole point of a
+  /// *scheduled* pre-warm, whereas [cupWarmerMode] (a manual toggle) is
+  /// deliberately RAM-only so the mat can never re-heat unattended after a
+  /// power blip.
+  ///
+  /// Needs the mat gate to be satisfiable as well: `MatSetPoint > 0` and a
+  /// healthy NTC. And the firmware clock + wake table are RAM-only, so a
+  /// pre-warm does nothing until the tablet has (re)connected once since
+  /// power-up and pushed [BengleScheduleMmr.setLocalTimeOfWeek] /
+  /// [BengleScheduleMmr.scheduleEntry].
+  ///
+  /// ABSENT on older firmware (rows 59–61 land with
+  /// a firmware development branch), so reads are defensive — failure →
+  /// `null`, never fake data; see [Bengle.getCupWarmerPrewarm].
+  matPreheatEnable(
+    0x008038D0,
+    4,
+    MmrValueKind.boolean,
+    'MatPreheatEnable',
+    min: 0,
+    max: 1,
+  ),
+
+  /// Minutes before a scheduled wake window to start the cup-warmer mat.
+  /// Firmware `MatPreheatLeadMin` (`0x008038D4`, firmware register-table row 60,
+  /// **contract v2**), `PERM_RWD` — persisted. Range `0..120`
+  /// (`0` = no lead — the mat starts with the window), firmware default
+  /// **30**. The mat needs tens of minutes to reach temperature, which is
+  /// why the lead exists at all.
+  ///
+  /// The declared 0..120 range is also the write guard: `writeMmrInt`
+  /// clamps to it, and the firmware clamps too — but a *rejected* firmware
+  /// write is a silent no-op, so the app clamps first
+  /// ([Bengle.setCupWarmerPrewarm]).
+  matPreheatLeadMin(
+    0x008038D4,
+    4,
+    MmrValueKind.int32,
+    'MatPreheatLeadMin',
+    min: 0,
+    max: 120,
+  ),
+
+  /// Scheduled pre-warm status. Firmware `MatPreheatActive` (`0x008038D8`,
+  /// firmware register-table row 61, **contract v2**), **read-only** (`PERM_READ`):
+  /// `1` = the *wake schedule* is driving the mat right now — not
+  /// [cupWarmerMode], not the user.
+  ///
+  /// Exists so the UI can EXPLAIN a mat that came on by itself at 06:30;
+  /// without it a scheduled pre-warm reads as a bug. The app never writes
+  /// this register. Older firmware lacks it entirely, so the read is
+  /// defensive (failure → `null`, "unknown", never a fabricated `false`);
+  /// see [Bengle.getCupWarmerPrewarmActive].
+  matPreheatActive(
+    0x008038D8,
+    4,
+    MmrValueKind.boolean,
+    'MatPreheatActive',
+    min: 0,
+    max: 1,
   );
   // Integrated-scale tare (`ScaleTare`) lives with the scale capability
   // that owns it: [BengleScaleMmr.scaleTare]. Milk-probe stop

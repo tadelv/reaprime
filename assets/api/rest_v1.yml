@@ -412,20 +412,24 @@ paths:
           description: Machine connected but has no integrated scale
   /api/v1/machine/cupWarmer:
     get:
-      summary: Get cup-warmer setpoint + live mat temperature
+      summary: Get cup-warmer setpoint, live mat temperature, and scheduled pre-warm
       description: |
         Read the current cup-warmer mat target temperature in °C
-        (`temperature`) and the live measured mat temperature
-        (`currentTemperature`). `currentTemperature` is `null` when the
-        firmware has no valid reading (sensor fault, or older firmware
-        without the register) — clients must render a placeholder for
-        `null` and must also tolerate the key being absent entirely
+        (`temperature`), the live measured mat temperature
+        (`currentTemperature`), and the firmware's scheduled pre-warm
+        (`prewarmEnabled`, `prewarmLeadMinutes`, and the read-only
+        `prewarmActive`). `currentTemperature` is `null` when the firmware
+        has no valid reading (sensor fault, or older firmware without the
+        register). The three `prewarm*` fields are all `null` on firmware
+        that does not implement scheduled pre-warm — show "unavailable",
+        never a default. Clients must render a placeholder for `null` and
+        must also tolerate any of these keys being absent entirely
         (responses from older app versions). Never fabricate a value.
         Returns 404 when the connected machine is not a Bengle.
       tags: [Machine]
       responses:
         "200":
-          description: Current cup-warmer setpoint + live mat temperature
+          description: Current cup-warmer setpoint, live mat temperature, and pre-warm state
           content:
             application/json:
               schema:
@@ -433,18 +437,48 @@ paths:
         "404":
           description: Machine connected but does not support cup warmer
     put:
-      summary: Set cup-warmer setpoint
+      summary: Set cup-warmer setpoint and/or scheduled pre-warm
       description: |
-        Set the cup-warmer mat target temperature in °C. Range
-        `0.0`–`80.0`. A target `> 0` also enables the warmer and `0.0`
-        disables it — the separate firmware enable register is an
-        implementation detail the API hides. The enable does not survive
-        a machine reboot (the firmware deliberately clears it so the mat
-        can never heat unattended after a power cut), but the app
-        re-asserts the last requested state on every reconnect, so
-        clients only ever set the temperature. Out-of-range values
-        return 400; the app does not rely on FW-side clamping so callers
-        see immediate feedback.
+        Set the cup-warmer mat target temperature in °C and/or the
+        firmware's scheduled pre-warm settings. Every field is optional
+        individually, but the body must carry at least one of
+        `temperature`, `prewarmEnabled` or `prewarmLeadMinutes` (an empty
+        body is a 400).
+
+        `temperature` range `0.0`–`80.0`. A target `> 0` also enables the
+        warmer and `0.0` disables it — the separate firmware enable
+        register is an implementation detail the API hides. The enable
+        does not survive a machine reboot (the firmware deliberately
+        clears it so the mat can never heat unattended after a power
+        cut), but the app re-asserts the last requested state on every
+        reconnect, so clients only ever set the temperature.
+
+        `prewarmEnabled` / `prewarmLeadMinutes` (`0`–`120`) configure the
+        FIRMWARE-owned pre-warm: with it enabled the machine runs the mat
+        from `prewarmLeadMinutes` before a scheduled wake window opens
+        and holds it until the window closes — with no tablet connected
+        and without waking the machine (the boilers stay cold). Clients
+        must NOT implement pre-warm timing themselves. The pair is
+        written together; sending one field keeps the machine's current
+        value for the other. Both are persisted in firmware, so they are
+        not re-asserted on reconnect. A pre-warm needs a mat setpoint
+        `> 0` and at least one ENABLED wake schedule
+        (`/api/v1/presence/schedules`) — enabling it with an empty
+        schedule silently does nothing, so a client offering the toggle
+        should warn when no wake window exists. The firmware's wake table
+        and wall clock are RAM-only, so a pre-warm is also inert until
+        the app has connected once since the machine was powered up.
+
+        `prewarmActive` is READ-ONLY firmware status and is IGNORED in a
+        request body (like `currentTemperature`).
+
+        Out-of-range values return 400; the app does not rely on FW-side
+        clamping so callers see immediate feedback. On firmware without
+        the pre-warm registers the writes are silently inert, so the 200
+        response echoes the values the machine actually reports back —
+        `prewarmEnabled`/`prewarmLeadMinutes` come back `null` when the
+        firmware does not support pre-warm. The app never claims a
+        success it cannot verify.
         Returns 404 when the connected machine is not a Bengle.
       tags: [Machine]
       requestBody:
@@ -455,9 +489,21 @@ paths:
               $ref: "#/components/schemas/CupWarmerState"
       responses:
         "200":
-          description: Setpoint accepted
+          description: |
+            Setpoint and/or pre-warm accepted. When the request carried
+            pre-warm fields the body echoes the applied pre-warm state
+            read back from the machine (`null` = firmware without the
+            registers — the write was silently inert).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CupWarmerPutResult"
         "400":
-          description: Temperature missing or out of range 0.0–80.0
+          description: |
+            Body carried none of `temperature` / `prewarmEnabled` /
+            `prewarmLeadMinutes`; or `temperature` out of range 0.0–80.0;
+            or `prewarmLeadMinutes` out of range 0–120 or not an integer;
+            or `prewarmEnabled` not a boolean
         "404":
           description: Machine connected but does not support cup warmer
   /api/v1/machine/ledStrip:
@@ -4514,7 +4560,11 @@ components:
 
     CupWarmerState:
       type: object
-      required: [temperature]
+      description: |
+        Cup-warmer state. On a GET every key is present (a value may be
+        `null` = unavailable). On a PUT every key is optional, but the
+        body must carry at least one of `temperature`, `prewarmEnabled`
+        or `prewarmLeadMinutes`; the `readOnly` keys are ignored.
       properties:
         temperature:
           type: number
@@ -4526,8 +4576,54 @@ components:
             mat off; `> 0` turns it on. The firmware's separate enable
             register is managed by the app and hidden from the API — it
             is cleared by the machine on every reboot and re-asserted by
-            the app on reconnect.
+            the app on reconnect. Required on a GET response; on a PUT it
+            may be omitted when the body carries pre-warm fields instead.
           example: 60.0
+        prewarmEnabled:
+          type: boolean
+          nullable: true
+          description: |
+            Scheduled pre-warm: the FIRMWARE runs the cup-warmer mat from
+            `prewarmLeadMinutes` before a scheduled wake window opens and
+            holds it until the window closes — with no tablet connected
+            and without waking the machine (the boilers stay cold).
+            Persisted in firmware (`MatPreheatEnable`), so unlike the mat
+            enable it is not re-asserted on reconnect. Clients must not
+            implement any pre-warm timing of their own. `null` = the
+            firmware does not implement scheduled pre-warm — show
+            "unavailable", never a default; a PUT is then silently inert
+            (the PUT response echoes `null` back). Also inert without a
+            mat setpoint `> 0` and at least one enabled wake schedule.
+          example: true
+        prewarmLeadMinutes:
+          type: integer
+          minimum: 0
+          maximum: 120
+          nullable: true
+          description: |
+            Minutes before a scheduled wake window that the firmware
+            starts the cup-warmer mat (`MatPreheatLeadMin`, persisted).
+            `0` = no lead (the mat starts with the window); firmware
+            default `30`. The mat takes tens of minutes to reach
+            temperature — that is why the lead exists. Out of range on a
+            PUT is a 400 (the app also clamps to `0..120` before writing,
+            because a firmware-rejected write is a silent no-op). `null`
+            = the firmware does not implement scheduled pre-warm.
+          example: 30
+        prewarmActive:
+          type: boolean
+          nullable: true
+          readOnly: true
+          description: |
+            READ-ONLY firmware status (`MatPreheatActive`): `true` when
+            the wake SCHEDULE is driving the mat right now — as opposed
+            to the user's manual toggle. This is what lets a UI EXPLAIN a
+            cup warmer that came on by itself at 06:30 (label it
+            "Pre-warming"); without it a scheduled pre-warm reads as a
+            bug. Response only — IGNORED on PUT, never written. `null` =
+            unknown (firmware without the register); never render that as
+            `false`.
+          example: false
         currentTemperature:
           type: number
           format: float
@@ -4542,6 +4638,32 @@ components:
             `null` and must tolerate the key being absent (older app
             versions); never substitute fake data.
           example: 42.5
+
+    CupWarmerPutResult:
+      type: object
+      description: |
+        Result of `PUT /api/v1/machine/cupWarmer`. The pre-warm fields are
+        present only when the request carried pre-warm fields, and are the
+        values READ BACK from the machine after the write — so `null`
+        means the firmware does not implement scheduled pre-warm and the
+        write was silently inert. The app never claims a success it cannot
+        verify.
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [accepted]
+          example: accepted
+        prewarmEnabled:
+          type: boolean
+          nullable: true
+          description: Pre-warm enable read back from the machine; `null` = unsupported firmware.
+          example: true
+        prewarmLeadMinutes:
+          type: integer
+          nullable: true
+          description: Pre-warm lead minutes read back from the machine; `null` = unsupported firmware.
+          example: 30
 
     LedStripState:
       type: object

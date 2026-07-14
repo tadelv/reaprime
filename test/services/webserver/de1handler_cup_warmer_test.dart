@@ -151,6 +151,53 @@ void main() {
       final res = await get('/api/v1/machine/cupWarmer');
       expect(res.statusCode, 404);
     });
+
+    // --- scheduled pre-warm (MMR rows 59-61) ---
+
+    test('prewarm fields report the firmware defaults on a fresh Bengle',
+        () async {
+      await wireWith(MockBengle());
+      final res = await get('/api/v1/machine/cupWarmer');
+      expect(res.statusCode, 200);
+      final body = jsonDecode(await res.readAsString()) as Map;
+      expect(body['prewarmEnabled'], isFalse);
+      expect(body['prewarmLeadMinutes'], 30, reason: 'firmware default');
+      expect(body['prewarmActive'], isFalse);
+    });
+
+    test('prewarmActive is true while the SCHEDULE is driving the mat',
+        () async {
+      final bengle = MockBengle();
+      bengle.setCupWarmerPrewarmActive(true);
+      await wireWith(bengle);
+      final res = await get('/api/v1/machine/cupWarmer');
+      final body = jsonDecode(await res.readAsString());
+      expect(body['prewarmActive'], isTrue,
+          reason: 'this is how a UI explains a cup warmer that came on by '
+              'itself at 06:30');
+    });
+
+    test('all three prewarm fields are null on firmware without the registers',
+        () async {
+      // Older firmware older firmware: rows 59-61 do not exist; the reads fail.
+      final bengle = MockBengle()..setPrewarmSupported(false);
+      await wireWith(bengle);
+      final res = await get('/api/v1/machine/cupWarmer');
+      expect(res.statusCode, 200, reason: 'degrade, never crash the endpoint');
+      final body = jsonDecode(await res.readAsString()) as Map;
+      for (final key in const [
+        'prewarmEnabled',
+        'prewarmLeadMinutes',
+        'prewarmActive',
+      ]) {
+        expect(body.containsKey(key), isTrue,
+            reason: 'the key is always present on a Bengle');
+        expect(body[key], isNull,
+            reason: '$key must be "unavailable", never invented data');
+      }
+      // The rest of the payload still works.
+      expect(body['temperature'], 0.0);
+    });
   });
 
   group('PUT /api/v1/machine/cupWarmer', () {
@@ -184,6 +231,140 @@ void main() {
     test('404 on plain DE1', () async {
       await wireWith(MockDe1());
       final res = await put('/api/v1/machine/cupWarmer', {'temperature': 60});
+      expect(res.statusCode, 404);
+    });
+
+    // --- scheduled pre-warm (MMR rows 59-61) ---
+
+    test('200 + writes the pre-warm pair into MockBengle', () async {
+      final bengle = MockBengle();
+      await wireWith(bengle);
+
+      final res = await put('/api/v1/machine/cupWarmer', {
+        'prewarmEnabled': true,
+        'prewarmLeadMinutes': 45,
+      });
+      expect(res.statusCode, 200);
+      expect(bengle.prewarmEnabled, isTrue);
+      expect(bengle.prewarmLeadMinutes, 45);
+
+      // The response echoes what the machine reports back — never an
+      // unverified success.
+      final body = jsonDecode(await res.readAsString());
+      expect(body['prewarmEnabled'], isTrue);
+      expect(body['prewarmLeadMinutes'], 45);
+    });
+
+    test('GET after PUT round-trips the pre-warm settings', () async {
+      final bengle = MockBengle();
+      await wireWith(bengle);
+      await put('/api/v1/machine/cupWarmer', {
+        'prewarmEnabled': true,
+        'prewarmLeadMinutes': 15,
+      });
+      final body = jsonDecode(await (await get(
+        '/api/v1/machine/cupWarmer',
+      )).readAsString());
+      expect(body['prewarmEnabled'], isTrue);
+      expect(body['prewarmLeadMinutes'], 15);
+    });
+
+    test('a temperature-only PUT leaves the pre-warm settings alone', () async {
+      final bengle = MockBengle();
+      await wireWith(bengle);
+      await put('/api/v1/machine/cupWarmer', {
+        'prewarmEnabled': true,
+        'prewarmLeadMinutes': 20,
+      });
+      final res = await put('/api/v1/machine/cupWarmer', {'temperature': 55});
+      expect(res.statusCode, 200);
+      expect(bengle.prewarmEnabled, isTrue);
+      expect(bengle.prewarmLeadMinutes, 20);
+    });
+
+    test('a partial pre-warm PUT keeps the machine value for the other half',
+        () async {
+      final bengle = MockBengle();
+      await wireWith(bengle);
+      await put('/api/v1/machine/cupWarmer', {
+        'prewarmEnabled': true,
+        'prewarmLeadMinutes': 20,
+      });
+      // Toggle off without restating the lead — the pair is written together,
+      // so the lead must survive.
+      final res = await put('/api/v1/machine/cupWarmer', {
+        'prewarmEnabled': false,
+      });
+      expect(res.statusCode, 200);
+      expect(bengle.prewarmEnabled, isFalse);
+      expect(bengle.prewarmLeadMinutes, 20);
+    });
+
+    test('prewarmActive is read-only: a PUT carrying it writes nothing',
+        () async {
+      final bengle = MockBengle();
+      await wireWith(bengle);
+      final res = await put('/api/v1/machine/cupWarmer', {
+        'temperature': 60,
+        'prewarmActive': true,
+      });
+      expect(res.statusCode, 200);
+      expect(await bengle.getCupWarmerPrewarmActive(), isFalse,
+          reason: 'prewarmActive is firmware status (MatPreheatActive, R) — a '
+              'client must not be able to set it');
+      expect(bengle.prewarmEnabled, isFalse,
+          reason: 'and it must not be mistaken for prewarmEnabled');
+    });
+
+    test('400 on prewarmLeadMinutes above 120', () async {
+      await wireWith(MockBengle());
+      final res = await put('/api/v1/machine/cupWarmer', {
+        'prewarmEnabled': true,
+        'prewarmLeadMinutes': 999,
+      });
+      expect(res.statusCode, 400);
+    });
+
+    test('400 on a negative prewarmLeadMinutes', () async {
+      await wireWith(MockBengle());
+      final res = await put('/api/v1/machine/cupWarmer', {
+        'prewarmLeadMinutes': -5,
+      });
+      expect(res.statusCode, 400);
+    });
+
+    test('400 when prewarmEnabled is not a boolean', () async {
+      await wireWith(MockBengle());
+      final res = await put('/api/v1/machine/cupWarmer', {
+        'prewarmEnabled': 'yes',
+      });
+      expect(res.statusCode, 400);
+    });
+
+    test('a pre-warm PUT on firmware without the registers echoes null',
+        () async {
+      final bengle = MockBengle()..setPrewarmSupported(false);
+      await wireWith(bengle);
+      final res = await put('/api/v1/machine/cupWarmer', {
+        'prewarmEnabled': true,
+        'prewarmLeadMinutes': 30,
+      });
+      expect(res.statusCode, 200, reason: 'inert, not an error');
+      final body = jsonDecode(await res.readAsString()) as Map;
+      expect(body['prewarmEnabled'], isNull,
+          reason: 'the write landed in unmapped space — never claim a success '
+              'we cannot read back');
+      expect(body['prewarmLeadMinutes'], isNull);
+      expect(bengle.prewarmEnabled, isFalse);
+    });
+
+    test('404 on plain DE1 for a pre-warm PUT (no write reaches the machine)',
+        () async {
+      await wireWith(MockDe1());
+      final res = await put('/api/v1/machine/cupWarmer', {
+        'prewarmEnabled': true,
+        'prewarmLeadMinutes': 30,
+      });
       expect(res.statusCode, 404);
     });
   });

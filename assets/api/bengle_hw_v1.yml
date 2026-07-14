@@ -1,9 +1,19 @@
 # =============================================================================
 # Bengle firmware <-> app hardware contract (bengle_hw_v1.yml)
 # =============================================================================
-# contract_version: 1
+# contract_version: 2
 #
 # Generated from firmware the firmware register table at:
+#
+# MatPreheatActive, contract_version 2) do NOT exist at the base pin above.
+#           pre-warm commit)
+#           ENTRY lines for 59/60/61)
+#
+# <sha>:.../the firmware register table on both branches):
+#     (ScaleCal*, ScaleTare, the six LED rows, TargetMilkTemp) and NO row 58
+#     (MatCurrentTemp) -- all of which the app consumes today and the flashed
+#     and break the app<->contract checker (direction: app SUBSET of contract).
+#     contract that the app deliberately does not target (the contract change protocol:
 #
 #
 # Change protocol: firmware changes a register -> regenerate this file from the
@@ -58,12 +68,13 @@
 #     addresses is discarded).
 # =============================================================================
 
-contract_version: 1
+contract_version: 2
 firmware:
   commit: 0381e7ab58eb5b5ee36c14b0bef123ea3cfe4f2e
   build: 90
   source: the firmware register table
 generated: 2026-07-11
+updated: 2026-07-14 # contract_version 2: scheduled cup-warmer pre-warm (rows 59-61)
 
 # -----------------------------------------------------------------------------
 # MMR register table
@@ -678,6 +689,64 @@ registers:
     max: 1600 # ALREADY RAW (= 160.0 degC): second the firmware register table post-divide convention violation, like TargetMilkTemp.
     unit: "degC x 10"
     semantics: "Cup-warmer current mat temperature; 0 = no valid reading (NTC open/short) -- app maps 0 to null ('no reading'), never fake data. Read resolution is whole degC despite the x10 unit (firmware truncates before scaling) -- wire values are always multiples of 10."
+
+  # --- Scheduled cup-warmer pre-warm (contract_version 2) ---------------------
+  # Rows 59-61 are ABSENT from the base firmware pin (the validated firmware build, flashed on the
+  # bench machine): they require a firmware development branch
+  # ((pinned firmware commit)) or newer -- see the header's
+  # ADDITIVE PIN block. On firmware without them a READ fails/times out (the app
+  # maps that to null = "unavailable", never fake data, and latches so it does
+  # not retry-storm) and a WRITE lands in unmapped space and is silently inert
+  # (the app therefore never claims a pre-warm success it cannot read back).
+  #
+  # The firmware owns the pre-warm TIMING: with MatPreheatEnable set it runs the
+  # mat from MatPreheatLeadMin minutes before a scheduled wake window opens and
+  # holds it until the window closes -- with no tablet connected and WITHOUT
+  # waking the machine (the boilers stay cold). The app implements no pre-warm
+  # timing of its own. The mat gate still applies (MatSetPoint > 0, NTC healthy),
+  # and the wake table + wall clock (rows 55-57) are RAM-only, so a pre-warm is
+  # inert until the tablet has connected once since power-up and re-pushed them.
+  - name: MatPreheatEnable
+    fw_row: 59
+    address: "0x008038D0"
+    length: 4
+    perms: RWD # persisted, DELIBERATELY unlike RAM-only CupWarmerMode (row 50): surviving a reboot is the point of a SCHEDULED pre-warm
+    mult: 1
+    value_kind: boolean
+    min: 0
+    max: 1
+    unit: bool
+    since: 2
+    requires_firmware: "newer firmware (contract_version 2); absent on the v1 baseline -- reads fail and the app degrades to null"
+    semantics: "Cup warmer follows the wake schedule: 0=Off, 1=On. Persisted. App surface: cupWarmer.prewarmEnabled (GET/PUT), null when the firmware lacks the register."
+
+  - name: MatPreheatLeadMin
+    fw_row: 60
+    address: "0x008038D4"
+    length: 4
+    perms: RWD # persisted
+    mult: 1
+    value_kind: int32
+    min: 0
+    max: 120
+    unit: minutes
+    since: 2
+    requires_firmware: "newer firmware (contract_version 2); absent on the v1 baseline -- reads fail and the app degrades to null"
+    semantics: "Minutes before a scheduled wake window to start the cup warmer; 0 = no lead, firmware default 30. The firmware clamps to 0-120, but a firmware-REJECTED write is a silent no-op, so the app clamps first. App surface: cupWarmer.prewarmLeadMinutes (GET/PUT)."
+
+  - name: MatPreheatActive
+    fw_row: 61
+    address: "0x008038D8"
+    length: 4
+    perms: R # read-only status; the app never writes it (a PUT carrying prewarmActive ignores it)
+    mult: 1
+    value_kind: boolean
+    min: 0
+    max: 1
+    unit: bool
+    since: 2
+    requires_firmware: "newer firmware (contract_version 2); absent on the v1 baseline -- reads fail and the app degrades to null"
+    semantics: "1 = the wake SCHEDULE is driving the mat right now (not CupWarmerMode, not the user). Exists so the UI can explain a cup warmer that came on by itself; without it a scheduled pre-warm reads as a bug. App surface: read-only cupWarmer.prewarmActive; null (unknown) on firmware without the register -- never a fabricated false."
 
 # -----------------------------------------------------------------------------
 # 0xA013 BengleShotSample -- the sole shot/telemetry source on a Bengle

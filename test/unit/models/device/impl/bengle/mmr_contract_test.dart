@@ -1,8 +1,10 @@
 // Firmware <-> app MMR contract checker (CI drift gate).
 //
 // Validates every app-declared MMR register against the machine-readable
-// firmware contract `assets/api/bengle_hw_v1.yml` (contract_version 1,
-// distilled from firmware the firmware register table @ a firmware development branch
+// firmware contract `assets/api/bengle_hw_v1.yml` (contract_version 2:
+// rows 0-58 distilled from firmware the firmware register table @ a firmware development branch
+// plus the additively-pinned pre-warm rows 59-61 from
+// the flashed the validated firmware build does NOT carry; see the contract header).
 // The MMR layout is hand-declared twice (firmware C, app Dart); this test is
 // the machine check that the two copies cannot silently drift apart.
 //
@@ -66,7 +68,7 @@ const String _contractPath = 'assets/api/bengle_hw_v1.yml';
 
 /// The contract_version this registration table was written against.
 /// Bump deliberately, together with the enum updates the new contract needs.
-const int _expectedContractVersion = 1;
+const int _expectedContractVersion = 2;
 
 /// One app-declared register under test: the app enum entry and the FIRMWARE
 /// register name of its row in bengle_hw_v1.yml.
@@ -159,6 +161,17 @@ const List<ContractEntry> entriesUnderTest = <ContractEntry>[
   ContractEntry(BengleMmr.cupWarmerMode, 'CupWarmerMode'),
   ContractEntry(BengleMmr.matCurrentTemp, 'MatCurrentTemp'),
   ContractEntry(BengleSteamMmr.stopAtTemperatureTarget, 'TargetMilkTemp'),
+
+  // ---------------------------------------------------------------------------
+  // Scheduled cup-warmer pre-warm (contract_version 2): `BengleMmr` rows 59-61.
+  // These rows are ABSENT from the base firmware pin (the validated firmware build) — they require
+  // a firmware development branch or newer. That is a RUNTIME degradation
+  // (reads -> null, writes silently inert), NOT a contract exemption: the
+  // addresses/lengths/ranges below are still asserted against the contract.
+  // ---------------------------------------------------------------------------
+  ContractEntry(BengleMmr.matPreheatEnable, 'MatPreheatEnable'),
+  ContractEntry(BengleMmr.matPreheatLeadMin, 'MatPreheatLeadMin'),
+  ContractEntry(BengleMmr.matPreheatActive, 'MatPreheatActive'),
 
   // ---------------------------------------------------------------------------
   // Wake-schedule branch: `BengleScheduleMmr` (bengle_mmr.dart).

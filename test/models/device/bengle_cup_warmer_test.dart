@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle_mmr.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
@@ -157,11 +159,199 @@ void main() {
       // Older firmware has no MatCurrentTemp register: simulate the read
       // request failing at the transport rather than waiting out the
       // MMR-read timeout ladder.
-      final failing = _MatTempReadFailsTransport();
+      final failing =
+          _MmrReadFailsTransport({BengleMmr.matCurrentTemp.address});
       final b = Bengle(transport: failing);
       failing.queueOnConnectResponses(v13Model: 128);
       await b.onConnect();
       expect(await b.getCupWarmerCurrentTemperature(), isNull);
+      failing.dispose();
+    });
+
+    // --- Scheduled pre-warm: MatPreheatEnable / LeadMin / Active (rows 59-61)
+
+    test('setCupWarmerPrewarm writes 1 to MatPreheatEnable and the lead to '
+        'MatPreheatLeadMin', () async {
+      transport.writes.clear();
+      await bengle.setCupWarmerPrewarm(true, 45);
+
+      final enable = writesTo(BengleMmr.matPreheatEnable.address);
+      expect(enable, isNotEmpty,
+          reason: 'MatPreheatEnable (0x008038D0) must be written');
+      expect(payloadOf(enable.last), equals(1));
+
+      final lead = writesTo(BengleMmr.matPreheatLeadMin.address);
+      expect(lead, isNotEmpty,
+          reason: 'MatPreheatLeadMin (0x008038D4) must be written');
+      expect(payloadOf(lead.last), equals(45));
+    });
+
+    test('setCupWarmerPrewarm(false, …) writes 0 to MatPreheatEnable',
+        () async {
+      transport.writes.clear();
+      await bengle.setCupWarmerPrewarm(false, 30);
+      expect(payloadOf(writesTo(BengleMmr.matPreheatEnable.address).last),
+          equals(0));
+      expect(payloadOf(writesTo(BengleMmr.matPreheatLeadMin.address).last),
+          equals(30));
+    });
+
+    test('lead minutes clamp at the bottom (-5 → 0)', () async {
+      transport.writes.clear();
+      await bengle.setCupWarmerPrewarm(true, -5);
+      expect(payloadOf(writesTo(BengleMmr.matPreheatLeadMin.address).last),
+          equals(0),
+          reason: 'a negative lead must never reach the wire — the FW clamps '
+              'too, but a rejected write is a silent no-op');
+    });
+
+    test('lead minutes clamp at the top (999 → 120)', () async {
+      transport.writes.clear();
+      await bengle.setCupWarmerPrewarm(true, 999);
+      expect(payloadOf(writesTo(BengleMmr.matPreheatLeadMin.address).last),
+          equals(120));
+    });
+
+    test('setCupWarmerPrewarm never writes the read-only MatPreheatActive',
+        () async {
+      transport.writes.clear();
+      await bengle.setCupWarmerPrewarm(true, 30);
+      expect(writesTo(BengleMmr.matPreheatActive.address), isEmpty,
+          reason: 'MatPreheatActive (0x008038D8) is firmware status — the app '
+              'never writes it');
+    });
+
+    test('getCupWarmerPrewarm reads MatPreheatEnable + MatPreheatLeadMin',
+        () async {
+      transport.queueMmrResponseInt(BengleMmr.matPreheatEnable, 1);
+      transport.queueMmrResponseInt(BengleMmr.matPreheatLeadMin, 45);
+      final prewarm = await bengle.getCupWarmerPrewarm();
+      expect(prewarm, isNotNull);
+      expect(prewarm!.enabled, isTrue);
+      expect(prewarm.leadMinutes, 45);
+    });
+
+    test('getCupWarmerPrewarmActive maps raw 1 to true (schedule driving the '
+        'mat)', () async {
+      transport.queueMmrResponseInt(BengleMmr.matPreheatActive, 1);
+      expect(await bengle.getCupWarmerPrewarmActive(), isTrue);
+    });
+
+    test('getCupWarmerPrewarmActive maps raw 0 to false', () async {
+      transport.queueMmrResponseInt(BengleMmr.matPreheatActive, 0);
+      expect(await bengle.getCupWarmerPrewarmActive(), isFalse);
+    });
+
+    test('getCupWarmerPrewarm returns null on firmware without the registers',
+        () async {
+      // Older firmware (older firmware) has no rows 59-61: the read fails.
+      final failing = _MmrReadFailsTransport({
+        BengleMmr.matPreheatEnable.address,
+        BengleMmr.matPreheatLeadMin.address,
+        BengleMmr.matPreheatActive.address,
+      });
+      final b = Bengle(transport: failing);
+      failing.queueOnConnectResponses(v13Model: 128);
+      await b.onConnect(); // must not throw — degradation, not a crash
+      expect(await b.getCupWarmerPrewarm(), isNull,
+          reason: 'absent registers ⇒ "unavailable", never invented settings');
+      expect(await b.getCupWarmerPrewarmActive(), isNull,
+          reason: 'never fabricate prewarmActive: false — the truth is that we '
+              'cannot tell');
+      failing.dispose();
+    });
+
+    test('a failed pre-warm read latches: no retry storm on later polls',
+        () async {
+      final failing = _MmrReadFailsTransport({
+        BengleMmr.matPreheatEnable.address,
+        BengleMmr.matPreheatLeadMin.address,
+        BengleMmr.matPreheatActive.address,
+      });
+      final b = Bengle(transport: failing);
+      failing.queueOnConnectResponses(v13Model: 128);
+      await b.onConnect();
+
+      expect(await b.getCupWarmerPrewarm(), isNull);
+      final attemptsAfterFirst = failing.mmrReadAttempts;
+      expect(attemptsAfterFirst, greaterThan(0),
+          reason: 'the first read is genuinely attempted');
+
+      // A polled REST client hits GET /cupWarmer repeatedly; none of these may
+      // re-enter the MMR read timeout ladder.
+      for (var i = 0; i < 5; i++) {
+        expect(await b.getCupWarmerPrewarm(), isNull);
+        expect(await b.getCupWarmerPrewarmActive(), isNull);
+      }
+      expect(failing.mmrReadAttempts, attemptsAfterFirst,
+          reason: 'the unsupported latch must suppress every later read');
+      failing.dispose();
+    });
+
+    test('polls that land INSIDE the first read share it: one ladder, not one '
+        'per poll', () async {
+      // The latch above can only be set once a read RESOLVES, and on the validated firmware build
+      // the read does not fail fast: the firmware ACCEPTS the request and never
+      // answers, so it fails only when the MMR timeout ladder gives up, seconds
+      // later. The REST surface is polled every ~5 s. Every poll inside that
+      // window therefore still sees `_prewarmUnsupported == false` — and
+      // without a single-flight guard each opens its own ladder, which is
+      // precisely the storm the latch exists to prevent.
+      final failing = _MmrReadFailsTransport({
+        BengleMmr.matPreheatEnable.address,
+        BengleMmr.matPreheatLeadMin.address,
+        BengleMmr.matPreheatActive.address,
+      });
+      failing.holdFailingReads(); // the firmware "never answers" — yet
+      final b = Bengle(transport: failing);
+      failing.queueOnConnectResponses(v13Model: 128);
+      await b.onConnect();
+
+      // Three polls arrive while the first read is still open on the wire.
+      final polls = [
+        b.getCupWarmerPrewarm(),
+        b.getCupWarmerPrewarm(),
+        b.getCupWarmerPrewarm(),
+      ];
+      await pumpEventQueue();
+      expect(failing.mmrReadAttempts, 1,
+          reason: 'concurrent polls must await the ONE in-flight read, not each '
+              'open their own timeout ladder');
+
+      failing.releaseFailingReads(); // the ladder finally gives up
+      expect(await Future.wait(polls), everyElement(isNull),
+          reason: 'every caller gets the same honest "unavailable"');
+
+      // …and the latch, now set, absorbs the polls that follow.
+      expect(await b.getCupWarmerPrewarm(), isNull);
+      expect(await b.getCupWarmerPrewarmActive(), isNull);
+      expect(failing.mmrReadAttempts, 1,
+          reason: 'the whole degradation costs exactly one read attempt');
+      failing.dispose();
+    });
+
+    test('the unsupported latch is re-probed on reconnect', () async {
+      final failing = _MmrReadFailsTransport({
+        BengleMmr.matPreheatEnable.address,
+        BengleMmr.matPreheatLeadMin.address,
+      });
+      final b = Bengle(transport: failing);
+      failing.queueOnConnectResponses(v13Model: 128);
+      await b.onConnect();
+      expect(await b.getCupWarmerPrewarm(), isNull); // latches
+
+      // Machine reflashed with pre-warm firmware, app reconnects.
+      await b.disconnect();
+      failing.queueOnConnectResponses(v13Model: 128);
+      failing.stopFailing();
+      await b.onConnect();
+      failing.queueMmrResponseInt(BengleMmr.matPreheatEnable, 1);
+      failing.queueMmrResponseInt(BengleMmr.matPreheatLeadMin, 30);
+
+      final prewarm = await b.getCupWarmerPrewarm();
+      expect(prewarm, isNotNull,
+          reason: 'the latch is per-connection — a reconnect re-probes');
+      expect(prewarm!.leadMinutes, 30);
       failing.dispose();
     });
   });
@@ -189,24 +379,99 @@ void main() {
       expect(writesTo(BengleMmr.cupWarmerMode.address), isEmpty);
       transport.dispose();
     });
+
+    test('a plain DE1 connect never touches the MatPreheat registers',
+        () async {
+      final transport = FakeBleTransport();
+      final de1 = UnifiedDe1(transport: transport);
+      transport.queueOnConnectResponses(); // v13Model: 1 — plain DE1
+      await de1.onConnect();
+
+      bool touched(int address) {
+        final ba = ByteData(4)..setInt32(0, address, Endian.big);
+        return transport.writes.any((w) =>
+            (w.characteristicUUID == Endpoint.writeToMMR.uuid ||
+                w.characteristicUUID == Endpoint.readFromMMR.uuid) &&
+            w.data.length >= 4 &&
+            w.data[1] == ba.getUint8(1) &&
+            w.data[2] == ba.getUint8(2) &&
+            w.data[3] == ba.getUint8(3));
+      }
+
+      expect(touched(BengleMmr.matPreheatEnable.address), isFalse,
+          reason: 'pre-warm is Bengle-only: a DE1 must see neither a write nor '
+              'a read of 0x008038D0');
+      expect(touched(BengleMmr.matPreheatLeadMin.address), isFalse);
+      expect(touched(BengleMmr.matPreheatActive.address), isFalse);
+      transport.dispose();
+    });
+
+    test('the pre-warm API is not reachable on a plain DE1 (compile-time '
+        'gate)', () {
+      final transport = FakeBleTransport();
+      final de1 = UnifiedDe1(transport: transport);
+      // The REST layer's `de1 is! BengleInterface -> 404` gate is exactly this
+      // type test: a plain DE1 exposes no pre-warm surface to write with.
+      expect(de1 is BengleInterface, isFalse);
+      transport.dispose();
+    });
   });
 }
 
-/// Fails any MMR read request that targets `MatCurrentTemp` — simulates
-/// older firmware where the register does not exist and the transport/
-/// read path errors instead of answering.
-class _MatTempReadFailsTransport extends FakeBleTransport {
+/// Fails any MMR read request that targets one of [_failAddresses] —
+/// simulates older firmware where the register does not exist and the
+/// transport/read path errors instead of answering.
+///
+/// [mmrReadAttempts] counts the read requests that actually reached the
+/// wire for those addresses, so a test can prove the app does NOT keep
+/// re-asking a firmware that has already answered "not mapped" (retry storm).
+class _MmrReadFailsTransport extends FakeBleTransport {
+  _MmrReadFailsTransport(this._failAddresses);
+
+  final Set<int> _failAddresses;
+
+  /// Read requests to [_failAddresses] seen on the wire.
+  int mmrReadAttempts = 0;
+
+  bool _failing = true;
+
+  /// Holds a failing read OPEN instead of failing it immediately — the real
+  /// the validated firmware build behaviour, and the one that matters: the firmware ACCEPTS the
+  /// read request and simply never answers, so the app only learns of the
+  /// failure when its MMR timeout ladder gives up, seconds later. Everything
+  /// the app does in that window (poll, poll, poll) happens with the
+  /// "unsupported" latch still unset. [releaseFailingReads] plays the ladder
+  /// giving up.
+  Completer<void>? _held;
+
+  void holdFailingReads() => _held ??= Completer<void>();
+
+  void releaseFailingReads() {
+    final held = _held;
+    _held = null;
+    held?.complete();
+  }
+
+  /// Simulate the machine being reflashed with firmware that HAS the
+  /// registers: subsequent reads are answered normally.
+  void stopFailing() => _failing = false;
+
   @override
   Future<void> write(
       String serviceUUID, String characteristicUUID, Uint8List data,
       {bool withResponse = true, Duration? timeout}) async {
     if (characteristicUUID == Endpoint.readFromMMR.uuid && data.length >= 4) {
-      final ba = ByteData(4)
-        ..setInt32(0, BengleMmr.matCurrentTemp.address, Endian.big);
-      if (data[1] == ba.getUint8(1) &&
-          data[2] == ba.getUint8(2) &&
-          data[3] == ba.getUint8(3)) {
-        throw Exception('simulated: MatCurrentTemp not mapped on this FW');
+      for (final address in _failAddresses) {
+        final ba = ByteData(4)..setInt32(0, address, Endian.big);
+        if (data[1] == ba.getUint8(1) &&
+            data[2] == ba.getUint8(2) &&
+            data[3] == ba.getUint8(3)) {
+          mmrReadAttempts++;
+          if (_failing) {
+            await _held?.future;
+            throw Exception('simulated: register not mapped on this FW');
+          }
+        }
       }
     }
     return super.write(serviceUUID, characteristicUUID, data,

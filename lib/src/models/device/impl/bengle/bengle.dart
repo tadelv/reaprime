@@ -50,6 +50,126 @@ class Bengle extends UnifiedDe1
     }
   }
 
+  // --- Scheduled cup-warmer pre-warm (contract v2, firmware register-table rows 59-61) -------
+  //
+  // The FIRMWARE owns the timing (it runs the mat from MatPreheatLeadMin
+  // minutes before a wake window opens and holds it until the window closes,
+  // with no tablet connected and without waking the machine). This is pure
+  // register plumbing — the app implements NO pre-warm timing.
+  //
+  // Both settings are PERSISTED in firmware (PERM_RWD), unlike the RAM-only
+  // CupWarmerMode, so — deliberately — nothing is re-asserted in onConnect.
+
+  /// Latched once a pre-warm register read fails: the firmware does not have
+  /// rows 59–61 (older firmware does not). Prevents a retry storm —
+  /// every polled `GET /api/v1/machine/cupWarmer` would otherwise burn the full
+  /// MMR read timeout ladder — and keeps the log to a single line.
+  ///
+  /// The latch alone is NOT enough: it can only be set once a read RESOLVES,
+  /// and on firmware without the registers that takes the whole timeout ladder
+  /// (the firmware ACCEPTS the read request and simply never answers it). The
+  /// single-flight handles below cover that window — see [getCupWarmerPrewarm].
+  bool _prewarmUnsupported = false;
+
+  /// The in-flight pre-warm reads, shared by every concurrent caller.
+  ///
+  /// `null` ⇒ nothing in flight. Cleared when the read resolves (and dropped in
+  /// [onConnect], so a fresh connection never piggybacks a read issued on the
+  /// transport it just replaced).
+  Future<CupWarmerPrewarm?>? _prewarmRead;
+  Future<bool?>? _prewarmActiveRead;
+
+  @override
+  Future<void> setCupWarmerPrewarm(bool enabled, int leadMinutes) async {
+    // Clamp before the write: writeMmrInt clamps to the enum's declared 0..120
+    // as well, but the app must not depend on the FIRMWARE's clamp — a write
+    // the firmware rejects is a silent no-op, not an error.
+    final lead = leadMinutes.clamp(0, 120);
+    await writeMmrInt(BengleMmr.matPreheatEnable, enabled ? 1 : 0);
+    await writeMmrInt(BengleMmr.matPreheatLeadMin, lead);
+  }
+
+  @override
+  Future<CupWarmerPrewarm?> getCupWarmerPrewarm() {
+    // Defensive read: rows 59/60 exist only on firmware carrying the pre-warm
+    // change. Absent ⇒ null ("unavailable"), never fabricated settings.
+    if (_prewarmUnsupported) return Future.value(null);
+    // Single-flight. On firmware without the registers this read does not fail
+    // fast: the firmware accepts the request and never answers, so it fails
+    // only when the MMR read timeout ladder gives up — seconds later. The REST
+    // surface is polled far faster than that (the skin's cup-warmer page every
+    // ~5 s, its header every 60 s), so callers arrive WHILE the first read is
+    // still open, when [_prewarmUnsupported] is necessarily still false. Each
+    // would open its own ladder, i.e. exactly the storm the latch exists to
+    // prevent. Sharing the in-flight future means one ladder per connection,
+    // full stop; the latch then absorbs every later poll.
+    return _prewarmRead ??= _singleFlight(
+      _readPrewarm(),
+      (done) {
+        if (identical(_prewarmRead, done)) _prewarmRead = null;
+      },
+    );
+  }
+
+  @override
+  Future<bool?> getCupWarmerPrewarmActive() {
+    // Read-only status (row 61). Absent ⇒ null ("unknown") — never a
+    // fabricated `false`, which would claim the schedule is NOT driving the
+    // mat when the truth is that we cannot tell.
+    if (_prewarmUnsupported) return Future.value(null);
+    // Single-flight, for the same reason as getCupWarmerPrewarm above. Two
+    // concurrent GETs share one read, so they also share one instant's answer —
+    // which is what a status flag sampled at the same moment means anyway.
+    return _prewarmActiveRead ??= _singleFlight(
+      _readPrewarmActive(),
+      (done) {
+        if (identical(_prewarmActiveRead, done)) _prewarmActiveRead = null;
+      },
+    );
+  }
+
+  /// Registers [clear] to release the handle for [read] once it resolves, and
+  /// hands back the same future so every caller awaits the ONE read. The
+  /// identity check in [clear] means a read left over from a previous
+  /// connection cannot release a fresher one's handle.
+  Future<T> _singleFlight<T>(Future<T> read, void Function(Future<T>) clear) {
+    read.whenComplete(() => clear(read));
+    return read;
+  }
+
+  Future<CupWarmerPrewarm?> _readPrewarm() async {
+    try {
+      final enabled = await readMmrInt(BengleMmr.matPreheatEnable);
+      final lead = await readMmrInt(BengleMmr.matPreheatLeadMin);
+      return CupWarmerPrewarm(enabled: enabled == 1, leadMinutes: lead);
+    } on Exception catch (e) {
+      _markPrewarmUnsupported(e);
+      return null;
+    }
+  }
+
+  Future<bool?> _readPrewarmActive() async {
+    try {
+      return await readMmrInt(BengleMmr.matPreheatActive) == 1;
+    } on Exception catch (e) {
+      _markPrewarmUnsupported(e);
+      return null;
+    }
+  }
+
+  /// Logs the degradation ONCE and latches it. Firmware without rows 59–61 is
+  /// an expected configuration (the validated firmware build), not an error to shout about on
+  /// every poll.
+  void _markPrewarmUnsupported(Object e) {
+    if (_prewarmUnsupported) return;
+    _prewarmUnsupported = true;
+    log.info(
+      'MatPreheat registers (firmware register-table rows 59-61) unavailable on this '
+      'firmware — scheduled cup-warmer pre-warm reported as unsupported '
+      'for this connection: $e',
+    );
+  }
+
   /// Bengle FW requires entering state 0x22 (`MachineState.fwUpgrade`) between
   /// the `requestState(sleeping)` step and the start of `.dat` upload.
   /// DE1 doesn't need this — see [UnifiedDe1.beforeFirmwareUpload]
@@ -159,6 +279,15 @@ class Bengle extends UnifiedDe1
 
   @override
   Future<void> onConnect() async {
+    // A reconnect may be to firmware that DOES have rows 59-61 (e.g. after a
+    // firmware update in the same app session), so re-probe rather than
+    // carrying the "unsupported" latch across connections. The in-flight
+    // handles go with it: a read still open on the transport we just replaced
+    // is dead, and a caller on the NEW connection must issue its own rather
+    // than await that one's corpse.
+    _prewarmUnsupported = false;
+    _prewarmRead = null;
+    _prewarmActiveRead = null;
     await super.onConnect();
     await initIntegratedScale();
     await initScaleCalibration();

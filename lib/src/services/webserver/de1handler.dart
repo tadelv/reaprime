@@ -117,7 +117,20 @@ class De1Handler {
         // valid reading or older firmware without the register — clients
         // render a placeholder, never fake data.
         final current = await de1.getCupWarmerCurrentTemperature();
-        return jsonOk({'temperature': t, 'currentTemperature': current});
+        // Scheduled pre-warm (MatPreheatEnable/LeadMin, persisted settings)
+        // and the read-only MatPreheatActive status ("the SCHEDULE is driving
+        // the mat right now" — the answer to why the warmer came on by
+        // itself). All three are `null` on firmware without the registers:
+        // "unavailable", never faked.
+        final prewarm = await de1.getCupWarmerPrewarm();
+        final prewarmActive = await de1.getCupWarmerPrewarmActive();
+        return jsonOk({
+          'temperature': t,
+          'currentTemperature': current,
+          'prewarmEnabled': prewarm?.enabled,
+          'prewarmLeadMinutes': prewarm?.leadMinutes,
+          'prewarmActive': prewarmActive,
+        });
       });
     });
 
@@ -127,15 +140,83 @@ class De1Handler {
           return jsonNotFound({'error': 'cupWarmer not supported'});
         }
         final json = jsonDecode(await r.readAsString());
-        if (json is! Map || json['temperature'] == null) {
-          return jsonBadRequest({'error': 'temperature required'});
+        if (json is! Map) {
+          return jsonBadRequest({'error': 'expected a JSON object body'});
         }
-        final t = parseDouble(json['temperature']);
-        if (t < 0.0 || t > 80.0) {
-          return jsonBadRequest({'error': 'temperature out of range 0.0-80.0'});
+        // `prewarmActive` is READ-ONLY (firmware status): silently ignored in
+        // a request body, never written — like currentTemperature.
+        final hasTemperature = json['temperature'] != null;
+        final hasPrewarm =
+            json['prewarmEnabled'] != null || json['prewarmLeadMinutes'] != null;
+        if (!hasTemperature && !hasPrewarm) {
+          return jsonBadRequest({
+            'error':
+                'temperature required (or prewarmEnabled / '
+                'prewarmLeadMinutes)',
+          });
         }
-        await de1.setCupWarmerTemperature(t);
-        return jsonOk({'status': 'accepted'});
+
+        double? t;
+        if (hasTemperature) {
+          t = parseDouble(json['temperature']);
+          if (t < 0.0 || t > 80.0) {
+            return jsonBadRequest({
+              'error': 'temperature out of range 0.0-80.0',
+            });
+          }
+        }
+
+        // Pre-warm is a PAIR of firmware registers written together, so a
+        // partial request needs the other half: take it from the machine's
+        // current (persisted) state, falling back to the firmware defaults.
+        bool? prewarmEnabled;
+        int? prewarmLeadMinutes;
+        if (hasPrewarm) {
+          final enabledRaw = json['prewarmEnabled'];
+          if (enabledRaw != null && enabledRaw is! bool) {
+            return jsonBadRequest({'error': 'prewarmEnabled must be a boolean'});
+          }
+          final leadRaw = json['prewarmLeadMinutes'];
+          int? lead;
+          if (leadRaw != null) {
+            lead = leadRaw is int ? leadRaw : int.tryParse('$leadRaw');
+            if (lead == null) {
+              return jsonBadRequest({
+                'error': 'prewarmLeadMinutes must be an integer',
+              });
+            }
+            if (lead < 0 || lead > 120) {
+              return jsonBadRequest({
+                'error': 'prewarmLeadMinutes out of range 0-120',
+              });
+            }
+          }
+          final currentPrewarm = await de1.getCupWarmerPrewarm();
+          prewarmEnabled = enabledRaw as bool? ?? currentPrewarm?.enabled ?? false;
+          prewarmLeadMinutes =
+              lead ?? currentPrewarm?.leadMinutes ?? 30; // FW default
+        }
+
+        if (t != null) {
+          await de1.setCupWarmerTemperature(t);
+        }
+        if (prewarmEnabled != null && prewarmLeadMinutes != null) {
+          await de1.setCupWarmerPrewarm(prewarmEnabled, prewarmLeadMinutes);
+        }
+
+        if (!hasPrewarm) {
+          return jsonOk({'status': 'accepted'});
+        }
+        // Never claim a success we cannot verify: on firmware without the
+        // registers the writes above landed in unmapped space and did nothing,
+        // so echo what the machine actually reports back (`null` = the
+        // firmware does not support pre-warm).
+        final applied = await de1.getCupWarmerPrewarm();
+        return jsonOk({
+          'status': 'accepted',
+          'prewarmEnabled': applied?.enabled,
+          'prewarmLeadMinutes': applied?.leadMinutes,
+        });
       });
     });
 

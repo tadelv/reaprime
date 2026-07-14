@@ -29,6 +29,48 @@ abstract class BengleInterface extends De1Interface {
   /// Implementations must never substitute fake data for `null`.
   Future<double?> getCupWarmerCurrentTemperature();
 
+  // --- Scheduled cup-warmer pre-warm (contract v2) ----------------------------
+  //
+  // The FIRMWARE owns the timing: with `MatPreheatEnable` set it runs the mat
+  // from `MatPreheatLeadMin` minutes before a scheduled wake window opens and
+  // holds it until the window closes — with no tablet connected and WITHOUT
+  // waking the machine (the boilers stay cold). The app implements NO pre-warm
+  // timing of its own: it writes the two settings and reads the status flag.
+  //
+  // Both settings are persisted in firmware (unlike the RAM-only cup-warmer
+  // enable), so they are NOT re-asserted on connect. The registers exist only
+  // on firmware carrying firmware register-table rows 59–61 (a firmware development branch or
+  // newer) — older firmware does NOT have them — so every read
+  // here degrades to `null` ("unavailable"), never to fabricated data.
+
+  /// Enable/disable the firmware's scheduled cup-warmer pre-warm and set the
+  /// lead time in [leadMinutes] (`MatPreheatEnable` + `MatPreheatLeadMin`).
+  ///
+  /// [leadMinutes] is CLAMPED to `0..120`: the firmware clamps too, but a
+  /// firmware-rejected write is a silent no-op, so the app must not rely on
+  /// it. `0` = no lead (the mat starts with the window).
+  ///
+  /// The pre-warm additionally needs a mat setpoint (`> 0`, see
+  /// [setCupWarmerTemperature]) and at least one wake window
+  /// ([pushWakeSchedule]) — enabling it with an empty schedule silently does
+  /// nothing. On firmware without the registers the writes land in unmapped
+  /// space and are silently inert; callers confirm via [getCupWarmerPrewarm]
+  /// (`null` ⇒ unsupported) and must not claim a success they cannot verify.
+  Future<void> setCupWarmerPrewarm(bool enabled, int leadMinutes);
+
+  /// Read the scheduled pre-warm settings back (`MatPreheatEnable` +
+  /// `MatPreheatLeadMin`), or `null` when the firmware does not have the
+  /// registers (the read is defensive — failure ⇒ absent, never fake data).
+  Future<CupWarmerPrewarm?> getCupWarmerPrewarm();
+
+  /// Read the read-only `MatPreheatActive` status: `true` when the wake
+  /// SCHEDULE is driving the mat right now (as opposed to the user's manual
+  /// toggle) — the answer to "why did the cup warmer come on by itself?".
+  ///
+  /// `null` = unknown, i.e. firmware without the register; never fabricate a
+  /// `false`. Implementations never write this register.
+  Future<bool?> getCupWarmerPrewarmActive();
+
   /// Live snapshot stream from the integrated scale.
   ///
   /// Real `Bengle` wires this to `IntegratedScaleCapability.weightSnapshot`
@@ -194,4 +236,34 @@ abstract class BengleInterface extends De1Interface {
   /// no replay, latest-only consumers should track themselves. Real
   /// `Bengle` never emits today; `MockBengle` synthesises during steam.
   Stream<double> get probeTemperature;
+}
+
+/// The firmware's persisted scheduled-pre-warm settings: `MatPreheatEnable`
+/// (row 59) + `MatPreheatLeadMin` (row 60), read back as a pair.
+///
+/// The whole object is `null` — never a half-populated instance — when the
+/// firmware does not carry the registers (see
+/// [BengleInterface.getCupWarmerPrewarm]).
+class CupWarmerPrewarm {
+  const CupWarmerPrewarm({required this.enabled, required this.leadMinutes});
+
+  /// `MatPreheatEnable`: the cup warmer follows the wake schedule.
+  final bool enabled;
+
+  /// `MatPreheatLeadMin`: minutes before a wake window that the mat starts.
+  /// `0..120`; firmware default 30.
+  final int leadMinutes;
+
+  @override
+  bool operator ==(Object other) =>
+      other is CupWarmerPrewarm &&
+      other.enabled == enabled &&
+      other.leadMinutes == leadMinutes;
+
+  @override
+  int get hashCode => Object.hash(enabled, leadMinutes);
+
+  @override
+  String toString() =>
+      'CupWarmerPrewarm(enabled: $enabled, leadMinutes: $leadMinutes)';
 }

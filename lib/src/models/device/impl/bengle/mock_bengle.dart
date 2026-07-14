@@ -55,6 +55,62 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
     _matCurrentTemp = celsius;
   }
 
+  // --- scheduled cup-warmer pre-warm (contract v2) ---
+  //
+  // Models the firmware honestly: the two settings are PERSISTED (a
+  // [simulateReboot] does not clear them, unlike the clock and the wake
+  // table), and `prewarmActive` is READ-ONLY — nothing in the public API can
+  // set it, only the [setCupWarmerPrewarmActive] test hook (standing in for
+  // the firmware's own scheduler).
+
+  bool _prewarmEnabled = false;
+  int _prewarmLeadMinutes = 30; // FW default
+  bool _prewarmActive = false;
+
+  /// Simulates firmware WITHOUT firmware register-table rows 59–61 (e.g. the bench-flashed
+  /// the validated firmware build): the reads report "unavailable" (`null`) and the writes are
+  /// silently inert, exactly like a write into unmapped MMR space.
+  bool _prewarmSupported = true;
+
+  /// Test hook: does this simulated firmware carry the pre-warm registers?
+  /// `false` reproduces the older-firmware degradation path end to end.
+  void setPrewarmSupported(bool supported) {
+    _prewarmSupported = supported;
+  }
+
+  /// The last `MatPreheatEnable` written (`false` when never written).
+  bool get prewarmEnabled => _prewarmEnabled;
+
+  /// The last `MatPreheatLeadMin` written (firmware default 30).
+  int get prewarmLeadMinutes => _prewarmLeadMinutes;
+
+  /// Test hook: the FIRMWARE-owned `MatPreheatActive` status — the schedule is
+  /// driving the mat right now. Read-only over the public API.
+  void setCupWarmerPrewarmActive(bool active) {
+    _prewarmActive = active;
+  }
+
+  @override
+  Future<void> setCupWarmerPrewarm(bool enabled, int leadMinutes) async {
+    // Writes into unmapped space are silently inert on firmware without the
+    // registers — no throw, no effect.
+    if (!_prewarmSupported) return;
+    _prewarmEnabled = enabled;
+    _prewarmLeadMinutes = leadMinutes.clamp(0, 120);
+  }
+
+  @override
+  Future<CupWarmerPrewarm?> getCupWarmerPrewarm() async => _prewarmSupported
+      ? CupWarmerPrewarm(
+          enabled: _prewarmEnabled,
+          leadMinutes: _prewarmLeadMinutes,
+        )
+      : null;
+
+  @override
+  Future<bool?> getCupWarmerPrewarmActive() async =>
+      _prewarmSupported ? _prewarmActive : null;
+
   // --- LED strip ---
   /// Cache of the last-set config (not necessarily committed to NVM).
   final BehaviorSubject<LedStripState> _ledState =
@@ -243,8 +299,9 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
   Future<int> readScheduleControl() async => _scheduleControl;
 
   /// Test hook: simulate a machine power-cycle. The clock and the schedule
-  /// table are RAM-only in firmware and do not survive; the sleep timeout is
-  /// persisted and does.
+  /// table are RAM-only in firmware and do not survive; the sleep timeout and
+  /// the pre-warm settings (`MatPreheatEnable` / `MatPreheatLeadMin`, both
+  /// PERM_RWD) are persisted and do.
   void simulateReboot() {
     _localTimeOfWeekEcho = 0;
     _scheduleControl = 0;

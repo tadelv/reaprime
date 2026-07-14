@@ -50,6 +50,12 @@ class _TestBengle extends TestDe1 implements BengleInterface {
   @override
   Future<double?> getCupWarmerCurrentTemperature() async => null;
   @override
+  Future<void> setCupWarmerPrewarm(bool enabled, int leadMinutes) async {}
+  @override
+  Future<CupWarmerPrewarm?> getCupWarmerPrewarm() async => null;
+  @override
+  Future<bool?> getCupWarmerPrewarmActive() async => null;
+  @override
   Stream<ScaleSnapshot> get weightSnapshot => const Stream.empty();
   @override
   Future<void> tareIntegratedScale() async {}

@@ -118,4 +118,59 @@ void main() {
       expect(await m.getCupWarmerTemperature(), 0.0);
     });
   });
+
+  group('MockBengle scheduled pre-warm', () {
+    test('defaults match the firmware: off, 30 min lead, not active', () async {
+      final m = MockBengle();
+      final prewarm = await m.getCupWarmerPrewarm();
+      expect(prewarm, const CupWarmerPrewarm(enabled: false, leadMinutes: 30));
+      expect(await m.getCupWarmerPrewarmActive(), isFalse);
+    });
+
+    test('setCupWarmerPrewarm stores the pair', () async {
+      final m = MockBengle();
+      await m.setCupWarmerPrewarm(true, 45);
+      expect(await m.getCupWarmerPrewarm(),
+          const CupWarmerPrewarm(enabled: true, leadMinutes: 45));
+    });
+
+    test('clamps the lead at both ends (-5 → 0, 999 → 120)', () async {
+      final m = MockBengle();
+      await m.setCupWarmerPrewarm(true, -5);
+      expect((await m.getCupWarmerPrewarm())!.leadMinutes, 0);
+      await m.setCupWarmerPrewarm(true, 999);
+      expect((await m.getCupWarmerPrewarm())!.leadMinutes, 120);
+    });
+
+    test('the settings are PERSISTED — they survive a reboot', () async {
+      final m = MockBengle();
+      await m.setCupWarmerPrewarm(true, 45);
+      m.simulateReboot();
+      expect(await m.getCupWarmerPrewarm(),
+          const CupWarmerPrewarm(enabled: true, leadMinutes: 45),
+          reason: 'MatPreheatEnable/LeadMin are PERM_RWD — unlike the RAM-only '
+              'CupWarmerMode, surviving a reboot is the point');
+      expect(m.wakeScheduleTable, isEmpty,
+          reason: 'the wake table, by contrast, is RAM-only and is lost');
+    });
+
+    test('prewarmActive is firmware-driven, not settable through the API',
+        () async {
+      final m = MockBengle();
+      await m.setCupWarmerPrewarm(true, 30);
+      expect(await m.getCupWarmerPrewarmActive(), isFalse,
+          reason: 'enabling pre-warm does not mean the schedule is driving the '
+              'mat right now');
+      m.setCupWarmerPrewarmActive(true); // the FW scheduler fires
+      expect(await m.getCupWarmerPrewarmActive(), isTrue);
+    });
+
+    test('firmware without the registers: reads null, writes inert', () async {
+      final m = MockBengle()..setPrewarmSupported(false);
+      await m.setCupWarmerPrewarm(true, 45); // silently inert, must not throw
+      expect(await m.getCupWarmerPrewarm(), isNull);
+      expect(await m.getCupWarmerPrewarmActive(), isNull);
+      expect(m.prewarmEnabled, isFalse);
+    });
+  });
 }
