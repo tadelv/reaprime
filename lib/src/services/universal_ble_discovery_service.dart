@@ -1,10 +1,15 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:reaprime/src/models/adapter_state.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
+import 'package:reaprime/src/models/device/remembered_device.dart';
+import 'package:reaprime/src/models/device/transport/ble_connect_exception.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
+import 'package:reaprime/src/models/device/scan_filter.dart' as domain;
 import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 import 'package:reaprime/src/services/ble/universal_ble_transport.dart';
+import 'package:reaprime/src/services/device_factory.dart';
 import 'package:reaprime/src/services/device_matcher.dart';
-import 'package:reaprime/src/models/device/scan_filter.dart' as domain;
 import 'package:rxdart/rxdart.dart';
 import 'package:universal_ble/universal_ble.dart';
 import '../models/device/device.dart';
@@ -237,6 +242,81 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
       }
     } finally {
       _currentlyScanning.remove(device.deviceId);
+    }
+  }
+
+  @override
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async {
+    final impl = remembered.implementation;
+    final tt = remembered.transportType;
+    if (impl == null || tt == null || tt != TransportType.ble) {
+      return null;
+    }
+
+    final deviceId = remembered.id;
+
+    BleDevice? bleDevice;
+    if (Platform.isIOS || Platform.isMacOS) {
+      bleDevice = await _findSystemDevice(deviceId);
+      if (bleDevice == null) {
+        log.info('Quick-connect: device $deviceId not in system cache');
+        return null;
+      }
+    } else {
+      bleDevice = BleDevice(deviceId: deviceId, name: remembered.name);
+    }
+
+    final transport = UniversalBleTransport(device: bleDevice);
+    final device = DeviceFactory.createBle(impl, transport);
+    if (device == null) {
+      log.warning('Quick-connect: DeviceFactory returned null for $impl');
+      return null;
+    }
+
+    try {
+      await _connectWithRetry(transport, device);
+      log.info('Quick-connect succeeded for $deviceId');
+      return device;
+    } catch (e, st) {
+      log.warning('Quick-connect failed for $deviceId', e, st);
+      try {
+        await device.disconnect();
+      } catch (_) {}
+      try {
+        await transport.dispose();
+      } catch (_) {}
+      return null;
+    }
+  }
+
+  Future<BleDevice?> _findSystemDevice(String deviceId) async {
+    try {
+      final systemDevices = await UniversalBle.getSystemDevices(
+        withServices: [],
+      );
+      for (final d in systemDevices) {
+        if (d.deviceId == deviceId) return d;
+      }
+    } catch (e, st) {
+      log.fine('getSystemDevices failed during quick-connect', e, st);
+    }
+    return null;
+  }
+
+  Future<void> _connectWithRetry(
+    UniversalBleTransport transport,
+    Device device,
+  ) async {
+    const timeout = Duration(seconds: 10);
+    try {
+      await device.onConnect().timeout(timeout);
+    } on BleConnectException catch (e) {
+      log.info('Quick-connect GATT error ($e), retrying once after 1s');
+      await Future.delayed(const Duration(seconds: 1));
+      try {
+        await device.disconnect();
+      } catch (_) {}
+      await device.onConnect().timeout(timeout);
     }
   }
 }
