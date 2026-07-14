@@ -13,6 +13,7 @@ import 'package:reaprime/src/models/device/impl/decent_scale/scale_serial.dart';
 import 'package:reaprime/src/models/device/impl/sensor/debug_port.dart';
 import 'package:reaprime/src/models/device/impl/sensor/sensor_basket.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'mmr_codec.dart';
 import 'serial_reconcile.dart';
 import 'usb_ids.dart';
@@ -666,6 +667,9 @@ class _DesktopSerialPort implements SerialTransport {
 
   @override
   String get name => _cachedName;
+
+  @override
+  TransportType get transportType => TransportType.serial;
 
   StreamSubscription<Uint8List>? _portSubscription;
 

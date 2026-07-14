@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle_mmr.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/machine.dart';
@@ -9,6 +10,9 @@ class Bengle extends UnifiedDe1
     with IntegratedScaleCapability, LedStripCapability
     implements BengleInterface {
   Bengle({required super.transport});
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.bengle;
 
   @override
   String get name => "Bengle";

@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 
 /// Adapter that exposes a [BengleInterface]'s integrated scale to
 /// `ScaleController` as a regular [Scale]. Lifecycle is owned by the
@@ -18,6 +20,12 @@ class BengleVirtualScale extends Scale {
 
   @override
   String get deviceId => 'bengle-internal-${_machine.deviceId}';
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.bengle;
+
+  @override
+  TransportType get transportType => _machine.transportType;
 
   @override
   String get name => 'Bengle scale';

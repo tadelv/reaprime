@@ -3,7 +3,9 @@ import 'dart:typed_data';
 
 import 'package:logging/logging.dart' as logging;
 import 'package:reaprime/src/models/device/ble_service_identifier.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/subjects.dart';
 
@@ -60,6 +62,12 @@ class Skale2Scale implements Scale {
 
   @override
   String get deviceId => _deviceId;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.skale2;
+
+  @override
+  TransportType get transportType => _transport.transportType;
 
   @override
   String get name => "Skale2";

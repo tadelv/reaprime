@@ -6,6 +6,7 @@ import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/difluid/difluid_r2_protocol.dart';
 import 'package:reaprime/src/models/device/impl/difluid/difluid_r2_sensor.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/services/device_matcher.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -30,6 +31,9 @@ class _FakeR2Transport implements BLETransport {
 
   @override
   String get name => 'DiFluid R2 301095';
+
+  @override
+  TransportType get transportType => TransportType.ble;
 
   @override
   Stream<ConnectionState> get connectionState => _states.stream;

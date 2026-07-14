@@ -5,7 +5,9 @@ import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/sensor.dart';
 
 import 'package:logging/logging.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 
 class SensorBasket implements Sensor {
   late Logger _log;
@@ -26,6 +28,12 @@ class SensorBasket implements Sensor {
 
   @override
   String get deviceId => _transport.id;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.sensorBasket;
+
+  @override
+  TransportType get transportType => _transport.transportType;
 
   @override
   disconnect() async {

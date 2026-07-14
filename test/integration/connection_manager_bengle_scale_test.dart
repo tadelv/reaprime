@@ -7,6 +7,8 @@ import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 
 import '../helpers/mock_de1_controller.dart';
@@ -27,6 +29,12 @@ class _FakeBengle implements BengleInterface {
 
   @override
   DeviceType get type => DeviceType.machine;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
+
+  @override
+  TransportType get transportType => TransportType.unknown;
 
   @override
   Stream<ConnectionState> get connectionState =>
@@ -51,6 +59,12 @@ class _FakeDe1 implements De1Interface {
 
   @override
   DeviceType get type => DeviceType.machine;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
+
+  @override
+  TransportType get transportType => TransportType.unknown;
 
   @override
   Stream<ConnectionState> get connectionState =>

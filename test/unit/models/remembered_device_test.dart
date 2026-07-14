@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/models/device/simulated_device.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 
 class _RealDevice implements Device {
   @override
@@ -12,6 +14,10 @@ class _RealDevice implements Device {
   final String name;
   @override
   final DeviceType type;
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
+  @override
+  TransportType get transportType => TransportType.unknown;
   _RealDevice(this.deviceId, this.name, this.type);
   @override
   Stream<ConnectionState> get connectionState => const Stream.empty();

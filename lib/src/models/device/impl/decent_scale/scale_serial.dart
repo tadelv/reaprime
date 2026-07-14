@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:rxdart/subjects.dart';
 
 /// Implements [TransportHandoffScale]: a USB disconnect only releases the
@@ -36,6 +38,12 @@ class HDSSerial implements Scale, TransportHandoffScale {
 
   @override
   String get deviceId => _transport.id;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.hdsSerial;
+
+  @override
+  TransportType get transportType => _transport.transportType;
 
   bool _isDisconnecting = false;
   Timer? _watchdogTimer;

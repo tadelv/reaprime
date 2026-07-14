@@ -3,6 +3,8 @@ import 'package:reaprime/src/controllers/connection/policy_resolver.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 
 class _FakeDe1 implements De1Interface {
   @override
@@ -12,6 +14,12 @@ class _FakeDe1 implements De1Interface {
 
   @override
   DeviceType get type => DeviceType.machine;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
+
+  @override
+  TransportType get transportType => TransportType.unknown;
 
   @override
   dynamic noSuchMethod(Invocation i) => null;
@@ -25,6 +33,12 @@ class _FakeScale implements Scale {
 
   @override
   DeviceType get type => DeviceType.scale;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
+
+  @override
+  TransportType get transportType => TransportType.unknown;
 
   @override
   dynamic noSuchMethod(Invocation i) => null;
