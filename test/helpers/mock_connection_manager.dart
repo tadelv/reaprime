@@ -84,7 +84,8 @@ class MockConnectionManager extends ConnectionManager {
   Future<void> connectMachine(De1Interface machine) async {}
 
   @override
-  Future<void> connectScale(device_scale.Scale scale) async {}
+  Future<ConnectionResult> connectScale(device_scale.Scale scale) async =>
+      const ConnectionResult.succeeded();
 
   @override
   Future<void> dispose() async {

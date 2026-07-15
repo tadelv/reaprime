@@ -1164,6 +1164,19 @@ void main() {
         expect(connectionManager.currentStatus.error, isNotNull);
       });
 
+      test('reports the real outcome so scan reports cannot claim success',
+          () async {
+        final okResult =
+            await connectionManager.connectScale(TestScale(deviceId: 'ok'));
+        expect(okResult.success, isTrue);
+
+        mockScaleController.shouldFailConnect = true;
+        final failResult = await connectionManager
+            .connectScale(TestScale(deviceId: 'fail-scale'));
+        expect(failResult.success, isFalse);
+        expect(failResult.error, isNotNull);
+      });
+
       test('emits scaleConnectFailed when the scale controller throws',
           () async {
         mockScaleController.shouldFailConnect = true;
