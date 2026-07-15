@@ -51,6 +51,17 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
   /// the watch scan before that kicks in.
   static const _watchRefreshInterval = Duration(minutes: 25);
 
+  final StreamController<void> _watchFailureController =
+      StreamController.broadcast();
+
+  @override
+  Stream<void> get deviceWatchFailures => _watchFailureController.stream;
+
+  /// In-flight [_startWatchScan] call. Pause/stop paths await this so
+  /// watch-start and burst-start are genuinely serialized — universal_ble
+  /// has one global scan session and ownership must be deterministic.
+  Future<void>? _watchStartInFlight;
+
   @override
   Future<void> startDeviceWatch(DeviceWatchFilter filter) async {
     _watchRequested = filter;
@@ -59,6 +70,26 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
       return;
     }
     await _startWatchScan();
+  }
+
+  @override
+  Future<void> stopDeviceWatch() async {
+    _watchRequested = null;
+    await _awaitInFlightWatchStart();
+    await _deactivateWatchScan(
+      stopOsScan: _watchScanActive && !_isScanning,
+      context: 'stopDeviceWatch',
+    );
+  }
+
+  Future<void> _awaitInFlightWatchStart() async {
+    final inflight = _watchStartInFlight;
+    if (inflight == null) return;
+    try {
+      await inflight;
+    } catch (_) {
+      // The start failed — its own error handling ran; nothing to settle.
+    }
   }
 
   /// Detach the watch's scan-stream listener. Fire-and-forget: awaiting
@@ -72,23 +103,56 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
     unawaited(sub?.cancel());
   }
 
-  @override
-  Future<void> stopDeviceWatch() async {
-    _watchRequested = null;
+  /// Single teardown path for the watch scan's local state (refresh
+  /// timer, scan-stream listener, active flag). [stopOsScan] also stops
+  /// the OS scan; pass false when something else owns or already killed
+  /// the session (burst hand-over, adapter power-off).
+  Future<void> _deactivateWatchScan({
+    required bool stopOsScan,
+    required String context,
+  }) async {
     _watchRefreshTimer?.cancel();
     _watchRefreshTimer = null;
     _cancelWatchScanSub();
-    if (_watchScanActive && !_isScanning) {
+    _watchScanActive = false;
+    if (stopOsScan) {
       try {
         await UniversalBle.stopScan();
       } catch (e, st) {
-        log.warning('stopDeviceWatch: stopScan failed', e, st);
+        log.warning('$context: stopScan failed', e, st);
       }
     }
-    _watchScanActive = false;
   }
 
-  Future<void> _startWatchScan() async {
+  /// Restart the watch scan after it lost the OS session (refresh,
+  /// post-burst resume, adapter recovery). On failure the watch is dead
+  /// and cannot self-heal: clear the request and report it so ScaleWatch
+  /// activates the legacy backoff fallback instead of staying silently
+  /// armed.
+  Future<void> _restartWatchOrReportFailure(String context) async {
+    try {
+      await _startWatchScan();
+    } catch (e, st) {
+      log.warning('$context: watch restart failed — reporting', e, st);
+      _watchRequested = null;
+      await _deactivateWatchScan(stopOsScan: false, context: context);
+      if (!_watchFailureController.isClosed) {
+        _watchFailureController.add(null);
+      }
+    }
+  }
+
+  Future<void> _startWatchScan() {
+    final start = _runWatchScanStart();
+    _watchStartInFlight = start;
+    return start.whenComplete(() {
+      if (identical(_watchStartInFlight, start)) {
+        _watchStartInFlight = null;
+      }
+    });
+  }
+
+  Future<void> _runWatchScanStart() async {
     final filter = _watchRequested;
     // _watchScanStarting guards the await window below — the adapter
     // availability replay (or a concurrent caller) arriving mid-start
@@ -117,10 +181,9 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
         // balanced (~40% duty cycle) discovers a freshly powered-on scale
         // in 1-5s while leaving most radio time to DE1 GATT traffic —
         // the duty cycle, not filtering, is what protects the DE1 link.
-        // Note: the universal_ble fork evaluates withNamePrefix
-        // plugin-side (the OS scan runs unfiltered either way), so a
-        // prefix saves platform-channel/Dart churn only; it does not
-        // keep the scan alive with the screen off.
+        // The fork evaluates withNamePrefix plugin-side (the OS scan runs
+        // unfiltered either way), so it neither hardware-filters nor
+        // keeps the scan alive with the screen off.
         platformConfig: PlatformConfig(
           android: AndroidOptions(
             scanMode: AndroidScanMode.balanced,
@@ -136,26 +199,23 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
       _watchScanStarting = false;
     }
     // Guard the start window: state may have moved while startScan was
-    // in flight.
+    // in flight. Ordered by ownership: a stop means undo the scan; a
+    // burst owns the session now (its finally-block resume restarts the
+    // watch); an adapter that left poweredOn already killed the scan and
+    // power-on recovery must find the watch inactive to restart it.
     if (_watchRequested == null) {
-      // stopDeviceWatch raced the start — undo the scan we just started
-      // or it runs orphaned forever.
       log.fine('Watch stopped during start; undoing scan');
-      _cancelWatchScanSub();
-      try {
-        await UniversalBle.stopScan();
-      } catch (e, st) {
-        log.warning('Watch start-undo stopScan failed', e, st);
-      }
+      await _deactivateWatchScan(stopOsScan: true, context: 'start-undo');
       return;
     }
     if (_isScanning) {
-      // A burst raced the start — it owns the radio now and its
-      // finally-block resume will start a fresh watch scan. Claiming
-      // active here would make that resume bail and leave a dead watch
-      // once the burst's end-of-scan stop fires.
       log.fine('Burst scan raced watch start; standing down until it ends');
-      _cancelWatchScanSub();
+      await _deactivateWatchScan(stopOsScan: false, context: 'start-burst');
+      return;
+    }
+    if (_adapterStateSubject.value != AdapterState.poweredOn) {
+      log.fine('Adapter left poweredOn during watch start; standing down');
+      await _deactivateWatchScan(stopOsScan: false, context: 'start-adapter');
       return;
     }
     _watchScanActive = true;
@@ -171,45 +231,26 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
       // start a fresh watch scan anyway.
       if (!_watchScanActive || _isScanning) return;
       log.fine('Refreshing watch scan (30-min opportunistic-downgrade guard)');
-      _cancelWatchScanSub();
-      try {
-        await UniversalBle.stopScan();
-      } catch (e, st) {
-        log.warning('Watch refresh: stopScan failed', e, st);
-      }
-      _watchScanActive = false;
-      try {
-        await _startWatchScan();
-      } catch (e, st) {
-        log.warning('Watch refresh: restart failed', e, st);
-      }
+      await _deactivateWatchScan(stopOsScan: true, context: 'watch-refresh');
+      await _restartWatchOrReportFailure('watch-refresh');
     });
   }
 
-  /// Pause the watch scan so a burst scan can own the radio. The burst's
-  /// finally-block calls [_resumeWatchAfterBurst] to bring it back.
+  /// Pause the watch scan so a burst scan can own the radio. Awaits any
+  /// in-flight watch start first so session ownership is deterministic.
+  /// The burst's finally-block calls [_resumeWatchAfterBurst].
   Future<void> _pauseWatchForBurst() async {
+    await _awaitInFlightWatchStart();
     if (!_watchScanActive) return;
     log.fine('Pausing background watch for burst scan');
-    _watchRefreshTimer?.cancel();
-    _watchRefreshTimer = null;
-    _cancelWatchScanSub();
-    try {
-      await UniversalBle.stopScan();
-    } catch (e, st) {
-      log.warning('Watch pause: stopScan failed', e, st);
-    }
-    _watchScanActive = false;
+    await _deactivateWatchScan(stopOsScan: true, context: 'watch-pause');
   }
 
   Future<void> _resumeWatchAfterBurst() async {
     if (_watchRequested == null) return;
-    try {
-      await _startWatchScan();
-    } catch (e, st) {
-      // A resume failure must never fail the burst that triggered it.
-      log.warning('Failed to resume background watch after burst', e, st);
-    }
+    // A resume failure must never fail the burst that triggered it —
+    // _restartWatchOrReportFailure never throws.
+    await _restartWatchOrReportFailure('post-burst resume');
   }
 
   /// Adapter transitions: the OS kills any running scan on power-off; a
@@ -217,21 +258,14 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
   void _onAdapterStateForWatch(AdapterState state) {
     if (state == AdapterState.poweredOff) {
       if (!_watchScanActive) return;
-      _watchRefreshTimer?.cancel();
-      _watchRefreshTimer = null;
-      _cancelWatchScanSub();
-      _watchScanActive = false;
+      unawaited(
+        _deactivateWatchScan(stopOsScan: false, context: 'adapter-off'),
+      );
     } else if (state == AdapterState.poweredOn &&
         _watchRequested != null &&
         !_watchScanActive &&
         !_isScanning) {
-      unawaited(() async {
-        try {
-          await _startWatchScan();
-        } catch (e, st) {
-          log.warning('Watch restart after adapter recovery failed', e, st);
-        }
-      }());
+      unawaited(_restartWatchOrReportFailure('adapter recovery'));
     }
   }
 

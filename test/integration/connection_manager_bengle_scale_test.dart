@@ -206,6 +206,47 @@ void main() {
         reason: 'Bengle integrated scale owns the slot — the watch must '
             'not connect an external scale into it',
       );
+      expect(mockScanner.watchActive, isFalse,
+          reason: 'nothing external to reacquire on a Bengle — no watch');
+    });
+
+    test(
+        'a late Bengle transition disarms the watch instead of restarting '
+        'it forever', () async {
+      // The watch arms legitimately while a DE1 is the machine; a Bengle
+      // then takes over. A sighting of the (still-preferred) external
+      // scale is refused — and the refusal must END the watch cycle, not
+      // restart the scan indefinitely.
+      await connectionManager.dispose();
+      mockScanner.supportsWatch = true;
+      connectionManager = ConnectionManager(
+        deviceScanner: mockScanner,
+        de1Controller: mockDe1Controller,
+        scaleController: mockScaleController,
+        settingsController: settingsController,
+      );
+      await settingsController.setPreferredScaleId('external-scale');
+
+      mockDe1Controller.de1Subject.add(_FakeDe1(deviceId: 'de1-1'));
+      await Future<void>.delayed(Duration.zero);
+      expect(mockScanner.watchActive, isTrue,
+          reason: 'DE1 machine + missing preferred scale → watch armed');
+
+      mockDe1Controller.de1Subject.add(_FakeBengle(deviceId: 'bengle-1'));
+      await Future<void>.delayed(Duration.zero);
+
+      mockScanner.addDevice(TestScale(deviceId: 'external-scale'));
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        mockScaleController.connectCalls
+            .where((s) => s.deviceId == 'external-scale'),
+        isEmpty,
+      );
+      expect(mockScanner.watchActive, isFalse,
+          reason: 'the refused sighting must disarm the watch — Bengle '
+              'owns the scale slot');
     });
 
     test(

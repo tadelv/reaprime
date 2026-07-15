@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/connection/scale_watch.dart';
-import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 
 import '../../helpers/mock_device_scanner.dart';
@@ -78,7 +77,6 @@ void main() {
     // rarely match advertised names, and the universal_ble fork filters
     // plugin-side anyway. Matching happens in Dart via DeviceMatcher.
     expect(scanner.lastWatchFilter?.namePrefix, isNull);
-    expect(scanner.lastWatchFilter?.deviceTypes, {DeviceType.scale});
   });
 
   test('arm is idempotent', () async {
@@ -224,6 +222,31 @@ void main() {
     await pump();
     expect(connectCalls, hasLength(1),
         reason: 'the re-armed watch must still react to sightings');
+  });
+
+  test('a watch-failure event disarms and falls back to legacy reconnect',
+      () async {
+    await watch.arm();
+    expect(watch.armed, isTrue);
+
+    scanner.emitWatchFailure();
+    await pump();
+
+    expect(watch.armed, isFalse,
+        reason: 'a dead watch must not stay armed — that leaves scale '
+            'reacquisition silently off');
+    expect(unavailableCalls, 1,
+        reason: 'the legacy backoff loop must take over');
+  });
+
+  test('watch-failure events after disarm are ignored', () async {
+    await watch.arm();
+    await watch.disarm();
+
+    scanner.emitWatchFailure();
+    await pump();
+
+    expect(unavailableCalls, 0);
   });
 
   test('dispose stops the watch', () async {

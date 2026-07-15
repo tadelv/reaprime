@@ -62,6 +62,15 @@ class MockDeviceScanner implements DeviceScanner {
   /// fall-back-to-legacy-backoff path in [ConnectionManager].
   Object? failNextWatchWith;
 
+  final _watchFailuresSubject = PublishSubject<void>();
+
+  /// Simulate a running watch dying without a possible restart (failed
+  /// refresh / resume / adapter recovery in the real service).
+  void emitWatchFailure() {
+    watchActive = false;
+    _watchFailuresSubject.add(null);
+  }
+
   @override
   Stream<List<Device>> get deviceStream => _deviceSubject.stream;
 
@@ -170,7 +179,11 @@ class MockDeviceScanner implements DeviceScanner {
     watchActive = false;
   }
 
+  @override
+  Stream<void> get scaleWatchFailures => _watchFailuresSubject.stream;
+
   void dispose() {
+    _watchFailuresSubject.close();
     _deviceSubject.close();
     _scanningSubject.close();
     _adapterStateSubject.close();

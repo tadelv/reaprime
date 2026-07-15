@@ -2009,7 +2009,6 @@ void main() {
           expect(mockScanner.lastWatchFilter?.namePrefix, isNull,
               reason: 'no OS name filter — remembered friendly names do not '
                   'match advertised names; Dart-side matching owns this');
-          expect(mockScanner.lastWatchFilter?.deviceTypes, {DeviceType.scale});
 
           // The load-bearing regression assertion: past the full legacy
           // backoff ladder (5→60s), no burst scan may fire — the watch
@@ -2211,6 +2210,32 @@ void main() {
           async.flushMicrotasks();
           expect(mockScanner.scanCallCount, 1,
               reason: 'watch failure must fall back to backoff bursts');
+
+          manager.dispose();
+          async.flushMicrotasks();
+        });
+      });
+
+      test('a watch that dies mid-flight falls back to legacy backoff', () {
+        fakeAsync((async) {
+          final manager = buildWatchManager();
+          settingsController.setPreferredScaleId(scaleId);
+          async.flushMicrotasks();
+          mockDe1Controller.de1Subject.add(_FakeDe1(deviceId: 'connected-de1'));
+          async.flushMicrotasks();
+          expect(mockScanner.startWatchCallCount, 1);
+
+          // Simulates a failed refresh / post-burst resume / adapter
+          // recovery inside the discovery service.
+          mockScanner.emitWatchFailure();
+          async.flushMicrotasks();
+
+          async.elapse(const Duration(seconds: 6));
+          async.flushMicrotasks();
+          expect(mockScanner.scanCallCount, 1,
+              reason: 'the legacy backoff loop must take over when the '
+                  'watch dies — scale reacquisition must never be '
+                  'silently off');
 
           manager.dispose();
           async.flushMicrotasks();

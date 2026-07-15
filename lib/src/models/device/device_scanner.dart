@@ -55,4 +55,8 @@ abstract class DeviceScanner {
 
   /// Stop a watch started with [startScaleWatch]. Idempotent.
   Future<void> stopScaleWatch();
+
+  /// Emits when a running scale watch dies and cannot be restarted.
+  /// Consumers (ScaleWatch) must fall back to the legacy reconnect loop.
+  Stream<void> get scaleWatchFailures;
 }
