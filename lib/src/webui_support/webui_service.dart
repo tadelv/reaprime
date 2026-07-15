@@ -37,14 +37,16 @@ enum SkinSource {
   id,
 }
 
-/// Injects the account-proxy skin token into served HTML so skin JS can read it
-/// from `window.__REA_PROXY_TOKEN__` and send it as `Authorization: Bearer` to
-/// the proxy on :8080. Inserted before `</head>`, else `</body>`, else
-/// prepended. Returns [html] unchanged if [token] is null/empty.
-String injectProxyTokenScript(String html, String? token) {
-  if (token == null || token.isEmpty) return html;
+String injectSkinApiScript(String html, String? token) {
+  final tokenAssignment = token == null || token.isEmpty
+      ? ''
+      : 'window.__REA_PROXY_TOKEN__=${jsonEncode(token)};';
   final script =
-      '<script>window.__REA_PROXY_TOKEN__=${jsonEncode(token)};</script>';
+      '<script>$tokenAssignment'
+      'window.decentApp=window.decentApp||{};'
+      'window.decentApp.exitToDashboard=function(){'
+      "if(window.__DECENT_HOST__)window.location.href='decent://dashboard';"
+      '};</script>';
   for (final marker in const ['</head>', '</body>']) {
     final i = html.indexOf(marker);
     if (i != -1) {
@@ -156,7 +158,7 @@ class WebUIService {
       };
     }
 
-    Future<Response> Function(Request request) proxyTokenInjector(
+    Future<Response> Function(Request request) skinApiInjector(
       Handler innerHandler,
     ) {
       return (Request request) async {
@@ -166,7 +168,7 @@ class WebUIService {
           return response;
         }
         final body = await response.readAsString();
-        final injected = injectProxyTokenScript(body, skinProxyToken);
+        final injected = injectSkinApiScript(body, skinProxyToken);
         // Drop content-length: the body length changed and shelf recomputes it.
         final headers = Map<String, String>.from(response.headers)
           ..remove('content-length');
@@ -186,7 +188,7 @@ class WebUIService {
     final handler = const Pipeline()
         .addMiddleware(logRequests())
         .addMiddleware(expirationModifier)
-        .addMiddleware(proxyTokenInjector)
+        .addMiddleware(skinApiInjector)
         .addHandler(webUI.call);
 
     try {
