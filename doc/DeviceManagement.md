@@ -267,6 +267,7 @@ Transition owners (where the `publish(phase: …)` call lives):
 |-----------------------------------------|---------------------------------------------------------|
 | `idle → connectingMachine` (QC)         | `ConnectionManager._connectImpl` (before QC attempt)    |
 | `connectingMachine → ready` (QC)        | `ConnectionManager._connectImpl` (after machine adoption)|
+| `connectingMachine → scanning` (QC fail)| `ScanOrchestrator.runScan` (QC returned null)            |
 | `idle → scanning`                       | `ScanOrchestrator.runScan`                              |
 | `scanning → idle` (scan failure)        | `ScanOrchestrator._emitScanStartError`                  |
 | `scanning → connectingMachine`          | `ConnectionManager.connectMachine` (policy stage)       |

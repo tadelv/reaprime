@@ -41,7 +41,7 @@ class BengleMilkProbe implements Sensor {
   String get deviceId => _deviceId;
 
   @override
-  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
+  DeviceImplementation get implementation => DeviceImplementation.bengle;
 
   @override
   TransportType get transportType => _bengle.transportType;
