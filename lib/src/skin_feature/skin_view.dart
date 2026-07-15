@@ -43,9 +43,10 @@ SkinNavDecision classifySkinNavigation(Uri? url) {
         ? SkinNavDecision.exitDashboard
         : SkinNavDecision.block;
   }
-  final s = url.toString();
-  if (s.startsWith('http://localhost:3000') ||
-      s.contains('/api/v1/plugins/settings.reaplugin')) {
+  if (url.scheme == 'http' &&
+      url.host == 'localhost' &&
+      (url.port == 3000 ||
+          (url.port == 8080 && url.path.startsWith('/api/v1/plugins/')))) {
     return SkinNavDecision.allow;
   }
   if (url.scheme == 'https' || url.scheme == 'http') {
