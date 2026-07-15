@@ -3248,7 +3248,7 @@ This shows "Back to MySkin" in the settings plugin's nav bar. When clicked, it n
 
 **External links:** When a skin runs inside the embedded webview (mobile/desktop app), navigations to `localhost:3000` and the settings plugin load in place; any other `http`/`https` link opens in the **system browser** while the skin stays loaded. A plain `<a href="https://…">` works, but the in-app webview blocks `target="_blank"` popups (`javaScriptCanOpenWindowsAutomatically: false`), so for JS-driven links route through a delegated click handler — `window.open(url, '_blank')` with a `location.href` fallback — so the navigation reaches `shouldOverrideUrlLoading` and is handed off to the OS.
 
-**Return to the dashboard:** Every skin page served on port 3000 exposes `window.decentApp.exitToDashboard()`. In the embedded webview it closes the skin and reveals the Decent dashboard. In an external browser it is a no-op.
+**Return to the dashboard:** Skin pages served on port 3000 load the same-origin `/__decent/skin-api.js`, which exposes `window.decentApp.exitToDashboard()`. In the embedded webview it closes the skin and reveals the Decent dashboard. In an external browser it is a no-op. The external script works with `script-src 'self'`; policies that reject all same-origin scripts, such as `script-src 'none'` or nonce-only policies without `'self'`, also reject this API.
 
 The embedded webview also shows a platform-specific navigation guide when a skin opens. Disable or restore it in **Settings** under **General** with **Skin navigation guide**.
 
