@@ -174,6 +174,41 @@ void main() {
     });
 
     test(
+        'background scale watch ignores external scale sightings while a '
+        'Bengle is the machine', () async {
+      // Watch-path variant of the Bengle rule: watch-driven connects
+      // bypass _runScalePhase, so ConnectionManager must re-apply
+      // "integrated scale owns the slot" before connecting a sighted
+      // external scale.
+      await connectionManager.dispose();
+      mockScanner.supportsWatch = true;
+      connectionManager = ConnectionManager(
+        deviceScanner: mockScanner,
+        de1Controller: mockDe1Controller,
+        scaleController: mockScaleController,
+        settingsController: settingsController,
+      );
+      await settingsController.setPreferredScaleId('external-scale');
+
+      // Bengle connects (pushed directly — virtual attach hasn't run,
+      // so the scale slot is still open and the watch gate holds).
+      mockDe1Controller.de1Subject.add(_FakeBengle(deviceId: 'bengle-1'));
+      await Future<void>.delayed(Duration.zero);
+
+      mockScanner.addDevice(TestScale(deviceId: 'external-scale'));
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        mockScaleController.connectCalls
+            .where((s) => s.deviceId == 'external-scale'),
+        isEmpty,
+        reason: 'Bengle integrated scale owns the slot — the watch must '
+            'not connect an external scale into it',
+      );
+    });
+
+    test(
         'external scale visible BEFORE Bengle still loses the slot to the '
         'virtual scale', () async {
       // Regression for the interleaved-discovery race the synchronous

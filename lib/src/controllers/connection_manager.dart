@@ -7,6 +7,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/connection/disconnect_expectations.dart';
 import 'package:reaprime/src/controllers/connection/disconnect_supervisor.dart';
 import 'package:reaprime/src/controllers/connection/policy_resolver.dart';
+import 'package:reaprime/src/controllers/connection/scale_watch.dart';
 import 'package:reaprime/src/controllers/connection/scan_orchestrator.dart';
 import 'package:reaprime/src/controllers/connection/scan_report_builder.dart';
 import 'package:reaprime/src/controllers/connection/status_publisher.dart';
@@ -131,6 +132,7 @@ class ConnectionManager {
 
   late final DisconnectSupervisor _disconnectSupervisor;
   late final ScanOrchestrator _scanOrchestrator;
+  late final ScaleWatch _scaleWatch;
 
   StreamSubscription<AdapterState>? _adapterSub;
 
@@ -225,6 +227,11 @@ class ConnectionManager {
   @visibleForTesting
   Duration deferredScaleScanDelay = const Duration(seconds: 3);
 
+  /// Whether the scanner supports the persistent background scale watch
+  /// (Android). De1StateManager consults this to skip its wake-time
+  /// scale-only burst scan when the watch already covers reacquisition.
+  bool get supportsBackgroundScaleWatch => deviceScanner.supportsBackgroundWatch;
+
   ConnectionManager({
     required this.deviceScanner,
     required this.de1Controller,
@@ -244,8 +251,15 @@ class ConnectionManager {
       onMachineConnected: _handleMachineConnected,
       onMachineDisconnected: _handleMachineDisconnected,
       onUnexpectedMachineDisconnect: _startMachineRecovery,
-      onScaleConnected: _cancelPreferredScaleReconnect,
-      onScaleDisconnected: _maybeSchedulePreferredScaleReconnect,
+      onScaleConnected: _cancelScaleReacquisition,
+      onScaleDisconnected: _ensureScaleReacquisition,
+    );
+    _scaleWatch = ScaleWatch(
+      scanner: deviceScanner,
+      shouldWatch: _shouldRetryPreferredScale,
+      preferredScaleId: () => settingsController.preferredScaleId,
+      connectScale: _connectScaleFromWatch,
+      onWatchUnavailable: _maybeSchedulePreferredScaleReconnect,
     );
     _scanOrchestrator = ScanOrchestrator(
       scanner: deviceScanner,
@@ -481,7 +495,10 @@ class ConnectionManager {
   }
 
   Future<void> _connectImpl({required bool scaleOnly}) async {
-    _cancelPreferredScaleReconnect();
+    // Also disarms the watch: during a full scan EarlyConnectWatcher
+    // observes the same deviceStream and owns preferred-scale connects —
+    // a live watch would race it. Re-armed at the end-of-connect sites.
+    _cancelScaleReacquisition();
     if (scaleOnly && _scaleReconnectBlockedByPowerMode) {
       _log.fine(
         'Skipping scale-only scan while machine is sleeping and scale '
@@ -510,7 +527,12 @@ class ConnectionManager {
           await _attachBengleVirtualScale(qcMachine);
         } else if (!_scaleConnected) {
           if (settingsController.preferredScaleId != null) {
-            _maybeSchedulePreferredScaleReconnect();
+            // Route through the reacquisition selector: on watch-capable
+            // platforms the background scale watch (also armed by the
+            // machine-connected handler) owns this — scheduling the
+            // legacy backoff here would run radio-starving bursts
+            // alongside it.
+            _ensureScaleReacquisition();
           } else {
             _armPostQuickConnectScaleScan();
           }
@@ -582,7 +604,7 @@ class ConnectionManager {
         preferredScaleId: preferredScaleId,
         terminationReason: ScanTerminationReason.completed,
       );
-      _maybeSchedulePreferredScaleReconnect();
+      _ensureScaleReacquisition();
       return;
     }
 
@@ -601,7 +623,7 @@ class ConnectionManager {
         scanReport,
       );
       _maybeArmDeferredScaleScan();
-      _maybeSchedulePreferredScaleReconnect();
+      _ensureScaleReacquisition();
       _emitScanReport(
         scanReport: scanReport,
         preferredMachineId: preferredMachineId,
@@ -623,7 +645,7 @@ class ConnectionManager {
         await _connectMachineTracked(m, scanReport);
         await _runScalePhase(m, scales, preferredScaleId, scanReport);
         _maybeArmDeferredScaleScan();
-        _maybeSchedulePreferredScaleReconnect();
+        _ensureScaleReacquisition();
       case MachinePickerAction():
         _publishStatus(currentStatus.copyWith(
           phase: ConnectionPhase.idle,
@@ -741,6 +763,48 @@ class ConnectionManager {
     });
   }
 
+  /// Route scale reacquisition to the persistent background watch when
+  /// the scanner supports it (Android), else to the legacy backoff-burst
+  /// loop. Every former `_maybeSchedulePreferredScaleReconnect` call
+  /// site goes through here; the legacy loop also remains the fallback
+  /// when the watch fails to start (see `onWatchUnavailable`).
+  void _ensureScaleReacquisition() {
+    if (deviceScanner.supportsBackgroundWatch) {
+      // On a Bengle the integrated scale owns the slot (the legacy path
+      // enforces this inside _runScalePhase, which the watch bypasses) —
+      // there is nothing to reacquire externally.
+      if (_disconnectSupervisor.latestMachine is BengleInterface) {
+        _log.fine(
+          'Bengle machine: integrated scale owns the slot; '
+          'not arming scale watch',
+        );
+        return;
+      }
+      unawaited(_scaleWatch.arm());
+    } else {
+      _maybeSchedulePreferredScaleReconnect();
+    }
+  }
+
+  void _cancelScaleReacquisition() {
+    unawaited(_scaleWatch.disarm());
+    _cancelPreferredScaleReconnect();
+  }
+
+  /// Watch-driven connects bypass `_runScalePhase`, so the Bengle rule
+  /// is re-applied here for sightings that land after the watch armed
+  /// but once a Bengle has become the machine.
+  Future<void> _connectScaleFromWatch(Scale scale) async {
+    if (_disconnectSupervisor.latestMachine is BengleInterface) {
+      _log.fine(
+        'Ignoring watch scale sighting ${scale.deviceId}: '
+        'Bengle integrated scale owns the slot',
+      );
+      return;
+    }
+    await connectScale(scale);
+  }
+
   void _maybeSchedulePreferredScaleReconnect() {
     if (_preferredScaleReconnect != null) return;
     if (!_shouldRetryPreferredScale()) return;
@@ -773,7 +837,7 @@ class ConnectionManager {
   void _handleMachineConnected() {
     _stopMachineRecovery();
     _watchConnectedMachineState();
-    _maybeSchedulePreferredScaleReconnect();
+    _ensureScaleReacquisition();
   }
 
   void _handleMachineDisconnected() {
@@ -785,7 +849,7 @@ class ConnectionManager {
     _stopWatchingConnectedMachineState();
     _deferredScaleScan?.cancel();
     _deferredScaleScan = null;
-    _cancelPreferredScaleReconnect();
+    _cancelScaleReacquisition();
     if (_activeScaleOnlyScan) {
       deviceScanner.stopScan();
     }
@@ -876,7 +940,7 @@ class ConnectionManager {
         );
         _pauseScaleReconnectForPowerMode();
       } else {
-        _maybeSchedulePreferredScaleReconnect();
+        _ensureScaleReacquisition();
       }
     }, onError: (Object e, StackTrace st) {
       _log.fine('Machine snapshot stream error', e, st);
@@ -933,7 +997,7 @@ class ConnectionManager {
   void _pauseScaleReconnectForPowerMode() {
     _deferredScaleScan?.cancel();
     _deferredScaleScan = null;
-    _cancelPreferredScaleReconnect();
+    _cancelScaleReacquisition();
     if (_activeScaleOnlyScan) {
       deviceScanner.stopScan();
     }
@@ -1303,7 +1367,7 @@ class ConnectionManager {
   }
 
   Future<void> disconnectScale() async {
-    _cancelPreferredScaleReconnect();
+    _cancelScaleReacquisition();
     try {
       final scale = scaleController.connectedScale();
       markExpectingDisconnect(scale.deviceId);
@@ -1320,6 +1384,10 @@ class ConnectionManager {
     _stopMachineRecovery();
     _deferredScaleScan?.cancel();
     _cancelPreferredScaleReconnect();
+    // Awaited (not via _cancelScaleReacquisition) so the watch is
+    // deterministically stopped before the controllers it feeds are
+    // disposed.
+    await _scaleWatch.dispose();
     _stopWatchingConnectedMachineState();
     await de1Controller.dispose();
     scaleController.dispose();

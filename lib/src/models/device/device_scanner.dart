@@ -3,6 +3,7 @@ import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/scan_result.dart';
+import 'package:reaprime/src/models/device/watch_filter.dart';
 
 export 'package:reaprime/src/models/device/scan_result.dart';
 
@@ -41,4 +42,17 @@ abstract class DeviceScanner {
   /// Iterates the registered discovery services, returning the first
   /// connected device or null if all services return null.
   Future<Device?> tryQuickConnect(RememberedDevice remembered);
+
+  /// Whether any registered discovery service supports a persistent
+  /// background device watch. Drives ConnectionManager's choice between
+  /// the watch and the legacy backoff-burst scale reconnect loop.
+  bool get supportsBackgroundWatch;
+
+  /// Start a persistent low-duty-cycle scale watch on every supporting
+  /// discovery service. Discoveries arrive through [deviceStream]; the
+  /// watch does NOT flip [scanningStream] (no UI scanning indicator).
+  Future<void> startScaleWatch(DeviceWatchFilter filter);
+
+  /// Stop a watch started with [startScaleWatch]. Idempotent.
+  Future<void> stopScaleWatch();
 }

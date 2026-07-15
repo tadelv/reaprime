@@ -4,6 +4,8 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/connection_error.dart';
 import 'package:reaprime/src/controllers/connection_manager.dart';
+import 'package:reaprime/src/controllers/remembered_devices_controller.dart';
+import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
@@ -52,6 +54,14 @@ class _FakeDe1 implements De1Interface {
 
   @override
   Stream<MachineSnapshot> get currentSnapshot => _snapshotController.stream;
+
+  // Non-null so De1Controller.adoptDevice (quick-connect) can subscribe
+  // and De1Controller.dispose can await teardown of an adopted device.
+  @override
+  Stream<bool> get ready => const Stream.empty();
+
+  @override
+  Future<void> dispose() async {}
 
   _FakeDe1({this.deviceId = 'fake-de1'}) : name = 'DE1-$deviceId';
 
@@ -1950,6 +1960,259 @@ void main() {
         expect(connectionManager.machineRecoveryActive, isTrue,
             reason: 'a stranded forced reconnect must hand off to the '
                 'machine-recovery loop, not leave the machine disconnected');
+      });
+    });
+
+    group('background scale watch', () {
+      const scaleId = 'pref-scale';
+
+      ConnectionManager buildWatchManager() => ConnectionManager(
+            deviceScanner: mockScanner,
+            de1Controller: mockDe1Controller,
+            scaleController: mockScaleController,
+            settingsController: settingsController,
+          );
+
+      setUp(() async {
+        // Retire the shared legacy manager from the outer setUp — it
+        // listens to the same subjects and, with supportsWatch flipped
+        // on, would double-arm the watch alongside this group's manager.
+        await connectionManager.dispose();
+        mockScanner.supportsWatch = true;
+      });
+
+      test(
+          'machine connect with preferred scale missing arms the watch '
+          'and never runs backoff bursts', () {
+        fakeAsync((async) {
+          final manager = buildWatchManager();
+          settingsController.setPreferredScaleId(scaleId);
+          async.flushMicrotasks();
+          mockDe1Controller.de1Subject.add(_FakeDe1(deviceId: 'connected-de1'));
+          async.flushMicrotasks();
+
+          expect(mockScanner.startWatchCallCount, 1,
+              reason: 'watch must arm on machine connect with scale missing');
+          expect(mockScanner.lastWatchFilter?.namePrefix, isNull,
+              reason: 'no OS name filter — remembered friendly names do not '
+                  'match advertised names; Dart-side matching owns this');
+          expect(mockScanner.lastWatchFilter?.deviceTypes, {DeviceType.scale});
+
+          // The load-bearing regression assertion: past the full legacy
+          // backoff ladder (5→60s), no burst scan may fire — the watch
+          // replaces the loop entirely.
+          async.elapse(const Duration(seconds: 70));
+          async.flushMicrotasks();
+          expect(mockScanner.scanCallCount, 0,
+              reason: 'watch replaces the backoff-burst reconnect loop');
+
+          manager.dispose();
+          async.flushMicrotasks();
+        });
+      });
+
+      test('watch sighting connects the scale and stops the watch', () async {
+        connectionManager = buildWatchManager();
+        await settingsController.setPreferredScaleId(scaleId);
+        mockDe1Controller.de1Subject.add(_FakeDe1(deviceId: 'connected-de1'));
+        await Future<void>.delayed(Duration.zero);
+        expect(mockScanner.watchActive, isTrue);
+
+        mockScanner.addDevice(TestScale(deviceId: scaleId));
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(
+          mockScaleController.connectCalls.map((s) => s.deviceId),
+          contains(scaleId),
+        );
+        expect(mockScanner.watchActive, isFalse,
+            reason: 'watch stops once the scale is connected');
+        expect(connectionManager.currentStatus.phase, ConnectionPhase.ready);
+        expect(mockScanner.scanCallCount, 0,
+            reason: 'the connect must not go through a burst scan');
+      });
+
+      test('failed watch connect re-arms the watch', () async {
+        connectionManager = buildWatchManager();
+        await settingsController.setPreferredScaleId(scaleId);
+        mockScaleController.shouldFailConnect = true;
+        mockDe1Controller.de1Subject.add(_FakeDe1(deviceId: 'connected-de1'));
+        await Future<void>.delayed(Duration.zero);
+        expect(mockScanner.startWatchCallCount, 1);
+
+        mockScanner.addDevice(TestScale(deviceId: scaleId));
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(mockScaleController.connectCalls, isNotEmpty);
+        expect(mockScanner.startWatchCallCount, 2,
+            reason: 'a failed connect must restart the watch');
+        expect(mockScanner.watchActive, isTrue);
+      });
+
+      test('unexpected preferred scale disconnect arms the watch', () async {
+        connectionManager = buildWatchManager();
+        await settingsController.setPreferredScaleId(scaleId);
+        mockScaleController.mockEmitConnectionState(ConnectionState.connected);
+        mockScaleController.debugSetLastConnectedId(scaleId);
+        mockDe1Controller.de1Subject.add(_FakeDe1(deviceId: 'connected-de1'));
+        await Future<void>.delayed(Duration.zero);
+        expect(mockScanner.startWatchCallCount, 0,
+            reason: 'scale is connected — nothing to watch for');
+
+        mockScaleController
+            .mockEmitConnectionState(ConnectionState.disconnected);
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(mockScanner.startWatchCallCount, 1);
+        expect(mockScanner.scanCallCount, 0,
+            reason: 'no burst scan on unexpected disconnect either');
+      });
+
+      test(
+          'power-mode sleep stops the watch and wake re-arms it '
+          'without a burst', () async {
+        await settingsController.setScalePowerMode(ScalePowerMode.disconnect);
+        connectionManager = buildWatchManager();
+        await settingsController.setPreferredScaleId(scaleId);
+        final fakeDe1 = _FakeDe1(deviceId: 'connected-de1');
+        mockDe1Controller.de1Subject.add(fakeDe1);
+        await Future<void>.delayed(Duration.zero);
+        fakeDe1.emitState(MachineState.idle);
+        await Future<void>.delayed(Duration.zero);
+        expect(mockScanner.watchActive, isTrue,
+            reason: 'machine awake + scale missing → watch armed');
+
+        fakeDe1.emitState(MachineState.sleeping);
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+        expect(mockScanner.watchActive, isFalse,
+            reason: 'sleeping + ScalePowerMode.disconnect must stop the watch');
+
+        final startsBeforeWake = mockScanner.startWatchCallCount;
+        fakeDe1.emitState(MachineState.idle);
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+        expect(mockScanner.startWatchCallCount, startsBeforeWake + 1,
+            reason: 'wake must re-arm the watch');
+        expect(mockScanner.scanCallCount, 0);
+      });
+
+      test('machine disconnect stops the watch', () async {
+        connectionManager = buildWatchManager();
+        await settingsController.setPreferredScaleId(scaleId);
+        mockDe1Controller.de1Subject.add(_FakeDe1(deviceId: 'connected-de1'));
+        await Future<void>.delayed(Duration.zero);
+        expect(mockScanner.watchActive, isTrue);
+
+        mockDe1Controller.de1Subject.add(null);
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(mockScanner.watchActive, isFalse,
+            reason: 'no machine → nothing to reacquire a scale for');
+      });
+
+      test(
+          'machine quick-connect arms the watch, not the legacy backoff loop',
+          () {
+        // Quick-connect is the common startup path when a preferred
+        // machine is remembered; its success branch must route scale
+        // reacquisition through the watch selector like every other
+        // machine-connected site — not schedule backoff bursts alongside
+        // the watch.
+        fakeAsync((async) {
+          mockSettingsService.setRememberedDevices(RememberedDevice.encodeList([
+            const RememberedDevice(
+              id: 'pref-de1',
+              name: 'DE1',
+              type: DeviceType.machine,
+            ),
+          ]));
+          final remembered = RememberedDevicesController(
+            machineConnections: const Stream.empty(),
+            scaleConnections: const Stream.empty(),
+            settings: mockSettingsService,
+          );
+          remembered.initialize();
+          async.flushMicrotasks();
+
+          final fakeDe1 = _FakeDe1(deviceId: 'pref-de1');
+          mockScanner.quickConnectResult = fakeDe1;
+          // Fresh controller: the group setUp disposed the shared one
+          // (closing its subjects), which would make adoptDevice throw.
+          final qcDe1Controller = MockDe1Controller(
+            controller: DeviceController([dummyDiscoveryService]),
+          );
+          final manager = ConnectionManager(
+            deviceScanner: mockScanner,
+            de1Controller: qcDe1Controller,
+            scaleController: mockScaleController,
+            settingsController: settingsController,
+            rememberedDevices: remembered,
+          );
+          settingsController.setPreferredMachineId('pref-de1');
+          settingsController.setPreferredScaleId(scaleId);
+          async.flushMicrotasks();
+
+          manager.connect();
+          async.flushMicrotasks();
+          expect(mockScanner.quickConnectCallCount, 1,
+              reason: 'the quick-connect path must be the one exercised');
+
+          // Production: adoptDevice propagates onto the de1 stream and
+          // the supervisor fires machine-connected; simulate that here
+          // (MockDe1Controller overrides the stream adoptDevice feeds).
+          qcDe1Controller.de1Subject.add(fakeDe1);
+          async.flushMicrotasks();
+
+          expect(mockScanner.startWatchCallCount, 1,
+              reason: 'watch must arm after a quick-connected machine');
+          async.elapse(const Duration(seconds: 70));
+          async.flushMicrotasks();
+          expect(mockScanner.scanCallCount, 0,
+              reason: 'quick-connect success must not schedule legacy '
+                  'backoff bursts alongside the watch');
+
+          manager.dispose();
+          remembered.dispose();
+          async.flushMicrotasks();
+        });
+      });
+
+      test('watch start failure falls back to the legacy backoff loop', () {
+        fakeAsync((async) {
+          final manager = buildWatchManager();
+          settingsController.setPreferredScaleId(scaleId);
+          async.flushMicrotasks();
+          mockScanner.failNextWatchWith = Exception('watch unavailable');
+          mockDe1Controller.de1Subject.add(_FakeDe1(deviceId: 'connected-de1'));
+          async.flushMicrotasks();
+
+          expect(mockScanner.startWatchCallCount, 0,
+              reason: 'the start attempt threw before recording');
+          // Legacy backoff base delay is 5s — the fallback burst fires then.
+          async.elapse(const Duration(seconds: 6));
+          async.flushMicrotasks();
+          expect(mockScanner.scanCallCount, 1,
+              reason: 'watch failure must fall back to backoff bursts');
+
+          manager.dispose();
+          async.flushMicrotasks();
+        });
+      });
+
+      test('dispose stops the watch', () async {
+        connectionManager = buildWatchManager();
+        await settingsController.setPreferredScaleId(scaleId);
+        mockDe1Controller.de1Subject.add(_FakeDe1(deviceId: 'connected-de1'));
+        await Future<void>.delayed(Duration.zero);
+        expect(mockScanner.watchActive, isTrue);
+
+        await connectionManager.dispose();
+        expect(mockScanner.watchActive, isFalse);
       });
     });
   });
