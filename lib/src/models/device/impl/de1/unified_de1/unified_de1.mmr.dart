@@ -31,6 +31,10 @@ extension UnifiedDe1MMR on UnifiedDe1 {
   /// hex address as the log/timeout label when no enum name is given.
   Future<List<int>> _mmrReadRaw(int address,
       {int length = 0, String? label}) async {
+    // A firmware upload streams over the same writeToMMR endpoint; wait for it
+    // to finish rather than interleave and corrupt the image. See _fwTunnelLock.
+    final fwLock = _fwTunnelLock;
+    if (fwLock != null) await fwLock.future;
     final logLabel = label ?? '0x${address.toRadixString(16)}';
     ByteData bytes = ByteData(20);
     bytes.setInt32(0, address, Endian.big);
@@ -87,7 +91,11 @@ extension UnifiedDe1MMR on UnifiedDe1 {
 
   /// Address-only MMR write for capability mixins; see [_mmrReadRaw].
   Future<void> _mmrWriteRaw(int address, List<int> bufferData,
-      {String? label}) {
+      {String? label}) async {
+    // A firmware upload streams over the same writeToMMR endpoint; wait for it
+    // to finish rather than interleave and corrupt the image. See _fwTunnelLock.
+    final fwLock = _fwTunnelLock;
+    if (fwLock != null) await fwLock.future;
     final logLabel = label ?? '0x${address.toRadixString(16)}';
     _log.info("mmr write: $logLabel");
 
