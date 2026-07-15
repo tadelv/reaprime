@@ -275,12 +275,15 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(16),
         showCloseIcon: true,
-        // action: SnackBarAction(
-        //   label: 'Dismiss',
-        //   onPressed: () {
-        //     ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        //   },
-        // ),
+        action: SnackBarAction(
+          label: "Don't show again",
+          onPressed: () {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            unawaited(
+              widget.settingsController.setShowSkinExitInstructions(false),
+            );
+          },
+        ),
       ),
     );
   }
@@ -675,7 +678,9 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
         // ''');
 
         // Show exit instructions snackbar
-        if (mounted && _didShowExit == false) {
+        if (mounted &&
+            !_didShowExit &&
+            widget.settingsController.showSkinExitInstructions) {
           _didShowExit = true;
           _showExitInstructions();
         }
