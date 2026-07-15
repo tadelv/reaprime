@@ -11,6 +11,14 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
     await requestState(MachineState.sleeping);
     await beforeFirmwareUpload();
 
+    // From here the sequence streams the image over the writeToMMR endpoint
+    // (see uploadFW). Take exclusive ownership of the serial tunnel so an
+    // ordinary MMR read/write cannot interleave and corrupt it. updateFirmware
+    // releases the waiters in its finally, whether this succeeds, throws, or is
+    // cancelled. The prep above uses the state/fwMap endpoints, not MMR, so it
+    // is safe to acquire the lock only now.
+    _fwTunnelLock = Completer<void>();
+
     // unsub = _subscribe(Endpoint.fwMapRequest, (ByteData data) async {
     final unsub = _transport.fwMapRequest.listen((ByteData data) async {
       final request = FWMapRequestData.from(data);
@@ -74,7 +82,7 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
     while (count < 10) {
       count += 1;
       _log.info("Waiting $count seconds on firmware to erase");
-      await Future.delayed(Duration(seconds: 1));
+      await Future.delayed(firmwareEraseSettle);
     }
 
     await uploadFW(fwImage, onProgress, cancelToken);
