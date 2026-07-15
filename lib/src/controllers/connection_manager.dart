@@ -469,8 +469,8 @@ class ConnectionManager {
       final device = await deviceScanner.tryQuickConnect(remembered);
       if (device is De1Interface) {
         de1Controller.adoptDevice(device);
-        _publishStatus(currentStatus.copyWith(
-            phase: ConnectionPhase.connectingMachine));
+        // Phase (connectingMachine) was already published by _connectImpl
+        // before calling this method — no need to re-publish here.
         _log.info('Quick-connect: machine adopted (${device.deviceId})');
         return device;
       }
@@ -479,8 +479,6 @@ class ConnectionManager {
     }
     return null;
   }
-
-
 
   Future<void> _connectImpl({required bool scaleOnly}) async {
     _cancelPreferredScaleReconnect();
@@ -502,7 +500,6 @@ class ConnectionManager {
     // remembered metadata. Scales are excluded — the machine-only critical
     // path publishes ready immediately after adoption, then kicks off
     // background scale discovery.
-    var effectiveScaleOnly = scaleOnly;
     if (!scaleOnly && rememberedDevices != null) {
       _publishStatus(currentStatus.copyWith(
           phase: ConnectionPhase.connectingMachine));
@@ -524,19 +521,19 @@ class ConnectionManager {
     }
 
     final preferredMachineId =
-        effectiveScaleOnly ? null : settingsController.preferredMachineId;
+        scaleOnly ? null : settingsController.preferredMachineId;
     final preferredScaleId = settingsController.preferredScaleId;
     // Early stop is enabled for any full (non-scaleOnly) connect.
     // Previously gated on preferredMachineId != null, which meant
     // auto-discovered machines never stopped the scan early even
     // with both devices found and connected.
-    final earlyStopEnabled = !effectiveScaleOnly;
+    final earlyStopEnabled = !scaleOnly;
 
     final scanStartTime = DateTime.now();
 
     // Build a filtered scan for Android scaleOnly path to bypass
     // background throttling. Full connect stays unfiltered.
-    final scaleFilter = effectiveScaleOnly && Platform.isAndroid
+    final scaleFilter = scaleOnly && Platform.isAndroid
         ? ScanFilter(
             preferredDeviceId: preferredScaleId,
             deviceTypes: {DeviceType.scale},
@@ -561,7 +558,7 @@ class ConnectionManager {
     final scales = scanRun.scales;
     final scanReport = scanRun.reportBuilder;
 
-    if (effectiveScaleOnly) {
+    if (scaleOnly) {
       _publishStatus(currentStatus.copyWith(foundScales: scales));
       await _runScalePhase(
         _disconnectSupervisor.latestMachine,

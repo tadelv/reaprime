@@ -27,6 +27,13 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
   final _log = Logger("Android Serial service");
 
   final List<Device> _devices = [];
+
+  /// Tracks transports created by [_detectDevice] so quick-connect cleanup
+  /// can dispose them. Keyed by [Device.deviceId] (== [AndroidSerialPort.id]).
+  /// The scan path does not dispose from here — pre-existing behavior —
+  /// but the QC path uses it to avoid leaking port handles + stream
+  /// controllers on mismatch / failure / disconnect.
+  final Map<String, AndroidSerialPort> _transportForDeviceId = {};
   
   // Guard against concurrent scans
   bool _isScanning = false;
@@ -123,15 +130,20 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
         _log.info('Quick-connect: device mismatch'
             ' (expected $impl, got ${device?.implementation})');
         try { await device?.disconnect(); } catch (_) {}
+        final t = _transportForDeviceId.remove(device?.deviceId);
+        try { await t?.dispose(); } catch (_) {}
         continue;
       }
       try {
         await device.onConnect().timeout(const Duration(seconds: 10));
-        _devices.add(device);
-        device.connectionState.listen((state) {
+        final connected = device;
+        _devices.add(connected);
+        connected.connectionState.listen((state) {
           if (state == ConnectionState.disconnected) {
-            _devices.remove(device);
+            _devices.remove(connected);
             _machineSubject.add(_devices);
+            final t = _transportForDeviceId.remove(connected.deviceId);
+            try { t?.dispose(); } catch (_) {}
           }
         });
         _machineSubject.add(_devices);
@@ -140,6 +152,8 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
       } catch (e, st) {
         _log.warning('Quick-connect: onConnect failed', e, st);
         try { await device.disconnect(); } catch (_) {}
+        final t = _transportForDeviceId.remove(device.deviceId);
+        try { await t?.dispose(); } catch (_) {}
       }
     }
     return null;
@@ -256,6 +270,7 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
       return null;
     }
     final transport = AndroidSerialPort(device: device, port: port);
+    _transportForDeviceId[transport.id] = transport;
 
     // yay, shortcuts
     if (device.productName == "DE1") {
