@@ -267,22 +267,30 @@ void main() {
   });
 
   group('start-window races', () {
-    test('stopDeviceWatch during an in-flight start undoes the scan',
-        () async {
+    test(
+        'stopDeviceWatch during an in-flight start waits for it and '
+        'undoes the scan', () async {
+      // stopDeviceWatch serializes against the in-flight start (it must
+      // not act while session ownership is undecided), so the test
+      // releases the hold before awaiting the stop.
       final hold = Completer<void>();
       platform.holdNextStartScan = hold;
 
       final start = service.startDeviceWatch(_watchFilter);
       await pump();
-      await service.stopDeviceWatch();
+      final stop = service.stopDeviceWatch();
+      await pump();
+      expect(platform.stopScanCalls, 0,
+          reason: 'stop must wait for the start to settle first');
 
       hold.complete();
       await start;
+      await stop;
       await pump();
 
       expect(platform.startScanCalls, hasLength(1));
       expect(platform.stopScanCalls, 1,
-          reason: 'the scan that started after the stop must be undone — '
+          reason: 'the scan the raced start opened must be undone — '
               'otherwise it runs orphaned forever');
     });
 
@@ -329,26 +337,6 @@ void main() {
               'not skip it because the raced start claimed to be active');
     });
 
-    test(
-        'stopDeviceWatch waits for an in-flight start before stopping',
-        () async {
-      final hold = Completer<void>();
-      platform.holdNextStartScan = hold;
-
-      final start = service.startDeviceWatch(_watchFilter);
-      await pump();
-      final stop = service.stopDeviceWatch();
-      await pump();
-
-      hold.complete();
-      await start;
-      await stop;
-      await pump();
-
-      expect(platform.startScanCalls, hasLength(1));
-      expect(platform.stopScanCalls, greaterThanOrEqualTo(1),
-          reason: 'the scan the raced start opened must be stopped');
-    });
   });
 
   group('resilience', () {
@@ -376,6 +364,34 @@ void main() {
       expect(platform.startScanCalls, hasLength(2),
           reason: 'a still-requested watch must restart on power-on; a '
               'stale active claim from the raced start would block this');
+      expect(lastStart().filter?.withNamePrefix, ['Decent Scale']);
+    });
+
+    test(
+        'adapter off AND on completing within the start window discards '
+        'the raced start and starts a fresh scan', () async {
+      // The off/on transition may have killed the native scan the raced
+      // start opened; its completion must never claim active. The
+      // power-on recovery fires while the start is still in flight, so
+      // the retry must happen after the raced start settles.
+      final hold = Completer<void>();
+      platform.holdNextStartScan = hold;
+
+      final start = service.startDeviceWatch(_watchFilter);
+      await pump();
+      platform.updateAvailability(AvailabilityState.poweredOff);
+      await pump();
+      platform.updateAvailability(AvailabilityState.poweredOn);
+      await pump();
+
+      hold.complete();
+      await start;
+      await pump(6);
+
+      expect(platform.startScanCalls, hasLength(2),
+          reason: 'the raced start is discarded and a fresh start must '
+              'own the session — claiming active over a possibly-dead '
+              'native scan leaves the watch permanently silent');
       expect(lastStart().filter?.withNamePrefix, ['Decent Scale']);
     });
 
