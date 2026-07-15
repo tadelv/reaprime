@@ -1690,11 +1690,11 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: d32c569
-      resolved-ref: d32c5697ceaa3ace74813ac3644962ec91572e75
+      ref: "2.2.0"
+      resolved-ref: "734012dd4e880e20b7b3d3a97a5c2dc92e631e10"
       url: "https://github.com/tadelv/universal_ble.git"
     source: git
-    version: "2.1.2"
+    version: "2.2.0"
   universal_image:
     dependency: transitive
     description:
