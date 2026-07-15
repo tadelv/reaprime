@@ -23,6 +23,13 @@ void main() {
       );
     });
 
+    test('exits to the dashboard for the skin exit URL', () {
+      expect(
+        classifySkinNavigation(Uri.parse('decent://dashboard')),
+        SkinNavDecision.exitDashboard,
+      );
+    });
+
     test('opens external https links in the browser', () {
       expect(
         classifySkinNavigation(

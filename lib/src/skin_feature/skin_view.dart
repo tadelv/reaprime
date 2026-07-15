@@ -18,6 +18,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 /// How the skin webview should treat a navigation target.
 enum SkinNavDecision {
+  exitDashboard,
+
   /// Internal navigation — let the webview load it.
   allow,
 
@@ -35,6 +37,9 @@ enum SkinNavDecision {
 /// blocked. Pure so it can be unit-tested without a live webview.
 SkinNavDecision classifySkinNavigation(Uri? url) {
   if (url == null) return SkinNavDecision.block;
+  if (url.scheme == 'decent' && url.host == 'dashboard') {
+    return SkinNavDecision.exitDashboard;
+  }
   final s = url.toString();
   if (s.startsWith('http://localhost:3000') ||
       s.contains('/api/v1/plugins/settings.reaplugin')) {
@@ -700,6 +705,10 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
       shouldOverrideUrlLoading: (controller, navigationAction) async {
         final uri = navigationAction.request.url;
         switch (classifySkinNavigation(uri)) {
+          case SkinNavDecision.exitDashboard:
+            _log.info('Skin requested dashboard');
+            if (mounted) Navigator.of(context).pop();
+            return NavigationActionPolicy.CANCEL;
           case SkinNavDecision.allow:
             _log.fine('Allowing navigation to: $uri');
             return NavigationActionPolicy.ALLOW;
