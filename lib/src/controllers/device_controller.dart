@@ -5,8 +5,10 @@ import 'package:reaprime/src/controllers/connection/connection_timings.dart';
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/device_scanner.dart';
+import 'package:reaprime/src/models/device/device_watch.dart';
 import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
+import 'package:reaprime/src/models/device/watch_filter.dart';
 import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 import 'package:rxdart/rxdart.dart';
@@ -252,6 +254,38 @@ class DeviceController implements DeviceScanner {
       }
     }
     return null;
+  }
+
+  Iterable<DeviceWatchCapable> get _watchCapableServices => _services
+      .whereType<DeviceWatchCapable>()
+      .where((s) => s.supportsDeviceWatch);
+
+  @override
+  bool get supportsBackgroundWatch => _watchCapableServices.isNotEmpty;
+
+  /// Fan a persistent scale watch out to every supporting discovery
+  /// service. Unlike [scanForDevices] this touches neither
+  /// [_scanningStream] (no UI scanning indicator) nor the pre-scan
+  /// stale-device prune — the watch is invisible bookkeeping until a
+  /// device actually appears on [deviceStream].
+  @override
+  Future<void> startScaleWatch(DeviceWatchFilter filter) async {
+    for (final service in _watchCapableServices) {
+      await service.startDeviceWatch(filter);
+    }
+  }
+
+  @override
+  Future<void> stopScaleWatch() async {
+    for (final service in _watchCapableServices) {
+      try {
+        await service.stopDeviceWatch();
+      } catch (e, st) {
+        // Best-effort teardown — a service failing to stop its watch
+        // (e.g. already disposed) must not block the others.
+        _log.fine('stopDeviceWatch failed for $service', e, st);
+      }
+    }
   }
 
   void _serviceUpdate(DeviceDiscoveryService service, List<Device> devices) {

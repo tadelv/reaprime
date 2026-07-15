@@ -328,13 +328,67 @@ ConnectionManager listens for disconnects automatically:
 An *unexpected* machine disconnect (not announced via
 `markExpectingDisconnect` / `disconnectMachine`) puts `ConnectionManager`
 into machine recovery mode: full `connect()` scans retry with the same
-5s→60s exponential backoff the preferred-scale loop uses, rescheduling
+5s→60s exponential backoff the legacy preferred-scale loop uses, rescheduling
 after every attempt that ends without a machine, until the machine
 reconnects (or the user disconnects deliberately). Gated on
 `preferredMachineId` so a background retry can never pop a machine picker —
 the id is auto-set on every successful connect, so coverage is effectively
 total. Motivation: a power outage previously left the app "disconnected"
 indefinitely because nothing ever rescanned for the machine.
+
+### Background Scale Watch (preferred-scale reacquisition)
+
+When a machine is connected but the preferred scale is missing (scale
+powered off, unexpected drop, machine wake without the scale), scale
+reacquisition runs in one of two modes, selected by
+`DeviceScanner.supportsBackgroundWatch`:
+
+- **Watch mode (Android):** one persistent, low-duty-cycle BLE scan.
+  `UniversalBleDiscoveryService` starts an `AndroidScanMode.balanced`
+  scan (~40% radio duty cycle) — the duty cycle, not filtering, is what
+  protects the DE1 link. The scan is deliberately unfiltered: remembered
+  device names are friendly constants ("Felicita Arc") that rarely equal
+  the advertised name a filter would be matched against, and the
+  universal_ble fork evaluates `withNamePrefix` plugin-side anyway (the
+  OS scan runs unfiltered either way, so there is no hardware-filter or
+  screen-off benefit to reclaim). Matching stays with the normal Dart
+  `DeviceMatcher` path, identical to burst scans. The `ScaleWatch`
+  collaborator (`lib/src/controllers/connection/scale_watch.dart`)
+  listens on the device stream and, on sighting the preferred scale id,
+  stops the watch scan (freeing the radio for GATT) and connects —
+  typically 1–5s after the scale powers on. Caveat: Android suspends
+  OS-unfiltered scans while the screen is off, so a scale powered on
+  with the display asleep connects once the screen wakes.
+- **Legacy mode (all other platforms, and fallback when the watch fails
+  to start):** periodic 15s scale-only burst scans with 5s→60s
+  exponential backoff (the pre-watch behavior, unchanged).
+
+The watch replaced the backoff loop on Android because each lowLatency
+burst monopolizes the shared radio and starves DE1 GATT traffic
+(observed as 10s GATT write timeouts → HTTP 500s on machine endpoints),
+while the backoff gaps meant a freshly powered-on scale could wait up
+to 60s to connect.
+
+Watch lifecycle details:
+
+- Armed whenever *machine connected && preferred scale set && scale not
+  connected && not blocked by scale power mode*; disarmed on scale
+  connect, machine disconnect, power-mode sleep, deliberate scale
+  disconnect, at the start of any full `connect()` (EarlyConnectWatcher
+  owns preferred-device connects during bursts), and on dispose.
+- Never armed while a Bengle is the machine — its integrated scale owns
+  the scale slot, mirroring `_runScalePhase`'s rule.
+- Burst scans pause the watch scan (universal_ble has one global scan
+  session) and resume it when they finish; the watch self-restarts
+  every 25 minutes to dodge Android's 30-minute opportunistic-scan
+  downgrade, and survives adapter off/on cycles.
+- `De1StateManager` skips its post-wake scale-only burst when the watch
+  covers reacquisition (watch supported + preferred scale set); the
+  burst remains for the no-preferred-scale discovery/picker case.
+- Watch-driven connects do **not** emit a `ScanReport` — they bypass
+  the scan/report machinery entirely.
+- The watch does not flip `scanningStream`, so no scanning indicator
+  shows in the UI while it runs.
 
 ### Zombie-Link Detection (BLE transport)
 
