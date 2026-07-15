@@ -43,9 +43,20 @@ enum SkinSource {
 const skinApiScriptPath = '/__decent/skin-api.js';
 const skinExitDashboardPath = '/__decent/exit-dashboard';
 const skinExitDashboardUrl = 'http://localhost:3000$skinExitDashboardPath';
-const _skinApiScriptTag = '<script src="$skinApiScriptPath"></script>';
+const _skinProxyTokenMetaName = 'reaprime-proxy-token';
+const _htmlAttributeEscape = HtmlEscape(HtmlEscapeMode.attribute);
 
-String injectSkinApiScriptTag(String html) {
+String injectSkinApiScriptTag(
+  String html, {
+  required String scriptUrl,
+  String? token,
+}) {
+  final escapedScriptUrl = _htmlAttributeEscape.convert(scriptUrl);
+  final escapedToken = token == null || token.isEmpty
+      ? ''
+      : '<meta name="$_skinProxyTokenMetaName" content="'
+            '${_htmlAttributeEscape.convert(token)}">';
+  final injection = '$escapedToken<script src="$escapedScriptUrl"></script>';
   final bomLength = html.startsWith('\uFEFF') ? 1 : 0;
   final document = parse(html.substring(bomLength), generateSpans: true);
   final headOffset = document.head?.endSourceSpan?.start.offset;
@@ -60,11 +71,16 @@ String injectSkinApiScriptTag(String html) {
     }
   }
   offset = (offset ?? 0) + bomLength;
-  return '${html.substring(0, offset)}$_skinApiScriptTag'
+  return '${html.substring(0, offset)}$injection'
       '${html.substring(offset)}';
 }
 
-List<int> injectSkinApiScriptTagBytes(List<int> bytes, Encoding encoding) {
+List<int> injectSkinApiScriptTagBytes(
+  List<int> bytes,
+  Encoding encoding, {
+  required String scriptUrl,
+  String? token,
+}) {
   final decoded = encoding.decode(bytes);
   final hasUtf8Bom =
       encoding.name.toLowerCase() == 'utf-8' &&
@@ -75,14 +91,15 @@ List<int> injectSkinApiScriptTagBytes(List<int> bytes, Encoding encoding) {
   final html = hasUtf8Bom && !decoded.startsWith('\uFEFF')
       ? '\uFEFF$decoded'
       : decoded;
-  return encoding.encode(injectSkinApiScriptTag(html));
+  return encoding.encode(
+    injectSkinApiScriptTag(html, scriptUrl: scriptUrl, token: token),
+  );
 }
 
-String buildSkinApiJavaScript(String? token) {
-  final tokenAssignment = token == null || token.isEmpty
-      ? ''
-      : 'window.__REA_PROXY_TOKEN__=${jsonEncode(token)};';
-  return '$tokenAssignment'
+String buildSkinApiJavaScript() {
+  return 'var tokenMeta=document.querySelector('
+      '${jsonEncode('meta[name="$_skinProxyTokenMetaName"]')});'
+      'if(tokenMeta)window.__REA_PROXY_TOKEN__=tokenMeta.content;'
       'window.decentApp=window.decentApp||{};'
       'window.decentApp.exitToDashboard=function(){'
       'if(window.__DECENT_HOST__)window.location.assign('
@@ -128,6 +145,22 @@ class WebUIService {
 
   // WebUI server methods
 
+  String? _skinApiUrl(Request request, int port) {
+    final uri = request.requestedUri;
+    if (uri.scheme != 'http' ||
+        uri.port != port ||
+        uri.userInfo.isNotEmpty ||
+        (uri.host != 'localhost' && uri.host != _localIP)) {
+      return null;
+    }
+    return Uri(
+      scheme: 'http',
+      host: uri.host,
+      port: port,
+      path: skinApiScriptPath,
+    ).toString();
+  }
+
   Future<void> serveFolderAtPath(String path, {int port = 3000}) async {
     await _server?.close(force: true);
     _localIP ??= await _resolveLocalIP();
@@ -167,12 +200,11 @@ class WebUIService {
     FutureOr<Response> skinHandler(Request request) {
       if (request.url.path == skinApiScriptPath.substring(1)) {
         return Response.ok(
-          request.method == 'HEAD'
-              ? null
-              : buildSkinApiJavaScript(skinProxyToken),
+          request.method == 'HEAD' ? null : buildSkinApiJavaScript(),
           headers: {
             'Content-Type': 'application/javascript; charset=utf-8',
             'Cache-Control': 'no-store',
+            'Cross-Origin-Resource-Policy': 'same-origin',
             'X-Content-Type-Options': 'nosniff',
           },
         );
@@ -220,9 +252,16 @@ class WebUIService {
             response.headers.containsKey('content-encoding')) {
           return response;
         }
+        final scriptUrl = _skinApiUrl(request, port);
+        if (scriptUrl == null) return response;
         final encoding = response.encoding ?? utf8;
         final body = await response.read().expand((chunk) => chunk).toList();
-        final injected = injectSkinApiScriptTagBytes(body, encoding);
+        final injected = injectSkinApiScriptTagBytes(
+          body,
+          encoding,
+          scriptUrl: scriptUrl,
+          token: skinProxyToken,
+        );
         return response.change(
           body: injected,
           headers: {
