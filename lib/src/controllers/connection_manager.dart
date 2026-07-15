@@ -256,7 +256,14 @@ class ConnectionManager {
     );
     _scaleWatch = ScaleWatch(
       scanner: deviceScanner,
-      shouldWatch: _shouldRetryPreferredScale,
+      // The Bengle clause covers arm time AND the post-connect
+      // continuation: a Bengle's integrated scale owns the scale slot
+      // (the rule _runScalePhase enforces on the burst path), so a
+      // refused external-scale sighting must end the watch cycle, not
+      // restart the scan indefinitely.
+      shouldWatch: () =>
+          _shouldRetryPreferredScale() &&
+          _disconnectSupervisor.latestMachine is! BengleInterface,
       preferredScaleId: () => settingsController.preferredScaleId,
       connectScale: _connectScaleFromWatch,
       onWatchUnavailable: _maybeSchedulePreferredScaleReconnect,
@@ -770,16 +777,8 @@ class ConnectionManager {
   /// when the watch fails to start (see `onWatchUnavailable`).
   void _ensureScaleReacquisition() {
     if (deviceScanner.supportsBackgroundWatch) {
-      // On a Bengle the integrated scale owns the slot (the legacy path
-      // enforces this inside _runScalePhase, which the watch bypasses) —
-      // there is nothing to reacquire externally.
-      if (_disconnectSupervisor.latestMachine is BengleInterface) {
-        _log.fine(
-          'Bengle machine: integrated scale owns the slot; '
-          'not arming scale watch',
-        );
-        return;
-      }
+      // The watch's shouldWatch gate covers the full arming policy,
+      // including the Bengle integrated-scale rule.
       unawaited(_scaleWatch.arm());
     } else {
       _maybeSchedulePreferredScaleReconnect();

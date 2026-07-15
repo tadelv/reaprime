@@ -1,5 +1,3 @@
-import 'package:reaprime/src/models/device/device.dart';
-
 /// Filter for a persistent, low-duty-cycle background device watch.
 ///
 /// Deliberately a separate type from [ScanFilter]: burst-scan semantics
@@ -17,13 +15,8 @@ class DeviceWatchFilter {
   /// watch always passes null and matches Dart-side via DeviceMatcher).
   final String? namePrefix;
 
-  /// Device types the watch is interested in. Applied Dart-side by the
-  /// normal `DeviceMatcher` path; not an OS-level filter.
-  final Set<DeviceType> deviceTypes;
-
-  const DeviceWatchFilter({this.namePrefix, required this.deviceTypes});
+  const DeviceWatchFilter({this.namePrefix});
 
   @override
-  String toString() =>
-      'DeviceWatchFilter(namePrefix: $namePrefix, deviceTypes: $deviceTypes)';
+  String toString() => 'DeviceWatchFilter(namePrefix: $namePrefix)';
 }

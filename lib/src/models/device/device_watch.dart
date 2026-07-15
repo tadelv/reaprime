@@ -23,4 +23,10 @@ abstract class DeviceWatchCapable {
   /// Stop a watch started with [startDeviceWatch]. Idempotent; safe to
   /// call when no watch is active.
   Future<void> stopDeviceWatch();
+
+  /// Emits when a requested watch dies and cannot be restarted (failed
+  /// refresh, post-burst resume, or adapter-recovery restart). The
+  /// service clears the watch request before emitting; consumers must
+  /// treat the watch as gone and activate their fallback.
+  Stream<void> get deviceWatchFailures;
 }

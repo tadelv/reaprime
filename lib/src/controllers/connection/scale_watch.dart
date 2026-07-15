@@ -33,6 +33,7 @@ class ScaleWatch {
   final void Function() _onWatchUnavailable;
 
   StreamSubscription<List<Device>>? _sub;
+  StreamSubscription<void>? _failureSub;
   bool _armed = false;
   bool _connecting = false;
 
@@ -86,10 +87,17 @@ class ScaleWatch {
     if (!_armed && _sub == null) return;
     _generation++;
     _armed = false;
+    _cancelSubs();
+    await _scanner.stopScaleWatch();
+  }
+
+  void _cancelSubs() {
     final sub = _sub;
     _sub = null;
     unawaited(sub?.cancel());
-    await _scanner.stopScaleWatch();
+    final failureSub = _failureSub;
+    _failureSub = null;
+    unawaited(failureSub?.cancel());
   }
 
   Future<void> dispose() => disarm();
@@ -106,7 +114,7 @@ class ScaleWatch {
   /// watch-unavailable so ConnectionManager can fall back to the legacy
   /// backoff loop) when the scanner refuses.
   Future<bool> _startWatchScan() async {
-    const filter = DeviceWatchFilter(deviceTypes: {DeviceType.scale});
+    const filter = DeviceWatchFilter();
     try {
       await _scanner.startScaleWatch(filter);
       return true;
@@ -119,7 +127,7 @@ class ScaleWatch {
   }
 
   void _listen(int gen) {
-    unawaited(_sub?.cancel());
+    _cancelSubs();
     // skip(1) drops the BehaviorSubject replay — the arm-time check
     // already handled devices that are currently visible.
     _sub = _scanner.deviceStream.skip(1).listen((devices) {
@@ -129,6 +137,20 @@ class ScaleWatch {
       final match = _findPreferred(devices, id);
       if (match == null) return;
       unawaited(_onSighting(match, gen));
+    });
+    // The scanner reports a watch it could not restart (failed refresh,
+    // post-burst resume, adapter recovery). The watch is gone — hand
+    // reacquisition to the legacy backoff loop.
+    _failureSub = _scanner.scaleWatchFailures.listen((_) {
+      if (gen != _generation) return;
+      _log.warning(
+        'Background watch died and could not restart; '
+        'falling back to legacy scale reconnect',
+      );
+      _generation++;
+      _armed = false;
+      _cancelSubs();
+      _onWatchUnavailable();
     });
   }
 

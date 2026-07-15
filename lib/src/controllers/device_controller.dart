@@ -288,6 +288,17 @@ class DeviceController implements DeviceScanner {
     }
   }
 
+  @override
+  Stream<void> get scaleWatchFailures {
+    final streams = _services
+        .whereType<DeviceWatchCapable>()
+        .map((s) => s.deviceWatchFailures)
+        .toList();
+    if (streams.isEmpty) return const Stream.empty();
+    if (streams.length == 1) return streams.single;
+    return Rx.merge(streams);
+  }
+
   void _serviceUpdate(DeviceDiscoveryService service, List<Device> devices) {
     _log.fine("$service update: $devices");
     _devices[service] = devices;
