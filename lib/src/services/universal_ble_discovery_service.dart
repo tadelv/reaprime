@@ -42,9 +42,21 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
   // session) and while the adapter is off.
   DeviceWatchFilter? _watchRequested;
   bool _watchScanActive = false;
-  bool _watchScanStarting = false;
   StreamSubscription<BleDevice>? _watchScanSub;
   Timer? _watchRefreshTimer;
+
+  /// Bumped on every adapter state CHANGE (replays of the same state
+  /// don't count). A watch start captures it and discards itself on
+  /// completion if it changed — the transition may have killed the
+  /// native scan the start opened, so claiming active would leave the
+  /// watch permanently silent.
+  int _watchAdapterGeneration = 0;
+  AdapterState? _lastWatchAdapterState;
+
+  /// One-shot flag set when a start discarded itself on an adapter
+  /// generation change; the retry runs after the in-flight future is
+  /// cleared (a retry from within the start would await itself).
+  bool _watchStartNeedsRetry = false;
 
   /// Android silently downgrades scans running longer than 30 minutes to
   /// opportunistic mode (results only when another app scans). Restart
@@ -143,26 +155,32 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
   }
 
   Future<void> _startWatchScan() {
+    // Concurrent callers (adapter replay, power-on recovery) share the
+    // in-flight start instead of replacing it — replacing would leave
+    // pause/stop awaiting a no-op future while the real start runs.
+    final existing = _watchStartInFlight;
+    if (existing != null) return existing;
     final start = _runWatchScanStart();
     _watchStartInFlight = start;
     return start.whenComplete(() {
       if (identical(_watchStartInFlight, start)) {
         _watchStartInFlight = null;
       }
+      if (_watchStartNeedsRetry) {
+        _watchStartNeedsRetry = false;
+        unawaited(_restartWatchOrReportFailure('adapter-transition retry'));
+      }
     });
   }
 
   Future<void> _runWatchScanStart() async {
     final filter = _watchRequested;
-    // _watchScanStarting guards the await window below — the adapter
-    // availability replay (or a concurrent caller) arriving mid-start
-    // must not double-start the scan.
-    if (filter == null || _watchScanActive || _watchScanStarting) return;
+    if (filter == null || _watchScanActive) return;
     if (_adapterStateSubject.value != AdapterState.poweredOn) {
       log.fine('Adapter not powered on; watch pends adapter recovery');
       return;
     }
-    _watchScanStarting = true;
+    final adapterGen = _watchAdapterGeneration;
 
     _watchScanSub = UniversalBle.scanStream.listen((result) async {
       if (_currentlyScanning.contains(result.deviceId)) {
@@ -195,14 +213,13 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
     } catch (e) {
       _cancelWatchScanSub();
       rethrow;
-    } finally {
-      _watchScanStarting = false;
     }
     // Guard the start window: state may have moved while startScan was
     // in flight. Ordered by ownership: a stop means undo the scan; a
     // burst owns the session now (its finally-block resume restarts the
-    // watch); an adapter that left poweredOn already killed the scan and
-    // power-on recovery must find the watch inactive to restart it.
+    // watch); ANY adapter transition (even off-and-back-on) may have
+    // killed the native scan, so the start discards itself and a fresh
+    // start runs once this one settles.
     if (_watchRequested == null) {
       log.fine('Watch stopped during start; undoing scan');
       await _deactivateWatchScan(stopOsScan: true, context: 'start-undo');
@@ -213,9 +230,16 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
       await _deactivateWatchScan(stopOsScan: false, context: 'start-burst');
       return;
     }
-    if (_adapterStateSubject.value != AdapterState.poweredOn) {
-      log.fine('Adapter left poweredOn during watch start; standing down');
-      await _deactivateWatchScan(stopOsScan: false, context: 'start-adapter');
+    if (adapterGen != _watchAdapterGeneration) {
+      log.fine('Adapter transitioned during watch start; discarding start');
+      await _deactivateWatchScan(
+        stopOsScan: true,
+        context: 'start-adapter-transition',
+      );
+      // Retry (via _startWatchScan's whenComplete) once this future is
+      // no longer the in-flight one; its own guards re-check adapter
+      // state and the request.
+      _watchStartNeedsRetry = true;
       return;
     }
     _watchScanActive = true;
@@ -255,7 +279,12 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
 
   /// Adapter transitions: the OS kills any running scan on power-off; a
   /// still-requested watch restarts on power-on (unless a burst runs).
+  /// Every transition bumps the generation so an in-flight start
+  /// invalidates itself (see [_runWatchScanStart]).
   void _onAdapterStateForWatch(AdapterState state) {
+    if (state == _lastWatchAdapterState) return;
+    _lastWatchAdapterState = state;
+    _watchAdapterGeneration++;
     if (state == AdapterState.poweredOff) {
       if (!_watchScanActive) return;
       unawaited(
@@ -319,7 +348,11 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
       initialState = await UniversalBle.getBluetoothAvailabilityState();
     }
 
-    _adapterStateSubject.add(_mapAvailabilityState(initialState));
+    final mappedInitialState = _mapAvailabilityState(initialState);
+    _adapterStateSubject.add(mappedInitialState);
+    // Seed the watch's change detector so the availability stream's
+    // initial replay of this same state doesn't count as a transition.
+    _lastWatchAdapterState = mappedInitialState;
 
     UniversalBle.availabilityStream.listen((state) {
       log.info("BLE Adapter state: ${state.name}");
