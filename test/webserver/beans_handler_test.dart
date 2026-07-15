@@ -308,6 +308,28 @@ void main() {
       expect(body['weight'], 250.0);
     });
 
+    test('POST /api/v1/beans/<beanId>/batches preserves freeze fields',
+        () async {
+      final freezeDate = DateTime.utc(2026, 1, 2, 3, 4, 5, 6);
+      final unfreezeDate = DateTime.utc(2026, 2, 3, 4, 5, 6, 7);
+      final createResponse = await sendPost('/api/v1/beans/$beanId/batches', {
+        'freezeDate': freezeDate.toIso8601String(),
+        'unfreezeDate': unfreezeDate.toIso8601String(),
+        'frozen': true,
+      });
+      final created = jsonDecode(await createResponse.readAsString());
+
+      expect(DateTime.parse(created['freezeDate']), freezeDate);
+      expect(DateTime.parse(created['unfreezeDate']), unfreezeDate);
+      expect(created['frozen'], isTrue);
+
+      final getResponse = await sendGet('/api/v1/bean-batches/${created['id']}');
+      final fetched = jsonDecode(await getResponse.readAsString());
+      expect(DateTime.parse(fetched['freezeDate']), freezeDate);
+      expect(DateTime.parse(fetched['unfreezeDate']), unfreezeDate);
+      expect(fetched['frozen'], isTrue);
+    });
+
     test('GET /api/v1/beans/<beanId>/batches returns batches', () async {
       await sendPost('/api/v1/beans/$beanId/batches', {
         'roastLevel': 'light',
@@ -354,6 +376,53 @@ void main() {
       final body = jsonDecode(await response.readAsString());
       expect(body['roastLevel'], 'medium');
       expect(body['notes'], 'Very good batch');
+    });
+
+    test('PUT /api/v1/bean-batches/<id> preserves missing date fields',
+        () async {
+      final batch = BeanBatch.create(
+        beanId: beanId,
+        roastLevel: 'light',
+      );
+      await storage.insertBatch(batch);
+      final buyDate = DateTime.utc(2026, 3, 4, 5, 6, 7, 8);
+      final openDate = DateTime.utc(2026, 4, 5, 6, 7, 8, 9);
+      final bestBeforeDate = DateTime.utc(2026, 5, 6, 7, 8, 9, 10);
+      final freezeDate = DateTime.utc(2026, 6, 7, 8, 9, 10, 11);
+      final unfreezeDate = DateTime.utc(2026, 7, 8, 9, 10, 11, 12);
+      final updateResponse = await sendPut('/api/v1/bean-batches/${batch.id}', {
+        'harvestDate': '2025',
+        'buyDate': buyDate.toIso8601String(),
+        'openDate': openDate.toIso8601String(),
+        'bestBeforeDate': bestBeforeDate.toIso8601String(),
+        'freezeDate': freezeDate.toIso8601String(),
+        'unfreezeDate': unfreezeDate.toIso8601String(),
+      });
+      final updated = jsonDecode(await updateResponse.readAsString());
+
+      expect(updated['harvestDate'], '2025');
+      expect(DateTime.parse(updated['buyDate']), buyDate);
+      expect(DateTime.parse(updated['openDate']), openDate);
+      expect(DateTime.parse(updated['bestBeforeDate']), bestBeforeDate);
+      expect(DateTime.parse(updated['freezeDate']), freezeDate);
+      expect(DateTime.parse(updated['unfreezeDate']), unfreezeDate);
+      expect(updated['roastLevel'], 'light');
+
+      final getResponse = await sendGet('/api/v1/bean-batches/${batch.id}');
+      final fetched = jsonDecode(await getResponse.readAsString());
+      expect(fetched['harvestDate'], '2025');
+      expect(DateTime.parse(fetched['buyDate']), buyDate);
+      expect(DateTime.parse(fetched['openDate']), openDate);
+      expect(DateTime.parse(fetched['bestBeforeDate']), bestBeforeDate);
+      expect(DateTime.parse(fetched['freezeDate']), freezeDate);
+      expect(DateTime.parse(fetched['unfreezeDate']), unfreezeDate);
+      expect(fetched['roastLevel'], 'light');
+
+      await sendPut('/api/v1/bean-batches/${batch.id}', {'freezeDate': null});
+      final nullDateResponse =
+          await sendGet('/api/v1/bean-batches/${batch.id}');
+      final afterNullDate = jsonDecode(await nullDateResponse.readAsString());
+      expect(DateTime.parse(afterNullDate['freezeDate']), freezeDate);
     });
 
     test('DELETE /api/v1/bean-batches/<id> deletes a batch', () async {

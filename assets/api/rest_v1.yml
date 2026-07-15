@@ -1651,6 +1651,16 @@ paths:
                   type: string
                   format: date-time
                   nullable: true
+                freezeDate:
+                  type: string
+                  format: date-time
+                  nullable: true
+                unfreezeDate:
+                  type: string
+                  format: date-time
+                  nullable: true
+                frozen:
+                  type: boolean
                 notes:
                   type: string
                   nullable: true
@@ -1756,6 +1766,26 @@ paths:
                   format: double
                   nullable: true
                   description: Remaining weight in grams
+                buyDate:
+                  type: string
+                  format: date-time
+                  nullable: true
+                openDate:
+                  type: string
+                  format: date-time
+                  nullable: true
+                bestBeforeDate:
+                  type: string
+                  format: date-time
+                  nullable: true
+                freezeDate:
+                  type: string
+                  format: date-time
+                  nullable: true
+                unfreezeDate:
+                  type: string
+                  format: date-time
+                  nullable: true
                 frozen:
                   type: boolean
                 archived:
