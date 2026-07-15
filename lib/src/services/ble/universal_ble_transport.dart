@@ -71,6 +71,11 @@ class UniversalBleTransport implements BLETransport {
   static const Duration _androidPostConnectDelay =
       Duration(milliseconds: 200);
 
+  // Brief pause between stopScan and connectGatt so the scanner actually
+  // releases the radio before the connection attempt starts.
+  static const Duration _androidPreConnectSettleDelay =
+      Duration(milliseconds: 300);
+
   @override
   Future<void> connect() async {
     _linkDeadDeclared = false;
@@ -96,10 +101,27 @@ class UniversalBleTransport implements BLETransport {
       _startAdvertWatch();
       return;
     }
+    // Android: stop any active scan before connecting — connectGatt gets
+    // starved by a lowLatency scan's radio duty cycle (same problem class
+    // as the BlueZ le-connection-abort-by-local mitigation above; observed
+    // 2026-07-15 as repeated 10s connect timeouts to an advertising scale
+    // mid-scan). The ConnectionManager retry loop restarts scanning.
+    if (Platform.isAndroid) {
+      try {
+        await UniversalBle.stopScan();
+      } catch (e) {
+        _log.fine("stopScan before connect failed (ignored): $e");
+      }
+      await Future.delayed(_androidPreConnectSettleDelay);
+    }
     try {
+      // 20s: connectGatt on a busy radio (live DE1 link, recent scan) can
+      // legitimately need more than 10s — fbp defaults to 35s. Must stay
+      // comfortably under ConnectionManager's 30s end-to-end guard so the
+      // richer transport-level error wins over the generic outer timeout.
       await UniversalBle.connect(
         _device.deviceId,
-        timeout: Duration(seconds: 10),
+        timeout: Duration(seconds: 20),
       );
     } on UniversalBleException catch (e) {
       throw mapUniversalConnectError(e);

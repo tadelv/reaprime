@@ -1078,17 +1078,19 @@ class ConnectionManager {
     }
   }
 
-  Future<void> connectScale(Scale scale) async {
+  /// Returns the attempt outcome so tracked callers can report it —
+  /// failures are handled here (status emit) and NOT rethrown.
+  Future<ConnectionResult> connectScale(Scale scale) async {
     if (_scaleReconnectBlockedByPowerMode) {
       _log.fine(
         'connectScale: blocked while machine is sleeping and scale power '
         'mode is disconnect',
       );
-      return;
+      return const ConnectionResult.skipped();
     }
     if (_isConnectingScale) {
       _log.fine('connectScale: already connecting, skipping');
-      return;
+      return const ConnectionResult.skipped();
     }
     _isConnectingScale = true;
     _log.fine('connectScale: connecting to ${scale.name} (${scale.deviceId})');
@@ -1114,7 +1116,7 @@ class ConnectionManager {
           ),
         );
         await scale.disconnect();
-        return;
+        return const ConnectionResult.succeeded();
       }
       await settingsController.setPreferredScaleId(scale.deviceId);
       // `_latestScaleState` is populated by the scaleController
@@ -1123,6 +1125,7 @@ class ConnectionManager {
       if (_machineConnected) {
         _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.ready));
       }
+      return const ConnectionResult.succeeded();
     } catch (e) {
       // Scale failure is non-blocking — stay at ready if machine connected, else idle.
       _publishStatus(
@@ -1151,6 +1154,7 @@ class ConnectionManager {
                 'toggle Bluetooth off and on.',
         exception: e,
       ));
+      return ConnectionResult.failed(e.toString());
     } finally {
       _isConnectingScale = false;
     }
@@ -1255,18 +1259,11 @@ class ConnectionManager {
     ScanReportBuilder scanReport,
   ) async {
     scanReport.markAttempted(scale.deviceId);
-    try {
-      await connectScale(scale);
-      scanReport.recordResult(
-        scale.deviceId,
-        const ConnectionResult.succeeded(),
-      );
-    } catch (e) {
-      scanReport.recordResult(
-        scale.deviceId,
-        ConnectionResult.failed(e.toString()),
-      );
-    }
+    // connectScale handles its own failures (status emit) and reports the
+    // outcome instead of throwing — record what actually happened rather
+    // than assuming success (a swallowed failure used to log "— connected").
+    final result = await connectScale(scale);
+    scanReport.recordResult(scale.deviceId, result);
   }
 
   /// Build a [ScanReport] from [scanReport] and publish it on the
