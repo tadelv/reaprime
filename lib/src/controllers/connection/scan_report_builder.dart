@@ -40,6 +40,12 @@ class MatchedDeviceTracker {
 /// (roadmap item 15 — god-class split).
 class ScanReportBuilder {
   final DateTime scanStartTime;
+
+  /// Actual scan window as measured by the scanner. Without it, `build()`
+  /// falls back to wall time since [scanStartTime] — which inflates the
+  /// reported duration by however long the post-scan connect/policy phase
+  /// took (a 15s scan read as 35s when two 10s connects followed it).
+  Duration? _measuredScanDuration;
   final Map<String, MatchedDeviceTracker> _trackers = {};
 
   /// Adapter state captured at scan start. Set by the orchestrator
@@ -54,6 +60,11 @@ class ScanReportBuilder {
   /// around the whole scan+connect window (comms-harden #27).
   void recordAdapterStateAtStart(AdapterState state) {
     _adapterStateAtStart = state;
+  }
+
+  /// Record the scanner-measured scan window (see [_measuredScanDuration]).
+  void recordScanDuration(Duration duration) {
+    _measuredScanDuration = duration;
   }
 
   /// Ensure a tracker exists for [d]. Does not clobber an existing
@@ -96,7 +107,8 @@ class ScanReportBuilder {
     return ScanReport(
       totalBleDevicesSeen: matchedDevices.length,
       matchedDevices: matchedDevices,
-      scanDuration: DateTime.now().difference(scanStartTime),
+      scanDuration:
+          _measuredScanDuration ?? DateTime.now().difference(scanStartTime),
       adapterStateAtStart: _adapterStateAtStart,
       adapterStateAtEnd: adapterStateAtEnd,
       scanTerminationReason: terminationReason,

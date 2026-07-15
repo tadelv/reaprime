@@ -103,6 +103,16 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
     UniversalBle.stopScan();
   }
 
+  /// Transport pre-connect hook: stop the native scan AND end the
+  /// scan-duration wait, so a connect started mid-scan closes the scan
+  /// cycle instead of leaving it dead-waiting (native scan already
+  /// stopped, no results flowing) — scan reports then show the real
+  /// scan window.
+  Future<void> _stopScanForConnect() async {
+    _cancelScanDurationWait();
+    await UniversalBle.stopScan();
+  }
+
   /// Cancel the scheduled 15s stopScan and unblock the awaiter in
   /// scanForDevices so it can proceed to cleanup / free `_isScanning`.
   void _cancelScanDurationWait() {
@@ -224,7 +234,10 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
       if (_devices.containsKey(device.deviceId.toString())) return;
 
       final matchedDevice = await DeviceMatcher.match(
-        transport: UniversalBleTransport(device: device),
+        transport: UniversalBleTransport(
+          device: device,
+          stopScan: _stopScanForConnect,
+        ),
         advertisedName: name,
       );
 
@@ -268,7 +281,10 @@ class UniversalBleDiscoveryService extends BleDiscoveryService {
       bleDevice = BleDevice(deviceId: deviceId, name: remembered.name);
     }
 
-    final transport = UniversalBleTransport(device: bleDevice);
+    final transport = UniversalBleTransport(
+      device: bleDevice,
+      stopScan: _stopScanForConnect,
+    );
     final device = DeviceFactory.createBle(impl, transport);
     if (device == null) {
       log.warning('Quick-connect: DeviceFactory returned null for $impl');

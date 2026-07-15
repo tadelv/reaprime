@@ -61,9 +61,24 @@ class UniversalBleTransport implements BLETransport {
 
   bool get _isLinux => Platform.isLinux;
 
-  UniversalBleTransport({required BleDevice device}) : _device = device {
+  UniversalBleTransport({
+    required BleDevice device,
+    Future<void> Function()? stopScan,
+  })  : _device = device,
+        _stopScan = stopScan {
     _log = Logger("BLETransport-${device.deviceId}");
   }
+
+  /// Scan-stop hook injected by the discovery service. Routing the
+  /// pre-connect stop through the service ends its scan-duration wait too,
+  /// so the scan cycle (and its report) reflects the actual scan window
+  /// instead of dead-waiting out the full duration after the native scan
+  /// is already stopped. Falls back to a direct platform stop for
+  /// transports constructed without a service.
+  final Future<void> Function()? _stopScan;
+
+  Future<void> _stopScanViaOwner() =>
+      _stopScan?.call() ?? UniversalBle.stopScan();
 
   // Android post-connect settle duration. The Android BLE stack needs
   // a brief period after connectGatt reports success before service
@@ -108,7 +123,8 @@ class UniversalBleTransport implements BLETransport {
     // mid-scan). The ConnectionManager retry loop restarts scanning.
     if (Platform.isAndroid) {
       try {
-        await UniversalBle.stopScan();
+        _log.fine("stopping scan before connect");
+        await _stopScanViaOwner();
       } catch (e) {
         _log.fine("stopScan before connect failed (ignored): $e");
       }
@@ -181,7 +197,7 @@ class UniversalBleTransport implements BLETransport {
 
   Future<void> _stopScanAndSettle() async {
     try {
-      await UniversalBle.stopScan();
+      await _stopScanViaOwner();
     } catch (e) {
       _log.fine("stopScan before BlueZ connect failed (ignored): $e");
     }
