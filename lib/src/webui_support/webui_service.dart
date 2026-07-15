@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:html/dom.dart' show DocumentType;
+import 'package:html/parser.dart' show parse;
 import 'package:logging/logging.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:shelf_plus/shelf_plus.dart';
@@ -37,23 +40,54 @@ enum SkinSource {
   id,
 }
 
-String injectSkinApiScript(String html, String? token) {
+const skinApiScriptPath = '/__decent/skin-api.js';
+const skinExitDashboardPath = '/__decent/exit-dashboard';
+const skinExitDashboardUrl = 'http://localhost:3000$skinExitDashboardPath';
+const _skinApiScriptTag = '<script src="$skinApiScriptPath"></script>';
+
+String injectSkinApiScriptTag(String html) {
+  final bomLength = html.startsWith('\uFEFF') ? 1 : 0;
+  final document = parse(html.substring(bomLength), generateSpans: true);
+  final headOffset = document.head?.endSourceSpan?.start.offset;
+  final bodyOffset = document.body?.endSourceSpan?.start.offset;
+  var offset = headOffset ?? bodyOffset;
+  if (offset == null) {
+    for (final node in document.nodes) {
+      if (node is DocumentType && node.sourceSpan != null) {
+        offset = node.sourceSpan!.end.offset;
+        break;
+      }
+    }
+  }
+  offset = (offset ?? 0) + bomLength;
+  return '${html.substring(0, offset)}$_skinApiScriptTag'
+      '${html.substring(offset)}';
+}
+
+List<int> injectSkinApiScriptTagBytes(List<int> bytes, Encoding encoding) {
+  final decoded = encoding.decode(bytes);
+  final hasUtf8Bom =
+      encoding.name.toLowerCase() == 'utf-8' &&
+      bytes.length >= 3 &&
+      bytes[0] == 0xEF &&
+      bytes[1] == 0xBB &&
+      bytes[2] == 0xBF;
+  final html = hasUtf8Bom && !decoded.startsWith('\uFEFF')
+      ? '\uFEFF$decoded'
+      : decoded;
+  return encoding.encode(injectSkinApiScriptTag(html));
+}
+
+String buildSkinApiJavaScript(String? token) {
   final tokenAssignment = token == null || token.isEmpty
       ? ''
       : 'window.__REA_PROXY_TOKEN__=${jsonEncode(token)};';
-  final script =
-      '<script>$tokenAssignment'
+  return '$tokenAssignment'
       'window.decentApp=window.decentApp||{};'
       'window.decentApp.exitToDashboard=function(){'
-      "if(window.__DECENT_HOST__)window.location.href='decent://dashboard';"
-      '};</script>';
-  for (final marker in const ['</head>', '</body>']) {
-    final i = html.indexOf(marker);
-    if (i != -1) {
-      return '${html.substring(0, i)}$script${html.substring(i)}';
-    }
-  }
-  return '$script$html';
+      'if(window.__DECENT_HOST__)window.location.assign('
+      '${jsonEncode(skinExitDashboardUrl)});'
+      '};';
 }
 
 class WebUIService {
@@ -130,6 +164,22 @@ class WebUIService {
       listDirectories: true,
     );
 
+    FutureOr<Response> skinHandler(Request request) {
+      if (request.url.path == skinApiScriptPath.substring(1)) {
+        return Response.ok(
+          request.method == 'HEAD'
+              ? null
+              : buildSkinApiJavaScript(skinProxyToken),
+          headers: {
+            'Content-Type': 'application/javascript; charset=utf-8',
+            'Cache-Control': 'no-store',
+            'X-Content-Type-Options': 'nosniff',
+          },
+        );
+      }
+      return webUI(request);
+    }
+
     Future<Response> Function(Request request) expirationModifier(
       Handler innerHandler,
     ) {
@@ -164,15 +214,26 @@ class WebUIService {
       return (Request request) async {
         final response = await innerHandler(request);
         final contentType = response.headers['content-type'] ?? '';
-        if (!contentType.contains('text/html')) {
+        if (request.method == 'HEAD' ||
+            response.statusCode != HttpStatus.ok ||
+            !contentType.toLowerCase().startsWith('text/html') ||
+            response.headers.containsKey('content-encoding')) {
           return response;
         }
-        final body = await response.readAsString();
-        final injected = injectSkinApiScript(body, skinProxyToken);
-        // Drop content-length: the body length changed and shelf recomputes it.
-        final headers = Map<String, String>.from(response.headers)
-          ..remove('content-length');
-        return response.change(body: injected, headers: headers);
+        final encoding = response.encoding ?? utf8;
+        final body = await response.read().expand((chunk) => chunk).toList();
+        final injected = injectSkinApiScriptTagBytes(body, encoding);
+        return response.change(
+          body: injected,
+          headers: {
+            'accept-ranges': null,
+            'content-length': null,
+            'content-md5': null,
+            'content-range': null,
+            'etag': null,
+            'last-modified': null,
+          },
+        );
       };
     }
 
@@ -189,7 +250,7 @@ class WebUIService {
         .addMiddleware(logRequests())
         .addMiddleware(expirationModifier)
         .addMiddleware(skinApiInjector)
-        .addHandler(webUI.call);
+        .addHandler(skinHandler);
 
     try {
       _server = await shelf_io.serve(handler, '0.0.0.0', port);
