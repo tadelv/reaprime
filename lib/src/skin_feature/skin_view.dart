@@ -55,6 +55,26 @@ SkinNavDecision classifySkinNavigation(Uri? url) {
   return SkinNavDecision.block;
 }
 
+/// JS predicate evaluated after a skin load settles: did the skin actually come
+/// up? True when something rendered into `<body>`, or a skin published its
+/// `window.app` bridge. A dead load — index.html parsed but none of the skin's
+/// external `<script>`s executed — leaves the body empty and no globals set.
+const String skinRenderedProbeJs =
+    '(!!(document.body && document.body.childElementCount > 0)) '
+    '|| (typeof window.app !== "undefined")';
+
+/// Whether a settled skin load that came up blank should be recovered by
+/// recreating the webview. Pure so the retry policy is unit-testable without a
+/// live webview. A page reload does not clear the dead state — only a fresh
+/// webview instance does — so recovery recreates the view, bounded by
+/// [maxRecoveries] to avoid a reload loop when the skin genuinely cannot load.
+bool shouldRecreateWebViewOnBlank({
+  required bool rendered,
+  required int priorRecoveries,
+  int maxRecoveries = 3,
+}) =>
+    !rendered && priorRecoveries < maxRecoveries;
+
 class SkinExitCoordinator {
   bool _inProgress = false;
 
@@ -112,6 +132,19 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
   CompatibilityResult? _compatibilityResult;
   bool _rendererCrashed = false;
 
+  // Blank-skin self-heal. Some launches — notably right after a machine
+  // power-cycle, when the reconnect burst competes with the initial page
+  // load — bring the webview up with index.html parsed but none of the skin's
+  // external <script>s executed: a blank page whose spinner never clears. A
+  // page reload does not recover it; only a fresh webview instance does (the
+  // same remedy as a renderer crash). After each load settles we probe whether
+  // the skin rendered and, if not, recreate the webview, bounded by
+  // [_maxBlankRecoveries].
+  static const int _maxBlankRecoveries = 3;
+  Timer? _blankSkinWatchdog;
+  bool _recreatingWebView = false;
+  int _blankRecoveries = 0;
+
   InAppWebViewController? _webViewController;
   final _skinExitCoordinator = SkinExitCoordinator();
   Uri? _mainFrameUri;
@@ -137,6 +170,8 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
     _log.fine("disposing");
     _blankPageTimer?.cancel();
     _blankPageTimer = null;
+    _blankSkinWatchdog?.cancel();
+    _blankSkinWatchdog = null;
     WidgetsBinding.instance.removeObserver(this);
     if (Platform.isAndroid) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -607,7 +642,7 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
       );
     }
 
-    if (_rendererCrashed) {
+    if (_rendererCrashed || _recreatingWebView) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -685,12 +720,17 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
           _isLoading = true;
           _errorMessage = null;
         });
+        // A load that never settles (subresources wedged) is itself a blank;
+        // arm a generous watchdog. onLoadStop re-arms a short render-grace one.
+        _armBlankSkinWatchdog(url, const Duration(seconds: 12));
       },
       onLoadStop: (controller, url) async {
         _log.info('Page finished loading: $url');
         setState(() {
           _isLoading = false;
         });
+        // Give the skin a moment to render, then verify it actually did.
+        _armBlankSkinWatchdog(url, const Duration(seconds: 3));
 
         // Inject CSS to hide scrollbars in web content
         // await controller.evaluateJavascript(source: '''
@@ -800,6 +840,62 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
         });
       },
     );
+  }
+
+  /// Arm the blank-skin watchdog — for the skin URL only, never about:blank
+  /// (which we deliberately load when backgrounded). Replaces any pending probe.
+  void _armBlankSkinWatchdog(WebUri? url, Duration delay) {
+    if (!(Platform.isAndroid || Platform.isIOS)) return;
+    if (!(url?.toString() ?? '').startsWith('http://localhost:3000')) return;
+    _blankSkinWatchdog?.cancel();
+    _blankSkinWatchdog = Timer(delay, _probeSkinAndRecover);
+  }
+
+  /// After a load settles, ask the page whether the skin actually rendered.
+  /// A blank result (or a probe that throws) recreates the webview, up to
+  /// [_maxBlankRecoveries]; a healthy render refills the recovery budget.
+  Future<void> _probeSkinAndRecover() async {
+    final controller = _webViewController;
+    if (!mounted || controller == null || _recreatingWebView) return;
+    bool rendered;
+    try {
+      final res =
+          await controller.evaluateJavascript(source: skinRenderedProbeJs);
+      rendered = res == true || res == 'true' || res == 1;
+    } catch (e, st) {
+      _log.warning('skin-render probe failed; treating as blank', e, st);
+      rendered = false;
+    }
+    if (rendered) {
+      _blankRecoveries = 0; // a healthy load refills the recovery budget
+      return;
+    }
+    if (!shouldRecreateWebViewOnBlank(
+      rendered: rendered,
+      priorRecoveries: _blankRecoveries,
+      maxRecoveries: _maxBlankRecoveries,
+    )) {
+      _log.severe(
+        'skin still blank after $_blankRecoveries recoveries — giving up',
+      );
+      return;
+    }
+    _blankRecoveries++;
+    _log.warning(
+      'skin loaded blank — recreating webview '
+      '(attempt $_blankRecoveries/$_maxBlankRecoveries)',
+    );
+    _recreateWebView();
+  }
+
+  /// Force a fresh native webview instance by dropping the [InAppWebView] from
+  /// the tree and re-adding it — the same recovery [onRenderProcessGone] uses.
+  /// A reload keeps the wedged instance; a fresh instance loads clean.
+  void _recreateWebView() {
+    setState(() => _recreatingWebView = true);
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) setState(() => _recreatingWebView = false);
+    });
   }
 
   /// Scripts injected into the skin at document start, before any page script
