@@ -50,7 +50,10 @@ For browser clients on a different origin, `ETag` is exposed via `Access-Control
 | GET | `/api/v1/machine/calibration` | Flow estimation calibration | |
 | POST | `/api/v1/machine/calibration` | Update calibration | |
 | POST | `/api/v1/machine/profile` | Upload profile to machine | |
-| POST | `/api/v1/machine/firmware` | Upload firmware image to machine (raw binary body) | |
+| GET | `/api/v1/machine/firmware` | Firmware catalog with per-artifact eligibility | `firmware_handler.dart` |
+| POST | `/api/v1/machine/firmware` | Raw firmware upload (NDJSON progress stream) | `firmware_handler.dart` |
+| DELETE | `/api/v1/machine/firmware` | Cancel in-progress firmware update (idempotent) | `firmware_handler.dart` |
+| POST | `/api/v1/machine/firmware/apply` | Managed firmware apply: resolve, validate, upload | `firmware_handler.dart` |
 | — | USB charger | Controlled via `POST /api/v1/machine/settings` with `{"usb": "enable"}` or `{"usb": "disable"}` | |
 | POST | `/api/v1/machine/waterLevels` | Update water level threshold | |
 | GET | `/api/v1/machine/capabilities` | List capability identifiers (`cupWarmer`, `integratedScale`, `ledStrip`, `stopAtWeight`) supported by the connected machine | |
@@ -60,6 +63,16 @@ For browser clients on a different origin, `ETag` is exposed via `Access-Control
 | PUT | `/api/v1/machine/ledStrip` | Write full LED strip config (cache + FW live registers) — Bengle only | |
 | POST | `/api/v1/machine/ledStrip/commit` | Persist LED config to FW NVM — Bengle only | |
 | POST | `/api/v1/machine/ledStrip/reset` | Reload LED config from FW NVM, return refreshed state — Bengle only | |
+
+#### Firmware updates
+
+The catalog endpoint is available offline and without a connected machine. It returns bundled artifact metadata, compatibility and version eligibility, the recommended artifact, tri-state `updateAvailable`, and the shared machine operation state. The bundled Phase 1 artifact is official DE1 firmware build 1352 for `DE1Pro`, `DE1XL`, `DE1XXL`, and `DE1XXXL`.
+
+Managed apply accepts `{"artifactId":"de1-1352","force":false}`. The complete image is checked against its manifest, SHA-256 digest, canonical DE1 header, and connected model before erase. `force` permits reinstall or downgrade, including when the installed build is unknown, but never bypasses integrity or model checks. The raw endpoint retains its developer/recovery role and accepts `application/octet-stream`.
+
+Raw and managed updates return `application/x-ndjson`. Events are ordered `erasing`, zero or more `uploading`, then `done`; failures after streaming starts terminate with `error`. Upload progress is emitted in approximately one-percent increments. The stream remains open during final machine verification, and `done` is sent only after the DE1 reports `FF FF FD`. Client disconnect and `DELETE` request cancellation through the shared machine operation.
+
+Pre-stream responses are `400` for malformed input, `404` for an unknown artifact, `409` for an active update, `422` for validation or policy rejection, and `503` when apply requires a machine. Idempotent cancellation returns `202`.
 
 ### Scale
 

@@ -10,6 +10,7 @@ import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/display_controller.dart';
 import 'package:reaprime/src/models/data/profile.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/firmware_update_state.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
@@ -193,6 +194,8 @@ class _TestDe1 implements De1Interface {
   Future<double> getHeaterIdleTemp() async => 0;
   @override
   Future<void> setHeaterIdleTemp(double val) async {}
+  @override
+  FirmwareUpdateState get firmwareUpdateState => FirmwareUpdateState.idle;
   @override
   Future<void> updateFirmware(Uint8List fwImage,
       {required void Function(double progress) onProgress}) async {}

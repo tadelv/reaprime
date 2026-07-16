@@ -180,4 +180,6 @@ flutter:
     - assets/plugins/decent-profile.reaplugin/
     - assets/defaultProfiles/
     - assets/bundled_skins/
+    - assets/firmware/
+    - assets/firmware/de1/
     - skin_sources.json

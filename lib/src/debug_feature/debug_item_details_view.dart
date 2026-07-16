@@ -6,6 +6,7 @@ import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// Title shown in the debug view header. Switches on the machine's
@@ -344,6 +345,15 @@ class _De1DebugViewState extends State<De1DebugView> {
         data,
         onProgress: (p) => progressNotifier.value = p,
       );
+    } on FirmwareUpdateInProgressException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('A firmware update is already in progress'),
+          ),
+        );
+      }
+      return;
     } catch (e) {
       stopwatch.stop();
       if (cancelled) return;

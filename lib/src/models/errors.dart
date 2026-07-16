@@ -69,3 +69,33 @@ class MmrTimeoutException implements Exception {
   String toString() =>
       'MmrTimeoutException: no response for $mmrItemName within $timeout';
 }
+
+/// Thrown synchronously by [De1Interface.updateFirmware] when a firmware
+/// operation is already in progress. Callers receive this before any async
+/// work begins, so an API handler can return HTTP 409 before opening a
+/// streaming response.
+class FirmwareUpdateInProgressException implements Exception {
+  @override
+  String toString() => 'FirmwareUpdateInProgressException: a firmware '
+      'update is already in progress';
+}
+
+/// Thrown when an in-progress firmware update is cancelled, either by
+/// [De1Interface.cancelFirmwareUpload] or by client disconnect.
+class FirmwareUpdateCancelledException implements Exception {
+  const FirmwareUpdateCancelledException();
+
+  @override
+  String toString() => 'FirmwareUpdateCancelledException: firmware update '
+      'was cancelled';
+}
+
+/// Thrown when firmware image validation fails before starting the upload.
+class FirmwareImageValidationException implements Exception {
+  final String reason;
+
+  const FirmwareImageValidationException(this.reason);
+
+  @override
+  String toString() => 'FirmwareImageValidationException: $reason';
+}

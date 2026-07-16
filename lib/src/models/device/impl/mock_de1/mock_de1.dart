@@ -8,8 +8,10 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
+import 'package:reaprime/src/models/device/firmware_update_state.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/simulated_device.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:rxdart/subjects.dart';
 
@@ -82,7 +84,7 @@ class MockDe1 implements De1Interface, SimulatedDevice {
   @override
   MachineInfo get machineInfo => MachineInfo(
     version: "1337",
-    model: "3",
+    model: "DE1Pro",
     serialNumber: "mock-de1",
     groupHeadControllerPresent: false,
     extra: {},
@@ -136,10 +138,7 @@ class MockDe1 implements De1Interface, SimulatedDevice {
 
   @override
   disconnect() async {
-    // Mirror UnifiedDe1.disconnect(): run onDisconnect() so subclass
-    // overrides (e.g. MockBengle's integrated-scale teardown, this
-    // class's _stateTimer cancel) actually fire when the simulated
-    // machine "disconnects".
+    await cancelFirmwareUpload();
     await onDisconnect();
   }
 
@@ -293,10 +292,9 @@ class MockDe1 implements De1Interface, SimulatedDevice {
     }
 
     // Calculate progress through current step (0.0 to 1.0)
-    final stepProgress =
-        stepDurationMs > 0
-            ? min(_profileStepElapsedTime / stepDurationMs, 1.0)
-            : 0.0;
+    final stepProgress = stepDurationMs > 0
+        ? min(_profileStepElapsedTime / stepDurationMs, 1.0)
+        : 0.0;
 
     _shotElapsedMs += 100;
     final shotSecs = _shotElapsedMs / 1000.0;
@@ -373,10 +371,12 @@ class MockDe1 implements De1Interface, SimulatedDevice {
     if (currentStep.transition == TransitionType.smooth) {
       if (currentStep is ProfileStepPressure) {
         targetPressure =
-            _fromPressureTarget + (targetPressure - _fromPressureTarget) * stepProgress;
+            _fromPressureTarget +
+            (targetPressure - _fromPressureTarget) * stepProgress;
         stepTargetPressure = targetPressure;
       } else if (currentStep is ProfileStepFlow) {
-        targetFlow = _fromFlowTarget + (targetFlow - _fromFlowTarget) * stepProgress;
+        targetFlow =
+            _fromFlowTarget + (targetFlow - _fromFlowTarget) * stepProgress;
         stepTargetFlow = targetFlow;
       }
     }
@@ -453,12 +453,11 @@ class MockDe1 implements De1Interface, SimulatedDevice {
       targetMixTemperature: targetTemp,
       targetGroupTemperature: targetTemp,
       profileFrame: _currentProfileStepIndex,
-      steamTemperature:
-          _calculateTemperature(
-            current: _lastSnapshot.steamTemperature.toDouble(),
-            target: 150.0,
-            rate: 0.2,
-          ).toInt(),
+      steamTemperature: _calculateTemperature(
+        current: _lastSnapshot.steamTemperature.toDouble(),
+        target: 150.0,
+        rate: 0.2,
+      ).toInt(),
     );
   }
 
@@ -809,29 +808,63 @@ class MockDe1 implements De1Interface, SimulatedDevice {
     _log.fine("sending raw message: ${message.toJson()}");
   }
 
+  FirmwareUpdateState _firmwareUpdateState = FirmwareUpdateState.idle;
+
+  @override
+  FirmwareUpdateState get firmwareUpdateState => _firmwareUpdateState;
+
+  List<bool>? _fwCancelToken;
+
   @override
   Future<void> updateFirmware(
     Uint8List fwImage, {
     required void Function(double) onProgress,
-  }) async {
-    // uploading bytes ...
+  }) {
+    if (_firmwareUpdateState != FirmwareUpdateState.idle) {
+      throw FirmwareUpdateInProgressException();
+    }
+    _firmwareUpdateState = FirmwareUpdateState.erasing;
+    final token = [false];
+    _fwCancelToken = token;
+    return _simulateUpdate(fwImage, onProgress, token).whenComplete(() {
+      if (identical(_fwCancelToken, token)) {
+        _fwCancelToken = null;
+        _firmwareUpdateState = FirmwareUpdateState.idle;
+      }
+    });
+  }
+
+  Future<void> _simulateUpdate(
+    Uint8List fwImage,
+    void Function(double) onProgress,
+    List<bool> cancelToken,
+  ) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    if (cancelToken[0]) throw const FirmwareUpdateCancelledException();
+
+    _firmwareUpdateState = FirmwareUpdateState.uploading;
+
     final chunkSize = 4096;
     final total = fwImage.length;
     for (int offset = 0; offset < total; offset += chunkSize) {
-      // Simulate work
-      await Future.delayed(Duration(milliseconds: 20));
-
-      // Send chunk to device...
-      // await sendChunk(data.sublist(offset, min(offset + chunkSize, total)));
-
-      // Report progress
+      if (cancelToken[0]) throw const FirmwareUpdateCancelledException();
+      await Future.delayed(const Duration(milliseconds: 20));
       onProgress(offset / total);
     }
+
+    _firmwareUpdateState = FirmwareUpdateState.verifying;
+    await Future.delayed(const Duration(milliseconds: 100));
+    if (cancelToken[0]) throw const FirmwareUpdateCancelledException();
+
     onProgress(1.0);
   }
 
   @override
-  Future<void> cancelFirmwareUpload() async {}
+  Future<void> cancelFirmwareUpload() async {
+    if (_firmwareUpdateState == FirmwareUpdateState.idle) return;
+    _firmwareUpdateState = FirmwareUpdateState.cancelling;
+    _fwCancelToken?[0] = true;
+  }
 
   @override
   Future<void> enableUserPresenceFeature() async {}
