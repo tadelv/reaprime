@@ -1048,33 +1048,49 @@ function createPlugin(host) {
       }
 
       if (request.endpoint === "upload") {
-        const shotId = request.body.shotId;
+        const shotId = request.body?.shotId;
+
         if (!shotId) {
           return {
             requestId: request.requestId,
             status: 400,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              message: 'shotId is required'
-            })
-
-          }
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ error: "shotId is required" }),
+          };
         }
-        return fetch(`http://localhost:8080/api/v1/shots/${shotId}`)
-          .then((res) => {
-            return res.json();
-          }).then((json) => {
-            return uploadShot(convertReaToVisualizerFormat(json), null);
-          }).then((shotResponse) => {
-            rememberUpload(shotId, shotResponse.id);
+
+        return fetch(`${LOCAL_API_URL}/shots/${encodeURIComponent(shotId)}`)
+          .then(async (response) => {
+            const body = await response.text();
+
+            if (!response.ok) {
+              throw new Error(
+                `Failed to fetch local shot ${shotId}: HTTP ${response.status}: ${body}`,
+              );
+            }
+
+            return JSON.parse(body);
+          })
+          .then((shot) => uploadShot(convertReaToVisualizerFormat(shot), null))
+          .then(async (shotResponse) => {
+            await rememberUpload(shotId, shotResponse.id);
+
             return {
+              requestId: request.requestId,
               status: 200,
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                'visualizer_id': shotResponse.id
-              })
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ visualizer_id: shotResponse.id }),
             };
-          });
+          })
+          .catch((error) => ({
+            requestId: request.requestId,
+            status: 502,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              error: "Visualizer upload failed",
+              detail: error.message,
+            }),
+          }));
       }
 
       if (request.endpoint === "verifyCredentials") {
