@@ -2,25 +2,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/skin_feature/skin_view.dart';
 
 void main() {
-  group('shouldRecreateWebViewOnBlank', () {
+  group('shouldRecoverBlankSkin', () {
     test('a skin that rendered is never recreated', () {
       expect(
-        shouldRecreateWebViewOnBlank(rendered: true, priorRecoveries: 0),
+        shouldRecoverBlankSkin(rendered: true, priorRecoveries: 0),
         isFalse,
       );
       expect(
-        shouldRecreateWebViewOnBlank(rendered: true, priorRecoveries: 99),
+        shouldRecoverBlankSkin(rendered: true, priorRecoveries: 99),
         isFalse,
       );
     });
 
     test('a blank skin recovers while under the cap', () {
       expect(
-        shouldRecreateWebViewOnBlank(rendered: false, priorRecoveries: 0),
+        shouldRecoverBlankSkin(rendered: false, priorRecoveries: 0),
         isTrue,
       );
       expect(
-        shouldRecreateWebViewOnBlank(
+        shouldRecoverBlankSkin(
           rendered: false,
           priorRecoveries: 2,
           maxRecoveries: 3,
@@ -31,7 +31,7 @@ void main() {
 
     test('a blank skin stops recovering at the cap (no reload loop)', () {
       expect(
-        shouldRecreateWebViewOnBlank(
+        shouldRecoverBlankSkin(
           rendered: false,
           priorRecoveries: 3,
           maxRecoveries: 3,
@@ -39,7 +39,7 @@ void main() {
         isFalse,
       );
       expect(
-        shouldRecreateWebViewOnBlank(
+        shouldRecoverBlankSkin(
           rendered: false,
           priorRecoveries: 4,
           maxRecoveries: 3,
