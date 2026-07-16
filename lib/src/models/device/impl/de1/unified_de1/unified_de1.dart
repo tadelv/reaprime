@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:io';
 import 'dart:math';
 
@@ -24,6 +25,7 @@ import 'package:reaprime/src/models/device/transport/logical_endpoint.dart';
 import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/rxdart.dart';
 
+part 'firmware_mmr_gate.dart';
 part 'unified_de1.mmr.dart';
 part 'unified_de1.parsing.dart';
 part 'unified_de1.profile.dart';
@@ -36,6 +38,7 @@ class UnifiedDe1 implements De1Interface {
   static final BleServiceIdentifier advertisingIdentifier =
       BleServiceIdentifier.short('ffff');
   final UnifiedDe1Transport _transport;
+  final _firmwareMmrGate = _FirmwareMmrGate();
 
   final Logger _log = Logger("DE1");
 
@@ -531,24 +534,6 @@ class UnifiedDe1 implements De1Interface {
 
   List<bool>? _fwCancelToken;
 
-  /// Non-null while a firmware upload owns the serial tunnel.
-  ///
-  /// The upload streams the image over the SAME `writeToMMR` endpoint that
-  /// [_mmrReadRaw]/[_mmrWriteRaw] use (see `uploadFW`), so an ordinary MMR
-  /// read or write interleaved into the upload sequence scrambles the image
-  /// in the machine's flash. Over a fast, effectively-exclusive BLE link this
-  /// almost never lined up; over the slow half-duplex USB serial tunnel it is
-  /// easy to hit — the bootloader then rejects the staged image with
-  /// "Header is broken". While this completer is set, [_mmrReadRaw] and
-  /// [_mmrWriteRaw] await it, so the upload runs without interleaving.
-  Completer<void>? _fwTunnelLock;
-
-  /// Per-iteration wait in _updateFirmware's erase-settle loop (10 iterations,
-  /// ~10 s total in production). Overridable in tests so the upload can be
-  /// driven without the real multi-second wait.
-  @visibleForTesting
-  Duration firmwareEraseSettle = const Duration(seconds: 1);
-
   @override
   Future<void> updateFirmware(
     Uint8List fwImage, {
@@ -559,11 +544,6 @@ class UnifiedDe1 implements De1Interface {
       await _updateFirmware(fwImage, onProgress, _fwCancelToken!);
     } finally {
       _fwCancelToken = null;
-      // Release any MMR reads/writes that queued behind the upload (the lock is
-      // set in _updateFirmware once the erase+upload+verify sequence begins).
-      final tunnelLock = _fwTunnelLock;
-      _fwTunnelLock = null;
-      if (tunnelLock != null && !tunnelLock.isCompleted) tunnelLock.complete();
     }
   }
 
