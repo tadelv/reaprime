@@ -30,14 +30,16 @@ final class _FixedController extends De1Controller {
 }
 
 final class _FirmwareDe1 extends MockDe1 {
-  _FirmwareDe1({required this.version});
+  _FirmwareDe1({required this.version, this.model = 'DE1Pro'});
 
   final String version;
+  final String model;
+  var updateCalls = 0;
 
   @override
   MachineInfo get machineInfo => MachineInfo(
     version: version,
-    model: 'DE1Pro',
+    model: model,
     serialNumber: 'firmware-test',
     groupHeadControllerPresent: false,
     extra: const {},
@@ -48,6 +50,8 @@ final class _FirmwareDe1 extends MockDe1 {
     Uint8List fwImage, {
     required void Function(double progress) onProgress,
   }) async {
+    updateCalls++;
+    await Future<void>.delayed(Duration.zero);
     onProgress(1);
   }
 }
@@ -109,16 +113,19 @@ void main() {
     transport.queueFirmwareMapResponse([0, 0, 0, 1, 0xff, 0xff, 0xff]);
 
     final response = await _raw(handler, List.filled(16, 1));
-    final lines = StreamIterator(
-      response.read().transform(utf8.decoder).transform(const LineSplitter()),
-    );
-    expect(await lines.moveNext(), isTrue);
-    expect(lines.current, contains('"status":"erasing"'));
-    expect(await lines.moveNext(), isTrue);
-    expect(lines.current, contains('"status":"uploading"'));
+    final events = response
+        .read()
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .map((line) => jsonDecode(line) as Map<String, dynamic>);
+    final iterator = StreamIterator(events);
+    expect(await iterator.moveNext(), isTrue);
+    expect(iterator.current, {'status': 'erasing', 'progress': 0.0});
+    expect(await iterator.moveNext(), isTrue);
+    expect(iterator.current['status'], 'uploading');
 
     var terminalArrived = false;
-    final terminal = lines.moveNext().then((value) {
+    final terminal = iterator.moveNext().then((value) {
       terminalArrived = true;
       return value;
     });
@@ -127,8 +134,8 @@ void main() {
 
     transport.emitFirmwareMapResponse([0, 0, 0, 1, 0xff, 0xff, 0xfd]);
     expect(await terminal, isTrue);
-    expect(lines.current, contains('"status":"done"'));
-    await lines.cancel();
+    expect(iterator.current, {'status': 'done', 'progress': 1.0});
+    await iterator.cancel();
   });
 
   test('DELETE is idempotent without a machine', () async {
@@ -137,7 +144,12 @@ void main() {
       Request('DELETE', Uri.parse('http://localhost/api/v1/machine/firmware')),
     );
     expect(response.statusCode, 202);
-    expect(await response.readAsString(), contains('"state":"idle"'));
+    expect(
+      jsonDecode(await response.readAsString()),
+      {
+        'operation': {'state': 'idle'},
+      },
+    );
   });
 
   test('managed apply rejects malformed JSON and invalid force', () async {
@@ -167,7 +179,84 @@ void main() {
     );
 
     expect(response.statusCode, 200);
-    expect(await response.readAsString(), contains('"status":"done"'));
+    expect(
+      await _readEvents(response),
+      [
+        {'status': 'erasing', 'progress': 0.0},
+        {'status': 'uploading', 'progress': 1.0},
+        {'status': 'done', 'progress': 1.0},
+      ],
+    );
+  });
+
+  test('force cannot bypass bundled firmware model compatibility', () async {
+    final bengle = _FirmwareDe1(version: '1351', model: 'Bengle');
+    controller.machine = bengle;
+
+    final response = await _apply(
+      handler,
+      jsonEncode({'artifactId': 'de1-1352', 'force': true}),
+    );
+
+    expect(response.statusCode, 422);
+    final body =
+        jsonDecode(await response.readAsString()) as Map<String, dynamic>;
+    expect(body['reasons'], contains('model_incompatible'));
+    expect(bengle.updateCalls, 0);
+  });
+
+  test('verification failure emits error and closes without done', () async {
+    final transport = FakeBleTransport();
+    addTearDown(transport.dispose);
+    transport.queueOnConnectResponses(v13Model: 3);
+    transport.queueMmrResponseInt(MMRItem.calFlowEst, 0);
+    final de1 = UnifiedDe1(
+      transport: transport,
+      firmwareEraseTimeout: const Duration(milliseconds: 100),
+      firmwareVerificationTimeout: const Duration(milliseconds: 100),
+    );
+    await de1.onConnect();
+    controller.machine = de1;
+    transport.queueFirmwareMapResponse([0, 0, 0, 1, 0xff, 0xff, 0xff]);
+    transport.queueFirmwareMapResponse([0, 0, 0, 1, 0, 0, 1]);
+
+    final response = await _raw(handler, List.filled(16, 1));
+    final events = await _readEvents(response);
+
+    expect(events.map((event) => event['status']), [
+      'erasing',
+      'uploading',
+      'error',
+    ]);
+    expect(events.last['error'], isNotEmpty);
+  });
+
+  test('verification timeout emits error and closes without done', () async {
+    final transport = FakeBleTransport();
+    addTearDown(transport.dispose);
+    transport.queueOnConnectResponses(v13Model: 3);
+    transport.queueMmrResponseInt(MMRItem.calFlowEst, 0);
+    final de1 = UnifiedDe1(
+      transport: transport,
+      firmwareEraseTimeout: const Duration(milliseconds: 100),
+      firmwareVerificationTimeout: const Duration(milliseconds: 100),
+    );
+    await de1.onConnect();
+    controller.machine = de1;
+    transport.queueFirmwareMapResponse([0, 0, 0, 1, 0xff, 0xff, 0xff]);
+
+    final response = await _raw(handler, List.filled(16, 1));
+    final events = await _readEvents(response);
+
+    expect(events.map((event) => event['status']), [
+      'erasing',
+      'uploading',
+      'error',
+    ]);
+    expect(
+      events.last['error'],
+      contains('Timed out waiting for firmware verification'),
+    );
   });
 
   test('catalog reports false when connected machine is up to date', () async {
@@ -202,4 +291,13 @@ Future<Response> _apply(Handler handler, String body) async {
       body: body,
     ),
   );
+}
+
+Future<List<Map<String, dynamic>>> _readEvents(Response response) async {
+  return response
+      .read()
+      .transform(utf8.decoder)
+      .transform(const LineSplitter())
+      .map((line) => jsonDecode(line) as Map<String, dynamic>)
+      .toList();
 }
