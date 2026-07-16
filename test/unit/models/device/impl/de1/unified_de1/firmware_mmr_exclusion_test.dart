@@ -75,6 +75,43 @@ void main() {
     expect(transport.writeCount(Endpoint.readFromMMR.uuid), 1);
   });
 
+  test(
+    'cancellation while waiting for firmware ownership skips erase',
+    () async {
+      final activeMmrRequest = transport.nextWrite(Endpoint.readFromMMR.uuid);
+      final activeMmr = de1.getSteamFlow();
+      await activeMmrRequest;
+
+      final eraseBarrier = Completer<void>();
+      transport.pauseNextWrite(Endpoint.fwMapRequest.uuid, eraseBarrier);
+      final eraseRequest = transport.nextWrite(Endpoint.fwMapRequest.uuid);
+      final update = de1.updateFirmware(Uint8List(0), onProgress: (_) {});
+      await _flushEventQueue();
+
+      await de1.cancelFirmwareUpload();
+      transport.emitMmrResponseInt(MMRItem.targetSteamFlow, 100);
+      await activeMmr;
+
+      final outcome = await Future.any([
+        update.then(
+          (_) => 'completed',
+          onError: (_) => 'cancelled',
+        ),
+        eraseRequest.then((_) => 'erase'),
+      ]);
+      if (outcome == 'erase') {
+        eraseBarrier.completeError(StateError('unexpected erase'));
+        await update.catchError((_) {});
+      }
+
+      expect(outcome, 'cancelled');
+      expect(transport.writeCount(Endpoint.fwMapRequest.uuid), 0);
+
+      transport.queueMmrResponseInt(MMRItem.targetSteamFlow, 100);
+      await de1.getSteamFlow();
+    },
+  );
+
   test('firmware owns the tunnel until failure releases queued MMR', () async {
     final eraseBarrier = Completer<void>();
     transport.pauseNextWrite(Endpoint.fwMapRequest.uuid, eraseBarrier);
