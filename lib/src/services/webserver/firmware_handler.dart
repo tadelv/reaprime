@@ -36,8 +36,6 @@ class FirmwareHandler {
     app.delete('/api/v1/machine/firmware', _cancelUpdate);
   }
 
-  // ---- GET /api/v1/machine/firmware ----
-
   Future<Response> _getCatalog(Request _) async {
     final manifest = await _catalog.loadManifest();
 
@@ -48,9 +46,7 @@ class FirmwareHandler {
       final info = de1.machineInfo;
       connectedModel = info.model;
       installedBuild = info.version;
-    } catch (_) {
-      // No machine connected — catalog is still available.
-    }
+    } catch (_) {}
 
     final artifacts = <Map<String, dynamic>>[];
     FirmwareArtifact? recommended;
@@ -110,8 +106,6 @@ class FirmwareHandler {
     }
   }
 
-  // ---- POST /api/v1/machine/firmware (raw upload) ----
-
   Future<Response> _uploadRaw(Request request) async {
     final bodyBytes = await request.read().expand((x) => x).toList();
     if (bodyBytes.isEmpty) {
@@ -129,8 +123,6 @@ class FirmwareHandler {
 
     return _streamFirmwareUpload(de1, fwImage);
   }
-
-  // ---- POST /api/v1/machine/firmware/apply ----
 
   Future<Response> _applyManaged(Request request) async {
     final Object? decoded;
@@ -176,7 +168,6 @@ class FirmwareHandler {
 
     final image = await _catalog.loadImage(artifactId);
 
-    // Validate image integrity.
     try {
       _validator.validate(entry, image);
     } on FirmwareImageValidationException catch (e) {
@@ -190,7 +181,6 @@ class FirmwareHandler {
       );
     }
 
-    // Check eligibility/policy.
     final info = de1.machineInfo;
     final eligibility = _validator.evaluateEligibility(
       entry.artifact,
@@ -220,17 +210,13 @@ class FirmwareHandler {
     return _streamFirmwareUpload(de1, image);
   }
 
-  // ---- DELETE /api/v1/machine/firmware ----
-
   Future<Response> _cancelUpdate(Request _) async {
     FirmwareUpdateState state = FirmwareUpdateState.idle;
     try {
       final de1 = _controller.connectedDe1();
       await de1.cancelFirmwareUpload();
       state = de1.firmwareUpdateState;
-    } catch (_) {
-      // Machine unavailable — cancellation is idempotent.
-    }
+    } catch (_) {}
     return Response(
       202,
       body: jsonEncode({
@@ -239,8 +225,6 @@ class FirmwareHandler {
       headers: {'Content-Type': 'application/json'},
     );
   }
-
-  // ---- Helpers ----
 
   De1Interface? _resolveDe1() {
     try {

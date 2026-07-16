@@ -647,7 +647,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/FirmwareOperationState"
+                $ref: "#/components/schemas/FirmwareCancellationResponse"
 
   /api/v1/machine/firmware/apply:
     post:
@@ -6327,6 +6327,13 @@ components:
           type: string
           enum: [idle, erasing, uploading, verifying, cancelling]
           example: idle
+
+    FirmwareCancellationResponse:
+      type: object
+      required: [operation]
+      properties:
+        operation:
+          $ref: "#/components/schemas/FirmwareOperationState"
 
     FirmwareProgressEvent:
       type: object
