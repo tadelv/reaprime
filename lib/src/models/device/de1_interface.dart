@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:reaprime/src/models/data/profile.dart';
+import 'package:reaprime/src/models/device/firmware_update_state.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/data/utils.dart';
@@ -86,6 +87,10 @@ abstract class De1Interface extends Machine {
     Uint8List fwImage, {
     required void Function(double progress) onProgress,
   });
+
+  /// Read-only observable state of the firmware update operation.
+  /// [FirmwareUpdateState.idle] when no operation is active.
+  FirmwareUpdateState get firmwareUpdateState => FirmwareUpdateState.idle;
 
   /// Cancel an in-progress firmware upload. Sets the machine to sleeping.
   /// No-op if no upload is in progress.

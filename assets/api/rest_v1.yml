@@ -597,9 +597,26 @@ paths:
           description: Levels updated
 
   /api/v1/machine/firmware:
+    get:
+      summary: Get firmware catalog and update availability
+      description: |
+        Returns the bundled firmware catalog with per-artifact eligibility.
+        Does not require a machine connection; when offline, machine fields
+        are null and eligibility is unknown.
+      tags: [Machine]
+      responses:
+        "200":
+          description: Firmware catalog
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FirmwareCatalog"
     post:
-      summary: Push new firmware to the machine
-      description: Send a firmware file to machine, the call will wait until the firmware upgrade is complete (which might be a long time)
+      summary: Push raw firmware to the machine (developer/recovery)
+      description: |
+        Send a raw firmware file to the machine. Returns an NDJSON progress
+        stream. Rejects an empty body with 400. Returns 409 if an update is
+        already in progress. Returns 503 if no machine is connected.
       tags: [Machine]
       requestBody:
         required: true
@@ -607,9 +624,72 @@ paths:
           application/octet-stream:
       responses:
         "200":
-          description: Firmware update successful. Need to restart machine to load new firmware
-        "500":
-          description: Something went wrong during the firmware upgrade process. Check the response and Decent logs
+          description: NDJSON progress stream (see FirmwareProgressEvent)
+          content:
+            application/x-ndjson:
+              schema:
+                $ref: "#/components/schemas/FirmwareProgressEvent"
+        "400":
+          description: Empty request body
+        "409":
+          description: Firmware update already in progress
+        "503":
+          description: No machine connected
+    delete:
+      summary: Cancel an in-progress firmware update
+      description: |
+        Idempotent. Returns 202 with the resulting operation state.
+        Safe to call when no update is in progress or no machine is connected.
+      tags: [Machine]
+      responses:
+        "202":
+          description: Cancellation accepted/satisfied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FirmwareOperationState"
+
+  /api/v1/machine/firmware/apply:
+    post:
+      summary: Apply a managed firmware artifact
+      description: |
+        Resolves, loads, and validates a bundled firmware artifact before
+        starting the upload. Returns an NDJSON progress stream on success.
+        Accepts optional `force: true` to bypass version-newer policy
+        (never bypasses integrity or compatibility checks).
+      tags: [Machine]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [artifactId]
+              properties:
+                artifactId:
+                  type: string
+                  description: Stable artifact ID from the catalog
+                force:
+                  type: boolean
+                  default: false
+                  description: Allow downgrade/reinstall (default false)
+      responses:
+        "200":
+          description: NDJSON progress stream
+          content:
+            application/x-ndjson:
+              schema:
+                $ref: "#/components/schemas/FirmwareProgressEvent"
+        "400":
+          description: Missing or malformed artifactId
+        "404":
+          description: Unknown artifact ID
+        "409":
+          description: Firmware update already in progress
+        "422":
+          description: Artifact validation, compatibility, or version-policy failure
+        "503":
+          description: No machine connected
 
   # Scale API
   /api/v1/scale/tare:
@@ -6152,3 +6232,119 @@ components:
           type: integer
           description: Offset used
           example: 0
+
+    FirmwareCatalog:
+      type: object
+      description: Bundled firmware catalog with per-artifact eligibility.
+      properties:
+        artifacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/FirmwareCatalogEntry"
+        machine:
+          type: object
+          nullable: true
+          description: Connected machine info (null when no machine connected)
+          properties:
+            model:
+              type: string
+              example: DE1Pro
+            build:
+              type: integer
+              nullable: true
+              example: 1351
+        recommendedArtifactId:
+          type: string
+          nullable: true
+          example: de1-1352
+        updateAvailable:
+          type: boolean
+          nullable: true
+        operation:
+          $ref: "#/components/schemas/FirmwareOperationState"
+
+    FirmwareCatalogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          example: de1-1352
+        source:
+          type: string
+          enum: [bundled]
+        machineFamily:
+          type: string
+          example: de1
+        supportedModels:
+          type: array
+          items:
+            type: string
+        build:
+          type: integer
+          example: 1352
+        versionLabel:
+          type: string
+          example: "1352"
+        imageFormat:
+          type: string
+          example: de1
+        byteLength:
+          type: integer
+          example: 123456
+        sha256:
+          type: string
+          example: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        channel:
+          type: string
+          example: stable
+        releaseNotes:
+          type: string
+        eligibility:
+          $ref: "#/components/schemas/FirmwareEligibility"
+
+    FirmwareEligibility:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [applicable, notApplicable, unknown]
+        reasons:
+          type: array
+          items:
+            type: string
+            enum:
+              - machine_not_connected
+              - machine_model_unknown
+              - installed_build_unknown
+              - model_incompatible
+              - artifact_invalid
+              - not_newer
+
+    FirmwareOperationState:
+      type: object
+      properties:
+        state:
+          type: string
+          enum: [idle, erasing, uploading, verifying, cancelling]
+          example: idle
+
+    FirmwareProgressEvent:
+      type: object
+      description: |
+        NDJSON event streamed during a firmware update. The stream stays open
+        while final verification is pending. `done` is emitted only after the
+        machine reports successful verification. Verification failure/timeout
+        emits `error`, never `done`.
+      properties:
+        status:
+          type: string
+          enum: [erasing, uploading, done, error]
+          example: uploading
+        progress:
+          type: number
+          format: float
+          description: 0.0 to 1.0 for normal events; -1.0 for error events
+          example: 0.45
+        error:
+          type: string
+          description: Error message (only present on status=error)

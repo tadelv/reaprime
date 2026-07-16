@@ -4,152 +4,216 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
   Future<void> _updateFirmware(
     Uint8List fwImage,
     void Function(double) onProgress,
-    List<bool> cancelToken,
+    _FirmwareCancellationToken cancelToken,
   ) async {
-    _log.info("Starting firmware upgrade ...");
-
+    _throwIfFirmwareCancelled(cancelToken);
     await requestState(MachineState.sleeping);
+    _throwIfFirmwareCancelled(cancelToken);
     await beforeFirmwareUpload();
+    _throwIfFirmwareCancelled(cancelToken);
 
-    await _firmwareMmrGate.runFirmwareExclusive(
-      () => _updateFirmwareExclusive(fwImage, onProgress, cancelToken),
-    );
+    await _firmwareMmrGate.runFirmwareExclusive(() async {
+      _throwIfFirmwareCancelled(cancelToken);
+      await _updateFirmwareExclusive(fwImage, onProgress, cancelToken);
+    });
   }
 
   Future<void> _updateFirmwareExclusive(
     Uint8List fwImage,
     void Function(double) onProgress,
-    List<bool> cancelToken,
+    _FirmwareCancellationToken cancelToken,
   ) async {
-    if (cancelToken[0]) {
-      throw Exception('firmware upload cancelled by client disconnect');
-    }
-
-    // unsub = _subscribe(Endpoint.fwMapRequest, (ByteData data) async {
-    final unsub = _transport.fwMapRequest.listen((ByteData data) async {
-      final request = FWMapRequestData.from(data);
+    var firmwareMapSequence = 0;
+    final coordinator = _FirmwareResponseCoordinator();
+    final subscription = _transport.fwMapRequest.listen((data) {
+      firmwareMapSequence++;
+      final response = FWMapRequestData.from(data);
       _log.info(
-        "FW map recv: ${request.windowIncrement}, ${request.firmwareToErase}, ${request.firmwareToMap}, "
-        "err: 0x${request.error.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}",
+        'FW map recv: ${response.windowIncrement}, '
+        '${response.firmwareToErase}, ${response.firmwareToMap}, '
+        'err: 0x${response.error.map((value) => value.toRadixString(16).padLeft(2, '0')).join()}',
       );
-
-      // switch (currentState) {
-      //   case FWUpgradeState.erase:
-      //     if (request.firmwareToMap == 0 &&
-      //         request.error[0] == 0xff &&
-      //         request.error[1] == 0xff &&
-      //         request.error[2] == 0xfd) {
-      //       currentState = FWUpgradeState.upload;
-      //       await uploadFW(fwImage);
-      //       _log.info("Done uploading ${fwImage.length} bytes");
-      //       currentState = FWUpgradeState.done;
-      //       completer.complete();
-      //       // unsub.cancel();
-      //     } else {
-      //       _log.warning(
-      //           "Received fw upgrade notify while in erase state (erase != 0)");
-      //       completer.completeError(
-      //           Exception("Unexpected error encountered in erase request"));
-      //     }
-      //     break;
-      //
-      //   case FWUpgradeState.upload:
-      //     _log.warning("Unexpected notify during upload phase.");
-      //     break;
-      //
-      //   case FWUpgradeState.error:
-      //     _log.severe("Firmware upgrade failed — error state entered.");
-      //     if (!completer.isCompleted) {
-      //       completer.completeError(Exception("Firmware upgrade failed"));
-      //     }
-      //     // unsub.cancel();
-      //     break;
-      //
-      //   case FWUpgradeState.done:
-      //     _log.info("Firmware upgrade already complete.");
-      //     break;
-      // }
+      coordinator.handle(firmwareMapSequence, response);
     });
 
-    // Request firmware erase
-    await _transport.writeWithResponse(
-      Endpoint.fwMapRequest,
-      Uint8List.view(
-        FWMapRequestData(
-          windowIncrement: 0,
-          firmwareToErase: 1,
-          firmwareToMap: 1,
-          error: Uint8List.fromList([0xff, 0xff, 0xff]),
-        ).asData().buffer,
-      ),
-    );
+    try {
+      final eraseResponse = coordinator.waitFor(
+        minimumSequence: firmwareMapSequence + 1,
+        predicate: _isEraseComplete,
+      );
+      await _writeFirmwareMap(firmwareToErase: 1);
+      await _waitForFirmwareResponse(
+        eraseResponse,
+        cancelToken,
+        firmwareEraseTimeout,
+        'Timed out waiting for firmware erase',
+      );
 
-    int count = 0;
-    while (count < 10) {
-      count += 1;
-      _log.info("Waiting $count seconds on firmware to erase");
-      await Future.delayed(const Duration(seconds: 1));
+      _throwIfFirmwareCancelled(cancelToken);
+      _firmwareUpdateState = FirmwareUpdateState.uploading;
+      await _uploadFirmwareBytes(fwImage, onProgress, cancelToken);
+
+      _throwIfFirmwareCancelled(cancelToken);
+      _firmwareUpdateState = FirmwareUpdateState.verifying;
+      final verificationResponse = coordinator.waitFor(
+        minimumSequence: firmwareMapSequence + 1,
+        predicate: _isVerificationResponse,
+      );
+      await _writeFirmwareMap(firmwareToErase: 0);
+      final verification = await _waitForFirmwareResponse(
+        verificationResponse,
+        cancelToken,
+        firmwareVerificationTimeout,
+        'Timed out waiting for firmware verification',
+      );
+      if (!_isSuccessfulFirmwareVerification(verification)) {
+        throw StateError(
+          'Firmware verification failed at 0x'
+          '${verification.error.map((value) => value.toRadixString(16).padLeft(2, '0')).join()}',
+        );
+      }
+    } finally {
+      await subscription.cancel();
     }
-
-    await uploadFW(fwImage, onProgress, cancelToken);
-    _log.info("All done!");
-
-    // verify crc?
-    await _transport.writeWithResponse(
-      Endpoint.fwMapRequest,
-      Uint8List.view(
-        FWMapRequestData(
-          windowIncrement: 0,
-          firmwareToErase: 0,
-          firmwareToMap: 1,
-          error: Uint8List.fromList([0xff, 0xff, 0xff]),
-        ).asData().buffer,
-      ),
-    );
-
-    _log.info("Sent check for errors");
-
-    onProgress(1.0);
-    unsub.cancel();
   }
 
-  Future<void> uploadFW(
+  Future<void> _writeFirmwareMap({required int firmwareToErase}) {
+    return _transport.writeWithResponse(
+      Endpoint.fwMapRequest,
+      FWMapRequestData(
+        windowIncrement: 0,
+        firmwareToErase: firmwareToErase,
+        firmwareToMap: 1,
+        error: Uint8List.fromList([0xff, 0xff, 0xff]),
+      ).asData().buffer.asUint8List(),
+    );
+  }
+
+  Future<FWMapRequestData> _waitForFirmwareResponse(
+    Future<FWMapRequestData> response,
+    _FirmwareCancellationToken cancelToken,
+    Duration timeout,
+    String timeoutMessage,
+  ) {
+    return Future.any([
+      response.timeout(
+        timeout,
+        onTimeout: () => throw TimeoutException(timeoutMessage),
+      ),
+      cancelToken.cancelled.then<FWMapRequestData>(
+        (_) => throw const FirmwareUpdateCancelledException(),
+      ),
+    ]);
+  }
+
+  bool _isEraseComplete(FWMapRequestData response) {
+    return response.windowIncrement == 0 &&
+        response.firmwareToErase == 0 &&
+        response.firmwareToMap == 1 &&
+        _hasFirmwareError(response, const [0xff, 0xff, 0xff]);
+  }
+
+  bool _isVerificationResponse(FWMapRequestData response) {
+    return response.windowIncrement == 0 &&
+        response.firmwareToErase == 0 &&
+        response.firmwareToMap == 1;
+  }
+
+  bool _isSuccessfulFirmwareVerification(FWMapRequestData response) {
+    return _hasFirmwareError(response, const [0xff, 0xff, 0xfd]);
+  }
+
+  bool _hasFirmwareError(FWMapRequestData response, List<int> expected) {
+    return response.error.length == expected.length &&
+        Iterable<int>.generate(expected.length).every(
+          (index) => response.error[index] == expected[index],
+        );
+  }
+
+  void _throwIfFirmwareCancelled(_FirmwareCancellationToken token) {
+    if (token.isCancelled) {
+      throw const FirmwareUpdateCancelledException();
+    }
+  }
+
+  Future<void> _waitFirmwarePacing(
+    Duration duration,
+    _FirmwareCancellationToken token,
+  ) async {
+    if (duration == Duration.zero) return;
+    await Future.any([
+      Future<void>.delayed(duration),
+      token.cancelled.then<void>(
+        (_) => throw const FirmwareUpdateCancelledException(),
+      ),
+    ]);
+  }
+
+  Future<void> _uploadFirmwareBytes(
     Uint8List list,
     void Function(double) onProgress,
-    List<bool> cancelToken,
+    _FirmwareCancellationToken cancelToken,
   ) async {
     final total = list.length;
-    int chunkNum = 0;
-    // Per-machine tuning lives on the @protected getters so subclasses
-    // (e.g. Bengle, with USB CDC flow control) can drop the pause.
+    var chunkNum = 0;
     final batchSize = firmwareUploadBatchSize;
     final batchPause = firmwareUploadBatchPause;
-    for (int i = 0; i < list.length; i += 16) {
-      if (cancelToken[0]) {
-        _log.info('uploadFW: cancelled at byte $i');
-        throw Exception('firmware upload cancelled by client disconnect');
-      }
-      final chunkLength = (i + 16 <= list.length) ? 16 : list.length - i;
+    for (var offset = 0; offset < list.length; offset += 16) {
+      _throwIfFirmwareCancelled(cancelToken);
+      final chunkLength = min(16, list.length - offset);
       final data = Uint8List(4 + chunkLength);
-      final address = encodeU24P0(i);
-
+      final address = encodeU24P0(offset);
       data[0] = chunkLength;
       data[1] = address[0];
       data[2] = address[1];
       data[3] = address[2];
-
-      data.setRange(4, 4 + chunkLength, list, i);
+      data.setRange(4, 4 + chunkLength, list, offset);
 
       await _transport.writeWithResponse(Endpoint.writeToMMR, data);
+      _throwIfFirmwareCancelled(cancelToken);
       chunkNum++;
-      if (batchPause.inMilliseconds > 0) {
-        if (chunkNum % batchSize == 0) {
-          await Future.delayed(batchPause);
-        }
+      if (batchPause > Duration.zero && chunkNum % batchSize == 0) {
+        await _waitFirmwarePacing(batchPause, cancelToken);
       }
-      onProgress(min(i / total, 1.0));
+      onProgress(min((offset + chunkLength) / total, 1.0));
     }
   }
 }
 
-enum FWUpgradeState { erase, upload, error, done }
+final class _FirmwareResponseCoordinator {
+  _FirmwareResponseWaiter? _waiter;
+
+  Future<FWMapRequestData> waitFor({
+    required int minimumSequence,
+    required bool Function(FWMapRequestData response) predicate,
+  }) {
+    final waiter = _FirmwareResponseWaiter(
+      minimumSequence: minimumSequence,
+      predicate: predicate,
+    );
+    _waiter = waiter;
+    return waiter.completer.future;
+  }
+
+  void handle(int sequence, FWMapRequestData response) {
+    final waiter = _waiter;
+    if (waiter == null ||
+        waiter.completer.isCompleted ||
+        sequence < waiter.minimumSequence ||
+        !waiter.predicate(response)) {
+      return;
+    }
+    waiter.completer.complete(response);
+  }
+}
+
+final class _FirmwareResponseWaiter {
+  _FirmwareResponseWaiter({
+    required this.minimumSequence,
+    required this.predicate,
+  });
+
+  final int minimumSequence;
+  final bool Function(FWMapRequestData response) predicate;
+  final Completer<FWMapRequestData> completer = Completer<FWMapRequestData>();
+}
