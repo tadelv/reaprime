@@ -8,6 +8,8 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/led_strip.dart';
 import 'package:reaprime/src/models/device/scale.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 
 import '../helpers/mock_device_discovery_service.dart';
 import '../helpers/test_de1.dart';
@@ -21,6 +23,12 @@ class _RecordingBengle implements BengleInterface {
   String get name => 'Bengle-rec';
   @override
   DeviceType get type => DeviceType.machine;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
+
+  @override
+  TransportType get transportType => TransportType.unknown;
 
   final List<double> stopAtTempWrites = [];
   double _target = 0.0;

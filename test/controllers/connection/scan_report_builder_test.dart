@@ -36,4 +36,38 @@ void main() {
       },
     );
   });
+
+  group('ScanReportBuilder scan duration', () {
+    test('build() prefers the scanner-measured duration over wall time', () {
+      // Start time far in the past — the wall-time fallback would report
+      // a huge duration; the recorded measurement must win.
+      final builder = ScanReportBuilder(
+        scanStartTime: DateTime.now().subtract(const Duration(minutes: 5)),
+      )..recordScanDuration(const Duration(seconds: 15));
+
+      final report = builder.build(
+        preferredMachineId: null,
+        preferredScaleId: null,
+        terminationReason: ScanTerminationReason.completed,
+        adapterStateAtEnd: AdapterState.poweredOn,
+      );
+
+      expect(report.scanDuration, const Duration(seconds: 15));
+    });
+
+    test('build() falls back to wall time since scanStartTime', () {
+      final builder = ScanReportBuilder(
+        scanStartTime: DateTime.now().subtract(const Duration(seconds: 30)),
+      );
+
+      final report = builder.build(
+        preferredMachineId: null,
+        preferredScaleId: null,
+        terminationReason: ScanTerminationReason.completed,
+        adapterStateAtEnd: AdapterState.poweredOn,
+      );
+
+      expect(report.scanDuration.inSeconds, greaterThanOrEqualTo(30));
+    });
+  });
 }

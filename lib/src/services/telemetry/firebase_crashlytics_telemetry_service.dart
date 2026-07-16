@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_performance/firebase_performance.dart';
+import 'package:reaprime/src/services/telemetry/crashlytics_error_filter.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 import 'package:reaprime/src/services/telemetry/log_buffer.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_report_queue.dart';
@@ -37,12 +38,21 @@ class FirebaseCrashlyticsTelemetryService implements TelemetryService {
       await FirebasePerformance.instance.setPerformanceCollectionEnabled(false);
     }
 
-    // TELE-04: Set up global error handlers to route through TelemetryService
+    // TELE-04: Set up global error handlers to route through TelemetryService.
+    // Filter known-benign exceptions (DeviceNotConnectedException, gone-device
+    // UniversalBleException, Queue Cancelled) that escape from fire-and-forget
+    // contexts (Timer callbacks, unawaited Futures). These are handled by upper
+    // layers but can reach the framework error handler without being caught —
+    // recording them as FATAL creates false crash signals in Crashlytics
+    // (see fa51312d, eeea9be0). This is the safety net; device implementations
+    // should still catch at their write level for graceful recovery.
     FlutterError.onError = (details) {
+      if (isBenignFrameworkError(details.exception)) return;
       FirebaseCrashlytics.instance.recordFlutterFatalError(details);
     };
 
     PlatformDispatcher.instance.onError = (error, stack) {
+      if (isBenignFrameworkError(error)) return true;
       FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
       return true;
     };

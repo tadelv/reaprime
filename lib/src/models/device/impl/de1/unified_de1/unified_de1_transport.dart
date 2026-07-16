@@ -13,8 +13,6 @@ import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
 import 'package:rxdart/rxdart.dart';
 
-enum TransportType { ble, serial, unknown }
-
 class UnifiedDe1Transport {
   final DataTransport _transport;
   final TransportType transportType;
@@ -74,12 +72,7 @@ class UnifiedDe1Transport {
 
   UnifiedDe1Transport({required DataTransport transport})
     : _transport = transport,
-      transportType =
-          transport is BLETransport
-              ? TransportType.ble
-              : transport is SerialTransport
-              ? TransportType.serial
-              : TransportType.unknown,
+      transportType = transport.transportType,
       _log = Logger("UnifiedDe1Transport-${transport.id}");
   Future<void> connect() async {
     // A connect() while the transport already reports `connected` is a
@@ -101,16 +94,42 @@ class UnifiedDe1Transport {
     // to upstream: De1Controller.connectToDe1 has already cancelled its
     // `connectionState` listener (via _onDisconnect) before `onConnect()`
     // runs this method, and only re-subscribes after `onConnect()` returns.
+    //
+    // BUT: the teardown must not fire on a live link (#431). Before
+    // disconnecting, probe the OS-level connection state. Only tear down
+    // if the OS confirms the link is dead. If the OS says `connected`,
+    // skip the teardown — the cancel-before-replace in `subscribe()`
+    // handles re-subscription safely against a live GATT.
     final wasConnected = transportType == TransportType.ble &&
         await _transport.connectionState.first ==
             device.ConnectionState.connected;
 
     if (wasConnected) {
-      _log.info(
-        'Transport already connected; tearing down stale link before '
-        'reconnect to avoid no-op-reconnect push death',
-      );
-      await _transport.disconnect();
+      final bleTransport = _transport as BLETransport;
+      bool linkIsLive = false;
+      try {
+        final osState = await bleTransport.getConnectionState().timeout(
+          const Duration(seconds: 2),
+        );
+        linkIsLive = osState == device.ConnectionState.connected;
+      } catch (e) {
+        // Probe failed (timeout, platform error) — inconclusive.
+        // Safe default: proceed with teardown.
+        _log.fine('Stale-link probe inconclusive: $e');
+      }
+
+      if (linkIsLive) {
+        _log.info(
+          'Transport reports connected and OS probe confirms live link; '
+          'skipping stale-link teardown',
+        );
+      } else {
+        _log.info(
+          'Transport reports connected but OS probe says link is dead; '
+          'tearing down stale link before reconnect',
+        );
+        await _transport.disconnect();
+      }
     }
 
     await _transport.connect();
@@ -253,6 +272,8 @@ class UnifiedDe1Transport {
         break;
       case TransportType.unknown:
         throw StateError('Unknown transport type: $transportType');
+      case TransportType.wifi:
+        throw StateError('WiFi transport not supported for DE1: $transportType');
     }
 
     await _transport.disconnect();
@@ -457,7 +478,11 @@ class UnifiedDe1Transport {
           return read(endpoint, timeout: timeout);
         }
       }
-      _log.severe("failed to read", e, st);
+      if (e is TimeoutException) {
+        _log.warning('read of ${endpoint.name} timed out', e, st);
+      } else {
+        _log.severe("failed to read", e, st);
+      }
       rethrow;
     }
   }
@@ -553,7 +578,15 @@ class UnifiedDe1Transport {
           return write(endpoint, data);
         }
       }
-      _log.severe("failed to write", e, st);
+      // TimeoutException from the universal_ble queue is an expected
+      // failure (GATT op hung) — the caller (WorkflowDeviceSync) catches
+      // it and retries. Log at WARNING, not SEVERE, so the telemetry
+      // forwarder (PR #288 SEVERE filter) doesn't forward it to Crashlytics.
+      if (e is TimeoutException) {
+        _log.warning('write to ${endpoint.name} timed out', e, st);
+      } else {
+        _log.severe("failed to write", e, st);
+      }
       rethrow;
     }
   }
@@ -592,7 +625,11 @@ class UnifiedDe1Transport {
           return writeWithResponse(endpoint, data);
         }
       }
-      _log.severe("failed to write", e, st);
+      if (e is TimeoutException) {
+        _log.warning('writeWithResponse to ${endpoint.name} timed out', e, st);
+      } else {
+        _log.severe("failed to write", e, st);
+      }
       rethrow;
     }
   }

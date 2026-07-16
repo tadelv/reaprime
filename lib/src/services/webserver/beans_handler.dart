@@ -171,6 +171,13 @@ class BeansHandler {
         bestBeforeDate: json['bestBeforeDate'] != null
             ? DateTime.parse(json['bestBeforeDate'] as String)
             : null,
+        freezeDate: json['freezeDate'] != null
+            ? DateTime.parse(json['freezeDate'] as String)
+            : null,
+        unfreezeDate: json['unfreezeDate'] != null
+            ? DateTime.parse(json['unfreezeDate'] as String)
+            : null,
+        frozen: json['frozen'] as bool? ?? false,
         notes: json['notes'] as String?,
         extras: json['extras'] as Map<String, dynamic>?,
       );
@@ -212,11 +219,27 @@ class BeansHandler {
             ? DateTime.parse(json['roastDate'] as String)
             : null,
         roastLevel: json['roastLevel'] as String?,
+        harvestDate: json['harvestDate'] as String?,
         qualityScore: (json['qualityScore'] as num?)?.toDouble(),
         price: (json['price'] as num?)?.toDouble(),
         currency: json['currency'] as String?,
         weight: (json['weight'] as num?)?.toDouble(),
         weightRemaining: (json['weightRemaining'] as num?)?.toDouble(),
+        buyDate: json['buyDate'] != null
+            ? DateTime.parse(json['buyDate'] as String)
+            : null,
+        openDate: json['openDate'] != null
+            ? DateTime.parse(json['openDate'] as String)
+            : null,
+        bestBeforeDate: json['bestBeforeDate'] != null
+            ? DateTime.parse(json['bestBeforeDate'] as String)
+            : null,
+        freezeDate: json['freezeDate'] != null
+            ? DateTime.parse(json['freezeDate'] as String)
+            : null,
+        unfreezeDate: json['unfreezeDate'] != null
+            ? DateTime.parse(json['unfreezeDate'] as String)
+            : null,
         frozen: json['frozen'] as bool?,
         archived: json['archived'] as bool?,
         notes: json['notes'] as String?,

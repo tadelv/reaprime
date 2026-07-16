@@ -3,7 +3,10 @@ import 'dart:typed_data';
 
 import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/subjects.dart';
 
 import '../../scale.dart';
@@ -44,6 +47,12 @@ class WeighMasterScale implements Scale {
 
   @override
   String get deviceId => _deviceId;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.weighMasterScale;
+
+  @override
+  TransportType get transportType => _transport.transportType;
 
   @override
   String get name => 'WeighMaster Scale';
@@ -125,11 +134,15 @@ class WeighMasterScale implements Scale {
   Future<void> resetTimer() async {}
 
   Future<void> _write(List<int> bytes) async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList(bytes),
-    );
+    try {
+      await _transport.write(
+        serviceIdentifier.long,
+        commandCharacteristic.long,
+        Uint8List.fromList(bytes),
+      );
+    } on DeviceNotConnectedException {
+      // Transport already emitted disconnected.
+    }
   }
 
   Future<void> _registerNotifications() async {

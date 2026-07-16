@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/skin_feature/skin_view.dart';
+import 'package:reaprime/src/webui_support/webui_service.dart';
 
 void main() {
   group('classifySkinNavigation', () {
@@ -21,6 +22,32 @@ void main() {
         ),
         SkinNavDecision.allow,
       );
+    });
+
+    test('exits to the dashboard for the exact skin exit URL', () {
+      expect(
+        classifySkinNavigation(Uri.parse(skinExitDashboardUrl)),
+        SkinNavDecision.exitDashboard,
+      );
+    });
+
+    test('blocks extended and malformed skin exit URLs', () {
+      for (final url in [
+        '$skinExitDashboardUrl/path',
+        '$skinExitDashboardUrl?unexpected=true',
+        '$skinExitDashboardUrl#fragment',
+        'http://user@localhost:3000$skinExitDashboardPath',
+        'http://localhost:3001$skinExitDashboardPath',
+        'http://localhost$skinExitDashboardPath',
+        'https://localhost:3000$skinExitDashboardPath',
+        'http://example.com:3000$skinExitDashboardPath',
+      ]) {
+        expect(
+          classifySkinNavigation(Uri.parse(url)),
+          isNot(SkinNavDecision.exitDashboard),
+          reason: url,
+        );
+      }
     });
 
     test('opens external https links in the browser', () {
@@ -52,6 +79,52 @@ void main() {
 
     test('blocks a null url', () {
       expect(classifySkinNavigation(null), SkinNavDecision.block);
+    });
+  });
+
+  group('SkinExitCoordinator', () {
+    final target = Uri.parse(skinExitDashboardUrl);
+    final trustedPage = Uri.parse('http://localhost:3000/?_=123');
+
+    test('accepts one trusted main-frame request', () {
+      final coordinator = SkinExitCoordinator();
+
+      expect(
+        coordinator.tryStart(
+          target: target,
+          isForMainFrame: true,
+          topLevelUri: trustedPage,
+        ),
+        isTrue,
+      );
+      expect(
+        coordinator.tryStart(
+          target: target,
+          isForMainFrame: true,
+          topLevelUri: trustedPage,
+        ),
+        isFalse,
+      );
+      expect(coordinator.inProgress, isTrue);
+    });
+
+    test('rejects subframes and untrusted top-level origins', () {
+      expect(
+        SkinExitCoordinator().tryStart(
+          target: target,
+          isForMainFrame: false,
+          topLevelUri: trustedPage,
+        ),
+        isFalse,
+      );
+      expect(
+        SkinExitCoordinator().tryStart(
+          target: target,
+          isForMainFrame: true,
+          topLevelUri: Uri.parse('http://example.com:3000/'),
+        ),
+        isFalse,
+      );
     });
   });
 }

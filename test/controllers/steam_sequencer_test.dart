@@ -16,6 +16,8 @@ import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/sensor.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/services/storage/storage_service.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -54,6 +56,12 @@ class _TestMachine implements De1Interface {
   String get name => 'TestMachine';
   @override
   DeviceType get type => DeviceType.machine;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
+
+  @override
+  TransportType get transportType => TransportType.unknown;
 
   final BehaviorSubject<MachineSnapshot> _snap = BehaviorSubject();
   @override
@@ -98,6 +106,12 @@ class _TestSensor implements Sensor {
   String get name => 'TestSensor';
   @override
   DeviceType get type => DeviceType.sensor;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
+
+  @override
+  TransportType get transportType => TransportType.unknown;
   final BehaviorSubject<Map<String, dynamic>> _data = BehaviorSubject();
   @override
   Stream<Map<String, dynamic>> get data => _data.stream;

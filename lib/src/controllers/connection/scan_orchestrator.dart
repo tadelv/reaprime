@@ -126,6 +126,7 @@ class ScanOrchestrator {
       return null;
     }
     earlyConnect.stop();
+    reportBuilder.recordScanDuration(scanResult.duration);
 
     // Sticky-error environmental recovery: reaching a completed scan
     // means permission and scan subsystems are working again. Clear

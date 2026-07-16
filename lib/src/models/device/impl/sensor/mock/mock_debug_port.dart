@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/sensor.dart';
 import 'package:reaprime/src/models/device/simulated_device.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:rxdart/rxdart.dart';
 
 class MockDebugPort implements Sensor, SimulatedDevice {
@@ -17,6 +19,12 @@ class MockDebugPort implements Sensor, SimulatedDevice {
 
   @override
   String get deviceId => "mockDebugPort";
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.debugPort;
+
+  @override
+  TransportType get transportType => TransportType.unknown;
 
   bool _ignoreTimer = false;
 

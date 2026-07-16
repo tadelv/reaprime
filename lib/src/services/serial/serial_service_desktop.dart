@@ -13,6 +13,8 @@ import 'package:reaprime/src/models/device/impl/decent_scale/scale_serial.dart';
 import 'package:reaprime/src/models/device/impl/sensor/debug_port.dart';
 import 'package:reaprime/src/models/device/impl/sensor/sensor_basket.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
+import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'mmr_codec.dart';
 import 'serial_reconcile.dart';
 import 'usb_ids.dart';
@@ -155,7 +157,67 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
   }
 
   @override
-  void stopScan() {} // Serial enumeration is instant, nothing to stop.
+  void stopScan() {}
+
+  @override
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async {
+    final impl = remembered.implementation;
+    final tt = remembered.transportType;
+    if (impl == null || tt == null || tt != TransportType.serial) {
+      return null;
+    }
+
+    final ports = (await SerialPort.availablePorts).toSet();
+    for (final portPath in ports) {
+      final port = SerialPort(portPath);
+      try {
+        final meta = _readPortMetadata(portPath, port);
+        final stableId = meta.stableId ?? 'serial-${portPath.split("/").last}';
+        if (stableId != remembered.id) continue;
+      } finally {
+        port.dispose();
+      }
+
+      _log.info('Quick-connect: found port $portPath for ${remembered.id}');
+      Device? device;
+      try {
+        device = await _detectDevice(portPath);
+      } catch (e, st) {
+        _log.warning('Quick-connect: _detectDevice failed for $portPath', e, st);
+        continue;
+      }
+      if (device == null || device.implementation != impl) {
+        _log.info('Quick-connect: device mismatch on $portPath'
+            ' (expected $impl, got ${device?.implementation})');
+        try { await device?.disconnect(); } catch (_) {}
+        final t = _portPathToTransport.remove(portPath);
+        try { await t?.dispose(); } catch (_) {}
+        continue;
+      }
+      try {
+        await device.onConnect().timeout(const Duration(seconds: 10));
+        _portPathToDevice[portPath] = device;
+        _portPathToDeviceId[portPath] = device.deviceId;
+        late final StreamSubscription<ConnectionState> stateSub;
+        stateSub = device.connectionState.listen((state) {
+          if (state == ConnectionState.disconnected) {
+            unawaited(_handleQuickConnectedDisconnect(portPath, stateSub));
+          }
+        });
+        _devices = _portPathToDevice.values.toList();
+        _lastEmittedIds = _devices.map((d) => d.deviceId).toSet();
+        _machineSubject.add(_devices);
+        _log.info('Quick-connect succeeded for ${remembered.id}');
+        return device;
+      } catch (e, st) {
+        _log.warning('Quick-connect: onConnect failed for $portPath', e, st);
+        try { await device.disconnect(); } catch (_) {}
+        final t = _portPathToTransport.remove(portPath);
+        try { await t?.dispose(); } catch (_) {}
+      }
+    }
+    return null;
+  }
 
   @override
   Future<void> scanForDevices({ScanFilter? filter}) => _runScan(forceEmit: true);
@@ -313,6 +375,24 @@ class SerialServiceDesktop implements DeviceDiscoveryService {
       _lastEmittedIds = ids;
       _machineSubject.add(_devices);
       _log.info("Devices: $_devices");
+    }
+  }
+
+  Future<void> _handleQuickConnectedDisconnect(
+    String path,
+    StreamSubscription<ConnectionState> sub,
+  ) async {
+    try {
+      await sub.cancel();
+      await _dropAndDispose(path, reap: false);
+
+      _devices = _portPathToDevice.values.toList();
+      _lastEmittedIds = _devices.map((d) => d.deviceId).toSet();
+      if (!_machineSubject.isClosed) {
+        _machineSubject.add(List.unmodifiable(_devices));
+      }
+    } catch (e, st) {
+      _log.warning('Quick-connect disconnect cleanup failed for $path', e, st);
     }
   }
 
@@ -666,6 +746,9 @@ class _DesktopSerialPort implements SerialTransport {
 
   @override
   String get name => _cachedName;
+
+  @override
+  TransportType get transportType => TransportType.serial;
 
   StreamSubscription<Uint8List>? _portSubscription;
 

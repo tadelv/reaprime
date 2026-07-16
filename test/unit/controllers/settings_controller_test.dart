@@ -7,9 +7,11 @@ import 'package:reaprime/src/settings/settings_service.dart';
 class _SpySettingsService implements SettingsService {
   int setSimulatedDevicesCallCount = 0;
   int setEnableSimulatedWebViewsCallCount = 0;
+  int setShowSkinExitInstructionsCallCount = 0;
   int setFeatureFlagCallCount = 0;
   Set<SimulatedDevicesTypes> _simulatedDevices = {};
   bool _enableSimulatedWebViews = false;
+  bool _showSkinExitInstructions = true;
   final Map<String, bool?> _featureFlags = {};
   String? _preferredMachineId;
   String? _preferredScaleId;
@@ -27,6 +29,13 @@ class _SpySettingsService implements SettingsService {
   Future<void> setEnableSimulatedWebViews(bool value) async {
     setEnableSimulatedWebViewsCallCount++;
     _enableSimulatedWebViews = value;
+  }
+  @override
+  Future<bool> showSkinExitInstructions() async => _showSkinExitInstructions;
+  @override
+  Future<void> setShowSkinExitInstructions(bool value) async {
+    setShowSkinExitInstructionsCallCount++;
+    _showSkinExitInstructions = value;
   }
   // Feature flags
   @override
@@ -204,6 +213,41 @@ void main() {
       await controller.setEnableSimulatedWebViews(false);
 
       expect(spy.setEnableSimulatedWebViewsCallCount, 0);
+      expect(notified, isFalse);
+    });
+  });
+
+  group('SettingsController.setShowSkinExitInstructions', () {
+    test('persists and updates the in-memory value', () async {
+      final spy = _SpySettingsService();
+      final controller = SettingsController(spy);
+
+      await controller.setShowSkinExitInstructions(false);
+
+      expect(controller.showSkinExitInstructions, isFalse);
+      expect(spy.setShowSkinExitInstructionsCallCount, 1);
+    });
+
+    test('notifies listeners on change', () async {
+      final spy = _SpySettingsService();
+      final controller = SettingsController(spy);
+      var notified = false;
+      controller.addListener(() => notified = true);
+
+      await controller.setShowSkinExitInstructions(false);
+
+      expect(notified, isTrue);
+    });
+
+    test('is a no-op when the value is unchanged', () async {
+      final spy = _SpySettingsService();
+      final controller = SettingsController(spy);
+      var notified = false;
+      controller.addListener(() => notified = true);
+
+      await controller.setShowSkinExitInstructions(true);
+
+      expect(spy.setShowSkinExitInstructionsCallCount, 0);
       expect(notified, isFalse);
     });
   });

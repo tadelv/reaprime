@@ -3,6 +3,9 @@ import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/scan_result.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
+import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 import 'package:rxdart/rxdart.dart';
@@ -27,6 +30,9 @@ class _FailingDiscoveryService implements DeviceDiscoveryService {
 
   @override
   void stopScan() {}
+
+  @override
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async => null;
 }
 
 /// A DeviceDiscoveryService that succeeds and reports one device.
@@ -52,6 +58,9 @@ class _QuietDiscoveryService implements DeviceDiscoveryService {
 
   @override
   void stopScan() {}
+
+  @override
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async => null;
 }
 
 /// Manual discovery service — tests push emissions by calling `emit`.
@@ -69,6 +78,9 @@ class _ManualDiscoveryService implements DeviceDiscoveryService {
 
   @override
   void stopScan() {}
+
+  @override
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async => null;
 
   void emit(List<Device> devices) => _controller.add(devices);
 }
@@ -111,6 +123,12 @@ class _FakeDevice implements Device {
 
   @override
   final DeviceType type;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
+
+  @override
+  TransportType get transportType => TransportType.unknown;
 
   _FakeDevice({required this.deviceId, required this.name, required this.type});
 
@@ -336,4 +354,84 @@ void main() {
       },
     );
   });
+
+  group('tryQuickConnect', () {
+    test('returns null when all services return null', () async {
+      final service = _ManualDiscoveryService();
+      final controller = DeviceController([service]);
+      await controller.initialize();
+
+      const remembered = RememberedDevice(
+        id: 'AA:11:11:11:11:11',
+        name: 'DE1',
+        type: DeviceType.machine,
+        implementation: DeviceImplementation.unifiedDe1,
+        transportType: TransportType.ble,
+      );
+      final result = await controller.tryQuickConnect(remembered);
+      expect(result, isNull);
+    });
+
+    test('returns first non-null device from services', () async {
+      final device = _FakeDevice(
+        deviceId: 'AA:11:11:11:11:11',
+        name: 'DE1',
+        type: DeviceType.machine,
+      );
+      final service = _QuickConnectService(device);
+      final controller = DeviceController([service]);
+      await controller.initialize();
+
+      const remembered = RememberedDevice(
+        id: 'AA:11:11:11:11:11',
+        name: 'DE1',
+        type: DeviceType.machine,
+        implementation: DeviceImplementation.unifiedDe1,
+        transportType: TransportType.ble,
+      );
+      final result = await controller.tryQuickConnect(remembered);
+      expect(result, same(device));
+      expect(service.callCount, 1);
+    });
+
+    test('catches service exception and continues to next service', () async {
+      final device = _FakeDevice(
+        deviceId: 'BB:22:22:22:22:22',
+        name: 'DE1',
+        type: DeviceType.machine,
+      );
+      final throwing = _ThrowingQuickConnectService();
+      final good = _QuickConnectService(device);
+      final controller = DeviceController([throwing, good]);
+      await controller.initialize();
+
+      const remembered = RememberedDevice(
+        id: 'BB:22:22:22:22:22',
+        name: 'DE1',
+        type: DeviceType.machine,
+      );
+      final result = await controller.tryQuickConnect(remembered);
+      expect(result, same(device));
+    });
+  });
+}
+
+class _QuickConnectService extends _ManualDiscoveryService {
+  final Device? _result;
+  int callCount = 0;
+
+  _QuickConnectService(this._result);
+
+  @override
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async {
+    callCount++;
+    return _result;
+  }
+}
+
+class _ThrowingQuickConnectService extends _ManualDiscoveryService {
+  @override
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async {
+    throw StateError('quick-connect failed');
+  }
 }

@@ -1,8 +1,12 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:logging/logging.dart' as logging;
 import 'package:reaprime/src/models/device/ble_service_identifier.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
+import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/subjects.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
@@ -37,6 +41,18 @@ class Skale2Scale implements Scale {
 
   int _batteryLevel = 0;
 
+  /// Logger for Skale2-specific warnings (e.g. button subscription failure).
+  final _log = logging.Logger('Skale2Scale');
+
+  /// Whether we have an active subscription to the weight characteristic (EF81).
+  bool _weightSubscribed = false;
+
+  /// Whether we have an active subscription to the button characteristic (EF82).
+  bool _buttonSubscribed = false;
+
+  /// Delay between init steps, matching de1app/Decenza staggered sequence.
+  static const _initStepDelay = Duration(milliseconds: 1000);
+
   Skale2Scale({required BLETransport transport})
     : _transport = transport,
       _deviceId = transport.id;
@@ -46,6 +62,12 @@ class Skale2Scale implements Scale {
 
   @override
   String get deviceId => _deviceId;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.skale2;
+
+  @override
+  TransportType get transportType => _transport.transportType;
 
   @override
   String get name => "Skale2";
@@ -73,6 +95,9 @@ class Skale2Scale implements Scale {
           .where((state) => state == ConnectionState.disconnected)
           .listen((_) {
         _connectionStateController.add(ConnectionState.disconnected);
+        // Subscriptions are lost when the BLE link drops.
+        _weightSubscribed = false;
+        _buttonSubscribed = false;
         disconnectSub?.cancel();
       });
 
@@ -103,27 +128,30 @@ class Skale2Scale implements Scale {
   DeviceType get type => DeviceType.scale;
 
   // --- Initialization ---
-
+  //
+  // Follows the de1app / Decenza staggered sequence:
+  //   1. LCD ON immediately  (0xED + 0xEC)
+  //   2. After 1s: subscribe weight notifications (EF81)
+  //   3. After 2s: subscribe button notifications (EF82)
+  //   4. After 3s: LCD ON again + set grams (0x03)
+  //
+  // The Skale2's command buffer is fragile — back-to-back operations
+  // without spacing can cause silent drops (de1app double-sends LCD ON
+  // for exactly this reason).  See GH #53 / #421.
   Future<void> _initScale() async {
-    // Subscribe to weight notifications
-    await _transport.subscribe(
-      serviceIdentifier.long,
-      weightCharacteristic.long,
-      _parseWeightNotification,
-    );
+    // 1. Turn display on and set to weight mode — BEFORE subscribing.
+    await _sendDisplayOn();
+    await _sendDisplayWeight();
 
-    // Subscribe to button notifications (optional, best-effort)
-    try {
-      await _transport.subscribe(
-        serviceIdentifier.long,
-        buttonCharacteristic.long,
-        _parseButtonNotification,
-      );
-    } catch (_) {
-      // Button characteristic may not be available on all devices
-    }
+    // 2. Subscribe to weight notifications after a settle delay.
+    await Future.delayed(_initStepDelay);
+    await _subscribeWeight();
 
-    // Read battery level from standard BLE battery service
+    // 3. Subscribe to button notifications after another delay.
+    await Future.delayed(_initStepDelay);
+    await _subscribeButton();
+
+    // Read battery level (best-effort, does not affect scale operation).
     try {
       final batteryData = await _transport.read(
         batteryService.long,
@@ -133,61 +161,77 @@ class Skale2Scale implements Scale {
         _batteryLevel = batteryData[0];
       }
     } catch (_) {
-      // Battery service may not be available
+      // Battery service may not be available.
     }
 
-    // Turn on display and set to weight mode
+    // 4. Re-send LCD ON + set grams after final delay (double-send pattern).
+    await Future.delayed(_initStepDelay);
     await _sendDisplayOn();
     await _sendDisplayWeight();
+    await _safeWrite(Uint8List.fromList([0x03]));
+  }
 
-    // Set scale to grams
-    await _transport.write(
+  Future<void> _subscribeWeight() async {
+    await _transport.subscribe(
       serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0x03]),
-      withResponse: false,
+      weightCharacteristic.long,
+      _parseWeightNotification,
     );
+    _weightSubscribed = true;
+  }
+
+  Future<void> _subscribeButton() async {
+    try {
+      await _transport.subscribe(
+        serviceIdentifier.long,
+        buttonCharacteristic.long,
+        _parseButtonNotification,
+      );
+      _buttonSubscribed = true;
+    } catch (e) {
+      // Button characteristic may not be available on all devices, but
+      // log a warning so the failure is visible (unlike the previous
+      // silent swallow).  This is the most likely cause of the
+      // "buttons stop working after sleep" bug — if the initial
+      // subscription silently failed, it was never retried.
+      _log.warning('Failed to subscribe to button notifications: $e');
+    }
   }
 
   // --- Commands ---
 
+  /// Safe write — catches [DeviceNotConnectedException] so a write to a
+  /// disconnected scale doesn't escape as a FATAL (Crashlytics fa51312d).
+  Future<void> _safeWrite(Uint8List data) async {
+    try {
+      await _transport.write(
+        serviceIdentifier.long,
+        commandCharacteristic.long,
+        data,
+        withResponse: false,
+      );
+    } on DeviceNotConnectedException {
+      // Transport already emitted disconnected.
+    }
+  }
+
   Future<void> _sendDisplayOn() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0xED]),
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0xED]));
   }
 
   Future<void> _sendDisplayWeight() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0xEC]),
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0xEC]));
   }
 
   Future<void> _sendDisplayOff() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0xEE]),
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0xEE]));
   }
 
   // --- Tare ---
 
   @override
   Future<void> tare() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0x10]),
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0x10]));
   }
 
   // --- Display control ---
@@ -201,6 +245,20 @@ class Skale2Scale implements Scale {
   Future<void> wakeDisplay() async {
     await _sendDisplayOn();
     await _sendDisplayWeight();
+
+    // Re-subscribe to notifications if they were lost (e.g. BLE link
+    // dropped during sleep).  The Skale2 may silently lose CCCD
+    // subscriptions when its display is off — de1app handles this by
+    // re-running the full connect sequence, but we take the lighter
+    // approach of only re-subscribing what's missing.
+    if (!_weightSubscribed) {
+      _log.info('Re-subscribing to weight notifications during wake');
+      await _subscribeWeight();
+    }
+    if (!_buttonSubscribed) {
+      _log.info('Re-subscribing to button notifications during wake');
+      await _subscribeButton();
+    }
   }
 
   // --- Notification parsing ---
@@ -235,31 +293,16 @@ class Skale2Scale implements Scale {
 
   @override
   Future<void> startTimer() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0xDD]),
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0xDD]));
   }
 
   @override
   Future<void> stopTimer() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0xD1]),
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0xD1]));
   }
 
   @override
   Future<void> resetTimer() async {
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      Uint8List.fromList([0xD0]),
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0xD0]));
   }
 }
