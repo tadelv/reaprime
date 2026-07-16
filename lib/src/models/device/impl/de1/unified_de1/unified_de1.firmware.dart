@@ -21,6 +21,10 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
     void Function(double) onProgress,
     List<bool> cancelToken,
   ) async {
+    if (cancelToken[0]) {
+      throw Exception('firmware upload cancelled by client disconnect');
+    }
+
     // unsub = _subscribe(Endpoint.fwMapRequest, (ByteData data) async {
     final unsub = _transport.fwMapRequest.listen((ByteData data) async {
       final request = FWMapRequestData.from(data);
