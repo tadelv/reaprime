@@ -39,11 +39,15 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
     try {
       await Future<void>.delayed(Duration.zero);
       _throwIfFirmwareCancelled(cancelToken);
-      final eraseResponse = coordinator.waitFor(
-        minimumSequence: firmwareMapSequence + 1,
+      late Future<FWMapRequestData> eraseResponse;
+      await _writeFirmwareMap(
+        coordinator: coordinator,
+        firmwareMapSequence: () => firmwareMapSequence,
+        cancelToken: cancelToken,
+        firmwareToErase: 1,
         predicate: _isEraseComplete,
+        onResponseArmed: (response) => eraseResponse = response,
       );
-      await _writeFirmwareMap(firmwareToErase: 1);
       await _waitForFirmwareResponse(
         eraseResponse,
         cancelToken,
@@ -57,11 +61,15 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
 
       _throwIfFirmwareCancelled(cancelToken);
       _firmwareUpdateState = FirmwareUpdateState.verifying;
-      final verificationResponse = coordinator.waitFor(
-        minimumSequence: firmwareMapSequence + 1,
+      late Future<FWMapRequestData> verificationResponse;
+      await _writeFirmwareMap(
+        coordinator: coordinator,
+        firmwareMapSequence: () => firmwareMapSequence,
+        cancelToken: cancelToken,
+        firmwareToErase: 0,
         predicate: _isTerminalVerificationResponse,
+        onResponseArmed: (response) => verificationResponse = response,
       );
-      await _writeFirmwareMap(firmwareToErase: 0);
       final verification = await _waitForFirmwareResponse(
         verificationResponse,
         cancelToken,
@@ -79,7 +87,14 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
     }
   }
 
-  Future<void> _writeFirmwareMap({required int firmwareToErase}) {
+  Future<void> _writeFirmwareMap({
+    required _FirmwareResponseCoordinator coordinator,
+    required int Function() firmwareMapSequence,
+    required _FirmwareCancellationToken cancelToken,
+    required int firmwareToErase,
+    required bool Function(FWMapRequestData response) predicate,
+    required void Function(Future<FWMapRequestData> response) onResponseArmed,
+  }) {
     return _transport.writeWithResponse(
       Endpoint.fwMapRequest,
       FWMapRequestData(
@@ -88,6 +103,15 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
         firmwareToMap: 1,
         error: Uint8List.fromList([0xff, 0xff, 0xff]),
       ).asData().buffer.asUint8List(),
+      beforeDispatch: () {
+        _throwIfFirmwareCancelled(cancelToken);
+        onResponseArmed(
+          coordinator.waitFor(
+            minimumSequence: firmwareMapSequence() + 1,
+            predicate: predicate,
+          ),
+        );
+      },
     );
   }
 
