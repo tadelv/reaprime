@@ -1,13 +1,13 @@
 import 'dart:async';
-import 'dart:collection';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/mmr_address.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
+import 'package:reaprime/src/models/errors.dart';
 
-import '../../../../../../helpers/fake_ble_transport.dart';
+import '../../../../../../helpers/barrier_ble_transport.dart';
 
 void main() {
   late _BarrierBleTransport transport;
@@ -76,7 +76,7 @@ void main() {
   });
 
   test(
-    'cancellation while waiting for firmware ownership skips erase',
+    'disconnect while waiting for firmware ownership skips erase',
     () async {
       final activeMmrRequest = transport.nextWrite(Endpoint.readFromMMR.uuid);
       final activeMmr = de1.getSteamFlow();
@@ -88,20 +88,21 @@ void main() {
       final update = de1.updateFirmware(Uint8List(0), onProgress: (_) {});
       await _flushEventQueue();
 
-      await de1.cancelFirmwareUpload();
+      await de1.disconnect();
       transport.emitMmrResponseInt(MMRItem.targetSteamFlow, 100);
       await activeMmr;
 
+      final cancellation = expectLater(
+        update,
+        throwsA(isA<FirmwareUpdateCancelledException>()),
+      );
       final outcome = await Future.any([
-        update.then(
-          (_) => 'completed',
-          onError: (_) => 'cancelled',
-        ),
+        cancellation.then((_) => 'cancelled'),
         eraseRequest.then((_) => 'erase'),
       ]);
       if (outcome == 'erase') {
         eraseBarrier.completeError(StateError('unexpected erase'));
-        await update.catchError((_) {});
+        await cancellation;
       }
 
       expect(outcome, 'cancelled');
@@ -164,6 +165,8 @@ void main() {
   test(
     'MMR issued during firmware follows final firmware traffic',
     () async {
+      transport.queueFirmwareMapResponse([0, 0, 0, 1, 0xff, 0xff, 0xff]);
+      transport.queueFirmwareMapResponse([0, 0, 0, 1, 0xff, 0xff, 0xfd]);
       final eraseRequest = transport.nextWrite(Endpoint.fwMapRequest.uuid);
       final update = de1.updateFirmware(
         Uint8List.fromList(List<int>.filled(16, 0xab)),
@@ -192,20 +195,7 @@ void main() {
   );
 }
 
-class _BarrierBleTransport extends FakeBleTransport {
-  final Map<String, Queue<Completer<FakeBleWrite>>> _writeWaiters = {};
-  final Map<String, Queue<Completer<void>>> _writeBarriers = {};
-
-  Future<FakeBleWrite> nextWrite(String characteristicUuid) {
-    final completer = Completer<FakeBleWrite>();
-    _writeWaiters.putIfAbsent(characteristicUuid, Queue.new).add(completer);
-    return completer.future;
-  }
-
-  void pauseNextWrite(String characteristicUuid, Completer<void> barrier) {
-    _writeBarriers.putIfAbsent(characteristicUuid, Queue.new).add(barrier);
-  }
-
+class _BarrierBleTransport extends BarrierBleTransport {
   int writeCount(String characteristicUuid) => writes
       .where((write) => write.characteristicUUID == characteristicUuid)
       .length;
@@ -219,31 +209,6 @@ class _BarrierBleTransport extends FakeBleTransport {
     responseData.setUint8(3, addressData.getUint8(3));
     responseData.setInt32(4, value, Endian.little);
     subscribers[Endpoint.readFromMMR.uuid]?.call(response);
-  }
-
-  @override
-  Future<void> write(
-    String serviceUUID,
-    String characteristicUUID,
-    Uint8List data, {
-    bool withResponse = true,
-    Duration? timeout,
-  }) async {
-    await super.write(
-      serviceUUID,
-      characteristicUUID,
-      data,
-      withResponse: withResponse,
-      timeout: timeout,
-    );
-    final waiters = _writeWaiters[characteristicUUID];
-    if (waiters != null && waiters.isNotEmpty) {
-      waiters.removeFirst().complete(writes.last);
-    }
-    final barriers = _writeBarriers[characteristicUUID];
-    if (barriers != null && barriers.isNotEmpty) {
-      await barriers.removeFirst().future;
-    }
   }
 }
 

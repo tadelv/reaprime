@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:collection';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -557,11 +556,6 @@ class UnifiedDe1 implements De1Interface {
   @override
   FirmwareUpdateState get firmwareUpdateState => _firmwareUpdateState;
 
-  /// Synchronous reservation wrapper for firmware updates.
-  ///
-  /// Throws [FirmwareUpdateInProgressException] unless state is [FirmwareUpdateState.idle].
-  /// Reserves the operation, sets state to [FirmwareUpdateState.erasing], and
-  /// starts the async firmware update. Cleanup runs in [Future.whenComplete].
   @override
   Future<void> updateFirmware(
     Uint8List fwImage, {
