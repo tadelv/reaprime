@@ -190,7 +190,7 @@ function createPlugin(host) {
       elapsed: [],
       pressure: { pressure: [], goal: [] },
       flow: { flow: [], goal: [], by_weight: [] },
-      temperature: { mix: [], basket: [], goal: [] },
+      temperature: { mix: [], basket: [], goal: [], mix_goal: [] },
       totals: { weight: [], water_dispensed: [] },
       state_change: [],
       profile: reaShot.workflow.profile,
@@ -236,7 +236,8 @@ function createPlugin(host) {
       visualizerShot.flow.by_weight.push(scale?.weightFlow ?? 0);
       visualizerShot.temperature.mix.push(machine.mixTemperature);
       visualizerShot.temperature.basket.push(machine.groupTemperature);
-      visualizerShot.temperature.goal.push(machine.targetMixTemperature);
+      visualizerShot.temperature.goal.push(machine.targetGroupTemperature);
+      visualizerShot.temperature.mix_goal.push(machine.targetMixTemperature);
       visualizerShot.totals.weight.push(scale?.weight ?? 0);
       visualizerShot.totals.water_dispensed.push(waterDispensed);
       visualizerShot.state_change.push(machine.state.substate);
@@ -972,7 +973,7 @@ function createPlugin(host) {
   // Return the plugin object
   return {
     id: "visualizer.reaplugin",
-    version: "1.4.0",
+    version: "1.5.0",
 
     onLoad(settings) {
       state.username = settings.Username;
