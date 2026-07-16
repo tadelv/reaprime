@@ -5,6 +5,7 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/device.dart' as device;
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/models/device/transport/ble_timeout_exception.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/models/errors.dart';
 import 'package:reaprime/src/services/ble/ble_exception_mapper.dart';
 import 'package:rxdart/subjects.dart';
@@ -60,15 +61,35 @@ class UniversalBleTransport implements BLETransport {
 
   bool get _isLinux => Platform.isLinux;
 
-  UniversalBleTransport({required BleDevice device}) : _device = device {
+  UniversalBleTransport({
+    required BleDevice device,
+    Future<void> Function()? stopScan,
+  })  : _device = device,
+        _stopScan = stopScan {
     _log = Logger("BLETransport-${device.deviceId}");
   }
+
+  /// Scan-stop hook injected by the discovery service. Routing the
+  /// pre-connect stop through the service ends its scan-duration wait too,
+  /// so the scan cycle (and its report) reflects the actual scan window
+  /// instead of dead-waiting out the full duration after the native scan
+  /// is already stopped. Falls back to a direct platform stop for
+  /// transports constructed without a service.
+  final Future<void> Function()? _stopScan;
+
+  Future<void> _stopScanViaOwner() =>
+      _stopScan?.call() ?? UniversalBle.stopScan();
 
   // Android post-connect settle duration. The Android BLE stack needs
   // a brief period after connectGatt reports success before service
   // discovery works reliably (particularly on older tablet SoCs).
   static const Duration _androidPostConnectDelay =
       Duration(milliseconds: 200);
+
+  // Brief pause between stopScan and connectGatt so the scanner actually
+  // releases the radio before the connection attempt starts.
+  static const Duration _androidPreConnectSettleDelay =
+      Duration(milliseconds: 300);
 
   @override
   Future<void> connect() async {
@@ -95,10 +116,28 @@ class UniversalBleTransport implements BLETransport {
       _startAdvertWatch();
       return;
     }
+    // Android: stop any active scan before connecting — connectGatt gets
+    // starved by a lowLatency scan's radio duty cycle (same problem class
+    // as the BlueZ le-connection-abort-by-local mitigation above; observed
+    // 2026-07-15 as repeated 10s connect timeouts to an advertising scale
+    // mid-scan). The ConnectionManager retry loop restarts scanning.
+    if (Platform.isAndroid) {
+      try {
+        _log.fine("stopping scan before connect");
+        await _stopScanViaOwner();
+      } catch (e) {
+        _log.fine("stopScan before connect failed (ignored): $e");
+      }
+      await Future.delayed(_androidPreConnectSettleDelay);
+    }
     try {
+      // 20s: connectGatt on a busy radio (live DE1 link, recent scan) can
+      // legitimately need more than 10s — fbp defaults to 35s. Must stay
+      // comfortably under ConnectionManager's 30s end-to-end guard so the
+      // richer transport-level error wins over the generic outer timeout.
       await UniversalBle.connect(
         _device.deviceId,
-        timeout: Duration(seconds: 10),
+        timeout: Duration(seconds: 20),
       );
     } on UniversalBleException catch (e) {
       throw mapUniversalConnectError(e);
@@ -158,7 +197,7 @@ class UniversalBleTransport implements BLETransport {
 
   Future<void> _stopScanAndSettle() async {
     try {
-      await UniversalBle.stopScan();
+      await _stopScanViaOwner();
     } catch (e) {
       _log.fine("stopScan before BlueZ connect failed (ignored): $e");
     }
@@ -206,6 +245,15 @@ class UniversalBleTransport implements BLETransport {
       // only fail with deviceNotFound and flood logs.
       UniversalBle.clearQueue(_device.deviceId);
       throw const DeviceNotConnectedException.unknown();
+    }
+    // GATT-133 (gattError): transient Android BLE stack error. Often
+    // retryable — clear the queue and throw BleTimeoutException so the
+    // caller (UnifiedDe1Transport) can retry via _handleBleTimeout.
+    // Do NOT declare the link dead or emit disconnected.
+    if (e.code == UniversalBleErrorCode.gattError) {
+      _log.warning('GATT $operation($path) failed — GATT error 133 (transient): $e');
+      UniversalBle.clearQueue(_device.deviceId);
+      throw BleTimeoutException('GATT $operation($path)', e);
     }
     // Also treat unknownError as likely device-gone on Bluetooth-off / macOS
     // adapter restarts — same symptom, different error code.
@@ -316,6 +364,9 @@ class UniversalBleTransport implements BLETransport {
   String get name => _device.name ?? "Unknown";
 
   @override
+  TransportType get transportType => TransportType.ble;
+
+  @override
   Future<Uint8List> read(String serviceUUID, String characteristicUUID, {Duration? timeout}) async {
     try {
       final value = await UniversalBle.read(
@@ -334,6 +385,14 @@ class UniversalBleTransport implements BLETransport {
       rethrow;
     } on UniversalBleException catch (e) {
       _handleGattError(e, 'read', '$serviceUUID/$characteristicUUID');
+    } catch (e) {
+      // Same clearQueue rationale as write() — see write() catch block.
+      if (e.toString().contains('Queue Cancelled')) {
+        _log.fine('read($serviceUUID/$characteristicUUID) cancelled by clearQueue');
+        _connectionStateSubject.add(device.ConnectionState.disconnected);
+        throw const DeviceNotConnectedException.unknown();
+      }
+      rethrow;
     }
   }
 
@@ -501,6 +560,22 @@ class UniversalBleTransport implements BLETransport {
       rethrow;
     } on UniversalBleException catch (e) {
       _handleGattError(e, 'write', '$serviceUUID/$characteristicUUID');
+    } catch (e) {
+      // universal_ble's Queue.dispose() (called from clearQueue in
+      // _handleGattError or _onOperationTimeout) cancels pending items
+      // with Exception('Queue Cancelled') — a plain Exception, not
+      // UniversalBleException, so the on UniversalBleException catch
+      // above misses it. Treat it as a gone-device: the queue was
+      // cleared because the device is gone, so emit disconnected and
+      // throw the domain exception.
+      if (e.toString().contains('Queue Cancelled')) {
+        _log.fine(
+            'write($serviceUUID/$characteristicUUID) cancelled by clearQueue',
+        );
+        _connectionStateSubject.add(device.ConnectionState.disconnected);
+        throw const DeviceNotConnectedException.unknown();
+      }
+      rethrow;
     }
   }
 

@@ -5,7 +5,9 @@ import 'package:logging/logging.dart';
 import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/sensor.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:rxdart/rxdart.dart';
 
 class DecentTemp implements Sensor {
@@ -33,6 +35,12 @@ class DecentTemp implements Sensor {
   @override
   // TODO: device serial?
   String get deviceId => _transport.id;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.decentTemp;
+
+  @override
+  TransportType get transportType => _transport.transportType;
 
   @override
   Future<void> disconnect() async {

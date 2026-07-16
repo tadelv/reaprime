@@ -75,3 +75,5 @@ pubspec_overrides.yaml
 
 # Brainstorming visual companion
 .superpowers/
+# Added by code-review-graph
+.code-review-graph/

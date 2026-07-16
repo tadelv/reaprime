@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/transport/web_socket_transport.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:rxdart/subjects.dart';
 
 /// Controllable [WebSocketTransport] for testing [HDSWifi] without a network.
@@ -27,6 +28,9 @@ class FakeWebSocketTransport implements WebSocketTransport {
 
   @override
   String get name => host;
+
+  @override
+  TransportType get transportType => TransportType.wifi;
 
   @override
   Stream<ConnectionState> get connectionState => _conn.stream;

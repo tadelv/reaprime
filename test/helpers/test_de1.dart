@@ -5,6 +5,8 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:rxdart/rxdart.dart';
 
 /// A shared De1Interface test double with a controllable snapshot stream.
@@ -114,6 +116,12 @@ class TestDe1 implements De1Interface {
   String get name => _name;
   @override
   DeviceType get type => DeviceType.machine;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
+
+  @override
+  TransportType get transportType => TransportType.unknown;
   @override
   Future<void> onConnect() async {}
   @override

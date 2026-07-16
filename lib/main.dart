@@ -327,13 +327,6 @@ void main(List<String> args) async {
     );
   final sensorController = SensorController(controller: deviceController);
 
-  final connectionManager = ConnectionManager(
-    deviceScanner: deviceController,
-    de1Controller: de1Controller,
-    scaleController: scaleController,
-    settingsController: settingsController,
-  );
-
   // Remembers devices the user connects to (machine + scale), shown as
   // unavailable when absent. The stream mappers (which read {id,name,type} off
   // the connected device and skip simulated devices) live in
@@ -348,6 +341,14 @@ void main(List<String> args) async {
     settings: SharedPreferencesSettingsService(),
   );
   await rememberedDevicesController.initialize();
+
+  final connectionManager = ConnectionManager(
+    deviceScanner: deviceController,
+    de1Controller: de1Controller,
+    scaleController: scaleController,
+    settingsController: settingsController,
+    rememberedDevices: rememberedDevicesController,
+  );
 
   final scanStateGuardian = ScanStateGuardian(
     bleService: cliArgs.serial ? null : bleDiscoveryService,

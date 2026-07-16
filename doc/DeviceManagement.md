@@ -241,6 +241,12 @@ All phase writes route through `StatusPublisher.publish`. If a
 transition isn't listed below, it's not supposed to happen.
 
 ```
+                              ┌───────────────────┐
+                              │ quick-connect path │ (machine-only)
+                              │ idle → connMachine │
+                              │       → ready      │
+                              └───────────────────┘
+
                        ┌──────────────────────────────┐
                        │                              │
                        ▼                              │
@@ -259,6 +265,9 @@ Transition owners (where the `publish(phase: …)` call lives):
 
 | Edge                                    | Owner                                                   |
 |-----------------------------------------|---------------------------------------------------------|
+| `idle → connectingMachine` (QC)         | `ConnectionManager._connectImpl` (before QC attempt)    |
+| `connectingMachine → ready` (QC)        | `ConnectionManager._connectImpl` (after machine adoption)|
+| `connectingMachine → scanning` (QC fail)| `ScanOrchestrator.runScan` (QC returned null)            |
 | `idle → scanning`                       | `ScanOrchestrator.runScan`                              |
 | `scanning → idle` (scan failure)        | `ScanOrchestrator._emitScanStartError`                  |
 | `scanning → connectingMachine`          | `ConnectionManager.connectMachine` (policy stage)       |
@@ -268,8 +277,8 @@ Transition owners (where the `publish(phase: …)` call lives):
 | `connectingScale → idle` (scale error)  | `StatusPublisher.emitError` → gatekeeper folds to idle  |
 | any `→ idle` on disconnect              | `DisconnectSupervisor._onMachineGone / _onScaleGone`    |
 
-`scaleOnly` reconnects (`scanAndConnectScale`) skip the
-`connectingMachine` edge and go `idle → scanning → connectingScale → ready`.
+`scaleOnly` reconnects (`connect(scaleOnly: true)`) skip every machine-phase
+edge and go `idle → scanning → connectingScale → ready`.
 
 Non-phase status fields (`error`, `foundMachines`, `pendingAmbiguity`)
 are allowed to change on any edge; only the `phase` field follows the
@@ -319,13 +328,67 @@ ConnectionManager listens for disconnects automatically:
 An *unexpected* machine disconnect (not announced via
 `markExpectingDisconnect` / `disconnectMachine`) puts `ConnectionManager`
 into machine recovery mode: full `connect()` scans retry with the same
-5s→60s exponential backoff the preferred-scale loop uses, rescheduling
+5s→60s exponential backoff the legacy preferred-scale loop uses, rescheduling
 after every attempt that ends without a machine, until the machine
 reconnects (or the user disconnects deliberately). Gated on
 `preferredMachineId` so a background retry can never pop a machine picker —
 the id is auto-set on every successful connect, so coverage is effectively
 total. Motivation: a power outage previously left the app "disconnected"
 indefinitely because nothing ever rescanned for the machine.
+
+### Background Scale Watch (preferred-scale reacquisition)
+
+When a machine is connected but the preferred scale is missing (scale
+powered off, unexpected drop, machine wake without the scale), scale
+reacquisition runs in one of two modes, selected by
+`DeviceScanner.supportsBackgroundWatch`:
+
+- **Watch mode (Android):** one persistent, low-duty-cycle BLE scan.
+  `UniversalBleDiscoveryService` starts an `AndroidScanMode.balanced`
+  scan (~40% radio duty cycle) — the duty cycle, not filtering, is what
+  protects the DE1 link. The scan is deliberately unfiltered: remembered
+  device names are friendly constants ("Felicita Arc") that rarely equal
+  the advertised name a filter would be matched against, and the
+  universal_ble fork evaluates `withNamePrefix` plugin-side anyway (the
+  OS scan runs unfiltered either way, so there is no hardware-filter or
+  screen-off benefit to reclaim). Matching stays with the normal Dart
+  `DeviceMatcher` path, identical to burst scans. The `ScaleWatch`
+  collaborator (`lib/src/controllers/connection/scale_watch.dart`)
+  listens on the device stream and, on sighting the preferred scale id,
+  stops the watch scan (freeing the radio for GATT) and connects —
+  typically 1–5s after the scale powers on. Caveat: Android suspends
+  OS-unfiltered scans while the screen is off, so a scale powered on
+  with the display asleep connects once the screen wakes.
+- **Legacy mode (all other platforms, and fallback when the watch fails
+  to start):** periodic 15s scale-only burst scans with 5s→60s
+  exponential backoff (the pre-watch behavior, unchanged).
+
+The watch replaced the backoff loop on Android because each lowLatency
+burst monopolizes the shared radio and starves DE1 GATT traffic
+(observed as 10s GATT write timeouts → HTTP 500s on machine endpoints),
+while the backoff gaps meant a freshly powered-on scale could wait up
+to 60s to connect.
+
+Watch lifecycle details:
+
+- Armed whenever *machine connected && preferred scale set && scale not
+  connected && not blocked by scale power mode*; disarmed on scale
+  connect, machine disconnect, power-mode sleep, deliberate scale
+  disconnect, at the start of any full `connect()` (EarlyConnectWatcher
+  owns preferred-device connects during bursts), and on dispose.
+- Never armed while a Bengle is the machine — its integrated scale owns
+  the scale slot, mirroring `_runScalePhase`'s rule.
+- Burst scans pause the watch scan (universal_ble has one global scan
+  session) and resume it when they finish; the watch self-restarts
+  every 25 minutes to dodge Android's 30-minute opportunistic-scan
+  downgrade, and survives adapter off/on cycles.
+- `De1StateManager` skips its post-wake scale-only burst when the watch
+  covers reacquisition (watch supported + preferred scale set); the
+  burst remains for the no-preferred-scale discovery/picker case.
+- Watch-driven connects do **not** emit a `ScanReport` — they bypass
+  the scan/report machinery entirely.
+- The watch does not flip `scanningStream`, so no scanning indicator
+  shows in the UI while it runs.
 
 ### Zombie-Link Detection (BLE transport)
 
@@ -346,6 +409,47 @@ auto-reconnect above:
   runs the same probe (throttled). Teardown is probe-confirmed only,
   because the transport is shared with scales/sensors and some peripherals
   legitimately advertise while connected.
+
+### Gone-Device GATT Error Handling (BLE transport)
+
+When a BLE write/read/subscribe hits a device that has already
+ disconnected (scale powered off mid-session, Bluetooth adapter off on
+ macOS, DE1 unplugged), `universal_ble` throws `UniversalBleException`
+with error codes like `characteristicNotFound`, `deviceNotFound`,
+`serviceNotFound`, `connectionTerminated`, `deviceDisconnected`, or
+`unknownError`. The transport's `_handleGattError()` catches these,
+
+1. Emits `ConnectionState.disconnected` (drives the normal disconnect cascade),
+2. Drains the BLE queue (`clearQueue`) so pending writes don't pile up, and
+3. Throws `DeviceNotConnectedException` so upper layers handle it gracefully
+   instead of crashing.
+
+GATT error 133 (`gattError`) is treated as transient — the queue is cleared
+and a `BleTimeoutException` is thrown so `UnifiedDe1Transport` can retry via
+`_handleBleTimeout`. The link is NOT declared dead for GATT-133.
+
+### Crashlytics Error Filtering (telemetry)
+
+The `DeviceNotConnectedException` thrown from `_handleGattError` and the raw
+`UniversalBleException` can escape to the Flutter framework's global error
+handlers (`FlutterError.onError`, `PlatformDispatcher.instance.onError`)
+from fire-and-forget contexts — e.g. a `Timer.periodic` heartbeat callback
+where nobody is awaiting the write Future. Without filtering, the
+Crashlytics integration records these as FATAL crashes (false positives —
+the transport already emitted `disconnected` and the device impl's
+connectionState listener handles cleanup).
+
+`isBenignFrameworkError()` in `lib/src/services/telemetry/crashlytics_error_filter.dart`
+filters these from both framework error handlers:
+
+- `DeviceNotConnectedException` (any kind)
+- `UniversalBleException` with gone-device error codes
+- `Exception('Queue Cancelled')` — from `universal_ble`'s `Queue.dispose()`
+  when `clearQueue` cancels pending items
+
+This is the safety net. Device implementations should ALSO catch
+`DeviceNotConnectedException` at their write level for graceful recovery
+(see [Best Practices](#best-practices)).
 
 ### Preferred Device Settings
 
@@ -479,6 +583,57 @@ to gate "internal scale" UX hints.
 
 ## Connection Flow
 
+### Quick Connect
+
+Before running a full scan, `ConnectionManager._connectImpl` tries a
+**machine-only quick-connect** — a direct connection to the preferred machine
+from remembered-device metadata, without scanning:
+
+```
+ConnectionManager._connectImpl()
+  |
+  +-- Publish connectingMachine phase (UI shows spinner, not Retry)
+  |
+  +-- Look up preferred machine in RememberedDevicesController
+  |
+  +-- deviceScanner.tryQuickConnect(machineRemembered)
+  |     |- BLE: getSystemDevices (Apple) / direct connect (Android)
+  |     |      -> BleDevice + UniversalBleTransport + DeviceFactory.create()
+  |     |      -> transport.connect() -> device.onConnect() -> identity check
+  |     |      -> return connected Device or null
+  |     |
+  |     |- Serial: open SerialPort(storedPath) -> _detectDevice()
+  |     |         -> verify match -> onConnect() -> return Device or null
+  |     |
+  |     +-- WiFi: WifiScaleDiscoveryService.tryQuickConnect()
+  |            (returns null — WiFi scales use deferred discovery)
+  |
+  +-- If machine returned:
+  |     |- de1Controller.adoptDevice()
+  |     |- Bengle → attach integrated BengleVirtualScale
+  |     |- DE1 + preferred scale configured → schedule preferred scale reconnect
+  |     |- DE1 + no preferred scale → arm deferred scale-only scan (~3s delay)
+  |     +-- publish ready. DONE (no scan fallthrough).
+  |
+  +-- If machine null -> fall through to ScanOrchestrator.runScan()
+       (existing scan -> match -> EarlyConnectWatcher -> connect)
+```
+
+Scales are **excluded** from quick-connect. The machine-only critical path
+publishes ready immediately after machine adoption, then kicks off background
+scale discovery:
+
+- **Preferred scale configured:** `_maybeSchedulePreferredScaleReconnect()`
+  (exponential backoff: 5s → 10s → 20s → 40s → 60s cap)
+- **No preferred scale:** `_armPostQuickConnectScaleScan()` (single deferred
+  scale-only scan after ~3s, same delay as the post-wake reconnect)
+
+Quick-connect is tried in **all** connect cycles (startup, manual
+reconnect, recovery mode). The phase stream shows
+`idle → connectingMachine → ready` on success. On failure:
+`connectingMachine` is published before the attempt, then phase falls
+through to `scanning` (existing scan path).
+
 ### Initial App Startup
 
 ```
@@ -488,23 +643,31 @@ to gate "internal scale" UX hints.
    ↓
 3. Create DeviceController(services), De1Controller, ScaleController
    ↓
-4. Create ConnectionManager(deviceController, de1Controller, scaleController, settingsController)
+4. Create RememberedDevicesController, initialize (loads + migrates registry)
    ↓
-5. runApp(MyApp(...))
+5. Create ConnectionManager(deviceController, de1Controller, scaleController,
+   settingsController, rememberedDevices)
    ↓
-6. OnboardingView displayed (steps: android-warning → welcome → login →
+6. runApp(MyApp(...))
+   ↓
+7. OnboardingView displayed (steps: android-warning → welcome → login →
    permissions → initialization → scan)
    ↓
-7. Permissions step grants permissions; initialization step runs
+8. Permissions step grants permissions; initialization step runs
    deviceController.initialize()
    ↓
-8. Scan step calls connectionManager.connect()
+9. Scan step calls connectionManager.connect()
    ↓
-9. ConnectionManager: scan → early-connect preferred devices → apply policy
+10. ConnectionManager: machine-only quick-connect (preferred machine)
+     -> publish connectingMachine -> BLE/serial tryQuickConnect ->
+     adoptDevice -> Bengle virtual scale / deferred scale scan ->
+     publish ready. On failure: fall through to full scan.
    ↓
-10. Status stream: idle → scanning → connectingMachine → connectingScale → ready
-    ↓
-11. On `ready`, onboarding completes → navigates to LauncherView, then pushes
+11. Status stream (QC success): idle -> connectingMachine -> ready.
+     Status stream (QC failure): idle -> connectingMachine -> scanning ->
+     connectingMachine -> connectingScale -> ready.
+     ↓
+12. On `ready`, onboarding completes -> navigates to LauncherView, then pushes
     SkinView on top when the platform supports an in-app WebView, the device
     isn't a degraded Android (SDK < 31), and the skin server is serving.
     Degraded/unsupported devices stay on the launcher (browser hero card).
@@ -856,6 +1019,37 @@ try {
   // Show user error message
 }
 ```
+
+**Scale writes must catch `DeviceNotConnectedException`.** When a BLE
+write hits a disconnected device, the transport's `_handleGattError`
+throws `DeviceNotConnectedException`. This can escape from fire-and-forget
+contexts (Timer.periodic heartbeat callbacks, unawaited Futures) and reach
+the framework error handler. Catch it at the lowest-level write helper so all
+command paths are covered:
+
+```dart
+// ✅ Good — single catch point in _writeCommand / _safeWrite
+Future<void> _writeCommand(List<int> commandBytes) async {
+  try {
+    await _device.write(serviceId, charId, _buildCommand(commandBytes));
+  } on DeviceNotConnectedException {
+    // Transport already emitted disconnected; the connectionState
+    // listener handles cleanup.
+  }
+}
+```
+
+```dart
+// ❌ Bad — bare _transport.write() without catch; crashes if scale
+// disconnected mid-session
+Future<void> tare() async {
+  await _transport.write(serviceId, charId, Uint8List.fromList([0x10]));
+}
+```
+
+The framework error handler filter (`isBenignFrameworkError`) is the safety
+net — but scale-level catches are defense-in-depth and keep the log trace
+informative (`.info` level rather than silently swallowed).
 
 ### State Broadcasting
 

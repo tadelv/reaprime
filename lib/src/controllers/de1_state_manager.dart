@@ -73,6 +73,11 @@ class De1StateManager with WidgetsBindingObserver {
   /// on the DE1 when scale service discovery monopolizes the shared radio.
   Timer? _deferredScaleScan;
 
+  /// Delay before the post-wake scale reconnect fires. Overridable in
+  /// tests to avoid a real 3s wait.
+  @visibleForTesting
+  Duration deferredScaleScanDelay = const Duration(seconds: 3);
+
   // Platform-specific background states
   final Set<AppLifecycleState> _backgroundStates;
 
@@ -380,8 +385,24 @@ class De1StateManager with WidgetsBindingObserver {
           'to avoid BLE radio starvation',
         );
         _deferredScaleScan?.cancel();
-        _deferredScaleScan = Timer(const Duration(seconds: 3), () {
+        _deferredScaleScan = Timer(deferredScaleScanDelay, () {
           _deferredScaleScan = null;
+          // With a preferred scale and background-watch support, the
+          // ConnectionManager's persistent scale watch (re-armed by its
+          // own machine-state listener on this same wake transition)
+          // covers reacquisition — a lowLatency burst here would only
+          // starve the freshly woken DE1 link. The burst stays for the
+          // no-preferred-scale case (feeds discovery/picker) and for
+          // platforms without watch support. Gate evaluated at fire
+          // time, not arm time.
+          if (_connectionManager.supportsBackgroundScaleWatch &&
+              _settingsController.preferredScaleId != null) {
+            _logger.fine(
+              'Background scale watch handles reacquisition; '
+              'skipping wake burst',
+            );
+            return;
+          }
           _triggerScaleScan();
         });
       }

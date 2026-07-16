@@ -15,6 +15,9 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 /// honoring the project's "no 3rd-party transport types outside the transport
 /// layer" rule.
 abstract class WebSocketTransport extends DataTransport {
+  @override
+  TransportType get transportType => TransportType.wifi;
+
   /// Send a text frame to the peer.
   Future<void> sendMessage(String message);
 
@@ -97,6 +100,9 @@ class WsTransport implements WebSocketTransport {
 
   @override
   String get name => host;
+
+  @override
+  TransportType get transportType => TransportType.wifi;
 
   final BehaviorSubject<ConnectionState> _connectionSubject =
       BehaviorSubject.seeded(ConnectionState.discovered);

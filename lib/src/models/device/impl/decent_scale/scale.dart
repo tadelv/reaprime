@@ -3,7 +3,9 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:reaprime/src/models/device/ble_service_identifier.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/services/serial/serial_service_desktop.dart';
 import 'package:logging/logging.dart' as logging;
 import 'package:reaprime/src/models/device/device.dart';
@@ -74,13 +76,23 @@ class DecentScale implements Scale, TransportHandoffScale {
     Duration? timeout,
     bool withResponse = true,
   }) async {
-    await _device.write(
-      serviceIdentifier.long,
-      writeCharacteristic.long,
-      _buildCommand(commandBytes),
-      timeout: timeout,
-      withResponse: withResponse,
-    );
+    try {
+      await _device.write(
+        serviceIdentifier.long,
+        writeCharacteristic.long,
+        _buildCommand(commandBytes),
+        timeout: timeout,
+        withResponse: withResponse,
+      );
+    } on DeviceNotConnectedException {
+      _log.info('Write failed: device not connected');
+      // Don't call disconnect() here — the transport already emitted
+      // disconnected (in _handleGattError), which triggers the
+      // connectionState listener that calls disconnect(). Re-entering
+      // disconnect from a write path risks a re-entrant teardown.
+      // The _isDisconnecting guard would catch it, but the extra
+      // log noise is confusing.
+    }
   }
 
   // --- Scale interface -------------------------------------------------
@@ -90,6 +102,12 @@ class DecentScale implements Scale, TransportHandoffScale {
 
   @override
   String get deviceId => _deviceId;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.decentScale;
+
+  @override
+  TransportType get transportType => _device.transportType;
 
   @override
   DeviceType get type => DeviceType.scale;
@@ -210,6 +228,7 @@ class DecentScale implements Scale, TransportHandoffScale {
       try {
         await _device.disconnect();
       } catch (_) {}
+      rethrow;
     }
   }
 

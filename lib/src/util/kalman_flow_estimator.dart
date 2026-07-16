@@ -1,16 +1,17 @@
-/// A 1-D constant-velocity Kalman filter estimating [weight, flow] from
-/// noisy scale weight measurements.
+/// A 1-D constant-velocity Kalman filter estimating flow (g/s) from noisy
+/// scale weight measurements.
 ///
-/// Replaces both [FlowCalculator] (endpoint differencing) and [MovingAverage]
-/// (count-based smoothing) with a single estimator that has online
-/// self-adaptation baked in.
+/// The filter maintains a 2-element state vector `[weight, flow]` internally,
+/// but only the **flow** estimate should be consumed by callers. Raw weight
+/// passes through to consumers unfiltered — the Kalman state tracks weight
+/// solely to derive a smooth, low-lag flow estimate via the constant-velocity
+/// model.
 ///
 /// ## Design
 ///
 /// - **Adaptive measurement noise `R`** — tracked online from innovation
-///   (residual) variance. Clean signal → small `R` → snappy, low-lag flow.
-///   Disturbance (tap, knock, drip splat) → residuals spike → `R` grows →
-///   filter distrusts the transient → flow stays smooth.
+///   (residual) variance with **asymmetric EMA**: transients inflate R slowly
+///   (reject noise), recovery deflates R quickly (re-trust sensor fast).
 /// - **Fixed process noise `Q`** from flow physics (0–10 g/s, bounded ramp
 ///   rate). We adapt trust in the sensor, not the physics model.
 /// - **Variable `dt`** in every predict step — fixes the count-based window
@@ -18,8 +19,20 @@
 /// - **Signed flow** — no `.abs()` (un-breaks the cup-removal branch in
 ///   [ShotSequencer._refineStoppingYield]).
 /// - **Hard re-init at tare** via [reset] — re-seeds weight to current, flow
-///   to 0, covariance high (replaces the `_flowSettleUntil` suppress-window
-///   hack).
+///   to 0, covariance moderate (the filter re-converges quickly from the new
+///   baseline).
+///
+/// ## Tuning rationale
+///
+/// These parameters are a middle ground between two extremes. The
+/// original filter (R_max=50, P_init=100, Q=2.0) produced smooth flow but
+/// a severely laggy *weight* estimate (10s convergence on a 99g test
+/// weight, overshooting to 130g). The aggressive retune (R_max=5,
+/// P_init=10, Q=4.0) fixed weight convergence but doubled per-sample
+/// flow jitter (0.49 vs 0.23 g/s mean |Δflow| at native 10 Hz). Since
+/// weight is now raw-passthrough in [ScaleController], R only affects
+/// flow smoothness. These values target the smoothest flow that still
+/// converges within ~5 samples at native 10 Hz.
 ///
 /// ## Multi-scale
 ///
@@ -50,37 +63,53 @@ class KalmanFlowEstimator {
 
   // -- R adaptation constants --
 
-  /// EMA smoothing factor for the innovation-variance tracker.
-  static const double _alpha = 0.1;
+  /// EMA smoothing factor when innovation² > current R (noise rising).
+  /// Slow rise → don't over-react to a single spike.
+  static const double _alphaUp = 0.05;
+
+  /// EMA smoothing factor when innovation² < current R (noise falling).
+  /// Moderate decay — re-trust the sensor after a transient without
+  /// snapping back so fast that per-sample flow jitter returns.
+  static const double _alphaDown = 0.1;
 
   /// Floor for R — prevents filter divergence when the scale is dead-quiet.
   static const double _rMin = 0.01;
 
-  /// Ceiling for R — balances disturbance rejection against step-response
-  /// speed. High enough to attenuate taps/knocks, low enough that a genuine
-  /// level change (placing a cup) can still be tracked.
-  static const double _rMax = 50.0;
+  /// Ceiling for R — limits how much the filter can distrust the sensor.
+  /// 15 is a middle ground: high enough to attenuate taps/knocks, low
+  /// enough that genuine level changes are tracked without excessive lag.
+  /// The original filter used R = 50 (over-damped, flow too smooth but
+  /// weight laggy); the aggressive retune used R = 5 (snappy but flow
+  /// jittery). Since weight is now raw-passthrough, R only affects flow.
+  static const double _rMax = 15.0;
 
-  /// Initial measurement noise (before any innovation history).
-  static const double _initialR = 10.0;
+  /// Initial measurement noise. Typical scale noise is 0.01–0.1 g; starting
+  /// at 3.0 gives the filter a few samples to calibrate while damping the
+  /// initial per-sample flow jitter. Higher than the aggressive retune
+  /// (1.0) but well below the original (10.0).
+  static const double _initialR = 3.0;
 
-  /// Initial covariance diagonal — large so the filter converges quickly from
-  /// a cold start.
-  static const double _initialCovariance = 100.0;
+  /// Initial covariance diagonal — high enough for quick convergence from
+  /// a cold start, not so high as to cause excessive initial lag. A middle
+  /// ground between the original (100, over-damped) and the aggressive
+  /// retune (10, jittery).
+  static const double _initialCovariance = 30.0;
 
   /// Minimum covariance diagonal — prevents the filter from becoming
-  /// overconfident and unable to track genuine level changes (e.g. placing
-  /// a cup on the scale).
-  static const double _pMin = 0.1;
+  /// overconfident. 0.01 keeps the Kalman gain responsive while damping
+  /// per-sample flow jitter more than the aggressive retune (0.001).
+  static const double _pMin = 0.01;
 
   /// Creates a Kalman flow estimator seeded with [initialWeight].
   ///
   /// [processNoiseIntensity] is the continuous-time acceleration variance `q`.
-  /// Default 2.0 ≈ ±1.4 g/s² RMS, matching typical espresso flow change
-  /// rates (ramp from 0→8 g/s over several seconds).
+  /// Default 2.5 ≈ ±1.6 g/s² RMS. A middle ground between the original
+  /// (2.0, smoother flow) and the aggressive retune (4.0, snappier but
+  /// jittery). Lower Q → filter expects slower state changes → smoother
+  /// flow at the cost of slightly slower ramp tracking.
   KalmanFlowEstimator({
     required double initialWeight,
-    double processNoiseIntensity = 2.0,
+    double processNoiseIntensity = 2.5,
   })  : _weight = initialWeight,
         _flow = 0.0,
         _p11 = _initialCovariance,
@@ -90,7 +119,7 @@ class KalmanFlowEstimator {
         _q = processNoiseIntensity,
         _r = _initialR;
 
-  /// The current filtered weight estimate.
+  /// The current filtered weight estimate (internal — prefer raw weight).
   double get weight => _weight;
 
   /// The current flow estimate (signed, g/s).
@@ -166,12 +195,14 @@ class KalmanFlowEstimator {
 
     final innovation = rawWeight - predWeight;
 
-    // Adaptive R — EMA of squared innovation, with the innovation clipped
-    // so a single large step (placing a cup) doesn't inflate R excessively.
-    // Sustained large innovations indicate a genuine level/rate change that
-    // the filter should track, not a transient to reject.
-    final clipped = innovation.clamp(-5.0, 5.0);
-    _r = _alpha * clipped * clipped + (1.0 - _alpha) * _r;
+    // Adaptive R — asymmetric EMA of squared innovation.
+    // Clip innovation before squaring so a single large step (cup placement)
+    // doesn't dominate the R tracker. ±3g covers the range of per-sample
+    // weight changes during espresso (up to ~1g/sample at 10 Hz, 8 g/s).
+    final clipped = innovation.clamp(-3.0, 3.0);
+    final innovSq = clipped * clipped;
+    final alpha = innovSq > _r ? _alphaUp : _alphaDown;
+    _r = alpha * innovSq + (1.0 - alpha) * _r;
     _r = _r.clamp(_rMin, _rMax);
 
     // Innovation covariance: S = H @ P_pred @ H^T + R = predP11 + R
@@ -202,8 +233,8 @@ class KalmanFlowEstimator {
 
   /// Hard re-initialisation — call at tare.
   ///
-  /// Resets weight to [initialWeight], flow to 0, and covariance to high
-  /// (the filter quickly re-converges from the new baseline). Also resets
+  /// Resets weight to [initialWeight], flow to 0, and covariance to moderate
+  /// (the filter re-converges quickly from the new baseline). Also resets
   /// the adaptive-R tracker so a post-tare spike doesn't inherit a stale
   /// noise estimate.
   void reset(double initialWeight) {

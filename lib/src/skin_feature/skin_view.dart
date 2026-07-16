@@ -14,10 +14,13 @@ import 'package:reaprime/src/services/webview_compatibility_checker.dart';
 import 'package:reaprime/src/services/webview_log_service.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:reaprime/src/skin_feature/simulated_webview_device.dart';
+import 'package:reaprime/src/webui_support/webui_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// How the skin webview should treat a navigation target.
 enum SkinNavDecision {
+  exitDashboard,
+
   /// Internal navigation — let the webview load it.
   allow,
 
@@ -35,15 +38,46 @@ enum SkinNavDecision {
 /// blocked. Pure so it can be unit-tested without a live webview.
 SkinNavDecision classifySkinNavigation(Uri? url) {
   if (url == null) return SkinNavDecision.block;
-  final s = url.toString();
-  if (s.startsWith('http://localhost:3000') ||
-      s.contains('/api/v1/plugins/settings.reaplugin')) {
+  if (url.host == 'localhost' && url.path.startsWith('/__decent/')) {
+    return url.toString() == skinExitDashboardUrl
+        ? SkinNavDecision.exitDashboard
+        : SkinNavDecision.block;
+  }
+  if (url.scheme == 'http' &&
+      url.host == 'localhost' &&
+      (url.port == 3000 ||
+          (url.port == 8080 && url.path.startsWith('/api/v1/plugins/')))) {
     return SkinNavDecision.allow;
   }
   if (url.scheme == 'https' || url.scheme == 'http') {
     return SkinNavDecision.openExternal;
   }
   return SkinNavDecision.block;
+}
+
+class SkinExitCoordinator {
+  bool _inProgress = false;
+
+  bool get inProgress => _inProgress;
+
+  bool tryStart({
+    required Uri? target,
+    required bool isForMainFrame,
+    required Uri? topLevelUri,
+  }) {
+    if (_inProgress ||
+        !isForMainFrame ||
+        target?.toString() != skinExitDashboardUrl ||
+        topLevelUri == null ||
+        topLevelUri.scheme != 'http' ||
+        topLevelUri.host != 'localhost' ||
+        topLevelUri.port != 3000 ||
+        topLevelUri.userInfo.isNotEmpty) {
+      return false;
+    }
+    _inProgress = true;
+    return true;
+  }
 }
 
 /// Displays the WebUI skin in a full-screen webview
@@ -79,6 +113,8 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
   bool _rendererCrashed = false;
 
   InAppWebViewController? _webViewController;
+  final _skinExitCoordinator = SkinExitCoordinator();
+  Uri? _mainFrameUri;
 
   bool _didShowExit = false;
 
@@ -275,12 +311,15 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(16),
         showCloseIcon: true,
-        // action: SnackBarAction(
-        //   label: 'Dismiss',
-        //   onPressed: () {
-        //     ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        //   },
-        // ),
+        action: SnackBarAction(
+          label: "Don't show again",
+          onPressed: () {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            unawaited(
+              widget.settingsController.setShowSkinExitInstructions(false),
+            );
+          },
+        ),
       ),
     );
   }
@@ -638,6 +677,7 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
       },
       onLoadStart: (controller, url) {
         _log.info('Page started loading: $url');
+        _mainFrameUri = url;
         // Webview is up — final cold-boot milestone (idempotent).
         BootTiming.mark('webview');
         BootTiming.complete();
@@ -675,15 +715,22 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
         // ''');
 
         // Show exit instructions snackbar
-        if (mounted && _didShowExit == false) {
+        if (mounted &&
+            !_didShowExit &&
+            widget.settingsController.showSkinExitInstructions) {
           _didShowExit = true;
           _showExitInstructions();
         }
       },
       onReceivedError: (controller, request, error) {
+        if (_skinExitCoordinator.inProgress &&
+            request.url.toString() == skinExitDashboardUrl) {
+          return;
+        }
         _log.severe(
           'WebView error - Code: ${error.type}, Description: ${error.description}',
         );
+        if (!mounted) return;
         setState(() {
           _isLoading = false;
           _errorMessage = 'Failed to load skin: ${error.description}';
@@ -695,6 +742,18 @@ class _SkinViewState extends State<SkinView> with WidgetsBindingObserver {
       shouldOverrideUrlLoading: (controller, navigationAction) async {
         final uri = navigationAction.request.url;
         switch (classifySkinNavigation(uri)) {
+          case SkinNavDecision.exitDashboard:
+            if (_skinExitCoordinator.tryStart(
+              target: uri,
+              isForMainFrame: navigationAction.isForMainFrame,
+              topLevelUri: _mainFrameUri,
+            )) {
+              _log.info('Skin requested dashboard');
+              if (mounted) Navigator.of(context).pop();
+            } else {
+              _log.warning('Rejected skin dashboard request');
+            }
+            return NavigationActionPolicy.CANCEL;
           case SkinNavDecision.allow:
             _log.fine('Allowing navigation to: $uri');
             return NavigationActionPolicy.ALLOW;

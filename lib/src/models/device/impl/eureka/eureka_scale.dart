@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:reaprime/src/models/device/ble_service_identifier.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:rxdart/subjects.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
 
+import 'package:reaprime/src/models/errors.dart';
 import '../../scale.dart';
 
 class EurekaScale implements Scale {
@@ -38,6 +41,12 @@ class EurekaScale implements Scale {
 
   @override
   String get deviceId => _deviceId;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.eurekaScale;
+
+  @override
+  TransportType get transportType => _transport.transportType;
 
   @override
   String get name => "Eureka Precisa";
@@ -95,51 +104,44 @@ class EurekaScale implements Scale {
   @override
   DeviceType get type => DeviceType.scale;
 
+  /// Safe write — catches [DeviceNotConnectedException] from the transport
+  /// layer's gone-device handler so a write to a disconnected scale doesn't
+  /// escape to the framework error handler as a FATAL (Crashlytics fa51312d).
+  Future<void> _safeWrite(Uint8List data) async {
+    try {
+      await _transport.write(
+        serviceIdentifier.long,
+        commandCharacteristic.long,
+        data,
+        withResponse: false,
+      );
+    } on DeviceNotConnectedException {
+      // Transport already emitted disconnected; the connectionState
+      // listener handles cleanup.
+    }
+  }
+
   @override
   Future<void> tare() async {
-    final writeData = Uint8List.fromList([0xAA, 0x02, 0x31, 0x31]);
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      writeData,
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0xAA, 0x02, 0x31, 0x31]));
   }
 
   /// Start the scale timer
   @override
   Future<void> startTimer() async {
-    final writeData = Uint8List.fromList([0xAA, 0x02, 0x33, 0x33]);
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      writeData,
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0xAA, 0x02, 0x33, 0x33]));
   }
 
   /// Stop the scale timer
   @override
   Future<void> stopTimer() async {
-    final writeData = Uint8List.fromList([0xAA, 0x02, 0x34, 0x34]);
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      writeData,
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0xAA, 0x02, 0x34, 0x34]));
   }
 
   /// Reset the scale timer
   @override
   Future<void> resetTimer() async {
-    final writeData = Uint8List.fromList([0xAA, 0x02, 0x35, 0x35]);
-    await _transport.write(
-      serviceIdentifier.long,
-      commandCharacteristic.long,
-      writeData,
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0xAA, 0x02, 0x35, 0x35]));
   }
 
   @override

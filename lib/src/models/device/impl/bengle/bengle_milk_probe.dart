@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/sensor.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:rxdart/rxdart.dart';
 
 /// `Sensor` adapter wrapping Bengle's internal milk-probe signals.
@@ -37,6 +39,12 @@ class BengleMilkProbe implements Sensor {
 
   @override
   String get deviceId => _deviceId;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.bengle;
+
+  @override
+  TransportType get transportType => _bengle.transportType;
 
   @override
   String get name => 'Bengle Milk Probe';

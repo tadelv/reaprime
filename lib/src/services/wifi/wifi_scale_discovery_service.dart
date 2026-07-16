@@ -7,6 +7,7 @@ import 'package:reaprime/src/models/device/impl/decent_scale/scale_wifi.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/wifi_scale_id.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/transport/web_socket_transport.dart';
+import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/services/wifi/bonsoir_wifi_scale_browser.dart';
 import 'package:reaprime/src/services/wifi/wifi_ip_cache.dart';
 import 'package:rxdart/subjects.dart';
@@ -154,6 +155,9 @@ class WifiScaleDiscoveryService implements DeviceDiscoveryService {
     // Leave the browser running; mDNS is passive and cheap, and stopping it
     // would drop endpoints needed for the next preferred-device match.
   }
+
+  @override
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async => null;
 
   Future<void> _ensureStarted() async {
     if (_started) return;

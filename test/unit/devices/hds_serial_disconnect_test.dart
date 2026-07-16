@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale_serial.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:rxdart/subjects.dart';
 
 class MockSerialTransport implements SerialTransport {
@@ -19,6 +20,9 @@ class MockSerialTransport implements SerialTransport {
 
   @override
   String get name => 'MockSerial';
+
+  @override
+  TransportType get transportType => TransportType.serial;
 
   final StreamController<Uint8List> _rawController =
       StreamController<Uint8List>.broadcast();
