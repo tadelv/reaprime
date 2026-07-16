@@ -39,6 +39,7 @@ class MockSettingsService extends SettingsService {
   bool _onboardingCompleted = true; // skip onboarding in tests
   bool _accountStepSeen = true; // skip account step in tests
   bool _androidWarningDismissed = true; // skip android warning in tests
+  bool _showSkinExitInstructions = false;
   bool _enableSimulatedWebViews = false;
 
   final Map<String, bool> _featureFlags = {};
@@ -184,6 +185,11 @@ class MockSettingsService extends SettingsService {
   @override
   Future<void> setAndroidWarningDismissed(bool value) async =>
       _androidWarningDismissed = value;
+  @override
+  Future<bool> showSkinExitInstructions() async => _showSkinExitInstructions;
+  @override
+  Future<void> setShowSkinExitInstructions(bool value) async =>
+      _showSkinExitInstructions = value;
   @override
   Future<bool> enableSimulatedWebViews() async => _enableSimulatedWebViews;
   @override

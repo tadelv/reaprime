@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
+import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/services/serial/serial_service_android.dart';
 import 'package:reaprime/src/services/serial/serial_service_desktop.dart';
 import 'package:rxdart/subjects.dart';
@@ -44,4 +45,7 @@ class NoOpSerialService implements DeviceDiscoveryService {
 
   @override
   void stopScan() {}
+
+  @override
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async => null;
 }

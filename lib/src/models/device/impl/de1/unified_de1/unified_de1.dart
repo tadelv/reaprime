@@ -10,6 +10,7 @@ import 'package:reaprime/src/models/device/de1_firmwaremodel.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.utils.dart';
 import 'package:reaprime/src/models/device/impl/de1/mmr_address.dart';
@@ -69,6 +70,12 @@ class UnifiedDe1 implements De1Interface {
 
   @override
   String get deviceId => _transport.id;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
+
+  @override
+  TransportType get transportType => _transport.transportType;
 
   MachineInfo? _info;
   @override

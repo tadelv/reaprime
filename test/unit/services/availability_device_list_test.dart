@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/remembered_device.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:reaprime/src/services/webserver_service.dart';
 
 /// Minimal live Device for exercising the availability merge.
@@ -13,6 +15,10 @@ class _FakeDevice implements Device {
   final String name;
   @override
   final DeviceType type;
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
+  @override
+  TransportType get transportType => TransportType.unknown;
   final ConnectionState _state;
   _FakeDevice(this.deviceId, this.name, this.type,
       [this._state = ConnectionState.connected]);

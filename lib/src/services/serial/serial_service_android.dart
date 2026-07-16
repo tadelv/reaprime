@@ -12,6 +12,8 @@ import 'package:reaprime/src/models/device/impl/decent_scale/scale_serial.dart';
 import 'package:reaprime/src/models/device/impl/sensor/debug_port.dart';
 import 'package:reaprime/src/models/device/impl/sensor/sensor_basket.dart';
 import 'package:reaprime/src/models/device/transport/serial_port.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
+import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'mmr_codec.dart';
 import 'usb_ids.dart';
 import 'utils.dart';
@@ -25,6 +27,13 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
   final _log = Logger("Android Serial service");
 
   final List<Device> _devices = [];
+
+  /// Tracks transports created by [_detectDevice] so quick-connect cleanup
+  /// can dispose them. Keyed by [Device.deviceId] (== [AndroidSerialPort.id]).
+  /// The scan path does not dispose from here — pre-existing behavior —
+  /// but the QC path uses it to avoid leaking port handles + stream
+  /// controllers on mismatch / failure / disconnect.
+  final Map<String, AndroidSerialPort> _transportForDeviceId = {};
   
   // Guard against concurrent scans
   bool _isScanning = false;
@@ -92,9 +101,64 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
   }
 
   @override
-  void stopScan() {} // Serial enumeration is instant, nothing to stop.
+  void stopScan() {}
 
   @override
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async {
+    final impl = remembered.implementation;
+    final tt = remembered.transportType;
+    if (impl == null || tt == null || tt != TransportType.serial) {
+      return null;
+    }
+
+    final devices = await UsbSerial.listDevices();
+    for (final d in devices) {
+      final stableId =
+          computeUsbStableId(vid: d.vid, pid: d.pid, serial: d.serial) ??
+          '${d.deviceId}';
+      if (stableId != remembered.id) continue;
+
+      _log.info('Quick-connect: found USB device ${d.productName} for ${remembered.id}');
+      Device? device;
+      try {
+        device = await _detectDevice(d);
+      } catch (e, st) {
+        _log.warning('Quick-connect: _detectDevice failed', e, st);
+        continue;
+      }
+      if (device == null || device.implementation != impl) {
+        _log.info('Quick-connect: device mismatch'
+            ' (expected $impl, got ${device?.implementation})');
+        try { await device?.disconnect(); } catch (_) {}
+        final t = _transportForDeviceId.remove(device?.deviceId);
+        try { await t?.dispose(); } catch (_) {}
+        continue;
+      }
+      try {
+        await device.onConnect().timeout(const Duration(seconds: 10));
+        final connected = device;
+        _devices.add(connected);
+        connected.connectionState.listen((state) {
+          if (state == ConnectionState.disconnected) {
+            _devices.remove(connected);
+            _machineSubject.add(_devices);
+            final t = _transportForDeviceId.remove(connected.deviceId);
+            try { t?.dispose(); } catch (_) {}
+          }
+        });
+        _machineSubject.add(_devices);
+        _log.info('Quick-connect succeeded for ${remembered.id}');
+        return device;
+      } catch (e, st) {
+        _log.warning('Quick-connect: onConnect failed', e, st);
+        try { await device.disconnect(); } catch (_) {}
+        final t = _transportForDeviceId.remove(device.deviceId);
+        try { await t?.dispose(); } catch (_) {}
+      }
+    }
+    return null;
+  }
+
   @override
   Future<void> scanForDevices({ScanFilter? filter}) async {
     // If already scanning, wait for that scan to complete
@@ -206,6 +270,7 @@ class SerialServiceAndroid implements DeviceDiscoveryService {
       return null;
     }
     final transport = AndroidSerialPort(device: device, port: port);
+    _transportForDeviceId[transport.id] = transport;
 
     // yay, shortcuts
     if (device.productName == "DE1") {
@@ -367,6 +432,9 @@ class AndroidSerialPort implements SerialTransport {
 
   @override
   String get name => _device.deviceName;
+
+  @override
+  TransportType get transportType => TransportType.serial;
 
   StreamSubscription<Uint8List>? _portSubscription;
   @override

@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:reaprime/src/models/adapter_state.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/device_scanner.dart';
+import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
+import 'package:reaprime/src/models/device/watch_filter.dart';
 import 'package:rxdart/rxdart.dart';
 
 /// A controllable [DeviceScanner] for testing [ConnectionManager].
@@ -24,6 +26,10 @@ class MockDeviceScanner implements DeviceScanner {
   /// Number of times [stopScan] has been called.
   int stopScanCallCount = 0;
 
+  /// Number of times [scanForDevices] has been called (successful starts
+  /// only — a [failNextScanWith] throw does not count).
+  int scanCallCount = 0;
+
   /// When set, [scanForDevices] will emit `scanning: true` then wait for
   /// this completer before emitting `scanning: false`. This lets tests
   /// add devices mid-scan and verify early-stop behavior.
@@ -33,6 +39,37 @@ class MockDeviceScanner implements DeviceScanner {
   /// running a scan. Consumed after one throw. Tests use this to exercise
   /// scan-start failure classification in [ConnectionManager].
   Object? failNextScanWith;
+
+  /// Watch capability flag. Defaults to false so existing tests exercise
+  /// the legacy backoff-reconnect path unchanged; background-scale-watch
+  /// tests flip it on.
+  bool supportsWatch = false;
+
+  /// Filter passed to the most recent [startScaleWatch] call.
+  DeviceWatchFilter? lastWatchFilter;
+
+  /// Number of times [startScaleWatch] has been called.
+  int startWatchCallCount = 0;
+
+  /// Number of times [stopScaleWatch] has been called.
+  int stopWatchCallCount = 0;
+
+  /// True while a watch is running (started and not yet stopped).
+  bool watchActive = false;
+
+  /// When set, the next [startScaleWatch] call throws this object.
+  /// Consumed after one throw. Tests use this to exercise the
+  /// fall-back-to-legacy-backoff path in [ConnectionManager].
+  Object? failNextWatchWith;
+
+  final _watchFailuresSubject = PublishSubject<void>();
+
+  /// Simulate a running watch dying without a possible restart (failed
+  /// refresh / resume / adapter recovery in the real service).
+  void emitWatchFailure() {
+    watchActive = false;
+    _watchFailuresSubject.add(null);
+  }
 
   @override
   Stream<List<Device>> get deviceStream => _deviceSubject.stream;
@@ -82,6 +119,7 @@ class MockDeviceScanner implements DeviceScanner {
       failNextScanWith = null;
       throw e!;
     }
+    scanCallCount++;
     final start = DateTime.now();
     _scanningSubject.add(true);
     // Re-emit current devices to simulate scan rediscovery.
@@ -107,7 +145,45 @@ class MockDeviceScanner implements DeviceScanner {
     stopScanCallCount++;
   }
 
+  /// When set, [tryQuickConnect] returns this device. When null (default),
+  /// returns null to force the scan fallback path.
+  Device? quickConnectResult;
+
+  /// Number of times [tryQuickConnect] has been called.
+  int quickConnectCallCount = 0;
+
+  @override
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async {
+    quickConnectCallCount++;
+    return quickConnectResult;
+  }
+
+  @override
+  bool get supportsBackgroundWatch => supportsWatch;
+
+  @override
+  Future<void> startScaleWatch(DeviceWatchFilter filter) async {
+    if (failNextWatchWith != null) {
+      final e = failNextWatchWith;
+      failNextWatchWith = null;
+      throw e!;
+    }
+    startWatchCallCount++;
+    lastWatchFilter = filter;
+    watchActive = true;
+  }
+
+  @override
+  Future<void> stopScaleWatch() async {
+    stopWatchCallCount++;
+    watchActive = false;
+  }
+
+  @override
+  Stream<void> get scaleWatchFailures => _watchFailuresSubject.stream;
+
   void dispose() {
+    _watchFailuresSubject.close();
     _deviceSubject.close();
     _scanningSubject.close();
     _adapterStateSubject.close();

@@ -7,6 +7,7 @@ import 'package:reaprime/src/models/device/led_strip.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/models/device/scale.dart';
 import 'package:reaprime/src/models/device/simulated_device.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:rxdart/rxdart.dart';
 
 /// Simulated Bengle. Reuses [MockDe1]'s state machine — Bengle's behavior
@@ -28,6 +29,9 @@ class MockBengle extends MockDe1 implements BengleInterface, SimulatedDevice {
 
   @override
   String get name => 'MockBengle';
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.bengle;
 
   // --- cup warmer ---
   double _cupWarmerTemp = 0.0;

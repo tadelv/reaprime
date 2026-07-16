@@ -68,6 +68,7 @@ class SettingsController with ChangeNotifier {
   bool _onboardingCompleted = false;
   bool _accountStepSeen = false;
   bool _androidWarningDismissed = false;
+  bool _showSkinExitInstructions = true;
   bool _enableSimulatedWebViews = false;
 
   // Feature flags — loaded once at startup, hot-swappable at runtime.
@@ -104,6 +105,7 @@ class SettingsController with ChangeNotifier {
   bool get onboardingCompleted => _onboardingCompleted;
   bool get accountStepSeen => _accountStepSeen;
   bool get androidWarningDismissed => _androidWarningDismissed;
+  bool get showSkinExitInstructions => _showSkinExitInstructions;
   bool get enableSimulatedWebViews => _enableSimulatedWebViews;
 
   // Feature flags
@@ -145,6 +147,8 @@ class SettingsController with ChangeNotifier {
     _accountStepSeen = await _settingsService.accountStepSeen();
     _androidWarningDismissed =
         await _settingsService.androidWarningDismissed();
+    _showSkinExitInstructions =
+        await _settingsService.showSkinExitInstructions();
     _enableSimulatedWebViews =
         await _settingsService.enableSimulatedWebViews();
 
@@ -437,6 +441,13 @@ class SettingsController with ChangeNotifier {
     if (value == _androidWarningDismissed) return;
     _androidWarningDismissed = value;
     await _settingsService.setAndroidWarningDismissed(value);
+    notifyListeners();
+  }
+
+  Future<void> setShowSkinExitInstructions(bool value) async {
+    if (value == _showSkinExitInstructions) return;
+    _showSkinExitInstructions = value;
+    await _settingsService.setShowSkinExitInstructions(value);
     notifyListeners();
   }
 

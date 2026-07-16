@@ -14,6 +14,9 @@ import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/scan_filter.dart';
 import 'package:reaprime/src/models/device/machine.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
+import 'package:reaprime/src/models/device/remembered_device.dart';
 import 'package:reaprime/src/settings/charging_mode.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
 import 'package:rxdart/subjects.dart';
@@ -34,6 +37,9 @@ class _FakeDiscoveryService implements DeviceDiscoveryService {
   Future<void> scanForDevices({ScanFilter? filter}) async {}
   @override
   void stopScan() {}
+
+  @override
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async => null;
 }
 
 /// A De1Interface test double with a controllable snapshot stream.
@@ -90,6 +96,12 @@ class _TestDe1 implements De1Interface {
   String get name => 'TestDe1';
   @override
   DeviceType get type => DeviceType.machine;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.unifiedDe1;
+
+  @override
+  TransportType get transportType => TransportType.unknown;
   @override
   Future<void> onConnect() async {}
   @override

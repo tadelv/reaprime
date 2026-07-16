@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:reaprime/src/models/device/ble_service_identifier.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:rxdart/subjects.dart';
 
 import 'package:reaprime/src/models/device/device.dart';
 
+import 'package:reaprime/src/models/errors.dart';
 import '../../scale.dart';
 
 class HiroiaScale implements Scale {
@@ -32,6 +35,12 @@ class HiroiaScale implements Scale {
 
   @override
   String get deviceId => _deviceId;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.hiroiaScale;
+
+  @override
+  TransportType get transportType => _transport.transportType;
 
   @override
   String get name => "Hiroia Jimmy";
@@ -88,15 +97,24 @@ class HiroiaScale implements Scale {
   @override
   DeviceType get type => DeviceType.scale;
 
+  /// Safe write — catches [DeviceNotConnectedException] so a write to a
+  /// disconnected scale doesn't escape as a FATAL (Crashlytics fa51312d).
+  Future<void> _safeWrite(Uint8List data) async {
+    try {
+      await _transport.write(
+        serviceIdentifier.long,
+        writeCharacteristic.long,
+        data,
+        withResponse: false,
+      );
+    } on DeviceNotConnectedException {
+      // Transport already emitted disconnected.
+    }
+  }
+
   @override
   Future<void> tare() async {
-    final writeData = Uint8List.fromList([0x07, 0x00]);
-    await _transport.write(
-      serviceIdentifier.long,
-      writeCharacteristic.long,
-      writeData,
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0x07, 0x00]));
   }
 
   @override
@@ -118,13 +136,7 @@ class HiroiaScale implements Scale {
 
   /// Send toggle unit command to switch the scale back to grams
   Future<void> _sendToggleUnit() async {
-    final writeData = Uint8List.fromList([0x0b, 0x00]);
-    await _transport.write(
-      serviceIdentifier.long,
-      writeCharacteristic.long,
-      writeData,
-      withResponse: false,
-    );
+    await _safeWrite(Uint8List.fromList([0x0b, 0x00]));
   }
 
   void _parseNotification(List<int> data) {

@@ -1,4 +1,5 @@
 import 'package:reaprime/src/models/device/device.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/impl/acaia/acaia_scale.dart';
 import 'package:reaprime/src/models/device/impl/atomheart/atomheart_scale.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
@@ -50,6 +51,63 @@ class DeviceMatcher {
       DifluidR2Sensor.serviceIdentifier.long,
     ],
   };
+
+  /// Map an advertised name to a [DeviceImplementation] without constructing
+  /// a device. Used by [RememberedDevice.migrate] to infer the implementation
+  /// for old records that predate the field. Mirrors the name-matching logic
+  /// in [match] — keep the two in sync when adding a new device.
+  static DeviceImplementation? implementationForName(String advertisedName) {
+    final name = advertisedName;
+    final nameLower = name.toLowerCase();
+
+    if (name == 'Half Decent Scale (USB)') return DeviceImplementation.hdsSerial;
+    if (name == 'Half Decent Scale (WiFi)') return DeviceImplementation.hdsWifi;
+    if (name == 'Decent Scale') return DeviceImplementation.decentScale;
+    if (name == 'Skale2' || nameLower.startsWith('skale')) {
+      return DeviceImplementation.skale2;
+    }
+    if (name == 'DE1' || nameLower == 'nrf5x' || nameLower.startsWith('de1')) {
+      return DeviceImplementation.unifiedDe1;
+    }
+    if (name == 'Bengle' || nameLower.startsWith('bengle')) {
+      return DeviceImplementation.bengle;
+    }
+    if (nameLower.startsWith('felicita')) return DeviceImplementation.felicitaArc;
+    if (nameLower.startsWith('black')) return DeviceImplementation.blackCoffeeScale;
+    if (nameLower.contains('acaia') ||
+        nameLower.contains('lunar') ||
+        nameLower.contains('pearl') ||
+        nameLower.contains('proch') ||
+        nameLower.contains('pyxis')) {
+      return DeviceImplementation.acaiaScale;
+    }
+    if (nameLower.contains('eureka') ||
+        nameLower.contains('precisa') ||
+        nameLower.contains('cfs-9002')) {
+      return DeviceImplementation.eurekaScale;
+    }
+    if (nameLower.contains('solo barista') || nameLower.contains('lsj-001')) {
+      return DeviceImplementation.eurekaScale;
+    }
+    if (nameLower.contains('smartchef')) return DeviceImplementation.smartChefScale;
+    if (nameLower.contains('difluid') && nameLower.contains('r2')) {
+      return DeviceImplementation.difluidR2Sensor;
+    }
+    if (nameLower.contains('aku') || nameLower.contains('varia')) {
+      return DeviceImplementation.variaAkuScale;
+    }
+    if (nameLower.contains('hiroia') || nameLower.contains('jimmy')) {
+      return DeviceImplementation.hiroiaScale;
+    }
+    if (nameLower.contains('difluid')) return DeviceImplementation.difluidScale;
+    if (nameLower.contains('atomheart') || nameLower.contains('eclair')) {
+      return DeviceImplementation.atomheartScale;
+    }
+    if (nameLower.contains('bookoo')) return DeviceImplementation.bookooScale;
+    if (nameLower.contains('decent temp')) return DeviceImplementation.decentTemp;
+    if (name == 'WeighMaster Scale') return DeviceImplementation.weighMasterScale;
+    return null;
+  }
 
   static Future<Device?> match({
     required BLETransport transport,

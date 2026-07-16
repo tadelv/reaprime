@@ -6,7 +6,9 @@ import 'package:reaprime/src/models/device/ble_service_identifier.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/impl/difluid/difluid_r2_protocol.dart';
 import 'package:reaprime/src/models/device/sensor.dart';
+import 'package:reaprime/src/models/device/device_implementation.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
+import 'package:reaprime/src/models/device/transport/data_transport.dart';
 import 'package:rxdart/rxdart.dart';
 
 class DifluidR2Sensor implements Sensor {
@@ -32,6 +34,12 @@ class DifluidR2Sensor implements Sensor {
 
   @override
   String get deviceId => _transport.id;
+
+  @override
+  DeviceImplementation get implementation => DeviceImplementation.difluidR2Sensor;
+
+  @override
+  TransportType get transportType => _transport.transportType;
 
   @override
   String get name => 'DiFluid R2';

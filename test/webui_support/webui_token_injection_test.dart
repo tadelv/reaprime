@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -6,36 +7,93 @@ import 'package:reaprime/src/webui_support/webui_service.dart';
 
 void main() {
   const token = 'abc.123';
-  const script = '<script>window.__REA_PROXY_TOKEN__="abc.123";</script>';
+  const scriptUrl = 'http://localhost:3000$skinApiScriptPath';
+  const scriptTag = '<script src="$scriptUrl"></script>';
 
-  test('injects before </head> when present', () {
-    final out = injectProxyTokenScript(
-      '<html><head><title>x</title></head><body>hi</body></html>',
-      token,
+  test('handles mixed-case tags without moving the doctype', () {
+    const html = '\uFEFF<!doctype html><HTML><HEAD></HEAD><BODY></BODY></HTML>';
+    final out = injectSkinApiScriptTag(html, scriptUrl: scriptUrl);
+
+    expect(out, startsWith('\uFEFF<!doctype html>'));
+    expect(out, contains('<HEAD>$scriptTag</HEAD>'));
+  });
+
+  test('ignores closing-tag text inside scripts', () {
+    const html = '''<!doctype html><html><head><script>
+const headExample = "</head>";
+const bodyExample = "</body>";
+</script></head><body></body></html>''';
+    final out = injectSkinApiScriptTag(html, scriptUrl: scriptUrl);
+
+    expect(out, contains('const headExample = "</head>";'));
+    expect(out, contains('const bodyExample = "</body>";'));
+    expect(out, contains('</script>$scriptTag</head>'));
+  });
+
+  test('ignores markers inside comments and templates', () {
+    const html =
+        '<html><head><!-- </head> --><template></head></template></head>'
+        '<body><!-- </body> --></body></html>';
+    final out = injectSkinApiScriptTag(html, scriptUrl: scriptUrl);
+
+    expect(out, contains('<!-- </head> -->'));
+    expect(out, contains('<template></head></template>'));
+    expect(out, contains('<!-- </body> -->$scriptTag</body>'));
+  });
+
+  test('inserts after a BOM and doctype when head and body are absent', () {
+    const html = '\uFEFF<!doctype html>plain text';
+    expect(
+      injectSkinApiScriptTag(html, scriptUrl: scriptUrl),
+      '\uFEFF<!doctype html>${scriptTag}plain text',
     );
-    expect(out, contains('$script</head>'));
-    expect(out.indexOf(script), lessThan(out.indexOf('<body>')));
   });
 
-  test('injects before </body> when there is no head', () {
-    final out = injectProxyTokenScript('<body>hi</body>', token);
-    expect(out, '<body>hi$script</body>');
+  test('injects into an empty document', () {
+    expect(injectSkinApiScriptTag('', scriptUrl: scriptUrl), scriptTag);
   });
 
-  test('prepends when neither head nor body is present', () {
-    final out = injectProxyTokenScript('just text', token);
-    expect(out, '${script}just text');
+  test('preserves UTF-8 BOM and declared response encodings', () {
+    const html = '<html><head></head><body>caf\u00E9</body></html>';
+    final utf8Bytes = [0xEF, 0xBB, 0xBF, ...utf8.encode(html)];
+    final utf8Out = injectSkinApiScriptTagBytes(
+      utf8Bytes,
+      utf8,
+      scriptUrl: scriptUrl,
+    );
+    final latin1Out = injectSkinApiScriptTagBytes(
+      latin1.encode(html),
+      latin1,
+      scriptUrl: scriptUrl,
+    );
+
+    expect(utf8Out.take(3), [0xEF, 0xBB, 0xBF]);
+    expect(utf8.decode(utf8Out).replaceFirst(scriptTag, ''), html);
+    expect(latin1.decode(latin1Out).replaceFirst(scriptTag, ''), html);
   });
 
-  test('returns html unchanged when token is null or empty', () {
-    const html = '<html><head></head></html>';
-    expect(injectProxyTokenScript(html, null), html);
-    expect(injectProxyTokenScript(html, ''), html);
+  test('builds a static skin API that reads token metadata', () {
+    final script = buildSkinApiJavaScript();
+
+    expect(script, contains('window.decentApp'));
+    expect(script, contains('tokenMeta.content'));
+    expect(script, isNot(contains(token)));
+    expect(script, contains(skinExitDashboardUrl));
   });
 
-  test('json-encodes the token (escapes quotes)', () {
-    final out = injectProxyTokenScript('<head></head>', 'a"b');
-    expect(out, contains(r'window.__REA_PROXY_TOKEN__="a\"b";'));
+  test('injects the token as escaped non-executable metadata', () {
+    final out = injectSkinApiScriptTag(
+      '<head></head>',
+      scriptUrl: scriptUrl,
+      token: 'a"<&',
+    );
+
+    expect(
+      out,
+      contains(
+        '<meta name="reaprime-proxy-token" content="a&quot;&lt;&amp;">',
+      ),
+    );
   });
 
   group('serveFolderAtPath offline', () {
@@ -57,6 +115,77 @@ void main() {
       }
       // Restore default behaviour so subsequent tests get real WiFi IP.
       WebUIService.resolveWifiIP = NetworkInfo().getWifiIP;
+    });
+
+    test('protects the skin API across origins', () async {
+      const lanIp = '192.168.50.20';
+      WebUIService.resolveWifiIP = () async => lanIp;
+      await File('${tempDir.path}/index.html').writeAsString(
+        '<html><head><meta http-equiv="Content-Security-Policy" '
+        'content="script-src \'self\'"><base href="https://example.invalid/">'
+        '</head><body>test</body></html>',
+      );
+      service.skinProxyToken = token;
+      await service.serveFolderAtPath(tempDir.path);
+
+      final client = HttpClient();
+      addTearDown(client.close);
+      final request = await client.getUrl(
+        Uri.parse('http://localhost:3000/'),
+      );
+      final response = await request.close();
+      final body = await response.transform(utf8.decoder).join();
+
+      expect(body, contains(scriptTag));
+      expect(body, contains("script-src 'self'"));
+      expect(body, contains('content="$token"'));
+      expect(response.headers.value(HttpHeaders.acceptRangesHeader), isNull);
+      expect(response.headers.value(HttpHeaders.lastModifiedHeader), isNull);
+
+      final lanRequest = await client.getUrl(
+        Uri.parse('http://localhost:3000/'),
+      );
+      lanRequest.headers.set(HttpHeaders.hostHeader, '$lanIp:3000');
+      final lanResponse = await lanRequest.close();
+      final lanBody = await lanResponse.transform(utf8.decoder).join();
+      expect(
+        lanBody,
+        contains(
+          '<script src="http://$lanIp:3000$skinApiScriptPath"></script>',
+        ),
+      );
+
+      final untrustedRequest = await client.getUrl(
+        Uri.parse('http://localhost:3000/'),
+      );
+      untrustedRequest.headers.set(
+        HttpHeaders.hostHeader,
+        'example.invalid:3000',
+      );
+      final untrustedResponse = await untrustedRequest.close();
+      final untrustedBody = await untrustedResponse
+          .transform(utf8.decoder)
+          .join();
+      expect(untrustedBody, isNot(contains('reaprime-proxy-token')));
+      expect(untrustedBody, isNot(contains(skinApiScriptPath)));
+
+      final scriptRequest = await client.getUrl(
+        Uri.parse('http://localhost:3000$skinApiScriptPath'),
+      );
+      final scriptResponse = await scriptRequest.close();
+      final script = await scriptResponse.transform(utf8.decoder).join();
+
+      expect(scriptResponse.statusCode, HttpStatus.ok);
+      expect(
+        scriptResponse.headers.contentType?.mimeType,
+        'application/javascript',
+      );
+      expect(
+        scriptResponse.headers.value('cross-origin-resource-policy'),
+        'same-origin',
+      );
+      expect(script, contains('window.decentApp'));
+      expect(script, isNot(contains(token)));
     });
 
     test('falls back to localhost when getWifiIP throws (gh#337)', () async {

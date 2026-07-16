@@ -75,6 +75,8 @@ abstract class SettingsService {
   Future<void> setAccountStepSeen(bool value);
   Future<bool> androidWarningDismissed();
   Future<void> setAndroidWarningDismissed(bool value);
+  Future<bool> showSkinExitInstructions();
+  Future<void> setShowSkinExitInstructions(bool value);
   Future<bool> enableSimulatedWebViews();
   Future<void> setEnableSimulatedWebViews(bool value);
 
@@ -459,6 +461,17 @@ class SharedPreferencesSettingsService extends SettingsService {
   }
 
   @override
+  Future<bool> showSkinExitInstructions() async {
+    return await prefs.getBool(SettingsKeys.showSkinExitInstructions.name) ??
+        true;
+  }
+
+  @override
+  Future<void> setShowSkinExitInstructions(bool value) async {
+    await prefs.setBool(SettingsKeys.showSkinExitInstructions.name, value);
+  }
+
+  @override
   Future<bool> enableSimulatedWebViews() async {
     return await prefs.getBool(SettingsKeys.enableSimulatedWebViews.name) ??
         false;
@@ -515,6 +528,7 @@ enum SettingsKeys {
   onboardingCompleted,
   accountStepSeen,
   androidWarningDismissed,
+  showSkinExitInstructions,
   enableSimulatedWebViews,
 }
 

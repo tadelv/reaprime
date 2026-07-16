@@ -1,69 +1,127 @@
-# AGENTS.md
+# Agent Instructions
 
-This file provides guidance for AI coding agents that don't natively read `CLAUDE.md`.
+For unfamiliar or multi-subsystem tasks, read `doc/AI_REPO_MAP.md` first. For known files or exact symbols, open them directly. Read domain-specific docs only when the task needs them.
 
-## Primary Instructions
+## Workflow
 
-**Read `CLAUDE.md` for complete project documentation.**
+### Starting Work
 
-## How to Use CLAUDE.md
+Default to the current branch and leave changes local. Never push, merge, or create a PR unless explicitly asked.
 
-`CLAUDE.md` is the authoritative source for this project. However, some sections contain references to Claude Code-specific features that other agents should handle as follows:
+Ask about branch/worktree strategy only when the current state is unsafe or the task depends on it.
 
-### Use as-is
+**`main` has branch protection.** Pushing directly bypasses protections — always use PRs.
 
-These sections are tool-agnostic and apply to all agents:
-- **Project Overview** — Tech stack, architecture, supported platforms
-- **Commands** — Run, test, lint, build commands
-- **Architecture** — Design principles, layer overview, key controllers, storage
-- **Conventions & Gotchas** — RxDart patterns, BLE handling, StreamBuilder patterns
-- **Testing** — Test tiers, helpers, widget test patterns
-- **Common Workflows** — Adding devices, API endpoints
-- **Documentation** — Links to detailed docs
+**Worktree gotcha:** Worktree branches track `origin/main` — pushing will push directly to `main`. Create a PR:
+```bash
+git push -u origin HEAD:feature/my-branch-name
+gh pr create --base main
+```
 
-### Adapt the Workflow Section
+### Planning
 
-The **Development Workflow** section references `EnterPlanMode`, which is Claude Code-specific. Interpret it as:
+For non-trivial features or fixes, write a plan in `doc/plans/`. Seek approval for destructive operations, ambiguous choices, or broad architectural changes.
 
-> For planning, use the agent's equivalent planning/analysis mode. Explore the codebase to understand the problem, then write a plan in `doc/plans/` before implementing.
+**Skip planning for:** typo fixes, single-line changes, or tasks with very specific instructions.
 
-### Adapt the Branching Section
+### During Implementation
 
-The **Branching Strategy** section references `EnterWorktree`, which is Claude Code-specific. Interpret it as:
+- Plan with the user before complex or risky operations.
+- Test-first: write tests before implementation.
+- Preserve existing user changes. Do not revert unrelated work.
+- Match existing code style. Do not refactor adjacent code unless the task demands it.
+- Update `assets/api/rest_v1.yml` or `assets/api/websocket_v1.yml` in the same commit as endpoint changes.
+- Use `rg` (ripgrep) for targeted code search before opening large files: `rg -n "symbolName" lib/`. When `rg` is not installed, fall back to `grep -rn`. Use this for finding constants, command handlers, UI labels, and protocol definitions — one `rg` call replaces reading entire files.
+- Use `rtk` (https://github.com/rtk-ai/rtk) for verbose test, build, and git output when already configured for the active client.
 
-> Use standard git commands (`git checkout -b`, `git worktree add`, etc.) for branching. Ask the user which strategy they prefer before creating branches.
+### Verification
 
-### Skills Reference
+After every meaningful code change:
+1. Run relevant tests + `flutter analyze`. Fix immediately if anything fails.
+2. Run full `flutter test` before committing and before claiming done.
+3. Evidence before assertions — show test output, not just "tests pass."
 
-The **Development Workflow** references a TDD skill in `.claude/skills/tdd-workflow/`. Other agents should follow these principles:
+For API/spec changes, smoke-test via `scripts/sb-dev.sh` + `curl`/`websocat`. See `.agents/skills/decent-app/verification.md`.
 
-- **Test-first approach:** Write tests before implementation
-- **Three test tiers:** Unit, integration, end-to-end
-- **Self-review:** Review your own code before claiming done
-- **Full suite:** Run `flutter test` and `flutter analyze` before committing
+### Pre-Commit / Pre-PR Checklist
 
-## Working with Decent.app (all agents)
+**Before opening a PR, merging locally, or considering work done:**
+0. **Fill out the PR template** at `.github/pull_request_template.md` — sections marked required are hard gates. See `CONTRIBUTING.md`.
+1. **Archive design docs** from `doc/plans/` to `doc/plans/archive/<meaningful-subfolder-name>/`. Design docs are worth keeping (the *why*). Implementation plans (step-by-step task lists) are not — delete them.
+2. **Check doc updates:** `doc/Api.md` if endpoints changed, `doc/Skins.md` if skin behavior changed, `doc/Plugins.md` if events changed, `doc/Profiles.md` if profile handling changed, `doc/DeviceManagement.md` if device flows changed.
 
-The authoritative dev-loop skill lives under the [agentskills.io](https://agentskills.io) cross-client path `.agents/skills/decent-app/`. Any compliant client auto-discovers it. Non-compliant clients can read it as plain markdown.
+All three steps are required, not optional.
 
-- **Entry point:** `.agents/skills/decent-app/SKILL.md`
-- **Routing:** `SKILL.md` has a table pointing at sibling files for lifecycle, REST, WebSocket, simulated devices, verification, and the end-to-end scenarios under `scenarios/`.
-- **Lifecycle helper:** `scripts/sb-dev.sh` (POSIX shell) manages `flutter run` in simulate mode — start, stop, hot reload, logs, status.
-- **Authoritative specs:** `assets/api/rest_v1.yml` (OpenAPI 3.0) and `assets/api/websocket_v1.yml` (AsyncAPI 3.0). Always read the relevant spec before making calls — don't guess endpoint paths or payload shapes.
+## Hard Rules
 
-Claude Code also loads the skill via a thin forwarder at `.claude/skills/decent-app/SKILL.md` that points at the same canonical location.
+- Never import 3rd-party BLE libraries (e.g. `universal_ble`) outside `lib/src/services/ble/`.
+- All BLE operations use 128-bit UUID format.
+- Scale write paths must catch `DeviceNotConnectedException` at the lowest-level write helper.
+- Keep Flutter build and run flows non-interactive. Prefer `--dart-define=simulate=1` for smoke tests.
+- Use prefixed imports for domain models that share names with Drift-generated code: `import '...shot_record.dart' as domain;` or `hide Workflow` on the database import.
+- No emojis in comments or documentation.
 
-Prerequisites: `bash`, `curl`, `jq`, `websocat`, `flutter`, and POSIX `mkfifo` (macOS/Linux). Windows contributors run `flutter run` in a real terminal — see `.agents/skills/decent-app/lifecycle.md` for the Windows caveat.
+## Code Style
 
-## File Locations
+- Do not add explanatory comments to new or substantially rewritten code; use clear names and small functions. Preserve existing comments and required notices.
+- Put rationale, hardware constraints, and debugging history in the matching `doc/AI_*_NOTES.md` file.
+- Prefer immutability when practical.
+- Constructor dependency injection — no service locators.
+- Stream subscriptions always cancelled in `dispose()`.
 
-| Purpose | Path |
-|---------|------|
-| Project instructions | `CLAUDE.md` |
-| Contributing guide & guards | `CONTRIBUTING.md` |
-| TDD workflow | `.claude/skills/tdd-workflow/SKILL.md` |
-| Plans (before commit) | `doc/plans/` |
-| API reference | `doc/Api.md` |
-| API specs (OpenAPI) | `assets/api/rest_v1.yml`, `assets/api/websocket_v1.yml` |
-| PR template | `.github/pull_request_template.md` |
-| Detailed docs | `doc/*.md` |
+## Vocabulary
+
+Use existing project terminology. Match the naming in `doc/` and the AI_* files. Examples: "ConnectionManager phases" not "connection lifecycle states", "transport abstraction" not "BLE wrapper", "simulated devices" not "mock hardware mode".
+
+If your output contradicts documented architecture or conventions, surface it explicitly rather than silently overriding.
+
+## Tracking
+
+GitHub Issues on `tadelv/reaprime` is the canonical issue tracker. Use `gh issue` commands for triage, labeling, and closing.
+
+**Triage labels** (used on `tadelv/reaprime`):
+
+| Label | Meaning |
+|-------|---------|
+| `needs-triage` | Maintainer needs to evaluate this issue |
+| `needs-info` | Waiting on reporter for more information |
+| `ready-for-agent` | Fully specified, ready for an AFK agent |
+| `ready-for-human` | Requires human implementation |
+| `wontfix` | Will not be actioned |
+
+## Deep References
+
+- Fast file routing: `doc/AI_REPO_MAP.md`.
+- BLE footguns, transport threading, connection lifecycle: `doc/AI_BLE_NOTES.md`.
+- Build, flash, simulate, platform quirks: `doc/AI_BUILD_NOTES.md`.
+- REST/WS API contracts and compat: `doc/AI_API_NOTES.md`.
+- Drift DB schema, migrations, SharedPreferences: `doc/AI_STORAGE_NOTES.md`.
+- Debugging patterns and BLE errors: `doc/AI_DEBUG_NOTES.md`.
+- Test tiers, widget patterns, mock helpers: `doc/AI_TESTING_NOTES.md`.
+- Full project docs: `doc/Api.md`, `doc/Skins.md`, `doc/Plugins.md`, `doc/Profiles.md`, `doc/DeviceManagement.md`, `doc/RELEASE.md`.
+- Contributing: `CONTRIBUTING.md`.
+- Dev-loop skill: `.agents/skills/decent-app/SKILL.md`.
+- API specs: `assets/api/rest_v1.yml`, `assets/api/websocket_v1.yml`.
+- Archived design docs: `doc/plans/archive/` (the *why* behind shipped features).
+- Knowledge graph: `code-review-graph` MCP tools. Use `rg` or direct file reads for exact names, paths, and one-hop lookups. Use the graph for multi-hop impact analysis, callers-of-callers, affected flows, architectural exploration, and test reachability.
+
+## Naming Reference
+
+| Layer | Value |
+|-------|-------|
+| User-facing name | **Decent.app** (short: "Decent") |
+| Dart package name | `reaprime` |
+| Plugin file extension | `.reaplugin` |
+| Bundle ID | `net.tadel.reaprime` |
+| Database name | `streamline_bridge` |
+| GitHub repo | `tadelv/reaprime` |
+
+## Don't
+
+- Don't push directly to `main`. Use PRs.
+- Don't import BLE libraries outside the transport layer.
+- Don't create new Drift tables without a schema version bump + migration.
+- Don't add API endpoints without updating the OpenAPI/AsyncAPI spec in the same commit.
+- Don't add new global state without a clear ownership boundary.
+- Don't `--amend` or force-push on `main`.
+- Don't create `CONTEXT.md` or `doc/adr/` — `AGENTS.md` + `doc/` are the equivalents.

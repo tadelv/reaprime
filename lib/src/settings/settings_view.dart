@@ -53,6 +53,23 @@ class SettingsView extends StatelessWidget {
                 trailing: Text(_themeModeLabel(controller.themeMode)),
                 onTap: () => _showThemePicker(context),
               ),
+              const SettingsDivider(),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: ShadSwitch(
+                  value: controller.showSkinExitInstructions,
+                  onChanged: (value) async {
+                    await controller.setShowSkinExitInstructions(value);
+                  },
+                  label: const Text('Skin navigation guide'),
+                  sublabel: const Text(
+                    'Show how to return to the dashboard when opening a skin',
+                  ),
+                ),
+              ),
 
               // MARK: Updates
               const SettingsSectionHeader('Updates'),

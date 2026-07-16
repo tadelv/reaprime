@@ -2,15 +2,18 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
 import 'package:reaprime/src/controllers/connection/disconnect_expectations.dart';
 import 'package:reaprime/src/controllers/connection/disconnect_supervisor.dart';
 import 'package:reaprime/src/controllers/connection/policy_resolver.dart';
+import 'package:reaprime/src/controllers/connection/scale_watch.dart';
 import 'package:reaprime/src/controllers/connection/scan_orchestrator.dart';
 import 'package:reaprime/src/controllers/connection/scan_report_builder.dart';
 import 'package:reaprime/src/controllers/connection/status_publisher.dart';
 import 'package:reaprime/src/controllers/connection_error.dart';
 import 'package:reaprime/src/controllers/de1_controller.dart';
+import 'package:reaprime/src/controllers/remembered_devices_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/models/device/bengle_interface.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
@@ -81,6 +84,11 @@ class ConnectionManager {
   final ScaleController scaleController;
   final SettingsController settingsController;
 
+  /// Remembered-device registry for quick-connect. Nullable so existing
+  /// tests and wiring without a registry still work — null disables
+  /// quick-connect and falls through to the scan path.
+  final RememberedDevicesController? rememberedDevices;
+
   final _log = Logger('ConnectionManager');
 
   final StatusPublisher _statusPublisher = StatusPublisher();
@@ -124,6 +132,7 @@ class ConnectionManager {
 
   late final DisconnectSupervisor _disconnectSupervisor;
   late final ScanOrchestrator _scanOrchestrator;
+  late final ScaleWatch _scaleWatch;
 
   StreamSubscription<AdapterState>? _adapterSub;
 
@@ -218,11 +227,17 @@ class ConnectionManager {
   @visibleForTesting
   Duration deferredScaleScanDelay = const Duration(seconds: 3);
 
+  /// Whether the scanner supports the persistent background scale watch
+  /// (Android). De1StateManager consults this to skip its wake-time
+  /// scale-only burst scan when the watch already covers reacquisition.
+  bool get supportsBackgroundScaleWatch => deviceScanner.supportsBackgroundWatch;
+
   ConnectionManager({
     required this.deviceScanner,
     required this.de1Controller,
     required this.scaleController,
     required this.settingsController,
+    this.rememberedDevices,
   }) {
     _disconnectSupervisor = DisconnectSupervisor(
       machineStream: de1Controller.de1,
@@ -236,8 +251,22 @@ class ConnectionManager {
       onMachineConnected: _handleMachineConnected,
       onMachineDisconnected: _handleMachineDisconnected,
       onUnexpectedMachineDisconnect: _startMachineRecovery,
-      onScaleConnected: _cancelPreferredScaleReconnect,
-      onScaleDisconnected: _maybeSchedulePreferredScaleReconnect,
+      onScaleConnected: _cancelScaleReacquisition,
+      onScaleDisconnected: _ensureScaleReacquisition,
+    );
+    _scaleWatch = ScaleWatch(
+      scanner: deviceScanner,
+      // The Bengle clause covers arm time AND the post-connect
+      // continuation: a Bengle's integrated scale owns the scale slot
+      // (the rule _runScalePhase enforces on the burst path), so a
+      // refused external-scale sighting must end the watch cycle, not
+      // restart the scan indefinitely.
+      shouldWatch: () =>
+          _shouldRetryPreferredScale() &&
+          _disconnectSupervisor.latestMachine is! BengleInterface,
+      preferredScaleId: () => settingsController.preferredScaleId,
+      connectScale: _connectScaleFromWatch,
+      onWatchUnavailable: _maybeSchedulePreferredScaleReconnect,
     );
     _scanOrchestrator = ScanOrchestrator(
       scanner: deviceScanner,
@@ -462,8 +491,36 @@ class ConnectionManager {
     }
   }
 
+  /// Attempt to quick-connect the preferred machine from remembered
+  /// metadata. Returns the adopted [De1Interface], or null on failure.
+  Future<De1Interface?> _tryQuickConnectMachine() async {
+    final registry = rememberedDevices;
+    if (registry == null) return null;
+    final machineId = settingsController.preferredMachineId;
+    if (machineId == null || machineId.isEmpty) return null;
+    final remembered = registry.remembered
+        .firstWhereOrNull((d) => d.id == machineId);
+    if (remembered == null) return null;
+    try {
+      final device = await deviceScanner.tryQuickConnect(remembered);
+      if (device is De1Interface) {
+        de1Controller.adoptDevice(device);
+        // Phase (connectingMachine) was already published by _connectImpl
+        // before calling this method — no need to re-publish here.
+        _log.info('Quick-connect: machine adopted (${device.deviceId})');
+        return device;
+      }
+    } catch (e, st) {
+      _log.warning('Quick-connect: machine attempt failed', e, st);
+    }
+    return null;
+  }
+
   Future<void> _connectImpl({required bool scaleOnly}) async {
-    _cancelPreferredScaleReconnect();
+    // Also disarms the watch: during a full scan EarlyConnectWatcher
+    // observes the same deviceStream and owns preferred-scale connects —
+    // a live watch would race it. Re-armed at the end-of-connect sites.
+    _cancelScaleReacquisition();
     if (scaleOnly && _scaleReconnectBlockedByPowerMode) {
       _log.fine(
         'Skipping scale-only scan while machine is sleeping and scale '
@@ -477,6 +534,36 @@ class ConnectionManager {
       _deferredScaleScan = null;
       _earlyStopFired = false;
     }
+
+    // Quick-connect: try direct connection to the preferred machine from
+    // remembered metadata. Scales are excluded — the machine-only critical
+    // path publishes ready immediately after adoption, then kicks off
+    // background scale discovery.
+    if (!scaleOnly && rememberedDevices != null) {
+      _publishStatus(currentStatus.copyWith(
+          phase: ConnectionPhase.connectingMachine));
+      final qcMachine = await _tryQuickConnectMachine();
+      if (qcMachine != null) {
+        _log.info('Quick-connect: machine connected, proceeding to ready');
+        if (qcMachine is BengleInterface) {
+          await _attachBengleVirtualScale(qcMachine);
+        } else if (!_scaleConnected) {
+          if (settingsController.preferredScaleId != null) {
+            // Route through the reacquisition selector: on watch-capable
+            // platforms the background scale watch (also armed by the
+            // machine-connected handler) owns this — scheduling the
+            // legacy backoff here would run radio-starving bursts
+            // alongside it.
+            _ensureScaleReacquisition();
+          } else {
+            _armPostQuickConnectScaleScan();
+          }
+        }
+        _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.ready));
+        return;
+      }
+    }
+
     final preferredMachineId =
         scaleOnly ? null : settingsController.preferredMachineId;
     final preferredScaleId = settingsController.preferredScaleId;
@@ -539,7 +626,7 @@ class ConnectionManager {
         preferredScaleId: preferredScaleId,
         terminationReason: ScanTerminationReason.completed,
       );
-      _maybeSchedulePreferredScaleReconnect();
+      _ensureScaleReacquisition();
       return;
     }
 
@@ -558,7 +645,7 @@ class ConnectionManager {
         scanReport,
       );
       _maybeArmDeferredScaleScan();
-      _maybeSchedulePreferredScaleReconnect();
+      _ensureScaleReacquisition();
       _emitScanReport(
         scanReport: scanReport,
         preferredMachineId: preferredMachineId,
@@ -580,7 +667,7 @@ class ConnectionManager {
         await _connectMachineTracked(m, scanReport);
         await _runScalePhase(m, scales, preferredScaleId, scanReport);
         _maybeArmDeferredScaleScan();
-        _maybeSchedulePreferredScaleReconnect();
+        _ensureScaleReacquisition();
       case MachinePickerAction():
         _publishStatus(currentStatus.copyWith(
           phase: ConnectionPhase.idle,
@@ -647,6 +734,27 @@ class ConnectionManager {
     }
   }
 
+  /// Arm a deferred scale-only scan after machine quick-connect when the
+  /// user has no preferred scale configured. Unlike
+  /// [_maybeArmDeferredScaleScan], this path is independent of
+  /// [_earlyStopFired] — quick-connect skips the scan entirely, so there
+  /// is no early-stop flag to gate on.
+  void _armPostQuickConnectScaleScan() {
+    if (_scaleConnected) return;
+    if (_scaleReconnectBlockedByPowerMode) return;
+    _log.fine(
+      'Quick-connected machine without a scale; '
+      'arming deferred scale scan in ${deferredScaleScanDelay.inSeconds}s',
+    );
+    _deferredScaleScan?.cancel();
+    _deferredScaleScan = Timer(deferredScaleScanDelay, () {
+      _deferredScaleScan = null;
+      if (_scaleConnected) return;
+      if (!_machineConnected || _scaleReconnectBlockedByPowerMode) return;
+      connect(scaleOnly: true);
+    });
+  }
+
   /// Compensate for [_checkEarlyStop] cutting the scan short. When a
   /// preferred machine is configured but no preferred scale is, the scan
   /// stops the instant the machine connects — a scale that advertises a
@@ -675,6 +783,40 @@ class ConnectionManager {
       if (!_machineConnected || _scaleReconnectBlockedByPowerMode) return;
       connect(scaleOnly: true); // fire-and-forget
     });
+  }
+
+  /// Route scale reacquisition to the persistent background watch when
+  /// the scanner supports it (Android), else to the legacy backoff-burst
+  /// loop. Every former `_maybeSchedulePreferredScaleReconnect` call
+  /// site goes through here; the legacy loop also remains the fallback
+  /// when the watch fails to start (see `onWatchUnavailable`).
+  void _ensureScaleReacquisition() {
+    if (deviceScanner.supportsBackgroundWatch) {
+      // The watch's shouldWatch gate covers the full arming policy,
+      // including the Bengle integrated-scale rule.
+      unawaited(_scaleWatch.arm());
+    } else {
+      _maybeSchedulePreferredScaleReconnect();
+    }
+  }
+
+  void _cancelScaleReacquisition() {
+    unawaited(_scaleWatch.disarm());
+    _cancelPreferredScaleReconnect();
+  }
+
+  /// Watch-driven connects bypass `_runScalePhase`, so the Bengle rule
+  /// is re-applied here for sightings that land after the watch armed
+  /// but once a Bengle has become the machine.
+  Future<void> _connectScaleFromWatch(Scale scale) async {
+    if (_disconnectSupervisor.latestMachine is BengleInterface) {
+      _log.fine(
+        'Ignoring watch scale sighting ${scale.deviceId}: '
+        'Bengle integrated scale owns the slot',
+      );
+      return;
+    }
+    await connectScale(scale);
   }
 
   void _maybeSchedulePreferredScaleReconnect() {
@@ -709,7 +851,7 @@ class ConnectionManager {
   void _handleMachineConnected() {
     _stopMachineRecovery();
     _watchConnectedMachineState();
-    _maybeSchedulePreferredScaleReconnect();
+    _ensureScaleReacquisition();
   }
 
   void _handleMachineDisconnected() {
@@ -721,7 +863,7 @@ class ConnectionManager {
     _stopWatchingConnectedMachineState();
     _deferredScaleScan?.cancel();
     _deferredScaleScan = null;
-    _cancelPreferredScaleReconnect();
+    _cancelScaleReacquisition();
     if (_activeScaleOnlyScan) {
       deviceScanner.stopScan();
     }
@@ -812,7 +954,7 @@ class ConnectionManager {
         );
         _pauseScaleReconnectForPowerMode();
       } else {
-        _maybeSchedulePreferredScaleReconnect();
+        _ensureScaleReacquisition();
       }
     }, onError: (Object e, StackTrace st) {
       _log.fine('Machine snapshot stream error', e, st);
@@ -869,7 +1011,7 @@ class ConnectionManager {
   void _pauseScaleReconnectForPowerMode() {
     _deferredScaleScan?.cancel();
     _deferredScaleScan = null;
-    _cancelPreferredScaleReconnect();
+    _cancelScaleReacquisition();
     if (_activeScaleOnlyScan) {
       deviceScanner.stopScan();
     }
@@ -1014,17 +1156,19 @@ class ConnectionManager {
     }
   }
 
-  Future<void> connectScale(Scale scale) async {
+  /// Returns the attempt outcome so tracked callers can report it —
+  /// failures are handled here (status emit) and NOT rethrown.
+  Future<ConnectionResult> connectScale(Scale scale) async {
     if (_scaleReconnectBlockedByPowerMode) {
       _log.fine(
         'connectScale: blocked while machine is sleeping and scale power '
         'mode is disconnect',
       );
-      return;
+      return const ConnectionResult.skipped();
     }
     if (_isConnectingScale) {
       _log.fine('connectScale: already connecting, skipping');
-      return;
+      return const ConnectionResult.skipped();
     }
     _isConnectingScale = true;
     _log.fine('connectScale: connecting to ${scale.name} (${scale.deviceId})');
@@ -1050,7 +1194,7 @@ class ConnectionManager {
           ),
         );
         await scale.disconnect();
-        return;
+        return const ConnectionResult.succeeded();
       }
       await settingsController.setPreferredScaleId(scale.deviceId);
       // `_latestScaleState` is populated by the scaleController
@@ -1059,6 +1203,7 @@ class ConnectionManager {
       if (_machineConnected) {
         _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.ready));
       }
+      return const ConnectionResult.succeeded();
     } catch (e) {
       // Scale failure is non-blocking — stay at ready if machine connected, else idle.
       _publishStatus(
@@ -1087,6 +1232,7 @@ class ConnectionManager {
                 'toggle Bluetooth off and on.',
         exception: e,
       ));
+      return ConnectionResult.failed(e.toString());
     } finally {
       _isConnectingScale = false;
     }
@@ -1191,18 +1337,11 @@ class ConnectionManager {
     ScanReportBuilder scanReport,
   ) async {
     scanReport.markAttempted(scale.deviceId);
-    try {
-      await connectScale(scale);
-      scanReport.recordResult(
-        scale.deviceId,
-        const ConnectionResult.succeeded(),
-      );
-    } catch (e) {
-      scanReport.recordResult(
-        scale.deviceId,
-        ConnectionResult.failed(e.toString()),
-      );
-    }
+    // connectScale handles its own failures (status emit) and reports the
+    // outcome instead of throwing — record what actually happened rather
+    // than assuming success (a swallowed failure used to log "— connected").
+    final result = await connectScale(scale);
+    scanReport.recordResult(scale.deviceId, result);
   }
 
   /// Build a [ScanReport] from [scanReport] and publish it on the
@@ -1239,7 +1378,7 @@ class ConnectionManager {
   }
 
   Future<void> disconnectScale() async {
-    _cancelPreferredScaleReconnect();
+    _cancelScaleReacquisition();
     try {
       final scale = scaleController.connectedScale();
       markExpectingDisconnect(scale.deviceId);
@@ -1256,6 +1395,10 @@ class ConnectionManager {
     _stopMachineRecovery();
     _deferredScaleScan?.cancel();
     _cancelPreferredScaleReconnect();
+    // Awaited (not via _cancelScaleReacquisition) so the watch is
+    // deterministically stopped before the controllers it feeds are
+    // disposed.
+    await _scaleWatch.dispose();
     _stopWatchingConnectedMachineState();
     await de1Controller.dispose();
     scaleController.dispose();
