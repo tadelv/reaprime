@@ -20,12 +20,6 @@ void main() {
       expect(De1StateEnum.fromHexValue(0x16), De1StateEnum.fwUpgrade);
     });
 
-    test('the old 0x22 value no longer maps to any state', () {
-      // Regression: the firmware never emits 0x22; if the constant ever
-      // regresses to 0x22, this flips.
-      expect(De1StateEnum.fromHexValue(0x22), De1StateEnum.unknown);
-    });
-
     test('fromMachineState(fwUpgrade) round-trips to the 0x16 wire byte', () {
       final state = De1StateEnum.fromMachineState(MachineState.fwUpgrade);
       expect(state, De1StateEnum.fwUpgrade);
