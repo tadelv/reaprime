@@ -26,7 +26,7 @@ void main() {
     test(
       'throws FirmwareUpdateInProgressException when update is active',
       () async {
-        // Start the first upload — it will try to erase and block on the 10s wait.
+        // Start the first upload — it will wait for an erase response.
         final first = de1.updateFirmware(Uint8List(0), onProgress: (_) {})
           ..catchError((_) {}); // suppress unhandled; explicitly awaited below
 

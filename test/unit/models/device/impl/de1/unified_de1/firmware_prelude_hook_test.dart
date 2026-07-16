@@ -56,31 +56,39 @@ void main() {
       // FW prelude writes.
       final preFwWrites = transport.writes.length;
 
-      // _updateFirmware sleeps for 10 seconds waiting on firmware erase
-      // before the upload loop. We don't need to drive it to completion
-      // — we just need the hook to fire (which happens immediately after
-      // requestState(sleeping)).
+      // _updateFirmware waits for response-driven erase completion before
+      // the upload loop. We only need the hook, which fires immediately
+      // after requestState(sleeping).
       try {
         await de1
             .updateFirmware(Uint8List(0), onProgress: (_) {})
             .timeout(const Duration(seconds: 1));
       } on TimeoutException catch (_) {
-        // Expected: erase wait blocks for 10s.
+        // Expected: no erase response arrives.
       }
 
-      expect(de1.hookCalled, isTrue,
-          reason: 'beforeFirmwareUpload hook was not invoked '
-              'by the FW upload path');
+      expect(
+        de1.hookCalled,
+        isTrue,
+        reason:
+            'beforeFirmwareUpload hook was not invoked '
+            'by the FW upload path',
+      );
 
       // The hook must fire AFTER requestState(sleeping) — i.e., at least
       // one write to Endpoint.requestedState must have landed on the
       // wire before hookCalled flipped.
-      expect(de1.writeCountAtHook, greaterThan(preFwWrites),
-          reason: 'hook fired before requestState(sleeping) wrote to wire');
+      expect(
+        de1.writeCountAtHook,
+        greaterThan(preFwWrites),
+        reason: 'hook fired before requestState(sleeping) wrote to wire',
+      );
       final fwPreludeWrites = transport.writes.sublist(preFwWrites);
-      expect(fwPreludeWrites.first.characteristicUUID,
-          Endpoint.requestedState.uuid,
-          reason: 'first FW-path write must be requestState(sleeping)');
+      expect(
+        fwPreludeWrites.first.characteristicUUID,
+        Endpoint.requestedState.uuid,
+        reason: 'first FW-path write must be requestState(sleeping)',
+      );
     });
   });
 }

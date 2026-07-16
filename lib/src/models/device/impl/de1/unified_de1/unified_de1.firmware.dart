@@ -37,6 +37,8 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
     });
 
     try {
+      await Future<void>.delayed(Duration.zero);
+      _throwIfFirmwareCancelled(cancelToken);
       final eraseResponse = coordinator.waitFor(
         minimumSequence: firmwareMapSequence + 1,
         predicate: _isEraseComplete,
@@ -57,7 +59,7 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
       _firmwareUpdateState = FirmwareUpdateState.verifying;
       final verificationResponse = coordinator.waitFor(
         minimumSequence: firmwareMapSequence + 1,
-        predicate: _isVerificationResponse,
+        predicate: _isTerminalVerificationResponse,
       );
       await _writeFirmwareMap(firmwareToErase: 0);
       final verification = await _waitForFirmwareResponse(
@@ -113,10 +115,11 @@ extension UnifiedDe1Firmware on UnifiedDe1 {
         _hasFirmwareError(response, const [0xff, 0xff, 0xff]);
   }
 
-  bool _isVerificationResponse(FWMapRequestData response) {
+  bool _isTerminalVerificationResponse(FWMapRequestData response) {
     return response.windowIncrement == 0 &&
         response.firmwareToErase == 0 &&
-        response.firmwareToMap == 1;
+        response.firmwareToMap == 1 &&
+        !_hasFirmwareError(response, const [0xff, 0xff, 0xff]);
   }
 
   bool _isSuccessfulFirmwareVerification(FWMapRequestData response) {
