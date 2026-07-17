@@ -1690,6 +1690,39 @@ server emits a status frame:
 Client code should branch on the presence of a `status` field vs. a
 `weight` field.
 
+### Machine Telemetry Socket Lifecycle
+
+All machine telemetry sockets (`/ws/v1/machine/snapshot`,
+`/ws/v1/machine/shotSettings`, `/ws/v1/machine/waterLevels`,
+`/ws/v1/machine/raw`) share the same lifecycle:
+
+- **Sockets stay open across machine power cycles and reconnects.** When the
+  machine disconnects (e.g. power-cycle, USB re-enumeration, BLE drop) the
+  server detaches the socket from the old machine object. While no machine is
+  connected the socket stops emitting frames but stays open.
+- **Frames resume automatically.** When a new machine instance connects, the
+  server re-attaches the socket and frames resume with no client-side action.
+  Clients do not need to reconnect the socket on machine disconnect.
+- **No connection-status frames are emitted.** Unlike the scale socket, each
+  machine socket carries a single typed payload per frame. Adding a status
+  frame would break existing parsers. Use `/ws/v1/devices` for machine
+  connection state.
+- **A telemetry gap alone does not prove the WebSocket connection is dead.**
+  If your client needs a liveness signal, subscribe to `/ws/v1/devices` which
+  reports machine link state independently of any socket lifecycle.
+- **Reconnection is not required for a normal machine instance swap.** However,
+  clients may still retain normal WebSocket reconnect logic for actual socket
+  closure or network failure (e.g. a liveness timeout is a valid defensive
+  fallback).
+
+**Raw endpoint behavior during disconnected interval:**
+`/ws/v1/machine/raw` is bidirectional — the server streams outbound data
+and accepts inbound commands. If a command is sent while no machine is
+connected, the server replies with `{"error": "No machine connected"}`
+rather than silently dropping it. The socket stays open and resumes normal
+operation when a machine reconnects. Raw commands are not queued for later
+delivery.
+
 ### 3. Shot Settings Stream
 
 **Endpoint:** `ws/v1/machine/shotSettings`

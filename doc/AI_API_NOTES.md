@@ -81,6 +81,32 @@ curl http://localhost:8080/api/v1/info
 websocat ws://localhost:8080/ws/v1/machine/state
 ```
 
+## Machine WebSocket Re-bind (PR #453)
+
+### Problem
+
+A machine power-cycle drops the De1 object and builds a new one under the same device id (the USB stable id is derived from the SAMD21 factory serial, so it is byte-identical across a power-cycle). Machine sockets used to bind to one De1 instance at open and never re-bind, so a client that connected before the power-cycle sat on an open-but-silent socket forever (bench bug i14).
+
+### Solution
+
+`De1Handler._withDe1Ws` watches `De1Controller.de1` and re-attaches the payload subscription when the controller publishes a new instance. The socket stays open during the disconnect gap and frames resume automatically.
+
+### Design Choices
+
+- **Instance identity (`identical()`), not deviceId, is the swap signal.** The USB stable id is byte-identical across a power-cycle, so an id comparison would see "same machine" and never re-bind. `identical()` also keeps a duplicate emission of the same De1 from double-subscribing (which would double the frame rate).
+
+- **No `{"status": ...}` frames.** Unlike the scale socket, the machine sockets carry a single typed payload per frame and existing clients parse every frame as that type; injecting a status frame would be a breaking change to the wire contract. Link state is already published, instance-independently, on `/ws/v1/devices`.
+
+- **Initial attachment is deterministic.** The initial machine is read from `connectedDe1OrNull` and subscribed immediately, before subscribing to the controller stream. This eliminates the window where a command could arrive while `attached` is still null waiting for the BehaviorSubject replay.
+
+- **Commands during disconnect produce an error frame.** `/ws/v1/machine/raw` commands sent while no machine is attached get a `{"error": "No machine connected"}` response rather than being silently dropped. The socket stays open. Raw commands are never queued for later delivery — a delayed raw read/write could be stale or unsafe.
+
+- **Controller stream has explicit `onDone`/`onError`.** On controller shutdown the payload subscription is cleaned up and the socket is closed, rather than leaking subscriptions.
+
+### Clients Affected
+
+All four machine sockets: `/ws/v1/machine/snapshot`, `/ws/v1/machine/shotSettings`, `/ws/v1/machine/waterLevels`, `/ws/v1/machine/raw`.
+
 ## Keeping Notes Fresh
 
 Add protocol compatibility rules, API versioning decisions, and endpoint design rationale. Prune when specs are updated.

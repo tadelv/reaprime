@@ -347,6 +347,9 @@ For clients this means:
 - **A gap in frames is not a dead socket.** If a client needs a liveness signal, use `/ws/v1/devices`.
 - `/ws/v1/machine/raw` writes are delivered to the machine the socket is *currently* bound to, not the
   one that was present when the socket was opened.
+- If a raw command is sent while no machine is connected, the server replies with
+  `{"error": "No machine connected"}` rather than silently dropping it. The socket stays open and
+  resumes normal operation when a machine reconnects. Raw commands are not queued for later delivery.
 
 The one unchanged case: opening a machine socket while **no** machine is connected still returns an
 error frame and closes, so reconnect-until-present loops keep working.
