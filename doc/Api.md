@@ -351,8 +351,11 @@ each open socket to the new machine and frames resume on their own.
 
 For clients this means:
 
-- **Do not reconnect the socket on a machine disconnect.** The socket stays open and goes quiet while
-  no machine is connected, then resumes. This mirrors `/ws/v1/scale/snapshot`.
+- **Clients do not need to reconnect solely because the machine disconnects.** The socket stays open
+  and goes quiet while no machine is connected, then resumes. This mirrors `/ws/v1/scale/snapshot`.
+  The existing socket follows a normal machine instance swap, but clients should still reconnect after
+  actual WebSocket closure, network failure, or according to their normal liveness policy.
+  `/ws/v1/devices` is the authoritative source for machine connection state.
 - **No status frame is emitted.** Unlike the scale socket, each machine socket carries exactly one
   payload type per frame, and existing clients parse every frame as that type — a `{"status": ...}`
   frame would break the wire contract. Track link state on `/ws/v1/devices` instead, which reports it
