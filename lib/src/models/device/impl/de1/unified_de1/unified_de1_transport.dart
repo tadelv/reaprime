@@ -591,8 +591,13 @@ class UnifiedDe1Transport {
     }
   }
 
-  Future<void> writeWithResponse(LogicalEndpoint endpoint, Uint8List data) async {
-    if (await _transport.connectionState.first != device.ConnectionState.connected) {
+  Future<void> writeWithResponse(
+    LogicalEndpoint endpoint,
+    Uint8List data, {
+    void Function()? beforeDispatch,
+  }) async {
+    if (await _transport.connectionState.first !=
+        device.ConnectionState.connected) {
       throw const DeviceNotConnectedException.machine();
     }
     try {
@@ -604,15 +609,19 @@ class UnifiedDe1Transport {
         case TransportType.ble:
           if (endpoint.uuid == null) {
             throw StateError(
-                'UnifiedDe1Transport.writeWithResponse: endpoint ${endpoint.name} has no BLE wire support');
+              'UnifiedDe1Transport.writeWithResponse: endpoint ${endpoint.name} has no BLE wire support',
+            );
           }
+          beforeDispatch?.call();
           await _bleWrite(endpoint, data, true);
           break;
         case TransportType.serial:
           if (endpoint.representation == null) {
             throw StateError(
-                'UnifiedDe1Transport.writeWithResponse: endpoint ${endpoint.name} has no serial wire support');
+              'UnifiedDe1Transport.writeWithResponse: endpoint ${endpoint.name} has no serial wire support',
+            );
           }
+          beforeDispatch?.call();
           await _serialWrite(endpoint, data);
           break;
         default:
@@ -622,7 +631,11 @@ class UnifiedDe1Transport {
       if (_isBleTimeout(e)) {
         if (await _handleBleTimeout(e, st)) {
           _log.info('Retrying write to ${endpoint.name} after reconnect');
-          return writeWithResponse(endpoint, data);
+          return writeWithResponse(
+            endpoint,
+            data,
+            beforeDispatch: beforeDispatch,
+          );
         }
       }
       if (e is TimeoutException) {

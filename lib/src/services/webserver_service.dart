@@ -27,6 +27,7 @@ import 'package:reaprime/src/services/webserver/json_response.dart';
 import 'package:http/http.dart' as http;
 import 'package:reaprime/src/services/webserver/data_export_handler.dart';
 import 'package:reaprime/src/services/webserver/data_sync_handler.dart';
+import 'package:reaprime/src/services/webserver/firmware_handler.dart';
 import 'package:reaprime/src/services/webserver/data_export/profile_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/shot_export_section.dart';
 import 'package:reaprime/src/services/webserver/data_export/steam_export_section.dart';
@@ -82,6 +83,7 @@ import 'package:reaprime/src/services/update_check_service.dart';
 import 'package:reaprime/src/services/app_update_state.dart';
 import 'package:reaprime/src/services/webserver/info_handler.dart';
 import 'package:reaprime/src/services/webserver/debug_handler.dart';
+import 'package:reaprime/src/services/firmware/bundled_firmware_catalog.dart';
 import 'package:reaprime/src/services/webserver/wifi_scale_handler.dart';
 import 'package:reaprime/src/services/wifi/wifi_scale_discovery_service.dart';
 import 'package:mime/mime.dart';
@@ -154,6 +156,10 @@ Future<void> startWebServer(
     settingsController: settingsController,
     scaleController: scaleController,
     workflowController: workflowController,
+  );
+  final firmwareHandler = FirmwareHandler(
+    controller: de1Controller,
+    catalog: BundledFirmwareCatalog(bundle: rootBundle),
   );
   final scaleHandler = ScaleHandler(controller: scaleController);
   final deviceHandler = DevicesHandler(
@@ -287,6 +293,7 @@ Future<void> startWebServer(
     _init(
       deviceHandler,
       de1Handler,
+      firmwareHandler,
       scaleHandler,
       settingsHandler,
       sensorsHandler,
@@ -329,6 +336,7 @@ Future<void> startWebServer(
 Handler _init(
   DevicesHandler deviceHandler,
   De1Handler de1Handler,
+  FirmwareHandler firmwareHandler,
   ScaleHandler scaleHandler,
   SettingsHandler settingsHandler,
   SensorsHandler sensorsHandler,
@@ -364,6 +372,7 @@ Handler _init(
   deviceHandler.addRoutes(app);
   wifiScaleHandler?.addRoutes(app);
   de1Handler.addRoutes(app);
+  firmwareHandler.addRoutes(app);
   scaleHandler.addRoutes(app);
   settingsHandler.addRoutes(app);
   sensorsHandler.addRoutes(app);

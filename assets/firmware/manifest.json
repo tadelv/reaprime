@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "artifacts": [
+    {
+      "id": "de1-1352",
+      "source": "bundled",
+      "machineFamily": "de1",
+      "supportedModels": ["DE1Pro", "DE1XL", "DE1XXL", "DE1XXXL"],
+      "build": 1352,
+      "versionLabel": "1352",
+      "imageFormat": "de1",
+      "byteLength": 463872,
+      "sha256": "d9433b85167566d7b457e03e2151e860c10ff5d3b4e41b163667b8314aeb2927",
+      "channel": "stable",
+      "releaseNotes": "Fixed an edge case where profile upload would clear NoAC lights.",
+      "assetPath": "assets/firmware/de1/de1-1352.bin",
+      "expectedHeaderBoardMarker": 3725590529,
+      "expectedBodyByteCount": 461824,
+      "expectedCpuByteCount": 298592,
+      "provenance": "decentespresso/de1app commit 74cacdcd2106f968c89c3a94c0fbcb615234913a, de1plus/fw/bootfwupdate.dat; bundling approved by the Decent.app maintainer during #319 implementation review"
+    }
+  ]
+}

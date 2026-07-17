@@ -190,7 +190,7 @@ function createPlugin(host) {
       elapsed: [],
       pressure: { pressure: [], goal: [] },
       flow: { flow: [], goal: [], by_weight: [] },
-      temperature: { mix: [], basket: [], goal: [] },
+      temperature: { mix: [], basket: [], goal: [], mix_goal: [] },
       totals: { weight: [], water_dispensed: [] },
       state_change: [],
       profile: reaShot.workflow.profile,
@@ -236,7 +236,8 @@ function createPlugin(host) {
       visualizerShot.flow.by_weight.push(scale?.weightFlow ?? 0);
       visualizerShot.temperature.mix.push(machine.mixTemperature);
       visualizerShot.temperature.basket.push(machine.groupTemperature);
-      visualizerShot.temperature.goal.push(machine.targetMixTemperature);
+      visualizerShot.temperature.goal.push(machine.targetGroupTemperature);
+      visualizerShot.temperature.mix_goal.push(machine.targetMixTemperature);
       visualizerShot.totals.weight.push(scale?.weight ?? 0);
       visualizerShot.totals.water_dispensed.push(waterDispensed);
       visualizerShot.state_change.push(machine.state.substate);
@@ -972,7 +973,7 @@ function createPlugin(host) {
   // Return the plugin object
   return {
     id: "visualizer.reaplugin",
-    version: "1.4.0",
+    version: "1.5.0",
 
     onLoad(settings) {
       state.username = settings.Username;
@@ -1047,33 +1048,49 @@ function createPlugin(host) {
       }
 
       if (request.endpoint === "upload") {
-        const shotId = request.body.shotId;
+        const shotId = request.body?.shotId;
+
         if (!shotId) {
           return {
             requestId: request.requestId,
             status: 400,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              message: 'shotId is required'
-            })
-
-          }
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ error: "shotId is required" }),
+          };
         }
-        return fetch(`http://localhost:8080/api/v1/shots/${shotId}`)
-          .then((res) => {
-            return res.json();
-          }).then((json) => {
-            return uploadShot(convertReaToVisualizerFormat(json), null);
-          }).then((shotResponse) => {
-            rememberUpload(shotId, shotResponse.id);
+
+        return fetch(`${LOCAL_API_URL}/shots/${encodeURIComponent(shotId)}`)
+          .then(async (response) => {
+            const body = await response.text();
+
+            if (!response.ok) {
+              throw new Error(
+                `Failed to fetch local shot ${shotId}: HTTP ${response.status}: ${body}`,
+              );
+            }
+
+            return JSON.parse(body);
+          })
+          .then((shot) => uploadShot(convertReaToVisualizerFormat(shot), null))
+          .then(async (shotResponse) => {
+            await rememberUpload(shotId, shotResponse.id);
+
             return {
+              requestId: request.requestId,
               status: 200,
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                'visualizer_id': shotResponse.id
-              })
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ visualizer_id: shotResponse.id }),
             };
-          });
+          })
+          .catch((error) => ({
+            requestId: request.requestId,
+            status: 502,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              error: "Visualizer upload failed",
+              detail: error.message,
+            }),
+          }));
       }
 
       if (request.endpoint === "verifyCredentials") {

@@ -25,7 +25,7 @@ class Bengle extends UnifiedDe1
   Future<double> getCupWarmerTemperature() =>
       readMmrScaled(BengleMmr.matSetPoint);
 
-  /// Bengle FW requires entering state 0x22 (`MachineState.fwUpgrade`) between
+  /// Bengle FW requires entering state 0x16 (`MachineState.fwUpgrade`) between
   /// the `requestState(sleeping)` step and the start of `.dat` upload.
   /// DE1 doesn't need this — see [UnifiedDe1.beforeFirmwareUpload]
   /// for the hook contract.

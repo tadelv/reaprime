@@ -73,7 +73,7 @@ enum De1StateEnum {
   inBootLoader(0x13), // Bootloader is active, firmware has not run
   airPurge(0x14), // Air purge
   schedIdle(0x15), // Scheduled wake-up idle state
-  fwUpgrade(0x22),
+  fwUpgrade(0x16), // FirmwareUp (corrected from 0x22, which was never a wire value)
   unknown(-1); // Default or unknown state
 
   final int hexValue;

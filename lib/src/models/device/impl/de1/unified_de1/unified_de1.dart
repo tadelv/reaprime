@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io';
+import 'dart:collection';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -11,6 +11,7 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/device/device_implementation.dart';
+import 'package:reaprime/src/models/device/firmware_update_state.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.models.dart';
 import 'package:reaprime/src/models/device/impl/de1/de1.utils.dart';
 import 'package:reaprime/src/models/device/impl/de1/mmr_address.dart';
@@ -24,6 +25,7 @@ import 'package:reaprime/src/models/device/transport/logical_endpoint.dart';
 import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/rxdart.dart';
 
+part 'firmware_mmr_gate.dart';
 part 'unified_de1.mmr.dart';
 part 'unified_de1.parsing.dart';
 part 'unified_de1.profile.dart';
@@ -32,17 +34,34 @@ part 'unified_de1.raw.dart';
 part 'integrated_scale_capability.dart';
 part 'led_strip_capability.dart';
 
+final class _FirmwareCancellationToken {
+  final Completer<void> _cancelled = Completer<void>();
+
+  bool get isCancelled => _cancelled.isCompleted;
+  Future<void> get cancelled => _cancelled.future;
+
+  void cancel() {
+    if (!_cancelled.isCompleted) _cancelled.complete();
+  }
+}
+
 class UnifiedDe1 implements De1Interface {
   static final BleServiceIdentifier advertisingIdentifier =
       BleServiceIdentifier.short('ffff');
   final UnifiedDe1Transport _transport;
+  final _firmwareMmrGate = _FirmwareMmrGate();
+  final Duration firmwareEraseTimeout;
+  final Duration firmwareVerificationTimeout;
 
   final Logger _log = Logger("DE1");
 
   Stream<ByteData>? _cachedMmrStream;
 
-  UnifiedDe1({required DataTransport transport})
-    : _transport = UnifiedDe1Transport(transport: transport);
+  UnifiedDe1({
+    required DataTransport transport,
+    this.firmwareEraseTimeout = const Duration(seconds: 30),
+    this.firmwareVerificationTimeout = const Duration(seconds: 30),
+  }) : _transport = UnifiedDe1Transport(transport: transport);
 
   @override
   Stream<ConnectionState> get connectionState => _transport.connectionState;
@@ -91,10 +110,7 @@ class UnifiedDe1 implements De1Interface {
 
   @override
   Future<void> disconnect() async {
-    // Call onDisconnect() before tearing down the transport so capability
-    // mixins can still issue final BLE writes (writeEndpoint / writeMmr)
-    // while the transport is alive. The default is a no-op; subclasses
-    // (e.g. Bengle) override to dispose capability state.
+    await cancelFirmwareUpload();
     await onDisconnect();
     await _transport.disconnect();
   }
@@ -330,18 +346,22 @@ class UnifiedDe1 implements De1Interface {
   /// caller — web API, native debug view, sequencers, presence — gets it.
   /// Non-maintenance states return immediately.
   Future<void> _prepareColdMaintenanceWorkaround(MachineState state) async {
-    final isMaintenance = state == MachineState.airPurge ||
+    final isMaintenance =
+        state == MachineState.airPurge ||
         state == MachineState.descaling ||
         state == MachineState.cleaning;
     if (!isMaintenance) return;
     final snapshot = await currentSnapshot.first;
     final s = snapshot.state.state;
-    final isCold = s == MachineState.preheating ||
+    final isCold =
+        s == MachineState.preheating ||
         s == MachineState.heating ||
         snapshot.state.substate == MachineSubstate.preparingForShot;
     final ghcPresent = machineInfo.groupHeadControllerPresent;
     final fwBuild = int.tryParse(machineInfo.version) ?? 0;
-    if (!(isCold && ghcPresent && fwBuild < _kColdMaintenancePromotionMinFwBuild)) {
+    if (!(isCold &&
+        ghcPresent &&
+        fwBuild < _kColdMaintenancePromotionMinFwBuild)) {
       return;
     }
     _log.info(
@@ -433,8 +453,9 @@ class UnifiedDe1 implements De1Interface {
     // Queue unconditionally — the equality guard runs inside the locked
     // section so it sees the cache as of upload start (after any queued
     // uploads finished), not as of call time.
-    final upload =
-        _profileUploadQueue.then((_) => _uploadProfileLocked(profile));
+    final upload = _profileUploadQueue.then(
+      (_) => _uploadProfileLocked(profile),
+    );
     // Keep the queue alive past a failed upload: the chain swallows the
     // error, the caller's future still surfaces it.
     _profileUploadQueue = upload.catchError((_) {});
@@ -529,26 +550,36 @@ class UnifiedDe1 implements De1Interface {
   @override
   DeviceType get type => DeviceType.machine;
 
-  List<bool>? _fwCancelToken;
+  _FirmwareCancellationToken? _fwCancelToken;
+  FirmwareUpdateState _firmwareUpdateState = FirmwareUpdateState.idle;
+
+  @override
+  FirmwareUpdateState get firmwareUpdateState => _firmwareUpdateState;
 
   @override
   Future<void> updateFirmware(
     Uint8List fwImage, {
     required void Function(double progress) onProgress,
-  }) async {
-    _fwCancelToken = [false];
-    try {
-      await _updateFirmware(fwImage, onProgress, _fwCancelToken!);
-    } finally {
-      _fwCancelToken = null;
+  }) {
+    if (_firmwareUpdateState != FirmwareUpdateState.idle) {
+      throw FirmwareUpdateInProgressException();
     }
+    _firmwareUpdateState = FirmwareUpdateState.erasing;
+    final token = _FirmwareCancellationToken();
+    _fwCancelToken = token;
+    return _updateFirmware(fwImage, onProgress, token).whenComplete(() {
+      if (identical(_fwCancelToken, token)) {
+        _fwCancelToken = null;
+        _firmwareUpdateState = FirmwareUpdateState.idle;
+      }
+    });
   }
 
-  /// Cancel an in-progress firmware upload. Sets the machine to sleeping.
-  /// No-op if no upload is in progress.
   @override
   Future<void> cancelFirmwareUpload() async {
-    _fwCancelToken?[0] = true;
+    if (_firmwareUpdateState == FirmwareUpdateState.idle) return;
+    _firmwareUpdateState = FirmwareUpdateState.cancelling;
+    _fwCancelToken?.cancel();
     try {
       await requestState(MachineState.sleeping);
     } catch (e) {
@@ -611,7 +642,7 @@ class UnifiedDe1 implements De1Interface {
   /// `requestState(sleeping)` and the start of FW image upload.
   ///
   /// Default: no-op. Bengle overrides this to request
-  /// `MachineState.fwUpgrade` (state 0x22) — Bengle FW requires entering
+  /// `MachineState.fwUpgrade` (state 0x16) — Bengle FW requires entering
   /// that state before the `.dat` upload protocol starts. DE1 doesn't.
   ///
   /// This resolves the TODO at `unified_de1.firmware.dart:13-14` (commented
@@ -634,7 +665,7 @@ class UnifiedDe1 implements De1Interface {
   @protected
   int get firmwareUploadBatchSize {
     return switch (_transport.transportType) {
-      TransportType.serial => Platform.isAndroid ? 32 : 8,
+      TransportType.serial => 8,
       _ => 8,
     };
   }
