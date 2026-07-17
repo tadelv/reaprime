@@ -10,6 +10,7 @@ class AttachReconnectCoordinator {
 
   late final StreamSubscription<DeviceAttachedEvent> _subscription;
   Timer? _settleTimer;
+  Future<void>? _inFlightAttempt;
   bool _inFlight = false;
   bool _disposed = false;
 
@@ -31,8 +32,17 @@ class AttachReconnectCoordinator {
       _settleTimer = null;
       if (_disposed || _inFlight || !shouldAttempt()) return;
       _inFlight = true;
-      unawaited(_runAttempt());
+      _inFlightAttempt = _startAttempt();
+      unawaited(_inFlightAttempt);
     });
+  }
+
+  Future<void> _startAttempt() async {
+    try {
+      await _runAttempt();
+    } finally {
+      _inFlightAttempt = null;
+    }
   }
 
   Future<void> _runAttempt() async {
@@ -55,5 +65,6 @@ class AttachReconnectCoordinator {
     _settleTimer?.cancel();
     _settleTimer = null;
     await _subscription.cancel();
+    await _inFlightAttempt;
   }
 }
