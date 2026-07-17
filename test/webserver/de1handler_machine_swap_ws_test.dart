@@ -11,6 +11,7 @@ import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/scale_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
+import 'package:reaprime/src/models/device/de1_rawmessage.dart';
 import 'package:reaprime/src/models/device/device.dart' show ConnectionState;
 import 'package:reaprime/src/models/device/machine.dart';
 import 'package:reaprime/src/settings/settings_controller.dart';
@@ -273,6 +274,271 @@ void main() {
       await settle();
 
       expect(received.map((f) => f['currentLevel']), contains(42.0));
+      await channel.sink.close();
+    });
+  });
+
+  group('raw WebSocket survives a machine swap', () {
+    De1RawMessage rawCommand({
+      De1RawMessageType type = De1RawMessageType.request,
+      De1RawOperationType operation = De1RawOperationType.read,
+      String characteristicUUID = '0x01',
+      String payload = '00',
+    }) {
+      return De1RawMessage(
+        type: type,
+        operation: operation,
+        characteristicUUID: characteristicUUID,
+        payload: payload,
+      );
+    }
+
+    test('a socket opened before a swap receives raw outbound frames from the '
+        'replacement machine', () async {
+      final first = TestDe1(deviceId: 'usb-2e8a-a-8549628789ABCDEF');
+      await de1Controller.connectToDe1(first);
+
+      final (channel, messages) = connectWs('/ws/v1/machine/raw');
+      final received = <Map<String, dynamic>>[];
+      messages.listen(received.add);
+      await settle();
+
+      final second = await powerCycle(first);
+
+      received.clear();
+      second.emitRawMessage(rawCommand(
+          type: De1RawMessageType.response,
+          operation: De1RawOperationType.notify,
+          characteristicUUID: '0x36', payload: 'deadbeef'));
+      await settle();
+
+      expect(
+        received.map((f) => f['characteristicUUID']),
+        contains('0x36'),
+        reason: 'the pre-existing socket must re-bind to the new machine',
+      );
+      await channel.sink.close();
+    });
+
+    test('outbound raw frames from the old machine are ignored after the swap',
+        () async {
+      final first = TestDe1(deviceId: 'usb-2e8a-a-8549628789ABCDEF');
+      await de1Controller.connectToDe1(first);
+
+      final (channel, messages) = connectWs('/ws/v1/machine/raw');
+      final received = <Map<String, dynamic>>[];
+      messages.listen(received.add);
+      await settle();
+
+      await powerCycle(first);
+
+      received.clear();
+      first.emitRawMessage(rawCommand(
+          type: De1RawMessageType.response,
+          operation: De1RawOperationType.notify,
+          characteristicUUID: '0x37',
+          payload: 'cafe'));
+      await settle();
+
+      expect(received, isEmpty,
+          reason: 'frames from the zombie instance must be dropped');
+      await channel.sink.close();
+    });
+
+    test('repeated swaps do not create duplicate raw subscriptions', () async {
+      final first = TestDe1(deviceId: 'usb-2e8a-a-8549628789ABCDEF');
+      await de1Controller.connectToDe1(first);
+
+      final (channel, messages) = connectWs('/ws/v1/machine/raw');
+      final received = <Map<String, dynamic>>[];
+      messages.listen(received.add);
+      await settle();
+
+      final second = await powerCycle(first);
+      final third = await powerCycle(second);
+
+      received.clear();
+      third.emitRawMessage(rawCommand(
+          type: De1RawMessageType.response,
+          operation: De1RawOperationType.notify,
+          characteristicUUID: '0x38',
+          payload: 'f00d'));
+      await settle();
+
+      expect(
+        received.where((f) => f['characteristicUUID'] == '0x38').length,
+        1,
+        reason: 'a leaked subscription per swap would multiply the frame rate',
+      );
+
+      // The dead instances must have no listener left on their raw stream.
+      expect(first.rawOutSubject.hasListener, isFalse);
+      expect(second.rawOutSubject.hasListener, isFalse);
+
+      await channel.sink.close();
+    });
+
+    test('an inbound raw request after a swap is delivered exactly once to '
+        'the new machine', () async {
+      final first = TestDe1(deviceId: 'usb-2e8a-a-8549628789ABCDEF');
+      await de1Controller.connectToDe1(first);
+
+      final (channel, messages) = connectWs('/ws/v1/machine/raw');
+      // Drain server-to-client frames (including the initial replay) so we
+      // can focus on the inbound command.
+      messages.listen((_) {});
+      await settle();
+
+      final second = await powerCycle(first);
+
+      final command = rawCommand(
+          type: De1RawMessageType.request,
+          operation: De1RawOperationType.read,
+          characteristicUUID: '0x2a',
+          payload: '01');
+      channel.sink.add(jsonEncode(command.toJson()));
+      await settle();
+
+      // The command must reach only the new machine.
+      expect(second.sentRawMessages, hasLength(1),
+          reason: 'exactly one command reaches the replacement machine');
+      expect(second.sentRawMessages.first.characteristicUUID, '0x2a');
+
+      // The old machine must not receive the command.
+      expect(first.sentRawMessages, isEmpty,
+          reason: 'command must not reach the old machine');
+
+      await channel.sink.close();
+    });
+
+    test('the inbound request is not delivered to the old machine', () async {
+      final first = TestDe1(deviceId: 'usb-2e8a-a-8549628789ABCDEF');
+      await de1Controller.connectToDe1(first);
+
+      final (channel, messages) = connectWs('/ws/v1/machine/raw');
+      messages.listen((_) {});
+      await settle();
+
+      // Send a command to the first machine before the swap.
+      final cmd1 = rawCommand(
+          type: De1RawMessageType.request,
+          operation: De1RawOperationType.read,
+          characteristicUUID: '0x01',
+          payload: 'aa');
+      channel.sink.add(jsonEncode(cmd1.toJson()));
+      await settle();
+
+      expect(first.sentRawMessages, hasLength(1),
+          reason: 'first command reaches the first machine');
+      first.sentRawMessages.clear();
+
+      await powerCycle(first);
+
+      // Send a second command after the swap.
+      final cmd2 = rawCommand(
+          type: De1RawMessageType.request,
+          operation: De1RawOperationType.read,
+          characteristicUUID: '0x02',
+          payload: 'bb');
+      channel.sink.add(jsonEncode(cmd2.toJson()));
+      await settle();
+
+      // First machine must not receive the second command.
+      expect(first.sentRawMessages, isEmpty,
+          reason: 'second command must not reach the old machine');
+
+      await channel.sink.close();
+    });
+
+    test('closing the socket removes the raw subscription', () async {
+      final machine = TestDe1(deviceId: 'usb-2e8a-a-8549628789ABCDEF');
+      await de1Controller.connectToDe1(machine);
+
+      final (channel, _) = connectWs('/ws/v1/machine/raw');
+      await settle();
+
+      // Verify there is at least one listener on the raw subject.
+      expect(machine.rawOutSubject.hasListener, isTrue);
+
+      await channel.sink.close();
+      await settle();
+
+      // After close, no listener should remain.
+      expect(machine.rawOutSubject.hasListener, isFalse);
+    });
+
+    test('a command sent immediately after open is handled deterministically '
+        'without delay', () async {
+      final machine = TestDe1(deviceId: 'usb-2e8a-a-8549628789ABCDEF');
+      await de1Controller.connectToDe1(machine);
+
+      final (channel, messages) = connectWs('/ws/v1/machine/raw');
+      messages.listen((_) {});
+
+      // Send a command immediately — no settle() before it.
+      final command = rawCommand(
+          type: De1RawMessageType.request,
+          operation: De1RawOperationType.read,
+          characteristicUUID: '0x03',
+          payload: 'cc');
+      channel.sink.add(jsonEncode(command.toJson()));
+      await settle();
+
+      expect(machine.sentRawMessages, hasLength(1),
+          reason: 'command must be delivered immediately, no arbitrary delay');
+      expect(machine.sentRawMessages.first.characteristicUUID, '0x03');
+
+      await channel.sink.close();
+    });
+
+    test('a command during the disconnected gap returns an error frame',
+        () async {
+      final first = TestDe1(deviceId: 'usb-2e8a-a-8549628789ABCDEF');
+      await de1Controller.connectToDe1(first);
+
+      final (channel, messages) = connectWs('/ws/v1/machine/raw');
+      final received = <Map<String, dynamic>>[];
+      messages.listen(received.add);
+      await settle();
+
+      // Disconnect the machine without a replacement.
+      first.setConnectionState(ConnectionState.disconnected);
+      await settle();
+
+      // The socket is still open (no machine = hold the socket).
+      final command = rawCommand(
+          type: De1RawMessageType.request,
+          operation: De1RawOperationType.read,
+          characteristicUUID: '0x04',
+          payload: 'dd');
+      channel.sink.add(jsonEncode(command.toJson()));
+      await settle();
+
+      // Must see an error frame, not silence.
+      final errors = received.where((f) => f['error'] != null);
+      expect(errors, isNotEmpty,
+          reason: 'command during disconnect must produce an error frame');
+      expect(errors.last['error'], 'No machine connected');
+
+      // Reconnect and verify the socket is still functional.
+      final second = TestDe1(deviceId: first.deviceId, name: first.name);
+      await de1Controller.connectToDe1(second);
+      await settle();
+
+      received.removeWhere((f) => f['error'] != null);
+      second.emitRawMessage(rawCommand(
+          type: De1RawMessageType.response,
+          operation: De1RawOperationType.notify,
+          characteristicUUID: '0x05',
+          payload: 'ee'));
+      await settle();
+
+      expect(
+        received.map((f) => f['characteristicUUID']),
+        contains('0x05'),
+        reason: 'socket resumes after reconnect',
+      );
+
       await channel.sink.close();
     });
   });

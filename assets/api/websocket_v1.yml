@@ -64,14 +64,22 @@ channels:
         $ref: '#/components/messages/ScaleStatus'
   MachineRaw:
     description: >
-      Real-time raw BLE data from machine (read/write/notify). Re-binds across a
-      machine instance swap — see MachineSnapshot. Writes are delivered to the
-      machine the socket is currently bound to, not the one present when the
-      socket was opened.
+      Bidirectional channel for raw BLE characteristic data (read/write/notify).
+      The server streams outbound data (notifications and read responses) and
+      accepts inbound commands (read/write requests). Re-binds across a machine
+      instance swap — see MachineSnapshot. Commands are delivered to the machine
+      the socket is currently bound to, not the one present when the socket was
+      opened. If a command is sent while no machine is connected the server
+      replies with an error frame (`{"error": "No machine connected"}`). The
+      socket stays open across the disconnected gap.
     address: ws/v1/machine/raw
     messages:
       machineRawMessage:
         $ref: '#/components/messages/MachineRawMessage'
+      machineRawCommand:
+        $ref: '#/components/messages/MachineRawCommand'
+      machineRawError:
+        $ref: '#/components/messages/MachineRawError'
   ShotState:
     description: >
       Shot state + decision feed from the app's shot sequencer: state
@@ -186,10 +194,19 @@ operations:
     action: receive
     channel:
       $ref: '#/channels/ScaleSnapshot'
-  machineRaw:
+  machineRawResponse:
     action: receive
     channel:
       $ref: '#/channels/MachineRaw'
+    messages:
+      - $ref: '#/channels/MachineRaw/messages/machineRawMessage'
+  machineRawCommand:
+    action: send
+    channel:
+      $ref: '#/channels/MachineRaw'
+    messages:
+      - $ref: '#/channels/MachineRaw/messages/machineRawCommand'
+      - $ref: '#/channels/MachineRaw/messages/machineRawError'
   sensorSnapshot:
     action: receive
     channel:
@@ -280,6 +297,19 @@ components:
       title: Machine Raw BLE Message
       payload:
         $ref: '#/components/schemas/De1RawMessage'
+    MachineRawCommand:
+      name: MachineRawCommand
+      title: Machine Raw BLE Command
+      summary: Raw read/write request sent by the client.
+      payload:
+        $ref: '#/components/schemas/De1RawMessage'
+    MachineRawError:
+      name: MachineRawError
+      title: Machine Raw Error
+      summary: Error response when a machine command cannot be delivered.
+      payload:
+        $ref: '#/components/schemas/MachineRawError'
+    Error:
     ShotStateEvent:
       name: ShotStateEvent
       title: Shot state / decision event
@@ -344,6 +374,16 @@ components:
           type: string
         st:
           type: string
+    MachineRawError:
+      type: object
+      description: Error returned when a raw command is sent while no machine is connected.
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          enum:
+            - No machine connected
     AppUpdateState:
       type: object
       description: Snapshot of the app-update state machine.

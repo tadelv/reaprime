@@ -49,6 +49,17 @@ class TestDe1 implements De1Interface {
   final BehaviorSubject<ConnectionState> _connectionState =
       BehaviorSubject.seeded(ConnectionState.connected);
 
+  final BehaviorSubject<De1RawMessage> rawOutSubject =
+      BehaviorSubject<De1RawMessage>();
+
+  /// Messages passed to [sendRawMessage], in order.
+  final List<De1RawMessage> sentRawMessages = [];
+
+  /// Emit a [De1RawMessage] on the [rawOutStream].
+  void emitRawMessage(De1RawMessage message) {
+    rawOutSubject.add(message);
+  }
+
   /// Drives the [shotSettings] stream — tests call [emitShotSettings]
   /// to push a value, which is how [De1Controller._initializeData]
   /// and its debounce-timer subscription are exercised.
@@ -101,6 +112,8 @@ class TestDe1 implements De1Interface {
     _connectionState.close();
     _shotSettingsSubject.close();
     _waterLevelsSubject.close();
+    rawOutSubject.close();
+    sentRawMessages.clear();
   }
 
   // ---- Machine / Device ----
@@ -202,9 +215,11 @@ class TestDe1 implements De1Interface {
   @override
   Future<void> sendUserPresent() async {}
   @override
-  Stream<De1RawMessage> get rawOutStream => const Stream.empty();
+  Stream<De1RawMessage> get rawOutStream => rawOutSubject.stream;
   @override
-  void sendRawMessage(De1RawMessage message) {}
+  void sendRawMessage(De1RawMessage message) {
+    sentRawMessages.add(message);
+  }
   @override
   Future<double> getHeaterPhase1Flow() async => 0;
   @override

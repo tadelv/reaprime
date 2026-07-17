@@ -293,48 +293,19 @@ class De1Handler {
     }
   }
 
-  /// Bind a machine-gated socket to the *currently* connected De1, and RE-BIND
-  /// it whenever [De1Controller] swaps the instance.
+  /// Attach a machine-gated socket to the current [De1Interface] instance and
+  /// re-attach when [De1Controller] publishes a different instance. Detaches
+  /// while no machine is connected; the socket stays open. Instance identity
+  /// (not deviceId) is used as the swap signal.
   ///
-  /// The previous implementation resolved `connectedDe1()` once, at socket
-  /// open, and subscribed to that object's streams for the life of the socket.
-  /// A machine power-cycle makes De1Controller drop the De1 and build a
-  /// brand-new instance (`_onDisconnect()` → next scan → `connectToDe1`), so
-  /// the socket stayed bound to the dead object: no frames, and — because the
-  /// old instance's transport subjects are only closed by `dispose()`, not
-  /// `disconnect()` — no close either. The socket went open-but-silent
-  /// forever, and a client whose reconnect logic only triggers on *close*
-  /// (`ReconnectingWebSocket`, i.e. every Streamline/WebUI client) never
-  /// recovered without a reload. Bench bug i14.
-  ///
-  /// This follows the pattern `ScaleHandler._handleSnapshot` already uses:
-  /// watch the controller, cancel the payload subscription when the device
-  /// goes away, and re-attach it to the new device when one arrives. Frames
-  /// simply resume — no client-side action, and it heals every client, not
-  /// just the one skin.
-  ///
-  /// Two deliberate choices:
-  ///  * **Instance identity, not deviceId, is the swap signal.** The USB
-  ///    stable id is byte-identical across a power-cycle
-  ///    (`usb-2e8a-a-<factory serial>`), so an id comparison would see "same
-  ///    machine" and never re-bind. `identical()` is also what keeps a
-  ///    duplicate emission of the *same* De1 from double-subscribing (which
-  ///    would double the frame rate).
-  ///  * **No `{"status": ...}` frames.** Unlike the scale socket, the machine
-  ///    sockets carry a single typed payload (a MachineSnapshot /
-  ///    De1ShotSettings / De1WaterLevels per frame) and existing clients parse
-  ///    every frame as that type; injecting a status frame would be a
-  ///    breaking change to the wire contract. Link state is already published,
-  ///    instance-independently, on `/ws/v1/devices`.
-  ///
-  /// The "no machine at open" contract is unchanged: error frame + close, so
-  /// a client's reconnect loop keeps polling until a machine appears.
+  /// See [doc/AI_API_NOTES.md] for design rationale.
   void _withDe1Ws(
     WebSocketChannel socket,
     StreamSubscription<dynamic> Function(De1Interface de1) attach, {
     void Function(De1Interface de1, dynamic message)? onMessage,
   }) {
-    if (_controller.connectedDe1OrNull == null) {
+    final initial = _controller.connectedDe1OrNull;
+    if (initial == null) {
       socket.sink.add(jsonEncode({'error': 'No machine connected'}));
       socket.sink.close();
       return;
@@ -342,6 +313,7 @@ class De1Handler {
 
     De1Interface? attached;
     StreamSubscription<dynamic>? payloadSub;
+    StreamSubscription<dynamic>? de1Sub;
 
     void detach() {
       final sub = payloadSub;
@@ -350,36 +322,60 @@ class De1Handler {
       sub?.cancel();
     }
 
-    final de1Sub = _controller.de1.listen((de1) {
-      if (de1 == null) {
-        // Machine gone. Stop streaming but hold the socket open: the client
-        // keeps its subscription and starts receiving again the moment a
-        // machine is back.
-        if (attached != null) {
-          log.info('machine disconnected — detaching socket until it returns');
-          detach();
+    // Attach to the initial machine immediately, before subscribing to the
+    // controller stream. This eliminates the window where a command could
+    // arrive while attached is still null, waiting for the BehaviorSubject
+    // replay.
+    attached = initial;
+    payloadSub = attach(initial);
+
+    de1Sub = _controller.de1.listen(
+      (de1) {
+        if (de1 == null) {
+          if (attached != null) {
+            log.info('machine disconnected — detaching socket until it returns');
+            detach();
+          }
+          return;
         }
-        return;
-      }
-      if (identical(de1, attached)) return; // already streaming this instance
-      log.info('binding socket to ${de1.name} (${de1.deviceId})');
-      detach();
-      attached = de1;
-      payloadSub = attach(de1);
-    });
+        if (identical(de1, attached)) return;
+        log.info('binding socket to ${de1.name} (${de1.deviceId})');
+        detach();
+        attached = de1;
+        payloadSub = attach(de1);
+      },
+      onDone: () {
+        detach();
+        socket.sink.close();
+      },
+      onError: (Object e, StackTrace st) {
+        log.severe('controller stream error', e, st);
+        detach();
+        socket.sink.close();
+      },
+    );
 
     socket.stream.listen(
       (message) {
         final de1 = attached;
-        if (onMessage == null || de1 == null) return;
+        if (onMessage == null) return;
+        if (de1 == null) {
+          // Command sent while no machine is connected. Send a structured
+          // error frame rather than silently dropping it. Do not close the
+          // socket — telemetry sockets stay open across the reconnect gap.
+          socket.sink.add(jsonEncode({'error': 'No machine connected'}));
+          return;
+        }
         onMessage(de1, message);
       },
       onDone: () {
-        de1Sub.cancel();
+        de1Sub?.cancel();
+        de1Sub = null;
         detach();
       },
       onError: (Object e, StackTrace st) {
-        de1Sub.cancel();
+        de1Sub?.cancel();
+        de1Sub = null;
         detach();
       },
     );
