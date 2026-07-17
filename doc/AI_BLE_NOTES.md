@@ -100,6 +100,21 @@ Three reusable idioms from the comms-harden effort:
 | `TimeoutException` in `universal_ble/queue.dart` | May relate to zombie-link (#431) or concurrent BLE write contention (#423). |
 | `PlatformException: Location services required` | Android location permissions not granted. Onboarding check or troubleshooting wizard (#125/#126). |
 
+## Android USB Attach Recovery
+
+`SerialServiceAndroid` implements the optional `DeviceAttachNotifier`
+capability. Attach events are non-replaying hints and may carry incomplete
+metadata; serial scanning and detection remain the support filter. Android can
+broadcast attach before the CDC interface is usable, so
+`AttachReconnectCoordinator` coalesces bursts and waits a configurable 500 ms
+before invoking the normal connection policy.
+
+Only a missing preferred machine enables this path. The attempt therefore uses
+remembered-device quick-connect first, retains scan fallback, and cannot open a
+picker when no preference exists. If the immediate attempt finds nothing or
+fails, the coordinator explicitly re-arms normal machine recovery. BLE, Wi-Fi,
+simulated-device, and scale-only behavior do not expose attach events.
+
 ## Quick Connect
 
 `tryQuickConnect` on `UniversalBleDiscoveryService` connects to a known

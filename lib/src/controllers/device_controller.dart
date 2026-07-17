@@ -14,7 +14,7 @@ import 'package:reaprime/src/services/ble/ble_discovery_service.dart';
 import 'package:reaprime/src/services/telemetry/telemetry_service.dart';
 import 'package:rxdart/rxdart.dart';
 
-class DeviceController implements DeviceScanner {
+class DeviceController implements DeviceScanner, DeviceAttachNotifier {
   final List<DeviceDiscoveryService> _services;
 
   late Map<DeviceDiscoveryService, List<Device>> _devices;
@@ -47,10 +47,6 @@ class DeviceController implements DeviceScanner {
   @override
   AdapterState get currentAdapterState => _adapterStateStream.value;
 
-  /// Attach edges merged from every service that can be told about an
-  /// arrival ([DeviceAttachNotifier]). A [PublishSubject], not a
-  /// BehaviorSubject: an attach is an *event*, and replaying the last one to
-  /// a late subscriber would trigger a spurious scan.
   final PublishSubject<DeviceAttachedEvent> _deviceAttachedStream =
       PublishSubject<DeviceAttachedEvent>();
 
@@ -119,8 +115,10 @@ class DeviceController implements DeviceScanner {
   }
 
   bool _initialized = false;
+  bool _disposed = false;
 
   Future<void> initialize() async {
+    if (_disposed) return;
     if (_initialized) {
       _log.fine("Already initialized, skipping");
       return;
@@ -130,6 +128,7 @@ class DeviceController implements DeviceScanner {
     for (var service in _services) {
       try {
         await service.initialize();
+        if (_disposed) return;
         final subscription = service.devices.listen(
           (devices) => _serviceUpdate(service, devices),
         );
@@ -142,9 +141,6 @@ class DeviceController implements DeviceScanner {
           });
           _serviceSubscriptions.add(adapterSub);
         }
-        // if-case, not `is`: DeviceAttachNotifier is a sibling capability
-        // interface, not a subtype of DeviceDiscoveryService, so `service`
-        // cannot be promoted to it.
         if (service case final DeviceAttachNotifier notifier) {
           final attachSub = notifier.deviceAttached.listen((event) {
             _log.info("device attached on $service: $event");
@@ -168,7 +164,6 @@ class DeviceController implements DeviceScanner {
   /// with each other at the BLE layer.
   Future<ScanResult>? _inFlightScan;
 
-  @override
   @override
   Future<ScanResult> scanForDevices({ScanFilter? filter}) {
     return _inFlightScan ??= _runScan(filter).whenComplete(() {
@@ -425,6 +420,8 @@ class DeviceController implements DeviceScanner {
   }
 
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
     for (var subscription in _serviceSubscriptions) {
       subscription.cancel();
     }
