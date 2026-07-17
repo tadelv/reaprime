@@ -8,6 +8,7 @@ import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/controllers/workflow_controller.dart';
 import 'package:reaprime/src/controllers/workflow_device_sync.dart';
 import 'package:reaprime/src/models/data/profile.dart';
+import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/errors.dart';
@@ -910,46 +911,47 @@ void main() {
       expect(de1.setProfileCalls.map((p) => p.title), ['Persisted']);
     });
 
-    test('stale A init does not write to B after disconnect race', () async {
-      // Deterministic race: block A's setFanThreshhold with a completer,
-      // disconnect A while blocked, connect B, release A's blocked write,
-      // then verify A performed no operations on B's interfaces.
+    test('stale A init does not mutate B-facing state', () async {
       final controller = await freshController();
       buildSync(controller);
-      final de1A = _BlockingDefaultsDe1(deviceId: 'de1-A');
+      final steamEvents = <SteamSettings>[];
+      final hotWaterEvents = <HotWaterData>[];
+      final rinseEvents = <RinseData>[];
+      final steamSub = controller.steamData.listen(steamEvents.add);
+      final hotWaterSub = controller.hotWaterData.listen(hotWaterEvents.add);
+      final rinseSub = controller.rinseData.listen(rinseEvents.add);
+      addTearDown(steamSub.cancel);
+      addTearDown(hotWaterSub.cancel);
+      addTearDown(rinseSub.cancel);
 
-      // Step 1: Connect A -- init starts, blocks at setFanThreshhold.
+      final de1A = _BlockingDefaultsDe1(deviceId: 'de1-A');
       await controller.connectToDe1(de1A);
       await de1A.fanWriteStarted.future;
 
-      // Step 2: Disconnect A while its write is blocked.
       de1A.setConnectionState(ConnectionState.disconnected);
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
-      // Step 3: Connect B and let its init complete.
-      final de1B = _RecordingDe1(deviceId: 'de1-B');
       controller.defaultWorkflow = wf.currentWorkflow;
+      final de1B = _BlockingDefaultsDe1(deviceId: 'de1-B');
       await controller.connectToDe1(de1B);
-      await settleInit(controller, de1B);
+      await de1B.fanWriteStarted.future;
+      final bGeneration = controller.connectionGeneration;
+      de1B.releaseFanWrite.complete();
+      await controller.initSettled.firstWhere((value) => value == bGeneration);
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
-      // Step 4: Release A's blocked write.
+      final bOperationsAfterInit = List<String>.of(de1B.operations);
+      final steamEventCountAfterBInit = steamEvents.length;
+      final hotWaterEventCountAfterBInit = hotWaterEvents.length;
+      final rinseEventCountAfterBInit = rinseEvents.length;
+
       de1A.releaseFanWrite.complete();
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
-      // Step 5: Verify separation.
-      expect(
-        de1A.operations,
-        contains('de1-A:setFanThreshhold'),
-        reason: 'A must have started setFanThreshhold',
-      );
-      for (final op in de1A.operations) {
-        expect(
-          op.startsWith('de1-B:'),
-          isFalse,
-          reason: 'A must not perform any operation on B: $op',
-        );
-      }
+      expect(de1B.operations, bOperationsAfterInit);
+      expect(steamEvents, hasLength(steamEventCountAfterBInit));
+      expect(hotWaterEvents, hasLength(hotWaterEventCountAfterBInit));
+      expect(rinseEvents, hasLength(rinseEventCountAfterBInit));
       expect(
         de1B.setProfileCalls.map((p) => p.title),
         ['Persisted'],
@@ -1016,6 +1018,15 @@ void main() {
         de1B.setProfileCalls.length,
         1,
         reason: 'B should receive exactly one on-connect profile push',
+      );
+
+      de1A.releaseFanWrite.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      expect(
+        de1B.setProfileCalls.length,
+        1,
+        reason: 'A resuming must not trigger another B profile push',
       );
     });
   });

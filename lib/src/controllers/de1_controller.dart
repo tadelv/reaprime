@@ -284,7 +284,7 @@ class De1Controller {
       );
 
       try {
-        await _setDe1DefaultsFor(device);
+        await _setDe1DefaultsFor(device, stillCurrent);
       } catch (e, st) {
         _log.warning(
           'DE1 startup defaults failed; profile sync will still proceed',
