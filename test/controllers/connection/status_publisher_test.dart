@@ -133,7 +133,7 @@ void main() {
         );
       });
 
-      test('clearing profileUploadFailed does not stomp replacement', () {
+      test('clearError clears the current error regardless of kind', () {
         pub.emitError(
           _err(ConnectionErrorKind.profileUploadFailed),
         );
@@ -142,7 +142,9 @@ void main() {
         expect(
           pub.current.error,
           isNull,
-          reason: 'clearError clears the current error regardless of kind',
+          reason:
+              'unconditional clearError must clear the active error '
+              'even when it was not the original one',
         );
       });
     });

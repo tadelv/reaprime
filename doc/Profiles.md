@@ -548,9 +548,43 @@ Example error response:
 
 Mock machines execute profiles in a simulated shot loop that follows profile step targets (flow, pressure, temperature) with simplified machine-response dynamics. Design decisions are recorded in archived plans — see `doc/plans/mock-shot-fidelity.md` for the substate model, flow→pressure coupling, weight accumulation, transition shaping, and skipStep semantics.
 
+### Profile Synchronization with Hardware
+
+#### Ownership
+
+`WorkflowDeviceSync` owns profile uploads caused by workflow changes and
+machine connect/reconnect. `De1Controller` no longer uploads the profile
+as part of startup defaults — `POST /api/v1/machine/profile` remains a
+direct machine operation outside workflow synchronization.
+
+#### Two Cache Layers
+
+| Cache | Location | Cleared on | Effect |
+|-------|----------|------------|--------|
+| `_lastPushedProfile` | `WorkflowDeviceSync` | Disconnect, upload failure | Prevents redundant uploads within one connection |
+| `_currentProfile` | `UnifiedDe1` | Every `onConnect()`, every upload start | Prevents redundant uploads within one device session |
+
+Both must be cleared on connection edges. The sync cache is cleared when
+the machine disconnects; the device cache is cleared in `onConnect()`
+before the `_info` guard so every connection edge forces a complete
+physical upload.
+
+#### Retry and Failure Behavior
+
+- Failed workflow profile uploads retry with capped backoff (3s, 10s, 30s).
+- Intermediate workflow changes coalesce — only the latest profile is
+  pushed when the current upload finishes.
+- `profileUploadFailed` is surfaced on `ConnectionManager.status` while
+  retries are active. It persists across phase transitions and is cleared
+  when a retry lands, the machine disconnects, or the sync is disposed.
+- See `doc/plans/archive/profile-upload-recovery/design.md` for the full
+  design rationale.
+
 ### Future Enhancements
 
-- **Cloud Sync**: Hash-based IDs make conflict-free cloud sync straightforward
+- **Cloud Sync**:
+
+  Hash-based IDs make conflict-free cloud sync straightforward
   - Same content = same ID everywhere (no merge conflicts)
   - Sync compound hashes to detect any changes
   - Implement three-way merge using parent IDs
