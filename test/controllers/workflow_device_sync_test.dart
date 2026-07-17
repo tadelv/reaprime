@@ -12,8 +12,13 @@ import 'package:reaprime/src/models/device/de1_interface.dart';
 import 'package:reaprime/src/models/device/device.dart';
 import 'package:reaprime/src/models/errors.dart';
 
+import 'package:reaprime/src/controllers/connection_manager.dart';
+import 'package:reaprime/src/settings/settings_controller.dart';
 import '../helpers/fake_ble_transport.dart';
 import '../helpers/mock_device_discovery_service.dart';
+import '../helpers/mock_device_scanner.dart';
+import '../helpers/mock_scale_controller.dart';
+import '../helpers/mock_settings_service.dart';
 import '../helpers/test_de1.dart';
 
 Profile _profile(String title) => Profile(
@@ -122,6 +127,105 @@ class _FanFailsDe1 extends _RecordingDe1 {
   @override
   Future<void> setFanThreshhold(int temp) async {
     throw Exception('fan threshold write failed');
+  }
+}
+
+/// Blocks on setFanThreshhold until [releaseFanWrite] is completed.
+/// Logs every default-write call with [deviceId] into [operations].
+class _BlockingDefaultsDe1 extends TestDe1 {
+  _BlockingDefaultsDe1({super.deviceId});
+
+  final List<String> operations = [];
+  final Completer<void> fanWriteStarted = Completer<void>();
+  final Completer<void> releaseFanWrite = Completer<void>();
+  final List<Profile> setProfileCalls = [];
+
+  static final De1ShotSettings _defaultShotSettings = De1ShotSettings(
+    steamSetting: 0,
+    targetSteamTemp: 0,
+    targetSteamDuration: 0,
+    targetHotWaterTemp: 0,
+    targetHotWaterVolume: 0,
+    targetHotWaterDuration: 0,
+    targetShotVolume: 36,
+    groupTemp: 94.0,
+  );
+
+  @override
+  Future<void> setFanThreshhold(int temp) async {
+    operations.add('$deviceId:setFanThreshhold');
+    fanWriteStarted.complete();
+    await releaseFanWrite.future;
+  }
+
+  @override
+  Future<void> setSteamFlow(double value) async {
+    operations.add('$deviceId:setSteamFlow');
+  }
+
+  @override
+  Future<void> updateShotSettings(De1ShotSettings settings) async {
+    operations.add('$deviceId:updateShotSettings');
+  }
+
+  @override
+  Future<void> setHotWaterFlow(double value) async {
+    operations.add('$deviceId:setHotWaterFlow');
+  }
+
+  @override
+  Future<void> setFlushFlow(double value) async {
+    operations.add('$deviceId:setFlushFlow');
+  }
+
+  @override
+  Future<void> setFlushTimeout(double value) async {
+    operations.add('$deviceId:setFlushTimeout');
+  }
+
+  @override
+  Future<void> setFlushTemperature(double value) async {
+    operations.add('$deviceId:setFlushTemperature');
+  }
+
+  @override
+  Future<void> setProfile(Profile profile) async {
+    operations.add('$deviceId:setProfile:${profile.title}');
+    setProfileCalls.add(profile);
+  }
+
+  @override
+  Stream<De1ShotSettings> get shotSettings =>
+      Stream<De1ShotSettings>.value(_defaultShotSettings);
+
+  @override
+  Future<double> getSteamFlow() async {
+    operations.add('$deviceId:getSteamFlow');
+    return 0;
+  }
+
+  @override
+  Future<double> getHotWaterFlow() async {
+    operations.add('$deviceId:getHotWaterFlow');
+    return 0;
+  }
+
+  @override
+  Future<double> getFlushFlow() async {
+    operations.add('$deviceId:getFlushFlow');
+    return 0;
+  }
+
+  @override
+  Future<double> getFlushTimeout() async {
+    operations.add('$deviceId:getFlushTimeout');
+    return 0;
+  }
+
+  @override
+  Future<double> getFlushTemperature() async {
+    operations.add('$deviceId:getFlushTemperature');
+    return 0;
   }
 }
 
@@ -806,32 +910,306 @@ void main() {
       expect(de1.setProfileCalls.map((p) => p.title), ['Persisted']);
     });
 
-    test('init does not operate on replacement device', () async {
-      // Connect A, start init, disconnect A, connect B. A's init should
-      // not operate on B.
+    test('stale A init does not write to B after disconnect race', () async {
+      // Deterministic race: block A's setFanThreshhold with a completer,
+      // disconnect A while blocked, connect B, release A's blocked write,
+      // then verify A performed no operations on B's interfaces.
       final controller = await freshController();
       buildSync(controller);
-      final de1A = _RecordingDe1(deviceId: 'de1-A');
+      final de1A = _BlockingDefaultsDe1(deviceId: 'de1-A');
+
+      // Step 1: Connect A -- init starts, blocks at setFanThreshhold.
       await controller.connectToDe1(de1A);
-      // Don't settle A's init yet.
+      await de1A.fanWriteStarted.future;
+
+      // Step 2: Disconnect A while its write is blocked.
+      de1A.setConnectionState(ConnectionState.disconnected);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      // Step 3: Connect B and let its init complete.
+      final de1B = _RecordingDe1(deviceId: 'de1-B');
+      controller.defaultWorkflow = wf.currentWorkflow;
+      await controller.connectToDe1(de1B);
+      await settleInit(controller, de1B);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      // Step 4: Release A's blocked write.
+      de1A.releaseFanWrite.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      // Step 5: Verify separation.
+      expect(
+        de1A.operations,
+        contains('de1-A:setFanThreshhold'),
+        reason: 'A must have started setFanThreshhold',
+      );
+      for (final op in de1A.operations) {
+        expect(
+          op.startsWith('de1-B:'),
+          isFalse,
+          reason: 'A must not perform any operation on B: $op',
+        );
+      }
+      expect(
+        de1B.setProfileCalls.map((p) => p.title),
+        ['Persisted'],
+        reason: 'B should receive the profile via initSettled',
+      );
+    });
+
+    test('stale init does not emit B\'s generation', () async {
+      final controller = await freshController();
+      final initGenerations = <int?>[];
+      controller.initSettled.listen(initGenerations.add);
+
+      final de1A = _BlockingDefaultsDe1(deviceId: 'de1-A');
+      await controller.connectToDe1(de1A);
+      await de1A.fanWriteStarted.future;
 
       de1A.setConnectionState(ConnectionState.disconnected);
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
       final de1B = _RecordingDe1(deviceId: 'de1-B');
+      controller.defaultWorkflow = wf.currentWorkflow;
       await controller.connectToDe1(de1B);
       await settleInit(controller, de1B);
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
       expect(
-        de1A.setProfileCalls,
-        isEmpty,
-        reason: 'A should not receive any profile push',
+        initGenerations.where((g) => g != null).length,
+        1,
+        reason:
+            'B should be the only init that emits a generation '
+            '(A\'s stale init must not emit)',
       );
+
+      de1A.releaseFanWrite.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
       expect(
-        de1B.setProfileCalls.map((p) => p.title),
-        ['Persisted'],
-        reason: 'B should receive the profile via initSettled',
+        initGenerations.where((g) => g != null).length,
+        1,
+        reason:
+            'A\'s stale init must not emit initSettled '
+            'after releasing the block',
+      );
+    });
+
+    test('stale init does not cause extra B profile push', () async {
+      final controller = await freshController();
+      buildSync(controller);
+
+      final de1A = _BlockingDefaultsDe1(deviceId: 'de1-A');
+      await controller.connectToDe1(de1A);
+      await de1A.fanWriteStarted.future;
+
+      de1A.setConnectionState(ConnectionState.disconnected);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      final de1B = _RecordingDe1(deviceId: 'de1-B');
+      controller.defaultWorkflow = wf.currentWorkflow;
+      await controller.connectToDe1(de1B);
+      await settleInit(controller, de1B);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      expect(
+        de1B.setProfileCalls.length,
+        1,
+        reason: 'B should receive exactly one on-connect profile push',
+      );
+    });
+  });
+
+  group('WorkflowDeviceSync integration with ConnectionManager', () {
+    late ConnectionManager connectionManager;
+    late MockDeviceScanner mockScanner;
+    late MockScaleController mockScaleController;
+    late MockSettingsService mockSettingsService;
+    late SettingsController settingsController;
+    late WorkflowController wf;
+    late De1Controller de1Controller;
+    WorkflowDeviceSync? activeSync;
+
+    setUp(() async {
+      wf = WorkflowController();
+      wf.setWorkflow(
+        wf.currentWorkflow.copyWith(profile: _profile('Persisted')),
+      );
+      mockScanner = MockDeviceScanner();
+      mockScaleController = MockScaleController();
+      mockSettingsService = MockSettingsService();
+      settingsController = SettingsController(mockSettingsService);
+      await settingsController.loadSettings();
+
+      final dc = DeviceController([MockDeviceDiscoveryService()]);
+      await dc.initialize();
+      de1Controller = De1Controller(controller: dc);
+      de1Controller.defaultWorkflow = wf.currentWorkflow;
+
+      connectionManager = ConnectionManager(
+        deviceScanner: mockScanner,
+        de1Controller: de1Controller,
+        scaleController: mockScaleController,
+        settingsController: settingsController,
+      );
+    });
+
+    tearDown(() async {
+      activeSync?.dispose();
+      connectionManager.dispose();
+      mockScanner.dispose();
+    });
+
+    test(
+      'wired path: WorkflowDeviceSync -> reportError -> status.error',
+      () async {
+        final de1 = _FlakyDe1(failures: 100);
+
+        activeSync = WorkflowDeviceSync(
+          workflowController: wf,
+          de1Controller: de1Controller,
+          retryDelays: const [Duration(milliseconds: 20)],
+          onUploadError: (err) => connectionManager.reportError(err),
+          onUploadErrorCleared: () => connectionManager.clearErrorOfKind(
+            ConnectionErrorKind.profileUploadFailed,
+          ),
+        );
+
+        await de1Controller.connectToDe1(de1);
+        await settleInit(de1Controller, de1);
+        await Future<void>.delayed(const Duration(milliseconds: 15));
+
+        expect(
+          connectionManager.currentStatus.error?.kind,
+          ConnectionErrorKind.profileUploadFailed,
+          reason:
+              'profile upload failure must surface on ConnectionManager.status',
+        );
+
+        expect(
+          de1.totalCalls,
+          greaterThanOrEqualTo(1),
+          reason: 'retries must have been attempted',
+        );
+      },
+    );
+
+    test('clearErrorOfKind is kind-specific', () async {
+      final de1 = _FlakyDe1(failures: 100);
+
+      activeSync = WorkflowDeviceSync(
+        workflowController: wf,
+        de1Controller: de1Controller,
+        retryDelays: const [Duration(milliseconds: 20)],
+        onUploadError: (err) => connectionManager.reportError(err),
+        onUploadErrorCleared: () => connectionManager.clearErrorOfKind(
+          ConnectionErrorKind.profileUploadFailed,
+        ),
+      );
+
+      await de1Controller.connectToDe1(de1);
+      await settleInit(de1Controller, de1);
+      await Future<void>.delayed(const Duration(milliseconds: 15));
+
+      connectionManager.debugEmitError(
+        kind: ConnectionErrorKind.machineConnectFailed,
+        severity: 'error',
+        message: 'machine failed',
+      );
+
+      expect(
+        connectionManager.currentStatus.error?.kind,
+        ConnectionErrorKind.machineConnectFailed,
+        reason: 'new error must replace profileUploadFailed',
+      );
+
+      connectionManager.clearErrorOfKind(
+        ConnectionErrorKind.profileUploadFailed,
+      );
+
+      expect(
+        connectionManager.currentStatus.error?.kind,
+        ConnectionErrorKind.machineConnectFailed,
+        reason:
+            'clearErrorOfKind for profileUploadFailed must not clear '
+            'the unrelated machineConnectFailed',
+      );
+    });
+
+    test('clearErrorOfKind clears when still current', () async {
+      final de1 = _FlakyDe1(failures: 100);
+
+      activeSync = WorkflowDeviceSync(
+        workflowController: wf,
+        de1Controller: de1Controller,
+        retryDelays: const [Duration(milliseconds: 20)],
+        onUploadError: (err) => connectionManager.reportError(err),
+        onUploadErrorCleared: () => connectionManager.clearErrorOfKind(
+          ConnectionErrorKind.profileUploadFailed,
+        ),
+      );
+
+      await de1Controller.connectToDe1(de1);
+      await settleInit(de1Controller, de1);
+      await Future<void>.delayed(const Duration(milliseconds: 15));
+
+      expect(
+        connectionManager.currentStatus.error?.kind,
+        ConnectionErrorKind.profileUploadFailed,
+      );
+
+      connectionManager.clearErrorOfKind(
+        ConnectionErrorKind.profileUploadFailed,
+      );
+
+      expect(
+        connectionManager.currentStatus.error,
+        isNull,
+        reason: 'clearErrorOfKind must clear matching error',
+      );
+    });
+
+    test('phasePersistent survives debug phase transitions', () async {
+      final de1 = _FlakyDe1(failures: 100);
+
+      activeSync = WorkflowDeviceSync(
+        workflowController: wf,
+        de1Controller: de1Controller,
+        retryDelays: const [Duration(milliseconds: 20)],
+        onUploadError: (err) => connectionManager.reportError(err),
+        onUploadErrorCleared: () => connectionManager.clearErrorOfKind(
+          ConnectionErrorKind.profileUploadFailed,
+        ),
+      );
+
+      await de1Controller.connectToDe1(de1);
+      await settleInit(de1Controller, de1);
+      await Future<void>.delayed(const Duration(milliseconds: 15));
+
+      expect(
+        connectionManager.currentStatus.error?.kind,
+        ConnectionErrorKind.profileUploadFailed,
+      );
+
+      connectionManager.debugSetPhase(ConnectionPhase.scanning);
+      expect(
+        connectionManager.currentStatus.error?.kind,
+        ConnectionErrorKind.profileUploadFailed,
+        reason: 'phasePersistent error must survive scanning',
+      );
+
+      connectionManager.debugSetPhase(ConnectionPhase.connectingMachine);
+      expect(
+        connectionManager.currentStatus.error?.kind,
+        ConnectionErrorKind.profileUploadFailed,
+        reason: 'phasePersistent error must survive connectingMachine',
+      );
+
+      connectionManager.debugSetPhase(ConnectionPhase.ready);
+      expect(
+        connectionManager.currentStatus.error?.kind,
+        ConnectionErrorKind.profileUploadFailed,
+        reason: 'phasePersistent error must survive ready',
       );
     });
   });

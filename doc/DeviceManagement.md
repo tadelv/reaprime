@@ -1280,6 +1280,52 @@ _log.info('Found serial ports: $ports');
 
 ---
 
+## Post-Initialization Profile Synchronization
+
+### Trigger
+
+The raw `de1` stream indicates device availability but is not the upload
+trigger. `De1Controller.initSettled` emits only after machine readiness
+and the startup-default attempt — `WorkflowDeviceSync` subscribes to this
+stream, not the raw de1 event, preserving correct ordering.
+
+### Best-Effort Defaults
+
+Startup-default writes are best-effort. A failed default write (e.g., a
+fan threshold that times out) logs a warning but does not prevent
+initSettled from firing — the profile upload follows regardless.
+
+### Connection Identity and Generation Safety
+
+Initialization captures both the device instance and connection generation
+at the start. Every read/write performed during initialization goes
+through the captured device, not the current `_de1` reference. This
+prevents a stale initializer from operating on a replacement device after
+a disconnect/reconnect race.
+
+All async boundaries are guarded by `stillCurrent()`:
+
+```dart
+final generation = _connectionGeneration;
+final device = connectedDe1();
+
+bool stillCurrent() =>
+    generation == _connectionGeneration &&
+    identical(device, connectedDe1OrNull);
+```
+
+If a stale initializer resumes after disconnect, `stillCurrent()`
+returns false. The initializer skips the initSettled emission, so no
+stale event reaches `WorkflowDeviceSync` and no redundant profile
+push fires for the replacement device.
+
+### Quick-Connect and Adoption
+
+`adoptDevice()` follows the same ready → initialize → initSettled
+sequence as normal connection. It receives the same generation and
+device protections — a stale init from an adopted machine is rejected
+identically.
+
 ## Glossary
 
 - **BLE:** Bluetooth Low Energy, wireless protocol for IoT devices
