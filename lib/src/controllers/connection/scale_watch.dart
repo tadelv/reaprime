@@ -157,7 +157,10 @@ class ScaleWatch {
   Future<void> _onSighting(Scale scale, int gen) async {
     _connecting = true;
     try {
-      _log.fine(
+      // INFO deliberately: one line per reconnect, and the key field
+      // breadcrumb for diagnosing "scale did not auto-connect" reports
+      // (armed-but-no-sighting vs sighted-but-connect-failed).
+      _log.info(
         'Preferred scale ${scale.deviceId} sighted; '
         'stopping watch and connecting',
       );
