@@ -28,8 +28,18 @@ import 'package:usb_serial/usb_serial.dart';
 class SerialServiceAndroid
     implements DeviceDiscoveryService, DeviceAttachNotifier {
   final _log = Logger("Android Serial service");
+  final Future<List<UsbDevice>> Function() _listDevices;
+  final Stream<UsbEvent>? Function() _usbEventStream;
 
   final List<Device> _devices = [];
+  StreamSubscription<UsbEvent>? _usbEventSubscription;
+  bool _disposed = false;
+
+  SerialServiceAndroid({
+    Future<List<UsbDevice>> Function()? listDevices,
+    Stream<UsbEvent>? Function()? usbEventStream,
+  })  : _listDevices = listDevices ?? UsbSerial.listDevices,
+        _usbEventStream = usbEventStream ?? (() => UsbSerial.usbEventStream);
 
   /// Tracks transports created by [_detectDevice] so quick-connect cleanup
   /// can dispose them. Keyed by [Device.deviceId] (== [AndroidSerialPort.id]).
@@ -48,8 +58,6 @@ class SerialServiceAndroid
   @override
   Stream<List<Device>> get devices => _machineSubject.stream;
 
-  /// Attach edges. A PublishSubject, not a BehaviorSubject: an attach is an
-  /// event and must not be replayed to a late subscriber.
   final PublishSubject<DeviceAttachedEvent> _attachedSubject =
       PublishSubject<DeviceAttachedEvent>();
 
@@ -58,18 +66,23 @@ class SerialServiceAndroid
 
   @override
   Future<void> initialize() async {
-    List<UsbDevice> devices = await UsbSerial.listDevices();
-    _log.info("found $devices");
-
-    UsbSerial.usbEventStream?.listen(handleUsbEvent);
+    try {
+      final devices = await _listDevices();
+      _log.info("found $devices");
+    } catch (e, st) {
+      _log.warning('USB enumeration unavailable during initialization', e, st);
+    }
+    if (_disposed) return;
+    try {
+      _usbEventSubscription = _usbEventStream()?.listen(handleUsbEvent);
+    } catch (e, st) {
+      _log.warning('USB event stream unavailable', e, st);
+    }
   }
 
-  /// Handle one Android USB broadcast.
-  ///
-  /// Extracted from the [initialize] listener so the attach path is
-  /// unit-testable without an Android device.
   @visibleForTesting
   void handleUsbEvent(UsbEvent data) {
+    if (_disposed) return;
     switch (data.event) {
       case UsbEvent.ACTION_USB_DETACHED:
         _log.info("USB_DETACHED: device=${data.device?.productName ?? 'null'} "
@@ -121,21 +134,6 @@ class SerialServiceAndroid
     }
   }
 
-  /// Publish the attach edge so [ConnectionManager] can scan + connect NOW.
-  ///
-  /// Android broadcasts ACTION_USB_DEVICE_ATTACHED the moment a device is back
-  /// on the bus, but this service used to drop the intent in `default:` and
-  /// merely log it. A re-enumerating machine therefore had to wait out the
-  /// exponential-backoff scan before the app noticed it — 20.3 s of dead time
-  /// measured (attach 15:46:55.102, connect 15:47:15.376), and up to 60 s once
-  /// the backoff reaches its cap.
-  ///
-  /// The attach edge is a *hint*, not an admission decision: every attached USB
-  /// device is announced and the existing scan path decides what is interesting.
-  /// `_performScan` already calls `_detectDevice` on every enumerated port, so a
-  /// keyboard costs one no-op scan and nothing more. A null device (the platform
-  /// told us nothing) is announced too — the same permissive treatment the detach
-  /// path gives it.
   void _announceAttach(UsbDevice? device) {
     final stableId = device == null
         ? null
@@ -166,7 +164,7 @@ class SerialServiceAndroid
       return null;
     }
 
-    final devices = await UsbSerial.listDevices();
+    final devices = await _listDevices();
     for (final d in devices) {
       final stableId =
           computeUsbStableId(vid: d.vid, pid: d.pid, serial: d.serial) ??
@@ -256,7 +254,7 @@ class SerialServiceAndroid
           "${connected.map((d) => '${d.name}(${d.deviceId})').join(', ')}");
     }
 
-    var devices = await UsbSerial.listDevices();
+    var devices = await _listDevices();
     _log.info("USB enumeration: ${devices.length} ports "
         "(${devices.map((d) => '${d.productName ?? d.deviceName}[${computeUsbStableId(vid: d.vid, pid: d.pid, serial: d.serial) ?? d.deviceId}]').join(', ')})");
 
@@ -450,6 +448,19 @@ class SerialServiceAndroid
       await transport.disconnect();
       return null;
     }
+  }
+
+  Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    await _usbEventSubscription?.cancel();
+    _usbEventSubscription = null;
+    for (final transport in _transportForDeviceId.values.toSet()) {
+      await transport.dispose();
+    }
+    _transportForDeviceId.clear();
+    await _attachedSubject.close();
+    await _machineSubject.close();
   }
 }
 

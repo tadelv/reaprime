@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reaprime/src/controllers/device_controller.dart';
 import 'package:reaprime/src/models/device/device.dart';
@@ -114,12 +116,15 @@ class _RecordingTelemetry implements TelemetryService {
   String getLogBuffer() => '';
 }
 
-/// A discovery service whose transport is *told* when a device arrives — the
-/// Android USB serial service's shape.
 class _AttachNotifyingDiscoveryService
     implements DeviceDiscoveryService, DeviceAttachNotifier {
   final _controller = BehaviorSubject<List<Device>>.seeded(const []);
   final _attached = PublishSubject<DeviceAttachedEvent>();
+  final Future<void>? initialization;
+
+  _AttachNotifyingDiscoveryService({this.initialization});
+
+  bool get hasAttachListener => _attached.hasListener;
 
   @override
   Stream<List<Device>> get devices => _controller.stream;
@@ -128,13 +133,18 @@ class _AttachNotifyingDiscoveryService
   Stream<DeviceAttachedEvent> get deviceAttached => _attached.stream;
 
   @override
-  Future<void> initialize() async {}
+  Future<void> initialize() async {
+    await initialization;
+  }
 
   @override
   Future<void> scanForDevices({ScanFilter? filter}) async {}
 
   @override
   void stopScan() {}
+
+  @override
+  Future<Device?> tryQuickConnect(RememberedDevice remembered) async => null;
 
   void attach(DeviceAttachedEvent event) => _attached.add(event);
 }
@@ -323,6 +333,33 @@ void main() {
 
       expect(seen, isEmpty);
       await sub.cancel();
+    });
+
+    test('dispose cancels the notifier aggregation subscription', () async {
+      final notifier = _AttachNotifyingDiscoveryService();
+      final controller = DeviceController([notifier]);
+      await controller.initialize();
+      expect(notifier.hasAttachListener, isTrue);
+
+      controller.dispose();
+
+      expect(notifier.hasAttachListener, isFalse);
+    });
+
+    test('dispose during initialization prevents notifier subscription',
+        () async {
+      final initialization = Completer<void>();
+      final notifier = _AttachNotifyingDiscoveryService(
+        initialization: initialization.future,
+      );
+      final controller = DeviceController([notifier]);
+
+      final initializing = controller.initialize();
+      controller.dispose();
+      initialization.complete();
+      await initializing;
+
+      expect(notifier.hasAttachListener, isFalse);
     });
   });
 
