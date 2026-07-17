@@ -30,8 +30,9 @@ class StatusPublisher {
     ConnectionPhase.ready,
   };
 
-  final BehaviorSubject<ConnectionStatus> _subject =
-      BehaviorSubject.seeded(const ConnectionStatus());
+  final BehaviorSubject<ConnectionStatus> _subject = BehaviorSubject.seeded(
+    const ConnectionStatus(),
+  );
 
   Stream<ConnectionStatus> get stream => _subject.stream;
   ConnectionStatus get current => _subject.value;
@@ -53,18 +54,14 @@ class StatusPublisher {
       effectiveError = prev.error;
     } else if (effectiveError != null &&
         movingIntoClearingPhase &&
-        !ConnectionErrorKind.sticky.contains(effectiveError.kind)) {
-      // A new status that carries a transient error into a clearing
-      // phase means the caller is re-publishing an old error — strip
-      // it.
+        !ConnectionErrorKind.sticky.contains(effectiveError.kind) &&
+        !ConnectionErrorKind.phasePersistent.contains(effectiveError.kind)) {
       effectiveError = null;
     } else if (prev.error != null &&
-        // copyWith preserves the error reference when the caller does
-        // not pass `error:`, so `identical` is the right identity
-        // check here.
         identical(next.error, prev.error) &&
         movingIntoClearingPhase &&
-        !ConnectionErrorKind.sticky.contains(prev.error!.kind)) {
+        !ConnectionErrorKind.sticky.contains(prev.error!.kind) &&
+        !ConnectionErrorKind.phasePersistent.contains(prev.error!.kind)) {
       effectiveError = null;
     }
 
@@ -81,7 +78,8 @@ class StatusPublisher {
   /// `info` instead of `severe`/`warning` — keeping them out of the
   /// Crashlytics forwarder while preserving them in the file log.
   void emitError(ConnectionError err) {
-    final msg = 'emit error: kind=${err.kind} message=${err.message} '
+    final msg =
+        'emit error: kind=${err.kind} message=${err.message} '
         'deviceId=${err.deviceId}';
     if (ConnectionErrorKind.sticky.contains(err.kind)) {
       _log.info(msg);

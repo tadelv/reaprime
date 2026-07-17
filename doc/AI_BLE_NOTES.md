@@ -131,6 +131,38 @@ flutter test test/services/ble/
 flutter test test/controllers/connection/
 ```
 
+## Profile Upload Safety
+
+### Firmware Latch: ProfileDownloadInProgress
+
+The DE1 firmware sets `ProfileDownloadInProgress` on header write and clears it
+on tail write + flash commit. If the upload dies mid-sequence (GATT timeout,
+connection drop), the latch stays set indefinitely. While latched:
+- The machine silently ignores all start requests.
+- The group-head LED pulses magenta (~2 Hz).
+- The only recovery is a complete profile upload.
+
+### Two Cache Layers
+
+| Cache | Location | Cleared on | Effect |
+|-------|----------|------------|--------|
+| Sync `_lastPushedProfile` | `WorkflowDeviceSync` | Disconnect, upload failure | Prevents redundant uploads within one connection |
+| Device `_currentProfile` | `UnifiedDe1` | Every `onConnect()`, every upload start | Prevents redundant uploads within one device session |
+
+Both must be cleared on connection edges. The sync cache is cleared by
+`_onDe1Change(null)` which runs on disconnect. The device cache is cleared
+in `UnifiedDe1.onConnect()` before the `_info` guard.
+
+### Startup Ordering
+
+The on-connect profile push is triggered by `De1Controller.initSettled`, which
+fires after machine readiness + startup defaults complete. This replaces the
+single-shot `_setDe1Defaults` path whose failures were swallowed.
+
+Generation tokens in both `De1Controller` (`_connectionGeneration`) and
+`WorkflowDeviceSync` (`_generation`) guard against stale init completions
+from a disconnected generation.
+
 ## Keeping Notes Fresh
 
 Add lessons that would have saved debugging time: new footguns, thread-safety constraints, connection-lifecycle changes, non-obvious symptoms, and cross-transport dependencies. Prune stale claims. Prefer fewer, sharper notes over long background.
