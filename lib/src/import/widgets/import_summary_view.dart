@@ -49,12 +49,14 @@ class ImportSummaryView extends StatelessWidget {
                   children: [
                     _CountRow(
                       icon: LucideIcons.coffee,
-                      label: '${scanResult.shotCount} shot${scanResult.shotCount == 1 ? '' : 's'}',
+                      label:
+                          '${scanResult.shotCount} shot${scanResult.shotCount == 1 ? '' : 's'}',
                     ),
                     const SizedBox(height: 12),
                     _CountRow(
                       icon: LucideIcons.fileText,
-                      label: '${scanResult.profileCount} profile${scanResult.profileCount == 1 ? '' : 's'}',
+                      label:
+                          '${scanResult.profileCount} profile${scanResult.profileCount == 1 ? '' : 's'}',
                     ),
                     if (scanResult.hasDyeGrinders) ...[
                       const SizedBox(height: 12),

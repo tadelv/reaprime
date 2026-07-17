@@ -27,17 +27,20 @@ class UpdateCheckService {
   /// `/ws/v1/update`). Derived from [_availableUpdate] plus the current phase.
   late final BehaviorSubject<AppUpdateState> _state;
 
-  static const Duration _checkInterval = (String.fromEnvironment("simulate") == "1") ? Duration(hours: 1) : Duration(hours: 12);
+  static const Duration _checkInterval =
+      (String.fromEnvironment("simulate") == "1")
+      ? Duration(hours: 1)
+      : Duration(hours: 12);
 
   UpdateCheckService({
     required SettingsService settingsService,
     AndroidUpdater? updater,
     required WebUIStorage webUIStorage,
     bool? platformIsAndroid,
-  })  : _settingsService = settingsService,
-        _updater = updater ?? AndroidUpdater(owner: 'tadelv', repo: 'reaprime'),
-        _webUIStorage = webUIStorage,
-        _isAndroid = platformIsAndroid ?? Platform.isAndroid {
+  }) : _settingsService = settingsService,
+       _updater = updater ?? AndroidUpdater(owner: 'tadelv', repo: 'reaprime'),
+       _webUIStorage = webUIStorage,
+       _isAndroid = platformIsAndroid ?? Platform.isAndroid {
     _state = BehaviorSubject.seeded(_snapshot(AppUpdatePhase.idle));
   }
 
@@ -81,10 +84,10 @@ class UpdateCheckService {
   }
 
   bool get _inProgress => const {
-        AppUpdatePhase.checking,
-        AppUpdatePhase.downloading,
-        AppUpdatePhase.installing,
-      }.contains(_state.value.phase);
+    AppUpdatePhase.checking,
+    AppUpdatePhase.downloading,
+    AppUpdatePhase.installing,
+  }.contains(_state.value.phase);
 
   /// API command: force a re-check. No-op (coalesced) if an operation is
   /// already in flight.
@@ -150,11 +153,14 @@ class UpdateCheckService {
 
   /// Start periodic update checks
   Future<void> _startPeriodicChecks() async {
-    _log.info('Starting periodic update checks (every ${_checkInterval.inHours} hours)');
-    
+    _log.info(
+      'Starting periodic update checks (every ${_checkInterval.inHours} hours)',
+    );
+
     // Check immediately if we haven't checked recently
     final lastCheck = await _settingsService.lastUpdateCheckTime();
-    if (lastCheck == null || DateTime.now().difference(lastCheck) > _checkInterval) {
+    if (lastCheck == null ||
+        DateTime.now().difference(lastCheck) > _checkInterval) {
       await checkForUpdate();
       await _updateSkins();
     }
@@ -215,9 +221,11 @@ class UpdateCheckService {
         _availableUpdate = null;
       }
 
-      _emit(_availableUpdate != null
-          ? AppUpdatePhase.available
-          : AppUpdatePhase.idle);
+      _emit(
+        _availableUpdate != null
+            ? AppUpdatePhase.available
+            : AppUpdatePhase.idle,
+      );
       return updateInfo;
     } catch (e, stackTrace) {
       _log.warning('Error checking for updates', e, stackTrace);
@@ -267,7 +275,8 @@ class UpdateCheckService {
     _log.info('DEBUG: forcing fake update notification ($version)');
     _availableUpdate = UpdateInfo(
       version: version,
-      downloadUrl: downloadUrl ??
+      downloadUrl:
+          downloadUrl ??
           'https://github.com/tadelv/reaprime/releases/download/v0.7.7/decent-android-0.7.7.apk',
       releaseNotes: 'Forced update for testing the update API.',
       isPrerelease: false,

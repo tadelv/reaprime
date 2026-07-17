@@ -11,8 +11,9 @@ import 'package:rxdart/rxdart.dart';
 /// Test double for [BLETransport] that records the order of all operations
 /// (writes, subscribes, reads) so tests can assert on the exact sequence.
 class _RecordableBleTransport extends BLETransport {
-  final List<String> serviceUUIDs =
-      const ['0000ff08-0000-1000-8000-00805f9b34fb'];
+  final List<String> serviceUUIDs = const [
+    '0000ff08-0000-1000-8000-00805f9b34fb',
+  ];
 
   /// Ordered log of every operation. Each entry is a string like
   /// `write:EF80:[0xED]`, `subscribe:EF81`, or `read:2A19`.
@@ -89,7 +90,9 @@ class _RecordableBleTransport extends BLETransport {
     Duration? timeout,
   }) async {
     final shortUuid = characteristicUUID.substring(4, 8).toLowerCase();
-    final hexData = data.map((b) => '0x${b.toRadixString(16).toUpperCase()}').join(',');
+    final hexData = data
+        .map((b) => '0x${b.toRadixString(16).toUpperCase()}')
+        .join(',');
     operations.add('write:$shortUuid:[$hexData]');
   }
 
@@ -133,65 +136,106 @@ void main() {
       await transport.emitConnectionState(ConnectionState.discovered);
     });
 
-    test('LCD ON (0xED) is sent before subscribing to weight notifications', () async {
-      await scale.onConnect();
+    test(
+      'LCD ON (0xED) is sent before subscribing to weight notifications',
+      () async {
+        await scale.onConnect();
 
-      final lcdOnIndex = transport.operations.indexWhere(
-        (op) => op.contains('write:ef80:[0xED]'),
-      );
-      final weightSubIndex = transport.operations.indexWhere(
-        (op) => op == 'subscribe:ef81',
-      );
+        final lcdOnIndex = transport.operations.indexWhere(
+          (op) => op.contains('write:ef80:[0xED]'),
+        );
+        final weightSubIndex = transport.operations.indexWhere(
+          (op) => op == 'subscribe:ef81',
+        );
 
-      expect(lcdOnIndex, isNot(equals(-1)), reason: 'LCD ON should be sent');
-      expect(weightSubIndex, isNot(equals(-1)), reason: 'weight should be subscribed');
-      expect(lcdOnIndex, lessThan(weightSubIndex),
-          reason: 'LCD ON must be sent before subscribing to weight notifications');
-    });
+        expect(lcdOnIndex, isNot(equals(-1)), reason: 'LCD ON should be sent');
+        expect(
+          weightSubIndex,
+          isNot(equals(-1)),
+          reason: 'weight should be subscribed',
+        );
+        expect(
+          lcdOnIndex,
+          lessThan(weightSubIndex),
+          reason:
+              'LCD ON must be sent before subscribing to weight notifications',
+        );
+      },
+    );
 
-    test('LCD ON (0xEC display weight) is sent before subscribing to weight notifications', () async {
-      await scale.onConnect();
+    test(
+      'LCD ON (0xEC display weight) is sent before subscribing to weight notifications',
+      () async {
+        await scale.onConnect();
 
-      final displayWeightIndex = transport.operations.indexWhere(
-        (op) => op.contains('write:ef80:[0xEC]'),
-      );
-      final weightSubIndex = transport.operations.indexWhere(
-        (op) => op == 'subscribe:ef81',
-      );
+        final displayWeightIndex = transport.operations.indexWhere(
+          (op) => op.contains('write:ef80:[0xEC]'),
+        );
+        final weightSubIndex = transport.operations.indexWhere(
+          (op) => op == 'subscribe:ef81',
+        );
 
-      expect(displayWeightIndex, isNot(equals(-1)), reason: 'Display weight should be sent');
-      expect(weightSubIndex, isNot(equals(-1)), reason: 'weight should be subscribed');
-      expect(displayWeightIndex, lessThan(weightSubIndex),
-          reason: 'Display weight command must be sent before subscribing to weight');
-    });
+        expect(
+          displayWeightIndex,
+          isNot(equals(-1)),
+          reason: 'Display weight should be sent',
+        );
+        expect(
+          weightSubIndex,
+          isNot(equals(-1)),
+          reason: 'weight should be subscribed',
+        );
+        expect(
+          displayWeightIndex,
+          lessThan(weightSubIndex),
+          reason:
+              'Display weight command must be sent before subscribing to weight',
+        );
+      },
+    );
 
-    test('button notifications are subscribed after weight notifications', () async {
-      await scale.onConnect();
+    test(
+      'button notifications are subscribed after weight notifications',
+      () async {
+        await scale.onConnect();
 
-      final weightSubIndex = transport.operations.indexWhere(
-        (op) => op == 'subscribe:ef81',
-      );
-      final buttonSubIndex = transport.operations.indexWhere(
-        (op) => op == 'subscribe:ef82',
-      );
+        final weightSubIndex = transport.operations.indexWhere(
+          (op) => op == 'subscribe:ef81',
+        );
+        final buttonSubIndex = transport.operations.indexWhere(
+          (op) => op == 'subscribe:ef82',
+        );
 
-      expect(weightSubIndex, isNot(equals(-1)));
-      expect(buttonSubIndex, isNot(equals(-1)));
-      expect(weightSubIndex, lessThan(buttonSubIndex),
-          reason: 'Button subscription should come after weight subscription');
-    });
+        expect(weightSubIndex, isNot(equals(-1)));
+        expect(buttonSubIndex, isNot(equals(-1)));
+        expect(
+          weightSubIndex,
+          lessThan(buttonSubIndex),
+          reason: 'Button subscription should come after weight subscription',
+        );
+      },
+    );
 
-    test('LCD ON is sent a second time after all subscriptions (double-send)', () async {
-      await scale.onConnect();
+    test(
+      'LCD ON is sent a second time after all subscriptions (double-send)',
+      () async {
+        await scale.onConnect();
 
-      // Count occurrences of 0xED writes
-      final lcdOnCount = transport.operations.where(
-        (op) => op.contains('write:ef80:[0xED]'),
-      ).length;
+        // Count occurrences of 0xED writes
+        final lcdOnCount = transport.operations
+            .where(
+              (op) => op.contains('write:ef80:[0xED]'),
+            )
+            .length;
 
-      expect(lcdOnCount, greaterThanOrEqualTo(2),
-          reason: 'LCD ON should be sent at least twice (de1app double-send pattern)');
-    });
+        expect(
+          lcdOnCount,
+          greaterThanOrEqualTo(2),
+          reason:
+              'LCD ON should be sent at least twice (de1app double-send pattern)',
+        );
+      },
+    );
 
     test('grams command (0x03) is sent after the second LCD ON', () async {
       await scale.onConnect();
@@ -207,19 +251,36 @@ void main() {
           .map((e) => e.key)
           .toList();
 
-      expect(gramsIndex, isNot(equals(-1)), reason: 'grams command should be sent');
-      expect(lcdOnIndices.length, greaterThanOrEqualTo(2),
-          reason: 'LCD ON should be sent at least twice');
-      expect(gramsIndex, greaterThan(lcdOnIndices.last),
-          reason: 'grams command should come after the second LCD ON');
+      expect(
+        gramsIndex,
+        isNot(equals(-1)),
+        reason: 'grams command should be sent',
+      );
+      expect(
+        lcdOnIndices.length,
+        greaterThanOrEqualTo(2),
+        reason: 'LCD ON should be sent at least twice',
+      );
+      expect(
+        gramsIndex,
+        greaterThan(lcdOnIndices.last),
+        reason: 'grams command should come after the second LCD ON',
+      );
     });
 
-    test('button notifications are not best-effort — subscription is explicit', () async {
-      await scale.onConnect();
+    test(
+      'button notifications are not best-effort — subscription is explicit',
+      () async {
+        await scale.onConnect();
 
-      expect(transport.isSubscribed('ef82'), isTrue,
-          reason: 'Button notifications must be subscribed, not silently skipped');
-    });
+        expect(
+          transport.isSubscribed('ef82'),
+          isTrue,
+          reason:
+              'Button notifications must be subscribed, not silently skipped',
+        );
+      },
+    );
   });
 
   group('Skale2Scale wakeDisplay re-subscribes notifications', () {
@@ -251,10 +312,16 @@ void main() {
 
       await scale.wakeDisplay();
 
-      expect(transport.operations.any((op) => op == 'subscribe:ef81'), isTrue,
-          reason: 'wakeDisplay should re-subscribe to weight notifications');
-      expect(transport.isSubscribed('ef81'), isTrue,
-          reason: 'weight subscription should be active after wake');
+      expect(
+        transport.operations.any((op) => op == 'subscribe:ef81'),
+        isTrue,
+        reason: 'wakeDisplay should re-subscribe to weight notifications',
+      );
+      expect(
+        transport.isSubscribed('ef81'),
+        isTrue,
+        reason: 'weight subscription should be active after wake',
+      );
     });
 
     test('wakeDisplay re-subscribes to button notifications', () async {
@@ -264,21 +331,38 @@ void main() {
 
       await scale.wakeDisplay();
 
-      expect(transport.operations.any((op) => op == 'subscribe:ef82'), isTrue,
-          reason: 'wakeDisplay should re-subscribe to button notifications');
-      expect(transport.isSubscribed('ef82'), isTrue,
-          reason: 'button subscription should be active after wake');
+      expect(
+        transport.operations.any((op) => op == 'subscribe:ef82'),
+        isTrue,
+        reason: 'wakeDisplay should re-subscribe to button notifications',
+      );
+      expect(
+        transport.isSubscribed('ef82'),
+        isTrue,
+        reason: 'button subscription should be active after wake',
+      );
     });
 
-    test('wakeDisplay does NOT re-subscribe if subscriptions are still active', () async {
-      // Subscriptions are still active from onConnect
-      await scale.wakeDisplay();
+    test(
+      'wakeDisplay does NOT re-subscribe if subscriptions are still active',
+      () async {
+        // Subscriptions are still active from onConnect
+        await scale.wakeDisplay();
 
-      expect(transport.operations.any((op) => op == 'subscribe:ef81'), isFalse,
-          reason: 'wakeDisplay should not redundantly subscribe if already active');
-      expect(transport.operations.any((op) => op == 'subscribe:ef82'), isFalse,
-          reason: 'wakeDisplay should not redundantly subscribe if already active');
-    });
+        expect(
+          transport.operations.any((op) => op == 'subscribe:ef81'),
+          isFalse,
+          reason:
+              'wakeDisplay should not redundantly subscribe if already active',
+        );
+        expect(
+          transport.operations.any((op) => op == 'subscribe:ef82'),
+          isFalse,
+          reason:
+              'wakeDisplay should not redundantly subscribe if already active',
+        );
+      },
+    );
   });
 
   group('Skale2Scale timer commands', () {

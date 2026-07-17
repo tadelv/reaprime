@@ -45,7 +45,7 @@ class _FakePluginLoaderService extends PluginLoaderService {
   bool initCalled = false;
 
   _FakePluginLoaderService()
-      : super(kvStore: HiveStoreService(defaultNamespace: 'test-plugins'));
+    : super(kvStore: HiveStoreService(defaultNamespace: 'test-plugins'));
 
   @override
   Future<void> initialize() {
@@ -58,7 +58,8 @@ class _TrackingOnboardingController extends OnboardingController {
   int advanceCallCount = 0;
 
   _TrackingOnboardingController()
-      : super(steps: [
+    : super(
+        steps: [
           OnboardingStep(
             id: 'initialization',
             shouldShow: () async => true,
@@ -69,7 +70,8 @@ class _TrackingOnboardingController extends OnboardingController {
             shouldShow: () async => true,
             builder: (_) => const SizedBox(),
           ),
-        ]);
+        ],
+      );
 
   @override
   void advance() {

@@ -48,30 +48,33 @@ Widget _buildWidget(
 
 void main() {
   group('ScanResultsSummary', () {
-    testWidgets('shows "no BLE devices detected" when totalBleDevicesSeen is 0',
-        (tester) async {
-      final report = _makeReport(totalBleDevicesSeen: 0);
-      await tester.pumpWidget(_buildWidget(report));
-      await tester.pump();
+    testWidgets(
+      'shows "no BLE devices detected" when totalBleDevicesSeen is 0',
+      (tester) async {
+        final report = _makeReport(totalBleDevicesSeen: 0);
+        await tester.pumpWidget(_buildWidget(report));
+        await tester.pump();
 
-      expect(
-        find.text('No Bluetooth devices were detected at all'),
-        findsOneWidget,
-      );
-    });
+        expect(
+          find.text('No Bluetooth devices were detected at all'),
+          findsOneWidget,
+        );
+      },
+    );
 
     testWidgets(
-        'shows "devices found but none matched" when seen > 0 but no matches',
-        (tester) async {
-      final report = _makeReport(totalBleDevicesSeen: 5);
-      await tester.pumpWidget(_buildWidget(report));
-      await tester.pump();
+      'shows "devices found but none matched" when seen > 0 but no matches',
+      (tester) async {
+        final report = _makeReport(totalBleDevicesSeen: 5);
+        await tester.pumpWidget(_buildWidget(report));
+        await tester.pump();
 
-      expect(
-        find.text('5 BLE devices found, but none matched a Decent machine'),
-        findsOneWidget,
-      );
-    });
+        expect(
+          find.text('5 BLE devices found, but none matched a Decent machine'),
+          findsOneWidget,
+        );
+      },
+    );
 
     testWidgets('shows preferred machine not found message', (tester) async {
       final report = _makeReport(
@@ -170,8 +173,7 @@ void main() {
       expect(called, isTrue);
     });
 
-    testWidgets('tapping Continue to Dashboard calls callback',
-        (tester) async {
+    testWidgets('tapping Continue to Dashboard calls callback', (tester) async {
       var called = false;
       final report = _makeReport();
       await tester.pumpWidget(
@@ -187,52 +189,53 @@ void main() {
     });
 
     testWidgets(
-        'preferred machine message takes priority over generic no-match',
-        (tester) async {
-      // preferredMachineId set, totalBleDevicesSeen > 0, no matches
-      // Should show preferred message, not the generic "X BLE devices found"
-      final report = _makeReport(
-        totalBleDevicesSeen: 3,
-        preferredMachineId: 'abc',
-        matchedDevices: [],
-      );
-      await tester.pumpWidget(_buildWidget(report));
-      await tester.pump();
+      'preferred machine message takes priority over generic no-match',
+      (tester) async {
+        // preferredMachineId set, totalBleDevicesSeen > 0, no matches
+        // Should show preferred message, not the generic "X BLE devices found"
+        final report = _makeReport(
+          totalBleDevicesSeen: 3,
+          preferredMachineId: 'abc',
+          matchedDevices: [],
+        );
+        await tester.pumpWidget(_buildWidget(report));
+        await tester.pump();
 
-      expect(
-        find.text("Your preferred machine wasn't found during the scan"),
-        findsOneWidget,
-      );
-      expect(
-        find.text(
-            '3 BLE devices found, but none matched a Decent machine'),
-        findsNothing,
-      );
-    });
+        expect(
+          find.text("Your preferred machine wasn't found during the scan"),
+          findsOneWidget,
+        );
+        expect(
+          find.text('3 BLE devices found, but none matched a Decent machine'),
+          findsNothing,
+        );
+      },
+    );
 
     testWidgets(
-        'connection failure takes priority over preferred machine message',
-        (tester) async {
-      final report = _makeReport(
-        totalBleDevicesSeen: 2,
-        preferredMachineId: 'other-id',
-        matchedDevices: [
-          MatchedDevice(
-            deviceName: 'DE1-Cafe',
-            deviceId: 'id-1',
-            deviceType: DeviceType.machine,
-            connectionAttempted: true,
-            connectionResult: ConnectionResult.failed('Timeout'),
-          ),
-        ],
-      );
-      await tester.pumpWidget(_buildWidget(report));
-      await tester.pump();
+      'connection failure takes priority over preferred machine message',
+      (tester) async {
+        final report = _makeReport(
+          totalBleDevicesSeen: 2,
+          preferredMachineId: 'other-id',
+          matchedDevices: [
+            MatchedDevice(
+              deviceName: 'DE1-Cafe',
+              deviceId: 'id-1',
+              deviceType: DeviceType.machine,
+              connectionAttempted: true,
+              connectionResult: ConnectionResult.failed('Timeout'),
+            ),
+          ],
+        );
+        await tester.pumpWidget(_buildWidget(report));
+        await tester.pump();
 
-      expect(
-        find.text('Found DE1-Cafe but connection failed: Timeout'),
-        findsOneWidget,
-      );
-    });
+        expect(
+          find.text('Found DE1-Cafe but connection failed: Timeout'),
+          findsOneWidget,
+        );
+      },
+    );
   });
 }

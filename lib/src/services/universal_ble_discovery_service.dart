@@ -28,7 +28,7 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
   /// tests (where `Platform.isAndroid` is false) can exercise the
   /// watch path.
   UniversalBleDiscoveryService({bool Function()? watchSupportGate})
-      : _watchSupportGate = watchSupportGate ?? (() => Platform.isAndroid);
+    : _watchSupportGate = watchSupportGate ?? (() => Platform.isAndroid);
 
   final bool Function() _watchSupportGate;
 
@@ -362,7 +362,9 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
     });
 
     if (initialState != AvailabilityState.poweredOn) {
-      log.warning("Bluetooth not supported on this platform, state: ${initialState.name}");
+      log.warning(
+        "Bluetooth not supported on this platform, state: ${initialState.name}",
+      );
     }
   }
 
@@ -598,8 +600,12 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
             'Quick-connect: identity mismatch for $deviceId '
             '(expected ${impl.name}, got model=$model)',
           );
-          try { await device.disconnect(); } catch (_) {}
-          try { await transport.dispose(); } catch (_) {}
+          try {
+            await device.disconnect();
+          } catch (_) {}
+          try {
+            await transport.dispose();
+          } catch (_) {}
           return null;
         }
       }

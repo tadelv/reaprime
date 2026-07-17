@@ -19,8 +19,9 @@ import 'package:rxdart/rxdart.dart';
 class MockDeviceScanner implements DeviceScanner {
   final _deviceSubject = BehaviorSubject<List<Device>>.seeded([]);
   final _scanningSubject = BehaviorSubject<bool>.seeded(false);
-  final _adapterStateSubject =
-      BehaviorSubject<AdapterState>.seeded(AdapterState.unknown);
+  final _adapterStateSubject = BehaviorSubject<AdapterState>.seeded(
+    AdapterState.unknown,
+  );
   final List<Device> _devices = [];
 
   /// Number of times [stopScan] has been called.
@@ -78,8 +79,7 @@ class MockDeviceScanner implements DeviceScanner {
   Stream<bool> get scanningStream => _scanningSubject.stream;
 
   @override
-  Stream<AdapterState> get adapterStateStream =>
-      _adapterStateSubject.stream;
+  Stream<AdapterState> get adapterStateStream => _adapterStateSubject.stream;
 
   @override
   AdapterState get currentAdapterState => _adapterStateSubject.value;

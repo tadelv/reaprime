@@ -62,7 +62,8 @@ void main() {
 
     group('nested multi-line blocks', () {
       test('parses nested block into a map', () {
-        const input = 'settings {\n'
+        const input =
+            'settings {\n'
             '\tbean_brand {Banibeans}\n'
             '\tbean_type {Colombia Huila}\n'
             '}\n';
@@ -74,7 +75,8 @@ void main() {
       });
 
       test('parses numeric array inside nested block', () {
-        const input = 'settings {\n'
+        const input =
+            'settings {\n'
             '\tsome_list {1.0 2.0 3.0}\n'
             '}\n';
         final result = TclParser.parse(input);
@@ -83,7 +85,8 @@ void main() {
       });
 
       test('parses numeric value inside nested block as string', () {
-        const input = 'settings {\n'
+        const input =
+            'settings {\n'
             '\tgrinder_dose_weight {18.5}\n'
             '}\n';
         final result = TclParser.parse(input);
@@ -95,14 +98,16 @@ void main() {
     group('backslash-escaped spaces in keys', () {
       test('unescapes backslash-space in key', () {
         final result = TclParser.parse(
-          r'Niche\ Zero {setting_type numeric small_step 1}' '\n',
+          r'Niche\ Zero {setting_type numeric small_step 1}'
+          '\n',
         );
         expect(result.containsKey('Niche Zero'), isTrue);
       });
 
       test('parses inline block as map when it has key-value pairs', () {
         final result = TclParser.parse(
-          r'Niche\ Zero {setting_type numeric small_step 1 big_step 5}' '\n',
+          r'Niche\ Zero {setting_type numeric small_step 1 big_step 5}'
+          '\n',
         );
         final entry = result['Niche Zero'] as Map;
         expect(entry['setting_type'], equals('numeric'));
@@ -112,7 +117,8 @@ void main() {
 
       test('parses nested braces within inline block', () {
         final result = TclParser.parse(
-          r'Niche\ Zero {setting_type numeric burrs {63mm conical}}' '\n',
+          r'Niche\ Zero {setting_type numeric burrs {63mm conical}}'
+          '\n',
         );
         final entry = result['Niche Zero'] as Map;
         expect(entry['setting_type'], equals('numeric'));

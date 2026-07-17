@@ -37,15 +37,17 @@ void main() {
 
     test('differ when stopAtTemperature differs', () {
       final a = SteamSettings(
-          targetTemperature: 150,
-          duration: 50,
-          flow: 2.1,
-          stopAtTemperature: 65.0);
+        targetTemperature: 150,
+        duration: 50,
+        flow: 2.1,
+        stopAtTemperature: 65.0,
+      );
       final b = SteamSettings(
-          targetTemperature: 150,
-          duration: 50,
-          flow: 2.1,
-          stopAtTemperature: 70.0);
+        targetTemperature: 150,
+        duration: 50,
+        flow: 2.1,
+        stopAtTemperature: 70.0,
+      );
       expect(a, isNot(equals(b)));
     });
 
@@ -57,10 +59,11 @@ void main() {
 
     test('stopAtTemperature survives fromJson round-trip', () {
       final original = SteamSettings(
-          targetTemperature: 150,
-          duration: 50,
-          flow: 2.1,
-          stopAtTemperature: 65.0);
+        targetTemperature: 150,
+        duration: 50,
+        flow: 2.1,
+        stopAtTemperature: 65.0,
+      );
       final roundTrip = SteamSettings.fromJson(original.toJson());
       expect(roundTrip.stopAtTemperature, equals(65.0));
       expect(original, equals(roundTrip));
@@ -78,33 +81,46 @@ void main() {
 
     test('copyWith preserves and overrides stopAtTemperature', () {
       final base = SteamSettings(
-          targetTemperature: 150,
-          duration: 50,
-          flow: 2.1,
-          stopAtTemperature: 65.0);
+        targetTemperature: 150,
+        duration: 50,
+        flow: 2.1,
+        stopAtTemperature: 65.0,
+      );
       expect(base.copyWith().stopAtTemperature, equals(65.0));
-      expect(base.copyWith(stopAtTemperature: 0.0).stopAtTemperature,
-          equals(0.0));
+      expect(
+        base.copyWith(stopAtTemperature: 0.0).stopAtTemperature,
+        equals(0.0),
+      );
     });
   });
 
   group('HotWaterData equality', () {
     test('equal by value', () {
       final a = HotWaterData(
-          targetTemperature: 75, duration: 30, volume: 50, flow: 10);
+        targetTemperature: 75,
+        duration: 30,
+        volume: 50,
+        flow: 10,
+      );
       final b = HotWaterData(
-          targetTemperature: 75, duration: 30, volume: 50, flow: 10);
+        targetTemperature: 75,
+        duration: 30,
+        volume: 50,
+        flow: 10,
+      );
       expect(a, equals(b));
       expect(a.hashCode, equals(b.hashCode));
     });
 
     test('differ when any field differs', () {
       final base = HotWaterData(
-          targetTemperature: 75, duration: 30, volume: 50, flow: 10);
-      expect(base,
-          isNot(equals(base.copyWith(duration: 31))));
-      expect(base,
-          isNot(equals(base.copyWith(targetTemperature: 76))));
+        targetTemperature: 75,
+        duration: 30,
+        volume: 50,
+        flow: 10,
+      );
+      expect(base, isNot(equals(base.copyWith(duration: 31))));
+      expect(base, isNot(equals(base.copyWith(targetTemperature: 76))));
       expect(base, isNot(equals(base.copyWith(volume: 51))));
       expect(base, isNot(equals(base.copyWith(flow: 9.9))));
     });
@@ -132,37 +148,48 @@ void main() {
 
     test('steamSettings equality survives fromJson round-trip', () {
       final original = SteamSettings(
-          targetTemperature: 150, duration: 50, flow: 2.1);
+        targetTemperature: 150,
+        duration: 50,
+        flow: 2.1,
+      );
       final roundTrip = SteamSettings.fromJson(original.toJson());
       expect(original, equals(roundTrip));
     });
 
     test('hotWaterData equality survives fromJson round-trip', () {
       final original = HotWaterData(
-          targetTemperature: 75, duration: 30, volume: 50, flow: 10.0);
+        targetTemperature: 75,
+        duration: 30,
+        volume: 50,
+        flow: 10.0,
+      );
       final roundTrip = HotWaterData.fromJson(original.toJson());
       expect(original, equals(roundTrip));
     });
 
     test('rinseData equality survives fromJson round-trip', () {
-      final original =
-          RinseData(targetTemperature: 90, duration: 10, flow: 6.0);
+      final original = RinseData(
+        targetTemperature: 90,
+        duration: 10,
+        flow: 6.0,
+      );
       final roundTrip = RinseData.fromJson(original.toJson());
       expect(original, equals(roundTrip));
     });
 
     test(
-        'default workflow fields equal to a freshly-constructed workflow with the same settings',
-        () {
-      final controller = WorkflowController();
-      final wf = controller.currentWorkflow;
-      // Re-deserialize via toJson round-trip (what WorkflowHandler does
-      // on every PUT).
-      final roundTrip = Workflow.fromJson(wf.toJson());
-      expect(wf.steamSettings, equals(roundTrip.steamSettings));
-      expect(wf.hotWaterData, equals(roundTrip.hotWaterData));
-      expect(wf.rinseData, equals(roundTrip.rinseData));
-    });
+      'default workflow fields equal to a freshly-constructed workflow with the same settings',
+      () {
+        final controller = WorkflowController();
+        final wf = controller.currentWorkflow;
+        // Re-deserialize via toJson round-trip (what WorkflowHandler does
+        // on every PUT).
+        final roundTrip = Workflow.fromJson(wf.toJson());
+        expect(wf.steamSettings, equals(roundTrip.steamSettings));
+        expect(wf.hotWaterData, equals(roundTrip.hotWaterData));
+        expect(wf.rinseData, equals(roundTrip.rinseData));
+      },
+    );
   });
 
   group('Profile equality + JSON round-trip', () {
@@ -202,10 +229,14 @@ void main() {
         tankTemperature: 0,
       );
       final rt = Profile.fromJson(p.toJson());
-      expect(rt.notes, equals(p.notes),
-          reason: 'toJson must not escape \\n without fromJson unescaping '
-              'it — the WorkflowHandler profile guard relies on '
-              'round-trip equality');
+      expect(
+        rt.notes,
+        equals(p.notes),
+        reason:
+            'toJson must not escape \\n without fromJson unescaping '
+            'it — the WorkflowHandler profile guard relies on '
+            'round-trip equality',
+      );
       expect(rt, equals(p));
     });
   });

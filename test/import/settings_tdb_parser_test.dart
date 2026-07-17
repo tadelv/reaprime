@@ -75,23 +75,45 @@ screen_saver_delay 30
 
       test('screen_saver_delay snaps to nearest valid option (minutes)', () {
         // 2 min → snaps to 0
-        expect(SettingsTdbParser.parse('screen_saver_delay 2\n')
-            .sleepTimeoutMinutes, 0);
+        expect(
+          SettingsTdbParser.parse('screen_saver_delay 2\n').sleepTimeoutMinutes,
+          0,
+        );
         // 10 min → snaps to 15
-        expect(SettingsTdbParser.parse('screen_saver_delay 10\n')
-            .sleepTimeoutMinutes, 15);
+        expect(
+          SettingsTdbParser.parse(
+            'screen_saver_delay 10\n',
+          ).sleepTimeoutMinutes,
+          15,
+        );
         // 50 min → snaps to 45
-        expect(SettingsTdbParser.parse('screen_saver_delay 50\n')
-            .sleepTimeoutMinutes, 45);
+        expect(
+          SettingsTdbParser.parse(
+            'screen_saver_delay 50\n',
+          ).sleepTimeoutMinutes,
+          45,
+        );
         // 118 min → snaps to 120
-        expect(SettingsTdbParser.parse('screen_saver_delay 118\n')
-            .sleepTimeoutMinutes, 120);
+        expect(
+          SettingsTdbParser.parse(
+            'screen_saver_delay 118\n',
+          ).sleepTimeoutMinutes,
+          120,
+        );
         // 180 min → snaps to 180
-        expect(SettingsTdbParser.parse('screen_saver_delay 180\n')
-            .sleepTimeoutMinutes, 180);
+        expect(
+          SettingsTdbParser.parse(
+            'screen_saver_delay 180\n',
+          ).sleepTimeoutMinutes,
+          180,
+        );
         // 250 min → snaps to 180 (max)
-        expect(SettingsTdbParser.parse('screen_saver_delay 250\n')
-            .sleepTimeoutMinutes, 180);
+        expect(
+          SettingsTdbParser.parse(
+            'screen_saver_delay 250\n',
+          ).sleepTimeoutMinutes,
+          180,
+        );
       });
 
       test('screen_saver_delay of 0 snaps to 0 (disabled)', () {
@@ -173,26 +195,22 @@ water_volume 200
 
     group('charging mode', () {
       test('smart_battery_charging 0 → disabled', () {
-        final result =
-            SettingsTdbParser.parse('smart_battery_charging 0\n');
+        final result = SettingsTdbParser.parse('smart_battery_charging 0\n');
         expect(result.chargingMode, ChargingMode.disabled);
       });
 
       test('smart_battery_charging 1 → longevity', () {
-        final result =
-            SettingsTdbParser.parse('smart_battery_charging 1\n');
+        final result = SettingsTdbParser.parse('smart_battery_charging 1\n');
         expect(result.chargingMode, ChargingMode.longevity);
       });
 
       test('smart_battery_charging 2 → highAvailability', () {
-        final result =
-            SettingsTdbParser.parse('smart_battery_charging 2\n');
+        final result = SettingsTdbParser.parse('smart_battery_charging 2\n');
         expect(result.chargingMode, ChargingMode.highAvailability);
       });
 
       test('unknown value returns null (leave Bridge setting untouched)', () {
-        final result =
-            SettingsTdbParser.parse('smart_battery_charging 99\n');
+        final result = SettingsTdbParser.parse('smart_battery_charging 99\n');
         expect(result.chargingMode, isNull);
       });
 
@@ -202,8 +220,7 @@ water_volume 200
       });
 
       test('chargingMode alone makes isEmpty false', () {
-        final result =
-            SettingsTdbParser.parse('smart_battery_charging 0\n');
+        final result = SettingsTdbParser.parse('smart_battery_charging 0\n');
         expect(result.isEmpty, false);
       });
     });

@@ -41,8 +41,9 @@ class TclShotParser {
 
     // --- Minimal profile ---
     final profileTitle = _str(settings['profile_title']) ?? '';
-    final profileTargetWeight =
-        _parseOptDouble(settings['final_desired_shot_weight']);
+    final profileTargetWeight = _parseOptDouble(
+      settings['final_desired_shot_weight'],
+    );
     final profile = Profile(
       version: '2',
       title: profileTitle,
@@ -59,7 +60,8 @@ class TclShotParser {
     final doseWeight = _parseOptDouble(settings['grinder_dose_weight']);
     final actualYield = _parseOptDouble(settings['drink_weight']);
     // Target yield: DYE's target_drink_weight → profile's target_weight → actual
-    final targetYield = _parseOptDouble(settings['target_drink_weight']) ??
+    final targetYield =
+        _parseOptDouble(settings['target_drink_weight']) ??
         profileTargetWeight ??
         actualYield;
     final tds = _parseOptDouble(settings['drink_tds']);

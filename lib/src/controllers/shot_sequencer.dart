@@ -372,8 +372,7 @@ class ShotSequencer {
       _emitDecision(
         ShotDecisionKind.terminal,
         ShotDecisionReason.error,
-        details:
-            'Machine entered error state (${machine.state.substate.name})',
+        details: 'Machine entered error state (${machine.state.substate.name})',
         data: {'substate': machine.state.substate.name},
       );
       _volumeCountingActive = false;
@@ -539,10 +538,8 @@ class ShotSequencer {
             ShotDecisionKind.stop,
             reason,
             details: switch (reason) {
-              ShotDecisionReason.apiStop =>
-                'Shot stopped via REST API request',
-              ShotDecisionReason.appStop =>
-                'Shot stopped from the app UI',
+              ShotDecisionReason.apiStop => 'Shot stopped via REST API request',
+              ShotDecisionReason.appStop => 'Shot stopped from the app UI',
               _ =>
                 'Machine reported shot end '
                     '(${machine.state.substate.name})',
@@ -766,8 +763,3 @@ class ShotSequencer {
 // ShotState, ShotDecision, ShotDecisionKind and ShotDecisionReason moved to
 // lib/src/models/data/shot_state_event.dart (re-exported above) when the
 // decision stream gained wire serialization for /ws/v1/machine/shotState.
-
-
-
-
-

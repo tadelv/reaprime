@@ -35,9 +35,9 @@ class LogsHandler {
     required String logFilePath,
     int defaultTailKb = LogsHandler.defaultTailKb,
     int maxTailKb = LogsHandler.maxTailKb,
-  })  : _logFilePath = logFilePath,
-        _defaultTailBytes = defaultTailKb * 1024,
-        _maxTailBytes = maxTailKb * 1024;
+  }) : _logFilePath = logFilePath,
+       _defaultTailBytes = defaultTailKb * 1024,
+       _maxTailBytes = maxTailKb * 1024;
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/logs', _handleGetLogs);
@@ -138,8 +138,10 @@ class LogsHandler {
   Future<String> _readSegments(List<_FileSegment> segments) async {
     final buffer = BytesBuilder(copy: false);
     for (final segment in segments) {
-      await for (final chunk
-          in segment.file.openRead(segment.start, segment.end)) {
+      await for (final chunk in segment.file.openRead(
+        segment.start,
+        segment.end,
+      )) {
         buffer.add(chunk);
       }
     }

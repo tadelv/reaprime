@@ -438,48 +438,51 @@ void main() {
       });
     });
 
-    test('sleep countdown restarts when a shot ends, not from the last heartbeat', () {
-      fakeAsync((async) {
-        settingsController.setSleepTimeoutMinutes(5);
-        async.flushMicrotasks();
+    test(
+      'sleep countdown restarts when a shot ends, not from the last heartbeat',
+      () {
+        fakeAsync((async) {
+          settingsController.setSleepTimeoutMinutes(5);
+          async.flushMicrotasks();
 
-        final controller = PresenceController(
-          de1Controller: de1Controller,
-          settingsController: settingsController,
-          clock: () => clock.now(),
-        );
-        controller.initialize();
-        de1Controller.setDe1(testDe1);
-        async.flushMicrotasks();
+          final controller = PresenceController(
+            de1Controller: de1Controller,
+            settingsController: settingsController,
+            clock: () => clock.now(),
+          );
+          controller.initialize();
+          de1Controller.setDe1(testDe1);
+          async.flushMicrotasks();
 
-        controller.heartbeat();
-        async.flushMicrotasks();
+          controller.heartbeat();
+          async.flushMicrotasks();
 
-        // A hands-off pull that begins and ends well within the timeout window,
-        // with no further heartbeats (the user never touches the screen).
-        async.elapse(const Duration(minutes: 1));
-        testDe1.emitState(MachineState.espresso);
-        async.flushMicrotasks();
-        async.elapse(const Duration(minutes: 1));
-        testDe1.emitState(MachineState.idle);
-        async.flushMicrotasks();
+          // A hands-off pull that begins and ends well within the timeout window,
+          // with no further heartbeats (the user never touches the screen).
+          async.elapse(const Duration(minutes: 1));
+          testDe1.emitState(MachineState.espresso);
+          async.flushMicrotasks();
+          async.elapse(const Duration(minutes: 1));
+          testDe1.emitState(MachineState.idle);
+          async.flushMicrotasks();
 
-        // Past the ORIGINAL heartbeat-anchored timeout (5m after the heartbeat):
-        // must NOT sleep, because the shot ending restarted the countdown.
-        async.elapse(const Duration(minutes: 3, seconds: 30));
-        expect(
-          testDe1.requestedStates.where((s) => s == MachineState.sleeping),
-          isEmpty,
-          reason: 'Shot end should have restarted the sleep countdown',
-        );
+          // Past the ORIGINAL heartbeat-anchored timeout (5m after the heartbeat):
+          // must NOT sleep, because the shot ending restarted the countdown.
+          async.elapse(const Duration(minutes: 3, seconds: 30));
+          expect(
+            testDe1.requestedStates.where((s) => s == MachineState.sleeping),
+            isEmpty,
+            reason: 'Shot end should have restarted the sleep countdown',
+          );
 
-        // A full timeout after the shot ended: now it sleeps.
-        async.elapse(const Duration(minutes: 2));
-        expect(testDe1.requestedStates, contains(MachineState.sleeping));
+          // A full timeout after the shot ended: now it sleeps.
+          async.elapse(const Duration(minutes: 2));
+          expect(testDe1.requestedStates, contains(MachineState.sleeping));
 
-        controller.dispose();
-      });
-    });
+          controller.dispose();
+        });
+      },
+    );
   });
 
   group('scheduled wake', () {

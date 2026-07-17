@@ -40,8 +40,10 @@ void main() {
   }) async {
     final deviceController = DeviceController([MockDeviceDiscoveryService()]);
     await deviceController.initialize();
-    final controller =
-        _FixedDe1Controller(controller: deviceController, device: MockDe1());
+    final controller = _FixedDe1Controller(
+      controller: deviceController,
+      device: MockDe1(),
+    );
 
     final mockSettings = MockSettingsService();
     await mockSettings.setBlockOnNoScale(blockOnNoScale);
@@ -54,8 +56,9 @@ void main() {
     final workflowController = WorkflowController();
     if (cleaningProfile) {
       workflowController.updateWorkflow(
-        profile: workflowController.currentWorkflow.profile
-            .copyWith(beverageType: BeverageType.cleaning),
+        profile: workflowController.currentWorkflow.profile.copyWith(
+          beverageType: BeverageType.cleaning,
+        ),
       );
     }
 
@@ -71,9 +74,8 @@ void main() {
   }
 
   Future<Response> requestEspresso() async => await handler(
-        Request('PUT',
-            Uri.parse('http://localhost/api/v1/machine/state/espresso')),
-      );
+    Request('PUT', Uri.parse('http://localhost/api/v1/machine/state/espresso')),
+  );
 
   // The general blockOnNoScale matrix (scale connected / setting off / other
   // states) lives in de1handler_settings_reset_test.dart. This file covers the
@@ -81,19 +83,27 @@ void main() {
   group('PUT /api/v1/machine/state/espresso — cleaning profile carve-out', () {
     test('still blocks a normal espresso profile with no scale', () async {
       await wire(
-          blockOnNoScale: true, scaleConnected: false, cleaningProfile: false);
+        blockOnNoScale: true,
+        scaleConnected: false,
+        cleaningProfile: false,
+      );
       final res = await requestEspresso();
       expect(res.statusCode, 400);
       final body = jsonDecode(await res.readAsString());
       expect(body['type'], 'block_no_scale');
     });
 
-    test('allows a cleaning profile with no scale (no yield to weigh)',
-        () async {
-      await wire(
-          blockOnNoScale: true, scaleConnected: false, cleaningProfile: true);
-      final res = await requestEspresso();
-      expect(res.statusCode, 200);
-    });
+    test(
+      'allows a cleaning profile with no scale (no yield to weigh)',
+      () async {
+        await wire(
+          blockOnNoScale: true,
+          scaleConnected: false,
+          cleaningProfile: true,
+        );
+        final res = await requestEspresso();
+        expect(res.statusCode, 200);
+      },
+    );
   });
 }

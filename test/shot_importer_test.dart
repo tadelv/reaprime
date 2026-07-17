@@ -228,7 +228,9 @@ void main() {
 
       expect(
         () => importer.importShotJson(invalidJson),
-        throwsA(anything), // Will throw TypeError or other error for missing fields
+        throwsA(
+          anything,
+        ), // Will throw TypeError or other error for missing fields
       );
     });
   });
@@ -387,18 +389,23 @@ void main() {
       );
     });
 
-    test('should throw FormatException when array contains non-objects', () async {
-      const invalidJson = '["string", 123, true]';
+    test(
+      'should throw FormatException when array contains non-objects',
+      () async {
+        const invalidJson = '["string", 123, true]';
 
-      expect(
-        () => importer.importShotsJson(invalidJson),
-        throwsA(isA<FormatException>()),
-      );
-    });
+        expect(
+          () => importer.importShotsJson(invalidJson),
+          throwsA(isA<FormatException>()),
+        );
+      },
+    );
 
     // Uses legacy doseData format to exercise migration-on-read path.
-    test('should throw FormatException when array contains mixed valid and invalid items', () async {
-      const invalidJson = '''
+    test(
+      'should throw FormatException when array contains mixed valid and invalid items',
+      () async {
+        const invalidJson = '''
       [
         {
           "id": "shot-1",
@@ -460,11 +467,12 @@ void main() {
       ]
       ''';
 
-      expect(
-        () => importer.importShotsJson(invalidJson),
-        throwsA(isA<FormatException>()),
-      );
-    });
+        expect(
+          () => importer.importShotsJson(invalidJson),
+          throwsA(isA<FormatException>()),
+        );
+      },
+    );
   });
 
   group('ShotImporter - Edge Cases', () {
@@ -547,63 +555,62 @@ void main() {
     });
 
     test('should return correct count for large batch import', () async {
-      final largeArray = List.generate(100, (i) => {
-        "id": "shot-$i",
-        "timestamp": "2024-01-15T10:30:00.000Z",
-        "measurements": [],
-        "workflow": {
-          "id": "workflow-$i",
-          "name": "Workflow $i",
-          "description": "Test",
-          "profile": {
-            "title": "Profile $i",
-            "author": "Test",
-            "notes": "",
-            "beverage_type": "espresso",
-            "steps": [
-            {
-              "name": "pour",
-              "pump": "pressure",
-              "transition": "fast",
+      final largeArray = List.generate(
+        100,
+        (i) => {
+          "id": "shot-$i",
+          "timestamp": "2024-01-15T10:30:00.000Z",
+          "measurements": [],
+          "workflow": {
+            "id": "workflow-$i",
+            "name": "Workflow $i",
+            "description": "Test",
+            "profile": {
+              "title": "Profile $i",
+              "author": "Test",
+              "notes": "",
+              "beverage_type": "espresso",
+              "steps": [
+                {
+                  "name": "pour",
+                  "pump": "pressure",
+                  "transition": "fast",
+                  "volume": 100,
+                  "seconds": 30,
+                  "temperature": 93,
+                  "sensor": "coffee",
+                  "pressure": 9,
+                },
+              ],
+              "tank_temperature": 0.0,
+              "target_weight": 36.0,
+              "target_volume": 0,
+              "target_volume_count_start": 0,
+              "legacy_profile_type": "",
+              "type": "advanced",
+              "lang": "en",
+              "hidden": false,
+              "reference_file": "",
+              "changes_since_last_espresso": "",
+              "version": "2",
+            },
+            // Uses legacy doseData format to exercise migration-on-read path.
+            "doseData": {"doseIn": 18.0, "doseOut": 36.0},
+            "steamSettings": {
+              "targetTemperature": 150,
+              "duration": 50,
+              "flow": 0.8,
+            },
+            "hotWaterData": {
+              "targetTemperature": 90,
+              "duration": 15,
               "volume": 100,
-              "seconds": 30,
-              "temperature": 93,
-              "sensor": "coffee",
-              "pressure": 9
-            }
-          ],
-            "tank_temperature": 0.0,
-            "target_weight": 36.0,
-            "target_volume": 0,
-            "target_volume_count_start": 0,
-            "legacy_profile_type": "",
-            "type": "advanced",
-            "lang": "en",
-            "hidden": false,
-            "reference_file": "",
-            "changes_since_last_espresso": "",
-            "version": "2"
+              "flow": 4.0,
+            },
+            "rinseData": {"targetTemperature": 90, "duration": 10, "flow": 6.0},
           },
-          // Uses legacy doseData format to exercise migration-on-read path.
-          "doseData": {"doseIn": 18.0, "doseOut": 36.0},
-          "steamSettings": {
-            "targetTemperature": 150,
-            "duration": 50,
-            "flow": 0.8
-          },
-          "hotWaterData": {
-            "targetTemperature": 90,
-            "duration": 15,
-            "volume": 100,
-            "flow": 4.0
-          },
-          "rinseData": {
-            "targetTemperature": 90,
-            "duration": 10,
-            "flow": 6.0
-          }
-        }
-      });
+        },
+      );
 
       final largeJson = jsonEncode(largeArray);
       final count = await importer.importShotsJson(largeJson);

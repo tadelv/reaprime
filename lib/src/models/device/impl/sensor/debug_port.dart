@@ -41,7 +41,7 @@ class DebugPort implements Sensor {
   TransportType get transportType => _transport.transportType;
 
   @override
-  disconnect() async { 
+  disconnect() async {
     _connectionSubject.add(ConnectionState.disconnected);
     _transportSubscription.cancel();
     await _transport.disconnect();
@@ -113,7 +113,6 @@ class DebugPort implements Sensor {
   String _buffer = "";
 
   void onData(String data) {
-
     final split = data.split('\n');
     if (split.length == 1) {
       _buffer += split.first;

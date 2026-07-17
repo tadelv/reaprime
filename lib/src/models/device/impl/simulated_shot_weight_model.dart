@@ -38,8 +38,7 @@ class SimulatedShotWeightModel {
   bool _inShot = false;
   DateTime? _lastSampleTime;
 
-  double get _gross =>
-      _settledWeight + max(0.0, _shotVolume - firstDropsMl);
+  double get _gross => _settledWeight + max(0.0, _shotVolume - firstDropsMl);
 
   /// Current (tared) scale reading in grams. Never decreases mid-shot.
   double get weight => _gross - _tareOffset;

@@ -60,10 +60,14 @@ class SerialReconcilePlan {
     required this.suppressAdd,
     required this.suppressRemove,
     required this.hdsForget,
-  })  : assert(release.intersection(reap).isEmpty,
-            'a released path must not also be reaped'),
-        assert(suppressAdd.intersection(suppressRemove).isEmpty,
-            'suppressAdd and suppressRemove must be disjoint (add wins)');
+  }) : assert(
+         release.intersection(reap).isEmpty,
+         'a released path must not also be reaped',
+       ),
+       assert(
+         suppressAdd.intersection(suppressRemove).isEmpty,
+         'suppressAdd and suppressRemove must be disjoint (add wins)',
+       );
 }
 
 /// Decide the pre-probe reconcile transition.
@@ -148,11 +152,10 @@ Set<String> hdsResuppressionPaths({
   required Set<String> hdsPaths,
   required Set<String> presentPorts,
   required Set<String> trackedPaths,
-}) =>
-    {
-      for (final p in hdsPaths)
-        if (presentPorts.contains(p) && !trackedPaths.contains(p)) p,
-    };
+}) => {
+  for (final p in hdsPaths)
+    if (presentPorts.contains(p) && !trackedPaths.contains(p)) p,
+};
 
 /// Whether the tracked device set changed since the last emission — steady-state
 /// timer reconciles with no change stay silent.

@@ -53,9 +53,11 @@ class BootTiming {
     final t = telemetry;
     if (t != null) {
       unawaited(
-        t.recordTrace('cold_boot', metrics).catchError(
-          (Object e) => _log.warning('boot trace failed: $e'),
-        ),
+        t
+            .recordTrace('cold_boot', metrics)
+            .catchError(
+              (Object e) => _log.warning('boot trace failed: $e'),
+            ),
       );
     }
   }

@@ -5,8 +5,11 @@ class HotWaterForm extends StatefulWidget {
   final Function(HotWaterFormSettings) apply;
   final HotWaterFormSettings hotWaterSettings;
 
-  const HotWaterForm(
-      {super.key, required this.apply, required this.hotWaterSettings});
+  const HotWaterForm({
+    super.key,
+    required this.apply,
+    required this.hotWaterSettings,
+  });
 
   @override
   State<StatefulWidget> createState() => _HotWaterFormState();
@@ -97,7 +100,8 @@ class _HotWaterFormState extends State<HotWaterForm> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                    "Flow rate: ${hotWaterSettings.flow.toStringAsFixed(1)} ml/s"),
+                  "Flow rate: ${hotWaterSettings.flow.toStringAsFixed(1)} ml/s",
+                ),
                 ShadSlider(
                   initialValue: hotWaterSettings.flow.toDouble(),
                   min: 1.0,
@@ -118,7 +122,7 @@ class _HotWaterFormState extends State<HotWaterForm> {
             onPressed: () {
               widget.apply(hotWaterSettings);
             },
-          )
+          ),
         ],
       ),
     );

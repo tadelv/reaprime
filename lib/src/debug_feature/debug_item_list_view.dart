@@ -99,7 +99,11 @@ class DebugItemListView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.radar, size: 48, color: theme.colorScheme.mutedForeground),
+            Icon(
+              LucideIcons.radar,
+              size: 48,
+              color: theme.colorScheme.mutedForeground,
+            ),
             const SizedBox(height: 16),
             Text(
               'No devices discovered',
@@ -121,7 +125,11 @@ class DebugItemListView extends StatelessWidget {
     final machines = devices.whereType<De1Interface>().toList();
     final scales = devices.whereType<Scale>().toList();
     final sensors = devices
-        .where((d) => d.type != dev.DeviceType.machine && d.type != dev.DeviceType.scale)
+        .where(
+          (d) =>
+              d.type != dev.DeviceType.machine &&
+              d.type != dev.DeviceType.scale,
+        )
         .toList();
 
     return ListView(
@@ -136,7 +144,9 @@ class DebugItemListView extends StatelessWidget {
         ],
         if (sensors.isNotEmpty) ...[
           _buildSectionHeader(context, 'Sensors'),
-          ...sensors.map((s) => _buildDeviceRow(context, s, showConnect: false)),
+          ...sensors.map(
+            (s) => _buildDeviceRow(context, s, showConnect: false),
+          ),
         ],
       ],
     );

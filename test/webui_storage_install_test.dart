@@ -34,20 +34,21 @@ void main() {
     Directory makeSkinSource(String version) {
       final dir = Directory('${tmpRoot.path}/src_$version');
       dir.createSync(recursive: true);
-      File('${dir.path}/skin-manifest.json').writeAsStringSync(jsonEncode({
-        'id': 'test.skin',
-        'name': 'Test Skin',
-        'version': version,
-      }));
+      File('${dir.path}/skin-manifest.json').writeAsStringSync(
+        jsonEncode({
+          'id': 'test.skin',
+          'name': 'Test Skin',
+          'version': version,
+        }),
+      );
       File('${dir.path}/index.html').writeAsStringSync('<html>$version</html>');
       return dir;
     }
 
     String installedVersion() {
-      final manifest =
-          File('${webUIDir.path}/test.skin/skin-manifest.json');
-      final json = jsonDecode(manifest.readAsStringSync())
-          as Map<String, dynamic>;
+      final manifest = File('${webUIDir.path}/test.skin/skin-manifest.json');
+      final json =
+          jsonDecode(manifest.readAsStringSync()) as Map<String, dynamic>;
       return json['version'] as String;
     }
 

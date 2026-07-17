@@ -30,7 +30,8 @@ void main() {
     });
 
     test('github_pat token round-trip', () {
-      const token = 'github_pat_11ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+      const token =
+          'github_pat_11ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
       final encoded = rot13(token);
       // Should be different from original
       expect(encoded, isNot(token));

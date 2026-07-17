@@ -81,17 +81,18 @@ void main() {
     });
 
     test(
-        'preferred set but not discovered + other machines present → picker',
-        () {
-      // Early-connect would have handled the happy "preferred found"
-      // path; reaching here with a non-empty list means the preferred
-      // id wasn't among them.
-      final result = resolveMachinePolicy(
-        machines: [_FakeDe1('other')],
-        preferredMachineId: 'pref',
-      );
-      expect(result, isA<MachinePickerAction>());
-    });
+      'preferred set but not discovered + other machines present → picker',
+      () {
+        // Early-connect would have handled the happy "preferred found"
+        // path; reaching here with a non-empty list means the preferred
+        // id wasn't among them.
+        final result = resolveMachinePolicy(
+          machines: [_FakeDe1('other')],
+          preferredMachineId: 'pref',
+        );
+        expect(result, isA<MachinePickerAction>());
+      },
+    );
   });
 
   group('resolveScalePolicy', () {

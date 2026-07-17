@@ -11,11 +11,13 @@ void main() {
       expect(m, isA<BengleInterface>());
     });
 
-    test('still implements De1Interface (so existing scan paths consume it)',
-        () {
-      final m = MockBengle();
-      expect(m, isA<De1Interface>());
-    });
+    test(
+      'still implements De1Interface (so existing scan paths consume it)',
+      () {
+        final m = MockBengle();
+        expect(m, isA<De1Interface>());
+      },
+    );
 
     test('extends MockDe1 to reuse the simulated state machine', () {
       final m = MockBengle();

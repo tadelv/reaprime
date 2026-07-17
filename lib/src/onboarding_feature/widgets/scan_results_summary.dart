@@ -169,11 +169,13 @@ class ScanResultsSummary extends StatelessWidget {
 
     // Check for matched device with failed connection
     final failedDevice = report.matchedDevices
-        .where((d) =>
-            d.connectionAttempted &&
-            d.connectionResult != null &&
-            !d.connectionResult!.success &&
-            d.connectionResult!.error != null)
+        .where(
+          (d) =>
+              d.connectionAttempted &&
+              d.connectionResult != null &&
+              !d.connectionResult!.success &&
+              d.connectionResult!.error != null,
+        )
         .firstOrNull;
 
     if (failedDevice != null) {
@@ -186,8 +188,9 @@ class ScanResultsSummary extends StatelessWidget {
 
     // Preferred machine not found
     if (report.preferredMachineId != null &&
-        !report.matchedDevices
-            .any((d) => d.deviceId == report.preferredMachineId)) {
+        !report.matchedDevices.any(
+          (d) => d.deviceId == report.preferredMachineId,
+        )) {
       return (
         LucideIcons.searchX,
         'Preferred Machine Not Found',

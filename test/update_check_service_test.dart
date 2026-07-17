@@ -62,12 +62,12 @@ class _FakeUpdater extends AndroidUpdater {
 }
 
 UpdateInfo _update({String version = '9.9.9'}) => UpdateInfo(
-      version: version,
-      downloadUrl: 'https://example.com/app.apk',
-      releaseNotes: 'shiny',
-      isPrerelease: false,
-      tagName: 'v$version',
-    );
+  version: version,
+  downloadUrl: 'https://example.com/app.apk',
+  releaseNotes: 'shiny',
+  isPrerelease: false,
+  tagName: 'v$version',
+);
 
 void main() {
   late _FakeUpdater updater;
@@ -152,12 +152,15 @@ void main() {
       expect(updater.downloadCalls, 1);
       expect(updater.installCalls, 1);
       expect(svc.currentState.phase, AppUpdatePhase.installing);
-      expect(phases, containsAllInOrder(<AppUpdatePhase>[
-        AppUpdatePhase.checking,
-        AppUpdatePhase.available,
-        AppUpdatePhase.downloading,
-        AppUpdatePhase.installing,
-      ]));
+      expect(
+        phases,
+        containsAllInOrder(<AppUpdatePhase>[
+          AppUpdatePhase.checking,
+          AppUpdatePhase.available,
+          AppUpdatePhase.downloading,
+          AppUpdatePhase.installing,
+        ]),
+      );
 
       await sub.cancel();
       svc.dispose();
@@ -178,8 +181,7 @@ void main() {
       final svc = build();
       updater.nextCheck = _update();
       // 1000 tiny increments, as a per-chunk callback would produce.
-      updater.progressToEmit =
-          List.generate(1000, (i) => (i + 1) / 1000);
+      updater.progressToEmit = List.generate(1000, (i) => (i + 1) / 1000);
 
       final downloadingProgress = <double>[];
       final sub = svc.updateState.listen((s) {

@@ -9,17 +9,25 @@ import 'package:reaprime/src/services/simulated_device_service.dart';
 import 'package:reaprime/src/settings/settings_service.dart';
 
 Profile _pourProfile() => Profile(
-      version: '1.0', title: 'pour', notes: '', author: 'test',
-      beverageType: BeverageType.espresso,
-      targetVolumeCountStart: 0, tankTemperature: 92.0,
-      steps: [
-        ProfileStepFlow(
-          name: 'pour', flow: 4.0, seconds: 30, temperature: 92,
-          sensor: TemperatureSensor.coffee, transition: TransitionType.fast,
-          volume: 0,
-        ),
-      ],
-    );
+  version: '1.0',
+  title: 'pour',
+  notes: '',
+  author: 'test',
+  beverageType: BeverageType.espresso,
+  targetVolumeCountStart: 0,
+  tankTemperature: 92.0,
+  steps: [
+    ProfileStepFlow(
+      name: 'pour',
+      flow: 4.0,
+      seconds: 30,
+      temperature: 92,
+      sensor: TemperatureSensor.coffee,
+      transition: TransitionType.fast,
+      volume: 0,
+    ),
+  ],
+);
 
 void main() {
   group('SimulatedDeviceService', () {
@@ -80,13 +88,19 @@ void main() {
 
       final firstMachine = first.firstWhere((d) => d.deviceId == 'MockDe1');
       final secondMachine = second.firstWhere((d) => d.deviceId == 'MockDe1');
-      expect(identical(firstMachine, secondMachine), isTrue,
-          reason: 'rescan must not replace the existing MockDe1 instance');
+      expect(
+        identical(firstMachine, secondMachine),
+        isTrue,
+        reason: 'rescan must not replace the existing MockDe1 instance',
+      );
 
       final firstScale = first.firstWhere((d) => d.deviceId == 'MockScale');
       final secondScale = second.firstWhere((d) => d.deviceId == 'MockScale');
-      expect(identical(firstScale, secondScale), isTrue,
-          reason: 'rescan must not replace the existing MockScale instance');
+      expect(
+        identical(firstScale, secondScale),
+        isTrue,
+        reason: 'rescan must not replace the existing MockScale instance',
+      );
     });
 
     test('keeps a connected device connected across a rescan', () async {
@@ -106,8 +120,11 @@ void main() {
       await service.scanForDevices();
       final second = await secondEmission;
       final scaleAfter = second.firstWhere((d) => d.deviceId == 'MockScale');
-      expect(await scaleAfter.connectionState.first, ConnectionState.connected,
-          reason: 'rescan replaced the connected scale with a discovered one');
+      expect(
+        await scaleAfter.connectionState.first,
+        ConnectionState.connected,
+        reason: 'rescan replaced the connected scale with a discovered one',
+      );
     });
 
     test('wires MockScale weight to the MockDe1 simulation, even when the '
@@ -127,8 +144,7 @@ void main() {
       await service.scanForDevices();
       final devices = await emission;
 
-      final de1 =
-          devices.firstWhere((d) => d.deviceId == 'MockDe1') as MockDe1;
+      final de1 = devices.firstWhere((d) => d.deviceId == 'MockDe1') as MockDe1;
       final scale =
           devices.firstWhere((d) => d.deviceId == 'MockScale') as MockScale;
 
@@ -137,19 +153,27 @@ void main() {
       await de1.setProfile(_pourProfile());
 
       // Idle machine: the scale must read ~0, not drift upward on its own.
-      final idle = await scale.currentSnapshot.first
-          .timeout(const Duration(seconds: 2));
-      expect(idle.weight.abs(), lessThan(0.2),
-          reason: 'no weight before the shot starts');
+      final idle = await scale.currentSnapshot.first.timeout(
+        const Duration(seconds: 2),
+      );
+      expect(
+        idle.weight.abs(),
+        lessThan(0.2),
+        reason: 'no weight before the shot starts',
+      );
 
       await de1.requestState(MachineState.espresso);
       await Future.delayed(const Duration(seconds: 4));
       await de1.requestState(MachineState.idle);
 
-      final snapshot = await scale.currentSnapshot.first
-          .timeout(const Duration(seconds: 2));
-      expect(snapshot.weight, greaterThan(1.0),
-          reason: 'the simulated scale must follow the simulated shot');
+      final snapshot = await scale.currentSnapshot.first.timeout(
+        const Duration(seconds: 2),
+      );
+      expect(
+        snapshot.weight,
+        greaterThan(1.0),
+        reason: 'the simulated scale must follow the simulated shot',
+      );
 
       scale.simulateDisconnect();
       await de1.disconnect();

@@ -69,8 +69,9 @@ class _ShotChartState extends State<ShotChart> {
               titlesData: _titles(context),
               lineTouchData: _touchData(context),
             ),
-            duration:
-                widget.isLiveShot ? Duration(milliseconds: 300) : Duration.zero,
+            duration: widget.isLiveShot
+                ? Duration(milliseconds: 300)
+                : Duration.zero,
           ),
         ),
       ),
@@ -170,8 +171,8 @@ class _ShotChartState extends State<ShotChart> {
       bottomTitles: AxisTitles(
         sideTitles: SideTitles(
           showTitles: true,
-          getTitlesWidget:
-              (value, meta) => _buildBottomTitle(value, meta, context),
+          getTitlesWidget: (value, meta) =>
+              _buildBottomTitle(value, meta, context),
         ),
       ),
     );
@@ -215,128 +216,118 @@ class _ShotChartState extends State<ShotChart> {
       // Flow (actual)
       LineChartBarData(
         dotData: FlDotData(show: false),
-        spots:
-            widget.shotSnapshots
-                .map(
-                  (e) =>
-                      FlSpot(_timestamp(e.machine.timestamp), e.machine.flow),
-                )
-                .toList(),
+        spots: widget.shotSnapshots
+            .map(
+              (e) => FlSpot(_timestamp(e.machine.timestamp), e.machine.flow),
+            )
+            .toList(),
       ),
       // Pressure (actual)
       LineChartBarData(
         color: Colors.green,
         dotData: FlDotData(show: false),
-        spots:
-            widget.shotSnapshots
-                .map(
-                  (e) => FlSpot(
-                    _timestamp(e.machine.timestamp),
-                    e.machine.pressure,
-                  ),
-                )
-                .toList(),
+        spots: widget.shotSnapshots
+            .map(
+              (e) => FlSpot(
+                _timestamp(e.machine.timestamp),
+                e.machine.pressure,
+              ),
+            )
+            .toList(),
       ),
       // Flow (target)
       LineChartBarData(
         dotData: FlDotData(show: false),
         dashArray: [5, 5],
-        spots:
-            widget.shotSnapshots
-                .map(
-                  (e) => FlSpot(
-                    _timestamp(e.machine.timestamp),
-                    e.machine.targetFlow,
-                  ),
-                )
-                .toList(),
+        spots: widget.shotSnapshots
+            .map(
+              (e) => FlSpot(
+                _timestamp(e.machine.timestamp),
+                e.machine.targetFlow,
+              ),
+            )
+            .toList(),
       ),
       // Pressure (target)
       LineChartBarData(
         color: Colors.green,
         dashArray: [5, 5],
         dotData: FlDotData(show: false),
-        spots:
-            widget.shotSnapshots
-                .map(
-                  (e) => FlSpot(
-                    _timestamp(e.machine.timestamp),
-                    e.machine.targetPressure,
-                  ),
-                )
-                .toList(),
+        spots: widget.shotSnapshots
+            .map(
+              (e) => FlSpot(
+                _timestamp(e.machine.timestamp),
+                e.machine.targetPressure,
+              ),
+            )
+            .toList(),
       ),
       // Group temperature (actual) — right axis scale
       LineChartBarData(
         color: Colors.red,
         dotData: FlDotData(show: false),
-        spots:
-            widget.shotSnapshots
-                .map(
-                  (e) => FlSpot(
-                    _timestamp(e.machine.timestamp),
-                    e.machine.groupTemperature * _tempScale,
-                  ),
-                )
-                .toList(),
+        spots: widget.shotSnapshots
+            .map(
+              (e) => FlSpot(
+                _timestamp(e.machine.timestamp),
+                e.machine.groupTemperature * _tempScale,
+              ),
+            )
+            .toList(),
       ),
       // Mix temperature (actual) — right axis scale
       LineChartBarData(
         color: Colors.orange,
         dotData: FlDotData(show: false),
-        spots:
-            widget.shotSnapshots
-                .map(
-                  (e) => FlSpot(
-                    _timestamp(e.machine.timestamp),
-                    e.machine.mixTemperature * _tempScale,
-                  ),
-                )
-                .toList(),
+        spots: widget.shotSnapshots
+            .map(
+              (e) => FlSpot(
+                _timestamp(e.machine.timestamp),
+                e.machine.mixTemperature * _tempScale,
+              ),
+            )
+            .toList(),
       ),
       // Group temperature (target) — right axis scale
       LineChartBarData(
         color: Colors.red,
         dashArray: [5, 5],
         dotData: FlDotData(show: false),
-        spots:
-            widget.shotSnapshots
-                .map(
-                  (e) => FlSpot(
-                    _timestamp(e.machine.timestamp),
-                    e.machine.targetGroupTemperature * _tempScale,
-                  ),
-                )
-                .toList(),
+        spots: widget.shotSnapshots
+            .map(
+              (e) => FlSpot(
+                _timestamp(e.machine.timestamp),
+                e.machine.targetGroupTemperature * _tempScale,
+              ),
+            )
+            .toList(),
       ),
       // Mix temperature (target) — right axis scale
       LineChartBarData(
         color: Colors.orange,
         dashArray: [5, 5],
         dotData: FlDotData(show: false),
-        spots:
-            widget.shotSnapshots
-                .map(
-                  (e) => FlSpot(
-                    _timestamp(e.machine.timestamp),
-                    e.machine.targetMixTemperature * _tempScale,
-                  ),
-                )
-                .toList(),
+        spots: widget.shotSnapshots
+            .map(
+              (e) => FlSpot(
+                _timestamp(e.machine.timestamp),
+                e.machine.targetMixTemperature * _tempScale,
+              ),
+            )
+            .toList(),
       ),
       // Steam temperature — right axis scale
       LineChartBarData(
         color: Colors.deepOrange,
         dotData: FlDotData(show: false),
-        spots:
-            widget.shotSnapshots
-                .map(
-                  (e) => FlSpot(
-                    _timestamp(e.machine.timestamp),
-                    e.machine.steamTemperature * _tempScale,
-                  ),
-                )
-                .toList(),
+        spots: widget.shotSnapshots
+            .map(
+              (e) => FlSpot(
+                _timestamp(e.machine.timestamp),
+                e.machine.steamTemperature * _tempScale,
+              ),
+            )
+            .toList(),
       ),
       ..._scaleData(),
     ];
@@ -351,26 +342,24 @@ class _ShotChartState extends State<ShotChart> {
         color: Colors.purpleAccent,
         dashArray: [5, 5],
         dotData: FlDotData(show: false),
-        spots:
-            widget.shotSnapshots
-                .map(
-                  (e) => FlSpot(
-                    _timestamp(e.machine.timestamp),
-                    e.scale!.weight / 10.0,
-                  ),
-                )
-                .toList(),
+        spots: widget.shotSnapshots
+            .map(
+              (e) => FlSpot(
+                _timestamp(e.machine.timestamp),
+                e.scale!.weight / 10.0,
+              ),
+            )
+            .toList(),
       ),
       LineChartBarData(
         color: Colors.purple,
         dotData: FlDotData(show: false),
-        spots:
-            widget.shotSnapshots.map((e) {
-              return FlSpot(
-                _timestamp(e.machine.timestamp),
-                e.scale!.weightFlow,
-              );
-            }).toList(),
+        spots: widget.shotSnapshots.map((e) {
+          return FlSpot(
+            _timestamp(e.machine.timestamp),
+            e.scale!.weightFlow,
+          );
+        }).toList(),
       ),
     ];
   }

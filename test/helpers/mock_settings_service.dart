@@ -55,19 +55,24 @@ class MockSettingsService extends SettingsService {
   @override
   Future<String> logLevel() async => _logLevel;
   @override
-  Future<void> updateLogLevel(String newLogLevel) async => _logLevel = newLogLevel;
+  Future<void> updateLogLevel(String newLogLevel) async =>
+      _logLevel = newLogLevel;
   @override
-  Future<Set<SimulatedDevicesTypes>> simulateDevices() async => _simulateDevices;
+  Future<Set<SimulatedDevicesTypes>> simulateDevices() async =>
+      _simulateDevices;
   @override
-  Future<void> setSimulatedDevices(Set<SimulatedDevicesTypes> value) async => _simulateDevices = value;
+  Future<void> setSimulatedDevices(Set<SimulatedDevicesTypes> value) async =>
+      _simulateDevices = value;
   @override
   Future<double> weightFlowMultiplier() async => _weightFlowMultiplier;
   @override
-  Future<void> setWeightFlowMultiplier(double value) async => _weightFlowMultiplier = value;
+  Future<void> setWeightFlowMultiplier(double value) async =>
+      _weightFlowMultiplier = value;
   @override
   Future<double> volumeFlowMultiplier() async => _volumeFlowMultiplier;
   @override
-  Future<void> setVolumeFlowMultiplier(double value) async => _volumeFlowMultiplier = value;
+  Future<void> setVolumeFlowMultiplier(double value) async =>
+      _volumeFlowMultiplier = value;
   @override
   Future<double> hotWaterFlowMultiplier() async => _hotWaterFlowMultiplier;
   @override
@@ -76,7 +81,8 @@ class MockSettingsService extends SettingsService {
   @override
   Future<ScalePowerMode> scalePowerMode() async => _scalePowerMode;
   @override
-  Future<void> setScalePowerMode(ScalePowerMode mode) async => _scalePowerMode = mode;
+  Future<void> setScalePowerMode(ScalePowerMode mode) async =>
+      _scalePowerMode = mode;
   @override
   Future<bool> blockOnNoScale() async => _blockOnNoScale;
   @override
@@ -89,11 +95,13 @@ class MockSettingsService extends SettingsService {
   @override
   Future<String?> preferredMachineId() async => _preferredMachineId;
   @override
-  Future<void> setPreferredMachineId(String? machineId) async => _preferredMachineId = machineId;
+  Future<void> setPreferredMachineId(String? machineId) async =>
+      _preferredMachineId = machineId;
   @override
   Future<String?> preferredScaleId() async => _preferredScaleId;
   @override
-  Future<void> setPreferredScaleId(String? scaleId) async => _preferredScaleId = scaleId;
+  Future<void> setPreferredScaleId(String? scaleId) async =>
+      _preferredScaleId = scaleId;
   @override
   Future<String> defaultSkinId() async => _defaultSkinId;
   @override
@@ -101,28 +109,34 @@ class MockSettingsService extends SettingsService {
   @override
   Future<bool> automaticUpdateCheck() async => _automaticUpdateCheck;
   @override
-  Future<void> setAutomaticUpdateCheck(bool value) async => _automaticUpdateCheck = value;
+  Future<void> setAutomaticUpdateCheck(bool value) async =>
+      _automaticUpdateCheck = value;
   @override
   Future<DateTime?> lastUpdateCheckTime() async => _lastUpdateCheckTime;
   @override
-  Future<void> setLastUpdateCheckTime(DateTime time) async => _lastUpdateCheckTime = time;
+  Future<void> setLastUpdateCheckTime(DateTime time) async =>
+      _lastUpdateCheckTime = time;
   @override
   Future<bool> telemetryConsent() async => _telemetryConsent;
   @override
-  Future<void> setTelemetryConsent(bool value) async => _telemetryConsent = value;
+  Future<void> setTelemetryConsent(bool value) async =>
+      _telemetryConsent = value;
   @override
   Future<bool> telemetryPromptShown() async => _telemetryPromptShown;
   @override
-  Future<void> setTelemetryPromptShown(bool value) async => _telemetryPromptShown = value;
+  Future<void> setTelemetryPromptShown(bool value) async =>
+      _telemetryPromptShown = value;
   @override
-  Future<bool> telemetryConsentDialogShown() async => _telemetryConsentDialogShown;
+  Future<bool> telemetryConsentDialogShown() async =>
+      _telemetryConsentDialogShown;
   @override
   Future<void> setTelemetryConsentDialogShown(bool value) async =>
       _telemetryConsentDialogShown = value;
   @override
   Future<String?> skippedVersion() async => _skippedVersion;
   @override
-  Future<void> setSkippedVersion(String? version) async => _skippedVersion = version;
+  Future<void> setSkippedVersion(String? version) async =>
+      _skippedVersion = version;
   @override
   Future<ChargingMode> chargingMode() async => _chargingMode;
   @override
@@ -130,27 +144,33 @@ class MockSettingsService extends SettingsService {
   @override
   Future<bool> nightModeEnabled() async => _nightModeEnabled;
   @override
-  Future<void> setNightModeEnabled(bool value) async => _nightModeEnabled = value;
+  Future<void> setNightModeEnabled(bool value) async =>
+      _nightModeEnabled = value;
   @override
   Future<int> nightModeSleepTime() async => _nightModeSleepTime;
   @override
-  Future<void> setNightModeSleepTime(int minutes) async => _nightModeSleepTime = minutes;
+  Future<void> setNightModeSleepTime(int minutes) async =>
+      _nightModeSleepTime = minutes;
   @override
   Future<int> nightModeMorningTime() async => _nightModeMorningTime;
   @override
-  Future<void> setNightModeMorningTime(int minutes) async => _nightModeMorningTime = minutes;
+  Future<void> setNightModeMorningTime(int minutes) async =>
+      _nightModeMorningTime = minutes;
   @override
   Future<bool> userPresenceEnabled() async => _userPresenceEnabled;
   @override
-  Future<void> setUserPresenceEnabled(bool value) async => _userPresenceEnabled = value;
+  Future<void> setUserPresenceEnabled(bool value) async =>
+      _userPresenceEnabled = value;
   @override
   Future<int> sleepTimeoutMinutes() async => _sleepTimeoutMinutes;
   @override
-  Future<void> setSleepTimeoutMinutes(int value) async => _sleepTimeoutMinutes = value;
+  Future<void> setSleepTimeoutMinutes(int value) async =>
+      _sleepTimeoutMinutes = value;
   @override
   Future<String> wakeSchedules() async => _wakeSchedules;
   @override
   Future<void> setWakeSchedules(String json) async => _wakeSchedules = json;
+
   /// Number of times [setRememberedDevices] has been called — lets tests assert
   /// that an identical reconnect does not trigger a redundant persist.
   int rememberedDevicesWriteCount = 0;
@@ -168,14 +188,17 @@ class MockSettingsService extends SettingsService {
     }
     _rememberedDevices = json;
   }
+
   @override
   Future<bool> lowBatteryBrightnessLimit() async => _lowBatteryBrightnessLimit;
   @override
-  Future<void> setLowBatteryBrightnessLimit(bool value) async => _lowBatteryBrightnessLimit = value;
+  Future<void> setLowBatteryBrightnessLimit(bool value) async =>
+      _lowBatteryBrightnessLimit = value;
   @override
   Future<bool> onboardingCompleted() async => _onboardingCompleted;
   @override
-  Future<void> setOnboardingCompleted(bool value) async => _onboardingCompleted = value;
+  Future<void> setOnboardingCompleted(bool value) async =>
+      _onboardingCompleted = value;
   @override
   Future<bool> accountStepSeen() async => _accountStepSeen;
   @override
@@ -198,8 +221,7 @@ class MockSettingsService extends SettingsService {
 
   // Feature flags
   @override
-  Future<bool?> featureFlag(FeatureFlag flag) async =>
-      _featureFlags[flag.name];
+  Future<bool?> featureFlag(FeatureFlag flag) async => _featureFlags[flag.name];
   @override
   Future<void> setFeatureFlag(FeatureFlag flag, bool value) async =>
       _featureFlags[flag.name] = value;

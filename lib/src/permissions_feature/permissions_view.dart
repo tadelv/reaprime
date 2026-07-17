@@ -138,11 +138,15 @@ class _PermissionsViewState extends State<PermissionsView> {
       }
     } else {
       try {
-        await UniversalBle.availabilityStream.firstWhere(
-          (e) => e == AvailabilityState.poweredOn,
-        ).timeout(Duration(seconds: 5));
+        await UniversalBle.availabilityStream
+            .firstWhere(
+              (e) => e == AvailabilityState.poweredOn,
+            )
+            .timeout(Duration(seconds: 5));
       } on TimeoutException {
-        _log.warning('Bluetooth availability check timed out, continuing without BLE');
+        _log.warning(
+          'Bluetooth availability check timed out, continuing without BLE',
+        );
       }
     }
 

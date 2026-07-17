@@ -29,9 +29,10 @@ class SensorController {
   StreamSubscription<List<Device>>? _deviceStreamSubscription;
 
   SensorController({required DeviceController controller})
-      : _deviceController = controller {
-    _deviceStreamSubscription =
-        _deviceController.deviceStream.listen(_processDevices);
+    : _deviceController = controller {
+    _deviceStreamSubscription = _deviceController.deviceStream.listen(
+      _processDevices,
+    );
   }
 
   Future<void> _processDevices(List<Device> devices) async {
@@ -74,9 +75,9 @@ class SensorController {
   /// Merged view of bridge-registered + discovered sensors. Bridge
   /// entries take precedence on `deviceId` collisions.
   Map<String, Sensor> get sensors => {
-        ..._discovered,
-        ..._bridgeRegistered,
-      };
+    ..._discovered,
+    ..._bridgeRegistered,
+  };
 
   void dispose() {
     _deviceStreamSubscription?.cancel();

@@ -23,34 +23,38 @@ void main() {
       expect(scale.type, DeviceType.scale);
     });
 
-    test('sends handshake in order and connects on first valid frame',
-        () async {
-      final fake = FakeWebSocketTransport();
-      final scale = HDSWifi(host: 'hds.local', transportFactory: () => fake);
+    test(
+      'sends handshake in order and connects on first valid frame',
+      () async {
+        final fake = FakeWebSocketTransport();
+        final scale = HDSWifi(host: 'hds.local', transportFactory: () => fake);
 
-      final connectFuture = scale.onConnect();
-      // Let connect() + handshake run, then prove recognition.
-      await Future.delayed(const Duration(milliseconds: 10));
-      fake.emit('{"grams":0.0,"ms":1}');
-      await connectFuture;
+        final connectFuture = scale.onConnect();
+        // Let connect() + handshake run, then prove recognition.
+        await Future.delayed(const Duration(milliseconds: 10));
+        fake.emit('{"grams":0.0,"ms":1}');
+        await connectFuture;
 
-      expect(fake.sent.take(3).toList(), ['rate 10k', 'events on', 'status']);
-      expect(await scale.connectionState.first, ConnectionState.connected);
-    });
+        expect(fake.sent.take(3).toList(), ['rate 10k', 'events on', 'status']);
+        expect(await scale.connectionState.first, ConnectionState.connected);
+      },
+    );
 
-    test('recognition timeout fails onConnect and reports disconnected',
-        () async {
-      final fake = FakeWebSocketTransport();
-      final scale = HDSWifi(
-        host: 'hds.local',
-        transportFactory: () => fake,
-        recognitionTimeout: const Duration(milliseconds: 60),
-      );
+    test(
+      'recognition timeout fails onConnect and reports disconnected',
+      () async {
+        final fake = FakeWebSocketTransport();
+        final scale = HDSWifi(
+          host: 'hds.local',
+          transportFactory: () => fake,
+          recognitionTimeout: const Duration(milliseconds: 60),
+        );
 
-      // Never emit a frame → recognition must time out.
-      await expectLater(scale.onConnect(), throwsA(isA<StateError>()));
-      expect(await scale.connectionState.first, ConnectionState.disconnected);
-    });
+        // Never emit a frame → recognition must time out.
+        await expectLater(scale.onConnect(), throwsA(isA<StateError>()));
+        expect(await scale.connectionState.first, ConnectionState.disconnected);
+      },
+    );
 
     test('weight frames produce snapshots; status sets battery', () async {
       final fake = FakeWebSocketTransport();
@@ -61,7 +65,9 @@ void main() {
 
       final connectFuture = scale.onConnect();
       await Future.delayed(const Duration(milliseconds: 10));
-      fake.emit('{"type":"status","battery_percent":42,"charging":false,"grams":0.0}');
+      fake.emit(
+        '{"type":"status","battery_percent":42,"charging":false,"grams":0.0}',
+      );
       await connectFuture;
       fake.emit('{"grams":18.5,"ms":2}');
       await Future.delayed(const Duration(milliseconds: 10));
@@ -101,36 +107,38 @@ void main() {
   });
 
   group('HDSWifi drop handling (ConnectionManager owns reconnect)', () {
-    test('watchdog stall reports disconnected and does NOT self-reconnect',
-        () async {
-      var built = 0;
-      final fake = FakeWebSocketTransport();
-      final scale = HDSWifi(
-        host: 'hds.local',
-        transportFactory: () {
-          built++;
-          return fake;
-        },
-        watchdogInterval: const Duration(milliseconds: 30),
-      );
+    test(
+      'watchdog stall reports disconnected and does NOT self-reconnect',
+      () async {
+        var built = 0;
+        final fake = FakeWebSocketTransport();
+        final scale = HDSWifi(
+          host: 'hds.local',
+          transportFactory: () {
+            built++;
+            return fake;
+          },
+          watchdogInterval: const Duration(milliseconds: 30),
+        );
 
-      final states = <ConnectionState>[];
-      final sub = scale.connectionState.listen(states.add);
+        final states = <ConnectionState>[];
+        final sub = scale.connectionState.listen(states.add);
 
-      final connectFuture = scale.onConnect();
-      await Future.delayed(const Duration(milliseconds: 10));
-      fake.emit('{"grams":1.0}');
-      await connectFuture;
-      expect(states.last, ConnectionState.connected);
-      expect(built, 1);
+        final connectFuture = scale.onConnect();
+        await Future.delayed(const Duration(milliseconds: 10));
+        fake.emit('{"grams":1.0}');
+        await connectFuture;
+        expect(states.last, ConnectionState.connected);
+        expect(built, 1);
 
-      // Stop feeding frames → watchdog stalls (2 * 30ms) → reports disconnected.
-      await Future.delayed(const Duration(milliseconds: 120));
-      expect(states.last, ConnectionState.disconnected);
-      expect(fake.disconnectCalled, isTrue);
-      expect(built, 1, reason: 'scale must not build a new transport itself');
-      await sub.cancel();
-    });
+        // Stop feeding frames → watchdog stalls (2 * 30ms) → reports disconnected.
+        await Future.delayed(const Duration(milliseconds: 120));
+        expect(states.last, ConnectionState.disconnected);
+        expect(fake.disconnectCalled, isTrue);
+        expect(built, 1, reason: 'scale must not build a new transport itself');
+        await sub.cancel();
+      },
+    );
 
     test('peer drop after recognition reports disconnected', () async {
       final fake = FakeWebSocketTransport();
@@ -168,49 +176,57 @@ void main() {
       await sub.cancel();
     });
 
-    test('dispose emits disconnected before closing so listeners tear down',
-        () async {
-      final fake = FakeWebSocketTransport();
-      final scale = HDSWifi(host: 'hds.local', transportFactory: () => fake);
-      final states = <ConnectionState>[];
-      final sub = scale.connectionState.listen(states.add);
+    test(
+      'dispose emits disconnected before closing so listeners tear down',
+      () async {
+        final fake = FakeWebSocketTransport();
+        final scale = HDSWifi(host: 'hds.local', transportFactory: () => fake);
+        final states = <ConnectionState>[];
+        final sub = scale.connectionState.listen(states.add);
 
-      final f = scale.onConnect();
-      await Future.delayed(const Duration(milliseconds: 10));
-      fake.emit('{"grams":1.0}');
-      await f;
-      expect(states.last, ConnectionState.connected);
+        final f = scale.onConnect();
+        await Future.delayed(const Duration(milliseconds: 10));
+        fake.emit('{"grams":1.0}');
+        await f;
+        expect(states.last, ConnectionState.connected);
 
-      await scale.dispose();
-      expect(states.last, ConnectionState.disconnected,
-          reason: 'dispose must emit disconnected before closing the subject, '
-              'so a listener with no onDone handler still tears down');
-      await sub.cancel();
-    });
+        await scale.dispose();
+        expect(
+          states.last,
+          ConnectionState.disconnected,
+          reason:
+              'dispose must emit disconnected before closing the subject, '
+              'so a listener with no onDone handler still tears down',
+        );
+        await sub.cancel();
+      },
+    );
 
-    test('a re-entrant onConnect fails the prior pending future (no orphan)',
-        () async {
-      final first = FakeWebSocketTransport();
-      final second = FakeWebSocketTransport();
-      final scale = HDSWifi(
-        host: 'hds.local',
-        transportFactory: _seqFactory([first, second]),
-      );
+    test(
+      'a re-entrant onConnect fails the prior pending future (no orphan)',
+      () async {
+        final first = FakeWebSocketTransport();
+        final second = FakeWebSocketTransport();
+        final scale = HDSWifi(
+          host: 'hds.local',
+          transportFactory: _seqFactory([first, second]),
+        );
 
-      // Start a connect but never recognize it → its future stays pending.
-      final f1 = scale.onConnect();
-      // Re-enter before f1 resolves (e.g. a racing reconnect).
-      final f2 = scale.onConnect();
+        // Start a connect but never recognize it → its future stays pending.
+        final f1 = scale.onConnect();
+        // Re-enter before f1 resolves (e.g. a racing reconnect).
+        final f2 = scale.onConnect();
 
-      // The superseded attempt must complete with an error, not hang forever.
-      await expectLater(f1, throwsA(isA<StateError>()));
+        // The superseded attempt must complete with an error, not hang forever.
+        await expectLater(f1, throwsA(isA<StateError>()));
 
-      // The new attempt still connects normally.
-      await Future.delayed(const Duration(milliseconds: 10));
-      second.emit('{"grams":1.0}');
-      await f2;
-      expect(await scale.connectionState.first, ConnectionState.connected);
-    });
+        // The new attempt still connects normally.
+        await Future.delayed(const Duration(milliseconds: 10));
+        second.emit('{"grams":1.0}');
+        await f2;
+        expect(await scale.connectionState.first, ConnectionState.connected);
+      },
+    );
 
     test('onConnect reconnects the same instance after a drop', () async {
       final first = FakeWebSocketTransport();

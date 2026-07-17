@@ -135,7 +135,8 @@ class De1appImporter {
     }
 
     final existingGrinders = await grinderStorageService.getAllGrinders();
-    final existingGrinderMap = <String, String>{}; // normalized model → grinder ID
+    final existingGrinderMap =
+        <String, String>{}; // normalized model → grinder ID
     for (final grinder in existingGrinders) {
       existingGrinderMap[grinder.model.toLowerCase()] = grinder.id;
     }
@@ -162,13 +163,15 @@ class De1appImporter {
         }
       }
       entityIndex++;
-      onProgress?.call(ImportProgress(
-        current: entityIndex,
-        total: entityTotal,
-        phase: 'entities',
-        beansCreated: beansCreated,
-        grindersCreated: grindersCreated,
-      ));
+      onProgress?.call(
+        ImportProgress(
+          current: entityIndex,
+          total: entityTotal,
+          phase: 'entities',
+          beansCreated: beansCreated,
+          grindersCreated: grindersCreated,
+        ),
+      );
     }
 
     // Store or remap batches
@@ -177,11 +180,13 @@ class De1appImporter {
       final existingBeanBatches = existingBatches[actualBeanId] ?? [];
 
       // Match by roast date (or both null)
-      final existingBatch = existingBeanBatches.firstWhereOrNull((b) =>
-          b.roastDate == batch.roastDate ||
-          (b.roastDate != null &&
-              batch.roastDate != null &&
-              b.roastDate!.isAtSameMomentAs(batch.roastDate!)));
+      final existingBatch = existingBeanBatches.firstWhereOrNull(
+        (b) =>
+            b.roastDate == batch.roastDate ||
+            (b.roastDate != null &&
+                batch.roastDate != null &&
+                b.roastDate!.isAtSameMomentAs(batch.roastDate!)),
+      );
 
       if (existingBatch != null) {
         batchIdRemap[batch.id] = existingBatch.id;
@@ -234,13 +239,15 @@ class De1appImporter {
         }
       }
       entityIndex++;
-      onProgress?.call(ImportProgress(
-        current: entityIndex,
-        total: entityTotal,
-        phase: 'entities',
-        beansCreated: beansCreated,
-        grindersCreated: grindersCreated,
-      ));
+      onProgress?.call(
+        ImportProgress(
+          current: entityIndex,
+          total: entityTotal,
+          phase: 'entities',
+          beansCreated: beansCreated,
+          grindersCreated: grindersCreated,
+        ),
+      );
     }
 
     // --- Phase 3: Store shots with entity linkage ---
@@ -252,13 +259,15 @@ class De1appImporter {
 
       if (existingIds.contains(shot.id)) {
         shotsSkipped++;
-        onProgress?.call(ImportProgress(
-          current: i + 1,
-          total: parsedShots.length,
-          phase: 'storing shots',
-          beansCreated: beansCreated,
-          grindersCreated: grindersCreated,
-        ));
+        onProgress?.call(
+          ImportProgress(
+            current: i + 1,
+            total: parsedShots.length,
+            phase: 'storing shots',
+            beansCreated: beansCreated,
+            grindersCreated: grindersCreated,
+          ),
+        );
         continue;
       }
 
@@ -290,13 +299,15 @@ class De1appImporter {
         );
       }
 
-      onProgress?.call(ImportProgress(
-        current: i + 1,
-        total: parsedShots.length,
-        phase: 'storing shots',
-        beansCreated: beansCreated,
-        grindersCreated: grindersCreated,
-      ));
+      onProgress?.call(
+        ImportProgress(
+          current: i + 1,
+          total: parsedShots.length,
+          phase: 'storing shots',
+          beansCreated: beansCreated,
+          grindersCreated: grindersCreated,
+        ),
+      );
     }
 
     // --- Phase 4: Import standalone profiles ---
@@ -380,8 +391,9 @@ class De1appImporter {
 
           // Sleep timeout
           if (settings.sleepTimeoutMinutes != null) {
-            await settingsController!
-                .setSleepTimeoutMinutes(settings.sleepTimeoutMinutes!);
+            await settingsController!.setSleepTimeoutMinutes(
+              settings.sleepTimeoutMinutes!,
+            );
           }
 
           // Charging mode — map from de1app's smart_battery_charging enum.
@@ -394,27 +406,30 @@ class De1appImporter {
           // Preferred device IDs (Android only — BLE IDs are MAC addresses)
           if (Platform.isAndroid) {
             if (settings.machineBluetoothAddress != null) {
-              await settingsController!
-                  .setPreferredMachineId(settings.machineBluetoothAddress);
+              await settingsController!.setPreferredMachineId(
+                settings.machineBluetoothAddress,
+              );
             }
             if (settings.scaleBluetoothAddress != null) {
-              await settingsController!
-                  .setPreferredScaleId(settings.scaleBluetoothAddress);
+              await settingsController!.setPreferredScaleId(
+                settings.scaleBluetoothAddress,
+              );
             }
           }
 
           // Workflow context + steam/water/rinse
           // Use existing workflow or create a default one (common during
           // onboarding when no workflow has been persisted yet).
-          final baseWorkflow = await storageService.loadCurrentWorkflow() ??
+          final baseWorkflow =
+              await storageService.loadCurrentWorkflow() ??
               WorkflowController().newWorkflow();
           final updatedContext =
               (baseWorkflow.context ?? const WorkflowContext()).copyWith(
-            targetDoseWeight: settings.doseWeight,
-            targetYield: settings.targetYield,
-            grinderModel: settings.grinderModel,
-            grinderSetting: settings.grinderSetting,
-          );
+                targetDoseWeight: settings.doseWeight,
+                targetYield: settings.targetYield,
+                grinderModel: settings.grinderModel,
+                grinderSetting: settings.grinderSetting,
+              );
           final updatedSteam = baseWorkflow.steamSettings.copyWith(
             targetTemperature: settings.steamTemperature,
             duration: settings.steamDuration,
@@ -425,8 +440,7 @@ class De1appImporter {
           );
           final updatedRinse = RinseData(
             targetTemperature: baseWorkflow.rinseData.targetTemperature,
-            duration:
-                settings.rinseDuration ?? baseWorkflow.rinseData.duration,
+            duration: settings.rinseDuration ?? baseWorkflow.rinseData.duration,
             flow: settings.rinseFlow ?? baseWorkflow.rinseData.flow,
           );
           final updatedWorkflow = baseWorkflow.copyWith(
@@ -442,11 +456,13 @@ class De1appImporter {
         }
       } catch (e, st) {
         _log.warning('Failed to import settings.tdb', e, st);
-        errors.add(ImportError(
-          filename: 'settings.tdb',
-          reason: 'Settings import error',
-          details: e.toString(),
-        ));
+        errors.add(
+          ImportError(
+            filename: 'settings.tdb',
+            reason: 'Settings import error',
+            details: e.toString(),
+          ),
+        );
       }
     }
 

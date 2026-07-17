@@ -19,7 +19,6 @@ import 'package:reaprime/src/models/device/impl/varia/varia_aku_scale.dart';
 import 'package:reaprime/src/models/device/transport/ble_transport.dart';
 import 'package:reaprime/src/models/device/impl/weighmaster/weighmaster_scale.dart';
 
-
 class DeviceMatcher {
   /// Service UUIDs advertised by devices of a given [type].
   /// Used for filtered BLE scans to bypass Android background throttling.
@@ -60,7 +59,8 @@ class DeviceMatcher {
     final name = advertisedName;
     final nameLower = name.toLowerCase();
 
-    if (name == 'Half Decent Scale (USB)') return DeviceImplementation.hdsSerial;
+    if (name == 'Half Decent Scale (USB)')
+      return DeviceImplementation.hdsSerial;
     if (name == 'Half Decent Scale (WiFi)') return DeviceImplementation.hdsWifi;
     if (name == 'Decent Scale') return DeviceImplementation.decentScale;
     if (name == 'Skale2' || nameLower.startsWith('skale')) {
@@ -72,8 +72,10 @@ class DeviceMatcher {
     if (name == 'Bengle' || nameLower.startsWith('bengle')) {
       return DeviceImplementation.bengle;
     }
-    if (nameLower.startsWith('felicita')) return DeviceImplementation.felicitaArc;
-    if (nameLower.startsWith('black')) return DeviceImplementation.blackCoffeeScale;
+    if (nameLower.startsWith('felicita'))
+      return DeviceImplementation.felicitaArc;
+    if (nameLower.startsWith('black'))
+      return DeviceImplementation.blackCoffeeScale;
     if (nameLower.contains('acaia') ||
         nameLower.contains('lunar') ||
         nameLower.contains('pearl') ||
@@ -89,7 +91,8 @@ class DeviceMatcher {
     if (nameLower.contains('solo barista') || nameLower.contains('lsj-001')) {
       return DeviceImplementation.eurekaScale;
     }
-    if (nameLower.contains('smartchef')) return DeviceImplementation.smartChefScale;
+    if (nameLower.contains('smartchef'))
+      return DeviceImplementation.smartChefScale;
     if (nameLower.contains('difluid') && nameLower.contains('r2')) {
       return DeviceImplementation.difluidR2Sensor;
     }
@@ -104,8 +107,10 @@ class DeviceMatcher {
       return DeviceImplementation.atomheartScale;
     }
     if (nameLower.contains('bookoo')) return DeviceImplementation.bookooScale;
-    if (nameLower.contains('decent temp')) return DeviceImplementation.decentTemp;
-    if (name == 'WeighMaster Scale') return DeviceImplementation.weighMasterScale;
+    if (nameLower.contains('decent temp'))
+      return DeviceImplementation.decentTemp;
+    if (name == 'WeighMaster Scale')
+      return DeviceImplementation.weighMasterScale;
     return null;
   }
 

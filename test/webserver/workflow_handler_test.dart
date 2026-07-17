@@ -58,11 +58,10 @@ class SpyDe1 implements De1Interface {
   final List<De1ShotSettings> emittedShotSettings = [];
 
   @override
-  Stream<De1ShotSettings> get shotSettings =>
-      _shotSettings.stream.map((e) {
-        emittedShotSettings.add(e);
-        return e;
-      });
+  Stream<De1ShotSettings> get shotSettings => _shotSettings.stream.map((e) {
+    emittedShotSettings.add(e);
+    return e;
+  });
 
   @override
   Future<void> updateShotSettings(De1ShotSettings newSettings) async {
@@ -145,12 +144,12 @@ class SpyDe1 implements De1Interface {
   TransportType get transportType => TransportType.unknown;
   @override
   MachineInfo get machineInfo => MachineInfo(
-        version: '1',
-        model: '1',
-        serialNumber: '1',
-        groupHeadControllerPresent: false,
-        extra: {},
-      );
+    version: '1',
+    model: '1',
+    serialNumber: '1',
+    groupHeadControllerPresent: false,
+    extra: {},
+  );
   @override
   Future<void> onConnect() async {}
   @override
@@ -229,8 +228,10 @@ class SpyDe1 implements De1Interface {
   @override
   Future<void> setHeaterIdleTemp(double val) async {}
   @override
-  Future<void> updateFirmware(Uint8List fwImage,
-      {required void Function(double progress) onProgress}) async {}
+  Future<void> updateFirmware(
+    Uint8List fwImage, {
+    required void Function(double progress) onProgress,
+  }) async {}
   @override
   Future<void> cancelFirmwareUpload() async {}
   @override
@@ -304,39 +305,46 @@ void main() {
         spy.setProfileCalls.clear();
         spy.emittedShotSettings.clear();
 
-        unawaited(put({
-          'steamSettings': {'duration': 30},
-        }));
+        unawaited(
+          put({
+            'steamSettings': {'duration': 30},
+          }),
+        );
         await _settleHandler();
 
         expect(
           spy.setHotWaterFlowCalls,
           isEmpty,
-          reason: 'hot-water settings did not change; setHotWaterFlow '
+          reason:
+              'hot-water settings did not change; setHotWaterFlow '
               'must not be invoked',
         );
         expect(
           spy.setFlushFlowCalls,
           isEmpty,
-          reason: 'rinse settings did not change; setFlushFlow must not '
+          reason:
+              'rinse settings did not change; setFlushFlow must not '
               'be invoked',
         );
         expect(
           spy.setFlushTimeoutCalls,
           isEmpty,
-          reason: 'rinse settings did not change; setFlushTimeout must '
+          reason:
+              'rinse settings did not change; setFlushTimeout must '
               'not be invoked',
         );
         expect(
           spy.setFlushTemperatureCalls,
           isEmpty,
-          reason: 'rinse settings did not change; setFlushTemperature '
+          reason:
+              'rinse settings did not change; setFlushTemperature '
               'must not be invoked',
         );
         expect(
           spy.updateShotSettingsCalls.length,
           equals(1),
-          reason: 'exactly one shot-settings write should be issued per '
+          reason:
+              'exactly one shot-settings write should be issued per '
               'steam-only change',
         );
         expect(
@@ -359,19 +367,24 @@ void main() {
         spy.setFlushTemperatureCalls.clear();
         spy.setProfileCalls.clear();
 
-        unawaited(put({
-          'steamSettings': snapshot.steamSettings.toJson(),
-          'hotWaterData': snapshot.hotWaterData.toJson(),
-          'rinseData': snapshot.rinseData.toJson(),
-        }));
+        unawaited(
+          put({
+            'steamSettings': snapshot.steamSettings.toJson(),
+            'hotWaterData': snapshot.hotWaterData.toJson(),
+            'rinseData': snapshot.rinseData.toJson(),
+          }),
+        );
         await _settleHandler();
 
         expect(spy.updateShotSettingsCalls, isEmpty);
         expect(spy.setSteamFlowCalls, isEmpty);
         expect(spy.setHotWaterFlowCalls, isEmpty);
         expect(spy.setFlushFlowCalls, isEmpty);
-        expect(spy.setProfileCalls, isEmpty,
-            reason: 'identical profile must not be re-sent');
+        expect(
+          spy.setProfileCalls,
+          isEmpty,
+          reason: 'identical profile must not be re-sent',
+        );
       },
     );
   });
@@ -500,29 +513,34 @@ void main() {
         spy.updateShotSettingsCalls.clear();
         spy.emittedShotSettings.clear();
 
-        unawaited(put({
-          'steamSettings': {'duration': 44},
-          'hotWaterData': {'duration': 55},
-        }));
+        unawaited(
+          put({
+            'steamSettings': {'duration': 44},
+            'hotWaterData': {'duration': 55},
+          }),
+        );
         await _settleHandler();
 
         expect(
           spy.updateShotSettingsCalls,
           isNotEmpty,
-          reason: 'steam + hot-water change must produce at least one '
+          reason:
+              'steam + hot-water change must produce at least one '
               'shot-settings write',
         );
         final last = spy.updateShotSettingsCalls.last;
         expect(
           last.targetSteamDuration,
           equals(44),
-          reason: 'last updateShotSettings must carry the new steam '
+          reason:
+              'last updateShotSettings must carry the new steam '
               'duration (lost-write race if stale)',
         );
         expect(
           last.targetHotWaterDuration,
           equals(55),
-          reason: 'last updateShotSettings must carry the new hot-water '
+          reason:
+              'last updateShotSettings must carry the new hot-water '
               'duration',
         );
       },
@@ -534,10 +552,12 @@ void main() {
         await _settleHandler();
         spy.emittedShotSettings.clear();
 
-        unawaited(put({
-          'steamSettings': {'duration': 44},
-          'hotWaterData': {'duration': 55},
-        }));
+        unawaited(
+          put({
+            'steamSettings': {'duration': 44},
+            'hotWaterData': {'duration': 55},
+          }),
+        );
         await _settleHandler();
 
         expect(

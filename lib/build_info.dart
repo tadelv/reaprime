@@ -1,11 +1,29 @@
 // lib/build_info.dart
 class BuildInfo {
-  static const String commit = String.fromEnvironment('COMMIT', defaultValue: 'unknown');
-  static const String commitShort = String.fromEnvironment('COMMIT_SHORT', defaultValue: 'unknown');
-  static const String branch = String.fromEnvironment('BRANCH', defaultValue: 'unknown');
-  static const String buildTime = String.fromEnvironment('BUILD_TIME', defaultValue: 'unknown'); // ISO8601
-  static const String version = String.fromEnvironment('VERSION', defaultValue: '0.0.0-dev');
-  static const String buildNumber = String.fromEnvironment('BUILD_NUMBER', defaultValue: '0');
+  static const String commit = String.fromEnvironment(
+    'COMMIT',
+    defaultValue: 'unknown',
+  );
+  static const String commitShort = String.fromEnvironment(
+    'COMMIT_SHORT',
+    defaultValue: 'unknown',
+  );
+  static const String branch = String.fromEnvironment(
+    'BRANCH',
+    defaultValue: 'unknown',
+  );
+  static const String buildTime = String.fromEnvironment(
+    'BUILD_TIME',
+    defaultValue: 'unknown',
+  ); // ISO8601
+  static const String version = String.fromEnvironment(
+    'VERSION',
+    defaultValue: '0.0.0-dev',
+  );
+  static const String buildNumber = String.fromEnvironment(
+    'BUILD_NUMBER',
+    defaultValue: '0',
+  );
 
   /// Whether this is an App Store build (iOS).
   /// Pass --dart-define=APP_STORE=true to enable.

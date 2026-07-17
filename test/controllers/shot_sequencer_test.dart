@@ -845,8 +845,7 @@ void main() {
         expect(
           testDe1.requestedStates,
           isNot(contains(MachineState.skipStep)),
-          reason:
-              'Flow near under-2.0 exit → defer to avoid racing firmware.',
+          reason: 'Flow near under-2.0 exit → defer to avoid racing firmware.',
         );
 
         // After max deferral frames (3), fires regardless.
@@ -1763,7 +1762,8 @@ void main() {
         expect(
           decisions.singleWhere((d) => d.kind == ShotDecisionKind.stop).reason,
           ShotDecisionReason.machineEnded,
-          reason: 'an intent recorded long before the shot end must not be '
+          reason:
+              'an intent recorded long before the shot end must not be '
               'attributed to it',
         );
 
@@ -1809,7 +1809,8 @@ void main() {
             (d) => d.reason == ShotDecisionReason.profileAdvance,
           ),
           isEmpty,
-          reason: 'an app-skipped frame must not double-report as a '
+          reason:
+              'an app-skipped frame must not double-report as a '
               'firmware-natural advance',
         );
 
@@ -1890,36 +1891,38 @@ void main() {
       });
     });
 
-    test('machine error mid-shot emits terminal/error and finishes the shot',
-        () {
-      fakeAsync((async) {
-        scaleController.emitWeight(0.0);
-        final sequencer = makeSequencer();
-        final decisions = <ShotDecision>[];
-        final states = <ShotState>[];
-        sequencer.decisions.listen(decisions.add);
-        sequencer.state.listen(states.add);
+    test(
+      'machine error mid-shot emits terminal/error and finishes the shot',
+      () {
+        fakeAsync((async) {
+          scaleController.emitWeight(0.0);
+          final sequencer = makeSequencer();
+          final decisions = <ShotDecision>[];
+          final states = <ShotState>[];
+          sequencer.decisions.listen(decisions.add);
+          sequencer.state.listen(states.add);
 
-        async.elapse(Duration(milliseconds: 10));
-        driveToPouring();
-        async.elapse(Duration(milliseconds: 10));
+          async.elapse(Duration(milliseconds: 10));
+          driveToPouring();
+          async.elapse(Duration(milliseconds: 10));
 
-        testDe1.emitStateAndSubstate(
-          MachineState.error,
-          MachineSubstate.idle,
-        );
-        async.elapse(Duration(milliseconds: 10));
+          testDe1.emitStateAndSubstate(
+            MachineState.error,
+            MachineSubstate.idle,
+          );
+          async.elapse(Duration(milliseconds: 10));
 
-        final terminal = decisions.singleWhere(
-          (d) => d.kind == ShotDecisionKind.terminal,
-        );
-        expect(terminal.reason, ShotDecisionReason.error);
-        expect(sequencer.finalStopReason, ShotDecisionReason.error);
-        expect(states, contains(ShotState.finished));
+          final terminal = decisions.singleWhere(
+            (d) => d.kind == ShotDecisionKind.terminal,
+          );
+          expect(terminal.reason, ShotDecisionReason.error);
+          expect(sequencer.finalStopReason, ShotDecisionReason.error);
+          expect(states, contains(ShotState.finished));
 
-        sequencer.dispose();
-      });
-    });
+          sequencer.dispose();
+        });
+      },
+    );
 
     test('stopping backstop emits finalize/stoppingBackstop and preserves '
         'the stop trigger as final reason', () {
@@ -1961,7 +1964,8 @@ void main() {
         expect(
           sequencer.finalStopReason,
           ShotDecisionReason.targetWeight,
-          reason: 'the backstop closes the settling window; it is not why '
+          reason:
+              'the backstop closes the settling window; it is not why '
               'the shot stopped',
         );
         expect(states, contains(ShotState.finished));
@@ -1998,7 +2002,8 @@ void main() {
         expect(
           states,
           isNot(contains(ShotState.finished)),
-          reason: 'an aborted preheat is torn down by the manager, not '
+          reason:
+              'an aborted preheat is torn down by the manager, not '
               'persisted via the finished path',
         );
 
@@ -2061,7 +2066,8 @@ void main() {
             (d) => d.reason == ShotDecisionReason.profileAdvance,
           ),
           hasLength(1),
-          reason: 'a BLE frame reorder must not re-emit an advance already '
+          reason:
+              'a BLE frame reorder must not re-emit an advance already '
               'reported',
         );
 

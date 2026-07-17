@@ -110,14 +110,14 @@ class KalmanFlowEstimator {
   KalmanFlowEstimator({
     required double initialWeight,
     double processNoiseIntensity = 2.5,
-  })  : _weight = initialWeight,
-        _flow = 0.0,
-        _p11 = _initialCovariance,
-        _p12 = 0.0,
-        _p21 = 0.0,
-        _p22 = _initialCovariance,
-        _q = processNoiseIntensity,
-        _r = _initialR;
+  }) : _weight = initialWeight,
+       _flow = 0.0,
+       _p11 = _initialCovariance,
+       _p12 = 0.0,
+       _p21 = 0.0,
+       _p22 = _initialCovariance,
+       _q = processNoiseIntensity,
+       _r = _initialR;
 
   /// The current filtered weight estimate (internal — prefer raw weight).
   double get weight => _weight;

@@ -31,9 +31,9 @@ class FeedbackSubmissionResult {
   }
 
   Map<String, dynamic> toJson() => {
-        'success': success,
-        if (issueUrl != null) 'issueUrl': issueUrl,
-        if (errorMessage != null) 'errorMessage': errorMessage,
-        if (issueNumber != null) 'issueNumber': issueNumber,
-      };
+    'success': success,
+    if (issueUrl != null) 'issueUrl': issueUrl,
+    if (errorMessage != null) 'errorMessage': errorMessage,
+    if (issueNumber != null) 'issueNumber': issueNumber,
+  };
 }

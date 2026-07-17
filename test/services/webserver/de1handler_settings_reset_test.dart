@@ -37,11 +37,12 @@ void main() {
   late TestScaleController scaleController;
 
   Future<void> wireWith(De1Interface? device) async {
-    final deviceController =
-        DeviceController([MockDeviceDiscoveryService()]);
+    final deviceController = DeviceController([MockDeviceDiscoveryService()]);
     await deviceController.initialize();
-    controller =
-        _FixedDe1Controller(controller: deviceController, device: device);
+    controller = _FixedDe1Controller(
+      controller: deviceController,
+      device: device,
+    );
 
     final mockSettings = MockSettingsService();
     settingsController = SettingsController(mockSettings);
@@ -49,7 +50,12 @@ void main() {
 
     final testScale = TestScale();
     scaleController = TestScaleController(testScale);
-    final de1Handler = De1Handler(controller: controller, settingsController: settingsController, scaleController: scaleController, workflowController: WorkflowController());
+    final de1Handler = De1Handler(
+      controller: controller,
+      settingsController: settingsController,
+      scaleController: scaleController,
+      workflowController: WorkflowController(),
+    );
     final app = Router().plus;
     de1Handler.addRoutes(app);
     handler = app.call;
@@ -58,13 +64,14 @@ void main() {
   Future<Response> get(String path) async =>
       await handler(Request('GET', Uri.parse('http://localhost$path')));
 
-  Future<Response> post(String path, Object body) async =>
-      await handler(Request(
-        'POST',
-        Uri.parse('http://localhost$path'),
-        body: jsonEncode(body),
-        headers: {HttpHeaders.contentTypeHeader: 'application/json'},
-      ));
+  Future<Response> post(String path, Object body) async => await handler(
+    Request(
+      'POST',
+      Uri.parse('http://localhost$path'),
+      body: jsonEncode(body),
+      headers: {HttpHeaders.contentTypeHeader: 'application/json'},
+    ),
+  );
 
   Future<Response> delete(String path) async =>
       await handler(Request('DELETE', Uri.parse('http://localhost$path')));
@@ -156,36 +163,42 @@ void main() {
   });
 
   group('PUT /api/v1/machine/state/espresso — blockOnNoScale', () {
-    test('allows espresso when blockOnNoScale=true and scale is connected',
-        () async {
-      await wireWith(MockDe1());
-      await settingsController.setBlockOnNoScale(true);
+    test(
+      'allows espresso when blockOnNoScale=true and scale is connected',
+      () async {
+        await wireWith(MockDe1());
+        await settingsController.setBlockOnNoScale(true);
 
-      final res = await putNoBody('/api/v1/machine/state/espresso');
-      expect(res.statusCode, 200);
-    });
+        final res = await putNoBody('/api/v1/machine/state/espresso');
+        expect(res.statusCode, 200);
+      },
+    );
 
-    test('blocks espresso when blockOnNoScale=true and scale disconnected',
-        () async {
-      await wireWith(MockDe1());
-      await settingsController.setBlockOnNoScale(true);
-      scaleController.simulateDisconnect();
+    test(
+      'blocks espresso when blockOnNoScale=true and scale disconnected',
+      () async {
+        await wireWith(MockDe1());
+        await settingsController.setBlockOnNoScale(true);
+        scaleController.simulateDisconnect();
 
-      final res = await putNoBody('/api/v1/machine/state/espresso');
-      expect(res.statusCode, 400);
-      final body = jsonDecode(await res.readAsString());
-      expect(body['type'], 'block_no_scale');
-    });
+        final res = await putNoBody('/api/v1/machine/state/espresso');
+        expect(res.statusCode, 400);
+        final body = jsonDecode(await res.readAsString());
+        expect(body['type'], 'block_no_scale');
+      },
+    );
 
-    test('allows espresso when blockOnNoScale=false and scale disconnected',
-        () async {
-      await wireWith(MockDe1());
-      // default: blockOnNoScale is false
-      scaleController.simulateDisconnect();
+    test(
+      'allows espresso when blockOnNoScale=false and scale disconnected',
+      () async {
+        await wireWith(MockDe1());
+        // default: blockOnNoScale is false
+        scaleController.simulateDisconnect();
 
-      final res = await putNoBody('/api/v1/machine/state/espresso');
-      expect(res.statusCode, 200);
-    });
+        final res = await putNoBody('/api/v1/machine/state/espresso');
+        expect(res.statusCode, 200);
+      },
+    );
 
     test('non-espresso states are never blocked (steam)', () async {
       await wireWith(MockDe1());

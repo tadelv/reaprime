@@ -293,10 +293,9 @@ class MockDe1 implements De1Interface, SimulatedDevice {
     }
 
     // Calculate progress through current step (0.0 to 1.0)
-    final stepProgress =
-        stepDurationMs > 0
-            ? min(_profileStepElapsedTime / stepDurationMs, 1.0)
-            : 0.0;
+    final stepProgress = stepDurationMs > 0
+        ? min(_profileStepElapsedTime / stepDurationMs, 1.0)
+        : 0.0;
 
     _shotElapsedMs += 100;
     final shotSecs = _shotElapsedMs / 1000.0;
@@ -373,10 +372,12 @@ class MockDe1 implements De1Interface, SimulatedDevice {
     if (currentStep.transition == TransitionType.smooth) {
       if (currentStep is ProfileStepPressure) {
         targetPressure =
-            _fromPressureTarget + (targetPressure - _fromPressureTarget) * stepProgress;
+            _fromPressureTarget +
+            (targetPressure - _fromPressureTarget) * stepProgress;
         stepTargetPressure = targetPressure;
       } else if (currentStep is ProfileStepFlow) {
-        targetFlow = _fromFlowTarget + (targetFlow - _fromFlowTarget) * stepProgress;
+        targetFlow =
+            _fromFlowTarget + (targetFlow - _fromFlowTarget) * stepProgress;
         stepTargetFlow = targetFlow;
       }
     }
@@ -453,12 +454,11 @@ class MockDe1 implements De1Interface, SimulatedDevice {
       targetMixTemperature: targetTemp,
       targetGroupTemperature: targetTemp,
       profileFrame: _currentProfileStepIndex,
-      steamTemperature:
-          _calculateTemperature(
-            current: _lastSnapshot.steamTemperature.toDouble(),
-            target: 150.0,
-            rate: 0.2,
-          ).toInt(),
+      steamTemperature: _calculateTemperature(
+        current: _lastSnapshot.steamTemperature.toDouble(),
+        target: 150.0,
+        rate: 0.2,
+      ).toInt(),
     );
   }
 

@@ -94,7 +94,11 @@ class _StatusChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         spacing: 6,
         children: [
-          Icon(icon, size: 14, color: color ?? theme.colorScheme.mutedForeground),
+          Icon(
+            icon,
+            size: 14,
+            color: color ?? theme.colorScheme.mutedForeground,
+          ),
           Text(
             label,
             style: theme.textTheme.small.copyWith(
@@ -168,9 +172,13 @@ class _MachineStatus extends StatelessWidget {
     }
     return switch (state) {
       MachineState.idle || MachineState.schedIdle => Colors.green,
-      MachineState.heating || MachineState.preheating ||
-      MachineState.booting || MachineState.busy => Colors.orange,
-      MachineState.sleeping => ShadTheme.of(context).colorScheme.mutedForeground,
+      MachineState.heating ||
+      MachineState.preheating ||
+      MachineState.booting ||
+      MachineState.busy => Colors.orange,
+      MachineState.sleeping => ShadTheme.of(
+        context,
+      ).colorScheme.mutedForeground,
       MachineState.needsWater => Colors.orange,
       MachineState.error => Colors.red,
       _ => Colors.blue,
@@ -237,15 +245,15 @@ class _BatteryStatus extends StatelessWidget {
         final icon = charging
             ? LucideIcons.batteryCharging
             : percent > 75
-                ? LucideIcons.batteryFull
-                : percent > 25
-                    ? LucideIcons.batteryMedium
-                    : LucideIcons.batteryLow;
+            ? LucideIcons.batteryFull
+            : percent > 25
+            ? LucideIcons.batteryMedium
+            : LucideIcons.batteryLow;
         final color = percent <= 15
             ? Colors.red
             : percent <= 25
-                ? Colors.orange
-                : null;
+            ? Colors.orange
+            : null;
 
         return _StatusChip(
           icon: icon,
@@ -386,10 +394,12 @@ class _StatusBarPreviewStatic extends StatelessWidget {
                   spacing: 6,
                   children: [
                     Icon(LucideIcons.coffee, size: 14, color: Colors.green),
-                    Text('DE1 · idle',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: Colors.green,
-                        )),
+                    Text(
+                      'DE1 · idle',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.green,
+                      ),
+                    ),
                   ],
                 ),
                 Row(
@@ -397,10 +407,12 @@ class _StatusBarPreviewStatic extends StatelessWidget {
                   spacing: 6,
                   children: [
                     Icon(LucideIcons.scale, size: 14, color: Colors.green),
-                    Text('Lunar',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: Colors.green,
-                        )),
+                    Text(
+                      'Lunar',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.green,
+                      ),
+                    ),
                   ],
                 ),
                 Row(

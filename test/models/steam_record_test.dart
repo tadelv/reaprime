@@ -7,31 +7,31 @@ import 'package:reaprime/src/models/data/workflow.dart';
 import 'package:reaprime/src/models/device/machine.dart';
 
 MachineSnapshot _machineSnapshot() => MachineSnapshot(
-      timestamp: DateTime.utc(2026, 5, 18, 12, 0, 0),
-      state: const MachineStateSnapshot(
-        state: MachineState.steam,
-        substate: MachineSubstate.pouring,
-      ),
-      flow: 0,
-      pressure: 0,
-      targetFlow: 0,
-      targetPressure: 0,
-      mixTemperature: 90,
-      groupTemperature: 90,
-      targetMixTemperature: 93,
-      targetGroupTemperature: 93,
-      profileFrame: 0,
-      steamTemperature: 140,
-    );
+  timestamp: DateTime.utc(2026, 5, 18, 12, 0, 0),
+  state: const MachineStateSnapshot(
+    state: MachineState.steam,
+    substate: MachineSubstate.pouring,
+  ),
+  flow: 0,
+  pressure: 0,
+  targetFlow: 0,
+  targetPressure: 0,
+  mixTemperature: 90,
+  groupTemperature: 90,
+  targetMixTemperature: 93,
+  targetGroupTemperature: 93,
+  profileFrame: 0,
+  steamTemperature: 140,
+);
 
 Workflow _workflow() => WorkflowController().currentWorkflow.copyWith(
-      steamSettings: SteamSettings(
-        targetTemperature: 150,
-        duration: 50,
-        flow: 0.8,
-        stopAtTemperature: 65.0,
-      ),
-    );
+  steamSettings: SteamSettings(
+    targetTemperature: 150,
+    duration: 50,
+    flow: 0.8,
+    stopAtTemperature: 65.0,
+  ),
+);
 
 void main() {
   group('SteamRecord', () {

@@ -54,7 +54,11 @@ class DecentAccountService {
     if (email == null || password == null) {
       throw StateError('not logged in');
     }
-    final response = await _authedGet(email, password, '/support/api/sn?onlyespressomachines=1');
+    final response = await _authedGet(
+      email,
+      password,
+      '/support/api/sn?onlyespressomachines=1',
+    );
     if (response.statusCode != 200) {
       throw Exception(
         'serial fetch failed (${response.statusCode}): ${response.body.trim()}',

@@ -48,24 +48,27 @@ class DeviceFactory {
       DeviceImplementation.skale2 => Skale2Scale(transport: transport),
       DeviceImplementation.acaiaScale => AcaiaScale(transport: transport),
       DeviceImplementation.felicitaArc => FelicitaArc(transport: transport),
-      DeviceImplementation.blackCoffeeScale =>
-        BlackCoffeeScale(transport: transport),
+      DeviceImplementation.blackCoffeeScale => BlackCoffeeScale(
+        transport: transport,
+      ),
       DeviceImplementation.bookooScale => BookooScale(transport: transport),
       DeviceImplementation.eurekaScale => EurekaScale(transport: transport),
-      DeviceImplementation.smartChefScale =>
-        SmartChefScale(transport: transport),
-      DeviceImplementation.variaAkuScale =>
-        VariaAkuScale(transport: transport),
-      DeviceImplementation.difluidScale =>
-        DifluidScale(transport: transport),
+      DeviceImplementation.smartChefScale => SmartChefScale(
+        transport: transport,
+      ),
+      DeviceImplementation.variaAkuScale => VariaAkuScale(transport: transport),
+      DeviceImplementation.difluidScale => DifluidScale(transport: transport),
       DeviceImplementation.hiroiaScale => HiroiaScale(transport: transport),
-      DeviceImplementation.atomheartScale =>
-        AtomheartScale(transport: transport),
-      DeviceImplementation.weighMasterScale =>
-        WeighMasterScale(transport: transport),
+      DeviceImplementation.atomheartScale => AtomheartScale(
+        transport: transport,
+      ),
+      DeviceImplementation.weighMasterScale => WeighMasterScale(
+        transport: transport,
+      ),
       DeviceImplementation.decentTemp => DecentTemp(transport: transport),
-      DeviceImplementation.difluidR2Sensor =>
-        DifluidR2Sensor(transport: transport),
+      DeviceImplementation.difluidR2Sensor => DifluidR2Sensor(
+        transport: transport,
+      ),
       DeviceImplementation.hdsSerial => null,
       DeviceImplementation.hdsWifi => null,
       DeviceImplementation.debugPort => null,

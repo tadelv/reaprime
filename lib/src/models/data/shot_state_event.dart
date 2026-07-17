@@ -77,11 +77,11 @@ class ShotDecision {
   });
 
   Map<String, dynamic> toJson() => {
-        'kind': kind.name,
-        'reason': reason.name,
-        'details': details,
-        'data': data,
-      };
+    'kind': kind.name,
+    'reason': reason.name,
+    'details': details,
+    'data': data,
+  };
 }
 
 /// One frame on the `/ws/v1/machine/shotState` topic.
@@ -132,22 +132,22 @@ class ShotStateEvent {
   /// The between-shots resting frame — seeds the topic so late joiners never
   /// replay a stale mid-shot frame from a previous shot.
   factory ShotStateEvent.idle() => ShotStateEvent(
-        event: 'state',
-        timestamp: clock.now(),
-        state: ShotState.idle,
-      );
+    event: 'state',
+    timestamp: clock.now(),
+    state: ShotState.idle,
+  );
 
   Map<String, dynamic> toJson() => {
-        'event': event,
-        'timestamp': timestamp.toIso8601String(),
-        'shotId': shotId,
-        'state': state.name,
-        'machineState': machineState?.name,
-        'machineSubstate': machineSubstate?.name,
-        'profileFrame': profileFrame,
-        'scaleConnected': scaleConnected,
-        'scaleLost': scaleLost,
-        'machineHasAutonomousSAW': machineHasAutonomousSAW,
-        'decision': decision?.toJson(),
-      };
+    'event': event,
+    'timestamp': timestamp.toIso8601String(),
+    'shotId': shotId,
+    'state': state.name,
+    'machineState': machineState?.name,
+    'machineSubstate': machineSubstate?.name,
+    'profileFrame': profileFrame,
+    'scaleConnected': scaleConnected,
+    'scaleLost': scaleLost,
+    'machineHasAutonomousSAW': machineHasAutonomousSAW,
+    'decision': decision?.toJson(),
+  };
 }

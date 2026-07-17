@@ -383,8 +383,9 @@ components:
             New kinds may be added without a version bump.
 
             profileUploadFailed is raised when a profile upload to the
-            machine fails and is being retried; it is retracted once a
-            retry succeeds.
+            machine fails and is being retried. It persists across phase
+            transitions and is retracted when a retry succeeds, the machine
+            disconnects, or the retry cycle is disposed.
         severity:
           type: string
           enum: [warning, error]

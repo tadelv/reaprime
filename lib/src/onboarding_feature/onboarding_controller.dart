@@ -29,7 +29,7 @@ class OnboardingController {
   List<OnboardingStep> get activeSteps => List.unmodifiable(_activeSteps);
 
   OnboardingController({required List<OnboardingStep> steps})
-      : _allSteps = steps;
+    : _allSteps = steps;
 
   Future<void> initialize() async {
     _activeSteps = [];

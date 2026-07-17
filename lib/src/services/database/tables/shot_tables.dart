@@ -24,8 +24,7 @@ class ShotRecords extends Table {
   TextColumn get stopReason => text().nullable()();
 
   // Full JSON blobs for complex nested data
-  TextColumn get workflowJson =>
-      text().map(const JsonMapConverter())();
+  TextColumn get workflowJson => text().map(const JsonMapConverter())();
   TextColumn get annotationsJson =>
       text().map(const NullableJsonMapConverter()).nullable()();
 

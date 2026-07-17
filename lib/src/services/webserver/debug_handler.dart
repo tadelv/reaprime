@@ -15,8 +15,8 @@ class DebugHandler {
   DebugHandler({
     required ScaleController scaleController,
     UpdateCheckService? updateCheckService,
-  })  : _scaleController = scaleController,
-        _updateCheckService = updateCheckService;
+  }) : _scaleController = scaleController,
+       _updateCheckService = updateCheckService;
 
   void addRoutes(RouterPlus app) {
     // Force a fake "update available" so the update API/UI can be tested

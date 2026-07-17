@@ -38,10 +38,10 @@ class SteamSequencer {
     required SensorController sensorController,
     required WorkflowController workflowController,
     required PersistenceController persistenceController,
-  })  : _de1 = de1Controller,
-        _sensors = sensorController,
-        _workflow = workflowController,
-        _persistence = persistenceController {
+  }) : _de1 = de1Controller,
+       _sensors = sensorController,
+       _workflow = workflowController,
+       _persistence = persistenceController {
     _de1Sub = _de1.de1.listen(_onMachineChange);
   }
 
@@ -90,8 +90,7 @@ class SteamSequencer {
     if (identical(_machine, machine)) return;
     if (_machine != null && isRecording) {
       // Mid-steam disconnect → discard the in-flight record.
-      _log.warning(
-          'Machine changed mid-steam; discarding incomplete record');
+      _log.warning('Machine changed mid-steam; discarding incomplete record');
       _discard();
     }
     await _snapshotSub?.cancel();
@@ -111,10 +110,12 @@ class SteamSequencer {
     }
 
     if (isRecording) {
-      _measurements.add(SteamSnapshot(
-        machine: s,
-        milkTemperature: _latestSensorTemperature,
-      ));
+      _measurements.add(
+        SteamSnapshot(
+          machine: s,
+          milkTemperature: _latestSensorTemperature,
+        ),
+      );
       _maybeAppSideStop(s);
     }
 
@@ -155,9 +156,10 @@ class SteamSequencer {
     if (target <= 0) return;
     final attached = _trackedSensor != null;
     if (useFwAutonomousStop(
-        machine: _machine,
-        probeAttached: attached,
-        stopAtTemperature: target)) {
+      machine: _machine,
+      probeAttached: attached,
+      stopAtTemperature: target,
+    )) {
       return;
     }
     final temp = _latestSensorTemperature;
@@ -187,8 +189,10 @@ class SteamSequencer {
       workflow: wf,
     );
     _resetOpenState();
-    _log.info('Steam record finalized: ${record.id} '
-        '(${record.measurements.length} frames)');
+    _log.info(
+      'Steam record finalized: ${record.id} '
+      '(${record.measurements.length} frames)',
+    );
     await _persistence.persistSteam(record);
   }
 

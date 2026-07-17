@@ -23,8 +23,8 @@ class BengleSteamStopBridge {
     required WorkflowController workflowController,
     required De1Controller de1Controller,
     this.debounce = const Duration(milliseconds: 250),
-  })  : _workflow = workflowController,
-        _de1 = de1Controller {
+  }) : _workflow = workflowController,
+       _de1 = de1Controller {
     _lastPushed = _currentTarget();
     _workflow.addListener(_onWorkflowChange);
     _de1Sub = _de1.de1.listen(_onDe1Change);
@@ -60,8 +60,10 @@ class BengleSteamStopBridge {
 
   Future<void> _push(double celsius, int generation) async {
     if (generation != _generation) {
-      _log.fine('Steam-stop write superseded '
-          '(gen=$generation, current=$_generation)');
+      _log.fine(
+        'Steam-stop write superseded '
+        '(gen=$generation, current=$_generation)',
+      );
       return;
     }
     final machine = _de1.connectedDe1OrNull;

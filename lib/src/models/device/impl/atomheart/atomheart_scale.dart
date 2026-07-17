@@ -33,8 +33,8 @@ class AtomheartScale implements Scale {
   final BLETransport _transport;
 
   AtomheartScale({required BLETransport transport})
-      : _transport = transport,
-        _deviceId = transport.id;
+    : _transport = transport,
+      _deviceId = transport.id;
 
   @override
   Stream<ScaleSnapshot> get currentSnapshot => _streamController.stream;
@@ -43,7 +43,8 @@ class AtomheartScale implements Scale {
   String get deviceId => _deviceId;
 
   @override
-  DeviceImplementation get implementation => DeviceImplementation.atomheartScale;
+  DeviceImplementation get implementation =>
+      DeviceImplementation.atomheartScale;
 
   @override
   TransportType get transportType => _transport.transportType;
@@ -73,9 +74,9 @@ class AtomheartScale implements Scale {
       disconnectSub = _transport.connectionState
           .where((state) => state == ConnectionState.disconnected)
           .listen((_) {
-        _connectionStateController.add(ConnectionState.disconnected);
-        disconnectSub?.cancel();
-      });
+            _connectionStateController.add(ConnectionState.disconnected);
+            disconnectSub?.cancel();
+          });
 
       final services = await _transport.discoverServices();
       if (!serviceIdentifier.matchesAny(services)) {
@@ -150,7 +151,11 @@ class AtomheartScale implements Scale {
   }
 
   Future<void> _registerNotifications() async {
-    await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
+    await _transport.subscribe(
+      serviceIdentifier.long,
+      dataCharacteristic.long,
+      _parseNotification,
+    );
   }
 
   /// Parse a BLE notification frame into a ScaleSnapshot.

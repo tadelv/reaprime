@@ -43,15 +43,16 @@ class _SteamFormState extends State<SteamForm> {
                 Text("Steam enabled"),
                 Spacer(),
                 ShadSwitch(
-                    value: steamSettings.steamEnabled,
-                    onChanged: (val) {
-                      setState(() {
-                        if (val) {
-                          steamSettings.targetTemp = 135;
-                        }
-                        steamSettings.steamEnabled = val;
-                      });
-                    }),
+                  value: steamSettings.steamEnabled,
+                  onChanged: (val) {
+                    setState(() {
+                      if (val) {
+                        steamSettings.targetTemp = 135;
+                      }
+                      steamSettings.steamEnabled = val;
+                    });
+                  },
+                ),
               ],
             ),
           ),
@@ -106,7 +107,8 @@ class _SteamFormState extends State<SteamForm> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                    "Steam flow: ${steamSettings.targetFlow.toStringAsFixed(1)} ml/s"),
+                  "Steam flow: ${steamSettings.targetFlow.toStringAsFixed(1)} ml/s",
+                ),
                 ShadSlider(
                   initialValue: steamSettings.targetFlow.toDouble(),
                   min: 0.4,
@@ -129,7 +131,7 @@ class _SteamFormState extends State<SteamForm> {
             onPressed: () {
               widget.apply(steamSettings);
             },
-          )
+          ),
         ],
       ),
     );
@@ -141,7 +143,7 @@ class SteamFormSettings {
   int targetTemp;
   int targetDuration;
   double targetFlow;
-// TODO: purge mode
+  // TODO: purge mode
 
   SteamFormSettings({
     required this.steamEnabled,

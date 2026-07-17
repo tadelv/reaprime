@@ -22,12 +22,12 @@ class MatchedDeviceTracker {
   });
 
   MatchedDevice toMatchedDevice() => MatchedDevice(
-        deviceName: deviceName,
-        deviceId: deviceId,
-        deviceType: deviceType,
-        connectionAttempted: connectionAttempted,
-        connectionResult: connectionResult,
-      );
+    deviceName: deviceName,
+    deviceId: deviceId,
+    deviceType: deviceType,
+    connectionAttempted: connectionAttempted,
+    connectionResult: connectionResult,
+  );
 }
 
 /// Accumulates per-device connection-attempt results over the lifetime
@@ -102,8 +102,9 @@ class ScanReportBuilder {
     required ScanTerminationReason terminationReason,
     required AdapterState adapterStateAtEnd,
   }) {
-    final matchedDevices =
-        _trackers.values.map((t) => t.toMatchedDevice()).toList();
+    final matchedDevices = _trackers.values
+        .map((t) => t.toMatchedDevice())
+        .toList();
     return ScanReport(
       totalBleDevicesSeen: matchedDevices.length,
       matchedDevices: matchedDevices,
@@ -125,16 +126,18 @@ class ScanReportBuilder {
     buf.write('termination=${report.scanTerminationReason.name}');
 
     if (report.preferredMachineId != null) {
-      final found = report.matchedDevices
-          .any((d) => d.deviceId == report.preferredMachineId);
+      final found = report.matchedDevices.any(
+        (d) => d.deviceId == report.preferredMachineId,
+      );
       buf.write(
         ', preferred machine ${report.preferredMachineId} '
         '${found ? "found" : "NOT found"}',
       );
     }
     if (report.preferredScaleId != null) {
-      final found = report.matchedDevices
-          .any((d) => d.deviceId == report.preferredScaleId);
+      final found = report.matchedDevices.any(
+        (d) => d.deviceId == report.preferredScaleId,
+      );
       buf.write(
         ', preferred scale ${report.preferredScaleId} '
         '${found ? "found" : "NOT found"}',

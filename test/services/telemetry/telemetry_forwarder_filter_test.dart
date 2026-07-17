@@ -161,15 +161,18 @@ void main() {
     });
 
     group('drops typed transient exceptions regardless of logger', () {
-      test('DeviceNotConnectedException.machine from any logger is dropped', () {
-        final record = _record(
-          Level.SEVERE,
-          'BatteryController',
-          'Failed to set USB charger mode',
-          const DeviceNotConnectedException.machine(),
-        );
-        expect(shouldForwardToTelemetry(record), isFalse);
-      });
+      test(
+        'DeviceNotConnectedException.machine from any logger is dropped',
+        () {
+          final record = _record(
+            Level.SEVERE,
+            'BatteryController',
+            'Failed to set USB charger mode',
+            const DeviceNotConnectedException.machine(),
+          );
+          expect(shouldForwardToTelemetry(record), isFalse);
+        },
+      );
 
       test('DeviceNotConnectedException.scale from any logger is dropped', () {
         final record = _record(

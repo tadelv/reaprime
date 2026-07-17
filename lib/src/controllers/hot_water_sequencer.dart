@@ -31,10 +31,10 @@ class HotWaterSequencer {
     required ScaleController scaleController,
     required SettingsController settingsController,
     DateTime Function()? now,
-  })  : _de1 = de1Controller,
-        _scale = scaleController,
-        _settings = settingsController,
-        _now = now ?? DateTime.now {
+  }) : _de1 = de1Controller,
+       _scale = scaleController,
+       _settings = settingsController,
+       _now = now ?? DateTime.now {
     _scaleConnected =
         _scale.currentConnectionState == device.ConnectionState.connected;
     _hotWaterSub = _de1.hotWaterData.listen((hw) => _latestHotWater = hw);
@@ -169,10 +169,12 @@ class HotWaterSequencer {
     final input = HotWaterStopInput(
       machineState: _latestMachineState,
       sinceArmed: _armedAt == null ? Duration.zero : now.difference(_armedAt!),
-      tareSettled: _tareConfirmed &&
+      tareSettled:
+          _tareConfirmed &&
           _tareRequestedAt != null &&
           now.difference(_tareRequestedAt!) >= _tareSettleWindow,
-      freshScale: _scaleConnected &&
+      freshScale:
+          _scaleConnected &&
           _lastWeightAt != null &&
           now.difference(_lastWeightAt!) < _scaleFreshWindow,
       weight: _latestWeight?.weight,
@@ -193,7 +195,9 @@ class HotWaterSequencer {
       );
       final machine = _machine;
       if (machine != null) {
-        machine.requestState(MachineState.idle).catchError(
+        machine
+            .requestState(MachineState.idle)
+            .catchError(
               (e) => _log.warning('Failed to stop hot water at weight', e),
             );
       }

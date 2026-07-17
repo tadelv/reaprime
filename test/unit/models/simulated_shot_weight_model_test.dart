@@ -11,21 +11,20 @@ MachineSnapshot _snap(
   int frame = 0,
   MachineState state = MachineState.espresso,
   MachineSubstate substate = MachineSubstate.pouring,
-}) =>
-    MachineSnapshot(
-      timestamp: t,
-      state: MachineStateSnapshot(state: state, substate: substate),
-      flow: flow,
-      pressure: 0,
-      targetFlow: 0,
-      targetPressure: 0,
-      mixTemperature: 90,
-      groupTemperature: 90,
-      targetMixTemperature: 90,
-      targetGroupTemperature: 90,
-      profileFrame: frame,
-      steamTemperature: 0,
-    );
+}) => MachineSnapshot(
+  timestamp: t,
+  state: MachineStateSnapshot(state: state, substate: substate),
+  flow: flow,
+  pressure: 0,
+  targetFlow: 0,
+  targetPressure: 0,
+  mixTemperature: 90,
+  groupTemperature: 90,
+  targetMixTemperature: 90,
+  targetGroupTemperature: 90,
+  profileFrame: frame,
+  steamTemperature: 0,
+);
 
 void main() {
   group('SimulatedShotWeightModel', () {
@@ -54,23 +53,35 @@ void main() {
     test('no weight while profileFrame is below targetVolumeCountStart', () {
       model.targetVolumeCountStart = 1;
       run(3.0, flow: 8.0, frame: 0);
-      expect(model.weight, 0.0,
-          reason: 'preinfusion water is absorbed by the puck');
+      expect(
+        model.weight,
+        0.0,
+        reason: 'preinfusion water is absorbed by the puck',
+      );
     });
 
     test('no weight while the machine is not pulling a shot', () {
       run(3.0, flow: 2.0, state: MachineState.idle);
-      expect(model.weight, 0.0,
-          reason: 'weight must not accumulate outside a shot');
+      expect(
+        model.weight,
+        0.0,
+        reason: 'weight must not accumulate outside a shot',
+      );
     });
 
     test('first drops are held back at pour start', () {
       run(0.5, flow: 2.0);
-      expect(model.weight, lessThan(0.1),
-          reason: 'basket/screen/spouts hold back the first few mL');
+      expect(
+        model.weight,
+        lessThan(0.1),
+        reason: 'basket/screen/spouts hold back the first few mL',
+      );
       run(5.0, flow: 2.0);
-      expect(model.weight, greaterThan(1.0),
-          reason: 'drops reach the cup once the held-back volume fills');
+      expect(
+        model.weight,
+        greaterThan(1.0),
+        reason: 'drops reach the cup once the held-back volume fills',
+      );
     });
 
     test('late-shot weight gain tracks flow 1:1', () {
@@ -80,8 +91,11 @@ void main() {
       run(10.0, flow: 2.0);
       final at10 = model.weight;
       run(5.0, flow: 2.0);
-      expect(model.weight - at10, closeTo(10.0, 0.2),
-          reason: '5s at 2 mL/s must add ~10g after saturation');
+      expect(
+        model.weight - at10,
+        closeTo(10.0, 0.2),
+        reason: '5s at 2 mL/s must add ~10g after saturation',
+      );
     });
 
     test('weight never decreases during a shot', () {
@@ -104,8 +118,11 @@ void main() {
       model.tare();
       expect(model.weight.abs(), lessThan(0.001));
       run(2.0, flow: 2.0);
-      expect(model.weight, closeTo(4.0, 0.2),
-          reason: 'post-tare gain is pure flow (saturated puck)');
+      expect(
+        model.weight,
+        closeTo(4.0, 0.2),
+        reason: 'post-tare gain is pure flow (saturated puck)',
+      );
     });
 
     test('a new shot re-applies the first-drops lag', () {
@@ -116,8 +133,11 @@ void main() {
       model.tare();
       // Shot 2 must lag again instead of tracking flow instantly.
       run(0.5, flow: 2.0);
-      expect(model.weight, lessThan(0.1),
-          reason: 'fresh puck holds back the first drops of every shot');
+      expect(
+        model.weight,
+        lessThan(0.1),
+        reason: 'fresh puck holds back the first drops of every shot',
+      );
       run(5.0, flow: 2.0);
       expect(model.weight, greaterThan(1.0));
     });
@@ -128,16 +148,22 @@ void main() {
       run(1.0, flow: 0.0, state: MachineState.idle);
       // New shot with no tare (cup left on the scale).
       run(0.2, flow: 1.0);
-      expect(model.weight, closeTo(endOfShot1, 0.05),
-          reason: 'starting a shot must not discontinue the reading');
+      expect(
+        model.weight,
+        closeTo(endOfShot1, 0.05),
+        reason: 'starting a shot must not discontinue the reading',
+      );
     });
 
     test('hot water dispenses straight into the cup', () {
       // No puck in the path: no first-drops holdback, no saturation ramp —
       // weight tracks the dispense flow 1:1 from the start.
       run(3.0, flow: 2.0, state: MachineState.hotWater);
-      expect(model.weight, closeTo(5.8, 0.3),
-          reason: '~3s at 2 mL/s lands ~6g in the cup');
+      expect(
+        model.weight,
+        closeTo(5.8, 0.3),
+        reason: '~3s at 2 mL/s lands ~6g in the cup',
+      );
     });
 
     test('reset clears everything', () {

@@ -163,7 +163,9 @@ ChargingDecision decide({
       shouldCharge: true,
       nightPhase: nightModeConfig != null
           ? _determineNightPhase(
-              _minutesSinceMidnight(currentTime), nightModeConfig)
+              _minutesSinceMidnight(currentTime),
+              nightModeConfig,
+            )
           : NightPhase.inactive,
       reason: 'emergency',
     );
@@ -220,7 +222,9 @@ ChargingDecision decide({
   // 4. Charging mode ranges with hysteresis
   final nightPhase = nightModeConfig != null
       ? _determineNightPhase(
-          _minutesSinceMidnight(currentTime), nightModeConfig)
+          _minutesSinceMidnight(currentTime),
+          nightModeConfig,
+        )
       : NightPhase.inactive;
 
   final (int low, int high) = switch (chargingMode) {

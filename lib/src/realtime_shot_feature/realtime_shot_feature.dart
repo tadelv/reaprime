@@ -39,7 +39,9 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
   @override
   initState() {
     super.initState();
-    SharedPreferencesSettingsService().gatewayMode().then((b) => _gatewayMode = b == GatewayMode.full);
+    SharedPreferencesSettingsService().gatewayMode().then(
+      (b) => _gatewayMode = b == GatewayMode.full,
+    );
     _shotSequencer = widget.shotSequencer;
     _resetCommandSubscription = _shotSequencer.resetCommand.listen((event) {
       setState(() {
@@ -103,7 +105,8 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
           SizedBox(
             width: 200,
             child: Text(
-                "Time: ${_shotSnapshots.lastWhereOrNull((sn) => sn.machine.state.substate == MachineSubstate.pouring)?.machine.timestamp.difference(_shotSequencer.shotStartTime).inSeconds}s"),
+              "Time: ${_shotSnapshots.lastWhereOrNull((sn) => sn.machine.state.substate == MachineSubstate.pouring)?.machine.timestamp.difference(_shotSequencer.shotStartTime).inSeconds}s",
+            ),
           ),
           Spacer(),
           SizedBox(
@@ -215,28 +218,30 @@ class _RealtimeShotFeatureState extends State<RealtimeShotFeature> {
           onPressed: () {
             // Pre-declare intent so the stop is attributed to the app UI
             // (stopReason: appStop) rather than the ambiguous machineEnded.
-            widget.shotSequencer.de1controller
-                .recordStopIntent(ShotDecisionReason.appStop);
-            widget.shotSequencer.de1controller
-                .connectedDe1()
-                .requestState(MachineState.idle);
+            widget.shotSequencer.de1controller.recordStopIntent(
+              ShotDecisionReason.appStop,
+            );
+            widget.shotSequencer.de1controller.connectedDe1().requestState(
+              MachineState.idle,
+            );
           },
           child: Text('Stop Shot'),
         ),
         ShadButton.secondary(
           enabled: !backEnabled,
           onPressed: () {
-            widget.shotSequencer.de1controller
-                .connectedDe1()
-                .requestState(MachineState.skipStep);
+            widget.shotSequencer.de1controller.connectedDe1().requestState(
+              MachineState.skipStep,
+            );
           },
           trailing: Icon(LucideIcons.fastForward),
           child: Text('Skip Step'),
         ),
         Spacer(),
         ShotStateView(
-            status: _shotSnapshots.lastOrNull?.machine.state.substate.name,
-            step: _currentStep()),
+          status: _shotSnapshots.lastOrNull?.machine.state.substate.name,
+          step: _currentStep(),
+        ),
         Spacer(),
       ],
     );
@@ -264,8 +269,11 @@ class ShotDataView extends StatelessWidget {
   final String? firstLine;
   final String secondLine;
 
-  const ShotDataView(
-      {super.key, required this.firstLine, required this.secondLine});
+  const ShotDataView({
+    super.key,
+    required this.firstLine,
+    required this.secondLine,
+  });
 
   @override
   Widget build(BuildContext context) {

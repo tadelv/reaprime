@@ -17,14 +17,24 @@ class DifluidScale implements Scale {
       BleServiceIdentifier.short('aa01');
 
   static final List<int> _cmdStartWeightNotifications = [
-    0xDF, 0xDF, 0x01, 0x00, 0x01, 0x01, 0xC1
+    0xDF,
+    0xDF,
+    0x01,
+    0x00,
+    0x01,
+    0x01,
+    0xC1,
   ];
   static final List<int> _cmdSetUnitToGram = [
-    0xDF, 0xDF, 0x01, 0x04, 0x01, 0x00, 0xC4
+    0xDF,
+    0xDF,
+    0x01,
+    0x04,
+    0x01,
+    0x00,
+    0xC4,
   ];
-  static final List<int> _cmdTare = [
-    0xDF, 0xDF, 0x03, 0x02, 0x01, 0x01, 0xC5
-  ];
+  static final List<int> _cmdTare = [0xDF, 0xDF, 0x03, 0x02, 0x01, 0x01, 0xC5];
 
   final String _deviceId;
 
@@ -74,9 +84,9 @@ class DifluidScale implements Scale {
       disconnectSub = _transport.connectionState
           .where((state) => state == ConnectionState.disconnected)
           .listen((_) {
-        _connectionStateController.add(ConnectionState.disconnected);
-        disconnectSub?.cancel();
-      });
+            _connectionStateController.add(ConnectionState.disconnected);
+            disconnectSub?.cancel();
+          });
 
       final services = await _transport.discoverServices();
       if (!serviceIdentifier.matchesAny(services)) {
@@ -128,7 +138,11 @@ class DifluidScale implements Scale {
   }
 
   Future<void> _registerNotifications() async {
-    await _transport.subscribe(serviceIdentifier.long, dataCharacteristic.long, _parseNotification);
+    await _transport.subscribe(
+      serviceIdentifier.long,
+      dataCharacteristic.long,
+      _parseNotification,
+    );
 
     // Send start weight notifications command
     await _transport.write(
@@ -184,10 +198,22 @@ class DifluidScale implements Scale {
   }
 
   static final List<int> _cmdTimerStart = [
-    0xDF, 0xDF, 0x03, 0x02, 0x01, 0x00, 0xC4
+    0xDF,
+    0xDF,
+    0x03,
+    0x02,
+    0x01,
+    0x00,
+    0xC4,
   ];
   static final List<int> _cmdTimerStop = [
-    0xDF, 0xDF, 0x03, 0x01, 0x01, 0x00, 0xC3
+    0xDF,
+    0xDF,
+    0x03,
+    0x01,
+    0x01,
+    0x00,
+    0xC3,
   ];
 
   @override

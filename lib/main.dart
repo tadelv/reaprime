@@ -365,19 +365,12 @@ void main(List<String> args) async {
     persistenceController.saveWorkflow(workflowController.currentWorkflow);
     de1Controller.defaultWorkflow = workflowController.currentWorkflow;
   });
-  // Single writer of DE1 setProfile for the workflow paths (REST
-  // PUT /api/v1/workflow + UI picker) AND the machine (re)connect push
-  // (the old defaults-path upload was single-shot with
-  // swallowed errors). Only POST /api/v1/machine/profile bypasses it —
-  // UnifiedDe1.setProfile serializes uploads across all callers at the
-  // device level. Persistent upload failures surface on the connection
-  // status stream and retract once a retry lands.
   // ignore: unused_local_variable
   final workflowDeviceSync = WorkflowDeviceSync(
     workflowController: workflowController,
     de1Controller: de1Controller,
     onUploadError: connectionManager.reportError,
-    onUploadRecovered: () => connectionManager.clearErrorOfKind(
+    onUploadErrorCleared: () => connectionManager.clearErrorOfKind(
       ConnectionErrorKind.profileUploadFailed,
     ),
   );

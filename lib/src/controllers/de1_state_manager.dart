@@ -602,7 +602,8 @@ class De1StateManager with WidgetsBindingObserver {
     // must not abort them — same carve-out the persistence path already makes.
     final beverageType =
         _workflowController.currentWorkflow.profile.beverageType;
-    final scalelessBeverage = beverageType == BeverageType.cleaning ||
+    final scalelessBeverage =
+        beverageType == BeverageType.cleaning ||
         beverageType == BeverageType.calibrate;
 
     _currentShotSequencer = ShotSequencer(
@@ -616,8 +617,9 @@ class De1StateManager with WidgetsBindingObserver {
       blockOnNoScale: _settingsController.blockOnNoScale && !scalelessBeverage,
       weightFlowMultiplier: _settingsController.weightFlowMultiplier,
       volumeFlowMultiplier: _settingsController.volumeFlowMultiplier,
-      stepExitArbiterEnabled: _settingsController
-          .isFeatureFlagEnabled(FeatureFlag.stepExitArbiter),
+      stepExitArbiterEnabled: _settingsController.isFeatureFlagEnabled(
+        FeatureFlag.stepExitArbiter,
+      ),
     );
 
     _currentShotSnapshots.clear();
@@ -785,7 +787,8 @@ class De1StateManager with WidgetsBindingObserver {
     _logger.fine('Cleaning up ShotSequencer');
 
     final sequencer = _currentShotSequencer;
-    final midShot = emitTerminal &&
+    final midShot =
+        emitTerminal &&
         sequencer != null &&
         sequencer.currentState != ShotState.idle &&
         sequencer.currentState != ShotState.finished;

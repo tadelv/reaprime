@@ -5,8 +5,7 @@ import 'package:reaprime/src/services/webserver/data_export/data_export_section.
 class BeanExportSection implements DataExportSection {
   final BeanStorageService _storage;
 
-  BeanExportSection({required BeanStorageService storage})
-      : _storage = storage;
+  BeanExportSection({required BeanStorageService storage}) : _storage = storage;
 
   @override
   String get filename => 'beans.json';
@@ -17,8 +16,10 @@ class BeanExportSection implements DataExportSection {
     final result = <Map<String, dynamic>>[];
 
     for (final bean in beans) {
-      final batches =
-          await _storage.getBatchesForBean(bean.id, includeArchived: true);
+      final batches = await _storage.getBatchesForBean(
+        bean.id,
+        includeArchived: true,
+      );
       final beanJson = bean.toJson();
       beanJson['batches'] = batches.map((b) => b.toJson()).toList();
       result.add(beanJson);
@@ -45,7 +46,8 @@ class BeanExportSection implements DataExportSection {
     for (final item in data) {
       try {
         final json = item as Map<String, dynamic>;
-        final batches = (json['batches'] as List?)
+        final batches =
+            (json['batches'] as List?)
                 ?.cast<Map<String, dynamic>>()
                 .map((b) => BeanBatch.fromJson(b))
                 .toList() ??

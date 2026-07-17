@@ -84,8 +84,9 @@ void main() {
 
     test('includes archived grinders', () async {
       storage.grinders.add(_makeGrinder(id: 'active'));
-      storage.grinders
-          .add(_makeGrinder(id: 'archived').copyWith(archived: true));
+      storage.grinders.add(
+        _makeGrinder(id: 'archived').copyWith(archived: true),
+      );
 
       final result = await section.export();
       expect((result as List), hasLength(2));
@@ -139,8 +140,7 @@ void main() {
       storage.grinders.add(_makeGrinder(model: 'Original'));
 
       final json = _makeGrinder(model: 'Updated').toJson();
-      final result =
-          await section.import([json], ConflictStrategy.overwrite);
+      final result = await section.import([json], ConflictStrategy.overwrite);
 
       expect(result.imported, equals(1));
       expect(storage.grinders.first.model, equals('Updated'));
@@ -148,8 +148,7 @@ void main() {
 
     test('imports new grinders', () async {
       final json = _makeGrinder().toJson();
-      final result =
-          await section.import([json], ConflictStrategy.overwrite);
+      final result = await section.import([json], ConflictStrategy.overwrite);
 
       expect(result.imported, equals(1));
       expect(storage.grinders, hasLength(1));

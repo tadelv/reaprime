@@ -38,8 +38,7 @@ void main() {
 
   test('filters archived grinders by default', () async {
     await db.grinderDao.insertGrinder(makeGrinder(id: 'g1'));
-    await db.grinderDao
-        .insertGrinder(makeGrinder(id: 'g2', archived: true));
+    await db.grinderDao.insertGrinder(makeGrinder(id: 'g2', archived: true));
 
     final active = await db.grinderDao.getAllGrinders();
     expect(active, hasLength(1));
@@ -49,21 +48,23 @@ void main() {
   });
 
   test('gets grinder by ID', () async {
-    await db.grinderDao
-        .insertGrinder(makeGrinder(id: 'g1', model: 'Niche Zero'));
+    await db.grinderDao.insertGrinder(
+      makeGrinder(id: 'g1', model: 'Niche Zero'),
+    );
     final grinder = await db.grinderDao.getGrinderById('g1');
     expect(grinder, isNotNull);
     expect(grinder!.model, 'Niche Zero');
   });
 
   test('updates a grinder', () async {
-    await db.grinderDao
-        .insertGrinder(makeGrinder(id: 'g1', model: 'Old'));
-    await db.grinderDao.updateGrinder(GrindersCompanion(
-      id: const Value('g1'),
-      model: const Value('New'),
-      updatedAt: Value(DateTime.now()),
-    ));
+    await db.grinderDao.insertGrinder(makeGrinder(id: 'g1', model: 'Old'));
+    await db.grinderDao.updateGrinder(
+      GrindersCompanion(
+        id: const Value('g1'),
+        model: const Value('New'),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
     final grinder = await db.grinderDao.getGrinderById('g1');
     expect(grinder!.model, 'New');
   });
@@ -71,8 +72,7 @@ void main() {
   test('deletes a grinder', () async {
     await db.grinderDao.insertGrinder(makeGrinder(id: 'g1'));
     await db.grinderDao.deleteGrinder('g1');
-    final grinders =
-        await db.grinderDao.getAllGrinders(includeArchived: true);
+    final grinders = await db.grinderDao.getAllGrinders(includeArchived: true);
     expect(grinders, isEmpty);
   });
 
@@ -85,14 +85,16 @@ void main() {
 
   test('stores setting type and values', () async {
     final now = DateTime.now();
-    await db.grinderDao.insertGrinder(GrindersCompanion(
-      id: const Value('g1'),
-      model: const Value('DYE2'),
-      settingType: const Value('preset'),
-      settingValues: const Value(['Coarse', 'Medium', 'Fine']),
-      createdAt: Value(now),
-      updatedAt: Value(now),
-    ));
+    await db.grinderDao.insertGrinder(
+      GrindersCompanion(
+        id: const Value('g1'),
+        model: const Value('DYE2'),
+        settingType: const Value('preset'),
+        settingValues: const Value(['Coarse', 'Medium', 'Fine']),
+        createdAt: Value(now),
+        updatedAt: Value(now),
+      ),
+    );
 
     final grinder = await db.grinderDao.getGrinderById('g1');
     expect(grinder!.settingType, 'preset');

@@ -161,7 +161,8 @@ class _UpdateDialogState extends State<UpdateDialog> {
         }
       } else {
         setState(() {
-          _error = 'Installation permission required. Please grant permission and try again.';
+          _error =
+              'Installation permission required. Please grant permission and try again.';
           _isInstalling = false;
         });
       }

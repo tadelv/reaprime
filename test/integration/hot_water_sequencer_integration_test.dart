@@ -37,7 +37,9 @@ void main() {
   late HotWaterSequencer sequencer;
 
   setUp(() async {
-    de1Controller = De1Controller(controller: DeviceController([_EmptyDiscovery()]));
+    de1Controller = De1Controller(
+      controller: DeviceController([_EmptyDiscovery()]),
+    );
     scaleController = ScaleController();
     settings = SettingsController(MockSettingsService());
     await settings.loadSettings();
@@ -74,25 +76,33 @@ void main() {
     await scaleController.connectToScale(scale);
 
     // Small target (5 g at 2 mL/s) so the dispense reaches it quickly.
-    await de1Controller.updateHotWaterSettings(HotWaterFormSettings(
-      targetTemperature: 85,
-      flow: 2.0,
-      volume: 5,
-      duration: 30,
-    ));
+    await de1Controller.updateHotWaterSettings(
+      HotWaterFormSettings(
+        targetTemperature: 85,
+        flow: 2.0,
+        volume: 5,
+        duration: 30,
+      ),
+    );
     // Let the hot-water target propagate to the sequencer.
     await Future<void>.delayed(const Duration(milliseconds: 300));
 
     // Externally-started hot water (as a GHC / REST / skin would).
     await machine.requestState(MachineState.hotWater);
     await waitForState(machine, MachineState.hotWater);
-    expect(sequencer.isArmed, isTrue,
-        reason: 'sequencer should arm on hotWater entry');
+    expect(
+      sequencer.isArmed,
+      isTrue,
+      reason: 'sequencer should arm on hotWater entry',
+    );
 
     // The scale weight ramps past 5 g; the sequencer must request idle.
     await waitForState(machine, MachineState.idle);
-    expect(sequencer.isArmed, isFalse,
-        reason: 'sequencer should disarm once hot water ends');
+    expect(
+      sequencer.isArmed,
+      isFalse,
+      reason: 'sequencer should disarm once hot water ends',
+    );
 
     await machine.disconnect();
   });
@@ -103,12 +113,14 @@ void main() {
     await de1Controller.connectToDe1(machine);
     final scale = MockScale();
     await scaleController.connectToScale(scale);
-    await de1Controller.updateHotWaterSettings(HotWaterFormSettings(
-      targetTemperature: 85,
-      flow: 2.0,
-      volume: 5,
-      duration: 30,
-    ));
+    await de1Controller.updateHotWaterSettings(
+      HotWaterFormSettings(
+        targetTemperature: 85,
+        flow: 2.0,
+        volume: 5,
+        duration: 30,
+      ),
+    );
     await Future<void>.delayed(const Duration(milliseconds: 300));
 
     await machine.requestState(MachineState.hotWater);

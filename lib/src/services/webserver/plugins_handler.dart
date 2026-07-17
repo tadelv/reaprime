@@ -9,11 +9,11 @@ final class PluginsHandler {
 
   final Random _random = Random();
 
-  PluginsHandler(
-      {required this.pluginManager,
-      required this.pluginService,
-      bool? appStoreMode})
-      : _appStoreMode = appStoreMode ?? BuildInfo.appStore;
+  PluginsHandler({
+    required this.pluginManager,
+    required this.pluginService,
+    bool? appStoreMode,
+  }) : _appStoreMode = appStoreMode ?? BuildInfo.appStore;
 
   void addRoutes(RouterPlus app) {
     app.get('/api/v1/plugins', (Request req) async {
@@ -29,8 +29,9 @@ final class PluginsHandler {
 
     app.post('/api/v1/plugins/install', (Request request) async {
       if (_appStoreMode) {
-        return jsonForbidden(
-            {'error': 'Plugin installation is not available on this platform'});
+        return jsonForbidden({
+          'error': 'Plugin installation is not available on this platform',
+        });
       }
       try {
         final payload = await request.readAsString();
@@ -40,8 +41,9 @@ final class PluginsHandler {
           return jsonBadRequest({'error': 'url is required'});
         }
         // Plugin install from URL not yet implemented
-        return jsonNotImplemented(
-            {'error': 'Plugin install from URL not yet implemented'});
+        return jsonNotImplemented({
+          'error': 'Plugin install from URL not yet implemented',
+        });
       } catch (e) {
         return jsonError({'error': 'Failed to install plugin: $e'});
       }
@@ -50,8 +52,7 @@ final class PluginsHandler {
     app.get('/api/v1/plugins/<id>/settings', _handlePluginSettingsGet);
     app.post('/api/v1/plugins/<id>/settings', _handlePluginSettingsPost);
 
-    app.post('/api/v1/plugins/<id>/enable',
-        (Request request, String id) async {
+    app.post('/api/v1/plugins/<id>/enable', (Request request, String id) async {
       try {
         if (pluginService.getPluginManifest(id) == null) {
           return jsonNotFound({'error': 'Plugin not found: $id'});
@@ -66,8 +67,10 @@ final class PluginsHandler {
       }
     });
 
-    app.post('/api/v1/plugins/<id>/disable',
-        (Request request, String id) async {
+    app.post('/api/v1/plugins/<id>/disable', (
+      Request request,
+      String id,
+    ) async {
       try {
         if (pluginService.getPluginManifest(id) == null) {
           return jsonNotFound({'error': 'Plugin not found: $id'});
@@ -84,8 +87,9 @@ final class PluginsHandler {
 
     app.delete('/api/v1/plugins/<id>', (Request request, String id) async {
       if (_appStoreMode) {
-        return jsonForbidden(
-            {'error': 'Plugin removal is not available on this platform'});
+        return jsonForbidden({
+          'error': 'Plugin removal is not available on this platform',
+        });
       }
       try {
         if (pluginService.getPluginManifest(id) == null) {
@@ -106,10 +110,9 @@ final class PluginsHandler {
     _log.info("handling $req");
     final id = req.params['id'];
     final endpoint = req.params['endpoint'];
-    final manifest =
-        pluginManager.loadedPlugins
-            .firstWhereOrNull((e) => e.pluginId == id)
-            ?.manifest;
+    final manifest = pluginManager.loadedPlugins
+        .firstWhereOrNull((e) => e.pluginId == id)
+        ?.manifest;
     if (manifest == null) {
       return jsonNotFound({'error': 'plugin with $id not loaded'});
     }
@@ -169,10 +172,9 @@ final class PluginsHandler {
       return jsonBadRequest({'error': 'id and endpoint required'});
     }
 
-    final manifest =
-        pluginManager.loadedPlugins
-            .firstWhereOrNull((e) => e.pluginId == id)
-            ?.manifest;
+    final manifest = pluginManager.loadedPlugins
+        .firstWhereOrNull((e) => e.pluginId == id)
+        ?.manifest;
 
     if (manifest == null) {
       return jsonNotFound({'error': 'plugin with $id not loaded'});
@@ -228,9 +230,10 @@ final class PluginsHandler {
 
       // Parse the plugin's response
       final status = response['status'] as int? ?? 200;
-      final responseHeaders = (response['headers'] as Map<String, dynamic>? ??
-              {})
-          .map((k, v) => MapEntry(k, v.toString()));
+      final responseHeaders =
+          (response['headers'] as Map<String, dynamic>? ?? {}).map(
+            (k, v) => MapEntry(k, v.toString()),
+          );
       final responseBody = response['body'];
 
       // Send the response back to the client

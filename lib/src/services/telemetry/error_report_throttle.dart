@@ -49,6 +49,8 @@ class ErrorReportThrottle {
     final now = DateTime.now();
     final cutoff = now.subtract(Duration(minutes: _entryTtlMinutes));
 
-    _lastReported.removeWhere((message, timestamp) => timestamp.isBefore(cutoff));
+    _lastReported.removeWhere(
+      (message, timestamp) => timestamp.isBefore(cutoff),
+    );
   }
 }

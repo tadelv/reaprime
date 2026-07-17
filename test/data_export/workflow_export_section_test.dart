@@ -110,8 +110,7 @@ void main() {
     });
 
     test('returns error for invalid data', () async {
-      final result =
-          await section.import('not a map', ConflictStrategy.skip);
+      final result = await section.import('not a map', ConflictStrategy.skip);
 
       expect(result.imported, equals(0));
       expect(result.errors, hasLength(1));

@@ -41,8 +41,7 @@ class _DisconnectedBleTransport extends BLETransport {
   Stream<ConnectionState> get connectionState => _connectionState.stream;
 
   @override
-  Future<ConnectionState> getConnectionState() async =>
-      _connectionState.value;
+  Future<ConnectionState> getConnectionState() async => _connectionState.value;
 
   @override
   Future<void> connect() async {
@@ -62,8 +61,7 @@ class _DisconnectedBleTransport extends BLETransport {
     String serviceUUID,
     String characteristicUUID, {
     Duration? timeout,
-  }) async =>
-      Uint8List(0);
+  }) async => Uint8List(0);
 
   @override
   Future<void> subscribe(

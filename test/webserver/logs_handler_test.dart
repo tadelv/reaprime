@@ -55,14 +55,16 @@ void main() {
       expect(await res.readAsString(), 'newest\nmiddle\noldest\n');
     });
 
-    test('does not produce a leading blank line from a trailing newline',
-        () async {
-      logFile.writeAsStringSync('a\nb\nc\n');
-      final res = await get(handlerFor(logFile.path), '/api/v1/logs');
-      final body = await res.readAsString();
-      expect(body, 'c\nb\na\n');
-      expect(body.startsWith('\n'), isFalse);
-    });
+    test(
+      'does not produce a leading blank line from a trailing newline',
+      () async {
+        logFile.writeAsStringSync('a\nb\nc\n');
+        final res = await get(handlerFor(logFile.path), '/api/v1/logs');
+        final body = await res.readAsString();
+        expect(body, 'c\nb\na\n');
+        expect(body.startsWith('\n'), isFalse);
+      },
+    );
 
     test('empty file yields an empty body (not a blank line)', () async {
       logFile.writeAsStringSync('');
@@ -73,15 +75,16 @@ void main() {
 
     test('empty file yields an empty body for order=asc too', () async {
       logFile.writeAsStringSync('');
-      final res =
-          await get(handlerFor(logFile.path), '/api/v1/logs?order=asc');
+      final res = await get(handlerFor(logFile.path), '/api/v1/logs?order=asc');
       expect(res.statusCode, 200);
       expect(await res.readAsString(), '');
     });
 
     test('missing file returns 404', () async {
-      final res =
-          await get(handlerFor('${tmpDir.path}/nope.txt'), '/api/v1/logs');
+      final res = await get(
+        handlerFor('${tmpDir.path}/nope.txt'),
+        '/api/v1/logs',
+      );
       expect(res.statusCode, 404);
     });
 
@@ -114,32 +117,34 @@ void main() {
 
     test('?order=asc returns the original chronological order', () async {
       logFile.writeAsStringSync('oldest\nmiddle\nnewest\n');
-      final res =
-          await get(handlerFor(logFile.path), '/api/v1/logs?order=asc');
+      final res = await get(handlerFor(logFile.path), '/api/v1/logs?order=asc');
       expect(res.statusCode, 200);
       expect(await res.readAsString(), 'oldest\nmiddle\nnewest\n');
     });
 
     test('?order=desc is the explicit default (newest-first)', () async {
       logFile.writeAsStringSync('oldest\nmiddle\nnewest\n');
-      final res =
-          await get(handlerFor(logFile.path), '/api/v1/logs?order=desc');
+      final res = await get(
+        handlerFor(logFile.path),
+        '/api/v1/logs?order=desc',
+      );
       expect(res.statusCode, 200);
       expect(await res.readAsString(), 'newest\nmiddle\noldest\n');
     });
 
     test('?order is case-insensitive', () async {
       logFile.writeAsStringSync('oldest\nnewest\n');
-      final res =
-          await get(handlerFor(logFile.path), '/api/v1/logs?order=ASC');
+      final res = await get(handlerFor(logFile.path), '/api/v1/logs?order=ASC');
       expect(res.statusCode, 200);
       expect(await res.readAsString(), 'oldest\nnewest\n');
     });
 
     test('an unrecognized ?order value is rejected', () async {
       logFile.writeAsStringSync('x\n');
-      final res =
-          await get(handlerFor(logFile.path), '/api/v1/logs?order=sideways');
+      final res = await get(
+        handlerFor(logFile.path),
+        '/api/v1/logs?order=sideways',
+      );
       expect(res.statusCode, 400);
     });
 
@@ -149,8 +154,10 @@ void main() {
       ];
       logFile.writeAsStringSync('${lines.join('\n')}\n');
 
-      final res =
-          await get(handlerFor(logFile.path), '/api/v1/logs?kb=1&order=asc');
+      final res = await get(
+        handlerFor(logFile.path),
+        '/api/v1/logs?kb=1&order=asc',
+      );
       final body = await res.readAsString();
 
       expect(res.statusCode, 200);
@@ -171,21 +178,25 @@ void main() {
         logFile.writeAsStringSync('base_a\nbase_b\n');
       }
 
-      test('rotated files are always included, newest-first by default',
-          () async {
-        writeRotationSet();
-        final res = await get(handlerFor(logFile.path), '/api/v1/logs');
-        expect(res.statusCode, 200);
-        expect(
-          await res.readAsString(),
-          'base_b\nbase_a\nr1b\nr1a\nr2b\nr2a\n',
-        );
-      });
+      test(
+        'rotated files are always included, newest-first by default',
+        () async {
+          writeRotationSet();
+          final res = await get(handlerFor(logFile.path), '/api/v1/logs');
+          expect(res.statusCode, 200);
+          expect(
+            await res.readAsString(),
+            'base_b\nbase_a\nr1b\nr1a\nr2b\nr2a\n',
+          );
+        },
+      );
 
       test('order=asc stitches all files oldest rotation first', () async {
         writeRotationSet();
-        final res =
-            await get(handlerFor(logFile.path), '/api/v1/logs?order=asc');
+        final res = await get(
+          handlerFor(logFile.path),
+          '/api/v1/logs?order=asc',
+        );
         expect(res.statusCode, 200);
         expect(
           await res.readAsString(),
@@ -195,8 +206,10 @@ void main() {
 
       test('no rotated files present serves just the live file', () async {
         logFile.writeAsStringSync('only_a\nonly_b\n');
-        final res =
-            await get(handlerFor(logFile.path), '/api/v1/logs?order=asc');
+        final res = await get(
+          handlerFor(logFile.path),
+          '/api/v1/logs?order=asc',
+        );
         expect(await res.readAsString(), 'only_a\nonly_b\n');
       });
 
@@ -205,8 +218,10 @@ void main() {
         File('${logFile.path}.3').writeAsStringSync('r3\n');
         File('${logFile.path}.1').writeAsStringSync('r1\n');
         logFile.writeAsStringSync('base\n');
-        final res =
-            await get(handlerFor(logFile.path), '/api/v1/logs?order=asc');
+        final res = await get(
+          handlerFor(logFile.path),
+          '/api/v1/logs?order=asc',
+        );
         expect(await res.readAsString(), 'r1\nbase\n');
       });
 
@@ -214,14 +229,16 @@ void main() {
         // Each file is 1000 bytes ("lineNNNN\n" = 9 bytes x ~111). Ask for a
         // window that spans the live file and reaches into log.txt.1.
         String block(String prefix) => [
-              for (var i = 0; i < 111; i++)
-                '$prefix${i.toString().padLeft(4, '0')}',
-            ].join('\n');
+          for (var i = 0; i < 111; i++)
+            '$prefix${i.toString().padLeft(4, '0')}',
+        ].join('\n');
         File('${logFile.path}.1').writeAsStringSync('${block("old")}\n');
         logFile.writeAsStringSync('${block("new")}\n');
 
-        final res =
-            await get(handlerFor(logFile.path), '/api/v1/logs?kb=1&order=asc');
+        final res = await get(
+          handlerFor(logFile.path),
+          '/api/v1/logs?kb=1&order=asc',
+        );
         final body = await res.readAsString();
 
         expect(res.statusCode, 200);
@@ -237,7 +254,9 @@ void main() {
       test('the legacy ?rotated param is ignored, not rejected', () async {
         writeRotationSet();
         final res = await get(
-            handlerFor(logFile.path), '/api/v1/logs?rotated=0&order=asc');
+          handlerFor(logFile.path),
+          '/api/v1/logs?rotated=0&order=asc',
+        );
         expect(res.statusCode, 200);
         // Rotations included regardless of the (removed) param's value.
         expect(
@@ -272,9 +291,9 @@ void main() {
         // Live file (1000 bytes) + rotation (1000 bytes) against a 1KB cap:
         // the window covers the live file and only the tail of the rotation.
         String block(String prefix) => [
-              for (var i = 0; i < 111; i++)
-                '$prefix${i.toString().padLeft(4, '0')}',
-            ].join('\n');
+          for (var i = 0; i < 111; i++)
+            '$prefix${i.toString().padLeft(4, '0')}',
+        ].join('\n');
         File('${logFile.path}.1').writeAsStringSync('${block("old")}\n');
         logFile.writeAsStringSync('${block("new")}\n');
 
@@ -342,8 +361,7 @@ void main() {
         '[t3] [skin] [WARN] three\n',
       );
 
-      final res =
-          await get(handlerFor(service), '/api/v1/webview/logs');
+      final res = await get(handlerFor(service), '/api/v1/webview/logs');
 
       expect(res.statusCode, 200);
       expect(res.headers['content-type'], 'text/plain');
@@ -356,8 +374,10 @@ void main() {
     });
 
     test('empty log yields an empty body', () async {
-      final res = await get(handlerFor(_StubWebViewLogService('')),
-          '/api/v1/webview/logs');
+      final res = await get(
+        handlerFor(_StubWebViewLogService('')),
+        '/api/v1/webview/logs',
+      );
       expect(res.statusCode, 200);
       expect(await res.readAsString(), '');
     });
@@ -369,8 +389,10 @@ void main() {
         '[t3] [skin] [WARN] three\n',
       );
 
-      final res =
-          await get(handlerFor(service), '/api/v1/webview/logs?order=asc');
+      final res = await get(
+        handlerFor(service),
+        '/api/v1/webview/logs?order=asc',
+      );
 
       expect(res.statusCode, 200);
       expect(
@@ -382,8 +404,10 @@ void main() {
     });
 
     test('an unrecognized ?order value is rejected', () async {
-      final res = await get(handlerFor(_StubWebViewLogService('x\n')),
-          '/api/v1/webview/logs?order=sideways');
+      final res = await get(
+        handlerFor(_StubWebViewLogService('x\n')),
+        '/api/v1/webview/logs?order=sideways',
+      );
       expect(res.statusCode, 400);
     });
   });

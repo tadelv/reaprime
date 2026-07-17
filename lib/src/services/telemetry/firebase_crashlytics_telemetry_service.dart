@@ -34,7 +34,7 @@ class FirebaseCrashlyticsTelemetryService implements TelemetryService {
     // broken platform channel state that causes black screen in release mode
     if (!kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
-         defaultTargetPlatform == TargetPlatform.iOS)) {
+            defaultTargetPlatform == TargetPlatform.iOS)) {
       await FirebasePerformance.instance.setPerformanceCollectionEnabled(false);
     }
 
@@ -126,8 +126,10 @@ class FirebaseCrashlyticsTelemetryService implements TelemetryService {
     await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(enabled);
     if (!kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
-         defaultTargetPlatform == TargetPlatform.iOS)) {
-      await FirebasePerformance.instance.setPerformanceCollectionEnabled(enabled);
+            defaultTargetPlatform == TargetPlatform.iOS)) {
+      await FirebasePerformance.instance.setPerformanceCollectionEnabled(
+        enabled,
+      );
     }
   }
 

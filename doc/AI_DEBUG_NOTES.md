@@ -83,6 +83,29 @@ adb logcat | grep -i rea
 flutter run --dart-define=simulate=1
 ```
 
+## Profile Upload Failure Diagnosis
+
+**Symptom:** Machine pulses group-head LED magenta (~2 Hz), ignores all
+start requests (espresso, steam, hot water). The app reports the machine as
+connected and holding the selected profile. Re-selecting the same profile
+does nothing.
+
+**Root cause:** A profile upload died mid-sequence (GATT write timeout on a
+flaky BLE link), leaving the firmware's `ProfileDownloadInProgress` latch set.
+Two app caches (`_lastPushedProfile` and `_currentProfile`) then prevented
+the same-profile re-upload that would have cleared the latch.
+
+**Diagnosis steps:**
+1. Check the log for "setProfile failed" or "retrying" messages.
+2. Check the WebSocket `/ws/v1/devices` for `profileUploadFailed` error kind.
+3. The `WorkflowDeviceSync` logger shows retries at FINE/WARNING level.
+
+**Fix pattern:** The app now clears both caches on every connection edge and
+retries failed uploads automatically with capped exponential backoff. A full
+re-upload of any profile clears the latch. See `doc/AI_BLE_NOTES.md` for the
+cache architecture and `doc/plans/archive/profile-upload-recovery/design.md`
+for the full design rationale.
+
 ## Keeping Notes Fresh
 
 Add debugging patterns with: symptom, root cause, fix pattern, prevention. Prune when fixes ship and patterns are no longer current.

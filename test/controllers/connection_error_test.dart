@@ -48,8 +48,10 @@ void main() {
       expect(ConnectionErrorKind.scaleDisconnected, 'scaleDisconnected');
       expect(ConnectionErrorKind.machineDisconnected, 'machineDisconnected');
       expect(ConnectionErrorKind.adapterOff, 'adapterOff');
-      expect(ConnectionErrorKind.bluetoothPermissionDenied,
-          'bluetoothPermissionDenied');
+      expect(
+        ConnectionErrorKind.bluetoothPermissionDenied,
+        'bluetoothPermissionDenied',
+      );
       expect(ConnectionErrorKind.scanFailed, 'scanFailed');
     });
   });

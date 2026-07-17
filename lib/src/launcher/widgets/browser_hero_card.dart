@@ -108,7 +108,9 @@ class BrowserHeroCard extends StatelessWidget {
                         ShadButton(
                           size: ShadButtonSize.sm,
                           leading: const Icon(
-                              LucideIcons.externalLink, size: 14),
+                            LucideIcons.externalLink,
+                            size: 14,
+                          ),
                           child: const Text('Open Browser'),
                           onPressed: () {
                             launchUrl(Uri.parse(_url));

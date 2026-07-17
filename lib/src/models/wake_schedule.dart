@@ -41,8 +41,9 @@ class WakeSchedule {
     bool enabled = true,
     int? keepAwakeFor,
   }) {
-    final keepAwake =
-        keepAwakeFor != null && keepAwakeFor > 0 ? keepAwakeFor : null;
+    final keepAwake = keepAwakeFor != null && keepAwakeFor > 0
+        ? keepAwakeFor
+        : null;
     return WakeSchedule(
       id: const Uuid().v4(),
       hour: hour,
@@ -124,8 +125,9 @@ class WakeSchedule {
       minute: minute ?? this.minute,
       daysOfWeek: daysOfWeek ?? this.daysOfWeek,
       enabled: enabled ?? this.enabled,
-      keepAwakeFor:
-          clearKeepAwakeFor ? null : (keepAwakeFor ?? this.keepAwakeFor),
+      keepAwakeFor: clearKeepAwakeFor
+          ? null
+          : (keepAwakeFor ?? this.keepAwakeFor),
     );
   }
 

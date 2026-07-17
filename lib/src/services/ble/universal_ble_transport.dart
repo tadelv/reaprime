@@ -16,9 +16,10 @@ class UniversalBleTransport implements BLETransport {
 
   late Logger _log;
 
-  final BehaviorSubject<device.ConnectionState> _connectionStateSubject = BehaviorSubject.seeded(
-    device.ConnectionState.discovered,
-  );
+  final BehaviorSubject<device.ConnectionState> _connectionStateSubject =
+      BehaviorSubject.seeded(
+        device.ConnectionState.discovered,
+      );
 
   StreamSubscription? _connectionStateSubscription;
 
@@ -64,8 +65,8 @@ class UniversalBleTransport implements BLETransport {
   UniversalBleTransport({
     required BleDevice device,
     Future<void> Function()? stopScan,
-  })  : _device = device,
-        _stopScan = stopScan {
+  }) : _device = device,
+       _stopScan = stopScan {
     _log = Logger("BLETransport-${device.deviceId}");
   }
 
@@ -83,13 +84,13 @@ class UniversalBleTransport implements BLETransport {
   // Android post-connect settle duration. The Android BLE stack needs
   // a brief period after connectGatt reports success before service
   // discovery works reliably (particularly on older tablet SoCs).
-  static const Duration _androidPostConnectDelay =
-      Duration(milliseconds: 200);
+  static const Duration _androidPostConnectDelay = Duration(milliseconds: 200);
 
   // Brief pause between stopScan and connectGatt so the scanner actually
   // releases the radio before the connection attempt starts.
-  static const Duration _androidPreConnectSettleDelay =
-      Duration(milliseconds: 300);
+  static const Duration _androidPreConnectSettleDelay = Duration(
+    milliseconds: 300,
+  );
 
   @override
   Future<void> connect() async {
@@ -100,17 +101,18 @@ class UniversalBleTransport implements BLETransport {
     // native disconnect reason codes (GATT error, HCI status) — the
     // standard connectionStream only emits bool.
     _connectionStateSubscription?.cancel();
-    _connectionStateSubscription = UniversalBle.connectionUpdateStream(
-      _device.deviceId,
-    ).listen((update) {
-      if (update.isConnected) {
-        _connectionStateSubject.add(device.ConnectionState.connected);
-      } else {
-        final reason = update.error ?? 'unknown';
-        _log.warning('Transport disconnected: $reason');
-        _connectionStateSubject.add(device.ConnectionState.disconnected);
-      }
-    });
+    _connectionStateSubscription =
+        UniversalBle.connectionUpdateStream(
+          _device.deviceId,
+        ).listen((update) {
+          if (update.isConnected) {
+            _connectionStateSubject.add(device.ConnectionState.connected);
+          } else {
+            final reason = update.error ?? 'unknown';
+            _log.warning('Transport disconnected: $reason');
+            _connectionStateSubject.add(device.ConnectionState.disconnected);
+          }
+        });
     if (_isLinux) {
       await _connectBlueZ();
       _startAdvertWatch();
@@ -237,7 +239,11 @@ class UniversalBleTransport implements BLETransport {
     UniversalBleErrorCode.deviceDisconnected,
   };
 
-  Never _handleGattError(UniversalBleException e, String operation, String path) {
+  Never _handleGattError(
+    UniversalBleException e,
+    String operation,
+    String path,
+  ) {
     if (_goneDeviceCodes.contains(e.code)) {
       _log.warning('GATT $operation($path) failed — device gone: ${e.code}');
       _connectionStateSubject.add(device.ConnectionState.disconnected);
@@ -251,7 +257,9 @@ class UniversalBleTransport implements BLETransport {
     // caller (UnifiedDe1Transport) can retry via _handleBleTimeout.
     // Do NOT declare the link dead or emit disconnected.
     if (e.code == UniversalBleErrorCode.gattError) {
-      _log.warning('GATT $operation($path) failed — GATT error 133 (transient): $e');
+      _log.warning(
+        'GATT $operation($path) failed — GATT error 133 (transient): $e',
+      );
       UniversalBle.clearQueue(_device.deviceId);
       throw BleTimeoutException('GATT $operation($path)', e);
     }
@@ -279,8 +287,7 @@ class UniversalBleTransport implements BLETransport {
       BleConnectionState.connected => device.ConnectionState.connected,
       BleConnectionState.connecting => device.ConnectionState.connecting,
       BleConnectionState.disconnecting ||
-      BleConnectionState.disconnected =>
-        device.ConnectionState.disconnected,
+      BleConnectionState.disconnected => device.ConnectionState.disconnected,
     };
   }
 
@@ -367,13 +374,17 @@ class UniversalBleTransport implements BLETransport {
   TransportType get transportType => TransportType.ble;
 
   @override
-  Future<Uint8List> read(String serviceUUID, String characteristicUUID, {Duration? timeout}) async {
+  Future<Uint8List> read(
+    String serviceUUID,
+    String characteristicUUID, {
+    Duration? timeout,
+  }) async {
     try {
       final value = await UniversalBle.read(
         _device.deviceId,
         serviceUUID,
         characteristicUUID,
-        timeout: timeout
+        timeout: timeout,
       );
       _noteOperationSuccess();
       return value;
@@ -388,7 +399,9 @@ class UniversalBleTransport implements BLETransport {
     } catch (e) {
       // Same clearQueue rationale as write() — see write() catch block.
       if (e.toString().contains('Queue Cancelled')) {
-        _log.fine('read($serviceUUID/$characteristicUUID) cancelled by clearQueue');
+        _log.fine(
+          'read($serviceUUID/$characteristicUUID) cancelled by clearQueue',
+        );
         _connectionStateSubject.add(device.ConnectionState.disconnected);
         throw const DeviceNotConnectedException.unknown();
       }
@@ -544,7 +557,7 @@ class UniversalBleTransport implements BLETransport {
         BleUuidParser.string(characteristicUUID),
         data,
         withoutResponse: !withResponse,
-        timeout: timeout
+        timeout: timeout,
       );
       _noteOperationSuccess();
     } on TimeoutException {
@@ -570,7 +583,7 @@ class UniversalBleTransport implements BLETransport {
       // throw the domain exception.
       if (e.toString().contains('Queue Cancelled')) {
         _log.fine(
-            'write($serviceUUID/$characteristicUUID) cancelled by clearQueue',
+          'write($serviceUUID/$characteristicUUID) cancelled by clearQueue',
         );
         _connectionStateSubject.add(device.ConnectionState.disconnected);
         throw const DeviceNotConnectedException.unknown();

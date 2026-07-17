@@ -389,12 +389,12 @@ class De1Handler {
       final blockOnNoScale = _settingsController.blockOnNoScale;
       final scaleConnected =
           _scaleController.currentConnectionState ==
-              device.ConnectionState.connected;
+          device.ConnectionState.connected;
       // A cleaning/backflush profile has no yield to weigh, so the no-scale
       // guard never applies to it.
       final isCleaningProfile =
           _workflowController.currentWorkflow.profile.beverageType ==
-              BeverageType.cleaning;
+          BeverageType.cleaning;
       log.fine(
         "Received request to change state to $requestState while scale connected: $scaleConnected, blockOnNoScale: $blockOnNoScale, cleaningProfile: $isCleaningProfile",
       );
@@ -416,7 +416,8 @@ class De1Handler {
       // actually succeeded, so a failed stop can't mislabel a later natural
       // end. This lets the ShotSequencer attribute the stop to apiStop
       // instead of the ambiguous machineEnded bucket.
-      final stoppingActiveShot = requestState == MachineState.idle &&
+      final stoppingActiveShot =
+          requestState == MachineState.idle &&
           _controller.currentShotState.state != ShotState.idle;
       await de1.requestState(requestState);
       if (stoppingActiveShot) {

@@ -108,7 +108,8 @@ class _PermissionsStepViewState extends State<_PermissionsStepView> {
             .timeout(Duration(seconds: 5));
       } on TimeoutException {
         _log.warning(
-            'Bluetooth availability check timed out, continuing without BLE');
+          'Bluetooth availability check timed out, continuing without BLE',
+        );
       }
     }
 

@@ -74,7 +74,10 @@ class SettingsView extends StatelessWidget {
               // MARK: Updates
               const SettingsSectionHeader('Updates'),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 child: ShadSwitch(
                   value: controller.automaticUpdateCheck,
                   onChanged: (v) async {
@@ -168,7 +171,6 @@ class SettingsView extends StatelessWidget {
     }
   }
 
-
   String _chargingModeLabel(ChargingMode mode) {
     switch (mode) {
       case ChargingMode.disabled:
@@ -201,40 +203,40 @@ class SettingsView extends StatelessWidget {
           child: Material(
             type: MaterialType.transparency,
             child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                title: const Text('System Theme'),
-                trailing: controller.themeMode == ThemeMode.system
-                    ? const Icon(Icons.check)
-                    : null,
-                onTap: () {
-                  controller.updateThemeMode(ThemeMode.system);
-                  Navigator.of(dialogContext).pop();
-                },
-              ),
-              ListTile(
-                title: const Text('Light Theme'),
-                trailing: controller.themeMode == ThemeMode.light
-                    ? const Icon(Icons.check)
-                    : null,
-                onTap: () {
-                  controller.updateThemeMode(ThemeMode.light);
-                  Navigator.of(dialogContext).pop();
-                },
-              ),
-              ListTile(
-                title: const Text('Dark Theme'),
-                trailing: controller.themeMode == ThemeMode.dark
-                    ? const Icon(Icons.check)
-                    : null,
-                onTap: () {
-                  controller.updateThemeMode(ThemeMode.dark);
-                  Navigator.of(dialogContext).pop();
-                },
-              ),
-            ],
-          ),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  title: const Text('System Theme'),
+                  trailing: controller.themeMode == ThemeMode.system
+                      ? const Icon(Icons.check)
+                      : null,
+                  onTap: () {
+                    controller.updateThemeMode(ThemeMode.system);
+                    Navigator.of(dialogContext).pop();
+                  },
+                ),
+                ListTile(
+                  title: const Text('Light Theme'),
+                  trailing: controller.themeMode == ThemeMode.light
+                      ? const Icon(Icons.check)
+                      : null,
+                  onTap: () {
+                    controller.updateThemeMode(ThemeMode.light);
+                    Navigator.of(dialogContext).pop();
+                  },
+                ),
+                ListTile(
+                  title: const Text('Dark Theme'),
+                  trailing: controller.themeMode == ThemeMode.dark
+                      ? const Icon(Icons.check)
+                      : null,
+                  onTap: () {
+                    controller.updateThemeMode(ThemeMode.dark);
+                    Navigator.of(dialogContext).pop();
+                  },
+                ),
+              ],
+            ),
           ),
         );
       },

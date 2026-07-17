@@ -64,7 +64,9 @@ class ScaleController {
         }
       } catch (e) {
         log.warning(
-            'Failed to disconnect previous scale ${previous.deviceId}', e);
+          'Failed to disconnect previous scale ${previous.deviceId}',
+          e,
+        );
       }
     }
     _scaleSnapshot = scale.currentSnapshot.listen(_processSnapshot);
@@ -117,7 +119,10 @@ class ScaleController {
           await previous.disconnect();
         }
       } catch (e) {
-        log.warning('Failed to disconnect previous scale ${previous.deviceId}', e);
+        log.warning(
+          'Failed to disconnect previous scale ${previous.deviceId}',
+          e,
+        );
       }
     }
     _scaleSnapshot = scale.currentSnapshot.listen(_processSnapshot);
@@ -210,8 +215,7 @@ class ScaleController {
     if (_kalmanFlowEnabled) {
       _kalmanEstimator?.reset(0.0);
     } else {
-      _flowCalculator =
-          FlowCalculator(windowDuration: smoothingWindowDuration);
+      _flowCalculator = FlowCalculator(windowDuration: smoothingWindowDuration);
       weightFlowAverage = MovingAverage(10);
       _flowSettleUntil = _lastSnapshotTime?.add(smoothingWindowDuration);
     }
@@ -224,20 +228,24 @@ class ScaleController {
     final double flow;
 
     if (_kalmanFlowEnabled) {
-      _kalmanEstimator ??=
-          KalmanFlowEstimator(initialWeight: snapshot.weight);
-      final (w, f) =
-          _kalmanEstimator!.addSample(snapshot.timestamp, snapshot.weight);
+      _kalmanEstimator ??= KalmanFlowEstimator(initialWeight: snapshot.weight);
+      final (w, f) = _kalmanEstimator!.addSample(
+        snapshot.timestamp,
+        snapshot.weight,
+      );
       filteredWeight = snapshot.weight;
       flow = f;
     } else {
       // Legacy path: endpoint-difference FlowCalculator + MovingAverage.
       filteredWeight = snapshot.weight;
-      final rawFlow =
-          _flowCalculator.addSample(snapshot.timestamp, snapshot.weight);
+      final rawFlow = _flowCalculator.addSample(
+        snapshot.timestamp,
+        snapshot.weight,
+      );
       weightFlowAverage.add(rawFlow);
 
-      final settling = _flowSettleUntil != null &&
+      final settling =
+          _flowSettleUntil != null &&
           snapshot.timestamp.isBefore(_flowSettleUntil!);
       flow = settling ? 0.0 : weightFlowAverage.average;
     }

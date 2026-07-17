@@ -11,7 +11,9 @@ void main() {
         drinkEy: 21.3,
         enjoyment: 8.0,
         espressoNotes: 'Fruity, clean finish',
-        extras: {'visualizer': {'score': 92}},
+        extras: {
+          'visualizer': {'score': 92},
+        },
       );
 
       final json = ann.toJson();
@@ -23,7 +25,9 @@ void main() {
       expect(restored.drinkEy, 21.3);
       expect(restored.enjoyment, 8.0);
       expect(restored.espressoNotes, 'Fruity, clean finish');
-      expect(restored.extras, {'visualizer': {'score': 92}});
+      expect(restored.extras, {
+        'visualizer': {'score': 92},
+      });
     });
 
     test('round-trip with minimal fields (nulls omitted from JSON)', () {

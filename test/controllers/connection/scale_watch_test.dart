@@ -27,18 +27,18 @@ void main() {
   late ScaleWatch watch;
 
   ScaleWatch build() => ScaleWatch(
-        scanner: scanner,
-        shouldWatch: () => gate,
-        preferredScaleId: () => preferredId,
-        connectScale: (scale) async {
-          connectCalls.add(scale);
-          if (connectGate != null) {
-            await connectGate!.future;
-          }
-          if (connectSucceeds) gate = false;
-        },
-        onWatchUnavailable: () => unavailableCalls++,
-      );
+    scanner: scanner,
+    shouldWatch: () => gate,
+    preferredScaleId: () => preferredId,
+    connectScale: (scale) async {
+      connectCalls.add(scale);
+      if (connectGate != null) {
+        await connectGate!.future;
+      }
+      if (connectSucceeds) gate = false;
+    },
+    onWatchUnavailable: () => unavailableCalls++,
+  );
 
   setUp(() {
     scanner = MockDeviceScanner()..supportsWatch = true;
@@ -85,47 +85,58 @@ void main() {
     expect(scanner.startWatchCallCount, 1);
   });
 
-  test(
-      'preferred scale already discovered at arm time connects directly, '
+  test('preferred scale already discovered at arm time connects directly, '
       'no watch scan', () async {
     scanner.addDevice(TestScale(deviceId: scaleId));
     await watch.arm();
     await pump();
 
     expect(connectCalls.map((s) => s.deviceId), [scaleId]);
-    expect(scanner.startWatchCallCount, 0,
-        reason: 'device is already visible — no scan needed');
-    expect(watch.armed, isFalse,
-        reason: 'successful connect ends the watch cycle');
-  });
-
-  test('sighting stops the watch before connecting, then disarms on success',
-      () async {
-    var watchActiveDuringConnect = true;
-    watch = build();
-    // Re-wire connectScale via a fresh instance capturing watch state.
-    final probe = ScaleWatch(
-      scanner: scanner,
-      shouldWatch: () => gate,
-      preferredScaleId: () => preferredId,
-      connectScale: (scale) async {
-        connectCalls.add(scale);
-        watchActiveDuringConnect = scanner.watchActive;
-        gate = false;
-      },
-      onWatchUnavailable: () => unavailableCalls++,
+    expect(
+      scanner.startWatchCallCount,
+      0,
+      reason: 'device is already visible — no scan needed',
     );
-    await probe.arm();
-    scanner.addDevice(TestScale(deviceId: scaleId));
-    await pump();
-
-    expect(connectCalls.map((s) => s.deviceId), [scaleId]);
-    expect(watchActiveDuringConnect, isFalse,
-        reason: 'the watch scan must stop before the connect attempt so '
-            'the radio is free for GATT');
-    expect(probe.armed, isFalse);
-    await probe.dispose();
+    expect(
+      watch.armed,
+      isFalse,
+      reason: 'successful connect ends the watch cycle',
+    );
   });
+
+  test(
+    'sighting stops the watch before connecting, then disarms on success',
+    () async {
+      var watchActiveDuringConnect = true;
+      watch = build();
+      // Re-wire connectScale via a fresh instance capturing watch state.
+      final probe = ScaleWatch(
+        scanner: scanner,
+        shouldWatch: () => gate,
+        preferredScaleId: () => preferredId,
+        connectScale: (scale) async {
+          connectCalls.add(scale);
+          watchActiveDuringConnect = scanner.watchActive;
+          gate = false;
+        },
+        onWatchUnavailable: () => unavailableCalls++,
+      );
+      await probe.arm();
+      scanner.addDevice(TestScale(deviceId: scaleId));
+      await pump();
+
+      expect(connectCalls.map((s) => s.deviceId), [scaleId]);
+      expect(
+        watchActiveDuringConnect,
+        isFalse,
+        reason:
+            'the watch scan must stop before the connect attempt so '
+            'the radio is free for GATT',
+      );
+      expect(probe.armed, isFalse);
+      await probe.dispose();
+    },
+  );
 
   test('a sighting of a different device is ignored', () async {
     await watch.arm();
@@ -144,8 +155,11 @@ void main() {
     await pump();
 
     expect(connectCalls, hasLength(1));
-    expect(scanner.startWatchCallCount, 2,
-        reason: 'gate still holds after the attempt — keep watching');
+    expect(
+      scanner.startWatchCallCount,
+      2,
+      reason: 'gate still holds after the attempt — keep watching',
+    );
     expect(watch.armed, isTrue);
   });
 
@@ -159,20 +173,25 @@ void main() {
     scanner.addDevice(TestScale(deviceId: scaleId));
     await pump();
 
-    expect(connectCalls, hasLength(1),
-        reason: 'in-flight connect must swallow repeat sightings');
+    expect(
+      connectCalls,
+      hasLength(1),
+      reason: 'in-flight connect must swallow repeat sightings',
+    );
     connectGate!.complete();
     await pump();
   });
 
-  test('startScaleWatch failure reports watch-unavailable and stays disarmed',
-      () async {
-    scanner.failNextWatchWith = Exception('no watch for you');
-    await watch.arm();
+  test(
+    'startScaleWatch failure reports watch-unavailable and stays disarmed',
+    () async {
+      scanner.failNextWatchWith = Exception('no watch for you');
+      await watch.arm();
 
-    expect(unavailableCalls, 1);
-    expect(watch.armed, isFalse);
-  });
+      expect(unavailableCalls, 1);
+      expect(watch.armed, isFalse);
+    },
+  );
 
   test('disarm stops the watch and is idempotent', () async {
     await watch.arm();
@@ -191,24 +210,30 @@ void main() {
     expect(scanner.stopWatchCallCount, 0);
   });
 
-  test('disarm during an in-flight connect does not resurrect the watch',
-      () async {
-    connectSucceeds = false; // would normally re-arm after the attempt
-    connectGate = Completer<void>();
-    await watch.arm();
-    scanner.addDevice(TestScale(deviceId: scaleId));
-    await pump();
-    expect(connectCalls, hasLength(1));
+  test(
+    'disarm during an in-flight connect does not resurrect the watch',
+    () async {
+      connectSucceeds = false; // would normally re-arm after the attempt
+      connectGate = Completer<void>();
+      await watch.arm();
+      scanner.addDevice(TestScale(deviceId: scaleId));
+      await pump();
+      expect(connectCalls, hasLength(1));
 
-    await watch.disarm();
-    connectGate!.complete();
-    await pump();
+      await watch.disarm();
+      connectGate!.complete();
+      await pump();
 
-    expect(watch.armed, isFalse);
-    expect(scanner.startWatchCallCount, 1,
-        reason: 'a connect completing after disarm must not restart the '
-            'watch (generation token)');
-  });
+      expect(watch.armed, isFalse);
+      expect(
+        scanner.startWatchCallCount,
+        1,
+        reason:
+            'a connect completing after disarm must not restart the '
+            'watch (generation token)',
+      );
+    },
+  );
 
   test('re-arm after disarm starts a fresh watch', () async {
     await watch.arm();
@@ -220,24 +245,36 @@ void main() {
 
     scanner.addDevice(TestScale(deviceId: scaleId));
     await pump();
-    expect(connectCalls, hasLength(1),
-        reason: 'the re-armed watch must still react to sightings');
+    expect(
+      connectCalls,
+      hasLength(1),
+      reason: 'the re-armed watch must still react to sightings',
+    );
   });
 
-  test('a watch-failure event disarms and falls back to legacy reconnect',
-      () async {
-    await watch.arm();
-    expect(watch.armed, isTrue);
+  test(
+    'a watch-failure event disarms and falls back to legacy reconnect',
+    () async {
+      await watch.arm();
+      expect(watch.armed, isTrue);
 
-    scanner.emitWatchFailure();
-    await pump();
+      scanner.emitWatchFailure();
+      await pump();
 
-    expect(watch.armed, isFalse,
-        reason: 'a dead watch must not stay armed — that leaves scale '
-            'reacquisition silently off');
-    expect(unavailableCalls, 1,
-        reason: 'the legacy backoff loop must take over');
-  });
+      expect(
+        watch.armed,
+        isFalse,
+        reason:
+            'a dead watch must not stay armed — that leaves scale '
+            'reacquisition silently off',
+      );
+      expect(
+        unavailableCalls,
+        1,
+        reason: 'the legacy backoff loop must take over',
+      );
+    },
+  );
 
   test('watch-failure events after disarm are ignored', () async {
     await watch.arm();

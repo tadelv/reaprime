@@ -188,12 +188,12 @@ class SharedPreferencesSettingsService extends SettingsService {
         ) ??
         ScalePowerMode.disconnect;
   }
-  
+
   @override
   Future<bool> blockOnNoScale() async {
     return await prefs.getBool(SettingsKeys.blockOnNoScale.name) ?? false;
   }
-  
+
   @override
   Future<void> setBlockOnNoScale(bool value) async {
     return await prefs.setBool(SettingsKeys.blockOnNoScale.name, value);

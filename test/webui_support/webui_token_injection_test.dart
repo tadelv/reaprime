@@ -103,8 +103,9 @@ const bodyExample = "</body>";
     setUp(() async {
       tempDir = await Directory.systemTemp.createTemp('webui_offline_test');
       // Minimal content — shelf_io.serve needs something to serve.
-      await File('${tempDir.path}/index.html')
-          .writeAsString('<html><body>test</body></html>');
+      await File(
+        '${tempDir.path}/index.html',
+      ).writeAsString('<html><body>test</body></html>');
       service = WebUIService();
     });
 
@@ -189,8 +190,7 @@ const bodyExample = "</body>";
     });
 
     test('falls back to localhost when getWifiIP throws (gh#337)', () async {
-      WebUIService.resolveWifiIP = () async =>
-          throw Exception('no wifi');
+      WebUIService.resolveWifiIP = () async => throw Exception('no wifi');
 
       await service.serveFolderAtPath(tempDir.path);
 
@@ -207,14 +207,16 @@ const bodyExample = "</body>";
       expect(service.deviceIp(), 'localhost');
     });
 
-    test('falls back to localhost when getWifiIP returns empty string',
-        () async {
-      WebUIService.resolveWifiIP = () async => '';
+    test(
+      'falls back to localhost when getWifiIP returns empty string',
+      () async {
+        WebUIService.resolveWifiIP = () async => '';
 
-      await service.serveFolderAtPath(tempDir.path);
+        await service.serveFolderAtPath(tempDir.path);
 
-      expect(service.isServing, isTrue);
-      expect(service.deviceIp(), 'localhost');
-    });
+        expect(service.isServing, isTrue);
+        expect(service.deviceIp(), 'localhost');
+      },
+    );
   });
 }

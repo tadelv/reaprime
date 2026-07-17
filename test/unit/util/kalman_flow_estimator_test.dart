@@ -78,10 +78,15 @@ void main() {
       for (int i = 1; i <= 20; i++) {
         final elapsed = 0.1 * i;
         estimator.addSample(
-            t0.add(Duration(milliseconds: (100 * i))), 5.0 * elapsed);
+          t0.add(Duration(milliseconds: (100 * i))),
+          5.0 * elapsed,
+        );
       }
-      expect(estimator.flow, greaterThan(1.0),
-          reason: 'flow should build up before reset');
+      expect(
+        estimator.flow,
+        greaterThan(1.0),
+        reason: 'flow should build up before reset',
+      );
 
       estimator.reset(0.0);
 
@@ -96,8 +101,10 @@ void main() {
     });
 
     test('spike rejection: transient spike is attenuated via adaptive R', () {
-      final estimator =
-          KalmanFlowEstimator(initialWeight: 100.0, processNoiseIntensity: 2.0);
+      final estimator = KalmanFlowEstimator(
+        initialWeight: 100.0,
+        processNoiseIntensity: 2.0,
+      );
       final t0 = DateTime(2026, 1, 1, 12, 0, 0);
       const dt = Duration(milliseconds: 100);
 
@@ -121,15 +128,20 @@ void main() {
         100.0 + 5.0 * 32 * 0.1,
       );
 
-      expect((afterFlow - beforeFlow).abs(), lessThan(3.0),
-          reason: 'adaptive R should attenuate spike impact on flow '
-              '(10g spike should not shift flow by more than 3 g/s)');
+      expect(
+        (afterFlow - beforeFlow).abs(),
+        lessThan(3.0),
+        reason:
+            'adaptive R should attenuate spike impact on flow '
+            '(10g spike should not shift flow by more than 3 g/s)',
+      );
     });
 
-    test('step response: weight tracks a level change, flow settles back',
-        () {
-      final estimator =
-          KalmanFlowEstimator(initialWeight: 0.0, processNoiseIntensity: 2.0);
+    test('step response: weight tracks a level change, flow settles back', () {
+      final estimator = KalmanFlowEstimator(
+        initialWeight: 0.0,
+        processNoiseIntensity: 2.0,
+      );
       final t0 = DateTime(2026, 1, 1, 12, 0, 0);
       const dt = Duration(milliseconds: 100);
 
@@ -150,8 +162,11 @@ void main() {
 
       // After 50 samples (5 s) at the new weight, estimate is near target.
       expect(estimator.weight, closeTo(40.0, 5.0));
-      expect(estimator.flow.abs(), lessThan(2.0),
-          reason: 'after settling, flow should return toward zero');
+      expect(
+        estimator.flow.abs(),
+        lessThan(2.0),
+        reason: 'after settling, flow should return toward zero',
+      );
     });
 
     test('variable dt: handles irregular sample intervals', () {
@@ -168,11 +183,16 @@ void main() {
         elapsedMs += ms;
         final weight = rate * elapsedMs / 1000.0;
         estimator.addSample(
-            t0.add(Duration(milliseconds: elapsedMs.round())), weight);
+          t0.add(Duration(milliseconds: elapsedMs.round())),
+          weight,
+        );
       }
 
-      expect(estimator.flow, closeTo(rate, 0.5),
-          reason: 'variable-dt Kalman should track true rate');
+      expect(
+        estimator.flow,
+        closeTo(rate, 0.5),
+        reason: 'variable-dt Kalman should track true rate',
+      );
     });
 
     test('convergence speed: tracks true flow within 5 samples', () {
@@ -195,8 +215,11 @@ void main() {
       // convergence problem was never in the flow estimate — it was the
       // weight estimate that lagged (now fixed by raw-passthrough in
       // ScaleController).
-      expect(estimator.flow, greaterThan(rate * 0.5),
-          reason: 'flow should converge to >50% of true rate within 5 samples');
+      expect(
+        estimator.flow,
+        greaterThan(rate * 0.5),
+        reason: 'flow should converge to >50% of true rate within 5 samples',
+      );
     });
 
     group('golden trace (shot 1, native ~10 Hz)', () {
@@ -288,14 +311,15 @@ void main() {
                 isUtc: true,
               ),
               weight: e.$2,
-            )
+            ),
         ];
       }
 
       test('flow noise is meaningfully lower than old FlowCalculator', () {
         final trace = _loadFixture();
-        final estimator =
-            KalmanFlowEstimator(initialWeight: trace.first.weight);
+        final estimator = KalmanFlowEstimator(
+          initialWeight: trace.first.weight,
+        );
 
         final kalmanFlows = <double>[];
         for (final s in trace) {
@@ -306,8 +330,8 @@ void main() {
         // Compute Kalman flow stdev (skip first 10 samples for convergence).
         final kalmanSettled = kalmanFlows.skip(10).toList();
         final kalmanStdev = _stdev(kalmanSettled);
-        final kalmanMean = kalmanSettled.reduce((a, b) => a + b) /
-            kalmanSettled.length;
+        final kalmanMean =
+            kalmanSettled.reduce((a, b) => a + b) / kalmanSettled.length;
 
         // Simulate old FlowCalculator (600ms endpoint-difference, abs).
         final oldFlows = <double>[];
@@ -316,8 +340,7 @@ void main() {
           final tNow = trace[i].timestamp;
           double? flow;
           for (int j = i - 1; j >= 0; j--) {
-            final spanMs =
-                tNow.difference(trace[j].timestamp).inMilliseconds;
+            final spanMs = tNow.difference(trace[j].timestamp).inMilliseconds;
             if (spanMs >= windowMs) {
               final dw = trace[i].weight - trace[j].weight;
               flow = (dw / spanMs * 1000).abs().clamp(0.0, 8.0);
@@ -326,25 +349,31 @@ void main() {
           }
           oldFlows.add(flow ?? 0.0);
         }
-        final oldSettled =
-            oldFlows.where((f) => f > 0).skip(3).toList(); // skip 0s + warmup
+        final oldSettled = oldFlows
+            .where((f) => f > 0)
+            .skip(3)
+            .toList(); // skip 0s + warmup
         final oldStdev = _stdev(oldSettled);
-        final oldMean =
-            oldSettled.reduce((a, b) => a + b) / oldSettled.length;
+        final oldMean = oldSettled.reduce((a, b) => a + b) / oldSettled.length;
 
         // ignore: avoid_print
-        print('Kalman: mean=${kalmanMean.toStringAsFixed(2)} '
-            'stdev=${kalmanStdev.toStringAsFixed(3)} '
-            'stdev/mean=${(kalmanStdev / kalmanMean * 100).toStringAsFixed(1)}%'
-            '  |  Old FC: mean=${oldMean.toStringAsFixed(2)} '
-            'stdev=${oldStdev.toStringAsFixed(3)} '
-            'stdev/mean=${(oldStdev / oldMean * 100).toStringAsFixed(1)}%');
+        print(
+          'Kalman: mean=${kalmanMean.toStringAsFixed(2)} '
+          'stdev=${kalmanStdev.toStringAsFixed(3)} '
+          'stdev/mean=${(kalmanStdev / kalmanMean * 100).toStringAsFixed(1)}%'
+          '  |  Old FC: mean=${oldMean.toStringAsFixed(2)} '
+          'stdev=${oldStdev.toStringAsFixed(3)} '
+          'stdev/mean=${(oldStdev / oldMean * 100).toStringAsFixed(1)}%',
+        );
 
         // Acceptance: Kalman stdev/mean must be below old stdev/mean.
         final kalmanRatio = kalmanStdev / kalmanMean;
         final oldRatio = oldStdev / oldMean;
-        expect(kalmanRatio, lessThan(oldRatio),
-            reason: 'Kalman flow noise must be lower than old FlowCalculator');
+        expect(
+          kalmanRatio,
+          lessThan(oldRatio),
+          reason: 'Kalman flow noise must be lower than old FlowCalculator',
+        );
 
         // Kalman noise must stay below FlowCalculator's ~15%. The previous
         // threshold (12%) was achievable only with an over-damped filter
@@ -352,15 +381,20 @@ void main() {
         // The retuned filter trades some smoothness for responsiveness —
         // 14.5% noise at 7 g/s ≈ ±1 g/s stdev, well within ShotSequencer
         // operating thresholds.
-        expect(kalmanRatio * 100, lessThan(oldRatio * 100),
-            reason: 'Kalman flow noise must be lower than FlowCalculator');
+        expect(
+          kalmanRatio * 100,
+          lessThan(oldRatio * 100),
+          reason: 'Kalman flow noise must be lower than FlowCalculator',
+        );
       });
 
       test('Kalman flow is natively signed (no abs())', () {
         // Synthetic data: pour then cup removal (negative slope).
         final estimator = KalmanFlowEstimator(initialWeight: 50.0);
-        final t0 = DateTime.fromMillisecondsSinceEpoch(1783576240000,
-            isUtc: true);
+        final t0 = DateTime.fromMillisecondsSinceEpoch(
+          1783576240000,
+          isUtc: true,
+        );
 
         // Pour: 50→55g at 7 g/s for 10 samples.
         for (int i = 0; i <= 10; i++) {
@@ -377,34 +411,47 @@ void main() {
           );
         }
 
-        expect(estimator.flow, lessThan(-0.5),
-            reason: 'signed flow — cup removal should produce negative flow');
+        expect(
+          estimator.flow,
+          lessThan(-0.5),
+          reason: 'signed flow — cup removal should produce negative flow',
+        );
       });
 
       test('no absurd flow spikes on real data', () {
         final trace = _loadFixture();
-        final estimator =
-            KalmanFlowEstimator(initialWeight: trace.first.weight);
+        final estimator = KalmanFlowEstimator(
+          initialWeight: trace.first.weight,
+        );
 
         for (final s in trace) {
           final (_, f) = estimator.addSample(s.timestamp, s.weight);
-          expect(f.abs(), lessThan(15.0),
-              reason: 'flow should never exceed 15 g/s (unphysical)');
+          expect(
+            f.abs(),
+            lessThan(15.0),
+            reason: 'flow should never exceed 15 g/s (unphysical)',
+          );
         }
       });
 
       test('weight estimate tracks raw weight within 2g over the pour', () {
         final trace = _loadFixture();
-        final estimator =
-            KalmanFlowEstimator(initialWeight: trace.first.weight);
+        final estimator = KalmanFlowEstimator(
+          initialWeight: trace.first.weight,
+        );
 
         // Skip first 5 samples (convergence), check the rest.
         for (int i = 0; i < trace.length; i++) {
-          final (w, _) = estimator.addSample(trace[i].timestamp, trace[i].weight);
+          final (w, _) = estimator.addSample(
+            trace[i].timestamp,
+            trace[i].weight,
+          );
           if (i >= 5) {
-            expect((w - trace[i].weight).abs(), lessThan(3.0),
-                reason:
-                    'filtered weight should not drift more than 3g from raw');
+            expect(
+              (w - trace[i].weight).abs(),
+              lessThan(3.0),
+              reason: 'filtered weight should not drift more than 3g from raw',
+            );
           }
         }
       });
@@ -418,6 +465,6 @@ double _stdev(List<double> values) {
   final mean = values.reduce((a, b) => a + b) / values.length;
   final variance =
       values.map((v) => (v - mean) * (v - mean)).reduce((a, b) => a + b) /
-          values.length;
+      values.length;
   return sqrt(variance);
 }

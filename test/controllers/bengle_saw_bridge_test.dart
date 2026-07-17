@@ -101,30 +101,31 @@ void main() {
     await Future<void>.delayed(_debounce + const Duration(milliseconds: 30));
   }
 
-  test('targetYield change writes to connected Bengle after debounce',
-      () async {
-    final bengle = _RecordingBengle();
-    await connectBengle(bengle);
+  test(
+    'targetYield change writes to connected Bengle after debounce',
+    () async {
+      final bengle = _RecordingBengle();
+      await connectBengle(bengle);
 
-    final bridge = BengleSawBridge(
-      workflowController: workflow,
-      de1Controller: de1Controller,
-      debounce: _debounce,
-    );
-    // The connect-time re-apply runs immediately on bridge construction
-    // (de1Controller already has the BehaviorSubject seeded with the
-    // connected machine). Drain it.
-    await Future<void>.delayed(Duration.zero);
-    bengle.sawWrites.clear();
+      final bridge = BengleSawBridge(
+        workflowController: workflow,
+        de1Controller: de1Controller,
+        debounce: _debounce,
+      );
+      // The connect-time re-apply runs immediately on bridge construction
+      // (de1Controller already has the BehaviorSubject seeded with the
+      // connected machine). Drain it.
+      await Future<void>.delayed(Duration.zero);
+      bengle.sawWrites.clear();
 
-    final ctx =
-        workflow.currentWorkflow.context ?? const WorkflowContext();
-    workflow.updateWorkflow(context: ctx.copyWith(targetYield: 30.0));
-    await pumpDebounce();
+      final ctx = workflow.currentWorkflow.context ?? const WorkflowContext();
+      workflow.updateWorkflow(context: ctx.copyWith(targetYield: 30.0));
+      await pumpDebounce();
 
-    expect(bengle.sawWrites, [30.0]);
-    await bridge.dispose();
-  });
+      expect(bengle.sawWrites, [30.0]);
+      await bridge.dispose();
+    },
+  );
 
   test('debounce coalesces rapid edits into a single write', () async {
     final bengle = _RecordingBengle();
@@ -138,8 +139,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     bengle.sawWrites.clear();
 
-    final base =
-        workflow.currentWorkflow.context ?? const WorkflowContext();
+    final base = workflow.currentWorkflow.context ?? const WorkflowContext();
     for (final y in [29.0, 30.0, 31.0, 32.0]) {
       workflow.updateWorkflow(context: base.copyWith(targetYield: y));
       await Future<void>.delayed(const Duration(milliseconds: 2));
@@ -153,16 +153,18 @@ void main() {
   test('no write when connected machine is not Bengle', () async {
     final de1 = TestDe1();
     await de1Controller.connectToDe1(de1);
-    de1.emitShotSettings(De1ShotSettings(
-      steamSetting: 0,
-      targetSteamTemp: 150,
-      targetSteamDuration: 30,
-      targetHotWaterTemp: 75,
-      targetHotWaterVolume: 50,
-      targetHotWaterDuration: 30,
-      targetShotVolume: 36,
-      groupTemp: 94.0,
-    ));
+    de1.emitShotSettings(
+      De1ShotSettings(
+        steamSetting: 0,
+        targetSteamTemp: 150,
+        targetSteamDuration: 30,
+        targetHotWaterTemp: 75,
+        targetHotWaterVolume: 50,
+        targetHotWaterDuration: 30,
+        targetShotVolume: 36,
+        groupTemp: 94.0,
+      ),
+    );
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     final bridge = BengleSawBridge(
@@ -171,8 +173,7 @@ void main() {
       debounce: _debounce,
     );
 
-    final ctx =
-        workflow.currentWorkflow.context ?? const WorkflowContext();
+    final ctx = workflow.currentWorkflow.context ?? const WorkflowContext();
     workflow.updateWorkflow(context: ctx.copyWith(targetYield: 30.0));
     await pumpDebounce();
 
@@ -183,8 +184,7 @@ void main() {
 
   test('re-applies current target on Bengle (re)connect', () async {
     // Pre-edit the workflow before any machine is connected.
-    final ctx =
-        workflow.currentWorkflow.context ?? const WorkflowContext();
+    final ctx = workflow.currentWorkflow.context ?? const WorkflowContext();
     workflow.updateWorkflow(context: ctx.copyWith(targetYield: 28.0));
 
     final bridge = BengleSawBridge(
@@ -214,8 +214,7 @@ void main() {
     await bridge.dispose();
     bengle.sawWrites.clear();
 
-    final ctx =
-        workflow.currentWorkflow.context ?? const WorkflowContext();
+    final ctx = workflow.currentWorkflow.context ?? const WorkflowContext();
     workflow.updateWorkflow(context: ctx.copyWith(targetYield: 42.0));
     await pumpDebounce();
 
@@ -234,8 +233,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     bengle.sawWrites.clear();
 
-    final ctx =
-        workflow.currentWorkflow.context ?? const WorkflowContext();
+    final ctx = workflow.currentWorkflow.context ?? const WorkflowContext();
     workflow.updateWorkflow(context: ctx.copyWith(targetYield: 0.0));
     await pumpDebounce();
 

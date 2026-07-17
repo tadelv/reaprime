@@ -30,20 +30,29 @@ void main() {
     });
 
     test('button frame parses but is not weight or status', () {
-      final f = HdsWifiFrame.parse('{"type":"button","button_number":1,"press":"short"}')!;
+      final f = HdsWifiFrame.parse(
+        '{"type":"button","button_number":1,"press":"short"}',
+      )!;
       expect(f.type, 'button');
       expect(f.hasWeight, isFalse);
       expect(f.confirmsHds, isFalse);
     });
 
     test('power_off event is recognized', () {
-      final f = HdsWifiFrame.parse('{"type":"power","event":"power_off","reason":"button"}')!;
+      final f = HdsWifiFrame.parse(
+        '{"type":"power","event":"power_off","reason":"button"}',
+      )!;
       expect(f.isPowerOff, isTrue);
     });
 
     test('rate and error frames parse and are ignorable', () {
-      expect(HdsWifiFrame.parse('{"type":"rate","interval_ms":100}')!.hasWeight, isFalse);
-      final err = HdsWifiFrame.parse('{"type":"error","code":1,"message":"x"}')!;
+      expect(
+        HdsWifiFrame.parse('{"type":"rate","interval_ms":100}')!.hasWeight,
+        isFalse,
+      );
+      final err = HdsWifiFrame.parse(
+        '{"type":"error","code":1,"message":"x"}',
+      )!;
       expect(err.type, 'error');
       expect(err.hasWeight, isFalse);
     });
@@ -74,7 +83,8 @@ void main() {
       // A field of the wrong JSON type must not throw (a stray frame can't drop
       // the connection) — the bad field is treated as absent.
       final f = HdsWifiFrame.parse(
-          '{"type":5,"charging":1,"timer_running":"yes","grams":12.0}');
+        '{"type":5,"charging":1,"timer_running":"yes","grams":12.0}',
+      );
       expect(f, isNotNull);
       expect(f!.type, isNull);
       expect(f.charging, isNull);

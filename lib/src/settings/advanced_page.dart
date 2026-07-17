@@ -87,8 +87,9 @@ class AdvancedPage extends StatelessWidget {
                   vertical: 8,
                 ),
                 child: ShadSwitch(
-                  value: controller
-                      .isFeatureFlagEnabled(FeatureFlag.stepExitArbiter),
+                  value: controller.isFeatureFlagEnabled(
+                    FeatureFlag.stepExitArbiter,
+                  ),
                   onChanged: (v) async {
                     await controller.setFeatureFlag(
                       FeatureFlag.stepExitArbiter,
@@ -116,8 +117,9 @@ class AdvancedPage extends StatelessWidget {
                   vertical: 8,
                 ),
                 child: ShadSwitch(
-                  value: controller
-                      .isFeatureFlagEnabled(FeatureFlag.kalmanFlow),
+                  value: controller.isFeatureFlagEnabled(
+                    FeatureFlag.kalmanFlow,
+                  ),
                   onChanged: (v) async {
                     await controller.setFeatureFlag(
                       FeatureFlag.kalmanFlow,

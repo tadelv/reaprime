@@ -17,7 +17,9 @@ void main() {
         finalBeverageType: 'espresso',
         baristaName: 'Alice',
         drinkerName: 'Bob',
-        extras: {'plugin1': {'key': 'value'}},
+        extras: {
+          'plugin1': {'key': 'value'},
+        },
       );
 
       final json = ctx.toJson();
@@ -34,7 +36,9 @@ void main() {
       expect(restored.finalBeverageType, 'espresso');
       expect(restored.baristaName, 'Alice');
       expect(restored.drinkerName, 'Bob');
-      expect(restored.extras, {'plugin1': {'key': 'value'}});
+      expect(restored.extras, {
+        'plugin1': {'key': 'value'},
+      });
     });
 
     test('round-trip with minimal fields (nulls omitted from JSON)', () {
@@ -96,14 +100,12 @@ void main() {
       });
 
       test('double values are stringified', () {
-        final restored =
-            WorkflowContext.fromJson({'grinderSetting': 5.5});
+        final restored = WorkflowContext.fromJson({'grinderSetting': 5.5});
         expect(restored.grinderSetting, '5.5');
       });
 
       test('bool values are stringified', () {
-        final restored =
-            WorkflowContext.fromJson({'drinkerName': true});
+        final restored = WorkflowContext.fromJson({'drinkerName': true});
         expect(restored.drinkerName, 'true');
       });
 
@@ -178,7 +180,7 @@ void main() {
               'temperature': 93,
               'sensor': 'coffee',
               'pressure': 9,
-            }
+            },
           ],
           'tank_temperature': 0.0,
           'target_weight': 36.0,
@@ -193,10 +195,23 @@ void main() {
           'version': '2',
         },
         'doseData': {'doseIn': 18.0, 'doseOut': 36.0},
-        'grinderData': {'setting': '15', 'manufacturer': 'Niche', 'model': 'Zero'},
+        'grinderData': {
+          'setting': '15',
+          'manufacturer': 'Niche',
+          'model': 'Zero',
+        },
         'coffeeData': {'name': 'Gesha Village', 'roaster': 'Sey'},
-        'steamSettings': {'targetTemperature': 150, 'duration': 50, 'flow': 0.8},
-        'hotWaterData': {'targetTemperature': 75, 'duration': 30, 'volume': 50, 'flow': 10.0},
+        'steamSettings': {
+          'targetTemperature': 150,
+          'duration': 50,
+          'flow': 0.8,
+        },
+        'hotWaterData': {
+          'targetTemperature': 75,
+          'duration': 30,
+          'volume': 50,
+          'flow': 10.0,
+        },
         'rinseData': {'targetTemperature': 90, 'duration': 10, 'flow': 6.0},
       };
 
@@ -231,7 +246,7 @@ void main() {
               'temperature': 93,
               'sensor': 'coffee',
               'pressure': 9,
-            }
+            },
           ],
           'tank_temperature': 0.0,
           'target_weight': 36.0,
@@ -247,65 +262,95 @@ void main() {
         },
         // context has targetYield but NOT targetDoseWeight — legacy should backfill it
         'context': {'targetYield': 38.0},
-        'doseData': {'doseIn': 19.0, 'doseOut': 99.0}, // doseOut must NOT override context's targetYield
-        'steamSettings': {'targetTemperature': 150, 'duration': 50, 'flow': 0.8},
-        'hotWaterData': {'targetTemperature': 75, 'duration': 30, 'volume': 50, 'flow': 10.0},
-        'rinseData': {'targetTemperature': 90, 'duration': 10, 'flow': 6.0},
-      };
-
-      final workflow = Workflow.fromJson(json);
-
-      expect(workflow.context!.targetYield, 38.0);     // context wins, not legacy doseOut (99.0)
-      expect(workflow.context!.targetDoseWeight, 19.0); // legacy backfills null slot
-    });
-
-    test('legacy doseData-only JSON (no grinder/coffee) synthesizes partial context', () {
-      final json = {
-        'id': 'wf-2',
-        'name': 'Dose Only',
-        'description': '',
-        'profile': {
-          'title': 'Test',
-          'author': 'Test',
-          'notes': '',
-          'beverage_type': 'espresso',
-          'steps': [
-            {
-              'name': 'pour',
-              'pump': 'pressure',
-              'transition': 'fast',
-              'volume': 100,
-              'seconds': 30,
-              'temperature': 93,
-              'sensor': 'coffee',
-              'pressure': 9,
-            }
-          ],
-          'tank_temperature': 0.0,
-          'target_volume': 0,
-          'target_volume_count_start': 0,
-          'legacy_profile_type': '',
-          'type': 'advanced',
-          'lang': 'en',
-          'hidden': false,
-          'reference_file': '',
-          'changes_since_last_espresso': '',
-          'version': '2',
+        'doseData': {
+          'doseIn': 19.0,
+          'doseOut': 99.0,
+        }, // doseOut must NOT override context's targetYield
+        'steamSettings': {
+          'targetTemperature': 150,
+          'duration': 50,
+          'flow': 0.8,
         },
-        'doseData': {'doseIn': 16, 'doseOut': 32},
-        'steamSettings': {'targetTemperature': 150, 'duration': 50, 'flow': 0.8},
-        'hotWaterData': {'targetTemperature': 75, 'duration': 30, 'volume': 50, 'flow': 10.0},
+        'hotWaterData': {
+          'targetTemperature': 75,
+          'duration': 30,
+          'volume': 50,
+          'flow': 10.0,
+        },
         'rinseData': {'targetTemperature': 90, 'duration': 10, 'flow': 6.0},
       };
 
       final workflow = Workflow.fromJson(json);
 
-      expect(workflow.context, isNotNull);
-      expect(workflow.context!.targetDoseWeight, 16.0);
-      expect(workflow.context!.targetYield, 32.0);
-      expect(workflow.context!.grinderSetting, isNull);
-      expect(workflow.context!.coffeeName, isNull);
+      expect(
+        workflow.context!.targetYield,
+        38.0,
+      ); // context wins, not legacy doseOut (99.0)
+      expect(
+        workflow.context!.targetDoseWeight,
+        19.0,
+      ); // legacy backfills null slot
     });
+
+    test(
+      'legacy doseData-only JSON (no grinder/coffee) synthesizes partial context',
+      () {
+        final json = {
+          'id': 'wf-2',
+          'name': 'Dose Only',
+          'description': '',
+          'profile': {
+            'title': 'Test',
+            'author': 'Test',
+            'notes': '',
+            'beverage_type': 'espresso',
+            'steps': [
+              {
+                'name': 'pour',
+                'pump': 'pressure',
+                'transition': 'fast',
+                'volume': 100,
+                'seconds': 30,
+                'temperature': 93,
+                'sensor': 'coffee',
+                'pressure': 9,
+              },
+            ],
+            'tank_temperature': 0.0,
+            'target_volume': 0,
+            'target_volume_count_start': 0,
+            'legacy_profile_type': '',
+            'type': 'advanced',
+            'lang': 'en',
+            'hidden': false,
+            'reference_file': '',
+            'changes_since_last_espresso': '',
+            'version': '2',
+          },
+          'doseData': {'doseIn': 16, 'doseOut': 32},
+          'steamSettings': {
+            'targetTemperature': 150,
+            'duration': 50,
+            'flow': 0.8,
+          },
+          'hotWaterData': {
+            'targetTemperature': 75,
+            'duration': 30,
+            'volume': 50,
+            'flow': 10.0,
+          },
+          'rinseData': {'targetTemperature': 90, 'duration': 10, 'flow': 6.0},
+        };
+
+        final workflow = Workflow.fromJson(json);
+
+        expect(workflow.context, isNotNull);
+        expect(workflow.context!.targetDoseWeight, 16.0);
+        expect(workflow.context!.targetYield, 32.0);
+        expect(workflow.context!.grinderSetting, isNull);
+        expect(workflow.context!.coffeeName, isNull);
+      },
+    );
   });
 
   group('Workflow.machine snapshot', () {
@@ -313,14 +358,20 @@ void main() {
       final m = WorkflowMachine(flowCalibration: 1.05);
       expect(m.toJson(), {'flowCalibration': 1.05});
       expect(WorkflowMachine.fromJson(m.toJson()).flowCalibration, 1.05);
-      expect(const WorkflowMachine().toJson().containsKey('flowCalibration'),
-          false);
+      expect(
+        const WorkflowMachine().toJson().containsKey('flowCalibration'),
+        false,
+      );
     });
 
     test('Workflow round-trips the machine snapshot', () {
-      final wf = Workflow.fromJson(_workflowJson(machine: {
-        'flowCalibration': 0.92,
-      }));
+      final wf = Workflow.fromJson(
+        _workflowJson(
+          machine: {
+            'flowCalibration': 0.92,
+          },
+        ),
+      );
       expect(wf.machine?.flowCalibration, 0.92);
       // Survives a serialize → parse cycle.
       final reparsed = Workflow.fromJson(wf.toJson());
@@ -346,17 +397,17 @@ Map<String, dynamic> _workflowJson({Map<String, dynamic>? machine}) {
       'notes': '',
       'beverage_type': 'espresso',
       'steps': [
-            {
-              'name': 'pour',
-              'pump': 'pressure',
-              'transition': 'fast',
-              'volume': 100,
-              'seconds': 30,
-              'temperature': 93,
-              'sensor': 'coffee',
-              'pressure': 9,
-            }
-          ],
+        {
+          'name': 'pour',
+          'pump': 'pressure',
+          'transition': 'fast',
+          'volume': 100,
+          'seconds': 30,
+          'temperature': 93,
+          'sensor': 'coffee',
+          'pressure': 9,
+        },
+      ],
       'tank_temperature': 0.0,
       'target_weight': 36.0,
       'target_volume': 0,

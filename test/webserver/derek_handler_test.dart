@@ -53,7 +53,8 @@ void main() {
   });
 
   test('relays the SSE body and marks the response unbuffered', () async {
-    const sse = 'event: phase\ndata: {"phase":"answering"}\n\n'
+    const sse =
+        'event: phase\ndata: {"phase":"answering"}\n\n'
         'event: result\ndata: {"mode":"answer","answer_text":"Hi. [1]"}\n\n';
     final handler = buildHandler(
       (_) async => http.Response(
@@ -88,14 +89,16 @@ void main() {
     expect(body['detail']['code'], 'query_empty');
   });
 
-  test('defaults content-type to text/event-stream when upstream omits it',
-      () async {
-    final handler = buildHandler(
-      (_) async => http.Response('event: queue\ndata: {}\n\n', 200),
-    );
+  test(
+    'defaults content-type to text/event-stream when upstream omits it',
+    () async {
+      final handler = buildHandler(
+        (_) async => http.Response('event: queue\ndata: {}\n\n', 200),
+      );
 
-    final response = await post(handler, '{"query":"hi"}');
+      final response = await post(handler, '{"query":"hi"}');
 
-    expect(response.headers['content-type'], 'text/event-stream');
-  });
+      expect(response.headers['content-type'], 'text/event-stream');
+    },
+  );
 }

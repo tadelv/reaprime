@@ -197,10 +197,12 @@ Future<void> startWebServer(
 
   final feedbackHandler = FeedbackHandler(
     service: FeedbackService(
-      githubToken: rot13(const String.fromEnvironment(
-        'GITHUB_FEEDBACK_TOKEN',
-        defaultValue: '',
-      )),
+      githubToken: rot13(
+        const String.fromEnvironment(
+          'GITHUB_FEEDBACK_TOKEN',
+          defaultValue: '',
+        ),
+      ),
     ),
   );
 

@@ -44,11 +44,12 @@ final class FWMapRequestData {
 Uint8List encodeU24P0(int value) {
   if (value < 0 || value > 0xFFFFFF) {
     throw ArgumentError(
-        'Value must be between 0 and 0xFFFFFF (24-bit unsigned)');
+      'Value must be between 0 and 0xFFFFFF (24-bit unsigned)',
+    );
   }
   return Uint8List.fromList([
     (value >> 16) & 0xFF, // high byte
     (value >> 8) & 0xFF, // mid byte
-    value & 0xFF // low byte
+    value & 0xFF, // low byte
   ]);
 }

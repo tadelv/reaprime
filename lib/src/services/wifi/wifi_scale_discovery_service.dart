@@ -54,8 +54,11 @@ typedef WifiReachabilityProbe = Future<bool> Function(String host, int port);
 
 Future<bool> _defaultReachabilityProbe(String host, int port) async {
   try {
-    final socket =
-        await Socket.connect(host, port, timeout: const Duration(seconds: 2));
+    final socket = await Socket.connect(
+      host,
+      port,
+      timeout: const Duration(seconds: 2),
+    );
     socket.destroy();
     return true;
   } catch (_) {
@@ -109,8 +112,9 @@ class WifiScaleDiscoveryService implements DeviceDiscoveryService {
   final Duration _livenessInterval;
   final int _failureThreshold;
 
-  final BehaviorSubject<List<Device>> _devices =
-      BehaviorSubject.seeded(<Device>[]);
+  final BehaviorSubject<List<Device>> _devices = BehaviorSubject.seeded(
+    <Device>[],
+  );
 
   WifiScaleDiscoveryService({
     WifiScaleBrowser? browser,
@@ -119,12 +123,12 @@ class WifiScaleDiscoveryService implements DeviceDiscoveryService {
     WifiReachabilityProbe? reachabilityProbe,
     Duration livenessInterval = const Duration(seconds: 10),
     int failureThreshold = 2,
-  })  : _browser = browser ?? BonsoirWifiScaleBrowser(),
-        _cache = cache ?? WifiIpCache(),
-        _manualStore = manualStore ?? SharedPrefsWifiManualEndpointStore(),
-        _probe = reachabilityProbe ?? _defaultReachabilityProbe,
-        _livenessInterval = livenessInterval,
-        _failureThreshold = failureThreshold;
+  }) : _browser = browser ?? BonsoirWifiScaleBrowser(),
+       _cache = cache ?? WifiIpCache(),
+       _manualStore = manualStore ?? SharedPrefsWifiManualEndpointStore(),
+       _probe = reachabilityProbe ?? _defaultReachabilityProbe,
+       _livenessInterval = livenessInterval,
+       _failureThreshold = failureThreshold;
 
   @override
   Stream<List<Device>> get devices => _devices.stream;
@@ -136,8 +140,10 @@ class WifiScaleDiscoveryService implements DeviceDiscoveryService {
     _browserSub = _browser.endpoints.listen(_onEndpoints);
     await _ensureStarted();
     _emit();
-    _livenessTimer ??=
-        Timer.periodic(_livenessInterval, (_) => _checkLiveness());
+    _livenessTimer ??= Timer.periodic(
+      _livenessInterval,
+      (_) => _checkLiveness(),
+    );
   }
 
   @override
@@ -167,8 +173,11 @@ class WifiScaleDiscoveryService implements DeviceDiscoveryService {
     } catch (e, st) {
       // Discovery unavailable (e.g. Linux without Avahi). Manual-IP entry
       // still works; do not crash the scan.
-      _log.warning('mDNS browser failed to start; manual entry still available',
-          e, st);
+      _log.warning(
+        'mDNS browser failed to start; manual entry still available',
+        e,
+        st,
+      );
     }
   }
 
@@ -242,8 +251,10 @@ class WifiScaleDiscoveryService implements DeviceDiscoveryService {
           continue;
         }
         final host = WifiScaleId.hostOf(id);
-        final reachable =
-            await _probe(_cache.connectHostFor(host), _wifiScalePort);
+        final reachable = await _probe(
+          _cache.connectHostFor(host),
+          _wifiScalePort,
+        );
         if (reachable) {
           _failures.remove(id);
           if (_unreachable.remove(id)) changed = true;
@@ -275,11 +286,10 @@ class WifiScaleDiscoveryService implements DeviceDiscoveryService {
   }
 
   HDSWifi _buildScale(String host) => HDSWifi(
-        host: host,
-        // Connect to the cached IP when known (resolve-once), else the host.
-        transportFactory: () =>
-            WsTransport(host: _cache.connectHostFor(host)),
-      );
+    host: host,
+    // Connect to the cached IP when known (resolve-once), else the host.
+    transportFactory: () => WsTransport(host: _cache.connectHostFor(host)),
+  );
 
   Future<void> dispose() async {
     _livenessTimer?.cancel();

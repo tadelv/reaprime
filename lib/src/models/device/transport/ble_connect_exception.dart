@@ -23,7 +23,8 @@ class BleConnectException implements Exception {
   BleConnectException({this.code, this.description, this.function, this.cause});
 
   @override
-  String toString() => 'BleConnectException: '
+  String toString() =>
+      'BleConnectException: '
       '${function ?? 'connect'}'
       '${code != null ? ' (code: $code)' : ''}'
       '${description != null ? ' — $description' : ''}';

@@ -54,8 +54,9 @@ class MockDeviceDiscoveryService implements DeviceDiscoveryService {
 /// A controllable BleDiscoveryService for tests that need adapter state.
 class MockBleDiscoveryService extends BleDiscoveryService {
   final _controller = BehaviorSubject<List<Device>>.seeded([]);
-  final _adapterStateSubject =
-      BehaviorSubject<AdapterState>.seeded(AdapterState.unknown);
+  final _adapterStateSubject = BehaviorSubject<AdapterState>.seeded(
+    AdapterState.unknown,
+  );
   final List<Device> _devices = [];
 
   @override

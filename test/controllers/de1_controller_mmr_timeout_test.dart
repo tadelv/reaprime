@@ -19,7 +19,8 @@ import '../helpers/test_de1.dart';
 /// logs it at warning level instead.
 
 class _MmrTimingOutDe1 extends TestDe1 {
-  _MmrTimingOutDe1() : super(deviceId: 'mmr-timeout-de1', name: 'MmrTimeoutDe1');
+  _MmrTimingOutDe1()
+    : super(deviceId: 'mmr-timeout-de1', name: 'MmrTimeoutDe1');
 
   @override
   Future<double> getFlushFlow() async {
@@ -28,15 +29,15 @@ class _MmrTimingOutDe1 extends TestDe1 {
 }
 
 De1ShotSettings _emptyShotSettings() => De1ShotSettings(
-      steamSetting: 0,
-      targetSteamTemp: 0,
-      targetSteamDuration: 0,
-      targetHotWaterTemp: 0,
-      targetHotWaterVolume: 0,
-      targetHotWaterDuration: 0,
-      targetShotVolume: 0,
-      groupTemp: 0,
-    );
+  steamSetting: 0,
+  targetSteamTemp: 0,
+  targetSteamDuration: 0,
+  targetHotWaterTemp: 0,
+  targetHotWaterVolume: 0,
+  targetHotWaterDuration: 0,
+  targetShotVolume: 0,
+  groupTemp: 0,
+);
 
 void main() {
   test(
@@ -47,8 +48,9 @@ void main() {
 
       await runZonedGuarded(
         () async {
-          final deviceController =
-              DeviceController([MockDeviceDiscoveryService()]);
+          final deviceController = DeviceController([
+            MockDeviceDiscoveryService(),
+          ]);
           await deviceController.initialize();
           final de1Controller = De1Controller(controller: deviceController);
           final testDe1 = _MmrTimingOutDe1();
@@ -78,4 +80,3 @@ void main() {
     },
   );
 }
-

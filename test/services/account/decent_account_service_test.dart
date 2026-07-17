@@ -249,7 +249,10 @@ void main() {
 
           await s.fetchSerialNumbers();
 
-          expect(capturedRequest.url.toString(), '$_baseUrl/support/api/sn?onlyespressomachines=1');
+          expect(
+            capturedRequest.url.toString(),
+            '$_baseUrl/support/api/sn?onlyespressomachines=1',
+          );
           expect(capturedRequest.headers['authorization'], expectedAuth);
           expect(capturedRequest.method, 'GET');
         },

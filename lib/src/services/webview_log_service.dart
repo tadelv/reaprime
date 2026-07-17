@@ -36,7 +36,7 @@ class WebViewLogService {
   ///
   /// Uses the app documents directory on all platforms.
   WebViewLogService({required String logDirectoryPath})
-      : _logDirectoryPath = logDirectoryPath;
+    : _logDirectoryPath = logDirectoryPath;
 
   /// Broadcast stream of formatted log entries for WebSocket consumers
   Stream<String> get stream => _streamController.stream;
@@ -129,15 +129,16 @@ class WebViewLogService {
 
         // Find the next newline after the half point for clean truncation
         final newlineIndex = contents.indexOf('\n', halfPoint);
-        final keepFrom =
-            newlineIndex != -1 ? newlineIndex + 1 : halfPoint;
+        final keepFrom = newlineIndex != -1 ? newlineIndex + 1 : halfPoint;
 
         _logFile.writeAsStringSync(contents.substring(keepFrom));
 
         // Reopen sink for appending
         _sink = _logFile.openWrite(mode: FileMode.append);
 
-        _log.info('WebView log file truncated to ${_logFile.lengthSync()} bytes');
+        _log.info(
+          'WebView log file truncated to ${_logFile.lengthSync()} bytes',
+        );
       }
     } catch (e) {
       _log.warning('Failed to check/truncate webview log file', e);

@@ -89,24 +89,27 @@ class _MockWeighMasterBleTransport extends BLETransport {
 
 void main() {
   group('WeighMasterScale', () {
-    test('connects when FFF0 service is present and subscribes to FFF4', () async {
-      final transport = _MockWeighMasterBleTransport(
-        serviceUUIDs: [WeighMasterScale.serviceIdentifier.long],
-      );
-      final scale = WeighMasterScale(transport: transport);
+    test(
+      'connects when FFF0 service is present and subscribes to FFF4',
+      () async {
+        final transport = _MockWeighMasterBleTransport(
+          serviceUUIDs: [WeighMasterScale.serviceIdentifier.long],
+        );
+        final scale = WeighMasterScale(transport: transport);
 
-      await scale.onConnect();
+        await scale.onConnect();
 
-      expect(await scale.connectionState.first, ConnectionState.connected);
-      expect(
-        transport.subscribedServiceUuid,
-        WeighMasterScale.serviceIdentifier.long,
-      );
-      expect(
-        transport.subscribedCharUuid,
-        WeighMasterScale.dataCharacteristic.long,
-      );
-    });
+        expect(await scale.connectionState.first, ConnectionState.connected);
+        expect(
+          transport.subscribedServiceUuid,
+          WeighMasterScale.serviceIdentifier.long,
+        );
+        expect(
+          transport.subscribedCharUuid,
+          WeighMasterScale.dataCharacteristic.long,
+        );
+      },
+    );
 
     test('parses positive and negative 0.1 g frames', () async {
       final transport = _MockWeighMasterBleTransport(
@@ -118,8 +121,24 @@ void main() {
       scale.currentSnapshot.listen(snapshots.add);
       await scale.onConnect();
 
-      transport.simulateNotification([0x01, 0x02, 0x01, 0x00, 0x00, 0x04, 0xD2]);
-      transport.simulateNotification([0x01, 0x02, 0x01, 0x01, 0x00, 0x00, 0x7B]);
+      transport.simulateNotification([
+        0x01,
+        0x02,
+        0x01,
+        0x00,
+        0x00,
+        0x04,
+        0xD2,
+      ]);
+      transport.simulateNotification([
+        0x01,
+        0x02,
+        0x01,
+        0x01,
+        0x00,
+        0x00,
+        0x7B,
+      ]);
 
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
@@ -155,10 +174,42 @@ void main() {
       scale.currentSnapshot.listen(snapshots.add);
       await scale.onConnect();
 
-      transport.simulateNotification([0x01, 0x02, 0x01, 0x00, 0x00, 0x04, 0xD2]);
-      transport.simulateNotification([0x00, 0x02, 0x01, 0x00, 0x00, 0x04, 0xD2]);
-      transport.simulateNotification([0x01, 0x03, 0x01, 0x00, 0x00, 0x04, 0xD2]);
-      transport.simulateNotification([0x99, 0x99, 0x01, 0x00, 0x00, 0x04, 0xD2]);
+      transport.simulateNotification([
+        0x01,
+        0x02,
+        0x01,
+        0x00,
+        0x00,
+        0x04,
+        0xD2,
+      ]);
+      transport.simulateNotification([
+        0x00,
+        0x02,
+        0x01,
+        0x00,
+        0x00,
+        0x04,
+        0xD2,
+      ]);
+      transport.simulateNotification([
+        0x01,
+        0x03,
+        0x01,
+        0x00,
+        0x00,
+        0x04,
+        0xD2,
+      ]);
+      transport.simulateNotification([
+        0x99,
+        0x99,
+        0x01,
+        0x00,
+        0x00,
+        0x04,
+        0xD2,
+      ]);
 
       await Future<void>.delayed(const Duration(milliseconds: 10));
 

@@ -76,10 +76,12 @@ class SafFolderCopier {
 
         for (final file in subFiles) {
           if (!file.isDir) {
-            filesToCopy.add(_CopyTask(
-              sourceUri: file.uri,
-              destPath: '$destDir/${file.name}',
-            ));
+            filesToCopy.add(
+              _CopyTask(
+                sourceUri: file.uri,
+                destPath: '$destDir/${file.name}',
+              ),
+            );
           }
         }
       }
@@ -93,10 +95,12 @@ class SafFolderCopier {
         .where((e) => !e.isDir && e.name == 'settings.tdb')
         .firstOrNull;
     if (settingsFile != null) {
-      filesToCopy.add(_CopyTask(
-        sourceUri: settingsFile.uri,
-        destPath: '$stagingPath/settings.tdb',
-      ));
+      filesToCopy.add(
+        _CopyTask(
+          sourceUri: settingsFile.uri,
+          destPath: '$stagingPath/settings.tdb',
+        ),
+      );
     }
 
     _log.info('Found ${filesToCopy.length} files to copy');
@@ -161,10 +165,12 @@ class SafFolderCopier {
 
       final destDir = '$stagingPath/plugins/DYE';
       await Directory(destDir).create(recursive: true);
-      filesToCopy.add(_CopyTask(
-        sourceUri: grindersFile.uri,
-        destPath: '$destDir/grinders.tdb',
-      ));
+      filesToCopy.add(
+        _CopyTask(
+          sourceUri: grindersFile.uri,
+          destPath: '$destDir/grinders.tdb',
+        ),
+      );
     } catch (e) {
       _log.warning('Could not locate grinders.tdb: $e');
     }

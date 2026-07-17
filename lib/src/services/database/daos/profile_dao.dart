@@ -5,8 +5,7 @@ import 'package:reaprime/src/services/database/tables/profile_tables.dart';
 part 'profile_dao.g.dart';
 
 @DriftAccessor(tables: [ProfileRecords])
-class ProfileDao extends DatabaseAccessor<AppDatabase>
-    with _$ProfileDaoMixin {
+class ProfileDao extends DatabaseAccessor<AppDatabase> with _$ProfileDaoMixin {
   ProfileDao(super.db);
 
   /// Get all profiles filtered by visibility.
@@ -31,31 +30,31 @@ class ProfileDao extends DatabaseAccessor<AppDatabase>
 
   /// Get a single profile by ID.
   Future<ProfileRecord?> getProfileById(String id) {
-    return (select(profileRecords)..where((p) => p.id.equals(id)))
-        .getSingleOrNull();
+    return (select(
+      profileRecords,
+    )..where((p) => p.id.equals(id))).getSingleOrNull();
   }
 
   /// Check if a profile exists by ID.
   Future<bool> profileExists(String id) async {
-    final result = await (select(profileRecords)
-          ..where((p) => p.id.equals(id)))
-        .getSingleOrNull();
+    final result = await (select(
+      profileRecords,
+    )..where((p) => p.id.equals(id))).getSingleOrNull();
     return result != null;
   }
 
   /// Get all profile IDs.
   Future<List<String>> getAllProfileIds() async {
-    final query = selectOnly(profileRecords)
-      ..addColumns([profileRecords.id]);
+    final query = selectOnly(profileRecords)..addColumns([profileRecords.id]);
     final rows = await query.get();
     return rows.map((row) => row.read(profileRecords.id)!).toList();
   }
 
   /// Get profiles by parent ID (for version chain).
   Future<List<ProfileRecord>> getByParentId(String parentId) {
-    return (select(profileRecords)
-          ..where((p) => p.parentId.equals(parentId)))
-        .get();
+    return (select(
+      profileRecords,
+    )..where((p) => p.parentId.equals(parentId))).get();
   }
 
   /// Count profiles by visibility.
@@ -80,9 +79,9 @@ class ProfileDao extends DatabaseAccessor<AppDatabase>
   }
 
   Future<void> updateProfile(ProfileRecordsCompanion profile) {
-    return (update(profileRecords)
-          ..where((p) => p.id.equals(profile.id.value)))
-        .write(profile);
+    return (update(
+      profileRecords,
+    )..where((p) => p.id.equals(profile.id.value))).write(profile);
   }
 
   Future<void> deleteProfile(String id) {

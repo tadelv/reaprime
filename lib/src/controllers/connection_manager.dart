@@ -71,8 +71,9 @@ class ConnectionStatus {
       phase: phase ?? this.phase,
       foundMachines: foundMachines ?? this.foundMachines,
       foundScales: foundScales ?? this.foundScales,
-      pendingAmbiguity:
-          pendingAmbiguity != null ? pendingAmbiguity() : this.pendingAmbiguity,
+      pendingAmbiguity: pendingAmbiguity != null
+          ? pendingAmbiguity()
+          : this.pendingAmbiguity,
       error: error != null ? error() : this.error,
     );
   }
@@ -230,7 +231,8 @@ class ConnectionManager {
   /// Whether the scanner supports the persistent background scale watch
   /// (Android). De1StateManager consults this to skip its wake-time
   /// scale-only burst scan when the watch already covers reacquisition.
-  bool get supportsBackgroundScaleWatch => deviceScanner.supportsBackgroundWatch;
+  bool get supportsBackgroundScaleWatch =>
+      deviceScanner.supportsBackgroundWatch;
 
   ConnectionManager({
     required this.deviceScanner,
@@ -282,23 +284,27 @@ class ConnectionManager {
   void _listenForAdapter() {
     _adapterSub = deviceScanner.adapterStateStream.listen((state) {
       if (state == AdapterState.poweredOff) {
-        _emit(ConnectionError(
-          kind: ConnectionErrorKind.adapterOff,
-          severity: ConnectionErrorSeverity.error,
-          timestamp: DateTime.now().toUtc(),
-          message: 'Bluetooth is turned off.',
-          suggestion: 'Turn Bluetooth on to scan for devices.',
-        ));
+        _emit(
+          ConnectionError(
+            kind: ConnectionErrorKind.adapterOff,
+            severity: ConnectionErrorSeverity.error,
+            timestamp: DateTime.now().toUtc(),
+            message: 'Bluetooth is turned off.',
+            suggestion: 'Turn Bluetooth on to scan for devices.',
+          ),
+        );
       } else if (state == AdapterState.unauthorized) {
-        _emit(ConnectionError(
-          kind: ConnectionErrorKind.bluetoothPermissionDenied,
-          severity: ConnectionErrorSeverity.error,
-          timestamp: DateTime.now().toUtc(),
-          message: 'Bluetooth permission was denied.',
-          suggestion:
-              'Go to Settings > Privacy & Security > Bluetooth and enable '
-              'permission for Decent.app.',
-        ));
+        _emit(
+          ConnectionError(
+            kind: ConnectionErrorKind.bluetoothPermissionDenied,
+            severity: ConnectionErrorSeverity.error,
+            timestamp: DateTime.now().toUtc(),
+            message: 'Bluetooth permission was denied.',
+            suggestion:
+                'Go to Settings > Privacy & Security > Bluetooth and enable '
+                'permission for Decent.app.',
+          ),
+        );
       } else if (state == AdapterState.poweredOn &&
           (currentStatus.error?.kind == ConnectionErrorKind.adapterOff ||
               currentStatus.error?.kind ==
@@ -386,16 +392,18 @@ class ConnectionManager {
     Map<String, dynamic>? details,
     DateTime? timestamp,
   }) {
-    _emit(ConnectionError(
-      kind: kind,
-      severity: severity,
-      timestamp: (timestamp ?? DateTime.now()).toUtc(),
-      message: message,
-      deviceId: deviceId,
-      deviceName: deviceName,
-      suggestion: suggestion,
-      details: details,
-    ));
+    _emit(
+      ConnectionError(
+        kind: kind,
+        severity: severity,
+        timestamp: (timestamp ?? DateTime.now()).toUtc(),
+        message: message,
+        deviceId: deviceId,
+        deviceName: deviceName,
+        suggestion: suggestion,
+        details: details,
+      ),
+    );
   }
 
   @visibleForTesting
@@ -498,8 +506,9 @@ class ConnectionManager {
     if (registry == null) return null;
     final machineId = settingsController.preferredMachineId;
     if (machineId == null || machineId.isEmpty) return null;
-    final remembered = registry.remembered
-        .firstWhereOrNull((d) => d.id == machineId);
+    final remembered = registry.remembered.firstWhereOrNull(
+      (d) => d.id == machineId,
+    );
     if (remembered == null) return null;
     try {
       final device = await deviceScanner.tryQuickConnect(remembered);
@@ -540,8 +549,9 @@ class ConnectionManager {
     // path publishes ready immediately after adoption, then kicks off
     // background scale discovery.
     if (!scaleOnly && rememberedDevices != null) {
-      _publishStatus(currentStatus.copyWith(
-          phase: ConnectionPhase.connectingMachine));
+      _publishStatus(
+        currentStatus.copyWith(phase: ConnectionPhase.connectingMachine),
+      );
       final qcMachine = await _tryQuickConnectMachine();
       if (qcMachine != null) {
         _log.info('Quick-connect: machine connected, proceeding to ready');
@@ -564,8 +574,9 @@ class ConnectionManager {
       }
     }
 
-    final preferredMachineId =
-        scaleOnly ? null : settingsController.preferredMachineId;
+    final preferredMachineId = scaleOnly
+        ? null
+        : settingsController.preferredMachineId;
     final preferredScaleId = settingsController.preferredScaleId;
     // Early stop is enabled for any full (non-scaleOnly) connect.
     // Previously gated on preferredMachineId != null, which meant
@@ -615,10 +626,13 @@ class ConnectionManager {
       // no-op (no scale found) settle it from machine state so the UI
       // doesn't stay stuck on `scanning`.
       if (currentStatus.phase == ConnectionPhase.scanning) {
-        _publishStatus(currentStatus.copyWith(
-          phase:
-              _machineConnected ? ConnectionPhase.ready : ConnectionPhase.idle,
-        ));
+        _publishStatus(
+          currentStatus.copyWith(
+            phase: _machineConnected
+                ? ConnectionPhase.ready
+                : ConnectionPhase.idle,
+          ),
+        );
       }
       _emitScanReport(
         scanReport: scanReport,
@@ -669,10 +683,12 @@ class ConnectionManager {
         _maybeArmDeferredScaleScan();
         _ensureScaleReacquisition();
       case MachinePickerAction():
-        _publishStatus(currentStatus.copyWith(
-          phase: ConnectionPhase.idle,
-          pendingAmbiguity: () => AmbiguityReason.machinePicker,
-        ));
+        _publishStatus(
+          currentStatus.copyWith(
+            phase: ConnectionPhase.idle,
+            pendingAmbiguity: () => AmbiguityReason.machinePicker,
+          ),
+        );
       case NoMachineAction():
         _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.idle));
     }
@@ -939,26 +955,29 @@ class ConnectionManager {
     // if the first push is lost, the watchdog fires and forces a clean
     // reconnect that re-establishes notifications.
     _armStateWatchdog(machine.deviceId);
-    _machineSnapshotSub = snapshots.listen((snapshot) {
-      // Every frame — including a deduped duplicate of the current state —
-      // proves the push channel is alive. Re-arm BEFORE the dedupe check
-      // so a steady non-transitioning state doesn't false-trigger.
-      _armStateWatchdog(machine.deviceId);
-      final state = snapshot.state.state;
-      if (_latestMachineState == state) return;
-      _latestMachineState = state;
-      if (_scaleReconnectBlockedByPowerMode) {
-        _log.fine(
-          'Machine is sleeping and scale power mode is disconnect; '
-          'pausing preferred scale reconnect',
-        );
-        _pauseScaleReconnectForPowerMode();
-      } else {
-        _ensureScaleReacquisition();
-      }
-    }, onError: (Object e, StackTrace st) {
-      _log.fine('Machine snapshot stream error', e, st);
-    });
+    _machineSnapshotSub = snapshots.listen(
+      (snapshot) {
+        // Every frame — including a deduped duplicate of the current state —
+        // proves the push channel is alive. Re-arm BEFORE the dedupe check
+        // so a steady non-transitioning state doesn't false-trigger.
+        _armStateWatchdog(machine.deviceId);
+        final state = snapshot.state.state;
+        if (_latestMachineState == state) return;
+        _latestMachineState = state;
+        if (_scaleReconnectBlockedByPowerMode) {
+          _log.fine(
+            'Machine is sleeping and scale power mode is disconnect; '
+            'pausing preferred scale reconnect',
+          );
+          _pauseScaleReconnectForPowerMode();
+        } else {
+          _ensureScaleReacquisition();
+        }
+      },
+      onError: (Object e, StackTrace st) {
+        _log.fine('Machine snapshot stream error', e, st);
+      },
+    );
   }
 
   void _armStateWatchdog(String deviceId) {
@@ -1095,9 +1114,11 @@ class ConnectionManager {
       case ConnectScaleAction(scale: final s):
         await _connectScaleTracked(s, scanReport);
       case ScalePickerAction():
-        _publishStatus(currentStatus.copyWith(
-          pendingAmbiguity: () => AmbiguityReason.scalePicker,
-        ));
+        _publishStatus(
+          currentStatus.copyWith(
+            pendingAmbiguity: () => AmbiguityReason.scalePicker,
+          ),
+        );
       case NoScaleAction():
         // Nothing to do — idle scale phase.
         break;
@@ -1123,9 +1144,7 @@ class ConnectionManager {
     );
 
     try {
-      await de1Controller
-          .connectToDe1(machine)
-          .timeout(_connectTimeout);
+      await de1Controller.connectToDe1(machine).timeout(_connectTimeout);
       await settingsController.setPreferredMachineId(machine.deviceId);
       // `_latestDe1` is populated by the de1Controller.de1 stream
       // listener; by the time connectToDe1 returns, that microtask has
@@ -1137,19 +1156,21 @@ class ConnectionManager {
       // kept consistent with connectScale for readability.
       _publishStatus(currentStatus.copyWith(phase: ConnectionPhase.idle));
       final timedOut = e is TimeoutException;
-      _emit(_buildConnectError(
-        kind: ConnectionErrorKind.machineConnectFailed,
-        deviceId: machine.deviceId,
-        deviceName: machine.name,
-        message: timedOut
-            ? 'Machine ${machine.name} did not respond within '
-                '${_connectTimeout.inSeconds}s.'
-            : 'Machine ${machine.name} failed to connect.',
-        suggestion: timedOut
-            ? 'Try again. If the problem persists, power-cycle the machine.'
-            : 'Make sure the DE1 is powered on and in range, then retry.',
-        exception: e,
-      ));
+      _emit(
+        _buildConnectError(
+          kind: ConnectionErrorKind.machineConnectFailed,
+          deviceId: machine.deviceId,
+          deviceName: machine.name,
+          message: timedOut
+              ? 'Machine ${machine.name} did not respond within '
+                    '${_connectTimeout.inSeconds}s.'
+              : 'Machine ${machine.name} failed to connect.',
+          suggestion: timedOut
+              ? 'Try again. If the problem persists, power-cycle the machine.'
+              : 'Make sure the DE1 is powered on and in range, then retry.',
+          exception: e,
+        ),
+      );
       rethrow;
     } finally {
       _isConnectingMachine = false;
@@ -1182,15 +1203,14 @@ class ConnectionManager {
     );
 
     try {
-      await scaleController
-          .connectToScale(scale)
-          .timeout(_connectTimeout);
+      await scaleController.connectToScale(scale).timeout(_connectTimeout);
       if (_scaleReconnectBlockedByPowerMode) {
         markExpectingDisconnect(scale.deviceId);
         _publishStatus(
           currentStatus.copyWith(
-            phase:
-                _machineConnected ? ConnectionPhase.ready : ConnectionPhase.idle,
+            phase: _machineConnected
+                ? ConnectionPhase.ready
+                : ConnectionPhase.idle,
           ),
         );
         await scale.disconnect();
@@ -1208,8 +1228,9 @@ class ConnectionManager {
       // Scale failure is non-blocking — stay at ready if machine connected, else idle.
       _publishStatus(
         currentStatus.copyWith(
-          phase:
-              _machineConnected ? ConnectionPhase.ready : ConnectionPhase.idle,
+          phase: _machineConnected
+              ? ConnectionPhase.ready
+              : ConnectionPhase.idle,
         ),
       );
       // DO NOT REORDER — `ready` is a clearing phase and `scaleConnectFailed`
@@ -1218,20 +1239,22 @@ class ConnectionManager {
       // phase first (no error present) then calling `_emit` (bypasses the
       // gatekeeper) is the only order that keeps the error visible.
       final timedOut = e is TimeoutException;
-      _emit(_buildConnectError(
-        kind: ConnectionErrorKind.scaleConnectFailed,
-        deviceId: scale.deviceId,
-        deviceName: scale.name,
-        message: timedOut
-            ? 'Scale ${scale.name} did not respond within '
-                '${_connectTimeout.inSeconds}s.'
-            : 'Scale ${scale.name} failed to connect.',
-        suggestion: timedOut
-            ? 'Try again. If the problem persists, power-cycle the scale.'
-            : 'Wake the scale and try again. If the problem persists, '
-                'toggle Bluetooth off and on.',
-        exception: e,
-      ));
+      _emit(
+        _buildConnectError(
+          kind: ConnectionErrorKind.scaleConnectFailed,
+          deviceId: scale.deviceId,
+          deviceName: scale.name,
+          message: timedOut
+              ? 'Scale ${scale.name} did not respond within '
+                    '${_connectTimeout.inSeconds}s.'
+              : 'Scale ${scale.name} failed to connect.',
+          suggestion: timedOut
+              ? 'Try again. If the problem persists, power-cycle the scale.'
+              : 'Wake the scale and try again. If the problem persists, '
+                    'toggle Bluetooth off and on.',
+          exception: e,
+        ),
+      );
       return ConnectionResult.failed(e.toString());
     } finally {
       _isConnectingScale = false;

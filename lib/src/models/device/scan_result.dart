@@ -1,7 +1,9 @@
 import 'package:reaprime/src/models/device/device.dart';
-import 'package:reaprime/src/models/scan_report.dart' show ScanTerminationReason;
+import 'package:reaprime/src/models/scan_report.dart'
+    show ScanTerminationReason;
 
-export 'package:reaprime/src/models/scan_report.dart' show ScanTerminationReason;
+export 'package:reaprime/src/models/scan_report.dart'
+    show ScanTerminationReason;
 
 /// Result of a single scan cycle across all discovery services.
 ///

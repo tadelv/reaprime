@@ -6,7 +6,7 @@ class ProfileExportSection implements DataExportSection {
   final ProfileController _controller;
 
   ProfileExportSection({required ProfileController controller})
-      : _controller = controller;
+    : _controller = controller;
 
   @override
   String get filename => 'profiles.json';
@@ -41,8 +41,11 @@ class ProfileExportSection implements DataExportSection {
           final record = ProfileRecord.fromJson(json);
           final existing = await _controller.get(record.id);
           if (existing != null) {
-            await _controller.update(record.id,
-                profile: record.profile, metadata: record.metadata);
+            await _controller.update(
+              record.id,
+              profile: record.profile,
+              metadata: record.metadata,
+            );
           } else {
             await _controller.importProfiles([json]);
           }

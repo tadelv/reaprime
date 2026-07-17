@@ -23,6 +23,13 @@ class ConnectionErrorKind {
     scanFailed,
   };
 
+  /// Kinds that survive phase transitions but are cleared explicitly by
+  /// the reporter rather than environmental recovery. Distinct from
+  /// [sticky] which describes conditions the user must resolve.
+  static const phasePersistent = <String>{
+    profileUploadFailed,
+  };
+
   const ConnectionErrorKind._();
 }
 

@@ -205,6 +205,11 @@ class UnifiedDe1 implements De1Interface {
     initRawStream();
     await _transport.connect();
 
+    // Connection edge: the device's profile state is unknown (possibly
+    // wedged mid-receive in ProfileDownloadInProgress), so the first
+    // setProfile must perform a complete upload regardless of cache.
+    _currentProfile = null;
+
     if (_info != null) {
       return;
     }
@@ -330,18 +335,22 @@ class UnifiedDe1 implements De1Interface {
   /// caller — web API, native debug view, sequencers, presence — gets it.
   /// Non-maintenance states return immediately.
   Future<void> _prepareColdMaintenanceWorkaround(MachineState state) async {
-    final isMaintenance = state == MachineState.airPurge ||
+    final isMaintenance =
+        state == MachineState.airPurge ||
         state == MachineState.descaling ||
         state == MachineState.cleaning;
     if (!isMaintenance) return;
     final snapshot = await currentSnapshot.first;
     final s = snapshot.state.state;
-    final isCold = s == MachineState.preheating ||
+    final isCold =
+        s == MachineState.preheating ||
         s == MachineState.heating ||
         snapshot.state.substate == MachineSubstate.preparingForShot;
     final ghcPresent = machineInfo.groupHeadControllerPresent;
     final fwBuild = int.tryParse(machineInfo.version) ?? 0;
-    if (!(isCold && ghcPresent && fwBuild < _kColdMaintenancePromotionMinFwBuild)) {
+    if (!(isCold &&
+        ghcPresent &&
+        fwBuild < _kColdMaintenancePromotionMinFwBuild)) {
       return;
     }
     _log.info(
@@ -433,8 +442,9 @@ class UnifiedDe1 implements De1Interface {
     // Queue unconditionally — the equality guard runs inside the locked
     // section so it sees the cache as of upload start (after any queued
     // uploads finished), not as of call time.
-    final upload =
-        _profileUploadQueue.then((_) => _uploadProfileLocked(profile));
+    final upload = _profileUploadQueue.then(
+      (_) => _uploadProfileLocked(profile),
+    );
     // Keep the queue alive past a failed upload: the chain swallows the
     // error, the caller's future still surfaces it.
     _profileUploadQueue = upload.catchError((_) {});

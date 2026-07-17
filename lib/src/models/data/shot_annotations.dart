@@ -83,7 +83,8 @@ class ShotAnnotations {
   }
 
   @override
-  String toString() => 'ShotAnnotations('
+  String toString() =>
+      'ShotAnnotations('
       'dose: $actualDoseWeight→$actualYield, '
       'tds: $drinkTds, ey: $drinkEy, '
       'enjoyment: $enjoyment)';

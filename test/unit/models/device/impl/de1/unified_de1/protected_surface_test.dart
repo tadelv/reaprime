@@ -23,8 +23,7 @@ mixin _TestCapability on UnifiedDe1 {
   Future<int> readFanViaWrongHelper() => readMmrInt(MMRItem.targetSteamFlow);
   // Intentionally calls `readMmrScaled` on an int32 address (fanThreshold)
   // — exercises the kind-mismatch StateError path.
-  Future<double> readFanAsScaledFloat() =>
-      readMmrScaled(MMRItem.fanThreshold);
+  Future<double> readFanAsScaledFloat() => readMmrScaled(MMRItem.fanThreshold);
 
   // Re-exports so tests can drive these from a mixin context (the only
   // legitimate access path for `@protected` members).
@@ -34,11 +33,12 @@ mixin _TestCapability on UnifiedDe1 {
   Future<double> capReadScaled(MmrAddress addr) => readMmrScaled(addr);
   Future<void> capWriteScaled(MmrAddress addr, double v) =>
       writeMmrScaled(addr, v);
-  Stream<ByteData> capNotifications(LogicalEndpoint ep) =>
-      notificationsFor(ep);
-  Future<void> capWriteEndpoint(LogicalEndpoint ep, Uint8List data,
-          {bool withResponse = true}) =>
-      writeEndpoint(ep, data, withResponse: withResponse);
+  Stream<ByteData> capNotifications(LogicalEndpoint ep) => notificationsFor(ep);
+  Future<void> capWriteEndpoint(
+    LogicalEndpoint ep,
+    Uint8List data, {
+    bool withResponse = true,
+  }) => writeEndpoint(ep, data, withResponse: withResponse);
 }
 
 /// Capability-supplied MMR address that is *not* a [MMRItem]. Mirrors
@@ -119,11 +119,13 @@ void main() {
       // targetSteamFlow.kind == scaledFloat — wrong helper.
       await expectLater(
         de1.readFanViaWrongHelper(),
-        throwsA(isA<StateError>().having(
-          (e) => e.message,
-          'message',
-          allOf(contains('readMmrInt'), contains('kind')),
-        )),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('readMmrInt'), contains('kind')),
+          ),
+        ),
       );
     });
 
@@ -131,11 +133,13 @@ void main() {
       // fanThreshold.kind == int32 — wrong helper.
       await expectLater(
         de1.readFanAsScaledFloat(),
-        throwsA(isA<StateError>().having(
-          (e) => e.message,
-          'message',
-          allOf(contains('readMmrScaled'), contains('kind')),
-        )),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('readMmrScaled'), contains('kind')),
+          ),
+        ),
       );
     });
 
@@ -154,22 +158,25 @@ void main() {
       expect(result.sublist(4, 8), [0xDE, 0xAD, 0xBE, 0xEF]);
     });
 
-    test('readMmrRaw retries after a dropped notify, then returns the value',
-        () async {
-      const addr = _CapabilityAddr(
-        address: 0x00802800,
-        length: 4,
-        name: 'cupWarmerStatus',
-        kind: MmrValueKind.bytes,
-      );
-      // First read request's notification is lost; the queued response
-      // survives for the retry, which lands after the 4s timeout + settle.
-      transport.dropNextMmrResponses = 1;
-      transport.queueMmrResponseRaw(addr, [0xDE, 0xAD, 0xBE, 0xEF]);
+    test(
+      'readMmrRaw retries after a dropped notify, then returns the value',
+      () async {
+        const addr = _CapabilityAddr(
+          address: 0x00802800,
+          length: 4,
+          name: 'cupWarmerStatus',
+          kind: MmrValueKind.bytes,
+        );
+        // First read request's notification is lost; the queued response
+        // survives for the retry, which lands after the 4s timeout + settle.
+        transport.dropNextMmrResponses = 1;
+        transport.queueMmrResponseRaw(addr, [0xDE, 0xAD, 0xBE, 0xEF]);
 
-      final result = await de1.capRead(addr);
-      expect(result.sublist(4, 8), [0xDE, 0xAD, 0xBE, 0xEF]);
-    }, timeout: const Timeout(Duration(seconds: 30)));
+        final result = await de1.capRead(addr);
+        expect(result.sublist(4, 8), [0xDE, 0xAD, 0xBE, 0xEF]);
+      },
+      timeout: const Timeout(Duration(seconds: 30)),
+    );
 
     test('writeMmrRaw sends the bytes on the wire for non-MMRItem', () async {
       const addr = _CapabilityAddr(
@@ -228,29 +235,34 @@ void main() {
       expect(payload.getInt32(0, Endian.little), 500);
     });
 
-    test('notificationsFor(shotSample) routes to transport shotSample',
-        () async {
-      // The transport's BLE subscriber for the shotSample characteristic
-      // pushes onto the underlying BehaviorSubject. We emit synthetic
-      // bytes through that callback and verify the protected method's
-      // stream observes them — proving the dispatch table routes
-      // Endpoint.shotSample to the right subject.
-      final stream = de1.capNotifications(Endpoint.shotSample);
-      final marker = Uint8List(19);
-      // Sentinel byte the seeded value won't have.
-      marker[0] = 0x7F;
-      final received = expectLater(
-        stream
-            .where((d) => d.lengthInBytes >= 1 && d.getUint8(0) == 0x7F)
-            .first,
-        completion(isA<ByteData>()),
-      );
-      final cb = transport.subscribers[Endpoint.shotSample.uuid];
-      expect(cb, isNotNull,
-          reason: 'transport must have subscribed to shotSample on connect');
-      cb!(marker);
-      await received;
-    });
+    test(
+      'notificationsFor(shotSample) routes to transport shotSample',
+      () async {
+        // The transport's BLE subscriber for the shotSample characteristic
+        // pushes onto the underlying BehaviorSubject. We emit synthetic
+        // bytes through that callback and verify the protected method's
+        // stream observes them — proving the dispatch table routes
+        // Endpoint.shotSample to the right subject.
+        final stream = de1.capNotifications(Endpoint.shotSample);
+        final marker = Uint8List(19);
+        // Sentinel byte the seeded value won't have.
+        marker[0] = 0x7F;
+        final received = expectLater(
+          stream
+              .where((d) => d.lengthInBytes >= 1 && d.getUint8(0) == 0x7F)
+              .first,
+          completion(isA<ByteData>()),
+        );
+        final cb = transport.subscribers[Endpoint.shotSample.uuid];
+        expect(
+          cb,
+          isNotNull,
+          reason: 'transport must have subscribed to shotSample on connect',
+        );
+        cb!(marker);
+        await received;
+      },
+    );
 
     test('notificationsFor throws for non-Endpoint LogicalEndpoint', () {
       const ep = _StubLogicalEndpoint(
@@ -260,25 +272,32 @@ void main() {
       );
       expect(
         () => de1.capNotifications(ep),
-        throwsA(isA<UnimplementedError>().having(
-          (e) => e.message,
-          'message',
-          contains('runtime subscription'),
-        )),
+        throwsA(
+          isA<UnimplementedError>().having(
+            (e) => e.message,
+            'message',
+            contains('runtime subscription'),
+          ),
+        ),
       );
     });
 
-    test('writeEndpoint(withResponse: false) routes through transport.write',
-        () async {
-      transport.writes.clear();
-      final payload = Uint8List.fromList([0xAB]);
-      await de1.capWriteEndpoint(Endpoint.requestedState, payload,
-          withResponse: false);
-      final frame = transport.writes.firstWhere(
-        (w) => w.characteristicUUID == Endpoint.requestedState.uuid,
-      );
-      expect(frame.data, payload);
-      expect(frame.withResponse, isFalse);
-    });
+    test(
+      'writeEndpoint(withResponse: false) routes through transport.write',
+      () async {
+        transport.writes.clear();
+        final payload = Uint8List.fromList([0xAB]);
+        await de1.capWriteEndpoint(
+          Endpoint.requestedState,
+          payload,
+          withResponse: false,
+        );
+        final frame = transport.writes.firstWhere(
+          (w) => w.characteristicUUID == Endpoint.requestedState.uuid,
+        );
+        expect(frame.data, payload);
+        expect(frame.withResponse, isFalse);
+      },
+    );
   });
 }

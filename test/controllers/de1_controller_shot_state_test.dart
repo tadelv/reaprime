@@ -99,7 +99,8 @@ void main() {
         expect(
           controller.consumeStopIntent(),
           isNull,
-          reason: 'a stop intent older than the window must not be '
+          reason:
+              'a stop intent older than the window must not be '
               'attributed to a later, unrelated shot end',
         );
       });

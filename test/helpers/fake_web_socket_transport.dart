@@ -15,8 +15,9 @@ class FakeWebSocketTransport implements WebSocketTransport {
 
   FakeWebSocketTransport({this.host = 'hds.local', this.failConnect = false});
 
-  final BehaviorSubject<ConnectionState> _conn =
-      BehaviorSubject.seeded(ConnectionState.discovered);
+  final BehaviorSubject<ConnectionState> _conn = BehaviorSubject.seeded(
+    ConnectionState.discovered,
+  );
   final StreamController<String> _msgs = StreamController<String>.broadcast();
 
   final List<String> sent = [];

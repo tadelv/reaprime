@@ -22,7 +22,8 @@ extension MessageParsing on UnifiedDe1 {
 
     var state = De1StateEnum.fromHexValue(stateSample.getUint8(0));
     var subState =
-        De1SubState.fromHexValue(stateSample.getUint8(1)) ?? De1SubState.noState;
+        De1SubState.fromHexValue(stateSample.getUint8(1)) ??
+        De1SubState.noState;
 
     return MachineSnapshot(
       timestamp: DateTime.now(),

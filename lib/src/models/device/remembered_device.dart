@@ -36,12 +36,12 @@ class RememberedDevice {
   // read from storage (see [fromJson]), so renaming an enum value would
   // silently orphan every stored record of that type.
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'type': type.name,
-        if (implementation != null) 'implementation': implementation!.name,
-        if (transportType != null) 'transportType': transportType!.name,
-      };
+    'id': id,
+    'name': name,
+    'type': type.name,
+    if (implementation != null) 'implementation': implementation!.name,
+    if (transportType != null) 'transportType': transportType!.name,
+  };
 
   /// Whether [other] carries the same display metadata (name + type). Identity
   /// (`==`) is id-only, so the registry uses this to detect a metadata change on
@@ -84,14 +84,15 @@ class RememberedDevice {
     if (id is! String || id.isEmpty || name is! String || typeName is! String) {
       return null;
     }
-    final type =
-        DeviceType.values.firstWhereOrNull((t) => t.name == typeName);
+    final type = DeviceType.values.firstWhereOrNull((t) => t.name == typeName);
     if (type == null) return null;
 
     DeviceImplementation? impl;
     final implName = json['implementation'];
     if (implName is String) {
-      impl = DeviceImplementation.values.firstWhereOrNull((i) => i.name == implName);
+      impl = DeviceImplementation.values.firstWhereOrNull(
+        (i) => i.name == implName,
+      );
     }
 
     TransportType? tt;
@@ -140,8 +141,9 @@ class RememberedDevice {
       return TransportType.ble;
     }
     // UUID: 8-4-4-4-12 hex (iOS/macOS BLE)
-    if (RegExp(r'^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$')
-        .hasMatch(deviceId)) {
+    if (RegExp(
+      r'^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$',
+    ).hasMatch(deviceId)) {
       return TransportType.ble;
     }
     // Default to BLE — most devices are BLE.
@@ -183,8 +185,7 @@ class RememberedDevice {
 
   /// Identity is the device id (one remembered entry per device).
   @override
-  bool operator ==(Object other) =>
-      other is RememberedDevice && other.id == id;
+  bool operator ==(Object other) => other is RememberedDevice && other.id == id;
 
   @override
   int get hashCode => id.hashCode;

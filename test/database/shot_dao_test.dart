@@ -52,8 +52,17 @@ void main() {
           'target_volume_count_start': 0,
           'version': '2',
         },
-        'steamSettings': {'targetTemperature': 150, 'duration': 50, 'flow': 0.8},
-        'hotWaterData': {'targetTemperature': 90, 'duration': 15, 'volume': 100, 'flow': 4.0},
+        'steamSettings': {
+          'targetTemperature': 150,
+          'duration': 50,
+          'flow': 0.8,
+        },
+        'hotWaterData': {
+          'targetTemperature': 90,
+          'duration': 15,
+          'volume': 100,
+          'flow': 4.0,
+        },
         'rinseData': {'targetTemperature': 90, 'duration': 10, 'flow': 6.0},
       }),
       measurementsJson: const Value('[]'),
@@ -78,14 +87,18 @@ void main() {
     });
 
     test('gets all shots ordered by timestamp desc', () async {
-      await db.shotDao.insertShot(makeShot(
-        id: 's1',
-        timestamp: DateTime.parse('2024-01-01T10:00:00Z'),
-      ));
-      await db.shotDao.insertShot(makeShot(
-        id: 's2',
-        timestamp: DateTime.parse('2024-01-02T10:00:00Z'),
-      ));
+      await db.shotDao.insertShot(
+        makeShot(
+          id: 's1',
+          timestamp: DateTime.parse('2024-01-01T10:00:00Z'),
+        ),
+      );
+      await db.shotDao.insertShot(
+        makeShot(
+          id: 's2',
+          timestamp: DateTime.parse('2024-01-02T10:00:00Z'),
+        ),
+      );
 
       final shots = await db.shotDao.getAllShots();
       expect(shots.first.id, 's2'); // newer first
@@ -94,10 +107,12 @@ void main() {
 
     test('updates a shot', () async {
       await db.shotDao.insertShot(makeShot(espressoNotes: 'original'));
-      await db.shotDao.updateShot(ShotRecordsCompanion(
-        id: const Value('shot-1'),
-        espressoNotes: const Value('updated'),
-      ));
+      await db.shotDao.updateShot(
+        ShotRecordsCompanion(
+          id: const Value('shot-1'),
+          espressoNotes: const Value('updated'),
+        ),
+      );
       final shot = await db.shotDao.getShotById('shot-1');
       expect(shot!.espressoNotes, 'updated');
     });
@@ -110,24 +125,26 @@ void main() {
     });
 
     test('gets latest shot', () async {
-      await db.shotDao.insertShot(makeShot(
-        id: 's1',
-        timestamp: DateTime.parse('2024-01-01T10:00:00Z'),
-      ));
-      await db.shotDao.insertShot(makeShot(
-        id: 's2',
-        timestamp: DateTime.parse('2024-01-02T10:00:00Z'),
-      ));
+      await db.shotDao.insertShot(
+        makeShot(
+          id: 's1',
+          timestamp: DateTime.parse('2024-01-01T10:00:00Z'),
+        ),
+      );
+      await db.shotDao.insertShot(
+        makeShot(
+          id: 's2',
+          timestamp: DateTime.parse('2024-01-02T10:00:00Z'),
+        ),
+      );
 
       final latest = await db.shotDao.getLatestShot();
       expect(latest!.id, 's2');
     });
 
     test('upserts a shot', () async {
-      await db.shotDao.upsertShot(
-          makeShot(id: 's1', espressoNotes: 'first'));
-      await db.shotDao.upsertShot(
-          makeShot(id: 's1', espressoNotes: 'second'));
+      await db.shotDao.upsertShot(makeShot(id: 's1', espressoNotes: 'first'));
+      await db.shotDao.upsertShot(makeShot(id: 's1', espressoNotes: 'second'));
 
       final shots = await db.shotDao.getAllShots();
       expect(shots, hasLength(1));
@@ -138,64 +155,67 @@ void main() {
   group('ShotDao - Pagination & Filtering', () {
     test('paginates shots', () async {
       for (int i = 0; i < 10; i++) {
-        await db.shotDao.insertShot(makeShot(
-          id: 'shot-$i',
-          timestamp:
-              DateTime.parse('2024-01-01T10:00:00Z').add(Duration(hours: i)),
-        ));
+        await db.shotDao.insertShot(
+          makeShot(
+            id: 'shot-$i',
+            timestamp: DateTime.parse(
+              '2024-01-01T10:00:00Z',
+            ).add(Duration(hours: i)),
+          ),
+        );
       }
 
-      final page1 =
-          await db.shotDao.getShotsPaginated(limit: 3, offset: 0);
+      final page1 = await db.shotDao.getShotsPaginated(limit: 3, offset: 0);
       expect(page1, hasLength(3));
       expect(page1.first.id, 'shot-9'); // newest first
 
-      final page2 =
-          await db.shotDao.getShotsPaginated(limit: 3, offset: 3);
+      final page2 = await db.shotDao.getShotsPaginated(limit: 3, offset: 3);
       expect(page2, hasLength(3));
     });
 
     test('filters by grinderModel', () async {
-      await db.shotDao
-          .insertShot(makeShot(id: 's1', grinderModel: 'Niche'));
-      await db.shotDao
-          .insertShot(makeShot(id: 's2', grinderModel: 'DF64'));
+      await db.shotDao.insertShot(makeShot(id: 's1', grinderModel: 'Niche'));
+      await db.shotDao.insertShot(makeShot(id: 's2', grinderModel: 'DF64'));
       await db.shotDao.insertShot(makeShot(id: 's3'));
 
-      final filtered = await db.shotDao
-          .getShotsPaginated(grinderModel: 'Niche');
+      final filtered = await db.shotDao.getShotsPaginated(
+        grinderModel: 'Niche',
+      );
       expect(filtered, hasLength(1));
       expect(filtered.first.id, 's1');
     });
 
     test('filters by coffeeRoaster', () async {
-      await db.shotDao
-          .insertShot(makeShot(id: 's1', coffeeRoaster: 'Sey'));
-      await db.shotDao
-          .insertShot(makeShot(id: 's2', coffeeRoaster: 'Other'));
+      await db.shotDao.insertShot(makeShot(id: 's1', coffeeRoaster: 'Sey'));
+      await db.shotDao.insertShot(makeShot(id: 's2', coffeeRoaster: 'Other'));
 
-      final filtered = await db.shotDao
-          .getShotsPaginated(coffeeRoaster: 'Sey');
+      final filtered = await db.shotDao.getShotsPaginated(coffeeRoaster: 'Sey');
       expect(filtered, hasLength(1));
       expect(filtered.first.id, 's1');
     });
 
     test('filters by multiple beanBatchIds', () async {
-      await db.shotDao.insertShot(makeShot(
-        id: 's1',
-        beanBatchId: 'batch-a',
-        timestamp: DateTime.parse('2024-01-01T10:00:00Z'),
-      ));
-      await db.shotDao.insertShot(makeShot(
-        id: 's2',
-        beanBatchId: 'batch-b',
-        timestamp: DateTime.parse('2024-01-02T10:00:00Z'),
-      ));
-      await db.shotDao.insertShot(makeShot(
-        id: 's3',
-        beanBatchId: 'batch-c',
-        timestamp: DateTime.parse('2024-01-03T10:00:00Z'),
-      ));
+      await db.shotDao.insertShot(
+        makeShot(
+          id: 's1',
+          beanBatchId: 'batch-a',
+          timestamp: DateTime.parse('2024-01-01T10:00:00Z'),
+        ),
+      );
+      await db.shotDao.insertShot(
+        makeShot(
+          id: 's2',
+          beanBatchId: 'batch-b',
+          timestamp: DateTime.parse('2024-01-02T10:00:00Z'),
+        ),
+      );
+      await db.shotDao.insertShot(
+        makeShot(
+          id: 's3',
+          beanBatchId: 'batch-c',
+          timestamp: DateTime.parse('2024-01-03T10:00:00Z'),
+        ),
+      );
       await db.shotDao.insertShot(makeShot(id: 's4'));
 
       final filtered = await db.shotDao.getShotsPaginated(
@@ -221,28 +241,25 @@ void main() {
 
     test('filters by profileTitle', () async {
       await db.shotDao.insertShot(
-          makeShot(id: 's1', profileTitle: 'Blooming Espresso'));
-      await db.shotDao
-          .insertShot(makeShot(id: 's2', profileTitle: 'Rao'));
+        makeShot(id: 's1', profileTitle: 'Blooming Espresso'),
+      );
+      await db.shotDao.insertShot(makeShot(id: 's2', profileTitle: 'Rao'));
 
-      final filtered = await db.shotDao
-          .getShotsPaginated(profileTitle: 'Blooming Espresso');
+      final filtered = await db.shotDao.getShotsPaginated(
+        profileTitle: 'Blooming Espresso',
+      );
       expect(filtered, hasLength(1));
     });
 
     test('counts shots with filters', () async {
-      await db.shotDao
-          .insertShot(makeShot(id: 's1', coffeeRoaster: 'Sey'));
-      await db.shotDao
-          .insertShot(makeShot(id: 's2', coffeeRoaster: 'Sey'));
-      await db.shotDao
-          .insertShot(makeShot(id: 's3', coffeeRoaster: 'Other'));
+      await db.shotDao.insertShot(makeShot(id: 's1', coffeeRoaster: 'Sey'));
+      await db.shotDao.insertShot(makeShot(id: 's2', coffeeRoaster: 'Sey'));
+      await db.shotDao.insertShot(makeShot(id: 's3', coffeeRoaster: 'Other'));
 
       final total = await db.shotDao.countShots();
       expect(total, 3);
 
-      final filtered =
-          await db.shotDao.countShots(coffeeRoaster: 'Sey');
+      final filtered = await db.shotDao.countShots(coffeeRoaster: 'Sey');
       expect(filtered, 2);
     });
   });
@@ -256,26 +273,45 @@ void main() {
             'pressure': 9.0,
             'flow': 2.0,
             'state': {'state': 'espresso', 'substate': 'pouring'},
-          }
-        }
+          },
+        },
       ];
 
-      await db.shotDao.insertShot(ShotRecordsCompanion(
-        id: const Value('shot-m'),
-        timestamp: Value(DateTime.parse('2024-01-15T10:30:00Z')),
-        workflowJson: Value({
-          'id': 'wf-1', 'name': 'T', 'description': '',
-          'profile': {
-            'title': 'T', 'author': 'T', 'notes': '', 'beverage_type': 'espresso',
-            'steps': [], 'tank_temperature': 0.0, 'target_weight': 36.0,
-            'target_volume_count_start': 0, 'version': '2',
-          },
-          'steamSettings': {'targetTemperature': 150, 'duration': 50, 'flow': 0.8},
-          'hotWaterData': {'targetTemperature': 90, 'duration': 15, 'volume': 100, 'flow': 4.0},
-          'rinseData': {'targetTemperature': 90, 'duration': 10, 'flow': 6.0},
-        }),
-        measurementsJson: Value(jsonEncode(measurements)),
-      ));
+      await db.shotDao.insertShot(
+        ShotRecordsCompanion(
+          id: const Value('shot-m'),
+          timestamp: Value(DateTime.parse('2024-01-15T10:30:00Z')),
+          workflowJson: Value({
+            'id': 'wf-1',
+            'name': 'T',
+            'description': '',
+            'profile': {
+              'title': 'T',
+              'author': 'T',
+              'notes': '',
+              'beverage_type': 'espresso',
+              'steps': [],
+              'tank_temperature': 0.0,
+              'target_weight': 36.0,
+              'target_volume_count_start': 0,
+              'version': '2',
+            },
+            'steamSettings': {
+              'targetTemperature': 150,
+              'duration': 50,
+              'flow': 0.8,
+            },
+            'hotWaterData': {
+              'targetTemperature': 90,
+              'duration': 15,
+              'volume': 100,
+              'flow': 4.0,
+            },
+            'rinseData': {'targetTemperature': 90, 'duration': 10, 'flow': 6.0},
+          }),
+          measurementsJson: Value(jsonEncode(measurements)),
+        ),
+      );
 
       final shot = await db.shotDao.getShotById('shot-m');
       final decoded = jsonDecode(shot!.measurementsJson) as List;

@@ -6,6 +6,27 @@ Decent espresso machines support loading dynamic profiles with either pressure o
 
 REA supports loading profiles to the espresso machine either directly through the `/machine/profile` endpoint or by updating the `/workflow` endpoint (recommended for updating the complete brewing setup).
 
+## Profile Synchronization Architecture
+
+Profile uploads have two paths that converge on the same per-device upload queue:
+
+### Workflow-driven sync (recommended path)
+
+`WorkflowDeviceSync` is the single owner of all workflow-driven profile uploads — REST `PUT /api/v1/workflow`, UI `ProfileTile` picker, AND the machine (re)connect push. It subscribes to `WorkflowController` changes and pushes the profile to the machine through a strictly serialized, retrying upload loop (queue-with-coalesce). Key behaviors:
+
+- **Connection-edge invalidation.** After every machine connection, the selected workflow profile is re-uploaded unconditionally. The device's profile state after a connection edge is considered unknown — a partial upload may have latched the firmware's `ProfileDownloadInProgress` flag, and no cache can prove otherwise.
+- **Retry with backoff.** A failed upload (GATT timeout, BLE error) is retried with capped exponential backoff (3s, 10s, 30s repeating) until it lands, is superseded by a newer profile selection, or the machine disconnects.
+- **Coalescing.** Rapid successive profile changes collapse into one upload: while an upload is in flight, later changes only update the desired profile; when the upload finishes, the latest desired profile is pushed and intermediates are skipped.
+- **Error surfacing.** A failing upload cycle emits a `profileUploadFailed` warning on the connection-status stream once. The warning survives unrelated connection phase transitions and is retracted when a retry lands, the machine disconnects, or the sync is disposed.
+
+### Direct upload path
+
+`POST /api/v1/machine/profile` bypasses `WorkflowDeviceSync` entirely and calls `UnifiedDe1.setProfile` directly. This path also serializes through the per-device upload queue, so it cannot interleave with a workflow-driven upload. It does NOT benefit from retry or error surfacing — if the upload fails, the caller receives the error directly.
+
+### Upload serialization
+
+Both paths converge on `UnifiedDe1.setProfile`, which chains every upload onto `_profileUploadQueue`. This serializes uploads across all callers — two concurrent uploads whose BLE writes interleave would wedge the firmware's profile-receive state machine. The equality guard (`_currentProfile == profile`) prevents redundant uploads for repeated identical calls during one uninterrupted connection.
+
 The REA Profile data object definition lives in `lib/src/models/data/profile.dart`.
 
 Step transitions can be owned by either the DE1 firmware or the app. Firmware

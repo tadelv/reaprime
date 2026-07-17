@@ -124,8 +124,9 @@ void main() {
     });
 
     test('GET /api/v1/grinders/<id> returns a specific grinder', () async {
-      final createRes =
-          await sendPost('/api/v1/grinders', {'model': 'Niche Zero'});
+      final createRes = await sendPost('/api/v1/grinders', {
+        'model': 'Niche Zero',
+      });
       final created = jsonDecode(await createRes.readAsString());
       final id = created['id'];
 
@@ -136,15 +137,15 @@ void main() {
       expect(body['model'], 'Niche Zero');
     });
 
-    test('GET /api/v1/grinders/<id> returns 404 for missing grinder',
-        () async {
+    test('GET /api/v1/grinders/<id> returns 404 for missing grinder', () async {
       final response = await sendGet('/api/v1/grinders/nonexistent');
       expect(response.statusCode, 404);
     });
 
     test('PUT /api/v1/grinders/<id> updates a grinder', () async {
-      final createRes =
-          await sendPost('/api/v1/grinders', {'model': 'Niche Zero'});
+      final createRes = await sendPost('/api/v1/grinders', {
+        'model': 'Niche Zero',
+      });
       final created = jsonDecode(await createRes.readAsString());
       final id = created['id'];
 
@@ -158,8 +159,7 @@ void main() {
       expect(body['notes'], 'Upgraded burrs');
     });
 
-    test('PUT /api/v1/grinders/<id> returns 404 for missing grinder',
-        () async {
+    test('PUT /api/v1/grinders/<id> returns 404 for missing grinder', () async {
       final response = await sendPut('/api/v1/grinders/nonexistent', {
         'model': 'Test',
       });
@@ -167,8 +167,9 @@ void main() {
     });
 
     test('DELETE /api/v1/grinders/<id> deletes a grinder', () async {
-      final createRes =
-          await sendPost('/api/v1/grinders', {'model': 'Niche Zero'});
+      final createRes = await sendPost('/api/v1/grinders', {
+        'model': 'Niche Zero',
+      });
       final created = jsonDecode(await createRes.readAsString());
       final id = created['id'];
 
@@ -193,19 +194,22 @@ void main() {
       expect(etag, isNotNull);
       expect(etag, isNot(empty.headers['etag']));
 
-      final cached = await handler(Request(
-        'GET',
-        Uri.parse('http://localhost/api/v1/grinders'),
-        headers: {'If-None-Match': etag!},
-      ));
+      final cached = await handler(
+        Request(
+          'GET',
+          Uri.parse('http://localhost/api/v1/grinders'),
+          headers: {'If-None-Match': etag!},
+        ),
+      );
       expect(cached.statusCode, 304);
       expect(cached.headers['etag'], etag);
       expect(await cached.readAsString(), isEmpty);
     });
 
     test('GET /api/v1/grinders filters out archived by default', () async {
-      final createRes =
-          await sendPost('/api/v1/grinders', {'model': 'Niche Zero'});
+      final createRes = await sendPost('/api/v1/grinders', {
+        'model': 'Niche Zero',
+      });
       final created = jsonDecode(await createRes.readAsString());
       final id = created['id'];
 
@@ -218,10 +222,10 @@ void main() {
       expect(body, isEmpty);
 
       // With includeArchived=true
-      final archivedRes =
-          await sendGet('/api/v1/grinders?includeArchived=true');
-      final archivedBody =
-          jsonDecode(await archivedRes.readAsString()) as List;
+      final archivedRes = await sendGet(
+        '/api/v1/grinders?includeArchived=true',
+      );
+      final archivedBody = jsonDecode(await archivedRes.readAsString()) as List;
       expect(archivedBody, hasLength(1));
     });
 

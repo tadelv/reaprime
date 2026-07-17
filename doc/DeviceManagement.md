@@ -673,7 +673,18 @@ through to `scanning` (existing scan path).
     Degraded/unsupported devices stay on the launcher (browser hero card).
 ```
 
-If multiple machines or scales are found without a preferred device set, ConnectionManager emits `pendingAmbiguity: machinePicker` or `scalePicker`, and the UI shows a picker dialog.
+### Post-Initialization Profile Sync
+
+After a successful machine connection, `WorkflowDeviceSync` pushes the selected workflow profile to the machine. This step runs after the machine is ready and all startup defaults (fan threshold, steam/hot water/flush settings) have been written — preserving the ordering where initialization completes before profile upload begins.
+
+The profile push is triggered by `De1Controller.initSettled`, not by the raw de1 stream event. This ensures:
+
+1. **Correct ordering.** Machine readiness and startup/default writes complete before the profile upload starts.
+2. **Connection-edge invalidation.** Every connection edge is treated as a fresh start: `_lastPushedProfile` in the sync is cleared, and `_currentProfile` in `UnifiedDe1` is cleared in `onConnect()`, so the first upload cannot be skipped as redundant.
+3. **Retry.** If the upload fails, it retries with capped exponential backoff. The failure surfaces as `profileUploadFailed` on the connection-status stream.
+4. **Generation safety.** A stale init completion from a disconnected generation cannot trigger an upload — the generation token is checked on every init-settled event.
+
+The profile sync is ordered relative to scale connection: the profile push begins when init settles, which is during or just after scale phase. It does not block the scale phase. `profileUploadFailed` is phase-persistent (survives `connectingScale`, `ready`, `scanning` phase transitions) and is only cleared explicitly when a retry lands, the machine disconnects, or the sync is disposed.
 
 ### Scale Reconnect from StatusTile (legacy home_feature)
 

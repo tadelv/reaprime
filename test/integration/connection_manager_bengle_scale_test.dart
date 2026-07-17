@@ -110,71 +110,73 @@ void main() {
       mockScanner.dispose();
     });
 
-    test('auto-attaches BengleVirtualScale on Bengle machine connect',
-        () async {
-      // Bengle is the preferred machine, no external scale advertised, no
-      // preferredScaleId set.
-      await settingsController.setPreferredMachineId('bengle-1');
-      final bengle = _FakeBengle(deviceId: 'bengle-1');
-      mockScanner.addDevice(bengle);
-      await Future.delayed(Duration.zero);
+    test(
+      'auto-attaches BengleVirtualScale on Bengle machine connect',
+      () async {
+        // Bengle is the preferred machine, no external scale advertised, no
+        // preferredScaleId set.
+        await settingsController.setPreferredMachineId('bengle-1');
+        final bengle = _FakeBengle(deviceId: 'bengle-1');
+        mockScanner.addDevice(bengle);
+        await Future.delayed(Duration.zero);
 
-      await connectionManager.connect();
-      await Future.delayed(Duration.zero);
+        await connectionManager.connect();
+        await Future.delayed(Duration.zero);
 
-      expect(mockDe1Controller.connectCalls, hasLength(1));
-      expect(mockDe1Controller.connectCalls.first, same(bengle));
+        expect(mockDe1Controller.connectCalls, hasLength(1));
+        expect(mockDe1Controller.connectCalls.first, same(bengle));
 
-      // The scale slot is taken by the virtual scale, not anything from
-      // the scan.
-      expect(mockScaleController.connectCalls, hasLength(1));
-      expect(
-        mockScaleController.connectCalls.first.deviceId,
-        startsWith('bengle-internal-'),
-      );
-    });
+        // The scale slot is taken by the virtual scale, not anything from
+        // the scan.
+        expect(mockScaleController.connectCalls, hasLength(1));
+        expect(
+          mockScaleController.connectCalls.first.deviceId,
+          startsWith('bengle-internal-'),
+        );
+      },
+    );
 
     test(
-        'skips external scale phase when Bengle is the machine '
-        '(even with preferredScaleId set + external scale discoverable)',
-        () async {
-      // Synchronous co-discovery case: both Bengle and external scale
-      // are visible to the scanner before connect() begins, so a single
-      // _onDevicesUpdate sees both and the Bengle-inference arm of the
-      // gate fires. The interleaved-discovery race (external scale
-      // visible before Bengle) is covered by the next test.
-      await settingsController.setPreferredMachineId('bengle-1');
-      await settingsController.setPreferredScaleId('external-scale');
+      'skips external scale phase when Bengle is the machine '
+      '(even with preferredScaleId set + external scale discoverable)',
+      () async {
+        // Synchronous co-discovery case: both Bengle and external scale
+        // are visible to the scanner before connect() begins, so a single
+        // _onDevicesUpdate sees both and the Bengle-inference arm of the
+        // gate fires. The interleaved-discovery race (external scale
+        // visible before Bengle) is covered by the next test.
+        await settingsController.setPreferredMachineId('bengle-1');
+        await settingsController.setPreferredScaleId('external-scale');
 
-      final bengle = _FakeBengle(deviceId: 'bengle-1');
-      final externalScale = TestScale(deviceId: 'external-scale');
-      mockScanner.addDevice(bengle);
-      mockScanner.addDevice(externalScale);
-      await Future.delayed(Duration.zero);
+        final bengle = _FakeBengle(deviceId: 'bengle-1');
+        final externalScale = TestScale(deviceId: 'external-scale');
+        mockScanner.addDevice(bengle);
+        mockScanner.addDevice(externalScale);
+        await Future.delayed(Duration.zero);
 
-      await connectionManager.connect();
-      await Future.delayed(Duration.zero);
+        await connectionManager.connect();
+        await Future.delayed(Duration.zero);
 
-      // Exactly one scale was attached, and it's the virtual one — the
-      // external scale was never even attempted.
-      expect(mockScaleController.connectCalls, hasLength(1));
-      expect(
-        mockScaleController.connectCalls.first.deviceId,
-        startsWith('bengle-internal-'),
-      );
-      expect(
-        mockScaleController.connectCalls.any(
-          (s) => s.deviceId == 'external-scale',
-        ),
-        isFalse,
-        reason:
-            'external scale must not be attempted while Bengle is the '
-            'connected machine',
-      );
-    });
+        // Exactly one scale was attached, and it's the virtual one — the
+        // external scale was never even attempted.
+        expect(mockScaleController.connectCalls, hasLength(1));
+        expect(
+          mockScaleController.connectCalls.first.deviceId,
+          startsWith('bengle-internal-'),
+        );
+        expect(
+          mockScaleController.connectCalls.any(
+            (s) => s.deviceId == 'external-scale',
+          ),
+          isFalse,
+          reason:
+              'external scale must not be attempted while Bengle is the '
+              'connected machine',
+        );
+      },
+    );
 
-    test(
-        'background scale watch ignores external scale sightings while a '
+    test('background scale watch ignores external scale sightings while a '
         'Bengle is the machine', () async {
       // Watch-path variant of the Bengle rule: watch-driven connects
       // bypass _runScalePhase, so ConnectionManager must re-apply
@@ -200,18 +202,22 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(
-        mockScaleController.connectCalls
-            .where((s) => s.deviceId == 'external-scale'),
+        mockScaleController.connectCalls.where(
+          (s) => s.deviceId == 'external-scale',
+        ),
         isEmpty,
-        reason: 'Bengle integrated scale owns the slot — the watch must '
+        reason:
+            'Bengle integrated scale owns the slot — the watch must '
             'not connect an external scale into it',
       );
-      expect(mockScanner.watchActive, isFalse,
-          reason: 'nothing external to reacquire on a Bengle — no watch');
+      expect(
+        mockScanner.watchActive,
+        isFalse,
+        reason: 'nothing external to reacquire on a Bengle — no watch',
+      );
     });
 
-    test(
-        'a late Bengle transition disarms the watch instead of restarting '
+    test('a late Bengle transition disarms the watch instead of restarting '
         'it forever', () async {
       // The watch arms legitimately while a DE1 is the machine; a Bengle
       // then takes over. A sighting of the (still-preferred) external
@@ -229,8 +235,11 @@ void main() {
 
       mockDe1Controller.de1Subject.add(_FakeDe1(deviceId: 'de1-1'));
       await Future<void>.delayed(Duration.zero);
-      expect(mockScanner.watchActive, isTrue,
-          reason: 'DE1 machine + missing preferred scale → watch armed');
+      expect(
+        mockScanner.watchActive,
+        isTrue,
+        reason: 'DE1 machine + missing preferred scale → watch armed',
+      );
 
       mockDe1Controller.de1Subject.add(_FakeBengle(deviceId: 'bengle-1'));
       await Future<void>.delayed(Duration.zero);
@@ -240,17 +249,21 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(
-        mockScaleController.connectCalls
-            .where((s) => s.deviceId == 'external-scale'),
+        mockScaleController.connectCalls.where(
+          (s) => s.deviceId == 'external-scale',
+        ),
         isEmpty,
       );
-      expect(mockScanner.watchActive, isFalse,
-          reason: 'the refused sighting must disarm the watch — Bengle '
-              'owns the scale slot');
+      expect(
+        mockScanner.watchActive,
+        isFalse,
+        reason:
+            'the refused sighting must disarm the watch — Bengle '
+            'owns the scale slot',
+      );
     });
 
-    test(
-        'external scale visible BEFORE Bengle still loses the slot to the '
+    test('external scale visible BEFORE Bengle still loses the slot to the '
         'virtual scale', () async {
       // Regression for the interleaved-discovery race the synchronous
       // co-discovery test cannot exercise: the external scale appears
