@@ -163,8 +163,10 @@ it also implements `DeviceAttachNotifier`, so BLE, Wi-Fi, and simulated scanners
 remain unchanged.
 
 `AttachReconnectCoordinator` owns the subscription, configurable 500 ms settle
-timer, burst coalescing, in-flight guard, and disposal. The delay lets Android's
-CDC interface become usable after the earlier attach broadcast. If a preferred
+timer, burst coalescing, in-flight guard, and disposal. Disposal waits for an
+in-flight attempt before `ConnectionManager` tears down its dependencies. The
+delay lets Android's CDC interface become usable after the earlier attach
+broadcast. If a preferred
 machine is absent, it invokes the normal `ConnectionManager.connect()` policy,
 including remembered-device quick-connect and scan fallback. An unsuccessful
 attempt explicitly re-arms machine recovery. It ignores hints when a machine is

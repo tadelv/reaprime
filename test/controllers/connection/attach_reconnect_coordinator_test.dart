@@ -151,6 +151,37 @@ void main() {
     });
   });
 
+  test('dispose waits for an in-flight attempt without recovering', () async {
+    final events = StreamController<DeviceAttachedEvent>.broadcast(sync: true);
+    final attemptStarted = Completer<void>();
+    final attemptCompletion = Completer<bool>();
+    var recoveries = 0;
+    final coordinator = AttachReconnectCoordinator(
+      attachEvents: events.stream,
+      settleDelay: Duration.zero,
+      shouldAttempt: () => true,
+      attempt: () {
+        attemptStarted.complete();
+        return attemptCompletion.future;
+      },
+      recover: () => recoveries++,
+    );
+
+    events.add(const DeviceAttachedEvent());
+    await attemptStarted.future;
+
+    var disposeCompleted = false;
+    final disposal = coordinator.dispose().then((_) => disposeCompleted = true);
+    await Future<void>.delayed(Duration.zero);
+    expect(disposeCompleted, isFalse);
+
+    attemptCompletion.complete(false);
+    await disposal;
+    expect(recoveries, 0);
+
+    await events.close();
+  });
+
   test('disposing with a pending settle timer prevents the attempt', () {
     fakeAsync((async) {
       final events = StreamController<DeviceAttachedEvent>.broadcast(
